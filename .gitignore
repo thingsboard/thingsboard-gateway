@@ -1,12 +1,32 @@
+output/**
 *.class
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
-*.jar
-*.war
-*.ear
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
+*~
+*.iml
+*/.idea/**
+.idea/**
+.idea
+*.log
+*.log.[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]
+*/.classpath
+.classpath
+*/.project
+.project
+.cache/**
+target/
+build/
+tmp_deb_control/
+tmp_rpm_control/
+tmp_sh/
+.gwt/
+.settings/
+/bin
+bin/
+**/dependency-reduced-pom.xml
+pom.xml.versionsBackup
+.DS_Store
+**/.gradle
+**/local.properties
+**/build
+**/target
+**/Californium.properties
+**/.env
