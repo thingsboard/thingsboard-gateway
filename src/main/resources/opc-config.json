@@ -16,7 +16,20 @@
         "password": "password",
         "alias": "client-ai",
         "keyPassword": "password"
-      }
+      },
+      "mapping": [
+        {
+          "deviceNodePattern": "7200\\.Device\\d+$",
+          "deviceIdPattern": "Device ${_System._DeviceId}",
+          "attributes": [
+            {"key":"TestTag1", "type": "long", "value": "${TestTag}"},
+            {"key":"TestTag2", "type": "long", "value": "${TestTag}"}
+          ],
+          "timeseries": [
+            {"key":"TestTag1", "type": "long", "value": "${TestTag}"}
+          ]
+        }
+      ]
     }
   ]
 }

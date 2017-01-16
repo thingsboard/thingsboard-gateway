@@ -25,6 +25,7 @@
         </layout>
     </appender>
 
+    <logger name="org.thingsboard" level="DEBUG" />
     <logger name="org.eclipse.milo" level="INFO" />
 
     <root level="INFO">

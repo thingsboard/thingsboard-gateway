@@ -17,7 +17,7 @@
 thingsboard:
   connection:
     host: localhost
-    port: 8883
+    port: 1883
     token: gateway_test_token
     ttl: 60000
 
