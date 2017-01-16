@@ -1,24 +1,23 @@
 /**
  * Copyright © ${project.inceptionYear}-2017 The Thingsboard Authors
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.opc.service;
+package org.thingsboard.gateway.extensions.opc;
 
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
 import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfig;
-import org.eclipse.milo.opcua.sdk.client.api.identity.AnonymousProvider;
 import org.eclipse.milo.opcua.sdk.client.api.identity.IdentityProvider;
 import org.eclipse.milo.opcua.sdk.client.api.nodes.VariableNode;
 import org.eclipse.milo.opcua.stack.client.UaTcpStackClient;
@@ -32,68 +31,84 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseDirection;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.BrowseResultMask;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.NodeClass;
-import org.eclipse.milo.opcua.stack.core.types.structured.*;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.thingsboard.opc.util.KeyStoreLoader;
+import org.eclipse.milo.opcua.stack.core.types.structured.BrowseDescription;
+import org.eclipse.milo.opcua.stack.core.types.structured.BrowseResult;
+import org.eclipse.milo.opcua.stack.core.types.structured.EndpointDescription;
+import org.eclipse.milo.opcua.stack.core.types.structured.ReferenceDescription;
+import org.thingsboard.gateway.extensions.opc.conf.OpcUaServerConfiguration;
+import org.thingsboard.gateway.service.GatewayService;
+import org.thingsboard.gateway.util.CertificateInfo;
+import org.thingsboard.gateway.util.ConfigurationTools;
 
-import javax.annotation.PostConstruct;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint;
 import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.toList;
 
 /**
- * Created by ashvayka on 06.01.17.
+ * Created by ashvayka on 16.01.17.
  */
-@Service
 @Slf4j
-public class OpcUaService {
+public class OpcUaServerMonitor {
 
-    @Value("${opc.host}")
-    private String host;
+    private final GatewayService gateway;
+    private final OpcUaServerConfiguration configuration;
 
-    @Value("${opc.port}")
-    private Integer port;
+    private OpcUaClient client;
 
-    private final KeyStoreLoader loader = new KeyStoreLoader();
+    public OpcUaServerMonitor(GatewayService gateway, OpcUaServerConfiguration configuration) {
+        this.gateway = gateway;
+        this.configuration = configuration;
+    }
 
-    @PostConstruct
-    public void init() throws Exception {
+    public void connect() {
         try {
-            SecurityPolicy securityPolicy = SecurityPolicy.None;
-            IdentityProvider identityProvider = new AnonymousProvider();
+            log.info("Initializing OPC-UA server connection to [{}:{}]!", configuration.getHost(), configuration.getPort());
+            CertificateInfo certificate = ConfigurationTools.loadCertificate(configuration.getKeystore());
 
-            loader.load();
+            SecurityPolicy securityPolicy = SecurityPolicy.valueOf(configuration.getSecurity());
+            IdentityProvider identityProvider = configuration.getIdentity().toProvider();
 
-            EndpointDescription[] endpoints = UaTcpStackClient.getEndpoints("opc.tcp://" + host + ":" + port + "/example").get();
+            EndpointDescription[] endpoints = UaTcpStackClient.getEndpoints("opc.tcp://" + configuration.getHost() + ":" + configuration.getPort() + "/").get();
 
             EndpointDescription endpoint = Arrays.stream(endpoints)
                     .filter(e -> e.getSecurityPolicyUri().equals(securityPolicy.getSecurityPolicyUri()))
                     .findFirst().orElseThrow(() -> new Exception("no desired endpoints returned"));
 
             OpcUaClientConfig config = OpcUaClientConfig.builder()
-                    .setApplicationName(LocalizedText.english("eclipse milo opc-ua client"))
-                    .setApplicationUri("urn:eclipse:milo:examples:client")
-                    .setCertificate(loader.getClientCertificate())
-                    .setKeyPair(loader.getClientKeyPair())
+                    .setApplicationName(LocalizedText.english(configuration.getApplicationName()))
+                    .setApplicationUri(configuration.getApplicationUri())
+                    .setCertificate(certificate.getCertificate())
+                    .setKeyPair(certificate.getKeyPair())
                     .setEndpoint(endpoint)
                     .setIdentityProvider(identityProvider)
-                    .setRequestTimeout(uint(5000))
+                    .setRequestTimeout(uint(configuration.getTimeoutMs()))
                     .build();
 
-            OpcUaClient client = new OpcUaClient(config);
+            client = new OpcUaClient(config);
 
             browseNode("", client, Identifiers.RootFolder);
 
-
             client.connect().get();
-            log.info("SUCCESS");
         } catch (Exception e) {
-            log.error("FAILURE", e);
-            throw e;
+            log.error("OPC-UA server connection failed!", e);
+            throw new RuntimeException("OPC-UA server connection failed!", e);
+        }
+    }
+
+    public void disconnect() {
+        if (client != null) {
+            log.info("Disconnecting from OPC-UA server!");
+            try {
+                client.disconnect().get(10, TimeUnit.SECONDS);
+                log.info("Disconnected from OPC-UA server!");
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                log.info("Failed to disconnect from OPC-UA server!");
+            }
         }
     }
 

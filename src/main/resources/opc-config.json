@@ -1,0 +1,22 @@
+{
+  "servers": [
+    {
+      "applicationName": "eclipse milo opc-ua client",
+      "applicationUri": "urn:eclipse:milo:examples:client",
+      "host": "10.21.0.218",
+      "port": 49320,
+      "timeoutMs": 5000,
+      "security": "Basic128Rsa15",
+      "identity": {
+        "type": "anonymous"
+      },
+      "keystore": {
+        "type": "PKCS12",
+        "location": "example-certs.pfx",
+        "password": "password",
+        "alias": "client-ai",
+        "keyPassword": "password"
+      }
+    }
+  ]
+}

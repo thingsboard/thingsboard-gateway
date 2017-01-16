@@ -13,15 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.opc;
+package org.thingsboard.gateway.extensions.opc.conf.keystore;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import lombok.Data;
 
-@SpringBootApplication
-public class OpcUaAgentApplication {
+/**
+ * Created by ashvayka on 16.01.17.
+ */
+@Data
+public class KeystoreConfiguration {
 
-	public static void main(String[] args) {
-		SpringApplication.run(OpcUaAgentApplication.class, args);
-	}
+    private String type;
+    private String location;
+    private String password;
+    private String alias;
+    private String keyPassword;
+
 }

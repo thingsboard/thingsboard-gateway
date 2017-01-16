@@ -22,5 +22,5 @@ thingsboard:
     ttl: 60000
 
 opc:
-  enabled: true
+  enabled: false
   configuration: opc-config.json

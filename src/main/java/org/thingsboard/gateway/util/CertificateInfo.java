@@ -13,19 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard;
+package org.thingsboard.gateway.util;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.junit4.SpringRunner;
+import lombok.Data;
 
-@RunWith(SpringRunner.class)
-@SpringBootTest
-public class OpcUaAgentApplicationTests {
+import java.security.KeyPair;
+import java.security.cert.X509Certificate;
 
-	@Test
-	public void contextLoads() {
-	}
+/**
+ * Created by ashvayka on 16.01.17.
+ */
+@Data
+public class CertificateInfo {
+
+    private final X509Certificate certificate;
+    private final KeyPair keyPair;
 
 }
