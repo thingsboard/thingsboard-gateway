@@ -13,20 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.opc.conf.keystore;
+package org.thingsboard.gateway.extensions.opc.scan;
 
-import lombok.Data;
+import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
+import org.thingsboard.server.common.data.kv.KvEntry;
+
+import java.util.Optional;
 
 /**
- * Created by ashvayka on 16.01.17.
+ * Created by ashvayka on 17.01.17.
  */
-@Data
-public class KeystoreConfiguration {
+public class DataValueConverter {
 
-    private String type;
-    private String location;
-    private String password;
-    private String alias;
-    private String keyPassword;
-
+    public static Optional<KvEntry> toKvEntry(DataValue dataValue){
+        return Optional.empty();
+    }
 }

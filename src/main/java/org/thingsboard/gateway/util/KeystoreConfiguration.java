@@ -13,18 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.opc.conf.keystore;
+package org.thingsboard.gateway.util;
 
 import lombok.Data;
-import org.thingsboard.gateway.extensions.opc.conf.OpcUaServerConfiguration;
-
-import java.util.List;
 
 /**
  * Created by ashvayka on 16.01.17.
  */
 @Data
-public class OpcUaConfiguration {
+public class KeystoreConfiguration {
 
-    List<OpcUaServerConfiguration> servers;
+    private String type;
+    private String location;
+    private String password;
+    private String alias;
+    private String keyPassword;
+
 }

@@ -17,8 +17,11 @@ package org.thingsboard.gateway.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.thingsboard.server.common.data.kv.KvEntry;
+import org.thingsboard.server.common.data.kv.TsKvEntry;
 
 import javax.annotation.PostConstruct;
+import java.util.List;
 
 /**
  * Created by ashvayka on 16.01.17.
@@ -30,5 +33,31 @@ public class MqttGatewayService implements GatewayService {
     @PostConstruct
     public void init() throws Exception {
 
+    }
+
+    @Override
+    public boolean getOrCreateDevice(String deviceName) {
+        log.info("[{}] Device Created!", deviceName);
+        return true;
+    }
+
+    @Override
+    public void connect(String deviceName) {
+        log.info("[{}] Device Connected!", deviceName);
+    }
+
+    @Override
+    public void disconnect(String deviceName) {
+        log.info("[{}] Device Disconnected!", deviceName);
+    }
+
+    @Override
+    public void onDeviceAttributesUpdate(String deviceName, List<KvEntry> attributes) {
+        log.info("[{}] Updating device attributes: {}", deviceName, attributes);
+    }
+
+    @Override
+    public void onDeviceTimeseriesUpdate(String deviceName, List<TsKvEntry> timeseries) {
+        log.info("[{}] Updating timeseries attributes: {}", deviceName, timeseries);
     }
 }

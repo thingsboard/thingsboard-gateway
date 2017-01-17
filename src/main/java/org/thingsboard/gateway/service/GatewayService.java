@@ -15,8 +15,38 @@
  */
 package org.thingsboard.gateway.service;
 
+import org.thingsboard.gateway.extensions.opc.OpcUaDevice;
+import org.thingsboard.server.common.data.kv.KvEntry;
+import org.thingsboard.server.common.data.kv.TsKvEntry;
+
+import java.util.List;
+
 /**
  * Created by ashvayka on 16.01.17.
  */
 public interface GatewayService {
+
+    /**
+     * Get or Create Device based on provided Name.
+     *
+     * @param deviceName
+     * @return true if device was created, false if it was already registered earlier.
+     */
+    boolean getOrCreateDevice(String deviceName);
+
+    /**
+     * Inform gateway service that device is connected
+     * @param deviceName
+     */
+    void connect(String deviceName);
+
+    /**
+     * Inform gateway service that device is disconnected
+     * @param deviceName
+     */
+    void disconnect(String deviceName);
+
+    void onDeviceAttributesUpdate(String deviceName, List<KvEntry> attributes);
+
+    void onDeviceTimeseriesUpdate(String deviceName, List<TsKvEntry> timeseries);
 }

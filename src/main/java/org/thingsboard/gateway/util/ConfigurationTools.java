@@ -17,7 +17,6 @@ package org.thingsboard.gateway.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.thingsboard.gateway.extensions.opc.conf.keystore.KeystoreConfiguration;
 
 import java.io.IOException;
 import java.io.InputStream;

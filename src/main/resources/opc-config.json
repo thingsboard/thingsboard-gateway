@@ -5,7 +5,8 @@
       "applicationUri": "urn:eclipse:milo:examples:client",
       "host": "10.21.0.218",
       "port": 49320,
-      "timeoutMs": 5000,
+      "scanPeriodInSeconds": 10,
+      "timeoutInMillis": 5000,
       "security": "Basic128Rsa15",
       "identity": {
         "type": "anonymous"
@@ -19,14 +20,24 @@
       },
       "mapping": [
         {
-          "deviceNodePattern": "7200\\.Device\\d+$",
-          "deviceIdPattern": "Device ${_System._DeviceId}",
+          "deviceNodePattern": "Channel1\\.Device\\d+$",
+          "deviceNamePattern": "Device ${_System._DeviceId}",
           "attributes": [
-            {"key":"TestTag1", "type": "long", "value": "${TestTag}"},
-            {"key":"TestTag2", "type": "long", "value": "${TestTag}"}
+            {"key":"Tag1", "type": "long", "value": "${Tag1}"},
+            {"key":"Tag2", "type": "long", "value": "${Tag2}"}
           ],
           "timeseries": [
-            {"key":"TestTag1", "type": "long", "value": "${TestTag}"}
+            {"key":"Tag2", "type": "long", "value": "${Tag2}"}
+          ]
+        },
+        {
+          "deviceNodePattern": "Data Type Examples\\.16 Bit Device$",
+          "deviceNamePattern": "16 Bit Device ${_System._DeviceId}",
+          "attributes": [
+            {"key":"Tag1", "type": "double", "value": "${K Registers.Double1}"}
+          ],
+          "timeseries": [
+            {"key":"Tag2", "type": "long", "value": "${K Registers.Long1}"}
           ]
         }
       ]
