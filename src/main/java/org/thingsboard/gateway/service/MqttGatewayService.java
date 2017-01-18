@@ -16,12 +16,21 @@
 package org.thingsboard.gateway.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.paho.client.mqttv3.MqttClient;
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.client.mqttv3.internal.security.SSLSocketFactoryFactory;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 
 import javax.annotation.PostConstruct;
 import java.util.List;
+import java.util.Properties;
+import java.util.UUID;
 
 /**
  * Created by ashvayka on 16.01.17.
@@ -30,9 +39,36 @@ import java.util.List;
 @Slf4j
 public class MqttGatewayService implements GatewayService {
 
+    private final UUID clientId = UUID.randomUUID();
+
+    @Autowired
+    private MqttGatewayConfiguration configuration;
+
+    private MqttClient tbClient;
+
     @PostConstruct
     public void init() throws Exception {
+        MqttConnectOptions options = new MqttConnectOptions();
+        options.setCleanSession(true);
 
+        MqttGatewaySecurityConfiguration security = configuration.getSecurity();
+        if (security.isSsl()) {
+            Properties sslProperties = new Properties();
+            sslProperties.put(SSLSocketFactoryFactory.KEYSTORE, security.getKeystore());
+            sslProperties.put(SSLSocketFactoryFactory.KEYSTOREPWD, security.getKeystorePassword());
+            sslProperties.put(SSLSocketFactoryFactory.KEYSTORETYPE, "JKS");
+            sslProperties.put(SSLSocketFactoryFactory.TRUSTSTORE, security.getTruststore());
+            sslProperties.put(SSLSocketFactoryFactory.TRUSTSTOREPWD, security.getTruststorePassword());
+            sslProperties.put(SSLSocketFactoryFactory.TRUSTSTORETYPE, "JKS");
+            sslProperties.put(SSLSocketFactoryFactory.CLIENTAUTH, true);
+            options.setSSLProperties(sslProperties);
+        } else {
+            options.setUserName(security.getAccessToken());
+        }
+
+        tbClient = new MqttClient((security.isSsl() ? "ssl" : "tcp") + "://" + configuration.getHost() + ":" + configuration.getPort(),
+                clientId.toString(), new MemoryPersistence());
+        tbClient.connect(options);
     }
 
     @Override

@@ -18,9 +18,12 @@ thingsboard:
   connection:
     host: localhost
     port: 1883
-    token: gateway_test_token
-    ttl: 60000
+    security:
+      keystore: src/main/resources/keystore.jks
+      keystorePassword: password
+      truststore: src/main/resources/truststore.jks
+      truststorePassword: password
 
 opc:
-  enabled: true
+  enabled: false
   configuration: opc-config.json
