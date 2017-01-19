@@ -27,14 +27,6 @@ import java.util.List;
 public interface GatewayService {
 
     /**
-     * Get or Create Device based on provided Name.
-     *
-     * @param deviceName
-     * @return true if device was created, false if it was already registered earlier.
-     */
-    boolean getOrCreateDevice(String deviceName);
-
-    /**
      * Inform gateway service that device is connected
      * @param deviceName
      */
@@ -46,7 +38,17 @@ public interface GatewayService {
      */
     void disconnect(String deviceName);
 
+    /**
+     * Report device attributes change to Thingsboard
+     * @param deviceName - the device name
+     * @param attributes - the attribute values list
+     */
     void onDeviceAttributesUpdate(String deviceName, List<KvEntry> attributes);
 
-    void onDeviceTimeseriesUpdate(String deviceName, List<TsKvEntry> timeseries);
+    /**
+     * Report device telemetry to Thingsboard
+     * @param deviceName - the device name
+     * @param telemetry - the telemetry values list
+     */
+    void onDeviceTimeseriesUpdate(String deviceName, List<TsKvEntry> telemetry);
 }

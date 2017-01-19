@@ -14,15 +14,24 @@
 # limitations under the License.
 #
 
+server:
+  # Server bind address
+  address: "${HTTP_BIND_ADDRESS:0.0.0.0}"
+  # Server bind port
+  port: "${HTTP_BIND_PORT:9090}"
+
 thingsboard:
   connection:
-    host: localhost
-    port: 1883
+    host: "${THINGSBOARD_ADDRESS:localhost}"
+    port: "${THINGSBOARD_MQTT_PORT:1883}"
+    retryInterval: 3000
     security:
-      keystore: src/main/resources/keystore.jks
-      keystorePassword: password
-      truststore: src/main/resources/truststore.jks
-      truststorePassword: password
+      type: token
+      accessToken: gateway
+#      keystore: src/main/resources/keystore.jks
+#      keystorePassword: password
+#      truststore: src/main/resources/truststore.jks
+#      truststorePassword: password
 
 opc:
   enabled: false

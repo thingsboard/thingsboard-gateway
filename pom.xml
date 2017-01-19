@@ -21,12 +21,12 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>org.thingsboard</groupId>
-	<artifactId>opc-ua-agent</artifactId>
+	<artifactId>gateway</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
-	<name>OPC-UA Agent</name>
-	<description>OPC-UA Client that publish data to Thingsboard server</description>
+	<name>Thingsboard Gateway</name>
+	<description>Gateway that simplifies legacy and external systems integration with Thingsboard platform. Containes OPC-UA, MQTT and other extensions</description>
 
 	<parent>
 		<groupId>org.springframework.boot</groupId>

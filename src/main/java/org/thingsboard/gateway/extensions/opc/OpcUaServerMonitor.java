@@ -207,7 +207,6 @@ public class OpcUaServerMonitor {
                 }
             }
             device.calculateDeviceName(readTags(deviceNameTags));
-            gateway.getOrCreateDevice(device.getDeviceName());
             gateway.connect(device.getDeviceName());
         }
 

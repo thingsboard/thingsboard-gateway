@@ -16,8 +16,6 @@
 package org.thingsboard.gateway.service;
 
 import lombok.Data;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
 /**
@@ -32,7 +30,11 @@ public class MqttGatewaySecurityConfiguration {
     private String truststore;
     private String truststorePassword;
 
-    public boolean isSsl(){
-        return StringUtils.isEmpty(accessToken);
+    public boolean isTokenBased() {
+        return !StringUtils.isEmpty(accessToken);
+    }
+
+    public boolean isSsl() {
+        return !StringUtils.isEmpty(truststore);
     }
 }

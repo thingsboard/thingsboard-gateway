@@ -29,7 +29,7 @@ public class MqttGatewayConfiguration {
 
     private String host;
     private int port;
-    private String token;
+    private long retryInterval;
     private MqttGatewaySecurityConfiguration security;
 
 }
