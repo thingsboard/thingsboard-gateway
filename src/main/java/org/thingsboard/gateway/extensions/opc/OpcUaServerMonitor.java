@@ -80,6 +80,7 @@ public class OpcUaServerMonitor {
     }
 
     public void connect() {
+        //TODO: autoreconnect;
         try {
             log.info("Initializing OPC-UA server connection to [{}:{}]!", configuration.getHost(), configuration.getPort());
             CertificateInfo certificate = ConfigurationTools.loadCertificate(configuration.getKeystore());

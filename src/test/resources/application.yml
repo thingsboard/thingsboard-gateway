@@ -18,8 +18,11 @@ thingsboard:
   connection:
     host: localhost
     port: 8883
-    token: gateway_test_token
-    ttl: 60000
+    retryInterval: 3000
+    maxInFlight: 1000
+    security:
+      type: token
+      accessToken: gateway
 
 opc:
   enabled: false

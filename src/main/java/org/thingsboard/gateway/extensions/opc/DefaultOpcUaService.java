@@ -43,20 +43,27 @@ public class DefaultOpcUaService implements OpcUaService {
     @Autowired
     private GatewayService service;
 
-    @Value("${thingsboard.connection.host}")
+    @Value("${opc.configuration}")
     private String configurationFile;
 
     private List<OpcUaServerMonitor> monitors;
 
     @PostConstruct
     public void init() throws Exception {
+        log.info("Initializing OPC-UA service!");
+        OpcUaConfiguration configuration;
         try {
-            log.info("Initializing OPC-UA service!");
-            OpcUaConfiguration configurations = ConfigurationTools.readConfiguration(configurationFile, OpcUaConfiguration.class);
-            monitors = configurations.getServers().stream().map(c -> new OpcUaServerMonitor(service, c)).collect(Collectors.toList());
+            configuration = ConfigurationTools.readConfiguration(configurationFile, OpcUaConfiguration.class);
+        } catch (Exception e) {
+            log.error("OPC-UA service configuration failed!", e);
+            throw e;
+        }
+
+        try {
+            monitors = configuration.getServers().stream().map(c -> new OpcUaServerMonitor(service, c)).collect(Collectors.toList());
             monitors.forEach(OpcUaServerMonitor::connect);
         } catch (Exception e) {
-            log.error("OPC-UA service initializaion failed!", e);
+            log.error("OPC-UA service initialization failed!", e);
             throw e;
         }
     }

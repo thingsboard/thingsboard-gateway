@@ -16,21 +16,11 @@
 package org.thingsboard.gateway.service;
 
 import lombok.Data;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
 
 /**
- * Created by ashvayka on 18.01.17.
+ * Created by ashvayka on 20.01.17.
  */
-@Configuration
-@ConfigurationProperties(prefix = "thingsboard.connection")
 @Data
-public class MqttGatewayConfiguration {
-
-    private String host;
-    private int port;
-    private long retryInterval;
-    private int maxInFlight;
-    private MqttGatewaySecurityConfiguration security;
-
+public class DeviceInfo {
+    private final String name;
 }

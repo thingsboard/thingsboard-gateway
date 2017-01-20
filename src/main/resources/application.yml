@@ -25,6 +25,7 @@ thingsboard:
     host: "${THINGSBOARD_ADDRESS:localhost}"
     port: "${THINGSBOARD_MQTT_PORT:1883}"
     retryInterval: 3000
+    maxInFlight: 1000
     security:
       type: token
       accessToken: gateway

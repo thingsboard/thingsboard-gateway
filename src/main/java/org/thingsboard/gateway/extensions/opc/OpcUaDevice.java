@@ -110,7 +110,7 @@ public class OpcUaDevice {
         List<AttributesMapping> attributes = getAttributesMapping(tagId);
         if (attributes.size() > 0) {
             return getKvEntries(attributes).stream()
-                    .map(kv -> new BasicTsKvEntry(dataValue.getSourceTime().getUtcTime(), kv))
+                    .map(kv -> new BasicTsKvEntry(dataValue.getSourceTime().getJavaTime(), kv))
                     .collect(Collectors.toList());
         } else {
             return Collections.emptyList();

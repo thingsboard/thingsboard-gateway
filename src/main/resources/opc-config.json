@@ -3,7 +3,7 @@
     {
       "applicationName": "eclipse milo opc-ua client",
       "applicationUri": "urn:eclipse:milo:examples:client",
-      "host": "10.21.0.218",
+      "host": "10.21.0.207",
       "port": 49320,
       "scanPeriodInSeconds": 10,
       "timeoutInMillis": 5000,
