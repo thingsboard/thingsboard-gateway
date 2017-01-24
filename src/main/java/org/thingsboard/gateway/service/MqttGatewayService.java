@@ -24,14 +24,16 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
+import org.thingsboard.gateway.service.conf.TbReportingConfiguration;
 import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -48,28 +50,58 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
     private final ConcurrentMap<String, DeviceInfo> devices = new ConcurrentHashMap<>();
 
     @Autowired
-    private MqttGatewayConfiguration configuration;
+    private TbConnectionConfiguration connection;
+
+    @Autowired
+    private TbReportingConfiguration reporting;
 
     private MqttAsyncClient tbClient;
     private MqttConnectOptions tbClientOptions;
 
     private Object connectLock = new Object();
 
+    private ScheduledExecutorService scheduler;
+
+    private AtomicLong attributesCount = new AtomicLong();
+    private AtomicLong telemetryCount = new AtomicLong();
+
+
     @PostConstruct
     public void init() throws Exception {
+        scheduler = Executors.newSingleThreadScheduledExecutor();
+
+        scheduler.scheduleAtFixedRate(this::reportStats, reporting.getInterval(), reporting.getInterval(), TimeUnit.MILLISECONDS);
+
         tbClientOptions = new MqttConnectOptions();
         tbClientOptions.setCleanSession(true);
-        tbClientOptions.setMaxInflight(configuration.getMaxInFlight());
+        tbClientOptions.setMaxInflight(connection.getMaxInFlight());
 
         MqttGatewaySecurityConfiguration security = setupSecurityOptions(tbClientOptions);
 
-        tbClient = new MqttAsyncClient((security.isSsl() ? "ssl" : "tcp") + "://" + configuration.getHost() + ":" + configuration.getPort(),
+        tbClient = new MqttAsyncClient((security.isSsl() ? "ssl" : "tcp") + "://" + connection.getHost() + ":" + connection.getPort(),
                 clientId.toString(), new MemoryPersistence());
+        tbClient.setCallback(this);
         checkConnection();
     }
 
+    private void reportStats() {
+        if (tbClient == null) {
+            log.info("Can't report stats because client was not initialized yet!");
+            return;
+        }
+        ObjectNode node = newNode();
+        node.put("devicesOnline", devices.size());
+        node.put("attributesUploaded", attributesCount.getAndSet(0));
+        node.put("telemetryUploaded", telemetryCount.getAndSet(0));
+        publishAsync("v1/devices/me/telemetry", new MqttMessage(toBytes(node)),
+                token -> log.debug("Gateway statistics {} reported!", node),
+                error -> log.warn("Failed to report gateway statistics!", error));
+    }
+
+
     @PreDestroy
     public void preDestroy() throws Exception {
+        scheduler.shutdownNow();
         tbClient.disconnect();
     }
 
@@ -104,15 +136,17 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
         ObjectNode node = newNode();
         ObjectNode deviceNode = node.putObject(deviceName);
         attributes.forEach(kv -> putToNode(deviceNode, kv));
-        byte[] msgData = toBytes(node);
-        MqttMessage msg = new MqttMessage(msgData);
-        publishAsync("v1/gateway/attributes", msg,
-                token -> log.debug("[{}] Device attributes published!", deviceName),
+        final int packSize = attributes.size();
+        publishAsync("v1/gateway/attributes", new MqttMessage(toBytes(node)),
+                token -> {
+                    log.debug("[{}] Device attributes published!", deviceName);
+                    attributesCount.addAndGet(packSize);
+                },
                 error -> log.warn("[{}] Failed to report device attributes!", deviceName, error));
     }
 
     @Override
-    public void onDeviceTimeseriesUpdate(String deviceName, List<TsKvEntry> telemetry) {
+    public void onDeviceTelemetry(String deviceName, List<TsKvEntry> telemetry) {
         log.trace("[{}] Updating device telemetry: {}", deviceName, telemetry);
         checkDeviceConnected(deviceName);
         ObjectNode node = newNode();
@@ -125,11 +159,23 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
             ObjectNode valuesNode = tsNode.putObject("values");
             kv.getValue().forEach(v -> putToNode(valuesNode, v));
         });
-        byte[] msgData = toBytes(node);
-        MqttMessage msg = new MqttMessage(msgData);
-        publishAsync("v1/gateway/telemetry", msg,
-                token -> log.debug("[{}] Device telemetry published!", deviceName),
+        final int packSize = telemetry.size();
+        publishAsync("v1/gateway/telemetry", new MqttMessage(toBytes(node)),
+                token -> {
+                    log.debug("[{}] Device telemetry published!", deviceName);
+                    telemetryCount.addAndGet(packSize);
+                },
                 error -> log.warn("[{}] Failed to publish device telemetry!", deviceName, error));
+
+    }
+
+    @Override
+    public void onError(String deviceName, Exception e) {
+
+    }
+
+    @Override
+    public void onError(Exception e) {
 
     }
 
@@ -154,7 +200,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
                         log.warn("Failed to connect to Thingsboard!", e);
                         if (!tbClient.isConnected()) {
                             try {
-                                Thread.sleep(configuration.getRetryInterval());
+                                Thread.sleep(connection.getRetryInterval());
                             } catch (InterruptedException e1) {
                                 log.trace("Failed to wait for retry interval!", e);
                             }
@@ -202,7 +248,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
     }
 
     private MqttGatewaySecurityConfiguration setupSecurityOptions(MqttConnectOptions options) {
-        MqttGatewaySecurityConfiguration security = configuration.getSecurity();
+        MqttGatewaySecurityConfiguration security = connection.getSecurity();
         if (security.isTokenBased()) {
             options.setUserName(security.getAccessToken());
             if (!StringUtils.isEmpty(security.getTruststore())) {

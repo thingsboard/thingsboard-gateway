@@ -278,7 +278,7 @@ public class OpcUaServerMonitor {
                     }
                     List<TsKvEntry> timeseries = device.getAffectedTimeseries(tagId, dataValue);
                     if (timeseries.size() > 0) {
-                        gateway.onDeviceTimeseriesUpdate(device.getDeviceName(), timeseries);
+                        gateway.onDeviceTelemetry(device.getDeviceName(), timeseries);
                     }
                 }
         );

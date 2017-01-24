@@ -50,5 +50,18 @@ public interface GatewayService {
      * @param deviceName - the device name
      * @param telemetry - the telemetry values list
      */
-    void onDeviceTimeseriesUpdate(String deviceName, List<TsKvEntry> telemetry);
+    void onDeviceTelemetry(String deviceName, List<TsKvEntry> telemetry);
+
+    /**
+     * Report error related to device
+     * @param deviceName - the device name
+     * @param e - the error
+     */
+    void onError(String deviceName, Exception e);
+
+    /**
+     * Report generic error from one of gateway components
+     * @param e - the error
+     */
+    void onError(Exception e);
 }

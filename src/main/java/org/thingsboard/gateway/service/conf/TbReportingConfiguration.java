@@ -13,24 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.service;
+package org.thingsboard.gateway.service.conf;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Created by ashvayka on 18.01.17.
+ * Created by ashvayka on 24.01.17.
  */
 @Configuration
-@ConfigurationProperties(prefix = "thingsboard.connection")
+@ConfigurationProperties(prefix = "gateway.reporting")
 @Data
-public class MqttGatewayConfiguration {
+public class TbReportingConfiguration {
 
-    private String host;
-    private int port;
-    private long retryInterval;
-    private int maxInFlight;
-    private MqttGatewaySecurityConfiguration security;
-
+    private long interval;
+    private int maxErrorsPerInterval;
 }

@@ -21,10 +21,10 @@ import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.MqttDataConverter;
 import org.thingsboard.gateway.service.DeviceData;
-import org.thingsboard.gateway.service.GatewayService;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Created by ashvayka on 24.01.17.
@@ -33,21 +33,13 @@ import java.util.List;
 @Slf4j
 public class MqttMessageListener implements IMqttMessageListener {
 
-    private final GatewayService gateway;
+    private final Consumer<List<DeviceData>> consumer;
     private final MqttDataConverter converter;
 
     @Override
     public void messageArrived(String topic, MqttMessage message) throws Exception {
         try {
-            List<DeviceData> data = converter.convert(message);
-            for (DeviceData dd : data) {
-                if (!dd.getAttributes().isEmpty()) {
-                    gateway.onDeviceAttributesUpdate(dd.getName(), dd.getAttributes());
-                }
-                if (!dd.getTelemetry().isEmpty()) {
-                    gateway.onDeviceTimeseriesUpdate(dd.getName(), dd.getTelemetry());
-                }
-            }
+            consumer.accept(converter.convert(message));
         } catch (Exception e) {
             log.debug("[{}] Failed to decode message: {}", topic, Arrays.toString(message.getPayload()), e);
         }

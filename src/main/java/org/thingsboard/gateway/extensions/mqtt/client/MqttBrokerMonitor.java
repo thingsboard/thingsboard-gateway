@@ -20,21 +20,21 @@ import org.eclipse.paho.client.mqttv3.*;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.MqttBrokerConfiguration;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.MqttTopicMapping;
+import org.thingsboard.gateway.service.DeviceData;
 import org.thingsboard.gateway.service.GatewayService;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Created by ashvayka on 24.01.17.
  */
 @Slf4j
-public class MqttBrokerMonitor {
+public class MqttBrokerMonitor implements MqttCallback {
 
     private final UUID clientId = UUID.randomUUID();
     private final GatewayService gateway;
     private final MqttBrokerConfiguration configuration;
+    private final Set<String> devices;
 
     private MqttAsyncClient client;
     private MqttConnectOptions clientOptions;
@@ -44,36 +44,38 @@ public class MqttBrokerMonitor {
     public MqttBrokerMonitor(GatewayService gateway, MqttBrokerConfiguration configuration) {
         this.gateway = gateway;
         this.configuration = configuration;
+        this.devices = new HashSet<>();
     }
 
     public void connect() {
         try {
             client = new MqttAsyncClient((configuration.isSsl() ? "ssl" : "tcp") + "://" + configuration.getHost() + ":" + configuration.getPort(),
                     clientId.toString(), new MemoryPersistence());
+            client.setCallback(this);
             clientOptions = new MqttConnectOptions();
             clientOptions.setCleanSession(true);
             configuration.getCredentials().configure(clientOptions);
             checkConnection();
         } catch (MqttException e) {
-            log.error("[{}:{}]MQTT client connection failed!", configuration.getHost(), configuration.getPort(), e);
-            throw new RuntimeException("MQTT client connection failed!", e);
+            log.error("[{}:{}] MQTT broker connection failed!", configuration.getHost(), configuration.getPort(), e);
+            throw new RuntimeException("MQTT broker connection failed!", e);
         }
     }
 
     public void disconnect() {
-
+        devices.forEach(gateway::disconnect);
     }
 
     private void checkConnection() {
         if (!client.isConnected()) {
             synchronized (connectLock) {
                 while (!client.isConnected()) {
-                    log.debug("Attempt to connect to Thingsboard!");
+                    log.debug("[{}:{}] MQTT broker connection attempt!", configuration.getHost(), configuration.getPort());
                     try {
                         client.connect(clientOptions, null, new IMqttActionListener() {
                             @Override
                             public void onSuccess(IMqttToken iMqttToken) {
-                                log.info("Connected to Thingsboard!");
+                                log.info("[{}:{}] MQTT broker connection established!", configuration.getHost(), configuration.getPort());
                             }
 
                             @Override
@@ -82,7 +84,7 @@ public class MqttBrokerMonitor {
                         }).waitForCompletion();
                         subscribeToTopics();
                     } catch (MqttException e) {
-                        log.warn("Failed to connect to Thingsboard!", e);
+                        log.warn("[{}:{}] MQTT broker connection failed!", configuration.getHost(), configuration.getPort(), e);
                         if (!client.isConnected()) {
                             try {
                                 Thread.sleep(configuration.getRetryInterval());
@@ -100,10 +102,41 @@ public class MqttBrokerMonitor {
     private void subscribeToTopics() throws MqttException {
         List<IMqttToken> tokens = new ArrayList<>();
         for (MqttTopicMapping mapping : configuration.getMapping()) {
-            tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttMessageListener(gateway, mapping.getConverter())));
+            tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttMessageListener(this::onDeviceData, mapping.getConverter())));
         }
         for (IMqttToken token : tokens) {
             token.waitForCompletion();
         }
+    }
+
+    private void onDeviceData(List<DeviceData> data) {
+        for (DeviceData dd : data) {
+            if (devices.add(dd.getName())) {
+                gateway.connect(dd.getName());
+            }
+            if (!dd.getAttributes().isEmpty()) {
+                gateway.onDeviceAttributesUpdate(dd.getName(), dd.getAttributes());
+            }
+            if (!dd.getTelemetry().isEmpty()) {
+                gateway.onDeviceTelemetry(dd.getName(), dd.getTelemetry());
+            }
+        }
+    }
+
+    @Override
+    public void connectionLost(Throwable cause) {
+        log.warn("[{}:{}] MQTT broker connection lost!", configuration.getHost(), configuration.getPort());
+        devices.forEach(gateway::disconnect);
+        checkConnection();
+    }
+
+    @Override
+    public void messageArrived(String topic, MqttMessage message) throws Exception {
+
+    }
+
+    @Override
+    public void deliveryComplete(IMqttDeliveryToken token) {
+
     }
 }

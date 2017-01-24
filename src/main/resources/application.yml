@@ -20,7 +20,10 @@ server:
   # Server bind port
   port: "${HTTP_BIND_PORT:9090}"
 
-thingsboard:
+gateway:
+  reporting:
+    interval: 5000
+    maxErrorsPerInterval: 1
   connection:
     host: "${THINGSBOARD_ADDRESS:localhost}"
     port: "${THINGSBOARD_MQTT_PORT:1882}"
