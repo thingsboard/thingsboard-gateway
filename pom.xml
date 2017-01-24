@@ -42,6 +42,7 @@
 		<thingsboard.version>1.0.3</thingsboard.version>
 		<paho.client.version>1.1.0</paho.client.version>
 		<milo.client.version>0.1.0</milo.client.version>
+        <json-path.version>2.2.0</json-path.version>
 	</properties>
 
 	<dependencies>
@@ -63,6 +64,11 @@
             <groupId>org.eclipse.milo</groupId>
             <artifactId>sdk-client</artifactId>
             <version>${milo.client.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.jayway.jsonpath</groupId>
+            <artifactId>json-path</artifactId>
+            <version>${json-path.version}</version>
         </dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>

@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
 @Data
 public class DeviceMapping {
 
-    private static final Pattern TAG_PATTERN = Pattern.compile("\\$\\{(.*?)\\}");
+    public static final Pattern TAG_PATTERN = Pattern.compile("\\$\\{(.*?)\\}");
     private final String deviceNodePattern;
     private final String deviceNamePattern;
     private final List<AttributesMapping> attributes;

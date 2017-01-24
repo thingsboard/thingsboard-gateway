@@ -1,0 +1,37 @@
+{
+  "brokers": [
+    {
+      "host": "localhost",
+      "port": 1883,
+      "ssl": false,
+      "retryInterval": 3000,
+      "credentials": {
+        "type": "anonymous"
+      },
+      "mapping": [
+        {
+          "topicFilter": "/nodes/sensors",
+          "converter": {
+            "type": "json",
+            "filterExpression": "",
+            "deviceNameExpression": "${$.nodeId}",
+            "attributes": [
+              {
+                "type": "double",
+                "key": "TEST",
+                "value": "${$.sensorValue}"
+              }
+            ],
+            "timeseries": [
+              {
+                "type": "double",
+                "key": "Ts ${sensorId}",
+                "value": "${sensorValue}"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

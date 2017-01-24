@@ -23,7 +23,7 @@ server:
 thingsboard:
   connection:
     host: "${THINGSBOARD_ADDRESS:localhost}"
-    port: "${THINGSBOARD_MQTT_PORT:1883}"
+    port: "${THINGSBOARD_MQTT_PORT:1882}"
     retryInterval: 3000
     maxInFlight: 1000
     security:
@@ -37,3 +37,7 @@ thingsboard:
 opc:
   enabled: false
   configuration: opc-config.json
+
+mqtt:
+  enabled: true
+  configuration: mqtt-config.json

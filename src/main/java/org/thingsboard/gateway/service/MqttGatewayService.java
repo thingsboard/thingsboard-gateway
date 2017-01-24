@@ -65,7 +65,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
 
         tbClient = new MqttAsyncClient((security.isSsl() ? "ssl" : "tcp") + "://" + configuration.getHost() + ":" + configuration.getPort(),
                 clientId.toString(), new MemoryPersistence());
-        checkConnect();
+        checkConnection();
     }
 
     @PreDestroy
@@ -133,7 +133,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
 
     }
 
-    private void checkConnect() {
+    private void checkConnection() {
         if (!tbClient.isConnected()) {
             synchronized (connectLock) {
                 while (!tbClient.isConnected()) {
@@ -149,6 +149,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
                             public void onFailure(IMqttToken iMqttToken, Throwable e) {
                             }
                         }).waitForCompletion();
+                        devices.forEach((k, v) -> connect(k));
                     } catch (MqttException e) {
                         log.warn("Failed to connect to Thingsboard!", e);
                         if (!tbClient.isConnected()) {
@@ -180,7 +181,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
 
     private void publish(final String topic, MqttMessage msg, boolean sync, Consumer<IMqttToken> onSuccess, Consumer<Throwable> onFailure) {
         try {
-            checkConnect();
+            checkConnection();
             IMqttDeliveryToken token = tbClient.publish(topic, msg, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
@@ -228,7 +229,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
 
     @Override
     public void connectionLost(Throwable cause) {
-        checkConnect();
+        checkConnection();
     }
 
     @Override
