@@ -30,7 +30,8 @@ import java.util.*;
  */
 @Slf4j
 public class MqttBrokerMonitor implements MqttCallback {
-
+    //TODO: ability to autoreconnect
+    //TODO: ability to report device connect/disconnect messages
     private final UUID clientId = UUID.randomUUID();
     private final GatewayService gateway;
     private final MqttBrokerConfiguration configuration;
@@ -63,7 +64,7 @@ public class MqttBrokerMonitor implements MqttCallback {
     }
 
     public void disconnect() {
-        devices.forEach(gateway::disconnect);
+        devices.forEach(gateway::onDeviceDisconnect);
     }
 
     private void checkConnection() {
@@ -112,7 +113,7 @@ public class MqttBrokerMonitor implements MqttCallback {
     private void onDeviceData(List<DeviceData> data) {
         for (DeviceData dd : data) {
             if (devices.add(dd.getName())) {
-                gateway.connect(dd.getName());
+                gateway.onDeviceConnect(dd.getName());
             }
             if (!dd.getAttributes().isEmpty()) {
                 gateway.onDeviceAttributesUpdate(dd.getName(), dd.getAttributes());
@@ -126,7 +127,7 @@ public class MqttBrokerMonitor implements MqttCallback {
     @Override
     public void connectionLost(Throwable cause) {
         log.warn("[{}:{}] MQTT broker connection lost!", configuration.getHost(), configuration.getPort());
-        devices.forEach(gateway::disconnect);
+        devices.forEach(gateway::onDeviceDisconnect);
         checkConnection();
     }
 

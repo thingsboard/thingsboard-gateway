@@ -22,8 +22,11 @@ server:
 
 gateway:
   reporting:
-    interval: 5000
-    maxErrorsPerInterval: 1
+    interval: 1000
+  persistence:
+    type: file
+    path: /home/ashvayka/test
+    bufferSize: 1000
   connection:
     host: "${THINGSBOARD_ADDRESS:localhost}"
     port: "${THINGSBOARD_MQTT_PORT:1882}"

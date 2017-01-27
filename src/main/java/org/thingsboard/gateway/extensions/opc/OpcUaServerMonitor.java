@@ -136,7 +136,7 @@ public class OpcUaServerMonitor {
             List<OpcUaDevice> deleted = devices.entrySet().stream().filter(kv -> kv.getValue().getScanTs() < startTs).map(kv -> kv.getValue()).collect(Collectors.toList());
             log.info("Devices {} are now longer available", deleted);
             deleted.forEach(devices::remove);
-            deleted.stream().map(OpcUaDevice::getDeviceName).forEach(gateway::disconnect);
+            deleted.stream().map(OpcUaDevice::getDeviceName).forEach(gateway::onDeviceDisconnect);
         } catch (Exception e) {
             log.warn("Periodic device scan failed!", e);
         }
@@ -208,7 +208,7 @@ public class OpcUaServerMonitor {
                 }
             }
             device.calculateDeviceName(readTags(deviceNameTags));
-            gateway.connect(device.getDeviceName());
+            gateway.onDeviceConnect(device.getDeviceName());
         }
 
         device.updateScanTs();

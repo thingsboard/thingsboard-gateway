@@ -30,13 +30,13 @@ public interface GatewayService {
      * Inform gateway service that device is connected
      * @param deviceName
      */
-    void connect(String deviceName);
+    void onDeviceConnect(String deviceName);
 
     /**
      * Inform gateway service that device is disconnected
      * @param deviceName
      */
-    void disconnect(String deviceName);
+    void onDeviceDisconnect(String deviceName);
 
     /**
      * Report device attributes change to Thingsboard
@@ -53,15 +53,15 @@ public interface GatewayService {
     void onDeviceTelemetry(String deviceName, List<TsKvEntry> telemetry);
 
     /**
+     * Report generic error from one of gateway components
+     * @param e - the error
+     */
+    void onError(Exception e);
+
+    /**
      * Report error related to device
      * @param deviceName - the device name
      * @param e - the error
      */
     void onError(String deviceName, Exception e);
-
-    /**
-     * Report generic error from one of gateway components
-     * @param e - the error
-     */
-    void onError(Exception e);
 }
