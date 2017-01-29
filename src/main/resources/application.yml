@@ -29,21 +29,21 @@ gateway:
     bufferSize: 1000
   connection:
     host: "${THINGSBOARD_ADDRESS:localhost}"
-    port: "${THINGSBOARD_MQTT_PORT:1882}"
+    port: "${THINGSBOARD_MQTT_PORT:8883}"
     retryInterval: 3000
     maxInFlight: 1000
     security:
-      type: token
-      accessToken: gateway
-#      keystore: src/main/resources/keystore.jks
-#      keystorePassword: password
-#      truststore: src/main/resources/truststore.jks
-#      truststorePassword: password
+#      accessToken: your_token
+      keystore: mqttclient.jks
+      keystorePassword: password
+      keystoreKeyAlias: clientalias
+      truststore: mqttclient.jks
+      truststorePassword: password
 
 opc:
   enabled: false
   configuration: opc-config.json
 
 mqtt:
-  enabled: true
+  enabled: false
   configuration: mqtt-config.json
