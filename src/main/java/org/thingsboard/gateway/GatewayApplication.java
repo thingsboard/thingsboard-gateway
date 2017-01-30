@@ -1,5 +1,5 @@
 /**
- * Copyright © ${project.inceptionYear}-2017 The Thingsboard Authors
+ * Copyright © 2017 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,26 @@ package org.thingsboard.gateway;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+import java.util.Arrays;
+
 @SpringBootApplication
 public class GatewayApplication {
 
+	private static final String SPRING_CONFIG_NAME_KEY = "--spring.config.name";
+	public static final String DEFAULT_SPRING_CONFIG_PARAM = SPRING_CONFIG_NAME_KEY + "=" + "tb-gateway";
+
 	public static void main(String[] args) {
-		SpringApplication.run(GatewayApplication.class, args);
+		SpringApplication.run(GatewayApplication.class, updateArguments(args));
 	}
+
+	private static String[] updateArguments(String[] args) {
+		if (Arrays.stream(args).noneMatch(arg -> arg.startsWith(SPRING_CONFIG_NAME_KEY))) {
+			String[] modifiedArgs = new String[args.length + 1];
+			System.arraycopy(args, 0, modifiedArgs, 0, args.length);
+			modifiedArgs[args.length] = DEFAULT_SPRING_CONFIG_PARAM;
+			return modifiedArgs;
+		}
+		return args;
+	}
+
 }
