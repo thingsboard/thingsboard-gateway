@@ -1,5 +1,5 @@
 #
-# Copyright © ${project.inceptionYear}-2017 The Thingsboard Authors
+# Copyright © 2017 The Thingsboard Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,31 +14,25 @@
 # limitations under the License.
 #
 
-server:
-  # Server bind address
-  address: "${HTTP_BIND_ADDRESS:0.0.0.0}"
-  # Server bind port
-  port: "${HTTP_BIND_PORT:9090}"
-
 gateway:
   reporting:
-    interval: 1000
+    interval: 60000
   persistence:
     type: file
-    path: /home/ashvayka/test
+    path: storage
     bufferSize: 1000
   connection:
     host: "${THINGSBOARD_ADDRESS:localhost}"
-    port: "${THINGSBOARD_MQTT_PORT:8883}"
+    port: "${THINGSBOARD_MQTT_PORT:1883}"
     retryInterval: 3000
     maxInFlight: 1000
     security:
-#      accessToken: your_token
-      keystore: mqttclient.jks
-      keystorePassword: password
-      keystoreKeyAlias: clientalias
-      truststore: mqttclient.jks
-      truststorePassword: password
+      accessToken: your_token
+#      keystore: mqttclient.jks
+#      keystorePassword: password
+#      keystoreKeyAlias: clientalias
+#      truststore: mqttclient.jks
+#      truststorePassword: password
 
 opc:
   enabled: false
@@ -47,3 +41,9 @@ opc:
 mqtt:
   enabled: false
   configuration: mqtt-config.json
+
+server:
+  # Server bind address
+  address: "${HTTP_BIND_ADDRESS:0.0.0.0}"
+  # Server bind port
+  port: "${HTTP_BIND_PORT:9090}"
