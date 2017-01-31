@@ -75,9 +75,6 @@ IF "%JRE_PATH2%" == ""  GOTO JAVA_NOT_INSTALLED
 @ECHO Installing ${pkg.name} ...
 ${pkg.name}.exe install
 
-@ECHO Starting ${pkg.name} ...
-net start ${pkg.name}
-
 @ECHO DONE.
 
 GOTO END

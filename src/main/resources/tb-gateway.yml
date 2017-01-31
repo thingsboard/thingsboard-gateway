@@ -22,8 +22,8 @@ gateway:
     path: storage
     bufferSize: 1000
   connection:
-    host: "${THINGSBOARD_ADDRESS:localhost}"
-    port: "${THINGSBOARD_MQTT_PORT:1883}"
+    host: "demo.thingsboard.io"
+    port: 1883
     retryInterval: 3000
     maxInFlight: 1000
     security:
@@ -44,6 +44,6 @@ mqtt:
 
 server:
   # Server bind address
-  address: "${HTTP_BIND_ADDRESS:0.0.0.0}"
+  address: "0.0.0.0"
   # Server bind port
-  port: "${HTTP_BIND_PORT:9090}"
+  port: "9090"

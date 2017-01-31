@@ -275,7 +275,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
         MqttMessage msg = new MqttMessage(toBytes(node));
         msg.setId(msgIdSeq.incrementAndGet());
         publishAsync("v1/devices/me/telemetry", msg,
-                token -> log.debug("Gateway statistics {} reported!", node),
+                token -> log.info("Gateway statistics {} reported!", node),
                 error -> log.warn("Failed to report gateway statistics!", error));
     }
 

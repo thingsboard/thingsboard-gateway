@@ -36,6 +36,7 @@
         <fileSet>
             <directory>${pkg.win.dist}/conf</directory>
             <outputDirectory>conf</outputDirectory>
+            <lineEnding>windows</lineEnding>
         </fileSet>
     </fileSets>
 
@@ -54,14 +55,17 @@
             <source>${pkg.win.dist}/service.xml</source>
             <outputDirectory/>
             <destName>${pkg.name}.xml</destName>
+            <lineEnding>windows</lineEnding>
         </file>
         <file>
             <source>${pkg.win.dist}/install.bat</source>
             <outputDirectory/>
+            <lineEnding>windows</lineEnding>
         </file>
         <file>
             <source>${pkg.win.dist}/uninstall.bat</source>
             <outputDirectory/>
+            <lineEnding>windows</lineEnding>
         </file>
     </files>
 </assembly>
