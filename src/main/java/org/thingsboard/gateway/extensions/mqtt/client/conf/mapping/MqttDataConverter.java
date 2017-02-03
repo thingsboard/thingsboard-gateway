@@ -18,10 +18,8 @@ package org.thingsboard.gateway.extensions.mqtt.client.conf.mapping;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
-import org.eclipse.paho.client.mqttv3.internal.wire.MqttPublish;
 import org.thingsboard.gateway.service.DeviceData;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -36,6 +34,6 @@ import java.util.List;
 })
 public interface MqttDataConverter {
 
-    List<DeviceData> convert(MqttMessage msg) throws Exception;
+    List<DeviceData> convert(String topic, MqttMessage msg) throws Exception;
 
 }

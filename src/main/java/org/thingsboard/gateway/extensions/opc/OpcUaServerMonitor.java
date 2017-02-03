@@ -80,7 +80,6 @@ public class OpcUaServerMonitor {
     }
 
     public void connect() {
-        //TODO: autoreconnect;
         try {
             log.info("Initializing OPC-UA server connection to [{}:{}]!", configuration.getHost(), configuration.getPort());
             CertificateInfo certificate = ConfigurationTools.loadCertificate(configuration.getKeystore());
@@ -266,7 +265,7 @@ public class OpcUaServerMonitor {
     }
 
     private void onSubscriptionValue(UaMonitoredItem item, DataValue dataValue) {
-        log.info("Subscription value received: item={}, value={}",
+        log.debug("Subscription value received: item={}, value={}",
                 item.getReadValueId().getNodeId(), dataValue.getValue());
         NodeId tagId = item.getReadValueId().getNodeId();
         devicesByTags.getOrDefault(tagId, Collections.emptyList()).forEach(

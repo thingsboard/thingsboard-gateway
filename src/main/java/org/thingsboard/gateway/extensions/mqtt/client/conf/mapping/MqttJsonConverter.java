@@ -22,6 +22,7 @@ import com.jayway.jsonpath.JsonPath;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.AttributesMapping;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.DeviceMapping;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.KVMapping;
@@ -32,6 +33,7 @@ import org.thingsboard.server.common.data.kv.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -43,12 +45,14 @@ public class MqttJsonConverter implements MqttDataConverter {
 
     private static final ObjectMapper mapper = new ObjectMapper();
     private String filterExpression;
-    private String deviceNameExpression;
+    private String deviceNameJsonExpression;
+    private String deviceNameTopicExpression;
+    private Pattern deviceNameTopicPattern;
     private final List<AttributesMapping> attributes;
     private final List<TimeseriesMapping> timeseries;
 
     @Override
-    public List<DeviceData> convert(MqttMessage msg) throws Exception {
+    public List<DeviceData> convert(String topic, MqttMessage msg) throws Exception {
         String data = new String(msg.getPayload(), StandardCharsets.UTF_8);
         log.trace("Parsing json message: {}", data);
         JsonNode node = mapper.readTree(data);
@@ -62,10 +66,10 @@ public class MqttJsonConverter implements MqttDataConverter {
             srcList = Collections.singletonList(data);
         }
 
-        return parse(srcList);
+        return parse(topic, srcList);
     }
 
-    private List<DeviceData> parse(List<String> srcList) {
+    private List<DeviceData> parse(String topic, List<String> srcList) {
         List<DeviceData> result = new ArrayList<>(srcList.size());
         for (String src : srcList) {
             DocumentContext document = JsonPath.parse(src);
@@ -79,34 +83,43 @@ public class MqttJsonConverter implements MqttDataConverter {
             }
 
             long ts = System.currentTimeMillis();
-            String deviceName = eval(document, deviceNameExpression);
-            List<KvEntry> attrData = getKvEntries(document, attributes);
-            List<TsKvEntry> tsData = getKvEntries(document, timeseries).stream()
-                    .map(kv -> new BasicTsKvEntry(ts, kv))
-                    .collect(Collectors.toList());
-            result.add(new DeviceData(deviceName, attrData, tsData));
+            String deviceName;
+            if (!StringUtils.isEmpty(deviceNameTopicExpression)) {
+                deviceName = eval(topic);
+            } else {
+                deviceName = eval(document, deviceNameJsonExpression);
+            }
+            if (!StringUtils.isEmpty(deviceName)) {
+                List<KvEntry> attrData = getKvEntries(document, attributes);
+                List<TsKvEntry> tsData = getKvEntries(document, timeseries).stream()
+                        .map(kv -> new BasicTsKvEntry(ts, kv))
+                        .collect(Collectors.toList());
+                result.add(new DeviceData(deviceName, attrData, tsData));
+            }
         }
         return result;
     }
 
     private List<KvEntry> getKvEntries(DocumentContext document, List<? extends KVMapping> mappings) {
         List<KvEntry> result = new ArrayList<>();
-        for (KVMapping mapping : mappings) {
-            String key = eval(document, mapping.getKey());
-            String strVal = eval(document, mapping.getValue());
-            switch (mapping.getType().getDataType()) {
-                case STRING:
-                    result.add(new StringDataEntry(key, strVal));
-                    break;
-                case BOOLEAN:
-                    result.add(new BooleanDataEntry(key, Boolean.valueOf(strVal)));
-                    break;
-                case DOUBLE:
-                    result.add(new DoubleDataEntry(key, Double.valueOf(strVal)));
-                    break;
-                case LONG:
-                    result.add(new LongDataEntry(key, Long.valueOf(strVal)));
-                    break;
+        if (mappings != null) {
+            for (KVMapping mapping : mappings) {
+                String key = eval(document, mapping.getKey());
+                String strVal = eval(document, mapping.getValue());
+                switch (mapping.getType().getDataType()) {
+                    case STRING:
+                        result.add(new StringDataEntry(key, strVal));
+                        break;
+                    case BOOLEAN:
+                        result.add(new BooleanDataEntry(key, Boolean.valueOf(strVal)));
+                        break;
+                    case DOUBLE:
+                        result.add(new DoubleDataEntry(key, Double.valueOf(strVal)));
+                        break;
+                    case LONG:
+                        result.add(new LongDataEntry(key, Long.valueOf(strVal)));
+                        break;
+                }
             }
         }
         return result;
@@ -124,6 +137,18 @@ public class MqttJsonConverter implements MqttDataConverter {
         }
         return result;
     }
+
+    private String eval(String topic) {
+        if (deviceNameTopicPattern == null) {
+            deviceNameTopicPattern = Pattern.compile(deviceNameTopicExpression);
+        }
+        Matcher matcher = deviceNameTopicPattern.matcher(topic);
+        while (matcher.find()) {
+            return matcher.group();
+        }
+        return null;
+    }
+
 
     private <T> T apply(DocumentContext document, String expression) {
         try {

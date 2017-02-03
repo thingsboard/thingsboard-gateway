@@ -78,8 +78,6 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
     public void init() throws Exception {
         scheduler = Executors.newSingleThreadScheduledExecutor();
 
-        scheduler.scheduleAtFixedRate(this::reportStats, reporting.getInterval(), reporting.getInterval(), TimeUnit.MILLISECONDS);
-
         tbClientOptions = new MqttConnectOptions();
         tbClientOptions.setCleanSession(false);
         tbClientOptions.setMaxInflight(connection.getMaxInFlight());
@@ -100,6 +98,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
             tbClient.setBufferOpts(options);
         }
         connect();
+
+        scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
     }
 
     @PreDestroy

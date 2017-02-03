@@ -10,23 +10,38 @@
       },
       "mapping": [
         {
-          "topicFilter": "/nodes/sensors",
+          "topicFilter": "sensors",
           "converter": {
             "type": "json",
             "filterExpression": "",
-            "deviceNameExpression": "${$.nodeId}",
+            "deviceNameJsonExpression": "${$.serialNumber}",
             "attributes": [
               {
-                "type": "double",
-                "key": "TEST",
-                "value": "${$.sensorValue}"
+                "type": "string",
+                "key": "model",
+                "value": "${$.model}"
               }
             ],
             "timeseries": [
               {
                 "type": "double",
-                "key": "Ts ${sensorId}",
-                "value": "${sensorValue}"
+                "key": "temperature",
+                "value": "${$.temperature}"
+              }
+            ]
+          }
+        },
+        {
+          "topicFilter": "sensor/+/temperature",
+          "converter": {
+            "type": "json",
+            "filterExpression": "",
+            "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/temperature)",
+            "timeseries": [
+              {
+                "type": "double",
+                "key": "temperature",
+                "value": "${$.value}"
               }
             ]
           }

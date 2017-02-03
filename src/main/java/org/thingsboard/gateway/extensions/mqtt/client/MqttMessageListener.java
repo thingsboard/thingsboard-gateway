@@ -39,9 +39,9 @@ public class MqttMessageListener implements IMqttMessageListener {
     @Override
     public void messageArrived(String topic, MqttMessage message) throws Exception {
         try {
-            consumer.accept(converter.convert(message));
+            consumer.accept(converter.convert(topic, message));
         } catch (Exception e) {
-            log.debug("[{}] Failed to decode message: {}", topic, Arrays.toString(message.getPayload()), e);
+            log.info("[{}] Failed to decode message: {}", topic, Arrays.toString(message.getPayload()), e);
         }
     }
 }
