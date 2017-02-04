@@ -17,7 +17,9 @@ package org.thingsboard.gateway.extensions.mqtt.client;
 
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.*;
+import org.eclipse.paho.client.mqttv3.internal.security.SSLSocketFactoryFactory;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.MqttBrokerConfiguration;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.MqttTopicMapping;
 import org.thingsboard.gateway.service.DeviceData;
@@ -55,6 +57,14 @@ public class MqttBrokerMonitor implements MqttCallback {
             client.setCallback(this);
             clientOptions = new MqttConnectOptions();
             clientOptions.setCleanSession(true);
+            if (configuration.isSsl() && !StringUtils.isEmpty(configuration.getTruststore())) {
+                Properties sslProperties = new Properties();
+                sslProperties.put(SSLSocketFactoryFactory.TRUSTSTORE, configuration.getTruststore());
+                sslProperties.put(SSLSocketFactoryFactory.TRUSTSTOREPWD, configuration.getTruststorePassword());
+                sslProperties.put(SSLSocketFactoryFactory.TRUSTSTORETYPE, "JKS");
+                sslProperties.put(SSLSocketFactoryFactory.CLIENTAUTH, false);
+                clientOptions.setSSLProperties(sslProperties);
+            }
             configuration.getCredentials().configure(clientOptions);
             checkConnection();
         } catch (MqttException e) {
