@@ -32,6 +32,14 @@ The Gateway provides simple integration APIs, and encapsulates common Thingsboar
 As an application developer, you are able to choose Python, Go, C/C++ and other languages and connect to Thingsboard Gateway through external MQTT broker or OPC-UA server. 
 Devices that support other protocols may be connected to gateway by implementing custom extensions.
 
+### Sample Dashboard
+
+![Dashboard](https://github.com/thingsboard/thingsboard/blob/master/img/dashboard.gif?raw=true "Real-time Fleet Dashboard")
+
+### Getting Started
+
+Connect to your OPC-UA server or MQTT broker in minutes by following this [guide](https://thingsboard.io/docs/iot-gateway/getting-started).
+
 ### Project Roadmap
 
 The initial Gateway release goal is to bring Thingsboard [data collection](/docs/user-guide/telemetry/) feature to OPC-UA and MQTT enabled devices.  
@@ -43,10 +51,6 @@ The Gateway project is currently in active development stage and you should expe
  - Client-side load balancing based on information about Thingsboard cluster.
  - Ability to visualize collected device data on the Gateway Web UI. 
  - Configurable edge analytics.
-
-### Getting Started
-
-Connect to your OPC-UA server or MQTT broker in minutes by following this [guide](https://thingsboard.io/docs/iot-gateway/getting-started).
 
 ## Support
 
