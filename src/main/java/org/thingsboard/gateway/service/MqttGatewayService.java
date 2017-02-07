@@ -114,7 +114,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
         byte[] msgData = toBytes(newNode().put("device", deviceName));
         MqttMessage msg = new MqttMessage(msgData);
         msg.setId(msgId);
-        log.info("[{}][{}] Device Connected!", deviceName, msgId);
+        log.info("[{}] Device Connected!", deviceName);
         devices.putIfAbsent(deviceName, new DeviceInfo(deviceName));
         publishAsync("v1/gateway/connect", msg,
                 token -> {
