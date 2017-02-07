@@ -42,12 +42,12 @@ Connect to your OPC-UA server or MQTT broker in minutes by following this [guide
 
 ### Project Roadmap
 
-The initial Gateway release goal is to bring Thingsboard [data collection](/docs/user-guide/telemetry/) feature to OPC-UA and MQTT enabled devices.  
+The initial Gateway release goal is to bring Thingsboard [data collection](https://thingsboard.io/docs/user-guide/telemetry/) feature to OPC-UA and MQTT enabled devices.  
 The Gateway project is currently in active development stage and you should expect following major features in next releases:
 
- - Ability to configure devices connected through the Gateway using Thingsboard [Attributes](/docs/user-guide/attributes) feature.
- - Ability to control devices connected through the Gateway using Thingsboard [RPC](/docs/user-guide/rpc/) feature.
- - Ability to configure Gateway distantly from Thingsboard [Dashboards](/docs/user-guide/visualization/).
+ - Ability to configure devices connected through the Gateway using Thingsboard [Attributes](https://thingsboard.io/docs/user-guide/attributes) feature.
+ - Ability to control devices connected through the Gateway using Thingsboard [RPC](https://thingsboard.io/docs/user-guide/rpc/) feature.
+ - Ability to configure Gateway distantly from Thingsboard [Dashboards](https://thingsboard.io/docs/user-guide/visualization/).
  - Client-side load balancing based on information about Thingsboard cluster.
  - Ability to visualize collected device data on the Gateway Web UI. 
  - Configurable edge analytics.
