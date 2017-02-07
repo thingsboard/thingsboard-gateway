@@ -1,12 +1,13 @@
 # Thingsboard IoT Gateway
 [![Join the chat at https://gitter.im/thingsboard/chat](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/thingsboard/chat?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Build Status](https://travis-ci.org/thingsboard/thingsboard-gateway.svg?branch=master)](https://travis-ci.org/thingsboard/thingsboard-gateway)
 
 The Thingsboard **IoT Gateway** is an open-source solution that allows you to integrate devices connected to legacy and third-party systems with Thingsboard.
 
 Thingsboard is an open-source IoT platform for data collection, processing, visualization, and device management. See [**What is Thingsboard?**](https://thingsboard.io/docs/getting-started-guides/what-is-thingsboard/) if you are new platform user. 
 
-## Documentation
+![IoT Gateway architecture](./img/tb-gateway.png?raw=true "IoT Gateway architecture")
+
+### Documentation
 
 Thingsboard IoT Gateway documentation is hosted on [thingsboard.io](https://thingsboard.io/docs/iot-gateway/).
 
@@ -21,8 +22,6 @@ Thingsboard IoT Gateway provides following features:
  - Simple yet powerful **mapping** of incoming data and messages **to unified format**.
   
 ### Architecture  
-
-![IoT Gateway architecture](./img/tb-gateway.png?raw=true "IoT Gateway architecture")
 
 The IoT Gateway is built on top of **Java**, however is different from similar projects that leverage OSGi technology.
 The idea is distantly similar to microservices architecture.
