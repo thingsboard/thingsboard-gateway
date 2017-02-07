@@ -10,8 +10,6 @@ Thingsboard is an open-source IoT platform for data collection, processing, visu
 
 Thingsboard IoT Gateway documentation is hosted on [thingsboard.io](https://thingsboard.io/docs/iot-gateway/).
 
-## Architecture
-
 ### Gateway features
 
 Thingsboard IoT Gateway provides following features:
@@ -23,6 +21,8 @@ Thingsboard IoT Gateway provides following features:
  - Simple yet powerful **mapping** of incoming data and messages **to unified format**.
   
 ### Architecture  
+
+![IoT Gateway architecture](./img/tb-gateway-opt.svg?raw=true "IoT Gateway architecture")
 
 The IoT Gateway is built on top of **Java**, however is different from similar projects that leverage OSGi technology.
 The idea is distantly similar to microservices architecture.
