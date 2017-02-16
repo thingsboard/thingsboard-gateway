@@ -34,8 +34,11 @@ Devices that support other protocols may be connected to gateway by implementing
 
 ### Sample Dashboard
 
-![Dashboard](https://github.com/thingsboard/thingsboard/blob/master/img/dashboard.gif?raw=true "Real-time Fleet Dashboard")
+[**Smart energy monitoring**](https://demo.thingsboard.io/demo?dashboardId=e8e409c0-f2b5-11e6-a6ee-bb0136cc33d0&source=github-gw)
+[![Smart energy monitoring demo](https://cloud.githubusercontent.com/assets/8308069/22933146/438b5ac8-f2d3-11e6-9f68-eb14b967ecd8.png "Smart energy monitoring demo")](https://demo.thingsboard.io/demo?dashboardId=e8e409c0-f2b5-11e6-a6ee-bb0136cc33d0&source=github-gw)
 
+[**Smart bus tracking**](https://demo.thingsboard.io/demo?dashboardId=3d0bf910-ee09-11e6-b619-bb0136cc33d0&source=github-gw)
+[![Smart bus tracking demo](https://cloud.githubusercontent.com/assets/8308069/22839004/424b0308-efd0-11e6-8e90-7c7ca002495c.png "Smart bus tracking demo")](https://demo.thingsboard.io/demo?dashboardId=3d0bf910-ee09-11e6-b619-bb0136cc33d0&source=github-gw)
 ### Getting Started
 
 Connect to your OPC-UA server or MQTT broker in minutes by following this [guide](https://thingsboard.io/docs/iot-gateway/getting-started).
