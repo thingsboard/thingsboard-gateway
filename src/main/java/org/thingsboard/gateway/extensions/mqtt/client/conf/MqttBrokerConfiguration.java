@@ -18,7 +18,6 @@ package org.thingsboard.gateway.extensions.mqtt.client.conf;
 import lombok.Data;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.credentials.MqttClientCredentials;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.MqttTopicMapping;
-import org.thingsboard.gateway.extensions.opc.conf.mapping.DeviceMapping;
 
 import java.util.List;
 

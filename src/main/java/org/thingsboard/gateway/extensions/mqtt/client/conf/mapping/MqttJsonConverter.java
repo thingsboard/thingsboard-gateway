@@ -48,6 +48,8 @@ public class MqttJsonConverter implements MqttDataConverter {
     private String deviceNameJsonExpression;
     private String deviceNameTopicExpression;
     private Pattern deviceNameTopicPattern;
+    private int timeout;
+    private boolean disconnect;
     private final List<AttributesMapping> attributes;
     private final List<TimeseriesMapping> timeseries;
 
@@ -94,7 +96,7 @@ public class MqttJsonConverter implements MqttDataConverter {
                 List<TsKvEntry> tsData = getKvEntries(document, timeseries).stream()
                         .map(kv -> new BasicTsKvEntry(ts, kv))
                         .collect(Collectors.toList());
-                result.add(new DeviceData(deviceName, attrData, tsData));
+                result.add(new DeviceData(deviceName, attrData, tsData, timeout, disconnect));
             }
         }
         return result;

@@ -65,7 +65,6 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
     @Autowired
     private TbPersistenceConfiguration persistence;
 
-
     private MqttAsyncClient tbClient;
     private MqttConnectOptions tbClientOptions;
 
