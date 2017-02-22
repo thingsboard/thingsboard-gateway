@@ -61,8 +61,8 @@ public class CertPemClientCredentials implements MqttClientCredentials {
         try {
             Security.addProvider(new BouncyCastleProvider());
 
-            TrustManagerFactory trustManagerFactory = createAndInitTrustManagerFactory(caCert);
-            KeyManagerFactory keyManagerFactory = createAndInitKeyManagerFactory(cert, privateKey, password);
+            TrustManagerFactory trustManagerFactory = createAndInitTrustManagerFactory();
+            KeyManagerFactory keyManagerFactory = createAndInitKeyManagerFactory();
 
             SSLContext context = SSLContext.getInstance(TLS_VERSION);
             context.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
@@ -74,12 +74,10 @@ public class CertPemClientCredentials implements MqttClientCredentials {
         }
     }
 
-    private KeyManagerFactory createAndInitKeyManagerFactory(final String crtFile,
-                                                                    final String privateKeyFile,
-                                                                    final String password) throws Exception {
-        X509Certificate cert = certificateConverter.getCertificate((X509CertificateHolder) readPEMFile(crtFile));
+    private KeyManagerFactory createAndInitKeyManagerFactory() throws Exception {
+        X509Certificate certHolder = certificateConverter.getCertificate((X509CertificateHolder) readPEMFile(cert));
 
-        Object keyObject = readPEMFile(privateKeyFile);
+        Object keyObject = readPEMFile(privateKey);
 
         char[] passwordCharArray = "".toCharArray();
         if (!StringUtils.isEmpty(password)) {
@@ -98,23 +96,23 @@ public class CertPemClientCredentials implements MqttClientCredentials {
 
         KeyStore clientKeyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         clientKeyStore.load(null, null);
-        clientKeyStore.setCertificateEntry("cert", cert);
+        clientKeyStore.setCertificateEntry("cert", certHolder);
         clientKeyStore.setKeyEntry("private-key",
                 key.getPrivate(),
                 passwordCharArray,
-                new Certificate[]{cert});
+                new Certificate[]{certHolder});
 
         KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         keyManagerFactory.init(clientKeyStore, passwordCharArray);
         return keyManagerFactory;
     }
 
-    private TrustManagerFactory createAndInitTrustManagerFactory(final String caCrtFile) throws Exception {
-        X509Certificate caCert = certificateConverter.getCertificate((X509CertificateHolder) readPEMFile(caCrtFile));
+    private TrustManagerFactory createAndInitTrustManagerFactory() throws Exception {
+        X509Certificate caCertHolder = certificateConverter.getCertificate((X509CertificateHolder) readPEMFile(caCert));
 
         KeyStore caKeyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         caKeyStore.load(null, null);
-        caKeyStore.setCertificateEntry("caCert-cert", caCert);
+        caKeyStore.setCertificateEntry("caCert-cert", caCertHolder);
 
         TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         trustManagerFactory.init(caKeyStore);
