@@ -43,6 +43,7 @@
         <spring-boot.version>1.4.3.RELEASE</spring-boot.version>
         <lombok.version>1.16.10</lombok.version>
         <winsw.version>2.0.1</winsw.version>
+        <bouncycastle.version>1.52</bouncycastle.version>
         <pkg.name>tb-gateway</pkg.name>
         <pkg.user>thingsboard</pkg.user>
         <pkg.unixLogFolder>/var/log/${pkg.name}</pkg.unixLogFolder>
@@ -100,6 +101,11 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <version>${spring-boot.version}</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk15on</artifactId>
+            <version>${bouncycastle.version}</version>
         </dependency>
     </dependencies>
 

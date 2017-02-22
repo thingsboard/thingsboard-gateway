@@ -49,7 +49,7 @@ public class MqttBrokerMonitor implements MqttCallback {
 
     //TODO: probably use newScheduledThreadPool(int threadSize) to improve performance in heavy load cases
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private final Map<String, ScheduledFuture<?>> deviceAliveTimers = new HashMap<>();
+    private final Map<String, ScheduledFuture<?>> deviceKeepAliveTimers = new HashMap<>();
 
     public MqttBrokerMonitor(GatewayService gateway, MqttBrokerConfiguration configuration) {
         this.gateway = gateway;
@@ -144,31 +144,31 @@ public class MqttBrokerMonitor implements MqttCallback {
                 gateway.onDeviceDisconnect(dd.getName());
             }
             if (dd.getTimeout() != 0) {
-                ScheduledFuture<?> future = deviceAliveTimers.get(dd.getName());
+                ScheduledFuture<?> future = deviceKeepAliveTimers.get(dd.getName());
                 if (future != null) {
                     log.debug("Re-scheduling alive timer for device {} with timeout = {}", dd.getName(), dd.getTimeout());
                     future.cancel(true);
-                    deviceAliveTimers.remove(dd.getName());
-                    scheduleDeviceAliveTimer(dd);
+                    deviceKeepAliveTimers.remove(dd.getName());
+                    scheduleDeviceKeepAliveTimer(dd);
                 } else {
                     log.debug("Scheduling alive timer for device {} with timeout = {}", dd.getName(), dd.getTimeout());
-                    scheduleDeviceAliveTimer(dd);
+                    scheduleDeviceKeepAliveTimer(dd);
                 }
             }
         }
     }
 
-    private void scheduleDeviceAliveTimer(DeviceData dd) {
+    private void scheduleDeviceKeepAliveTimer(DeviceData dd) {
         ScheduledFuture<?> f = scheduler.schedule(
                 () -> {
                     log.warn("[{}] Device is going to be disconnected because of timeout! timeout = {} milliseconds", dd.getName(), dd.getTimeout());
-                    deviceAliveTimers.remove(dd.getName());
+                    deviceKeepAliveTimers.remove(dd.getName());
                     gateway.onDeviceDisconnect(dd.getName());
                 },
                 dd.getTimeout(),
                 TimeUnit.MILLISECONDS
         );
-        deviceAliveTimers.put(dd.getName(), f);
+        deviceKeepAliveTimers.put(dd.getName(), f);
     }
 
     @Override
