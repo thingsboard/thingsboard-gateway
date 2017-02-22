@@ -53,6 +53,20 @@ public interface GatewayService {
     void onDeviceTelemetry(String deviceName, List<TsKvEntry> telemetry);
 
     /**
+     * Register attribute updates listener to gateway service
+     * @param deviceNameFilter - the device name filter
+     * @param listener - the attributes update listener
+     */
+    void subscribe(String deviceNameFilter, AttributesUpdateListener listener);
+
+    /**
+     * Register server-side rpc command listener to gateway service
+     * @param deviceNameFilter - the device name filter
+     * @param listener - the server-side rpc command listener
+     */
+    void subscribe(String deviceNameFilter, RpcCommandListener listener);
+
+    /**
      * Report generic error from one of gateway components
      * @param e - the error
      */

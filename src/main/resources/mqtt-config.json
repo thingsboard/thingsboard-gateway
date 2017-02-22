@@ -2,7 +2,7 @@
   "brokers": [
     {
       "host": "localhost",
-      "port": 1883,
+      "port": 1882,
       "ssl": false,
       "retryInterval": 3000,
       "credentials": {
@@ -45,6 +45,23 @@
               }
             ]
           }
+        }
+      ],
+      "attributeUpdates": [
+        {
+          "deviceNameFilter": ".*",
+          "attributeFilter": ".*",
+          "topicExpression": "sensor/${deviceName}/${attributeName}",
+          "valueExpression": "{\"${attributeName}\":\"${attributeValue}\"}"
+        }
+      ],
+      "serverSideRpc": [
+        {
+          "deviceNameFilter": ".*",
+          "methodFilter": ".*",
+          "requestTopicExpression": "sensor/${deviceName}/rpc/requests/${requestId}",
+          "responseTopicExpression": "sensor/${deviceName}/rpc/responses/${requestId}",
+          "valueExpression": "${params}"
         }
       ]
     }
