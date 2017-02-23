@@ -26,6 +26,7 @@ import org.thingsboard.gateway.service.DeviceData;
 import org.thingsboard.gateway.service.GatewayService;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -49,7 +50,7 @@ public class MqttBrokerMonitor implements MqttCallback {
 
     //TODO: probably use newScheduledThreadPool(int threadSize) to improve performance in heavy load cases
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private final Map<String, ScheduledFuture<?>> deviceKeepAliveTimers = new HashMap<>();
+    private final Map<String, ScheduledFuture<?>> deviceKeepAliveTimers = new ConcurrentHashMap<>();
 
     public MqttBrokerMonitor(GatewayService gateway, MqttBrokerConfiguration configuration) {
         this.gateway = gateway;
@@ -142,18 +143,29 @@ public class MqttBrokerMonitor implements MqttCallback {
             if (dd.isDisconnect()) {
                 log.debug("[{}] Will Topic Msg Received. Disconnecting device...", dd.getName());
                 gateway.onDeviceDisconnect(dd.getName());
+                cleanUpKeepAliveTimes(dd);
             }
             if (dd.getTimeout() != 0) {
                 ScheduledFuture<?> future = deviceKeepAliveTimers.get(dd.getName());
                 if (future != null) {
-                    log.debug("Re-scheduling alive timer for device {} with timeout = {}", dd.getName(), dd.getTimeout());
+                    log.debug("Re-scheduling keep alive timer for device {} with timeout = {}", dd.getName(), dd.getTimeout());
                     future.cancel(true);
                     deviceKeepAliveTimers.remove(dd.getName());
                     scheduleDeviceKeepAliveTimer(dd);
                 } else {
-                    log.debug("Scheduling alive timer for device {} with timeout = {}", dd.getName(), dd.getTimeout());
+                    log.debug("Scheduling keep alive timer for device {} with timeout = {}", dd.getName(), dd.getTimeout());
                     scheduleDeviceKeepAliveTimer(dd);
                 }
+            }
+        }
+    }
+
+    private void cleanUpKeepAliveTimes(DeviceData dd) {
+        if (dd.getTimeout() != 0) {
+            ScheduledFuture<?> future = deviceKeepAliveTimers.get(dd.getName());
+            if (future != null) {
+                future.cancel(true);
+                deviceKeepAliveTimers.remove(dd.getName());
             }
         }
     }

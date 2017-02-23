@@ -22,6 +22,6 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 public class CertJKSClientCredentials implements MqttClientCredentials {
     @Override
     public void configure(MqttConnectOptions clientOptions) {
-        // TODO
+        throw new RuntimeException("JKS client credentials are not supported yet!");
     }
 }

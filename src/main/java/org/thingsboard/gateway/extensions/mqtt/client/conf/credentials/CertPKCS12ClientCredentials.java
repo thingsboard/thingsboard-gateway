@@ -22,6 +22,6 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 public class CertPKCS12ClientCredentials implements MqttClientCredentials {
     @Override
     public void configure(MqttConnectOptions clientOptions) {
-        // TODO
+        throw new RuntimeException("PKCS12 client credentials are not supported yet!");
     }
 }
