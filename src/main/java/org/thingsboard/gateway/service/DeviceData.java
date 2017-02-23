@@ -30,5 +30,6 @@ public class DeviceData {
     private final String name;
     private final List<KvEntry> attributes;
     private final List<TsKvEntry> telemetry;
-
+    private final int timeout;
+    private final boolean disconnect;
 }

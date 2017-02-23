@@ -26,6 +26,11 @@ import org.thingsboard.gateway.service.DeviceData;
 import org.thingsboard.gateway.service.GatewayService;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by ashvayka on 24.01.17.
@@ -43,6 +48,9 @@ public class MqttBrokerMonitor implements MqttCallback {
     private MqttConnectOptions clientOptions;
     private Object connectLock = new Object();
 
+    //TODO: probably use newScheduledThreadPool(int threadSize) to improve performance in heavy load cases
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private final Map<String, ScheduledFuture<?>> deviceKeepAliveTimers = new ConcurrentHashMap<>();
 
     public MqttBrokerMonitor(GatewayService gateway, MqttBrokerConfiguration configuration) {
         this.gateway = gateway;
@@ -75,6 +83,7 @@ public class MqttBrokerMonitor implements MqttCallback {
 
     public void disconnect() {
         devices.forEach(gateway::onDeviceDisconnect);
+        scheduler.shutdownNow();
     }
 
     private void checkConnection() {
@@ -122,7 +131,7 @@ public class MqttBrokerMonitor implements MqttCallback {
 
     private void onDeviceData(List<DeviceData> data) {
         for (DeviceData dd : data) {
-            if (devices.add(dd.getName())) {
+            if (!dd.isDisconnect() && devices.add(dd.getName())) {
                 gateway.onDeviceConnect(dd.getName());
             }
             if (!dd.getAttributes().isEmpty()) {
@@ -131,7 +140,47 @@ public class MqttBrokerMonitor implements MqttCallback {
             if (!dd.getTelemetry().isEmpty()) {
                 gateway.onDeviceTelemetry(dd.getName(), dd.getTelemetry());
             }
+            if (dd.isDisconnect()) {
+                log.debug("[{}] Will Topic Msg Received. Disconnecting device...", dd.getName());
+                gateway.onDeviceDisconnect(dd.getName());
+                cleanUpKeepAliveTimes(dd);
+            }
+            if (dd.getTimeout() != 0) {
+                ScheduledFuture<?> future = deviceKeepAliveTimers.get(dd.getName());
+                if (future != null) {
+                    log.debug("Re-scheduling keep alive timer for device {} with timeout = {}", dd.getName(), dd.getTimeout());
+                    future.cancel(true);
+                    deviceKeepAliveTimers.remove(dd.getName());
+                    scheduleDeviceKeepAliveTimer(dd);
+                } else {
+                    log.debug("Scheduling keep alive timer for device {} with timeout = {}", dd.getName(), dd.getTimeout());
+                    scheduleDeviceKeepAliveTimer(dd);
+                }
+            }
         }
+    }
+
+    private void cleanUpKeepAliveTimes(DeviceData dd) {
+        if (dd.getTimeout() != 0) {
+            ScheduledFuture<?> future = deviceKeepAliveTimers.get(dd.getName());
+            if (future != null) {
+                future.cancel(true);
+                deviceKeepAliveTimers.remove(dd.getName());
+            }
+        }
+    }
+
+    private void scheduleDeviceKeepAliveTimer(DeviceData dd) {
+        ScheduledFuture<?> f = scheduler.schedule(
+                () -> {
+                    log.warn("[{}] Device is going to be disconnected because of timeout! timeout = {} milliseconds", dd.getName(), dd.getTimeout());
+                    deviceKeepAliveTimers.remove(dd.getName());
+                    gateway.onDeviceDisconnect(dd.getName());
+                },
+                dd.getTimeout(),
+                TimeUnit.MILLISECONDS
+        );
+        deviceKeepAliveTimers.put(dd.getName(), f);
     }
 
     @Override
@@ -143,7 +192,6 @@ public class MqttBrokerMonitor implements MqttCallback {
 
     @Override
     public void messageArrived(String topic, MqttMessage message) throws Exception {
-
     }
 
     @Override

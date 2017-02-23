@@ -13,26 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.mqtt.client.conf;
+package org.thingsboard.gateway.extensions.mqtt.client.conf.credentials;
 
 import lombok.Data;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.credentials.MqttClientCredentials;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.MqttTopicMapping;
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 
-import java.util.List;
-
-/**
- * Created by ashvayka on 23.01.17.
- */
 @Data
-public class MqttBrokerConfiguration {
-    private String host;
-    private int port;
-    private boolean ssl;
-    private String truststore;
-    private String truststorePassword;
-    private long retryInterval;
-    private MqttClientCredentials credentials;
-    private List<MqttTopicMapping> mapping;
-
+public class CertJKSClientCredentials implements MqttClientCredentials {
+    @Override
+    public void configure(MqttConnectOptions clientOptions) {
+        throw new RuntimeException("JKS client credentials are not supported yet!");
+    }
 }
