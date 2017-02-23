@@ -13,23 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.service;
+package org.thingsboard.gateway.extensions.mqtt.client.conf.credentials;
 
 import lombok.Data;
-import org.thingsboard.server.common.data.kv.KvEntry;
-import org.thingsboard.server.common.data.kv.TsKvEntry;
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 
-import java.util.List;
-
-/**
- * Created by ashvayka on 23.01.17.
- */
 @Data
-public class DeviceData {
-
-    private final String name;
-    private final List<KvEntry> attributes;
-    private final List<TsKvEntry> telemetry;
-    private final int timeout;
-    private final boolean disconnect;
+public class CertJKSClientCredentials implements MqttClientCredentials {
+    @Override
+    public void configure(MqttConnectOptions clientOptions) {
+        throw new RuntimeException("JKS client credentials are not supported yet!");
+    }
 }

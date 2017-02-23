@@ -1,12 +1,13 @@
 # Thingsboard IoT Gateway
 [![Join the chat at https://gitter.im/thingsboard/chat](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/thingsboard/chat?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Build Status](https://travis-ci.org/thingsboard/thingsboard-gateway.svg?branch=master)](https://travis-ci.org/thingsboard/thingsboard-gateway)
 
 The Thingsboard **IoT Gateway** is an open-source solution that allows you to integrate devices connected to legacy and third-party systems with Thingsboard.
 
 Thingsboard is an open-source IoT platform for data collection, processing, visualization, and device management. See [**What is Thingsboard?**](https://thingsboard.io/docs/getting-started-guides/what-is-thingsboard/) if you are new platform user. 
 
-## Documentation
+![IoT Gateway architecture](./img/tb-gateway.png?raw=true "IoT Gateway architecture")
+
+### Documentation
 
 Thingsboard IoT Gateway documentation is hosted on [thingsboard.io](https://thingsboard.io/docs/iot-gateway/).
 
@@ -22,8 +23,6 @@ Thingsboard IoT Gateway provides following features:
   
 ### Architecture  
 
-![IoT Gateway architecture](./img/tb-gateway.png?raw=true "IoT Gateway architecture")
-
 The IoT Gateway is built on top of **Java**, however is different from similar projects that leverage OSGi technology.
 The idea is distantly similar to microservices architecture.
 There are **other programming languages** (C, C++, Python, Javascript, Go..) that may be more suitable for application development that target IoT devices.
@@ -33,21 +32,28 @@ The Gateway provides simple integration APIs, and encapsulates common Thingsboar
 As an application developer, you are able to choose Python, Go, C/C++ and other languages and connect to Thingsboard Gateway through external MQTT broker or OPC-UA server. 
 Devices that support other protocols may be connected to gateway by implementing custom extensions.
 
-### Project Roadmap
+### Sample Dashboard
 
-The initial Gateway release goal is to bring Thingsboard [data collection](/docs/user-guide/telemetry/) feature to OPC-UA and MQTT enabled devices.  
-The Gateway project is currently in active development stage and you should expect following major features in next releases:
+[**Smart energy monitoring**](https://demo.thingsboard.io/demo?dashboardId=e8e409c0-f2b5-11e6-a6ee-bb0136cc33d0&source=github-gw)
+[![Smart energy monitoring demo](https://cloud.githubusercontent.com/assets/8308069/22933146/438b5ac8-f2d3-11e6-9f68-eb14b967ecd8.png "Smart energy monitoring demo")](https://demo.thingsboard.io/demo?dashboardId=e8e409c0-f2b5-11e6-a6ee-bb0136cc33d0&source=github-gw)
 
- - Ability to configure devices connected through the Gateway using Thingsboard [Attributes](/docs/user-guide/attributes) feature.
- - Ability to control devices connected through the Gateway using Thingsboard [RPC](/docs/user-guide/rpc/) feature.
- - Ability to configure Gateway distantly from Thingsboard [Dashboards](/docs/user-guide/visualization/).
- - Client-side load balancing based on information about Thingsboard cluster.
- - Ability to visualize collected device data on the Gateway Web UI. 
- - Configurable edge analytics.
-
+[**Smart bus tracking**](https://demo.thingsboard.io/demo?dashboardId=3d0bf910-ee09-11e6-b619-bb0136cc33d0&source=github-gw)
+[![Smart bus tracking demo](https://cloud.githubusercontent.com/assets/8308069/22839004/424b0308-efd0-11e6-8e90-7c7ca002495c.png "Smart bus tracking demo")](https://demo.thingsboard.io/demo?dashboardId=3d0bf910-ee09-11e6-b619-bb0136cc33d0&source=github-gw)
 ### Getting Started
 
 Connect to your OPC-UA server or MQTT broker in minutes by following this [guide](https://thingsboard.io/docs/iot-gateway/getting-started).
+
+### Project Roadmap
+
+The initial Gateway release goal is to bring Thingsboard [data collection](https://thingsboard.io/docs/user-guide/telemetry/) feature to OPC-UA and MQTT enabled devices.  
+The Gateway project is currently in active development stage and you should expect following major features in next releases:
+
+ - Ability to configure devices connected through the Gateway using Thingsboard [Attributes](https://thingsboard.io/docs/user-guide/attributes) feature.
+ - Ability to control devices connected through the Gateway using Thingsboard [RPC](https://thingsboard.io/docs/user-guide/rpc/) feature.
+ - Ability to configure Gateway distantly from Thingsboard [Dashboards](https://thingsboard.io/docs/user-guide/visualization/).
+ - Client-side load balancing based on information about Thingsboard cluster.
+ - Ability to visualize collected device data on the Gateway Web UI. 
+ - Configurable edge analytics.
 
 ## Support
 

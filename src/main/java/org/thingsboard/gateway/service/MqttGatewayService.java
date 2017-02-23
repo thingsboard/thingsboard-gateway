@@ -65,7 +65,6 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
     @Autowired
     private TbPersistenceConfiguration persistence;
 
-
     private MqttAsyncClient tbClient;
     private MqttConnectOptions tbClientOptions;
 
@@ -114,7 +113,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
         byte[] msgData = toBytes(newNode().put("device", deviceName));
         MqttMessage msg = new MqttMessage(msgData);
         msg.setId(msgId);
-        log.info("[{}][{}] Device Connected!", deviceName, msgId);
+        log.info("[{}] Device Connected!", deviceName);
         devices.putIfAbsent(deviceName, new DeviceInfo(deviceName));
         publishAsync("v1/gateway/connect", msg,
                 token -> {
@@ -125,17 +124,20 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
 
     @Override
     public void onDeviceDisconnect(String deviceName) {
-        final int msgId = msgIdSeq.incrementAndGet();
-        byte[] msgData = toBytes(newNode().put("device", deviceName));
-        MqttMessage msg = new MqttMessage(msgData);
-        msg.setId(msgId);
-        log.info("[{}][{}] Device Disconnected!", deviceName, msgId);
-        devices.remove(deviceName);
-        publishAsync("v1/gateway/disconnect", msg,
-                token -> {
-                    log.info("[{}][{}] Device disconnect event is delivered!", deviceName, msgId);
-                },
-                error -> log.warn("[{}][{}] Failed to report device disconnect!", deviceName, msgId, error));
+        if (devices.remove(deviceName) != null) {
+            final int msgId = msgIdSeq.incrementAndGet();
+            byte[] msgData = toBytes(newNode().put("device", deviceName));
+            MqttMessage msg = new MqttMessage(msgData);
+            msg.setId(msgId);
+            log.info("[{}][{}] Device Disconnected!", deviceName, msgId);
+            publishAsync("v1/gateway/disconnect", msg,
+                    token -> {
+                        log.info("[{}][{}] Device disconnect event is delivered!", deviceName, msgId);
+                    },
+                    error -> log.warn("[{}][{}] Failed to report device disconnect!", deviceName, msgId, error));
+        } else {
+            log.debug("[{}] Device was disconnected before. Nothing is going to happened.", deviceName);
+        }
     }
 
     @Override

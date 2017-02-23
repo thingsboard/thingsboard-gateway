@@ -15,6 +15,7 @@
             "type": "json",
             "filterExpression": "",
             "deviceNameJsonExpression": "${$.serialNumber}",
+            "timeout": 60000,
             "attributes": [
               {
                 "type": "string",
@@ -37,6 +38,7 @@
             "type": "json",
             "filterExpression": "",
             "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/temperature)",
+            "timeout": 60000,
             "timeseries": [
               {
                 "type": "double",
@@ -44,6 +46,24 @@
                 "value": "${$.value}"
               }
             ]
+          }
+        },
+        {
+          "topicFilter": "sensor/+/willTopic",
+          "converter": {
+            "type": "json",
+            "filterExpression": "",
+            "disconnect": true,
+            "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/willTopic)"
+          }
+        },
+        {
+          "topicFilter": "sensors/willTopic",
+          "converter": {
+            "type": "json",
+            "filterExpression": "",
+            "disconnect": true,
+            "deviceNameJsonExpression": "${$.serialNumber}"
           }
         }
       ],

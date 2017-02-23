@@ -133,7 +133,9 @@ public class OpcUaServerMonitor {
             scanForDevices(new OpcUaNode(Identifiers.RootFolder, ""));
             log.info("Device scan cycle completed in {} ms", (System.currentTimeMillis() - startTs));
             List<OpcUaDevice> deleted = devices.entrySet().stream().filter(kv -> kv.getValue().getScanTs() < startTs).map(kv -> kv.getValue()).collect(Collectors.toList());
-            log.info("Devices {} are now longer available", deleted);
+            if (deleted.size() > 0) {
+                log.info("Devices {} are no longer available", deleted);
+            }
             deleted.forEach(devices::remove);
             deleted.stream().map(OpcUaDevice::getDeviceName).forEach(gateway::onDeviceDisconnect);
         } catch (Exception e) {

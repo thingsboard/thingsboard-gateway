@@ -37,6 +37,20 @@
             <directory>${pkg.win.dist}/conf</directory>
             <outputDirectory>conf</outputDirectory>
             <lineEnding>windows</lineEnding>
+            <excludes>
+                <exclude>*.der</exclude>
+                <exclude>*.cer</exclude>
+                <exclude>*.pfx</exclude>
+            </excludes>
+        </fileSet>
+        <fileSet>
+            <directory>${pkg.win.dist}/conf</directory>
+            <outputDirectory>conf</outputDirectory>
+            <includes>
+                <include>*.der</include>
+                <include>*.cer</include>
+                <include>*.pfx</include>
+            </includes>
         </fileSet>
     </fileSets>
 
