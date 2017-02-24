@@ -18,7 +18,7 @@ package org.thingsboard.gateway.extensions.mqtt.client.conf.mapping;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
-import org.thingsboard.gateway.service.DeviceData;
+import org.thingsboard.gateway.service.data.DeviceData;
 
 import java.util.List;
 

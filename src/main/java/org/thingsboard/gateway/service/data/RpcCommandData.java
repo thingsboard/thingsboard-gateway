@@ -1,4 +1,4 @@
-package org.thingsboard.gateway.service;
+package org.thingsboard.gateway.service.data;
 
 import lombok.Data;
 

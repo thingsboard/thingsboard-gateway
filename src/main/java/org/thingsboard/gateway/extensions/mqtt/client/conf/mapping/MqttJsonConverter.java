@@ -27,7 +27,7 @@ import org.thingsboard.gateway.extensions.opc.conf.mapping.AttributesMapping;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.DeviceMapping;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.KVMapping;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.TimeseriesMapping;
-import org.thingsboard.gateway.service.DeviceData;
+import org.thingsboard.gateway.service.data.DeviceData;
 import org.thingsboard.server.common.data.kv.*;
 
 import java.nio.charset.StandardCharsets;

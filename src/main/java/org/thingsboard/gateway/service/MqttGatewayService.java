@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 The Thingsboard Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,8 +15,10 @@
  */
 package org.thingsboard.gateway.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.base.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,16 +26,18 @@ import org.springframework.stereotype.Service;
 import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
 import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
 import org.thingsboard.gateway.service.conf.TbReportingConfiguration;
+import org.thingsboard.gateway.service.data.AttributesUpdateSubscription;
+import org.thingsboard.gateway.service.data.DeviceInfo;
+import org.thingsboard.gateway.service.data.RpcCommandSubscription;
 import org.thingsboard.gateway.util.JsonTools;
-import org.thingsboard.server.common.data.kv.KvEntry;
-import org.thingsboard.server.common.data.kv.TsKvEntry;
+import org.thingsboard.server.common.data.kv.*;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.List;
-import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -50,10 +54,15 @@ import static org.thingsboard.gateway.util.JsonTools.*;
 public class MqttGatewayService implements GatewayService, MqttCallback {
 
     private static final long CLIENT_RECONNECT_CHECK_INTERVAL = 1;
+    public static final String GATEWAY_RPC_TOPIC = "v1/gateway/rpc";
+    public static final String GATEWAY_ATTRIBUTES_TOPIC = "v1/gateway/attributes";
     private final ConcurrentMap<String, DeviceInfo> devices = new ConcurrentHashMap<>();
     private final AtomicLong attributesCount = new AtomicLong();
     private final AtomicLong telemetryCount = new AtomicLong();
     private final AtomicInteger msgIdSeq = new AtomicInteger();
+    private final Set<AttributesUpdateSubscription> attributeUpdateSubs = ConcurrentHashMap.newKeySet();
+    private final Set<RpcCommandSubscription> rpcCommandSubs = ConcurrentHashMap.newKeySet();
+
     private volatile ObjectNode error;
 
     @Autowired
@@ -71,7 +80,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
     private Object connectLock = new Object();
 
     private ScheduledExecutorService scheduler;
-
+    private ExecutorService callbackExecutor = Executors.newCachedThreadPool();
 
     @PostConstruct
     public void init() throws Exception {
@@ -187,6 +196,31 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
     }
 
     @Override
+    public void onDeviceRpcResponse(String deviceName, String requestId, String payload) {
+
+    }
+
+    @Override
+    public boolean subscribe(AttributesUpdateSubscription subscription) {
+        return subscribe(attributeUpdateSubs::add, subscription);
+    }
+
+    @Override
+    public boolean subscribe(RpcCommandSubscription subscription) {
+        return subscribe(rpcCommandSubs::add, subscription);
+    }
+
+    @Override
+    public boolean unsubscribe(AttributesUpdateSubscription subscription) {
+        return unsubscribe(attributeUpdateSubs::remove, subscription);
+    }
+
+    @Override
+    public boolean unsubscribe(RpcCommandSubscription subscription) {
+        return unsubscribe(rpcCommandSubs::remove, subscription);
+    }
+
+    @Override
     public void onError(Exception e) {
         onError(null, e);
     }
@@ -218,6 +252,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
                             public void onFailure(IMqttToken iMqttToken, Throwable e) {
                             }
                         }).waitForCompletion();
+                        tbClient.subscribe(GATEWAY_ATTRIBUTES_TOPIC, 1, (IMqttMessageListener) this);
+                        tbClient.subscribe(GATEWAY_RPC_TOPIC, 1, (IMqttMessageListener) this);
                         devices.forEach((k, v) -> onDeviceConnect(k));
                     } catch (MqttException e) {
                         log.warn("Failed to connect to Thingsboard!", e);
@@ -289,11 +325,39 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
     @Override
     public void messageArrived(String topic, MqttMessage message) throws Exception {
         log.trace("Message arrived [{}] {}", topic, message.getId());
+        if (topic.equals(GATEWAY_ATTRIBUTES_TOPIC)) {
+            onAttributesUpdate(message);
+        } else if (topic.equals(GATEWAY_RPC_TOPIC)) {
+            onRpcCommand(message);
+        }
     }
 
     @Override
     public void deliveryComplete(IMqttDeliveryToken token) {
         log.trace("Delivery complete [{}]", token);
+    }
+
+    private void onAttributesUpdate(MqttMessage message) {
+        JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));
+        String deviceName = payload.get("device").asText();
+        Set<AttributesUpdateListener> listeners = attributeUpdateSubs.stream()
+                .filter(sub -> sub.matches(deviceName)).map(sub -> sub.getListener())
+                .collect(Collectors.toSet());
+        if (!listeners.isEmpty()) {
+            JsonNode data = payload.get("data");
+            List<KvEntry> attributes = getKvEntries(data);
+            listeners.forEach(listener -> callbackExecutor.submit(() -> {
+                try {
+                    listener.onAttributesUpdated(deviceName, attributes);
+                } catch (Exception e) {
+                    log.error("[{}] Failed to process attributes update", deviceName, e);
+                }
+            }));
+        }
+    }
+
+    private void onRpcCommand(MqttMessage message) {
+
     }
 
     private void checkClientReconnected() {
@@ -309,4 +373,25 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
         e.printStackTrace(new PrintWriter(sw));
         return sw.toString();
     }
+
+    private <T> boolean subscribe(Function<T, Boolean> f, T sub) {
+        if (f.apply(sub)) {
+            log.info("Subscription added: {}", sub);
+            return true;
+        } else {
+            log.warn("Subscription was already added: {}", sub);
+            return false;
+        }
+    }
+
+    private <T> boolean unsubscribe(Function<T, Boolean> f, T sub) {
+        if (f.apply(sub)) {
+            log.info("Subscription removed: {}", sub);
+            return true;
+        } else {
+            log.warn("Subscription was already removed: {}", sub);
+            return false;
+        }
+    }
+
 }

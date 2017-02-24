@@ -16,11 +16,17 @@
 package org.thingsboard.gateway.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.thingsboard.server.common.data.kv.KvEntry;
+import org.thingsboard.server.common.data.kv.*;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Created by ashvayka on 19.01.17.
@@ -35,6 +41,14 @@ public class JsonTools {
 
     public static byte[] toBytes(ObjectNode node) {
         return toString(node).getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static JsonNode fromString(String data) {
+        try {
+            return JSON.readTree(data);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static String toString(ObjectNode node) {
@@ -60,5 +74,24 @@ public class JsonTools {
                 node.put(kv.getKey(), kv.getDoubleValue().get());
                 break;
         }
+    }
+
+    public static List<KvEntry> getKvEntries(JsonNode data) {
+        List<KvEntry> attributes = new ArrayList<>();
+        for (Iterator<Map.Entry<String, JsonNode>> it = data.fields(); it.hasNext(); ) {
+            Map.Entry<String, JsonNode> field = it.next();
+            String key = field.getKey();
+            JsonNode value = field.getValue();
+            if (value.isBoolean()) {
+                attributes.add(new BooleanDataEntry(key, value.asBoolean()));
+            } else if (value.isLong()) {
+                attributes.add(new LongDataEntry(key, value.asLong()));
+            } else if (value.isDouble()) {
+                attributes.add(new DoubleDataEntry(key, value.asDouble()));
+            } else {
+                attributes.add(new StringDataEntry(key, value.asText()));
+            }
+        }
+        return attributes;
     }
 }

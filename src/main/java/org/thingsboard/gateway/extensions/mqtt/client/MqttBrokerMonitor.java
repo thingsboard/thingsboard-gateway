@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 The Thingsboard Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,9 +21,16 @@ import org.eclipse.paho.client.mqttv3.internal.security.SSLSocketFactoryFactory;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.MqttBrokerConfiguration;
+import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.AttributeUpdatesMapping;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.MqttTopicMapping;
-import org.thingsboard.gateway.service.DeviceData;
+import org.thingsboard.gateway.service.AttributesUpdateListener;
+import org.thingsboard.gateway.service.RpcCommandListener;
+import org.thingsboard.gateway.service.data.AttributesUpdateSubscription;
+import org.thingsboard.gateway.service.data.DeviceData;
 import org.thingsboard.gateway.service.GatewayService;
+import org.thingsboard.gateway.service.data.RpcCommandData;
+import org.thingsboard.gateway.service.data.RpcCommandSubscription;
+import org.thingsboard.server.common.data.kv.KvEntry;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,14 +38,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Created by ashvayka on 24.01.17.
  */
 @Slf4j
-public class MqttBrokerMonitor implements MqttCallback {
-    //TODO: ability to autoreconnect
-    //TODO: ability to report device connect/disconnect messages
+public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener, RpcCommandListener {
     private final UUID clientId = UUID.randomUUID();
     private final GatewayService gateway;
     private final MqttBrokerConfiguration configuration;
@@ -75,6 +81,16 @@ public class MqttBrokerMonitor implements MqttCallback {
             }
             configuration.getCredentials().configure(clientOptions);
             checkConnection();
+            if (configuration.getAttributeUpdates() != null) {
+                configuration.getAttributeUpdates().forEach(mapping ->
+                        gateway.subscribe(new AttributesUpdateSubscription(mapping.getDeviceNameFilter(), this))
+                );
+            }
+            if (configuration.getServerSideRpc() != null) {
+                configuration.getServerSideRpc().forEach(mapping ->
+                        gateway.subscribe(new RpcCommandSubscription(mapping.getDeviceNameFilter(), this))
+                );
+            }
         } catch (MqttException e) {
             log.error("[{}:{}] MQTT broker connection failed!", configuration.getHost(), configuration.getPort(), e);
             throw new RuntimeException("MQTT broker connection failed!", e);
@@ -184,6 +200,25 @@ public class MqttBrokerMonitor implements MqttCallback {
     }
 
     @Override
+    public void onAttributesUpdated(String deviceName, List<KvEntry> attributes) {
+        List<AttributeUpdatesMapping> mappings = configuration.getAttributeUpdates().stream()
+                .filter(mapping -> deviceName.matches(mapping.getDeviceNameFilter())).collect(Collectors.toList());
+
+        for (AttributeUpdatesMapping mapping : mappings) {
+            List<KvEntry> affected = attributes.stream().filter(attribute -> attribute.getKey()
+                    .matches(mapping.getAttributeFilter())).collect(Collectors.toList());
+
+        }
+
+        //TODO
+    }
+
+    @Override
+    public void onRpcCommand(String deviceName, RpcCommandData command) {
+        //TODO
+    }
+
+    @Override
     public void connectionLost(Throwable cause) {
         log.warn("[{}:{}] MQTT broker connection lost!", configuration.getHost(), configuration.getPort());
         devices.forEach(gateway::onDeviceDisconnect);
@@ -196,6 +231,5 @@ public class MqttBrokerMonitor implements MqttCallback {
 
     @Override
     public void deliveryComplete(IMqttDeliveryToken token) {
-
     }
 }

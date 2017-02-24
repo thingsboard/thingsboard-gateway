@@ -16,6 +16,8 @@
 package org.thingsboard.gateway.service;
 
 import org.thingsboard.gateway.extensions.opc.OpcUaDevice;
+import org.thingsboard.gateway.service.data.AttributesUpdateSubscription;
+import org.thingsboard.gateway.service.data.RpcCommandSubscription;
 import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 
@@ -53,18 +55,41 @@ public interface GatewayService {
     void onDeviceTelemetry(String deviceName, List<TsKvEntry> telemetry);
 
     /**
-     * Register attribute updates listener to gateway service
-     * @param deviceNameFilter - the device name filter
-     * @param listener - the attributes update listener
+     * Report response from device to the server-side RPC call from Thingsboard
+     * @param deviceName - the device name
+     * @param requestId - the request id
+     * @param payload - the payload
      */
-    void subscribe(String deviceNameFilter, AttributesUpdateListener listener);
+    void onDeviceRpcResponse(String deviceName, String requestId, String payload);
 
     /**
-     * Register server-side rpc command listener to gateway service
-     * @param deviceNameFilter - the device name filter
-     * @param listener - the server-side rpc command listener
+     * Subscribe to attribute updates from Thingsboard
+     * @param subscription - the subscription
+     * @return true if successful, false if already subscribed
+     *
      */
-    void subscribe(String deviceNameFilter, RpcCommandListener listener);
+    boolean subscribe(AttributesUpdateSubscription subscription);
+
+    /**
+     * Subscribe to server-side rpc commands from Thingsboard
+     * @param subscription - the subscription
+     * @return true if successful, false if already subscribed
+     */
+    boolean subscribe(RpcCommandSubscription subscription);
+
+    /**
+     * Unsubscribe to attribute updates from Thingsboard
+     * @param subscription - the subscription
+     * @return true if successful, false if already unsubscribed
+     */
+    boolean unsubscribe(AttributesUpdateSubscription subscription);
+
+    /**
+     * Unsubscribe to server-side rpc commands from Thingsboard
+     * @param subscription - the subscription
+     * @return true if successful, false if already unsubscribed
+     */
+    boolean unsubscribe(RpcCommandSubscription subscription);
 
     /**
      * Report generic error from one of gateway components
