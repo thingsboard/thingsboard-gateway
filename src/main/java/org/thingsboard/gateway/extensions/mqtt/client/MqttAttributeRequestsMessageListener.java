@@ -19,11 +19,10 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.MqttDataConverter;
-import org.thingsboard.gateway.service.data.DeviceData;
+import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.AttributeRequestsMapping;
+import org.thingsboard.gateway.service.data.AttributeRequest;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -31,10 +30,10 @@ import java.util.function.Consumer;
  */
 @Data
 @Slf4j
-public class MqttMessageListener implements IMqttMessageListener {
+public class MqttAttributeRequestsMessageListener implements IMqttMessageListener {
 
-    private final Consumer<List<DeviceData>> consumer;
-    private final MqttDataConverter converter;
+    private final Consumer<AttributeRequest> consumer;
+    private final AttributeRequestsMapping converter;
 
     @Override
     public void messageArrived(String topic, MqttMessage message) throws Exception {

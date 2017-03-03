@@ -15,7 +15,6 @@
             "type": "json",
             "filterExpression": "",
             "deviceNameJsonExpression": "${$.serialNumber}",
-            "timeout": 60000,
             "attributes": [
               {
                 "type": "string",
@@ -67,12 +66,32 @@
           }
         }
       ],
+      "attributeRequests": [
+        {
+          "topicFilter": "sensors/attributes",
+          "deviceNameJsonExpression": "${$.serialNumber}",
+          "attributeKeyJsonExpression": "${$.key}",
+          "requestIdJsonExpression": "${$.requestId}",
+          "clientScope": false,
+          "responseTopicExpression": "sensors/${deviceName}/attributes/${responseId}",
+          "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
+        },
+        {
+          "topicFilter": "sensors/+/attributes/+/request/+",
+          "deviceNameTopicExpression": "(?<=sensors\/)(.*?)(?=\/attributes)",
+          "attributeKeyTopicExpression": "(?<=attributes\/)(.*?)(?=\/request)",
+          "requestIdTopicExpression": "(?<=request\/)(.*?)($)",
+          "clientScope": false,
+          "responseTopicExpression": "sensors/${deviceName}/attributes/${attributeKey}/response/${requestId}",
+          "valueExpression": "${attributeValue}"
+        }
+      ],
       "attributeUpdates": [
         {
           "deviceNameFilter": ".*",
           "attributeFilter": ".*",
-          "topicExpression": "sensor/${deviceName}/${attributeName}",
-          "valueExpression": "{\"${attributeName}\":\"${attributeValue}\"}"
+          "topicExpression": "sensor/${deviceName}/${attributeKey}",
+          "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
         }
       ],
       "serverSideRpc": [

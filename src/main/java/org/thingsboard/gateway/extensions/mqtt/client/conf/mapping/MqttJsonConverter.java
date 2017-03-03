@@ -23,6 +23,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.springframework.util.StringUtils;
+import org.thingsboard.gateway.extensions.mqtt.client.converter.AbstractJsonConverter;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.AttributesMapping;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.DeviceMapping;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.KVMapping;
@@ -41,9 +42,8 @@ import java.util.stream.Collectors;
  */
 @Data
 @Slf4j
-public class MqttJsonConverter implements MqttDataConverter {
+public class MqttJsonConverter extends AbstractJsonConverter implements MqttDataConverter {
 
-    private static final ObjectMapper mapper = new ObjectMapper();
     private String filterExpression;
     private String deviceNameJsonExpression;
     private String deviceNameTopicExpression;
@@ -57,6 +57,20 @@ public class MqttJsonConverter implements MqttDataConverter {
     public List<DeviceData> convert(String topic, MqttMessage msg) throws Exception {
         String data = new String(msg.getPayload(), StandardCharsets.UTF_8);
         log.trace("Parsing json message: {}", data);
+
+        if (!filterExpression.isEmpty()) {
+            try {
+                log.debug("Data before filtering {}", data);
+                DocumentContext document = JsonPath.parse(data);
+                document = JsonPath.parse((Object) document.read(filterExpression));
+                data = document.jsonString();
+                log.debug("Data after filtering {}", data);
+            } catch (RuntimeException e) {
+                log.debug("Failed to apply filter expression: {}", filterExpression);
+                throw new RuntimeException("Failed to apply filter expression " + filterExpression);
+            }
+        }
+
         JsonNode node = mapper.readTree(data);
         List<String> srcList;
         if (node.isArray()) {
@@ -75,15 +89,6 @@ public class MqttJsonConverter implements MqttDataConverter {
         List<DeviceData> result = new ArrayList<>(srcList.size());
         for (String src : srcList) {
             DocumentContext document = JsonPath.parse(src);
-            if (!filterExpression.isEmpty()) {
-                try {
-                    document = JsonPath.parse((Object) document.read(filterExpression));
-                } catch (RuntimeException e) {
-                    log.debug("Failed to apply filter expression: {}", filterExpression);
-                    throw new RuntimeException("Failed to apply filter expression " + filterExpression);
-                }
-            }
-
             long ts = System.currentTimeMillis();
             String deviceName;
             if (!StringUtils.isEmpty(deviceNameTopicExpression)) {
@@ -127,19 +132,6 @@ public class MqttJsonConverter implements MqttDataConverter {
         return result;
     }
 
-
-    private String eval(DocumentContext document, String expression) {
-        Matcher matcher = DeviceMapping.TAG_PATTERN.matcher(expression);
-        String result = new String(expression);
-        while (matcher.find()) {
-            String tag = matcher.group();
-            String exp = tag.substring(2, tag.length() - 1);
-            String tagValue = ((Object) apply(document, exp)).toString();
-            result = result.replace(tag, tagValue);
-        }
-        return result;
-    }
-
     private String eval(String topic) {
         if (deviceNameTopicPattern == null) {
             deviceNameTopicPattern = Pattern.compile(deviceNameTopicExpression);
@@ -149,15 +141,5 @@ public class MqttJsonConverter implements MqttDataConverter {
             return matcher.group();
         }
         return null;
-    }
-
-
-    private <T> T apply(DocumentContext document, String expression) {
-        try {
-            return document.read(expression);
-        } catch (RuntimeException e) {
-            log.debug("Failed to apply expression: {}", expression);
-            throw new RuntimeException("Failed to apply expression " + expression);
-        }
     }
 }

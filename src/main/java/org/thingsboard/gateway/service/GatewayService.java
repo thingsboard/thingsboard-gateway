@@ -15,13 +15,15 @@
  */
 package org.thingsboard.gateway.service;
 
-import org.thingsboard.gateway.extensions.opc.OpcUaDevice;
+import org.thingsboard.gateway.service.data.AttributeRequest;
+import org.thingsboard.gateway.service.data.AttributeResponse;
 import org.thingsboard.gateway.service.data.AttributesUpdateSubscription;
 import org.thingsboard.gateway.service.data.RpcCommandSubscription;
 import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Created by ashvayka on 16.01.17.
@@ -53,6 +55,13 @@ public interface GatewayService {
      * @param telemetry - the telemetry values list
      */
     void onDeviceTelemetry(String deviceName, List<TsKvEntry> telemetry);
+
+    /**
+     * Report attributes request to Thingsboard
+     * @param attributeRequest - attributes request
+     * @param listener - attributes response
+     */
+    void onDeviceAttributeRequest(AttributeRequest attributeRequest, Consumer<AttributeResponse> listener);
 
     /**
      * Report response from device to the server-side RPC call from Thingsboard
@@ -103,4 +112,5 @@ public interface GatewayService {
      * @param e - the error
      */
     void onError(String deviceName, Exception e);
+
 }

@@ -27,7 +27,7 @@ gateway:
     retryInterval: 3000
     maxInFlight: 1000
     security:
-      accessToken: 4bVmz78hsCORA3KakZjh
+      accessToken: YsUR0lUnm4k5WrCeLgLZ
 #      keystore: mqttclient.jks
 #      keystorePassword: password
 #      keystoreKeyAlias: clientalias

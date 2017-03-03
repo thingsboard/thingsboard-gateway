@@ -21,23 +21,23 @@ import org.eclipse.paho.client.mqttv3.internal.security.SSLSocketFactoryFactory;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.MqttBrokerConfiguration;
+import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.AttributeRequestsMapping;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.AttributeUpdatesMapping;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.MqttTopicMapping;
 import org.thingsboard.gateway.service.AttributesUpdateListener;
 import org.thingsboard.gateway.service.RpcCommandListener;
-import org.thingsboard.gateway.service.data.AttributesUpdateSubscription;
-import org.thingsboard.gateway.service.data.DeviceData;
+import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.gateway.service.GatewayService;
-import org.thingsboard.gateway.service.data.RpcCommandData;
-import org.thingsboard.gateway.service.data.RpcCommandSubscription;
 import org.thingsboard.server.common.data.kv.KvEntry;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -49,6 +49,7 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
     private final GatewayService gateway;
     private final MqttBrokerConfiguration configuration;
     private final Set<String> devices;
+    private final AtomicInteger msgIdSeq = new AtomicInteger();
 
     private MqttAsyncClient client;
     private MqttConnectOptions clientOptions;
@@ -138,7 +139,10 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
     private void subscribeToTopics() throws MqttException {
         List<IMqttToken> tokens = new ArrayList<>();
         for (MqttTopicMapping mapping : configuration.getMapping()) {
-            tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttMessageListener(this::onDeviceData, mapping.getConverter())));
+            tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttTelemetryMessageListener(this::onDeviceData, mapping.getConverter())));
+        }
+        for (AttributeRequestsMapping mapping : configuration.getAttributeRequests()) {
+            tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttAttributeRequestsMessageListener(this::onAttributeRequest, mapping)));
         }
         for (IMqttToken token : tokens) {
             token.waitForCompletion();
@@ -176,6 +180,21 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
         }
     }
 
+    private void onAttributeRequest(AttributeRequest attributeRequest) {
+        gateway.onDeviceAttributeRequest(attributeRequest, this::onAttributeResponse);
+    }
+
+    private void onAttributeResponse(AttributeResponse response) {
+        if (response.getData().isPresent()) {
+            KvEntry attribute = response.getData().get();
+            String topic = replace(response.getTopicExpression(), Integer.toString(response.getRequestId()), response.getDeviceName(), attribute);
+            String body = replace(response.getValueExpression(), Integer.toString(response.getRequestId()), response.getDeviceName(), attribute);
+            publishAttribute(response.getDeviceName(), attribute, topic, new MqttMessage(body.getBytes(StandardCharsets.UTF_8)));
+        } else {
+            log.warn("[{}] {} attribute [{}] not found", response.getDeviceName(), response.isClientScope() ? "Client" : "Shared", response.getKey());
+        }
+    }
+
     private void cleanUpKeepAliveTimes(DeviceData dd) {
         if (dd.getTimeout() != 0) {
             ScheduledFuture<?> future = deviceKeepAliveTimers.get(dd.getName());
@@ -207,10 +226,42 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
         for (AttributeUpdatesMapping mapping : mappings) {
             List<KvEntry> affected = attributes.stream().filter(attribute -> attribute.getKey()
                     .matches(mapping.getAttributeFilter())).collect(Collectors.toList());
-
+            for (KvEntry attribute : affected) {
+                String topic = replace(mapping.getTopicExpression(), deviceName, attribute);
+                String body = replace(mapping.getValueExpression(), deviceName, attribute);
+                MqttMessage msg = new MqttMessage(body.getBytes(StandardCharsets.UTF_8));
+                publishAttribute(deviceName, attribute, topic, msg);
+            }
         }
+    }
 
-        //TODO
+    private void publishAttribute(final String deviceName, final KvEntry attribute, String topic, MqttMessage msg) {
+        try {
+            client.publish(topic, msg, null, new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken iMqttToken) {
+                    log.info("[{}] Successfully published [{}] attribute to topic [{}]", deviceName, attribute.getKey(), topic);
+                }
+
+                @Override
+                public void onFailure(IMqttToken iMqttToken, Throwable e) {
+                    log.warn("[{}] Failed to publish [{}] attribute to topic [{}]", deviceName, attribute.getKey(), topic, e);
+                }
+            });
+        } catch (MqttException e) {
+            log.warn("[{}] Failed to publish [{}] attribute", deviceName, attribute.getKey(), e);
+        }
+    }
+
+    private static String replace(String expression, String deviceName, KvEntry attribute) {
+        return replace(expression, "", deviceName, attribute);
+    }
+
+    private static String replace(String expression, String requestId, String deviceName, KvEntry attribute) {
+        return expression.replace("${deviceName}", deviceName)
+                .replace("${requestId}", requestId)
+                .replace("${attributeKey}", attribute.getKey())
+                .replace("${attributeValue}", attribute.getValueAsString());
     }
 
     @Override
@@ -227,6 +278,7 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
 
     @Override
     public void messageArrived(String topic, MqttMessage message) throws Exception {
+
     }
 
     @Override

@@ -17,6 +17,7 @@ package org.thingsboard.gateway.extensions.mqtt.client.conf;
 
 import lombok.Data;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.credentials.MqttClientCredentials;
+import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.AttributeRequestsMapping;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.AttributeUpdatesMapping;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.MqttTopicMapping;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.ServerSideRpcMapping;
@@ -36,6 +37,7 @@ public class MqttBrokerConfiguration {
     private long retryInterval;
     private MqttClientCredentials credentials;
     private List<MqttTopicMapping> mapping;
+    private List<AttributeRequestsMapping> attributeRequests;
     private List<AttributeUpdatesMapping> attributeUpdates;
     private List<ServerSideRpcMapping> serverSideRpc;
 }

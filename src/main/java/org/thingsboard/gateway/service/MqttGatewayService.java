@@ -23,12 +23,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
 import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
 import org.thingsboard.gateway.service.conf.TbReportingConfiguration;
-import org.thingsboard.gateway.service.data.AttributesUpdateSubscription;
-import org.thingsboard.gateway.service.data.DeviceInfo;
-import org.thingsboard.gateway.service.data.RpcCommandSubscription;
 import org.thingsboard.gateway.util.JsonTools;
 import org.thingsboard.server.common.data.kv.*;
 
@@ -51,11 +49,17 @@ import static org.thingsboard.gateway.util.JsonTools.*;
  */
 @Service
 @Slf4j
-public class MqttGatewayService implements GatewayService, MqttCallback {
+public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMessageListener {
 
     private static final long CLIENT_RECONNECT_CHECK_INTERVAL = 1;
+    public static final String DEVICE_TELEMETRY_TOPIC = "v1/devices/me/telemetry";
     public static final String GATEWAY_RPC_TOPIC = "v1/gateway/rpc";
     public static final String GATEWAY_ATTRIBUTES_TOPIC = "v1/gateway/attributes";
+    public static final String GATEWAY_TELEMETRY_TOPIC = "v1/gateway/telemetry";
+    public static final String GATEWAY_REQUESTS_ATTRIBUTES_TOPIC = "v1/gateway/attributes/request";
+    public static final String GATEWAY_RESPONSES_ATTRIBUTES_TOPIC = "v1/gateway/attributes/response";
+    public static final String GATEWAY_CONNECT_TOPIC = "v1/gateway/connect";
+    public static final String GATEWAY_DISCONNECT_TOPIC = "v1/gateway/disconnect";
     private final ConcurrentMap<String, DeviceInfo> devices = new ConcurrentHashMap<>();
     private final AtomicLong attributesCount = new AtomicLong();
     private final AtomicLong telemetryCount = new AtomicLong();
@@ -124,7 +128,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
         msg.setId(msgId);
         log.info("[{}] Device Connected!", deviceName);
         devices.putIfAbsent(deviceName, new DeviceInfo(deviceName));
-        publishAsync("v1/gateway/connect", msg,
+        publishAsync(GATEWAY_CONNECT_TOPIC, msg,
                 token -> {
                     log.info("[{}][{}] Device connect event is reported to Thingsboard!", deviceName, msgId);
                 },
@@ -139,7 +143,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
             MqttMessage msg = new MqttMessage(msgData);
             msg.setId(msgId);
             log.info("[{}][{}] Device Disconnected!", deviceName, msgId);
-            publishAsync("v1/gateway/disconnect", msg,
+            publishAsync(GATEWAY_DISCONNECT_TOPIC, msg,
                     token -> {
                         log.info("[{}][{}] Device disconnect event is delivered!", deviceName, msgId);
                     },
@@ -160,7 +164,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
         final int packSize = attributes.size();
         MqttMessage msg = new MqttMessage(toBytes(node));
         msg.setId(msgId);
-        publishAsync("v1/gateway/attributes", msg,
+        publishAsync(GATEWAY_ATTRIBUTES_TOPIC, msg,
                 token -> {
                     log.debug("[{}][{}] Device attributes were delivered!", deviceName, msgId);
                     attributesCount.addAndGet(packSize);
@@ -186,13 +190,42 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
         final int packSize = telemetry.size();
         MqttMessage msg = new MqttMessage(toBytes(node));
         msg.setId(msgId);
-        publishAsync("v1/gateway/telemetry", msg,
+        publishAsync(GATEWAY_TELEMETRY_TOPIC, msg,
                 token -> {
                     log.debug("[{}][{}] Device telemetry published to Thingsboard!", msgId, deviceName);
                     telemetryCount.addAndGet(packSize);
                 },
                 error -> log.warn("[{}][{}] Failed to publish device telemetry!", deviceName, msgId, error));
 
+    }
+
+    private Map<AttributeRequestKey, AttributeRequestListener> pendingAttrRequestsMap = new ConcurrentHashMap<>();
+
+    @Override
+    public void onDeviceAttributeRequest(AttributeRequest request, Consumer<AttributeResponse> listener) {
+        final int msgId = msgIdSeq.incrementAndGet();
+        String deviceName = request.getDeviceName();
+        AttributeRequestKey requestKey = new AttributeRequestKey(request.getRequestId(), request.getDeviceName());
+        log.trace("[{}][{}] Requesting {} attribute: {}", deviceName, msgId, request.isClientScope() ? "client" : "shared", request.getAttributeKey());
+        checkDeviceConnected(deviceName);
+
+        ObjectNode node = newNode();
+        node.put("id", request.getRequestId());
+        node.put("client", request.isClientScope());
+        node.put("device", request.getDeviceName());
+        node.put("key", request.getAttributeKey());
+        MqttMessage msg = new MqttMessage(toBytes(node));
+
+        msg.setId(msgId);
+        pendingAttrRequestsMap.put(requestKey, new AttributeRequestListener(request, listener));
+        publishAsync(GATEWAY_REQUESTS_ATTRIBUTES_TOPIC, msg,
+                token -> {
+                    log.debug("[{}][{}] Device attributes request was delivered!", deviceName, msgId);
+                },
+                error -> {
+                    log.warn("[{}][{}] Failed to report device attributes!", deviceName, msgId, error);
+                    pendingAttrRequestsMap.remove(requestKey);
+                });
     }
 
     @Override
@@ -252,8 +285,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
                             public void onFailure(IMqttToken iMqttToken, Throwable e) {
                             }
                         }).waitForCompletion();
-                        tbClient.subscribe(GATEWAY_ATTRIBUTES_TOPIC, 1, (IMqttMessageListener) this);
-                        tbClient.subscribe(GATEWAY_RPC_TOPIC, 1, (IMqttMessageListener) this);
+//                        tbClient.subscribe(GATEWAY_ATTRIBUTES_TOPIC, 1, (IMqttMessageListener) this);
+//                        tbClient.subscribe(GATEWAY_RPC_TOPIC, 1, (IMqttMessageListener) this);
                         devices.forEach((k, v) -> onDeviceConnect(k));
                     } catch (MqttException e) {
                         log.warn("Failed to connect to Thingsboard!", e);
@@ -278,7 +311,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
 
     private void publishAsync(final String topic, MqttMessage msg, Consumer<IMqttToken> onSuccess, Consumer<Throwable> onFailure) {
         try {
-            IMqttDeliveryToken token = tbClient.publish(topic, msg, null, new IMqttActionListener() {
+            tbClient.publish(topic, msg, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
                     onSuccess.accept(asyncActionToken);
@@ -312,13 +345,15 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
         }
         MqttMessage msg = new MqttMessage(toBytes(node));
         msg.setId(msgIdSeq.incrementAndGet());
-        publishAsync("v1/devices/me/telemetry", msg,
+        publishAsync(DEVICE_TELEMETRY_TOPIC, msg,
                 token -> log.info("Gateway statistics {} reported!", node),
                 error -> log.warn("Failed to report gateway statistics!", error));
     }
 
     @Override
     public void connectionLost(Throwable cause) {
+        //TODO: reply with error
+        pendingAttrRequestsMap.clear();
         scheduler.schedule(this::checkClientReconnected, CLIENT_RECONNECT_CHECK_INTERVAL, TimeUnit.SECONDS);
     }
 
@@ -327,6 +362,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
         log.trace("Message arrived [{}] {}", topic, message.getId());
         if (topic.equals(GATEWAY_ATTRIBUTES_TOPIC)) {
             onAttributesUpdate(message);
+        } else if (topic.equals(GATEWAY_RESPONSES_ATTRIBUTES_TOPIC)) {
+            onDeviceAttributesResponse(message);
         } else if (topic.equals(GATEWAY_RPC_TOPIC)) {
             onRpcCommand(message);
         }
@@ -354,6 +391,49 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
                 }
             }));
         }
+    }
+
+    private void onDeviceAttributesResponse(MqttMessage message) {
+        JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));
+        AttributeRequestKey requestKey = new AttributeRequestKey(payload.get("id").asInt(), payload.get("device").asText());
+
+        AttributeRequestListener listener = pendingAttrRequestsMap.get(requestKey);
+        if (listener == null) {
+            log.warn("[{}][{}] Can't find listener for request", requestKey.getDeviceName(), requestKey.getRequestId());
+            return;
+        }
+
+        AttributeRequest request = listener.getRequest();
+        AttributeResponse.AttributeResponseBuilder response = AttributeResponse.builder();
+
+        response.requestId(request.getRequestId());
+        response.deviceName(request.getDeviceName());
+        response.key(request.getAttributeKey());
+        response.clientScope(request.isClientScope());
+        response.topicExpression(request.getTopicExpression());
+        response.valueExpression(request.getValueExpression());
+
+        String key = listener.getRequest().getAttributeKey();
+        JsonNode value = payload.get("value");
+        if (value == null) {
+            response.data(Optional.empty());
+        } else if (value.isBoolean()) {
+            response.data(Optional.of(new BooleanDataEntry(key, value.asBoolean())));
+        } else if (value.isLong()) {
+            response.data(Optional.of(new LongDataEntry(key, value.asLong())));
+        } else if (value.isDouble()) {
+            response.data(Optional.of(new DoubleDataEntry(key, value.asDouble())));
+        } else {
+            response.data(Optional.of(new StringDataEntry(key, value.asText())));
+        }
+
+        callbackExecutor.submit(() -> {
+            try {
+                listener.getListener().accept(response.build());
+            } catch (Exception e) {
+                log.error("[{}][{}] Failed to process attributes response", requestKey.getDeviceName(), requestKey.getRequestId(), e);
+            }
+        });
     }
 
     private void onRpcCommand(MqttMessage message) {
@@ -393,5 +473,4 @@ public class MqttGatewayService implements GatewayService, MqttCallback {
             return false;
         }
     }
-
 }
