@@ -22,12 +22,12 @@ gateway:
     path: storage
     bufferSize: 1000
   connection:
-    host: "localhost"
+    host: "demo.thingsboard.io"
     port: 1883
     retryInterval: 3000
     maxInFlight: 1000
     security:
-      accessToken: YsUR0lUnm4k5WrCeLgLZ
+      accessToken: your_token
 #      keystore: mqttclient.jks
 #      keystorePassword: password
 #      keystoreKeyAlias: clientalias
@@ -39,7 +39,7 @@ opc:
   configuration: opc-config.json
 
 mqtt:
-  enabled: true
+  enabled: false
   configuration: mqtt-config.json
 
 server:
