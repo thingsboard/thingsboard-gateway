@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.springframework.util.StringUtils;
@@ -41,6 +42,7 @@ import java.util.stream.Collectors;
  * Created by ashvayka on 23.01.17.
  */
 @Data
+@EqualsAndHashCode(callSuper = false)
 @Slf4j
 public class MqttJsonConverter extends AbstractJsonConverter implements MqttDataConverter {
 
@@ -49,7 +51,6 @@ public class MqttJsonConverter extends AbstractJsonConverter implements MqttData
     private String deviceNameTopicExpression;
     private Pattern deviceNameTopicPattern;
     private int timeout;
-    private boolean disconnect;
     private final List<AttributesMapping> attributes;
     private final List<TimeseriesMapping> timeseries;
 
@@ -101,7 +102,7 @@ public class MqttJsonConverter extends AbstractJsonConverter implements MqttData
                 List<TsKvEntry> tsData = getKvEntries(document, timeseries).stream()
                         .map(kv -> new BasicTsKvEntry(ts, kv))
                         .collect(Collectors.toList());
-                result.add(new DeviceData(deviceName, attrData, tsData, timeout, disconnect));
+                result.add(new DeviceData(deviceName, attrData, tsData, timeout));
             }
         }
         return result;

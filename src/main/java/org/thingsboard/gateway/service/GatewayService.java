@@ -15,10 +15,7 @@
  */
 package org.thingsboard.gateway.service;
 
-import org.thingsboard.gateway.service.data.AttributeRequest;
-import org.thingsboard.gateway.service.data.AttributeResponse;
-import org.thingsboard.gateway.service.data.AttributesUpdateSubscription;
-import org.thingsboard.gateway.service.data.RpcCommandSubscription;
+import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 
@@ -65,11 +62,9 @@ public interface GatewayService {
 
     /**
      * Report response from device to the server-side RPC call from Thingsboard
-     * @param deviceName - the device name
-     * @param requestId - the request id
-     * @param payload - the payload
+     * @param response - the device response to RPC call
      */
-    void onDeviceRpcResponse(String deviceName, String requestId, String payload);
+    void onDeviceRpcResponse(RpcCommandResponse response);
 
     /**
      * Subscribe to attribute updates from Thingsboard

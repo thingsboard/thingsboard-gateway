@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 The Thingsboard Authors
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -229,8 +229,26 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     }
 
     @Override
-    public void onDeviceRpcResponse(String deviceName, String requestId, String payload) {
+    public void onDeviceRpcResponse(RpcCommandResponse response) {
+        final int msgId = msgIdSeq.incrementAndGet();
+        int requestId = response.getRequestId();
+        String deviceName = response.getDeviceName();
+        String data = response.getData();
+        checkDeviceConnected(deviceName);
 
+        ObjectNode node = newNode();
+        node.put("id", requestId);
+        node.put("device", deviceName);
+        node.put("data", data);
+        MqttMessage msg = new MqttMessage(toBytes(node));
+        msg.setId(msgId);
+        publishAsync(GATEWAY_RPC_TOPIC, msg,
+                token -> {
+                    log.debug("[{}][{}] RPC response from device was delivered!", deviceName, requestId);
+                },
+                error -> {
+                    log.warn("[{}][{}] Failed to report RPC response from device!", deviceName, requestId, error);
+                });
     }
 
     @Override
@@ -393,6 +411,30 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         }
     }
 
+    private void onRpcCommand(MqttMessage message) {
+        JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));
+        String deviceName = payload.get("device").asText();
+        Set<RpcCommandListener> listeners = rpcCommandSubs.stream()
+                .filter(sub -> sub.matches(deviceName)).map(sub -> sub.getListener())
+                .collect(Collectors.toSet());
+        if (!listeners.isEmpty()) {
+            JsonNode data = payload.get("data");
+            RpcCommandData rpcCommand = new RpcCommandData();
+            rpcCommand.setRequestId(data.get("id").asInt());
+            rpcCommand.setMethod(data.get("method").asText());
+            rpcCommand.setParams(JsonTools.toString(data.get("params")));
+            listeners.forEach(listener -> callbackExecutor.submit(() -> {
+                try {
+                    listener.onRpcCommand(deviceName, rpcCommand);
+                } catch (Exception e) {
+                    log.error("[{}][{}] Failed to process rpc command", deviceName, rpcCommand.getRequestId(), e);
+                }
+            }));
+        } else {
+            log.warn("No listener registered for RPC command to device {}!", deviceName);
+        }
+    }
+
     private void onDeviceAttributesResponse(MqttMessage message) {
         JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));
         AttributeRequestKey requestKey = new AttributeRequestKey(payload.get("id").asInt(), payload.get("device").asText());
@@ -434,10 +476,6 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
                 log.error("[{}][{}] Failed to process attributes response", requestKey.getDeviceName(), requestKey.getRequestId(), e);
             }
         });
-    }
-
-    private void onRpcCommand(MqttMessage message) {
-
     }
 
     private void checkClientReconnected() {

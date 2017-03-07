@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.mqtt.client;
+package org.thingsboard.gateway.extensions.mqtt.client.listener;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;

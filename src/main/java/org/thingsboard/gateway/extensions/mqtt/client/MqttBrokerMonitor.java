@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 The Thingsboard Authors
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,9 +21,11 @@ import org.eclipse.paho.client.mqttv3.internal.security.SSLSocketFactoryFactory;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.MqttBrokerConfiguration;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.AttributeRequestsMapping;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.AttributeUpdatesMapping;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.MqttTopicMapping;
+import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.*;
+import org.thingsboard.gateway.extensions.mqtt.client.listener.MqttAttributeRequestsMessageListener;
+import org.thingsboard.gateway.extensions.mqtt.client.listener.MqttDeviceStateChangeMessageListener;
+import org.thingsboard.gateway.extensions.mqtt.client.listener.MqttRpcResponseMessageListener;
+import org.thingsboard.gateway.extensions.mqtt.client.listener.MqttTelemetryMessageListener;
 import org.thingsboard.gateway.service.AttributesUpdateListener;
 import org.thingsboard.gateway.service.RpcCommandListener;
 import org.thingsboard.gateway.service.data.*;
@@ -141,6 +143,12 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
         for (MqttTopicMapping mapping : configuration.getMapping()) {
             tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttTelemetryMessageListener(this::onDeviceData, mapping.getConverter())));
         }
+        for (DeviceStateChangeMapping mapping : configuration.getConnectRequests()) {
+            tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttDeviceStateChangeMessageListener(mapping, this::onDeviceConnect)));
+        }
+        for (DeviceStateChangeMapping mapping : configuration.getDisconnectRequests()) {
+            tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttDeviceStateChangeMessageListener(mapping, this::onDeviceDisconnect)));
+        }
         for (AttributeRequestsMapping mapping : configuration.getAttributeRequests()) {
             tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttAttributeRequestsMessageListener(this::onAttributeRequest, mapping)));
         }
@@ -149,9 +157,21 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
         }
     }
 
+    private void onDeviceConnect(String deviceName) {
+        log.info("[{}] Device connected!", deviceName);
+        gateway.onDeviceConnect(deviceName);
+    }
+
+    private void onDeviceDisconnect(String deviceName) {
+        log.info("[{}] Device disconnected!", deviceName);
+        gateway.onDeviceDisconnect(deviceName);
+        log.debug("[{}] Will Topic Msg Received. Disconnecting device...", deviceName);
+        cleanUpKeepAliveTimes(deviceName);
+    }
+
     private void onDeviceData(List<DeviceData> data) {
         for (DeviceData dd : data) {
-            if (!dd.isDisconnect() && devices.add(dd.getName())) {
+            if (devices.add(dd.getName())) {
                 gateway.onDeviceConnect(dd.getName());
             }
             if (!dd.getAttributes().isEmpty()) {
@@ -159,11 +179,6 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
             }
             if (!dd.getTelemetry().isEmpty()) {
                 gateway.onDeviceTelemetry(dd.getName(), dd.getTelemetry());
-            }
-            if (dd.isDisconnect()) {
-                log.debug("[{}] Will Topic Msg Received. Disconnecting device...", dd.getName());
-                gateway.onDeviceDisconnect(dd.getName());
-                cleanUpKeepAliveTimes(dd);
             }
             if (dd.getTimeout() != 0) {
                 ScheduledFuture<?> future = deviceKeepAliveTimers.get(dd.getName());
@@ -189,19 +204,17 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
             KvEntry attribute = response.getData().get();
             String topic = replace(response.getTopicExpression(), Integer.toString(response.getRequestId()), response.getDeviceName(), attribute);
             String body = replace(response.getValueExpression(), Integer.toString(response.getRequestId()), response.getDeviceName(), attribute);
-            publishAttribute(response.getDeviceName(), attribute, topic, new MqttMessage(body.getBytes(StandardCharsets.UTF_8)));
+            publish(response.getDeviceName(), topic, new MqttMessage(body.getBytes(StandardCharsets.UTF_8)));
         } else {
             log.warn("[{}] {} attribute [{}] not found", response.getDeviceName(), response.isClientScope() ? "Client" : "Shared", response.getKey());
         }
     }
 
-    private void cleanUpKeepAliveTimes(DeviceData dd) {
-        if (dd.getTimeout() != 0) {
-            ScheduledFuture<?> future = deviceKeepAliveTimers.get(dd.getName());
-            if (future != null) {
-                future.cancel(true);
-                deviceKeepAliveTimers.remove(dd.getName());
-            }
+    private void cleanUpKeepAliveTimes(String deviceName) {
+        ScheduledFuture<?> future = deviceKeepAliveTimers.get(deviceName);
+        if (future != null) {
+            future.cancel(true);
+            deviceKeepAliveTimers.remove(deviceName);
         }
     }
 
@@ -230,26 +243,73 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
                 String topic = replace(mapping.getTopicExpression(), deviceName, attribute);
                 String body = replace(mapping.getValueExpression(), deviceName, attribute);
                 MqttMessage msg = new MqttMessage(body.getBytes(StandardCharsets.UTF_8));
-                publishAttribute(deviceName, attribute, topic, msg);
+                publish(deviceName, topic, msg);
             }
         }
     }
 
-    private void publishAttribute(final String deviceName, final KvEntry attribute, String topic, MqttMessage msg) {
+    @Override
+    public void onRpcCommand(String deviceName, RpcCommandData command) {
+        int requestId = command.getRequestId();
+
+        List<ServerSideRpcMapping> mappings = configuration.getServerSideRpc().stream()
+                .filter(mapping -> deviceName.matches(mapping.getDeviceNameFilter()))
+                .filter(mapping -> command.getMethod().matches(mapping.getMethodFilter())).collect(Collectors.toList());
+
+        mappings.forEach(mapping -> {
+            String requestTopic = replace(mapping.getRequestTopicExpression(), deviceName, command);
+            String body = replace(mapping.getValueExpression(), deviceName, command);
+
+            boolean oneway = StringUtils.isEmpty(mapping.getResponseTopicExpression());
+            if (oneway) {
+                publish(deviceName, requestTopic, new MqttMessage(body.getBytes(StandardCharsets.UTF_8)));
+            } else {
+                String responseTopic = replace(mapping.getResponseTopicExpression(), deviceName, command);
+                try {
+                    log.info("[{}] Temporary subscribe to RPC response topic [{}]", deviceName, responseTopic);
+                    client.subscribe(responseTopic, 1,
+                            new MqttRpcResponseMessageListener(requestId, deviceName, this::onRpcCommandResponse)
+                    ).waitForCompletion();
+                    scheduler.schedule(() -> {
+                        unsubscribe(deviceName, requestId, responseTopic);
+                    }, mapping.getResponseTimeout(), TimeUnit.MILLISECONDS);
+                    publish(deviceName, requestTopic, new MqttMessage(body.getBytes(StandardCharsets.UTF_8)));
+                } catch (MqttException e) {
+                    log.warn("[{}] Failed to subscribe to response topic and push RPC command [{}]", deviceName, requestId, e);
+                }
+            }
+        });
+    }
+
+    private void onRpcCommandResponse(String topic, RpcCommandResponse rpcResponse) {
+        log.info("[{}] Un-subscribe from RPC response topic [{}]", rpcResponse.getDeviceName(), topic);
+        gateway.onDeviceRpcResponse(rpcResponse);
+        unsubscribe(rpcResponse.getDeviceName(), rpcResponse.getRequestId(), topic);
+    }
+
+    private void unsubscribe(String deviceName, int requestId, String topic) {
+        try {
+            client.unsubscribe(topic);
+        } catch (MqttException e) {
+            log.warn("[{}][{}] Failed to unsubscribe from RPC reply topic [{}]", deviceName, requestId, topic, e);
+        }
+    }
+
+    private void publish(final String deviceName, String topic, MqttMessage msg) {
         try {
             client.publish(topic, msg, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken iMqttToken) {
-                    log.info("[{}] Successfully published [{}] attribute to topic [{}]", deviceName, attribute.getKey(), topic);
+                    log.info("[{}] Successfully published to topic [{}]", deviceName, topic);
                 }
 
                 @Override
                 public void onFailure(IMqttToken iMqttToken, Throwable e) {
-                    log.warn("[{}] Failed to publish [{}] attribute to topic [{}]", deviceName, attribute.getKey(), topic, e);
+                    log.warn("[{}] Failed to publish to topic [{}]", deviceName, topic, e);
                 }
             });
         } catch (MqttException e) {
-            log.warn("[{}] Failed to publish [{}] attribute", deviceName, attribute.getKey(), e);
+            log.warn("[{}] Failed to publish to topic [{}] ", deviceName, topic, e);
         }
     }
 
@@ -257,16 +317,18 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
         return replace(expression, "", deviceName, attribute);
     }
 
+    private static String replace(String expression, String deviceName, RpcCommandData command) {
+        return expression.replace("${deviceName}", deviceName)
+                .replace("${methodName}", command.getMethod())
+                .replace("${requestId}", Integer.toString(command.getRequestId()))
+                .replace("${params}", command.getParams());
+    }
+
     private static String replace(String expression, String requestId, String deviceName, KvEntry attribute) {
         return expression.replace("${deviceName}", deviceName)
                 .replace("${requestId}", requestId)
                 .replace("${attributeKey}", attribute.getKey())
                 .replace("${attributeValue}", attribute.getValueAsString());
-    }
-
-    @Override
-    public void onRpcCommand(String deviceName, RpcCommandData command) {
-        //TODO
     }
 
     @Override

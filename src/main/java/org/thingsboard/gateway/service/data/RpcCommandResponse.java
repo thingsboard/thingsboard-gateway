@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.mqtt.client.conf.mapping;
+package org.thingsboard.gateway.service.data;
 
 import lombok.Data;
 
@@ -21,11 +21,10 @@ import lombok.Data;
  * Created by ashvayka on 22.02.17.
  */
 @Data
-public class AttributeUpdatesMapping {
+public class RpcCommandResponse {
 
-    private String deviceNameFilter;
-    private String attributeFilter;
-    private String topicExpression;
-    private String valueExpression;
+    private int requestId;
+    private String deviceName;
+    private String data;
 
 }

@@ -51,7 +51,7 @@ public class JsonTools {
         }
     }
 
-    public static String toString(ObjectNode node) {
+    public static String toString(JsonNode node) {
         try {
             return JSON.writeValueAsString(node);
         } catch (JsonProcessingException e) {

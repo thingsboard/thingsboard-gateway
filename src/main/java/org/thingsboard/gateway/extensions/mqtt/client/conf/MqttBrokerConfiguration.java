@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 The Thingsboard Authors
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,10 +17,7 @@ package org.thingsboard.gateway.extensions.mqtt.client.conf;
 
 import lombok.Data;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.credentials.MqttClientCredentials;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.AttributeRequestsMapping;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.AttributeUpdatesMapping;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.MqttTopicMapping;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.ServerSideRpcMapping;
+import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.*;
 
 import java.util.List;
 
@@ -37,6 +34,8 @@ public class MqttBrokerConfiguration {
     private long retryInterval;
     private MqttClientCredentials credentials;
     private List<MqttTopicMapping> mapping;
+    private List<DeviceConnectMapping> connectRequests;
+    private List<DeviceDisconnectMapping> disconnectRequests;
     private List<AttributeRequestsMapping> attributeRequests;
     private List<AttributeUpdatesMapping> attributeUpdates;
     private List<ServerSideRpcMapping> serverSideRpc;
