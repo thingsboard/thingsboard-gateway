@@ -15,25 +15,19 @@
  */
 package org.thingsboard.gateway.extensions.mqtt.client.conf.mapping;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import org.eclipse.paho.client.mqttv3.MqttMessage;
-import org.thingsboard.gateway.service.data.DeviceData;
-
-import java.util.List;
+import lombok.Data;
 
 /**
- * Created by ashvayka on 23.01.17.
+ * Created by ashvayka on 22.02.17.
  */
-@JsonTypeInfo(
-        use = JsonTypeInfo.Id.NAME,
-        include = JsonTypeInfo.As.PROPERTY,
-        property = "type")
-@JsonSubTypes({
-        @JsonSubTypes.Type(value = MqttJsonConverter.class, name = "json")
-})
-public interface MqttDataConverter {
+@Data
+public class ServerSideRpcMapping {
 
-    List<DeviceData> convert(String topic, MqttMessage msg) throws Exception;
+    private String deviceNameFilter;
+    private String methodFilter;
+    private String requestTopicExpression;
+    private String responseTopicExpression;
+    private long responseTimeout;
+    private String valueExpression;
 
 }

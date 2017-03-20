@@ -13,27 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.mqtt.client.conf.mapping;
+package org.thingsboard.gateway.service.data;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import org.eclipse.paho.client.mqttv3.MqttMessage;
-import org.thingsboard.gateway.service.data.DeviceData;
+import lombok.Data;
+import org.thingsboard.server.common.data.kv.KvEntry;
+import org.thingsboard.server.common.data.kv.TsKvEntry;
 
 import java.util.List;
 
 /**
  * Created by ashvayka on 23.01.17.
  */
-@JsonTypeInfo(
-        use = JsonTypeInfo.Id.NAME,
-        include = JsonTypeInfo.As.PROPERTY,
-        property = "type")
-@JsonSubTypes({
-        @JsonSubTypes.Type(value = MqttJsonConverter.class, name = "json")
-})
-public interface MqttDataConverter {
+@Data
+public class DeviceData {
 
-    List<DeviceData> convert(String topic, MqttMessage msg) throws Exception;
-
+    private final String name;
+    private final List<KvEntry> attributes;
+    private final List<TsKvEntry> telemetry;
+    private final int timeout;
 }

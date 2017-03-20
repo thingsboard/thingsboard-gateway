@@ -13,23 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.service;
+package org.thingsboard.gateway.service.data;
 
 import lombok.Data;
-import org.thingsboard.server.common.data.kv.KvEntry;
-import org.thingsboard.server.common.data.kv.TsKvEntry;
-
-import java.util.List;
 
 /**
- * Created by ashvayka on 23.01.17.
+ * Created by ashvayka on 20.01.17.
  */
 @Data
-public class DeviceData {
-
+public class DeviceInfo {
     private final String name;
-    private final List<KvEntry> attributes;
-    private final List<TsKvEntry> telemetry;
-    private final int timeout;
-    private final boolean disconnect;
 }

@@ -15,11 +15,12 @@
  */
 package org.thingsboard.gateway.service;
 
-import org.thingsboard.gateway.extensions.opc.OpcUaDevice;
+import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Created by ashvayka on 16.01.17.
@@ -53,6 +54,48 @@ public interface GatewayService {
     void onDeviceTelemetry(String deviceName, List<TsKvEntry> telemetry);
 
     /**
+     * Report attributes request to Thingsboard
+     * @param attributeRequest - attributes request
+     * @param listener - attributes response
+     */
+    void onDeviceAttributeRequest(AttributeRequest attributeRequest, Consumer<AttributeResponse> listener);
+
+    /**
+     * Report response from device to the server-side RPC call from Thingsboard
+     * @param response - the device response to RPC call
+     */
+    void onDeviceRpcResponse(RpcCommandResponse response);
+
+    /**
+     * Subscribe to attribute updates from Thingsboard
+     * @param subscription - the subscription
+     * @return true if successful, false if already subscribed
+     *
+     */
+    boolean subscribe(AttributesUpdateSubscription subscription);
+
+    /**
+     * Subscribe to server-side rpc commands from Thingsboard
+     * @param subscription - the subscription
+     * @return true if successful, false if already subscribed
+     */
+    boolean subscribe(RpcCommandSubscription subscription);
+
+    /**
+     * Unsubscribe to attribute updates from Thingsboard
+     * @param subscription - the subscription
+     * @return true if successful, false if already unsubscribed
+     */
+    boolean unsubscribe(AttributesUpdateSubscription subscription);
+
+    /**
+     * Unsubscribe to server-side rpc commands from Thingsboard
+     * @param subscription - the subscription
+     * @return true if successful, false if already unsubscribed
+     */
+    boolean unsubscribe(RpcCommandSubscription subscription);
+
+    /**
      * Report generic error from one of gateway components
      * @param e - the error
      */
@@ -64,4 +107,5 @@ public interface GatewayService {
      * @param e - the error
      */
     void onError(String deviceName, Exception e);
+
 }

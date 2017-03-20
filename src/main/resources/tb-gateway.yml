@@ -47,3 +47,8 @@ server:
   address: "0.0.0.0"
   # Server bind port
   port: "9090"
+
+# Check new version updates parameters
+updates:
+  # Enable/disable updates checking.
+  enabled: "${UPDATES_ENABLED:true}"
