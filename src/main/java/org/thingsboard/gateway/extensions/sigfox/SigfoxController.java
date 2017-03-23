@@ -15,15 +15,17 @@
  */
 package org.thingsboard.gateway.extensions.sigfox;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.*;
+import org.thingsboard.gateway.extensions.sigfox.conf.SigfoxRequestProcessingError;
+
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/sigfox")
@@ -35,10 +37,33 @@ public class SigfoxController {
     @Autowired
     private SigfoxService service;
 
+    private ObjectMapper mapper = new ObjectMapper();
+
+
     @RequestMapping(value = "/{deviceTypeId}", method = RequestMethod.POST)
     public void handleRequest(@PathVariable String deviceTypeId,
                               @RequestHeader(TOKEN_HEADER) String token,
                               @RequestBody String body) throws Exception {
         service.processRequest(deviceTypeId, token, body);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public void handleThingsboardException(Exception exception, HttpServletResponse response) {
+        log.debug("Processing exception {}", exception.getMessage(), exception);
+        if (!response.isCommitted()) {
+            try {
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                if (exception instanceof SecurityException) {
+                    response.setStatus(HttpStatus.FORBIDDEN.value());
+                    mapper.writeValue(response.getWriter(),
+                            new SigfoxRequestProcessingError("You don't have permission to perform this operation!"));
+                } else {
+                    response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
+                    mapper.writeValue(response.getWriter(), new SigfoxRequestProcessingError(exception.getMessage()));
+                }
+            } catch (IOException e) {
+                log.error("Can't handle exception", e);
+            }
+        }
     }
 }

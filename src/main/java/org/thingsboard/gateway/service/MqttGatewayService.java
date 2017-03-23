@@ -86,6 +86,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     private ScheduledExecutorService scheduler;
     private ExecutorService callbackExecutor = Executors.newCachedThreadPool();
 
+    private Map<AttributeRequestKey, AttributeRequestListener> pendingAttrRequestsMap = new ConcurrentHashMap<>();
+
     @PostConstruct
     public void init() throws Exception {
         scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -117,46 +119,47 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     @PreDestroy
     public void preDestroy() throws Exception {
         scheduler.shutdownNow();
+        callbackExecutor.shutdownNow();
         tbClient.disconnect();
     }
 
-    // TODO: method should return Future instead of Void. Executing future.get to ensure that there is no race conditions here.
     @Override
-    public void onDeviceConnect(final String deviceName) {
+    public MqttDeliveryFuture onDeviceConnect(final String deviceName) {
         final int msgId = msgIdSeq.incrementAndGet();
         byte[] msgData = toBytes(newNode().put("device", deviceName));
         MqttMessage msg = new MqttMessage(msgData);
         msg.setId(msgId);
         log.info("[{}] Device Connected!", deviceName);
         devices.putIfAbsent(deviceName, new DeviceInfo(deviceName));
-        publishAsync(GATEWAY_CONNECT_TOPIC, msg,
+        return publishAsync(GATEWAY_CONNECT_TOPIC, msg,
                 token -> {
                     log.info("[{}][{}] Device connect event is reported to Thingsboard!", deviceName, msgId);
                 },
                 error -> log.warn("[{}][{}] Failed to report device connection!", deviceName, msgId, error));
     }
 
-    // TODO: method should return Future instead of Void. Executing future.get to ensure that there is no race conditions here.
     @Override
-    public void onDeviceDisconnect(String deviceName) {
+    public Optional<MqttDeliveryFuture> onDeviceDisconnect(String deviceName) {
         if (devices.remove(deviceName) != null) {
             final int msgId = msgIdSeq.incrementAndGet();
             byte[] msgData = toBytes(newNode().put("device", deviceName));
             MqttMessage msg = new MqttMessage(msgData);
             msg.setId(msgId);
             log.info("[{}][{}] Device Disconnected!", deviceName, msgId);
-            publishAsync(GATEWAY_DISCONNECT_TOPIC, msg,
+            MqttDeliveryFuture future = publishAsync(GATEWAY_DISCONNECT_TOPIC, msg,
                     token -> {
                         log.info("[{}][{}] Device disconnect event is delivered!", deviceName, msgId);
                     },
                     error -> log.warn("[{}][{}] Failed to report device disconnect!", deviceName, msgId, error));
+            return Optional.of(future);
         } else {
             log.debug("[{}] Device was disconnected before. Nothing is going to happened.", deviceName);
+            return Optional.empty();
         }
     }
 
     @Override
-    public void onDeviceAttributesUpdate(String deviceName, List<KvEntry> attributes) {
+    public MqttDeliveryFuture onDeviceAttributesUpdate(String deviceName, List<KvEntry> attributes) {
         final int msgId = msgIdSeq.incrementAndGet();
         log.trace("[{}][{}] Updating device attributes: {}", deviceName, msgId, attributes);
         checkDeviceConnected(deviceName);
@@ -166,7 +169,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         final int packSize = attributes.size();
         MqttMessage msg = new MqttMessage(toBytes(node));
         msg.setId(msgId);
-        publishAsync(GATEWAY_ATTRIBUTES_TOPIC, msg,
+        return publishAsync(GATEWAY_ATTRIBUTES_TOPIC, msg,
                 token -> {
                     log.debug("[{}][{}] Device attributes were delivered!", deviceName, msgId);
                     attributesCount.addAndGet(packSize);
@@ -175,7 +178,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     }
 
     @Override
-    public void onDeviceTelemetry(String deviceName, List<TsKvEntry> telemetry) {
+    public MqttDeliveryFuture onDeviceTelemetry(String deviceName, List<TsKvEntry> telemetry) {
         final int msgId = msgIdSeq.incrementAndGet();
         log.trace("[{}][{}] Updating device telemetry: {}", deviceName, msgId, telemetry);
         checkDeviceConnected(deviceName);
@@ -192,16 +195,13 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         final int packSize = telemetry.size();
         MqttMessage msg = new MqttMessage(toBytes(node));
         msg.setId(msgId);
-        publishAsync(GATEWAY_TELEMETRY_TOPIC, msg,
+        return publishAsync(GATEWAY_TELEMETRY_TOPIC, msg,
                 token -> {
                     log.debug("[{}][{}] Device telemetry published to Thingsboard!", msgId, deviceName);
                     telemetryCount.addAndGet(packSize);
                 },
                 error -> log.warn("[{}][{}] Failed to publish device telemetry!", deviceName, msgId, error));
-
     }
-
-    private Map<AttributeRequestKey, AttributeRequestListener> pendingAttrRequestsMap = new ConcurrentHashMap<>();
 
     @Override
     public void onDeviceAttributeRequest(AttributeRequest request, Consumer<AttributeResponse> listener) {
@@ -329,9 +329,9 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         }
     }
 
-    private void publishAsync(final String topic, MqttMessage msg, Consumer<IMqttToken> onSuccess, Consumer<Throwable> onFailure) {
+    private MqttDeliveryFuture publishAsync(final String topic, MqttMessage msg, Consumer<IMqttToken> onSuccess, Consumer<Throwable> onFailure) {
         try {
-            tbClient.publish(topic, msg, null, new IMqttActionListener() {
+            IMqttDeliveryToken token = tbClient.publish(topic, msg, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
                     onSuccess.accept(asyncActionToken);
@@ -342,8 +342,10 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
                     onFailure.accept(e);
                 }
             });
+            return new MqttDeliveryFuture(token);
         } catch (MqttException e) {
             onFailure.accept(e);
+            return new MqttDeliveryFuture(e);
         }
     }
 
