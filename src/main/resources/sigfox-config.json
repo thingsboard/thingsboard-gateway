@@ -1,0 +1,41 @@
+{
+  "deviceTypes": [
+    {
+      "deviceTypeId": "0430b556622f4b7aa3270059d7987b",
+      "token": "SECURITY_TOKEN",
+      "mapping": {
+        "deviceNameJsonExpression": "${$.deviceId}",
+        "attributes": [
+          {
+            "type": "string",
+            "key": "lat",
+            "value": "${$.lat}"
+          },
+          {
+            "type": "string",
+            "key": "lng",
+            "value": "${$.lng}"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "double",
+            "key": "temperature",
+            "value": "${$.data.temperature}",
+            "transformer": {
+              "type": "intToDouble"
+            }
+          },
+          {
+            "type": "double",
+            "key": "humidity",
+            "value": "${$.data.humidity}",
+            "transformer": {
+              "type": "intToDouble"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

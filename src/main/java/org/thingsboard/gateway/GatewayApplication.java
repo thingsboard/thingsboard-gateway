@@ -17,11 +17,11 @@ package org.thingsboard.gateway;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.security.SecurityAutoConfiguration;
 
 import java.util.Arrays;
 
-@SpringBootApplication
+@SpringBootApplication(exclude = {SecurityAutoConfiguration.class })
 public class GatewayApplication {
 
     private static final String SPRING_CONFIG_NAME_KEY = "--spring.config.name";
