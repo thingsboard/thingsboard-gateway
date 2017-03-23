@@ -80,7 +80,6 @@ public class DefaultSigfoxService implements SigfoxService {
     private void processBody(String body, SigfoxDeviceTypeConfiguration configuration) {
         DeviceData dd = configuration.getConverter().parseBody(body);
         if (dd != null) {
-            // TODO: onDeviceConnect should return Future instead of Void. Executing future.get to ensure that there is no race conditions here.
             gateway.onDeviceConnect(dd.getName());
             if (!dd.getAttributes().isEmpty()) {
                 gateway.onDeviceAttributesUpdate(dd.getName(), dd.getAttributes());
@@ -88,7 +87,6 @@ public class DefaultSigfoxService implements SigfoxService {
             if (!dd.getTelemetry().isEmpty()) {
                 gateway.onDeviceTelemetry(dd.getName(), dd.getTelemetry());
             }
-            // TODO: onDeviceDisconnect should return Future instead of Void. Executing future.get to ensure that there is no race conditions here.
             gateway.onDeviceDisconnect(dd.getName());
         } else {
             log.error("DeviceData is null. Body [{}] was not parsed successfully!", body);
