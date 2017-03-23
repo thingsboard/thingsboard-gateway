@@ -20,6 +20,7 @@ import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -31,27 +32,27 @@ public interface GatewayService {
      * Inform gateway service that device is connected
      * @param deviceName
      */
-    void onDeviceConnect(String deviceName);
+    MqttDeliveryFuture onDeviceConnect(String deviceName);
 
     /**
      * Inform gateway service that device is disconnected
      * @param deviceName
      */
-    void onDeviceDisconnect(String deviceName);
+    Optional<MqttDeliveryFuture> onDeviceDisconnect(String deviceName);
 
     /**
      * Report device attributes change to Thingsboard
      * @param deviceName - the device name
      * @param attributes - the attribute values list
      */
-    void onDeviceAttributesUpdate(String deviceName, List<KvEntry> attributes);
+    MqttDeliveryFuture onDeviceAttributesUpdate(String deviceName, List<KvEntry> attributes);
 
     /**
      * Report device telemetry to Thingsboard
      * @param deviceName - the device name
      * @param telemetry - the telemetry values list
      */
-    void onDeviceTelemetry(String deviceName, List<TsKvEntry> telemetry);
+    MqttDeliveryFuture onDeviceTelemetry(String deviceName, List<TsKvEntry> telemetry);
 
     /**
      * Report attributes request to Thingsboard
