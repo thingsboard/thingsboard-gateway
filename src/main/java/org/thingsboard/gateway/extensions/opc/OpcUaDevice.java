@@ -20,7 +20,7 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.AttributesMapping;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.DeviceMapping;
-import org.thingsboard.gateway.extensions.opc.conf.mapping.KVMapping;
+import org.thingsboard.gateway.extensions.common.conf.mapping.KVMapping;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.TimeseriesMapping;
 import org.thingsboard.server.common.data.kv.*;
 

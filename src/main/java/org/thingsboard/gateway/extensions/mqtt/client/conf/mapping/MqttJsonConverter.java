@@ -25,7 +25,7 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.util.converter.AbstractJsonConverter;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.AttributesMapping;
-import org.thingsboard.gateway.extensions.opc.conf.mapping.KVMapping;
+import org.thingsboard.gateway.extensions.common.conf.mapping.KVMapping;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.TimeseriesMapping;
 import org.thingsboard.gateway.service.data.DeviceData;
 import org.thingsboard.server.common.data.kv.*;
