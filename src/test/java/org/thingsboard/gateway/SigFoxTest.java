@@ -20,6 +20,6 @@ public class SigfoxTest {
 
         String postJson = new String(Files.readAllBytes(Paths.get("src/test/resources/post.json")));
 
-        new RestTemplate().exchange("http://localhost:9090/sigfox/0430b556622f4b7aa3270059d7987b/", HttpMethod.POST, new HttpEntity<>(postJson, headers), String.class);
+        new RestTemplate().exchange("http://localhost:9090/sigfox/YOUR_DEVICE_TYPE_ID/", HttpMethod.POST, new HttpEntity<>(postJson, headers), String.class);
     }
 }
