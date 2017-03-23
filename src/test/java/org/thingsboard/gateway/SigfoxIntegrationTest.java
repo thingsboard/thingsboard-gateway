@@ -10,10 +10,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
-public class SigfoxTest {
-
+public class SigfoxIntegrationTest {
+    
     private static final String DEVICE_TYPE_ID = "DEVICE_TYPE_ID";
-    private static final String SECURITY_TOKEN = "SECURITY_TOKEN";
+    private static final String SECURITY_TOKEN = "SECUTIRY_TOKEN";
     private static final String GATEWAY_URL = "http://localhost:9090/sigfox/" + DEVICE_TYPE_ID + "/";
 
     public static void main(String[] args) throws IOException {
