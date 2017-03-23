@@ -84,11 +84,11 @@ public class CertPemClientCredentials implements MqttClientCredentials {
             passwordCharArray = password.toCharArray();
         }
 
-        PEMDecryptorProvider provider = new JcePEMDecryptorProviderBuilder().build(passwordCharArray);
         JcaPEMKeyConverter keyConverter = new JcaPEMKeyConverter().setProvider("BC");
 
         KeyPair key;
         if (keyObject instanceof PEMEncryptedKeyPair) {
+            PEMDecryptorProvider provider = new JcePEMDecryptorProviderBuilder().build(passwordCharArray);
             key = keyConverter.getKeyPair(((PEMEncryptedKeyPair) keyObject).decryptKeyPair(provider));
         } else {
             key = keyConverter.getKeyPair((PEMKeyPair) keyObject);

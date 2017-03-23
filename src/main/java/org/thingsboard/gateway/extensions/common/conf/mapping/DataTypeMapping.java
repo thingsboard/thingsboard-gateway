@@ -13,14 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.opc.conf.mapping;
+package org.thingsboard.gateway.extensions.common.conf.mapping;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import lombok.AllArgsConstructor;
 import lombok.Data;
-import org.thingsboard.gateway.extensions.common.conf.mapping.KVMapping;
+import org.thingsboard.server.common.data.kv.DataType;
 
 /**
- * Created by ashvayka on 16.01.17.
+ * Created by ashvayka on 17.01.17.
  */
 @Data
-public class AttributesMapping extends KVMapping {
+@AllArgsConstructor
+public class DataTypeMapping {
+
+    private DataType dataType;
+
+    @JsonCreator
+    public static DataTypeMapping forValue(String value) {
+        return new DataTypeMapping(DataType.valueOf(value.toUpperCase()));
+    }
+
 }

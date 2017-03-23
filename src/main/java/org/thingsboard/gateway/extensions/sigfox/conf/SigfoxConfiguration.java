@@ -13,19 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.opc.conf.mapping;
+package org.thingsboard.gateway.extensions.sigfox.conf;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import lombok.Data;
-import org.thingsboard.server.common.data.kv.DataType;
 
-/**
- * Created by ashvayka on 16.01.17.
- */
+import java.util.List;
+
 @Data
-public class KVMapping {
-    private String key;
-    private DataTypeMapping type;
-    private String value;
-
+public class SigfoxConfiguration {
+    List<SigfoxDeviceTypeConfiguration> deviceTypeConfigurations;
 }

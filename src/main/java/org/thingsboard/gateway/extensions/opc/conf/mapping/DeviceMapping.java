@@ -49,7 +49,7 @@ public class DeviceMapping {
         return tags;
     }
 
-    public void addTags(Set<String> tags, Pattern pattern, String expression) {
+    private void addTags(Set<String> tags, Pattern pattern, String expression) {
         Matcher matcher = pattern.matcher(expression);
         while (matcher.find()) {
             String tag = matcher.group();

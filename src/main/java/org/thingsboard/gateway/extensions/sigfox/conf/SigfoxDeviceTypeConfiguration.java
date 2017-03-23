@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.opc.conf.mapping;
+package org.thingsboard.gateway.extensions.sigfox.conf;
 
 import lombok.Data;
-import org.thingsboard.gateway.extensions.common.conf.mapping.KVMapping;
+import org.thingsboard.gateway.extensions.sigfox.conf.mapping.SigfoxDeviceDataConverter;
 
-/**
- * Created by ashvayka on 16.01.17.
- */
 @Data
-public class AttributesMapping extends KVMapping {
+public class SigfoxDeviceTypeConfiguration {
+    private String deviceTypeId;
+    private String token;
+    private SigfoxDeviceDataConverter converter;
 }

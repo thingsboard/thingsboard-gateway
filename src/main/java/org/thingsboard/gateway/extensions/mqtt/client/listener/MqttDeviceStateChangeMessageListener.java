@@ -24,7 +24,7 @@ import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.DeviceStateChangeMapping;
-import org.thingsboard.gateway.extensions.mqtt.client.converter.AbstractJsonConverter;
+import org.thingsboard.gateway.util.converter.AbstractJsonConverter;
 
 import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;

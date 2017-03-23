@@ -13,14 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.opc.conf.mapping;
+package org.thingsboard.gateway.extensions.sigfox.conf.mapping;
 
 import lombok.Data;
-import org.thingsboard.gateway.extensions.common.conf.mapping.KVMapping;
 
-/**
- * Created by ashvayka on 16.01.17.
- */
 @Data
-public class AttributesMapping extends KVMapping {
+public class AttributesMapping extends SigfoxKVMapping {
 }

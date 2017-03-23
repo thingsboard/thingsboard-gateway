@@ -120,6 +120,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         tbClient.disconnect();
     }
 
+    // TODO: method should return Future instead of Void. Executing future.get to ensure that there is no race conditions here.
     @Override
     public void onDeviceConnect(final String deviceName) {
         final int msgId = msgIdSeq.incrementAndGet();
@@ -135,6 +136,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
                 error -> log.warn("[{}][{}] Failed to report device connection!", deviceName, msgId, error));
     }
 
+    // TODO: method should return Future instead of Void. Executing future.get to ensure that there is no race conditions here.
     @Override
     public void onDeviceDisconnect(String deviceName) {
         if (devices.remove(deviceName) != null) {

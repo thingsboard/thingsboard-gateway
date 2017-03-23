@@ -42,6 +42,10 @@ mqtt:
   enabled: false
   configuration: mqtt-config.json
 
+sigfox:
+  enabled: false
+  configuration: sigfox-config.json
+
 server:
   # Server bind address
   address: "0.0.0.0"
