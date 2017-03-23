@@ -1,9 +1,10 @@
 {
-  "deviceId": "F37D45",
+  "device": "F37D45",
   "lat": "20.210656",
   "lng": "17.226563",
+  "time": 123124123512,
   "data": {
-    "temperature": 211,
-    "humidity": 324
+    "temperature": 231,
+    "humidity": 326
   }
 }

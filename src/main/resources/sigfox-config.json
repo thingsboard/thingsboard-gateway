@@ -1,10 +1,10 @@
 {
-  "deviceTypes": [
+  "deviceTypeConfigurations": [
     {
       "deviceTypeId": "YOUR_DEVICE_TYPE_ID",
       "token": "SECURITY_TOKEN",
       "converter": {
-        "deviceNameJsonExpression": "${$.deviceId}",
+        "deviceNameJsonExpression": "${$.device}",
         "attributes": [
           {
             "type": "string",

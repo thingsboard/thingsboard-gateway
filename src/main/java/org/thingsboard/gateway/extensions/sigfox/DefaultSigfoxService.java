@@ -13,8 +13,9 @@ import org.thingsboard.gateway.util.ConfigurationTools;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -27,16 +28,17 @@ public class DefaultSigfoxService implements SigfoxService {
     @Autowired
     private GatewayService gateway;
 
-    private Map<String, SigfoxDeviceTypeConfiguration> sigfoxDeviceTypeConfigurations = new HashMap<>();
+    private Map<String, SigfoxDeviceTypeConfiguration> sigfoxDeviceTypeConfigurations;
 
     @PostConstruct
     public void init() throws IOException {
         SigfoxConfiguration configuration;
         try {
             configuration = ConfigurationTools.readConfiguration(configurationFile, SigfoxConfiguration.class);
-            configuration
+            sigfoxDeviceTypeConfigurations = configuration
                     .getDeviceTypeConfigurations()
-                    .forEach(dtc -> this.sigfoxDeviceTypeConfigurations.put(dtc.getDeviceTypeId(), dtc));
+                    .stream()
+                    .collect(Collectors.toMap(SigfoxDeviceTypeConfiguration::getDeviceTypeId, Function.identity()));
         } catch (IOException e) {
             log.error("Sigfox service configuration failed!", e);
             throw e;
@@ -45,6 +47,7 @@ public class DefaultSigfoxService implements SigfoxService {
 
     @Override
     public void processRequest(String deviceTypeId, String token, String body) throws Exception {
+        log.trace("Processing request body [{}] for deviceTypeId [{}] and token [{}]", body, deviceTypeId, token);
         SigfoxDeviceTypeConfiguration configuration = sigfoxDeviceTypeConfigurations.get(deviceTypeId);
         if (configuration != null) {
             if (configuration.getToken().equals(token)) {

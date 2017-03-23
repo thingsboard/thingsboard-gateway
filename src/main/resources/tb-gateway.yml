@@ -43,7 +43,7 @@ mqtt:
   configuration: mqtt-config.json
 
 sigfox:
-  enabled: true
+  enabled: false
   configuration: sigfox-config.json
 
 server:
