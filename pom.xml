@@ -22,7 +22,7 @@
 
     <groupId>org.thingsboard</groupId>
     <artifactId>gateway</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <packaging>jar</packaging>
 
     <name>Thingsboard Gateway</name>
