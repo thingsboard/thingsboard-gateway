@@ -1,9 +1,9 @@
 {
   "deviceTypes": [
     {
-      "deviceTypeId": "0430b556622f4b7aa3270059d7987b",
+      "deviceTypeId": "YOUR_DEVICE_TYPE_ID",
       "token": "SECURITY_TOKEN",
-      "mapping": {
+      "converter": {
         "deviceNameJsonExpression": "${$.deviceId}",
         "attributes": [
           {

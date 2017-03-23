@@ -21,7 +21,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.thingsboard.gateway.service.data.AttributeRequest;
-import org.thingsboard.gateway.extensions.mqtt.client.converter.AbstractJsonConverter;
+import org.thingsboard.gateway.util.converter.AbstractJsonConverter;
 
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;

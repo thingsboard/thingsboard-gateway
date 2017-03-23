@@ -13,8 +13,8 @@ import org.thingsboard.gateway.util.ConfigurationTools;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
-import java.util.List;
-import java.util.Optional;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -27,31 +27,31 @@ public class DefaultSigfoxService implements SigfoxService {
     @Autowired
     private GatewayService gateway;
 
-    private List<SigfoxDeviceTypeConfiguration> sigfoxDeviceTypeConfigurations;
+    private Map<String, SigfoxDeviceTypeConfiguration> sigfoxDeviceTypeConfigurations = new HashMap<>();
 
     @PostConstruct
     public void init() throws IOException {
         SigfoxConfiguration configuration;
         try {
             configuration = ConfigurationTools.readConfiguration(configurationFile, SigfoxConfiguration.class);
+            configuration
+                    .getDeviceTypeConfigurations()
+                    .forEach(dtc -> this.sigfoxDeviceTypeConfigurations.put(dtc.getDeviceTypeId(), dtc));
         } catch (IOException e) {
-            log.error("Sigfox service configurataion failed!", e);
+            log.error("Sigfox service configuration failed!", e);
             throw e;
         }
-        this.sigfoxDeviceTypeConfigurations = configuration.getDeviceTypes();
     }
 
     @Override
     public void processRequest(String deviceTypeId, String token, String body) throws Exception {
-        Optional<SigfoxDeviceTypeConfiguration> configuration = findDeviceTypeConfigurationByDeviceTypeId(deviceTypeId);
-        if (configuration.isPresent()) {
-            final SigfoxDeviceTypeConfiguration deviceTypeConfiguration = configuration.get();
-            if (deviceTypeConfiguration.getToken().equals(token)) {
-                processJson(body, deviceTypeConfiguration);
+        SigfoxDeviceTypeConfiguration configuration = sigfoxDeviceTypeConfigurations.get(deviceTypeId);
+        if (configuration != null) {
+            if (configuration.getToken().equals(token)) {
+                processBody(body, configuration);
             } else {
                 log.error("Request token [{}] for device type id [{}] doesn't match configuration token!", token, deviceTypeId);
-                throw new SecurityException("Request token ["+ token + "] for device type id [" + deviceTypeId + "] doesn't match configuration token!");
-
+                throw new SecurityException("Request token [" + token + "] for device type id [" + deviceTypeId + "] doesn't match configuration token!");
             }
         } else {
             log.error("No configuration found for device type id [{}]. Please add configuration for this device type id!", deviceTypeId);
@@ -59,9 +59,10 @@ public class DefaultSigfoxService implements SigfoxService {
         }
     }
 
-    private void processJson(String body, SigfoxDeviceTypeConfiguration deviceTypeConfiguration) {
-        DeviceData dd = deviceTypeConfiguration.getMapping().parseBody(body);
+    private void processBody(String body, SigfoxDeviceTypeConfiguration configuration) {
+        DeviceData dd = configuration.getConverter().parseBody(body);
         if (dd != null) {
+            // TODO: onDeviceConnect should return Future instead of Void. Executing future.get to ensure that there is no race conditions here.
             gateway.onDeviceConnect(dd.getName());
             if (!dd.getAttributes().isEmpty()) {
                 gateway.onDeviceAttributesUpdate(dd.getName(), dd.getAttributes());
@@ -69,14 +70,11 @@ public class DefaultSigfoxService implements SigfoxService {
             if (!dd.getTelemetry().isEmpty()) {
                 gateway.onDeviceTelemetry(dd.getName(), dd.getTelemetry());
             }
+            // TODO: onDeviceDisconnect should return Future instead of Void. Executing future.get to ensure that there is no race conditions here.
             gateway.onDeviceDisconnect(dd.getName());
+        } else {
+            log.error("DeviceData is null. Body [{}] was not parsed successfully!", body);
+            throw new IllegalArgumentException("Device Data is null. Body [" + body + "] was not parsed successfully!");
         }
     }
-
-    private Optional<SigfoxDeviceTypeConfiguration> findDeviceTypeConfigurationByDeviceTypeId(String deviceTypeId) {
-        return this.sigfoxDeviceTypeConfigurations.stream().filter(
-                conf -> conf.getDeviceTypeId().equals(deviceTypeId)
-        ).findFirst();
-    }
-
 }

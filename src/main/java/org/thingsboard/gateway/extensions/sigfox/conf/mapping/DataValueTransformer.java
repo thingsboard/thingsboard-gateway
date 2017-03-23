@@ -10,7 +10,13 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 @JsonSubTypes({
         @JsonSubTypes.Type(value = DoubleValueTransformer.class, name = DoubleValueTransformer.INT_TO_DOUBLE_TRANSFORMER_NAME)
 })
-public interface DataValueTransformer<T> {
-    T transform(T value);
+public interface DataValueTransformer {
+
+    Double transformToDouble(String strValue);
+    Long transformToLong(String strValue);
+    String transformToString(String strValue);
+    Boolean transformToBoolean(String strValue);
+
     String getName();
+
 }

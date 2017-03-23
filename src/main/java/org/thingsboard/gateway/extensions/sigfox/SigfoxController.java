@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnProperty(prefix = "sigfox", value = "enabled", havingValue = "true")
 @Slf4j
 public class SigfoxController {
-
     private static final String TOKEN_HEADER = "Authorization";
 
     @Autowired

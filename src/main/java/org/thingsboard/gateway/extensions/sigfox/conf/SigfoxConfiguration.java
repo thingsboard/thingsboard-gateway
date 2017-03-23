@@ -6,5 +6,5 @@ import java.util.List;
 
 @Data
 public class SigfoxConfiguration {
-    List<SigfoxDeviceTypeConfiguration> deviceTypes;
+    List<SigfoxDeviceTypeConfiguration> deviceTypeConfigurations;
 }
