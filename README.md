@@ -32,16 +32,16 @@ The Gateway provides simple integration APIs, and encapsulates common Thingsboar
 As an application developer, you are able to choose Python, Go, C/C++ and other languages and connect to Thingsboard Gateway through external MQTT broker or OPC-UA server. 
 Devices that support other protocols may be connected to gateway by implementing custom extensions.
 
-### Sample Dashboards
+### IoT use cases
 
-[**Smart energy monitoring**](https://demo.thingsboard.io/demo?dashboardId=e8e409c0-f2b5-11e6-a6ee-bb0136cc33d0&source=github)
-[![Smart energy monitoring demo](https://cloud.githubusercontent.com/assets/8308069/23790111/62c8a61e-0586-11e7-84eb-51febc54ec09.png "Smart energy monitoring demo")](https://demo.thingsboard.io/demo?dashboardId=e8e409c0-f2b5-11e6-a6ee-bb0136cc33d0&source=github)
+[**Smart energy**](https://thingsboard.io/smart-energy/)
+[![Smart energy monitoring demo](https://cloud.githubusercontent.com/assets/8308069/23790111/62c8a61e-0586-11e7-84eb-51febc54ec09.png "Smart energy")](https://thingsboard.io/smart-energy/)
 
-[**Silos monitoring**](https://demo.thingsboard.io/demo?dashboardId=1f9828d0-058e-11e7-87f7-bb0136cc33d0&source=github)
-[![Silos monitoring demo](https://cloud.githubusercontent.com/assets/8308069/23996135/00214844-0a55-11e7-9623-d1e3be0702ca.png "Silos monitoring demo")](https://demo.thingsboard.io/demo?dashboardId=1f9828d0-058e-11e7-87f7-bb0136cc33d0&source=github)
+[**Smart farming**](https://thingsboard.io/smart-farming/)
+[![Smart farming](https://cloud.githubusercontent.com/assets/8308069/23996135/00214844-0a55-11e7-9623-d1e3be0702ca.png "Smart farming")](https://thingsboard.io/smart-farming/)
 
-[**Smart bus tracking**](https://demo.thingsboard.io/demo?dashboardId=3d0bf910-ee09-11e6-b619-bb0136cc33d0&source=github)
-[![Smart bus tracking demo](https://cloud.githubusercontent.com/assets/8308069/23790110/62c6ecde-0586-11e7-8249-19eafd5bf8cc.png "Smart bus tracking demo")](https://demo.thingsboard.io/demo?dashboardId=3d0bf910-ee09-11e6-b619-bb0136cc33d0&source=github)
+[**Fleet tracking**](https://thingsboard.io/fleet-tracking/)
+[![Fleet tracking](https://cloud.githubusercontent.com/assets/8308069/23790110/62c6ecde-0586-11e7-8249-19eafd5bf8cc.png "Fleet tracking")](https://thingsboard.io/fleet-tracking/)
 
 ### Getting Started
 
