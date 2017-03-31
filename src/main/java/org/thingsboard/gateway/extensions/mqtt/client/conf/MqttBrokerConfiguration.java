@@ -29,6 +29,7 @@ public class MqttBrokerConfiguration {
     private String host;
     private int port;
     private boolean ssl;
+    private String clientId;
     private String truststore;
     private String truststorePassword;
     private long retryInterval;

@@ -70,7 +70,7 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
     public void connect() {
         try {
             client = new MqttAsyncClient((configuration.isSsl() ? "ssl" : "tcp") + "://" + configuration.getHost() + ":" + configuration.getPort(),
-                    clientId.toString(), new MemoryPersistence());
+                    getClientId(), new MemoryPersistence());
             client.setCallback(this);
             clientOptions = new MqttConnectOptions();
             clientOptions.setCleanSession(true);
@@ -98,6 +98,10 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
             log.error("[{}:{}] MQTT broker connection failed!", configuration.getHost(), configuration.getPort(), e);
             throw new RuntimeException("MQTT broker connection failed!", e);
         }
+    }
+
+    private String getClientId() {
+        return StringUtils.isEmpty(configuration.getClientId()) ? clientId.toString() : configuration.getClientId();
     }
 
     public void disconnect() {
@@ -143,14 +147,20 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
         for (MqttTopicMapping mapping : configuration.getMapping()) {
             tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttTelemetryMessageListener(this::onDeviceData, mapping.getConverter())));
         }
-        for (DeviceStateChangeMapping mapping : configuration.getConnectRequests()) {
-            tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttDeviceStateChangeMessageListener(mapping, this::onDeviceConnect)));
+        if (configuration.getConnectRequests() != null) {
+            for (DeviceStateChangeMapping mapping : configuration.getConnectRequests()) {
+                tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttDeviceStateChangeMessageListener(mapping, this::onDeviceConnect)));
+            }
         }
-        for (DeviceStateChangeMapping mapping : configuration.getDisconnectRequests()) {
-            tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttDeviceStateChangeMessageListener(mapping, this::onDeviceDisconnect)));
+        if (configuration.getDisconnectRequests() != null) {
+            for (DeviceStateChangeMapping mapping : configuration.getDisconnectRequests()) {
+                tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttDeviceStateChangeMessageListener(mapping, this::onDeviceDisconnect)));
+            }
         }
-        for (AttributeRequestsMapping mapping : configuration.getAttributeRequests()) {
-            tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttAttributeRequestsMessageListener(this::onAttributeRequest, mapping)));
+        if (configuration.getAttributeRequests() != null) {
+            for (AttributeRequestsMapping mapping : configuration.getAttributeRequests()) {
+                tokens.add(client.subscribe(mapping.getTopicFilter(), 1, new MqttAttributeRequestsMessageListener(this::onAttributeRequest, mapping)));
+            }
         }
         for (IMqttToken token : tokens) {
             token.waitForCompletion();
