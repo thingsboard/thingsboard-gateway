@@ -27,7 +27,7 @@ gateway:
     retryInterval: 3000
     maxInFlight: 1000
     security:
-      accessToken: 52LaIiSWnnlTLzYI05uz
+      accessToken: your_token
 #      keystore: mqttclient.jks
 #      keystorePassword: password
 #      keystoreKeyAlias: clientalias
@@ -43,7 +43,7 @@ mqtt:
   configuration: mqtt-config.json
 
 sigfox:
-  enabled: true
+  enabled: false
   configuration: sigfox-config.json
 
 server:

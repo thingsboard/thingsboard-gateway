@@ -27,8 +27,9 @@ import java.nio.file.Paths;
 
 public class SigfoxIntegrationTest {
 
-    private static final String SECURITY_TOKEN = "Basic U0lHRk9YX1RFU1RfVE9LRU4=";
+    private static final String SECURITY_TOKEN = "SECUTIRY_TOKEN";
     private static final String GATEWAY_URL = "http://localhost:9090/sigfox/%s/";
+    private static final String DEVICE_TYPE_ID_TEST_1 = "58ac4b889058c24616a43b3b";
 
     public static void main(String[] args) throws IOException {
 
@@ -36,7 +37,7 @@ public class SigfoxIntegrationTest {
         headers.add("Authorization", SECURITY_TOKEN);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        doPost(headers, "58ac4b889058c24616a43b3b");
+        doPost(headers, DEVICE_TYPE_ID_TEST_1);
     }
 
     private static void doPost(HttpHeaders headers, String deviceTypeId) throws IOException {
