@@ -21,6 +21,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
+import org.thingsboard.gateway.extensions.sigfox.conf.mapping.transformer.DataValueTransformer;
 import org.thingsboard.gateway.service.data.DeviceData;
 import org.thingsboard.gateway.util.converter.AbstractJsonConverter;
 import org.thingsboard.server.common.data.kv.*;
@@ -37,13 +38,43 @@ public class SigfoxDeviceDataConverter extends AbstractJsonConverter {
 
     public static final Pattern TAG_PATTERN = Pattern.compile("\\$\\{(.*?)\\}");
 
+    private String filterExpression;
     private String deviceNameJsonExpression;
     private final List<AttributesMapping> attributes;
     private final List<TimeseriesMapping> timeseries;
 
+    public boolean isApplicable(String body) {
+        if (filterExpression == null || filterExpression.isEmpty()) {
+            return true;
+        } else {
+            try {
+                List jsonArray = JsonPath.parse(body).read(filterExpression);
+                return !jsonArray.isEmpty();
+            } catch (RuntimeException e) {
+                log.debug("Failed to apply filter expression: {}", filterExpression, e);
+                throw new RuntimeException("Failed to apply filter expression " + filterExpression, e);
+            }
+        }
+    }
+
     public DeviceData parseBody(String body) {
         try {
             DocumentContext document = JsonPath.parse(body);
+
+            if (filterExpression != null && !filterExpression.isEmpty()) {
+                try {
+                    log.debug("Data before filtering {}", body);
+                    List jsonArray = document.read(filterExpression);
+                    Object jsonObj = jsonArray.get(0); // take 1st element from filtered array (jayway jsonpath library limitation)
+                    document = JsonPath.parse(jsonObj);
+                    body = document.jsonString();
+                    log.debug("Data after filtering {}", body);
+                } catch (RuntimeException e) {
+                    log.debug("Failed to apply filter expression: {}", filterExpression, e);
+                    throw new RuntimeException("Failed to apply filter expression " + filterExpression, e);
+                }
+            }
+
             long ts = System.currentTimeMillis();
             String deviceName = eval(document, deviceNameJsonExpression);
             if (!StringUtils.isEmpty(deviceName)) {
@@ -55,7 +86,7 @@ public class SigfoxDeviceDataConverter extends AbstractJsonConverter {
             }
         } catch (Exception e) {
             log.error("Exception occurred while parsing json request body [{}]", body, e);
-            throw e;
+            throw new RuntimeException("Exception occurred while parsing json request body [" + body +"]", e);
         }
         return null;
     }

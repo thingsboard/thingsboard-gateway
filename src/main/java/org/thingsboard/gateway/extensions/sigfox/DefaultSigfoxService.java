@@ -22,6 +22,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.thingsboard.gateway.extensions.sigfox.conf.SigfoxConfiguration;
 import org.thingsboard.gateway.extensions.sigfox.conf.SigfoxDeviceTypeConfiguration;
+import org.thingsboard.gateway.extensions.sigfox.conf.mapping.SigfoxDeviceDataConverter;
 import org.thingsboard.gateway.service.GatewayService;
 import org.thingsboard.gateway.service.MqttDeliveryFuture;
 import org.thingsboard.gateway.service.data.DeviceData;
@@ -86,26 +87,30 @@ public class DefaultSigfoxService implements SigfoxService {
     }
 
     private void processBody(String body, SigfoxDeviceTypeConfiguration configuration) throws Exception {
-        DeviceData dd = configuration.getConverter().parseBody(body);
-        if (dd != null) {
-            waitWithTimeout(gateway.onDeviceConnect(dd.getName()));
-            List<MqttDeliveryFuture> futures = new ArrayList<>();
-            if (!dd.getAttributes().isEmpty()) {
-                futures.add(gateway.onDeviceAttributesUpdate(dd.getName(), dd.getAttributes()));
+        for (SigfoxDeviceDataConverter converter : configuration.getConverters()) {
+            if (converter.isApplicable(body)) {
+                DeviceData dd = converter.parseBody(body);
+                if (dd != null) {
+                    waitWithTimeout(gateway.onDeviceConnect(dd.getName()));
+                    List<MqttDeliveryFuture> futures = new ArrayList<>();
+                    if (!dd.getAttributes().isEmpty()) {
+                        futures.add(gateway.onDeviceAttributesUpdate(dd.getName(), dd.getAttributes()));
+                    }
+                    if (!dd.getTelemetry().isEmpty()) {
+                        futures.add(gateway.onDeviceTelemetry(dd.getName(), dd.getTelemetry()));
+                    }
+                    for (Future future : futures) {
+                        waitWithTimeout(future);
+                    }
+                    Optional<MqttDeliveryFuture> future = gateway.onDeviceDisconnect(dd.getName());
+                    if (future.isPresent()) {
+                        waitWithTimeout(future.get());
+                    }
+                } else {
+                    log.error("DeviceData is null. Body [{}] was not parsed successfully!", body);
+                    throw new IllegalArgumentException("Device Data is null. Body [" + body + "] was not parsed successfully!");
+                }
             }
-            if (!dd.getTelemetry().isEmpty()) {
-                futures.add(gateway.onDeviceTelemetry(dd.getName(), dd.getTelemetry()));
-            }
-            for (Future future : futures) {
-                waitWithTimeout(future);
-            }
-            Optional<MqttDeliveryFuture> future = gateway.onDeviceDisconnect(dd.getName());
-            if (future.isPresent()) {
-                waitWithTimeout(future.get());
-            }
-        } else {
-            log.error("DeviceData is null. Body [{}] was not parsed successfully!", body);
-            throw new IllegalArgumentException("Device Data is null. Body [" + body + "] was not parsed successfully!");
         }
     }
 
