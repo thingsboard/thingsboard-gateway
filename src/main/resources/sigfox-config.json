@@ -1,41 +1,43 @@
 {
   "deviceTypeConfigurations": [
     {
-      "deviceTypeId": "YOUR_DEVICE_TYPE_ID",
-      "token": "SECURITY_TOKEN",
-      "converter": {
-        "deviceNameJsonExpression": "${$.device}",
-        "attributes": [
-          {
-            "type": "string",
-            "key": "lat",
-            "value": "${$.lat}"
-          },
-          {
-            "type": "string",
-            "key": "lng",
-            "value": "${$.lng}"
-          }
-        ],
-        "timeseries": [
-          {
-            "type": "double",
-            "key": "temperature",
-            "value": "${$.data.temperature}",
-            "transformer": {
-              "type": "intToDouble"
+      "deviceTypeId": "58ac4b889058c24616a43b3b",
+      "token": "Basic U0lHRk9YX1RFU1RfVE9LRU4=",
+      "converters": [
+        {
+          "deviceNameJsonExpression": "${$.device}",
+          "attributes": [
+            {
+              "type": "string",
+              "key": "lat",
+              "value": "${$.lat}"
+            },
+            {
+              "type": "string",
+              "key": "lng",
+              "value": "${$.lng}"
             }
-          },
-          {
-            "type": "double",
-            "key": "humidity",
-            "value": "${$.data.humidity}",
-            "transformer": {
-              "type": "intToDouble"
+          ],
+          "timeseries": [
+            {
+              "type": "double",
+              "key": "temperature",
+              "value": "${$.data.temperature}",
+              "transformer": {
+                "type": "intToDouble"
+              }
+            },
+            {
+              "type": "double",
+              "key": "humidity",
+              "value": "${$.data.humidity}",
+              "transformer": {
+                "type": "intToDouble"
+              }
             }
-          }
-        ]
-      }
+          ]
+        }
+      ]
     }
   ]
 }
