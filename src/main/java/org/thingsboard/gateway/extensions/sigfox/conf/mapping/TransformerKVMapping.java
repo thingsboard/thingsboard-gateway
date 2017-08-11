@@ -20,6 +20,6 @@ import org.thingsboard.gateway.extensions.common.conf.mapping.KVMapping;
 import org.thingsboard.gateway.extensions.sigfox.conf.mapping.transformer.DataValueTransformer;
 
 @Data
-public class SigfoxKVMapping extends KVMapping {
+public class TransformerKVMapping extends KVMapping {
     private DataValueTransformer transformer;
 }

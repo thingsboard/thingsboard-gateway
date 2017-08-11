@@ -18,6 +18,6 @@ package org.thingsboard.gateway.extensions.sigfox.conf.mapping;
 import lombok.Data;
 
 @Data
-public class TimeseriesMapping extends SigfoxKVMapping {
+public class TimeseriesMapping extends TransformerKVMapping {
 
 }

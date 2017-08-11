@@ -18,5 +18,5 @@ package org.thingsboard.gateway.extensions.sigfox.conf.mapping;
 import lombok.Data;
 
 @Data
-public class AttributesMapping extends SigfoxKVMapping {
+public class AttributesMapping extends TransformerKVMapping {
 }

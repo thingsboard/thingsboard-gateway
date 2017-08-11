@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 The Thingsboard Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,7 +23,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.extensions.sigfox.conf.mapping.transformer.DataValueTransformer;
 import org.thingsboard.gateway.service.data.DeviceData;
-import org.thingsboard.gateway.util.converter.AbstractJsonConverter;
 import org.thingsboard.gateway.util.converter.BasicJsonConverter;
 import org.thingsboard.server.common.data.kv.*;
 
@@ -61,9 +60,8 @@ public class SigfoxDeviceDataConverter extends BasicJsonConverter {
 
     public DeviceData parseBody(String body) {
         try {
-            DocumentContext document = JsonPath.parse(body);
-
             if (filterExpression != null && !filterExpression.isEmpty()) {
+                DocumentContext document = JsonPath.parse(body);
                 try {
                     log.debug("Data before filtering {}", body);
                     List jsonArray = document.read(filterExpression);
@@ -77,71 +75,10 @@ public class SigfoxDeviceDataConverter extends BasicJsonConverter {
                 }
             }
 
-            long ts = System.currentTimeMillis();
-            String deviceName = eval(document, deviceNameJsonExpression);
-            String deviceType = null;
-            if (!StringUtils.isEmpty(deviceType)) {
-                deviceType = eval(document, deviceTypeJsonExpression);
-            }
-            if (!StringUtils.isEmpty(deviceName)) {
-                List<KvEntry> attrData = getKvEntries(JsonPath.parse(body), attributes);
-                List<TsKvEntry> tsData = getKvEntries(JsonPath.parse(body), timeseries).stream()
-                        .map(kv -> new BasicTsKvEntry(ts, kv))
-                        .collect(Collectors.toList());
-                return new DeviceData(deviceName, deviceType, attrData, tsData);
-            }
+            return parseDeviceData(JsonPath.parse(body));
         } catch (Exception e) {
             log.error("Exception occurred while parsing json request body [{}]", body, e);
             throw new RuntimeException("Exception occurred while parsing json request body [" + body + "]", e);
         }
-        return null;
-    }
-
-    private List<KvEntry> getKvEntries(DocumentContext document, List<? extends SigfoxKVMapping> mappings) {
-        List<KvEntry> result = new ArrayList<>();
-        if (mappings != null) {
-            for (SigfoxKVMapping mapping : mappings) {
-                String key = eval(document, mapping.getKey());
-                String strVal = eval(document, mapping.getValue());
-                result.add(getKvEntry(mapping, key, strVal));
-            }
-        }
-        return result;
-    }
-
-    private BasicKvEntry getKvEntry(SigfoxKVMapping mapping, String key, String strVal) {
-        DataValueTransformer transformer = mapping.getTransformer();
-        if (transformer != null) {
-            try {
-                switch (mapping.getType().getDataType()) {
-                    case STRING:
-                        return new StringDataEntry(key, transformer.transformToString(strVal));
-                    case BOOLEAN:
-                        return new BooleanDataEntry(key, transformer.transformToBoolean(strVal));
-                    case DOUBLE:
-                        return new DoubleDataEntry(key, transformer.transformToDouble(strVal));
-                    case LONG:
-                        return new LongDataEntry(key, transformer.transformToLong(strVal));
-                }
-            } catch (Exception e) {
-                log.error("Transformer [{}] can't be applied to field with key [{}] and value [{}]",
-                        transformer.getName(), key, strVal);
-                throw e;
-            }
-        } else {
-            switch (mapping.getType().getDataType()) {
-                case STRING:
-                    return new StringDataEntry(key, strVal);
-                case BOOLEAN:
-                    return new BooleanDataEntry(key, Boolean.valueOf(strVal));
-                case DOUBLE:
-                    return new DoubleDataEntry(key, Double.valueOf(strVal));
-                case LONG:
-                    return new LongDataEntry(key, Long.valueOf(strVal));
-            }
-        }
-
-        log.error("No mapping found for data type [{}]", mapping.getType().getDataType());
-        throw new IllegalArgumentException("No mapping found for data type [" + mapping.getType().getDataType() + "]");
     }
 }
