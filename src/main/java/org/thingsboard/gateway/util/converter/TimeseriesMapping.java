@@ -13,18 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.common.conf.mapping;
+package org.thingsboard.gateway.util.converter;
 
 import lombok.Data;
 
-/**
- * Created by ashvayka on 16.01.17.
- */
 @Data
-public class KVMapping {
-    private String key;
-    private DataTypeMapping type;
-    private String value;
-    private String ts;
-    private String tsFormat;
+public class TimeseriesMapping extends TransformerKVMapping {
+
 }

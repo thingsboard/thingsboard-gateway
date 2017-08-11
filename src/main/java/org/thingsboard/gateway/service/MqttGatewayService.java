@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
 import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
@@ -124,13 +125,16 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     }
 
     @Override
-    public MqttDeliveryFuture onDeviceConnect(final String deviceName) {
+    public MqttDeliveryFuture onDeviceConnect(final String deviceName, final String deviceType) {
         final int msgId = msgIdSeq.incrementAndGet();
-        byte[] msgData = toBytes(newNode().put("device", deviceName));
-        MqttMessage msg = new MqttMessage(msgData);
+        ObjectNode node = newNode().put("device", deviceName);
+        if (!StringUtils.isEmpty(deviceType)) {
+            node.put("type", deviceType);
+        }
+        MqttMessage msg = new MqttMessage(toBytes(node));
         msg.setId(msgId);
         log.info("[{}] Device Connected!", deviceName);
-        devices.putIfAbsent(deviceName, new DeviceInfo(deviceName));
+        devices.putIfAbsent(deviceName, new DeviceInfo(deviceName, deviceType));
         return publishAsync(GATEWAY_CONNECT_TOPIC, msg,
                 token -> {
                     log.info("[{}][{}] Device connect event is reported to Thingsboard!", deviceName, msgId);
@@ -307,7 +311,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
                         }).waitForCompletion();
 //                        tbClient.subscribe(GATEWAY_ATTRIBUTES_TOPIC, 1, (IMqttMessageListener) this);
 //                        tbClient.subscribe(GATEWAY_RPC_TOPIC, 1, (IMqttMessageListener) this);
-                        devices.forEach((k, v) -> onDeviceConnect(k));
+                        devices.forEach((k, v) -> onDeviceConnect(v.getName(), v.getType()));
                     } catch (MqttException e) {
                         log.warn("Failed to connect to Thingsboard!", e);
                         if (!tbClient.isConnected()) {
@@ -325,7 +329,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     private void checkDeviceConnected(String deviceName) {
         if (!devices.containsKey(deviceName)) {
-            onDeviceConnect(deviceName);
+            onDeviceConnect(deviceName, null);
         }
     }
 
@@ -419,7 +423,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));
         String deviceName = payload.get("device").asText();
         Set<RpcCommandListener> listeners = rpcCommandSubs.stream()
-                .filter(sub -> sub.matches(deviceName)).map(sub -> sub.getListener())
+                .filter(sub -> sub.matches(deviceName)).map(RpcCommandSubscription::getListener)
                 .collect(Collectors.toSet());
         if (!listeners.isEmpty()) {
             JsonNode data = payload.get("data");
@@ -484,7 +488,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     private void checkClientReconnected() {
         if (tbClient.isConnected()) {
-            devices.forEach((k, v) -> onDeviceConnect(k));
+            devices.forEach((k, v) -> onDeviceConnect(v.getName(), v.getType()));
         } else {
             scheduler.schedule(this::checkClientReconnected, CLIENT_RECONNECT_CHECK_INTERVAL, TimeUnit.SECONDS);
         }

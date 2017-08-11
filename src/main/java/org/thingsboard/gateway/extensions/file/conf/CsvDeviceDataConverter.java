@@ -13,10 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox.conf.mapping;
+package org.thingsboard.gateway.extensions.file.conf;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.extern.slf4j.Slf4j;
+import org.thingsboard.gateway.util.converter.BasicJsonConverter;
 
 @Data
-public class AttributesMapping extends SigfoxKVMapping {
+@EqualsAndHashCode(callSuper = true)
+@Slf4j
+public class CsvDeviceDataConverter extends BasicJsonConverter {
+
 }

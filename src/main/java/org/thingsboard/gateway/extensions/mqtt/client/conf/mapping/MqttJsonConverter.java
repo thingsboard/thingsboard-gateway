@@ -48,6 +48,10 @@ public class MqttJsonConverter extends AbstractJsonConverter implements MqttData
     private String deviceNameJsonExpression;
     private String deviceNameTopicExpression;
     private Pattern deviceNameTopicPattern;
+
+    private String deviceTypeJsonExpression;
+    private String deviceTypeTopicExpression;
+    private Pattern deviceTypeTopicPattern;
     private int timeout;
     private final List<AttributesMapping> attributes;
     private final List<TimeseriesMapping> timeseries;
@@ -90,17 +94,24 @@ public class MqttJsonConverter extends AbstractJsonConverter implements MqttData
             DocumentContext document = JsonPath.parse(src);
             long ts = System.currentTimeMillis();
             String deviceName;
+            String deviceType = null;
             if (!StringUtils.isEmpty(deviceNameTopicExpression)) {
-                deviceName = eval(topic);
+                deviceName = evalDeviceName(topic);
             } else {
                 deviceName = eval(document, deviceNameJsonExpression);
             }
+            if (!StringUtils.isEmpty(deviceTypeTopicExpression)) {
+                deviceType = evalDeviceType(topic);
+            } else if (!StringUtils.isEmpty(deviceTypeJsonExpression)) {
+                deviceType = eval(document, deviceTypeJsonExpression);
+            }
+
             if (!StringUtils.isEmpty(deviceName)) {
                 List<KvEntry> attrData = getKvEntries(document, attributes);
                 List<TsKvEntry> tsData = getKvEntries(document, timeseries).stream()
                         .map(kv -> new BasicTsKvEntry(ts, kv))
                         .collect(Collectors.toList());
-                result.add(new DeviceData(deviceName, attrData, tsData, timeout));
+                result.add(new DeviceData(deviceName, deviceType, attrData, tsData, timeout));
             }
         }
         return result;
@@ -131,7 +142,7 @@ public class MqttJsonConverter extends AbstractJsonConverter implements MqttData
         return result;
     }
 
-    private String eval(String topic) {
+    private String evalDeviceName(String topic) {
         if (deviceNameTopicPattern == null) {
             deviceNameTopicPattern = Pattern.compile(deviceNameTopicExpression);
         }
@@ -141,4 +152,16 @@ public class MqttJsonConverter extends AbstractJsonConverter implements MqttData
         }
         return null;
     }
+
+    private String evalDeviceType(String topic) {
+        if (deviceTypeTopicPattern == null) {
+            deviceTypeTopicPattern = Pattern.compile(deviceTypeJsonExpression);
+        }
+        Matcher matcher = deviceTypeTopicPattern.matcher(topic);
+        while (matcher.find()) {
+            return matcher.group();
+        }
+        return null;
+    }
+
 }

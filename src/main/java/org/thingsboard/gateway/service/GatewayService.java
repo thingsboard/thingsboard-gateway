@@ -31,8 +31,9 @@ public interface GatewayService {
     /**
      * Inform gateway service that device is connected
      * @param deviceName
+     * @param deviceType
      */
-    MqttDeliveryFuture onDeviceConnect(String deviceName);
+    MqttDeliveryFuture onDeviceConnect(String deviceName, String deviceType);
 
     /**
      * Inform gateway service that device is disconnected

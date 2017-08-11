@@ -209,7 +209,7 @@ public class OpcUaServerMonitor {
                 }
             }
             device.calculateDeviceName(readTags(deviceNameTags));
-            gateway.onDeviceConnect(device.getDeviceName());
+            gateway.onDeviceConnect(device.getDeviceName(), null);
         }
 
         device.updateScanTs();

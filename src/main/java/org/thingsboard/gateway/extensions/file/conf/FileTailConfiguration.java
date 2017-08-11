@@ -13,13 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox.conf.mapping;
+package org.thingsboard.gateway.extensions.file.conf;
 
 import lombok.Data;
-import org.thingsboard.gateway.extensions.common.conf.mapping.KVMapping;
-import org.thingsboard.gateway.extensions.sigfox.conf.mapping.transformer.DataValueTransformer;
 
+import java.util.List;
+
+/**
+ * Created by ashvayka on 15.05.17.
+ */
 @Data
-public class SigfoxKVMapping extends KVMapping{
-    private DataValueTransformer transformer;
+public class FileTailConfiguration {
+
+    List<FileMonitorConfiguration> fileMonitorConfigurations;
 }

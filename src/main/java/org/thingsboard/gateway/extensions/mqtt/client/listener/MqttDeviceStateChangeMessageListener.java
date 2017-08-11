@@ -27,6 +27,7 @@ import org.thingsboard.gateway.extensions.mqtt.client.conf.mapping.DeviceStateCh
 import org.thingsboard.gateway.util.converter.AbstractJsonConverter;
 
 import java.nio.charset.StandardCharsets;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,18 +41,32 @@ import java.util.regex.Pattern;
 public class MqttDeviceStateChangeMessageListener extends AbstractJsonConverter implements IMqttMessageListener {
 
     private final DeviceStateChangeMapping mapping;
-    private final Consumer<String> deviceNameConsumer;
+    private final BiConsumer<String, String> deviceNameConsumer;
     private Pattern deviceNameTopicPattern;
 
     @Override
     public void messageArrived(String topic, MqttMessage msg) throws Exception {
         try {
+            String deviceName = null;
+            String deviceType = null;
             if (!StringUtils.isEmpty(mapping.getDeviceNameTopicExpression())) {
-                deviceNameConsumer.accept(eval(topic));
+                deviceName = eval(topic);
             } else {
                 String data = new String(msg.getPayload(), StandardCharsets.UTF_8);
                 DocumentContext document = JsonPath.parse(data);
-                deviceNameConsumer.accept(eval(document, mapping.getDeviceNameJsonExpression()));
+                deviceName = eval(document, mapping.getDeviceNameJsonExpression());
+            }
+
+            if (!StringUtils.isEmpty(mapping.getDeviceTypeJsonExpression())) {
+                deviceType = eval(topic);
+            } else if (!StringUtils.isEmpty(mapping.getDeviceTypeTopicExpression())) {
+                String data = new String(msg.getPayload(), StandardCharsets.UTF_8);
+                DocumentContext document = JsonPath.parse(data);
+                deviceType = eval(document, mapping.getDeviceTypeTopicExpression());
+            }
+
+            if (deviceName != null) {
+                deviceNameConsumer.accept(deviceName, deviceType);
             }
         } catch (Exception e) {
             log.error("Failed to convert msg", e);
