@@ -16,7 +16,6 @@
 package org.thingsboard.gateway.extensions.sigfox.conf;
 
 import lombok.Data;
-import org.thingsboard.gateway.extensions.sigfox.conf.mapping.SigfoxDeviceDataConverter;
 
 import java.util.List;
 
