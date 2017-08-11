@@ -22,9 +22,9 @@ import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.extensions.sigfox.conf.mapping.AttributesMapping;
-import org.thingsboard.gateway.extensions.sigfox.conf.mapping.DataValueTransformer;
 import org.thingsboard.gateway.extensions.sigfox.conf.mapping.SigfoxKVMapping;
 import org.thingsboard.gateway.extensions.sigfox.conf.mapping.TimeseriesMapping;
+import org.thingsboard.gateway.extensions.sigfox.conf.mapping.transformer.DataValueTransformer;
 import org.thingsboard.gateway.service.data.DeviceData;
 import org.thingsboard.server.common.data.kv.*;
 

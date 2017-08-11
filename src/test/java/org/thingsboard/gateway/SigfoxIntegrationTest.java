@@ -27,9 +27,9 @@ import java.nio.file.Paths;
 
 public class SigfoxIntegrationTest {
 
-    private static final String DEVICE_TYPE_ID = "DEVICE_TYPE_ID";
     private static final String SECURITY_TOKEN = "SECUTIRY_TOKEN";
-    private static final String GATEWAY_URL = "http://localhost:9090/sigfox/" + DEVICE_TYPE_ID + "/";
+    private static final String GATEWAY_URL = "http://localhost:9090/sigfox/%s/";
+    private static final String DEVICE_TYPE_ID_TEST_1 = "58ac4b889058c24616a43b3b";
 
     public static void main(String[] args) throws IOException {
 
@@ -37,8 +37,12 @@ public class SigfoxIntegrationTest {
         headers.add("Authorization", SECURITY_TOKEN);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        String postJson = new String(Files.readAllBytes(Paths.get("src/test/resources/post.json")));
+        doPost(headers, DEVICE_TYPE_ID_TEST_1);
+    }
 
-        new RestTemplate().exchange(GATEWAY_URL, HttpMethod.POST, new HttpEntity<>(postJson, headers), String.class);
+    private static void doPost(HttpHeaders headers, String deviceTypeId) throws IOException {
+        String postJson = new String(Files.readAllBytes(Paths.get(String.format("src/test/resources/%s.json", deviceTypeId))));
+
+        new RestTemplate().exchange(String.format(GATEWAY_URL, deviceTypeId), HttpMethod.POST, new HttpEntity<>(postJson, headers), String.class);
     }
 }

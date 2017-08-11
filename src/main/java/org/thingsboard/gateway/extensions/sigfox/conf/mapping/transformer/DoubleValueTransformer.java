@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox.conf.mapping;
+package org.thingsboard.gateway.extensions.sigfox.conf.mapping.transformer;
 
 
 public class DoubleValueTransformer implements DataValueTransformer {

@@ -15,24 +15,10 @@
  */
 package org.thingsboard.gateway.extensions.file.conf;
 
-import com.jayway.jsonpath.DocumentContext;
-import com.jayway.jsonpath.JsonPath;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.StringUtils;
-import org.thingsboard.gateway.extensions.sigfox.conf.mapping.AttributesMapping;
-import org.thingsboard.gateway.extensions.sigfox.conf.mapping.DataValueTransformer;
-import org.thingsboard.gateway.extensions.sigfox.conf.mapping.SigfoxKVMapping;
-import org.thingsboard.gateway.extensions.sigfox.conf.mapping.TimeseriesMapping;
-import org.thingsboard.gateway.service.data.DeviceData;
-import org.thingsboard.gateway.util.converter.AbstractJsonConverter;
 import org.thingsboard.gateway.util.converter.BasicJsonConverter;
-import org.thingsboard.server.common.data.kv.*;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
