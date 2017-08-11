@@ -22,7 +22,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.thingsboard.gateway.extensions.sigfox.conf.SigfoxConfiguration;
 import org.thingsboard.gateway.extensions.sigfox.conf.SigfoxDeviceTypeConfiguration;
-import org.thingsboard.gateway.extensions.sigfox.conf.SigfoxDeviceDataConverter;
+import org.thingsboard.gateway.extensions.sigfox.conf.mapping.SigfoxDeviceDataConverter;
 import org.thingsboard.gateway.service.GatewayService;
 import org.thingsboard.gateway.service.MqttDeliveryFuture;
 import org.thingsboard.gateway.service.data.DeviceData;
