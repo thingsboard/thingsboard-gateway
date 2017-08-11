@@ -21,8 +21,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
-import org.thingsboard.gateway.util.converter.transformer.DataValueTransformer;
 import org.thingsboard.gateway.service.data.DeviceData;
+import org.thingsboard.gateway.util.converter.transformer.DataValueTransformer;
 import org.thingsboard.server.common.data.kv.*;
 
 import java.text.ParseException;
@@ -39,10 +39,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class BasicJsonConverter extends AbstractJsonConverter {
 
-    private String deviceNameJsonExpression;
-    private String deviceTypeJsonExpression;
-    private List<AttributesMapping> attributes;
-    private List<TimeseriesMapping> timeseries;
+    protected String filterExpression;
+    protected String deviceNameJsonExpression;
+    protected String deviceTypeJsonExpression;
+    protected List<AttributesMapping> attributes;
+    protected List<TimeseriesMapping> timeseries;
     private ConcurrentHashMap<String, SimpleDateFormat> formatters = new ConcurrentHashMap<>();
 
     public DeviceData parseBody(String body) {
@@ -86,7 +87,12 @@ public class BasicJsonConverter extends AbstractJsonConverter {
                         ts = Long.parseLong(tsVal);
                     }
                 }
-                result.add(new BasicTsKvEntry(ts, getKvEntry(mapping, key, strVal)));
+                DataValueTransformer transformer = mapping.getTransformer();
+                if (transformer != null && transformer.isApplicable(strVal)) {
+                    result.add(new BasicTsKvEntry(ts, getKvEntry(mapping, key, strVal, transformer)));
+                } else if (transformer == null) {
+                    result.add(new BasicTsKvEntry(ts, getKvEntry(mapping, key, strVal)));
+                }
             }
         }
         return result;
@@ -98,44 +104,49 @@ public class BasicJsonConverter extends AbstractJsonConverter {
             for (TransformerKVMapping mapping : mappings) {
                 String key = eval(document, mapping.getKey());
                 String strVal = eval(document, mapping.getValue());
-                result.add(getKvEntry(mapping, key, strVal));
+                DataValueTransformer transformer = mapping.getTransformer();
+                if (transformer != null && transformer.isApplicable(strVal)) {
+                    result.add(getKvEntry(mapping, key, strVal, transformer));
+                } else if (transformer == null) {
+                    result.add(getKvEntry(mapping, key, strVal));
+                }
             }
         }
         return result;
     }
 
-    private BasicKvEntry getKvEntry(TransformerKVMapping mapping, String key, String strVal) {
-        DataValueTransformer transformer = mapping.getTransformer();
-        if (transformer != null) {
-            try {
-                switch (mapping.getType().getDataType()) {
-                    case STRING:
-                        return new StringDataEntry(key, transformer.transformToString(strVal));
-                    case BOOLEAN:
-                        return new BooleanDataEntry(key, transformer.transformToBoolean(strVal));
-                    case DOUBLE:
-                        return new DoubleDataEntry(key, transformer.transformToDouble(strVal));
-                    case LONG:
-                        return new LongDataEntry(key, transformer.transformToLong(strVal));
-                }
-            } catch (Exception e) {
-                log.error("Transformer [{}] can't be applied to field with key [{}] and value [{}]",
-                        transformer.getName(), key, strVal);
-                throw e;
-            }
-        } else {
+    private BasicKvEntry getKvEntry(TransformerKVMapping mapping, String key, String strVal, DataValueTransformer transformer) {
+        try {
             switch (mapping.getType().getDataType()) {
                 case STRING:
-                    return new StringDataEntry(key, strVal);
+                    return new StringDataEntry(key, transformer.transformToString(strVal));
                 case BOOLEAN:
-                    return new BooleanDataEntry(key, Boolean.valueOf(strVal));
+                    return new BooleanDataEntry(key, transformer.transformToBoolean(strVal));
                 case DOUBLE:
-                    return new DoubleDataEntry(key, Double.valueOf(strVal));
+                    return new DoubleDataEntry(key, transformer.transformToDouble(strVal));
                 case LONG:
-                    return new LongDataEntry(key, Long.valueOf(strVal));
+                    return new LongDataEntry(key, transformer.transformToLong(strVal));
             }
+        } catch (Exception e) {
+            log.error("Transformer [{}] can't be applied to field with key [{}] and value [{}]",
+                    transformer.getClass().getSimpleName(), key, strVal);
+            throw e;
         }
+        log.error("No mapping found for data type [{}]", mapping.getType().getDataType());
+        throw new IllegalArgumentException("No mapping found for data type [" + mapping.getType().getDataType() + "]");
+    }
 
+    private BasicKvEntry getKvEntry(TransformerKVMapping mapping, String key, String strVal) {
+        switch (mapping.getType().getDataType()) {
+            case STRING:
+                return new StringDataEntry(key, strVal);
+            case BOOLEAN:
+                return new BooleanDataEntry(key, Boolean.valueOf(strVal));
+            case DOUBLE:
+                return new DoubleDataEntry(key, Double.valueOf(strVal));
+            case LONG:
+                return new LongDataEntry(key, Long.valueOf(strVal));
+        }
         log.error("No mapping found for data type [{}]", mapping.getType().getDataType());
         throw new IllegalArgumentException("No mapping found for data type [" + mapping.getType().getDataType() + "]");
     }
