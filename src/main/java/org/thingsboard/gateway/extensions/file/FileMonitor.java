@@ -17,9 +17,7 @@ package org.thingsboard.gateway.extensions.file;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
-import org.thingsboard.gateway.extensions.file.conf.CsvDeviceDataConverter;
-import org.thingsboard.gateway.extensions.file.conf.FileMonitorConfiguration;
-import org.thingsboard.gateway.extensions.sigfox.conf.SigfoxDeviceTypeConfiguration;
+import org.thingsboard.gateway.extensions.file.conf.FileMonitorgot Configuration;
 import org.thingsboard.gateway.service.GatewayService;
 import org.thingsboard.gateway.service.MqttDeliveryFuture;
 import org.thingsboard.gateway.service.data.DeviceData;
