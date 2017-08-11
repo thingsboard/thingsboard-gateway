@@ -28,9 +28,13 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 public interface DataValueTransformer {
 
     Double transformToDouble(String strValue);
+
     Long transformToLong(String strValue);
+
     String transformToString(String strValue);
+
     Boolean transformToBoolean(String strValue);
 
-    String getName();
+    boolean isApplicable(String strValue);
+
 }

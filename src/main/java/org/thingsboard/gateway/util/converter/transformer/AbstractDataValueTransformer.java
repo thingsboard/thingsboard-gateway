@@ -15,37 +15,31 @@
  */
 package org.thingsboard.gateway.util.converter.transformer;
 
-
-public class DoubleValueTransformer extends AbstractDataValueTransformer {
-
-    static final String INT_TO_DOUBLE_TRANSFORMER_NAME = "intToDouble";
-
-    private static final int MAX_DOUBLE_VALUE = 65536;
-    private static final int DIVIDE_POWER = 10;
+public abstract class AbstractDataValueTransformer implements DataValueTransformer {
 
     @Override
     public Double transformToDouble(String strValue) {
-        Double value = Double.valueOf(strValue);
-        if (value <= MAX_DOUBLE_VALUE) {
-            return value / DIVIDE_POWER;
-        } else {
-            return (MAX_DOUBLE_VALUE - value) / DIVIDE_POWER;
-        }
+        throw new UnsupportedOperationException(String.format("%s doesn't support transforming to double value", this.getClass().getSimpleName()));
     }
 
     @Override
     public Long transformToLong(String strValue) {
-        return Long.valueOf(strValue);
+        throw new UnsupportedOperationException(String.format("%s doesn't support transforming to long value", this.getClass().getSimpleName()));
     }
 
     @Override
     public String transformToString(String strValue) {
-        return strValue;
+        throw new UnsupportedOperationException(String.format("%s doesn't support transforming to string value", this.getClass().getSimpleName()));
     }
 
     @Override
     public Boolean transformToBoolean(String strValue) {
-        return Boolean.valueOf(strValue);
+        throw new UnsupportedOperationException(String.format("%s doesn't support transforming to boolean value", this.getClass().getSimpleName()));
+    }
+
+    @Override
+    public boolean isApplicable(String strValue) {
+        return true;
     }
 }
 

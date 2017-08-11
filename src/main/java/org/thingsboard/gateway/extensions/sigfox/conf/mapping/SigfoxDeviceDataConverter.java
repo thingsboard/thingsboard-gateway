@@ -21,9 +21,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.thingsboard.gateway.service.data.DeviceData;
-import org.thingsboard.gateway.util.converter.AttributesMapping;
 import org.thingsboard.gateway.util.converter.BasicJsonConverter;
-import org.thingsboard.gateway.util.converter.TimeseriesMapping;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -34,12 +32,6 @@ import java.util.regex.Pattern;
 public class SigfoxDeviceDataConverter extends BasicJsonConverter {
 
     public static final Pattern TAG_PATTERN = Pattern.compile("\\$\\{(.*?)\\}");
-
-    private String filterExpression;
-    private String deviceNameJsonExpression;
-    private String deviceTypeJsonExpression;
-    private final List<AttributesMapping> attributes;
-    private final List<TimeseriesMapping> timeseries;
 
     public boolean isApplicable(String body) {
         if (filterExpression == null || filterExpression.isEmpty()) {
