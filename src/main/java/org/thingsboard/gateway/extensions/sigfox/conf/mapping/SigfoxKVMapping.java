@@ -19,6 +19,6 @@ import lombok.Data;
 import org.thingsboard.gateway.extensions.common.conf.mapping.KVMapping;
 
 @Data
-public class SigfoxKVMapping extends KVMapping{
+public class SigfoxKVMapping extends KVMapping {
     private DataValueTransformer transformer;
 }

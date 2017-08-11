@@ -46,6 +46,11 @@ sigfox:
   enabled: false
   configuration: sigfox-config.json
 
+file:
+  enabled: true
+  configuration: file-config.json
+
+
 server:
   # Server bind address
   address: "0.0.0.0"

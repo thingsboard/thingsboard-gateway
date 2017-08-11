@@ -88,7 +88,7 @@ public class DefaultSigfoxService implements SigfoxService {
     private void processBody(String body, SigfoxDeviceTypeConfiguration configuration) throws Exception {
         DeviceData dd = configuration.getConverter().parseBody(body);
         if (dd != null) {
-            waitWithTimeout(gateway.onDeviceConnect(dd.getName()));
+            waitWithTimeout(gateway.onDeviceConnect(dd.getName(), dd.getType()));
             List<MqttDeliveryFuture> futures = new ArrayList<>();
             if (!dd.getAttributes().isEmpty()) {
                 futures.add(gateway.onDeviceAttributesUpdate(dd.getName(), dd.getAttributes()));

@@ -41,7 +41,7 @@ public abstract class AbstractJsonConverter {
 
     protected static String eval(DocumentContext document, String expression) {
         Matcher matcher = DeviceMapping.TAG_PATTERN.matcher(expression);
-        String result = new String(expression);
+        String result = expression;
         while (matcher.find()) {
             String tag = matcher.group();
             String exp = tag.substring(2, tag.length() - 1);
