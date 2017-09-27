@@ -2,7 +2,7 @@
   "deviceTypeConfigurations": [
     {
       "deviceTypeId": "YOUR_DEVICE_TYPE_ID",
-      "token": "SECURITY_TOKEN",
+      "token": "TOKEN",
       "converters": [
         {
           "deviceNameJsonExpression": "${$.device}",

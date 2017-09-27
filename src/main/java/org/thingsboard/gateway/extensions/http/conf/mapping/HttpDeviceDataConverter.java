@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox.conf.mapping;
+package org.thingsboard.gateway.extensions.http.conf.mapping;
 
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Slf4j
-public class SigfoxDeviceDataConverter extends BasicJsonConverter {
+public class HttpDeviceDataConverter extends BasicJsonConverter {
 
     public static final Pattern TAG_PATTERN = Pattern.compile("\\$\\{(.*?)\\}");
 

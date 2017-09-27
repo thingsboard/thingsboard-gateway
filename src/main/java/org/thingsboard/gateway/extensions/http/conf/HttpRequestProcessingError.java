@@ -13,8 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox;
+package org.thingsboard.gateway.extensions.http.conf;
 
-public interface SigfoxService {
-    void processRequest(String deviceTypeId, String token, String body) throws Exception;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+/**
+ * Created by ashvayka on 23.03.17.
+ */
+@Data
+@AllArgsConstructor
+public class HttpRequestProcessingError {
+
+    private String message;
+
 }

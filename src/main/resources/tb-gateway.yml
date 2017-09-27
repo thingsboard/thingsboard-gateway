@@ -42,9 +42,9 @@ mqtt:
   enabled: true
   configuration: mqtt-config.json
 
-sigfox:
+http:
   enabled: false
-  configuration: sigfox-config.json
+  configuration: http-config.json
 
 file:
   enabled: false

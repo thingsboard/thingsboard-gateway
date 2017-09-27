@@ -13,18 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox.conf;
+package org.thingsboard.gateway.extensions.http.conf;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 
-/**
- * Created by ashvayka on 23.03.17.
- */
+import java.util.List;
+
 @Data
-@AllArgsConstructor
-public class SigfoxRequestProcessingError {
+public class HttpConfiguration {
 
-    private String message;
-
+    List<HttpConverterConfiguration> converterConfigurations;
+    List<HttpConverterConfiguration> deviceTypeConfigurations;
 }

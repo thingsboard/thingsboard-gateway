@@ -13,16 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox;
+package org.thingsboard.gateway.extensions.http;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
-import org.thingsboard.gateway.extensions.sigfox.conf.SigfoxConfiguration;
-import org.thingsboard.gateway.extensions.sigfox.conf.SigfoxDeviceTypeConfiguration;
-import org.thingsboard.gateway.extensions.sigfox.conf.mapping.SigfoxDeviceDataConverter;
+import org.thingsboard.gateway.extensions.http.conf.HttpConfiguration;
+import org.thingsboard.gateway.extensions.http.conf.HttpConverterConfiguration;
+import org.thingsboard.gateway.extensions.http.conf.mapping.HttpDeviceDataConverter;
 import org.thingsboard.gateway.service.GatewayService;
 import org.thingsboard.gateway.service.MqttDeliveryFuture;
 import org.thingsboard.gateway.service.data.DeviceData;
@@ -41,53 +41,61 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
-@ConditionalOnProperty(prefix = "sigfox", value = "enabled", havingValue = "true")
-public class DefaultSigfoxService implements SigfoxService {
+@ConditionalOnProperty(prefix = "http", value = "enabled", havingValue = "true")
+public class DefaultHttpService implements HttpService {
 
     private static final int OPERATION_TIMEOUT_IN_SEC = 10;
 
-    @Value("${sigfox.configuration}")
+    @Value("${http.configuration}")
     private String configurationFile;
 
     @Autowired
     private GatewayService gateway;
 
-    private Map<String, SigfoxDeviceTypeConfiguration> sigfoxDeviceTypeConfigurations;
+    private Map<String, HttpConverterConfiguration> httpConverterConfigurations;
 
     @PostConstruct
     public void init() throws IOException {
-        SigfoxConfiguration configuration;
+        HttpConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationFile, SigfoxConfiguration.class);
-            sigfoxDeviceTypeConfigurations = configuration
-                    .getDeviceTypeConfigurations()
-                    .stream()
-                    .collect(Collectors.toMap(SigfoxDeviceTypeConfiguration::getDeviceTypeId, Function.identity()));
+            configuration = ConfigurationTools.readConfiguration(configurationFile, HttpConfiguration.class);
+            if (configuration.getConverterConfigurations() != null) {
+                httpConverterConfigurations = configuration
+                        .getConverterConfigurations()
+                        .stream()
+                        .collect(Collectors.toMap(HttpConverterConfiguration::getConverterId, Function.identity()));
+            } else {
+                httpConverterConfigurations = configuration
+                        .getDeviceTypeConfigurations()
+                        .stream()
+                        .collect(Collectors.toMap(HttpConverterConfiguration::getDeviceTypeId, Function.identity()));
+            }
         } catch (IOException e) {
-            log.error("Sigfox service configuration failed!", e);
+            log.error("Http service configuration failed!", e);
             throw e;
         }
     }
 
     @Override
-    public void processRequest(String deviceTypeId, String token, String body) throws Exception {
-        log.trace("Processing request body [{}] for deviceTypeId [{}] and token [{}]", body, deviceTypeId, token);
-        SigfoxDeviceTypeConfiguration configuration = sigfoxDeviceTypeConfigurations.get(deviceTypeId);
+    public void processRequest(String converterId, String token, String body) throws Exception {
+        log.trace("Processing request body [{}] for converterId [{}] and token [{}]", body, converterId, token);
+        HttpConverterConfiguration configuration = httpConverterConfigurations.get(converterId);
         if (configuration != null) {
             if (configuration.getToken().equals(token)) {
                 processBody(body, configuration);
-            } else {
-                log.error("Request token [{}] for device type id [{}] doesn't match configuration token!", token, deviceTypeId);
-                throw new SecurityException("Request token [" + token + "] for device type id [" + deviceTypeId + "] doesn't match configuration token!");
+            }
+            else {
+                log.error("Request token [{}] for converter id [{}] doesn't match configuration token!", token, converterId);
+                throw new SecurityException("Request token [" + token + "] for converter id [" + converterId + "] doesn't match configuration token!");
             }
         } else {
-            log.error("No configuration found for device type id [{}]. Please add configuration for this device type id!", deviceTypeId);
-            throw new IllegalArgumentException("No configuration found for device type id [" + deviceTypeId + "]. Please add configuration for this device type id!");
+            log.error("No configuration found for converter id [{}]. Please add configuration for this converter id!", converterId);
+            throw new IllegalArgumentException("No configuration found for converter id [" + converterId + "]. Please add configuration for this converter id!");
         }
     }
 
-    private void processBody(String body, SigfoxDeviceTypeConfiguration configuration) throws Exception {
-        for (SigfoxDeviceDataConverter converter : configuration.getConverters()) {
+    private void processBody(String body, HttpConverterConfiguration configuration) throws Exception {
+        for (HttpDeviceDataConverter converter : configuration.getConverters()) {
             if (converter.isApplicable(body)) {
                 DeviceData dd = converter.parseBody(body);
                 if (dd != null) {

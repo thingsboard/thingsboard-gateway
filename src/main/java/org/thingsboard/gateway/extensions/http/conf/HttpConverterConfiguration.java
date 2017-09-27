@@ -13,13 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox.conf;
+package org.thingsboard.gateway.extensions.http.conf;
 
 import lombok.Data;
+import org.thingsboard.gateway.extensions.http.conf.mapping.HttpDeviceDataConverter;
 
 import java.util.List;
 
 @Data
-public class SigfoxConfiguration {
-    List<SigfoxDeviceTypeConfiguration> deviceTypeConfigurations;
+public class HttpConverterConfiguration {
+
+    private String converterId;
+    private String deviceTypeId;
+    private String token;
+    private List<HttpDeviceDataConverter> converters;
 }
