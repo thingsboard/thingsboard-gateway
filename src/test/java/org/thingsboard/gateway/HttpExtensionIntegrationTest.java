@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
-public class HttpExtesionIntegrationTest {
+public class HttpExtensionIntegrationTest {
 
     private static final String GATEWAY_URL = "http://localhost:9090/http/%s/";
 
