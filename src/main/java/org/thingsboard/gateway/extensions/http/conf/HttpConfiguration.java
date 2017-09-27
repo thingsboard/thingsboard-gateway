@@ -23,4 +23,5 @@ import java.util.List;
 public class HttpConfiguration {
 
     List<HttpConverterConfiguration> converterConfigurations;
+    List<HttpConverterConfiguration> deviceTypeConfigurations;
 }

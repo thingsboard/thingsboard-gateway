@@ -24,6 +24,7 @@ import java.util.List;
 public class HttpConverterConfiguration {
 
     private String converterId;
+    private String deviceTypeId;
     private String token;
     private List<HttpDeviceDataConverter> converters;
 }

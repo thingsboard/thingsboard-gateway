@@ -30,16 +30,15 @@ public class HttpExtesionIntegrationTest {
     private static final String GATEWAY_URL = "http://localhost:9090/http/%s/";
 
     public static void main(String[] args) throws IOException {
-        doPost("58ac4b889058c24616a43b3b", "7w9DzUGZDuxkKRRPrBOW");
-        doPost("thingPark", "");
+        doPost("YOUR_DEVICE_TYPE_ID", "TOKEN");
     }
 
-    private static void doPost(String converterId, String token) throws IOException {
+    private static void doPost(String deviceTypeId, String token) throws IOException {
         HttpHeaders headers = new HttpHeaders();
         headers.add("Authorization", token);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        String postJson = new String(Files.readAllBytes(Paths.get(String.format("src/test/resources/%s.json", converterId))));
-        new RestTemplate().exchange(String.format(GATEWAY_URL, converterId), HttpMethod.POST, new HttpEntity<>(postJson, headers), String.class);
+        String postJson = new String(Files.readAllBytes(Paths.get(String.format("src/test/resources/%s.json", deviceTypeId))));
+        new RestTemplate().exchange(String.format(GATEWAY_URL, deviceTypeId), HttpMethod.POST, new HttpEntity<>(postJson, headers), String.class);
     }
 }

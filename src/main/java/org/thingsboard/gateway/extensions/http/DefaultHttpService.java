@@ -59,10 +59,17 @@ public class DefaultHttpService implements HttpService {
         HttpConfiguration configuration;
         try {
             configuration = ConfigurationTools.readConfiguration(configurationFile, HttpConfiguration.class);
-            httpConverterConfigurations = configuration
-                    .getConverterConfigurations()
-                    .stream()
-                    .collect(Collectors.toMap(HttpConverterConfiguration::getConverterId, Function.identity()));
+            if (configuration.getConverterConfigurations() != null) {
+                httpConverterConfigurations = configuration
+                        .getConverterConfigurations()
+                        .stream()
+                        .collect(Collectors.toMap(HttpConverterConfiguration::getConverterId, Function.identity()));
+            } else {
+                httpConverterConfigurations = configuration
+                        .getDeviceTypeConfigurations()
+                        .stream()
+                        .collect(Collectors.toMap(HttpConverterConfiguration::getDeviceTypeId, Function.identity()));
+            }
         } catch (IOException e) {
             log.error("Http service configuration failed!", e);
             throw e;

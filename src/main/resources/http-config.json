@@ -1,8 +1,8 @@
 {
-  "converterConfigurations": [
+  "deviceTypeConfigurations": [
     {
-      "converterId": "58ac4b889058c24616a43b3b",
-      "token": "7w9DzUGZDuxkKRRPrBOW",
+      "deviceTypeId": "YOUR_DEVICE_TYPE_ID",
+      "token": "TOKEN",
       "converters": [
         {
           "deviceNameJsonExpression": "${$.device}",
@@ -33,47 +33,6 @@
               "value": "${$.data.humidity}",
               "transformer": {
                 "type": "intToDouble"
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "converterId": "thingPark",
-      "token": "",
-      "converters": [
-        {
-          "deviceNameJsonExpression": "${$.DevEUI_uplink.DevEUI}",
-          "attributes": [
-            {
-              "type": "string",
-              "key": "SubBand",
-              "value": "${$.DevEUI_uplink.SubBand}"
-            },
-            {
-              "type": "string",
-              "key": "Channel",
-              "value": "${$.DevEUI_uplink.Channel}"
-            }
-          ],
-          "timeseries": [
-            {
-              "type": "double",
-              "key": "temperature",
-              "value": "${$.DevEUI_uplink.CustomerData}",
-              "transformer": {
-                "type": "thingParkTransformer",
-                "keyValue" : "T"
-              }
-            },
-            {
-              "type": "double",
-              "key": "humidity",
-              "value": "${$.DevEUI_uplink.CustomerData}",
-              "transformer": {
-                "type": "thingParkTransformer",
-                "keyValue" : "H"
               }
             }
           ]
