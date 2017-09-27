@@ -39,7 +39,14 @@ public class HttpController {
     private ObjectMapper mapper = new ObjectMapper();
 
 
-    @RequestMapping(value = "/{baseUrl}/{converterId}", method = RequestMethod.POST)
+    @RequestMapping(value = "/sigfox/{deviceTypeId}", method = RequestMethod.POST)
+    public void handleSigfoxRequest(@PathVariable String deviceTypeId,
+                              @RequestHeader(TOKEN_HEADER) String token,
+                              @RequestBody String body) throws Exception {
+        service.processRequest(deviceTypeId, token, body);
+    }
+
+    @RequestMapping(value = "/uplink/{converterId}", method = RequestMethod.POST)
     public void handleRequest(@PathVariable String converterId,
                               @RequestHeader(TOKEN_HEADER) String token,
                               @RequestBody String body) throws Exception {
