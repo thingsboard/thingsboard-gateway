@@ -81,7 +81,7 @@ public class DefaultHttpService implements HttpService {
         log.trace("Processing request body [{}] for converterId [{}] and token [{}]", body, converterId, token);
         HttpConverterConfiguration configuration = httpConverterConfigurations.get(converterId);
         if (configuration != null) {
-            if (configuration.getToken().equals(token) || configuration.getToken() == null || configuration.getToken().isEmpty()) {
+            if (configuration.getToken().equals(token)) {
                 processBody(body, configuration);
             }
             else {
