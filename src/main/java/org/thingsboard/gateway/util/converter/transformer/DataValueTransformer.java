@@ -17,13 +17,15 @@ package org.thingsboard.gateway.util.converter.transformer;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import org.thingsboard.gateway.util.converter.transformer.thingPark.ThingParkTransformer;
 
 @JsonTypeInfo(
         use = JsonTypeInfo.Id.NAME,
         include = JsonTypeInfo.As.PROPERTY,
         property = "type")
 @JsonSubTypes({
-        @JsonSubTypes.Type(value = DoubleValueTransformer.class, name = DoubleValueTransformer.INT_TO_DOUBLE_TRANSFORMER_NAME)
+        @JsonSubTypes.Type(value = DoubleValueTransformer.class, name = DoubleValueTransformer.INT_TO_DOUBLE_TRANSFORMER_NAME),
+        @JsonSubTypes.Type(value = ThingParkTransformer.class, name = ThingParkTransformer.THING_PARK_CONVERTER_NAME)
 })
 public interface DataValueTransformer {
 

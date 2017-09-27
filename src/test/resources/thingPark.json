@@ -1,0 +1,50 @@
+{
+  "DevEUI_uplink": {
+    "-xmlns": "http://uri.actility.com/lora",
+    "Time": "2015-07-09T16:06:38.49+02:00",
+    "DevEUI": "000000000F1D8693",
+    "FPort": "2",
+    "FCntUp": "7011",
+    "ADRbit": "1",
+    "ACKbit": "1",
+    "MType": "4",
+    "FCntDn": "11",
+    "payload_hex": "0027bd00",
+    "mic_hex": "38e7a3b9",
+    "Lrcid": "00000065",
+    "LrrRSSI": "-60.000000",
+    "LrrSNR": "9.750000",
+    "SpFact": "7",
+    "SubBand": "G1",
+    "Channel": "LC2",
+    "DevLrrCnt": "2",
+    "Lrrid": "08040059",
+    "Late": "0",
+    "LrrLAT": "48.874931",
+    "LrrLON": "2.333673",
+    "Lrrs": {
+      "Lrr": [
+        {
+          "Lrrid": "08040059",
+          "LrrRSSI": "-60.000000",
+          "LrrSNR": "9.750000",
+          "LrrESP": "-59.000000"
+        },
+        {
+          "Lrrid": "33d13a41",
+          "LrrRSSI": "-73.000000",
+          "LrrSNR": "9.750000",
+          "LrrESP": "-72.000000"
+        }
+      ]
+    },
+    "CustomerID": "100000507",
+    "CustomerData": "7b2254223a32322e36352c2248223a35362e32397d",
+    "ModelCfg": "0",
+    "InstantPER": "0.02",
+    "MeanPER": "0.02",
+    "DevAddr": "0405F519",
+    "UplinkDC": "0.001",
+    "UplinkDCSubBand": "0.009"
+  }
+}
