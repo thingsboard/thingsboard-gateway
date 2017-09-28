@@ -27,7 +27,7 @@ import java.nio.file.Paths;
 
 public class HttpExtensionIntegrationTest {
 
-    private static final String GATEWAY_URL = "http://localhost:9090/http/%s/";
+    private static final String GATEWAY_URL = "http://localhost:9090/sigfox/%s/";
 
     public static void main(String[] args) throws IOException {
         doPost("YOUR_DEVICE_TYPE_ID", "TOKEN");
