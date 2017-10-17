@@ -13,12 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.opc;
-
-import org.thingsboard.gateway.extensions.ExtensionService;
+package org.thingsboard.gateway.service;
 
 /**
- * Created by ashvayka on 16.01.17.
+ * Created by ashvayka on 29.09.17.
  */
-public interface OpcUaService extends ExtensionService {
+public interface TenantManagerService {
+
+    void processRequest(String converterId, String token, String body) throws Exception;
+
 }

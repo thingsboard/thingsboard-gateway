@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.service;
+package org.thingsboard.gateway.service.gateway;
 
 import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.server.common.data.kv.KvEntry;
@@ -27,6 +27,12 @@ import java.util.function.Consumer;
  * Created by ashvayka on 16.01.17.
  */
 public interface GatewayService {
+
+    void init() throws Exception;
+
+    void destroy() throws Exception;
+
+    String getTenantLabel();
 
     /**
      * Inform gateway service that device is connected

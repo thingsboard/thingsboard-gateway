@@ -16,57 +16,49 @@
 package org.thingsboard.gateway.extensions.mqtt.client;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.MqttClientConfiguration;
-import org.thingsboard.gateway.service.GatewayService;
+import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * Created by ashvayka on 23.01.17.
  */
-@Service
-@ConditionalOnProperty(prefix = "mqtt", value = "enabled", havingValue = "true", matchIfMissing = false)
 @Slf4j
 public class DefaultMqttClientService implements MqttClientService {
 
-    @Autowired
-    private GatewayService service;
-
-    @Value("${mqtt.configuration}")
-    private String configurationFile;
+    private final GatewayService gateway;
+    private final String configurationFile;
 
     private List<MqttBrokerMonitor> brokers;
 
-    @PostConstruct
+    public DefaultMqttClientService(GatewayService gateway, String configurationFile) {
+        this.gateway = gateway;
+        this.configurationFile = configurationFile;
+    }
+
     public void init() throws Exception {
-        log.info("Initializing MQTT client service!");
+        log.info("[{}] Initializing MQTT client service!", gateway.getTenantLabel());
         MqttClientConfiguration configuration;
         try {
             configuration = ConfigurationTools.readConfiguration(configurationFile, MqttClientConfiguration.class);
         } catch (Exception e) {
-            log.error("MQTT client service configuration failed!", e);
+            log.error("[{}] MQTT client service configuration failed!", gateway.getTenantLabel(), e);
             throw e;
         }
 
         try {
-            brokers = configuration.getBrokers().stream().map(c -> new MqttBrokerMonitor(service, c)).collect(Collectors.toList());
+            brokers = configuration.getBrokers().stream().map(c -> new MqttBrokerMonitor(gateway, c)).collect(Collectors.toList());
             brokers.forEach(MqttBrokerMonitor::connect);
         } catch (Exception e) {
-            log.error("MQTT client service initialization failed!", e);
+            log.error("[{}] MQTT client service initialization failed!", gateway.getTenantLabel(), e);
             throw e;
         }
     }
 
-    @PreDestroy
-    public void preDestroy() {
+    public void destroy() {
         if (brokers != null) {
             brokers.forEach(MqttBrokerMonitor::disconnect);
         }
