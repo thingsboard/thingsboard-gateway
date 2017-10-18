@@ -28,26 +28,7 @@ updates:
 gateways:
   tenants:
     -
-      label: "TenantA"
-      reporting:
-        interval: 60000
-      persistence:
-        type: file
-        path: storage
-        bufferSize: 1000
-      connection:
-        host: "${GATEWAY_HOST:demo.thingsboard.io}"
-        port: 1883
-        retryInterval: 3000
-        maxInFlight: 1000
-        security:
-          accessToken: "${GATEWAY_ACCESS_TOKEN:your_access_token}"
-      extensions:
-        -
-          type: "http"
-          configuration: http-config.json
-    -
-      label: "TenantB"
+      label: "Tenant"
       reporting:
         interval: 60000
       persistence:
