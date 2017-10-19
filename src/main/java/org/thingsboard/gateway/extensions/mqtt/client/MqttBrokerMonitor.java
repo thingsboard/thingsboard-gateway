@@ -29,7 +29,7 @@ import org.thingsboard.gateway.extensions.mqtt.client.listener.MqttTelemetryMess
 import org.thingsboard.gateway.service.AttributesUpdateListener;
 import org.thingsboard.gateway.service.RpcCommandListener;
 import org.thingsboard.gateway.service.data.*;
-import org.thingsboard.gateway.service.GatewayService;
+import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.server.common.data.kv.KvEntry;
 
 import java.nio.charset.StandardCharsets;

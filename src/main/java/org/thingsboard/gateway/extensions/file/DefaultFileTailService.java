@@ -16,56 +16,50 @@
 package org.thingsboard.gateway.extensions.file;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
+import org.thingsboard.gateway.extensions.ExtensionService;
 import org.thingsboard.gateway.extensions.file.conf.FileTailConfiguration;
-import org.thingsboard.gateway.service.GatewayService;
+import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * Created by ashvayka on 15.05.17.
  */
-@Service
-@ConditionalOnProperty(prefix = "file", value = "enabled", havingValue = "true", matchIfMissing = false)
 @Slf4j
-public class DefaultFileTailService {
-    @Autowired
-    private GatewayService service;
+public class DefaultFileTailService implements ExtensionService {
 
-    @Value("${file.configuration}")
-    private String configurationFile;
+    private final GatewayService gateway;
+    private final String configurationFile;
 
     private List<FileMonitor> brokers;
 
-    @PostConstruct
+    public DefaultFileTailService(GatewayService gateway, String configurationFile) {
+        this.gateway = gateway;
+        this.configurationFile = configurationFile;
+    }
+
     public void init() throws Exception {
-        log.info("Initializing File Tail service!");
+        log.info("[{}] Initializing File Tail service!", gateway.getTenantLabel());
         FileTailConfiguration configuration;
         try {
             configuration = ConfigurationTools.readConfiguration(configurationFile, FileTailConfiguration.class);
         } catch (Exception e) {
-            log.error("File Tail service configuration failed!", e);
+            log.error("[{}] File Tail service configuration failed!", gateway.getTenantLabel(), e);
             throw e;
         }
 
         try {
-            brokers = configuration.getFileMonitorConfigurations().stream().map(c -> new FileMonitor(service, c)).collect(Collectors.toList());
+            brokers = configuration.getFileMonitorConfigurations().stream().map(c -> new FileMonitor(gateway, c)).collect(Collectors.toList());
             brokers.forEach(FileMonitor::init);
         } catch (Exception e) {
-            log.error("File Tail service initialization failed!", e);
+            log.error("[{}] File Tail service initialization failed!", gateway.getTenantLabel(), e);
             throw e;
         }
     }
 
-    @PreDestroy
-    public void preDestroy() {
+    public void destroy() {
         if (brokers != null) {
             brokers.forEach(FileMonitor::stop);
         }

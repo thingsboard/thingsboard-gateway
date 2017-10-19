@@ -18,23 +18,22 @@ package org.thingsboard.gateway.extensions.http;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.thingsboard.gateway.extensions.http.conf.HttpRequestProcessingError;
+import org.thingsboard.gateway.service.TenantManagerService;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
 @RestController
-@ConditionalOnProperty(prefix = "http", value = "enabled", havingValue = "true")
 @Slf4j
 public class HttpController {
     private static final String TOKEN_HEADER = "Authorization";
 
     @Autowired
-    private HttpService service;
+    private TenantManagerService service;
 
     private ObjectMapper mapper = new ObjectMapper();
 
@@ -48,9 +47,8 @@ public class HttpController {
 
     @RequestMapping(value = "/uplink/{converterId}", method = RequestMethod.POST)
     public void handleRequest(@PathVariable String converterId,
-                              @RequestHeader(TOKEN_HEADER) String token,
                               @RequestBody String body) throws Exception {
-        service.processRequest(converterId, token, body);
+        service.processRequest(converterId, null, body);
     }
 
     @ExceptionHandler(Exception.class)

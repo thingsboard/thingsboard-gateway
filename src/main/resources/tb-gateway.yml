@@ -14,43 +14,6 @@
 # limitations under the License.
 #
 
-gateway:
-  reporting:
-    interval: 60000
-  persistence:
-    type: file
-    path: storage
-    bufferSize: 1000
-  connection:
-    host: "${GATEWAY_HOST:demo.thingsboard.io}"
-    port: 1883
-    retryInterval: 3000
-    maxInFlight: 1000
-    security:
-      accessToken: "${GATEWAY_ACCESS_TOKEN:your_access_token}"
-#      keystore: mqttclient.jks
-#      keystorePassword: password
-#      keystoreKeyAlias: clientalias
-#      truststore: mqttclient.jks
-#      truststorePassword: password
-
-opc:
-  enabled: false
-  configuration: opc-config.json
-
-mqtt:
-  enabled: true
-  configuration: mqtt-config.json
-
-http:
-  enabled: false
-  configuration: http-config.json
-
-file:
-  enabled: false
-  configuration: file-config.json
-
-
 server:
   # Server bind address
   address: "0.0.0.0"
@@ -61,3 +24,25 @@ server:
 updates:
   # Enable/disable updates checking.
   enabled: "${UPDATES_ENABLED:true}"
+
+gateways:
+  tenants:
+    -
+      label: "Tenant"
+      reporting:
+        interval: 60000
+      persistence:
+        type: file
+        path: storage
+        bufferSize: 1000
+      connection:
+        host: "${GATEWAY_HOST:demo.thingsboard.io}"
+        port: 1883
+        retryInterval: 3000
+        maxInFlight: 1000
+        security:
+          accessToken: "${GATEWAY_ACCESS_TOKEN:your_access_token}"
+      extensions:
+        -
+          type: "http"
+          configuration: http-config.json

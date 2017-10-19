@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.opc;
-
-import org.thingsboard.gateway.extensions.ExtensionService;
+package org.thingsboard.gateway.extensions;
 
 /**
- * Created by ashvayka on 16.01.17.
+ * Created by ashvayka on 29.09.17.
  */
-public interface OpcUaService extends ExtensionService {
+public interface ExtensionService {
+
+    void init() throws Exception;
+
+    void destroy() throws Exception;
 }

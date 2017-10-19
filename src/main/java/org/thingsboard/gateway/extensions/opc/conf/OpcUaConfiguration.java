@@ -16,7 +16,6 @@
 package org.thingsboard.gateway.extensions.opc.conf;
 
 import lombok.Data;
-import org.thingsboard.gateway.extensions.opc.conf.OpcUaServerConfiguration;
 
 import java.util.List;
 
