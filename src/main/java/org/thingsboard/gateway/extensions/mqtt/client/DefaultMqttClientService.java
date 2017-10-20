@@ -15,6 +15,8 @@
  */
 package org.thingsboard.gateway.extensions.mqtt.client;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.MqttClientConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
@@ -30,20 +32,20 @@ import java.util.stream.Collectors;
 public class DefaultMqttClientService implements MqttClientService {
 
     private final GatewayService gateway;
-    private final String configurationFile;
+    private final JsonNode configurationNode;
 
     private List<MqttBrokerMonitor> brokers;
 
-    public DefaultMqttClientService(GatewayService gateway, String configurationFile) {
+    public DefaultMqttClientService(GatewayService gateway, JsonNode configurationNode) {
         this.gateway = gateway;
-        this.configurationFile = configurationFile;
+        this.configurationNode = configurationNode;
     }
 
     public void init() throws Exception {
         log.info("[{}] Initializing MQTT client service!", gateway.getTenantLabel());
         MqttClientConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationFile, MqttClientConfiguration.class);
+            configuration = ConfigurationTools.readConfiguration(configurationNode, MqttClientConfiguration.class);
         } catch (Exception e) {
             log.error("[{}] MQTT client service configuration failed!", gateway.getTenantLabel(), e);
             throw e;

@@ -15,6 +15,8 @@
  */
 package org.thingsboard.gateway.extensions.opc;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,20 +40,20 @@ import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.
 public class DefaultOpcUaService implements OpcUaService {
 
     private final GatewayService gateway;
-    private final String configurationFile;
+    private final JsonNode configurationNode;
 
     private List<OpcUaServerMonitor> monitors;
 
-    public DefaultOpcUaService(GatewayService gateway, String configurationFile) {
+    public DefaultOpcUaService(GatewayService gateway, JsonNode configurationNode) {
         this.gateway = gateway;
-        this.configurationFile = configurationFile;
+        this.configurationNode = configurationNode;
     }
 
     public void init() throws Exception {
         log.info("Initializing OPC-UA service!", gateway.getTenantLabel());
         OpcUaConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationFile, OpcUaConfiguration.class);
+            configuration = ConfigurationTools.readConfiguration(configurationNode, OpcUaConfiguration.class);
         } catch (Exception e) {
             log.error("OPC-UA service configuration failed!", gateway.getTenantLabel(), e);
             throw e;

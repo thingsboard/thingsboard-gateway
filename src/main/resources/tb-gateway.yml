@@ -41,8 +41,4 @@ gateways:
         retryInterval: 3000
         maxInFlight: 1000
         security:
-          accessToken: "${GATEWAY_ACCESS_TOKEN:your_access_token}"
-      extensions:
-        -
-          type: "http"
-          configuration: http-config.json
+          accessToken: "${GATEWAY_ACCESS_TOKEN:c5fW8omLAvvVcY1dinIf}"

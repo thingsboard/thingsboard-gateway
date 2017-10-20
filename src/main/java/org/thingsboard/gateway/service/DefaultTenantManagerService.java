@@ -58,20 +58,12 @@ public class DefaultTenantManagerService implements TenantManagerService {
         for (TbTenantConfiguration configuration : configuration.getTenants()) {
             String label = configuration.getLabel();
             log.info("[{}] Initializing gateway", configuration.getLabel());
-            GatewayService service = new MqttGatewayService(configuration);
+            GatewayService service = new MqttGatewayService(configuration, c -> {
+                onExtensionConfigurationUpdate(label, c);
+            });
             try {
                 service.init();
-                List<ExtensionService> extensions = new ArrayList<>();
-                for (TbExtensionConfiguration extensionConfiguration : configuration.getExtensions()) {
-                    log.info("[{}] Initializing extension: [{}]", configuration.getLabel(), extensionConfiguration.getType());
-                    ExtensionService extension = createExtensionServiceByType(service, extensionConfiguration);
-                    extension.init();
-                    if (extensionConfiguration.getType().equals("http")) {
-                        httpServices.add((HttpService) extension);
-                    }
-                    extensions.add(extension);
-                }
-                gateways.put(label, new TenantServicesRegistry(service, extensions));
+                gateways.put(label, new TenantServicesRegistry(service));
             } catch (Exception e) {
                 log.info("[{}] Failed to initialize the service ", label, e);
                 try {
@@ -81,6 +73,12 @@ public class DefaultTenantManagerService implements TenantManagerService {
                 }
             }
         }
+    }
+
+    private void onExtensionConfigurationUpdate(String label, String c) {
+        //TODO: add logging
+        TenantServicesRegistry registry = gateways.get(label);
+        registry.updateExtensionConfiguration(c);
     }
 
     @Override

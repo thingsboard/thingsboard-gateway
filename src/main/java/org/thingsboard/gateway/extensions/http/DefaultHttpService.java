@@ -15,6 +15,8 @@
  */
 package org.thingsboard.gateway.extensions.http;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.extensions.http.conf.HttpConfiguration;
@@ -41,19 +43,19 @@ public class DefaultHttpService implements HttpService {
     private static final int OPERATION_TIMEOUT_IN_SEC = 10;
 
     private final GatewayService gateway;
-    private final String configurationFile;
+    private final JsonNode configurationNode;
 
     private Map<String, HttpConverterConfiguration> httpConverterConfigurations;
 
-    public DefaultHttpService(GatewayService gateway, String configurationFile) {
+    public DefaultHttpService(GatewayService gateway, JsonNode configurationNode) {
         this.gateway = gateway;
-        this.configurationFile = configurationFile;
+        this.configurationNode = configurationNode;
     }
 
     public void init() throws IOException {
         HttpConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationFile, HttpConfiguration.class);
+            configuration = ConfigurationTools.readConfiguration(configurationNode, HttpConfiguration.class);
             if (configuration.getConverterConfigurations() != null) {
                 httpConverterConfigurations = configuration
                         .getConverterConfigurations()

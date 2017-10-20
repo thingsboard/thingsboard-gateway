@@ -59,6 +59,10 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     public static final String GATEWAY_RESPONSES_ATTRIBUTES_TOPIC = "v1/gateway/attributes/response";
     public static final String GATEWAY_CONNECT_TOPIC = "v1/gateway/connect";
     public static final String GATEWAY_DISCONNECT_TOPIC = "v1/gateway/disconnect";
+    public static final String DEVICE_ATTRIBUTES_TOPIC = "v1/devices/me/attributes";
+    public static final String DEVICE_GET_ATTRIBUTES_REQUEST_TOPIC = "v1/devices/me/attributes/request/1";
+    public static final String DEVICE_GET_ATTRIBUTES_RESPONSE_TOPIC = "v1/devices/me/attributes/response/1";
+
     private final ConcurrentMap<String, DeviceInfo> devices = new ConcurrentHashMap<>();
     private final AtomicLong attributesCount = new AtomicLong();
     private final AtomicLong telemetryCount = new AtomicLong();
@@ -72,6 +76,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     private final TbConnectionConfiguration connection;
     private final TbReportingConfiguration reporting;
     private final TbPersistenceConfiguration persistence;
+    private final Consumer<String> extensionsConfigListener;
 
     private volatile ObjectNode error;
 
@@ -83,8 +88,10 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     private ScheduledExecutorService scheduler;
     private ExecutorService callbackExecutor = Executors.newCachedThreadPool();
 
-    public MqttGatewayService(TbTenantConfiguration configuration) {
+
+    public MqttGatewayService(TbTenantConfiguration configuration, Consumer<String> extensionsConfigListener) {
         this.configuration = configuration;
+        this.extensionsConfigListener = extensionsConfigListener;
         this.tenantLabel = configuration.getLabel();
         this.connection = configuration.getConnection();
         this.reporting = configuration.getReporting();
@@ -316,6 +323,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
                             public void onFailure(IMqttToken iMqttToken, Throwable e) {
                             }
                         }).waitForCompletion();
+                        tbClient.subscribe(DEVICE_ATTRIBUTES_TOPIC,1, (IMqttMessageListener) this);
+                        //TODO: send get attributes request for "configuration" attribute.
 //                        tbClient.subscribe(GATEWAY_ATTRIBUTES_TOPIC, 1, (IMqttMessageListener) this);
 //                        tbClient.subscribe(GATEWAY_RPC_TOPIC, 1, (IMqttMessageListener) this);
                         devices.forEach((k, v) -> onDeviceConnect(v.getName(), v.getType()));
@@ -399,6 +408,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             onDeviceAttributesResponse(message);
         } else if (topic.equals(GATEWAY_RPC_TOPIC)) {
             onRpcCommand(message);
+        } else if (topic.equals(DEVICE_ATTRIBUTES_TOPIC)) {
+            onGatewayAttributesUpdate(message);
         }
     }
 
@@ -449,6 +460,17 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             log.warn("No listener registered for RPC command to device {}!", deviceName);
         }
     }
+
+    private void onGatewayAttributesUpdate(MqttMessage message) {
+        JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));
+        if(payload.has("configuration")){
+            String configuration = payload.get("configuration").asText();
+            if(!StringUtils.isEmpty(configuration)) {
+                extensionsConfigListener.accept(payload.get("configuration").asText(configuration));
+            }
+        }
+    }
+
 
     private void onDeviceAttributesResponse(MqttMessage message) {
         JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));

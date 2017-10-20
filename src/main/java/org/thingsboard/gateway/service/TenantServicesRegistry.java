@@ -19,6 +19,7 @@ import lombok.Data;
 import org.thingsboard.gateway.extensions.ExtensionService;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -30,4 +31,12 @@ public class TenantServicesRegistry {
     private final GatewayService service;
     private final List<ExtensionService> extensions;
 
+    public TenantServicesRegistry(GatewayService service) {
+        this.service = service;
+        this.extensions = new ArrayList<>();
+    }
+
+    public void updateExtensionConfiguration(String c) {
+        //TODO: implement
+    }
 }

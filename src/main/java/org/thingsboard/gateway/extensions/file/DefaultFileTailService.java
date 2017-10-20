@@ -15,6 +15,8 @@
  */
 package org.thingsboard.gateway.extensions.file;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.thingsboard.gateway.extensions.ExtensionService;
 import org.thingsboard.gateway.extensions.file.conf.FileTailConfiguration;
@@ -31,20 +33,20 @@ import java.util.stream.Collectors;
 public class DefaultFileTailService implements ExtensionService {
 
     private final GatewayService gateway;
-    private final String configurationFile;
+    private final ObjectNode configurationNode;
 
     private List<FileMonitor> brokers;
 
-    public DefaultFileTailService(GatewayService gateway, String configurationFile) {
+    public DefaultFileTailService(GatewayService gateway, ObjectNode configurationNode) {
         this.gateway = gateway;
-        this.configurationFile = configurationFile;
+        this.configurationNode = configurationNode;
     }
 
     public void init() throws Exception {
         log.info("[{}] Initializing File Tail service!", gateway.getTenantLabel());
         FileTailConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationFile, FileTailConfiguration.class);
+            configuration = ConfigurationTools.readConfiguration(configurationNode, FileTailConfiguration.class);
         } catch (Exception e) {
             log.error("[{}] File Tail service configuration failed!", gateway.getTenantLabel(), e);
             throw e;

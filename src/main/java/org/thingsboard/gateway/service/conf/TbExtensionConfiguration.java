@@ -15,6 +15,8 @@
  */
 package org.thingsboard.gateway.service.conf;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.Data;
 
 /**
@@ -23,7 +25,8 @@ import lombok.Data;
 @Data
 public class TbExtensionConfiguration {
 
+    private String id;
     private String type;
-    private String configuration;
+    private ObjectNode configuration;
 
 }

@@ -29,6 +29,6 @@ public class TbTenantConfiguration {
     private TbReportingConfiguration reporting;
     private TbPersistenceConfiguration persistence;
     private TbConnectionConfiguration connection;
-    private List<TbExtensionConfiguration> extensions;
+
 
 }

@@ -15,7 +15,9 @@
  */
 package org.thingsboard.gateway.util;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -31,11 +33,11 @@ public class ConfigurationTools {
 
     private static final ObjectMapper mapper = new ObjectMapper();
 
-    public static <T> T readConfiguration(String configurationFile, Class<T> clazz) throws IOException {
+    public static <T> T readConfiguration(JsonNode configurationNode, Class<T> clazz) throws IOException {
         try {
-            return mapper.readValue(getResourceAsStream(configurationFile), clazz);
+            return mapper.treeToValue(configurationNode, clazz);
         } catch (IOException e) {
-            log.error("Failed to load {} configuration from {}", clazz, configurationFile);
+            log.error("Failed to load {} configuration from {}", clazz, configurationNode);
             throw e;
         }
     }
