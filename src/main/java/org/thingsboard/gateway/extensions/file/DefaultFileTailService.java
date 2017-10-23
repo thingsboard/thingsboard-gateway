@@ -33,16 +33,14 @@ import java.util.stream.Collectors;
 public class DefaultFileTailService implements ExtensionService {
 
     private final GatewayService gateway;
-    private final ObjectNode configurationNode;
 
     private List<FileMonitor> brokers;
 
-    public DefaultFileTailService(GatewayService gateway, ObjectNode configurationNode) {
+    public DefaultFileTailService(GatewayService gateway) {
         this.gateway = gateway;
-        this.configurationNode = configurationNode;
     }
 
-    public void init() throws Exception {
+    public void init(ObjectNode configurationNode) throws Exception {
         log.info("[{}] Initializing File Tail service!", gateway.getTenantLabel());
         FileTailConfiguration configuration;
         try {
@@ -59,6 +57,10 @@ public class DefaultFileTailService implements ExtensionService {
             log.error("[{}] File Tail service initialization failed!", gateway.getTenantLabel(), e);
             throw e;
         }
+    }
+
+    public void update(ObjectNode configuration) {
+
     }
 
     public void destroy() {

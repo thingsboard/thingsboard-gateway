@@ -32,16 +32,14 @@ import java.util.stream.Collectors;
 public class DefaultMqttClientService implements MqttClientService {
 
     private final GatewayService gateway;
-    private final JsonNode configurationNode;
 
     private List<MqttBrokerMonitor> brokers;
 
-    public DefaultMqttClientService(GatewayService gateway, JsonNode configurationNode) {
+    public DefaultMqttClientService(GatewayService gateway) {
         this.gateway = gateway;
-        this.configurationNode = configurationNode;
     }
 
-    public void init() throws Exception {
+    public void init(ObjectNode configurationNode) throws Exception {
         log.info("[{}] Initializing MQTT client service!", gateway.getTenantLabel());
         MqttClientConfiguration configuration;
         try {
@@ -60,6 +58,12 @@ public class DefaultMqttClientService implements MqttClientService {
         }
     }
 
+    @Override
+    public void update(ObjectNode configurationNode) {
+
+    }
+
+    @Override
     public void destroy() {
         if (brokers != null) {
             brokers.forEach(MqttBrokerMonitor::disconnect);

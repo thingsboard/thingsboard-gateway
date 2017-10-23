@@ -17,6 +17,11 @@ package org.thingsboard.gateway.service;
 
 import lombok.Data;
 import org.thingsboard.gateway.extensions.ExtensionService;
+import org.thingsboard.gateway.extensions.file.DefaultFileTailService;
+import org.thingsboard.gateway.extensions.http.DefaultHttpService;
+import org.thingsboard.gateway.extensions.mqtt.client.DefaultMqttClientService;
+import org.thingsboard.gateway.extensions.opc.DefaultOpcUaService;
+import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 
 import java.util.ArrayList;
@@ -38,5 +43,20 @@ public class TenantServicesRegistry {
 
     public void updateExtensionConfiguration(String c) {
         //TODO: implement
+    }
+
+    private ExtensionService createExtensionServiceByType(GatewayService gateway, TbExtensionConfiguration configuration) {
+        switch (configuration.getType()) {
+            case "file":
+                return new DefaultFileTailService(gateway);
+            case "opc":
+                return new DefaultOpcUaService(gateway);
+            case "http":
+                return new DefaultHttpService(gateway);
+            case "mqtt":
+                return new DefaultMqttClientService(gateway);
+            default:
+                throw new IllegalArgumentException("Extension: " + configuration.getType() + " is not supported!");
+        }
     }
 }

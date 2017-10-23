@@ -40,16 +40,14 @@ import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.
 public class DefaultOpcUaService implements OpcUaService {
 
     private final GatewayService gateway;
-    private final JsonNode configurationNode;
 
     private List<OpcUaServerMonitor> monitors;
 
-    public DefaultOpcUaService(GatewayService gateway, JsonNode configurationNode) {
+    public DefaultOpcUaService(GatewayService gateway) {
         this.gateway = gateway;
-        this.configurationNode = configurationNode;
     }
 
-    public void init() throws Exception {
+    public void init(ObjectNode configurationNode) throws Exception {
         log.info("Initializing OPC-UA service!", gateway.getTenantLabel());
         OpcUaConfiguration configuration;
         try {
@@ -66,6 +64,11 @@ public class DefaultOpcUaService implements OpcUaService {
             log.error("OPC-UA service initialization failed!", gateway.getTenantLabel(), e);
             throw e;
         }
+    }
+
+    @Override
+    public void update(ObjectNode configurationNode) throws Exception {
+
     }
 
     public void destroy() {

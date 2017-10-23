@@ -43,16 +43,14 @@ public class DefaultHttpService implements HttpService {
     private static final int OPERATION_TIMEOUT_IN_SEC = 10;
 
     private final GatewayService gateway;
-    private final JsonNode configurationNode;
 
     private Map<String, HttpConverterConfiguration> httpConverterConfigurations;
 
-    public DefaultHttpService(GatewayService gateway, JsonNode configurationNode) {
+    public DefaultHttpService(GatewayService gateway) {
         this.gateway = gateway;
-        this.configurationNode = configurationNode;
     }
 
-    public void init() throws IOException {
+    public void init(ObjectNode configurationNode) throws IOException {
         HttpConfiguration configuration;
         try {
             configuration = ConfigurationTools.readConfiguration(configurationNode, HttpConfiguration.class);
@@ -71,6 +69,11 @@ public class DefaultHttpService implements HttpService {
             log.error("[{}] Http service configuration failed!", gateway.getTenantLabel(), e);
             throw e;
         }
+    }
+
+    @Override
+    public void update(ObjectNode configurationNode) throws Exception {
+
     }
 
     @Override

@@ -15,12 +15,16 @@
  */
 package org.thingsboard.gateway.extensions;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 /**
  * Created by ashvayka on 29.09.17.
  */
 public interface ExtensionService {
 
-    void init() throws Exception;
+    void init(ObjectNode configuration) throws Exception;
+
+    void update(ObjectNode configuration) throws Exception;
 
     void destroy() throws Exception;
 }

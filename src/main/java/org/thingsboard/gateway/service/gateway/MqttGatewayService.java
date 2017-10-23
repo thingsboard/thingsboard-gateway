@@ -62,6 +62,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     public static final String DEVICE_ATTRIBUTES_TOPIC = "v1/devices/me/attributes";
     public static final String DEVICE_GET_ATTRIBUTES_REQUEST_TOPIC = "v1/devices/me/attributes/request/1";
     public static final String DEVICE_GET_ATTRIBUTES_RESPONSE_TOPIC = "v1/devices/me/attributes/response/1";
+    public static final String DEVICE_GET_ATTRIBUTES_RESPONSE_PLUS_TOPIC = "v1/devices/me/attributes/response/+";
 
     private final ConcurrentMap<String, DeviceInfo> devices = new ConcurrentHashMap<>();
     private final AtomicLong attributesCount = new AtomicLong();
@@ -323,10 +324,14 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
                             public void onFailure(IMqttToken iMqttToken, Throwable e) {
                             }
                         }).waitForCompletion();
+
                         tbClient.subscribe(DEVICE_ATTRIBUTES_TOPIC,1, (IMqttMessageListener) this);
-                        //TODO: send get attributes request for "configuration" attribute.
-//                        tbClient.subscribe(GATEWAY_ATTRIBUTES_TOPIC, 1, (IMqttMessageListener) this);
-//                        tbClient.subscribe(GATEWAY_RPC_TOPIC, 1, (IMqttMessageListener) this);
+
+                        tbClient.subscribe(DEVICE_GET_ATTRIBUTES_RESPONSE_PLUS_TOPIC, 1, (IMqttMessageListener) this);
+                        ObjectNode node = newNode().put("shared", "configuration");
+                        MqttMessage msg = new MqttMessage(toBytes(node));
+                        tbClient.publish(DEVICE_GET_ATTRIBUTES_REQUEST_TOPIC, msg);
+
                         devices.forEach((k, v) -> onDeviceConnect(v.getName(), v.getType()));
                     } catch (MqttException e) {
                         log.warn("Failed to connect to Thingsboard!", e);
@@ -410,6 +415,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             onRpcCommand(message);
         } else if (topic.equals(DEVICE_ATTRIBUTES_TOPIC)) {
             onGatewayAttributesUpdate(message);
+        } else if (topic.equals(DEVICE_GET_ATTRIBUTES_RESPONSE_TOPIC)) {
+            onGatewayAttributesGet(message);
         }
     }
 
@@ -461,16 +468,25 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         }
     }
 
+    private void onGatewayAttributesGet(MqttMessage message) throws MqttException {
+        JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));
+        if(payload.get("shared").get("configuration") != null) {
+            String configuration = payload.get("shared").get("configuration").asText();
+            if (!StringUtils.isEmpty(configuration)) {
+                extensionsConfigListener.accept(configuration);
+            }
+        }
+    }
+
     private void onGatewayAttributesUpdate(MqttMessage message) {
         JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));
         if(payload.has("configuration")){
             String configuration = payload.get("configuration").asText();
             if(!StringUtils.isEmpty(configuration)) {
-                extensionsConfigListener.accept(payload.get("configuration").asText(configuration));
+                extensionsConfigListener.accept(configuration);
             }
         }
     }
-
 
     private void onDeviceAttributesResponse(MqttMessage message) {
         JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));
