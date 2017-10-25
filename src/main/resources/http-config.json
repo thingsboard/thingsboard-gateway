@@ -1,49 +1,47 @@
-[
-  {
-    "id": "qwe",
-    "type": "http",
-    "configuration": {
-      "deviceTypeConfigurations": [
-        {
-          "deviceTypeId": "58ac4b889058c24616a43b3b",
-          "token": "TOKEN",
-          "converters": [
-            {
-              "deviceNameJsonExpression": "${$.device}",
-              "attributes": [
-                {
-                  "type": "string",
-                  "key": "lat",
-                  "value": "${$.lat}"
-                },
-                {
-                  "type": "string",
-                  "key": "lng",
-                  "value": "${$.lng}"
+{
+  "id": "http",
+  "type": "http",
+  "configuration": {
+    "deviceTypeConfigurations": [
+      {
+        "deviceTypeId": "58ac4b889058c24616a43b3b",
+        "token": "TOKEN",
+        "converters": [
+          {
+            "deviceNameJsonExpression": "${$.device}",
+            "attributes": [
+              {
+                "type": "string",
+                "key": "lat",
+                "value": "${$.lat}"
+              },
+              {
+                "type": "string",
+                "key": "lng",
+                "value": "${$.lng}"
+              }
+            ],
+            "timeseries": [
+              {
+                "type": "double",
+                "key": "temperature",
+                "value": "${$.data.temperature}",
+                "transformer": {
+                  "type": "intToDouble"
                 }
-              ],
-              "timeseries": [
-                {
-                  "type": "double",
-                  "key": "temperature",
-                  "value": "${$.data.temperature}",
-                  "transformer": {
-                    "type": "intToDouble"
-                  }
-                },
-                {
-                  "type": "double",
-                  "key": "humidity",
-                  "value": "${$.data.humidity}",
-                  "transformer": {
-                    "type": "intToDouble"
-                  }
+              },
+              {
+                "type": "double",
+                "key": "humidity",
+                "value": "${$.data.humidity}",
+                "transformer": {
+                  "type": "intToDouble"
                 }
-              ]
-            }
-          ]
-        }
-      ]
-    }
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
-]
+}

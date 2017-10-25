@@ -60,7 +60,7 @@ public class DefaultMqttClientService implements MqttClientService {
     }
 
     @Override
-    public void update(JsonNode configurationNode) {
+    public void update(JsonNode configurationNode) throws Exception {
 
     }
 

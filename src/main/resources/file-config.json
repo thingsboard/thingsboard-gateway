@@ -1,38 +1,41 @@
 {
-  "fileMonitorConfigurations": [
-    {
-      "file": "/tmp/test.dat",
-      "skipLines": 1,
-      "updateInterval": 10000,
-      "csvColumns": [
-        "ts",
-        "device",
-        "type",
-        "temperature",
-        "humidity"
-      ],
-      "converter": {
-        "deviceNameJsonExpression": "${$.device}",
-        "deviceTypeJsonExpression": "${$.type}",
-        "attributes": [
+  "id": "file",
+  "type": "file",
+  "configuration": {
+    "fileMonitorConfigurations": [
+      {
+        "file": "/tmp/test.dat",
+        "skipLines": 1,
+        "updateInterval": 10000,
+        "csvColumns": [
+          "ts",
+          "device",
+          "type",
+          "temperature",
+          "humidity"
         ],
-        "timeseries": [
-          {
-            "type": "double",
-            "ts": "${$.ts}",
-            "tsFormat": "yyyy-MM-dd HH:mm:ss",
-            "key": "temperature",
-            "value": "${$.temperature}"
-          },
-          {
-            "type": "double",
-            "ts": "${$.ts}",
-            "tsFormat": "yyyy-MM-dd HH:mm:ss",
-            "key": "humidity",
-            "value": "${$.humidity}"
-          }
-        ]
+        "converter": {
+          "deviceNameJsonExpression": "${$.device}",
+          "deviceTypeJsonExpression": "${$.type}",
+          "attributes": [],
+          "timeseries": [
+            {
+              "type": "double",
+              "ts": "${$.ts}",
+              "tsFormat": "yyyy-MM-dd HH:mm:ss",
+              "key": "temperature",
+              "value": "${$.temperature}"
+            },
+            {
+              "type": "double",
+              "ts": "${$.ts}",
+              "tsFormat": "yyyy-MM-dd HH:mm:ss",
+              "key": "humidity",
+              "value": "${$.humidity}"
+            }
+          ]
+        }
       }
-    }
-  ]
+    ]
+  }
 }

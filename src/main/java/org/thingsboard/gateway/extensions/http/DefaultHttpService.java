@@ -78,9 +78,7 @@ public class DefaultHttpService implements HttpService {
     }
 
     @Override
-    public void destroy() throws Exception {
-
-    }
+    public void destroy() throws Exception { }
 
     @Override
     public void processRequest(String converterId, String token, String body) throws Exception {

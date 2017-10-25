@@ -61,7 +61,7 @@ public class DefaultFileTailService implements ExtensionService {
     }
 
     @Override
-    public void update(JsonNode configuration) {
+    public void update(JsonNode configuration) throws Exception {
 
     }
 
