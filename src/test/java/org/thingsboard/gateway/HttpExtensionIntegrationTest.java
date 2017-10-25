@@ -30,7 +30,7 @@ public class HttpExtensionIntegrationTest {
     private static final String GATEWAY_URL = "http://localhost:9090/sigfox/%s/";
 
     public static void main(String[] args) throws IOException {
-        doPost("YOUR_DEVICE_TYPE_ID", "TOKEN");
+        doPost("58ac4b889058c24616a43b3b", "TOKEN");
     }
 
     private static void doPost(String deviceTypeId, String token) throws IOException {

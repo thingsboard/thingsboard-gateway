@@ -30,5 +30,4 @@ public class TbTenantConfiguration {
     private TbPersistenceConfiguration persistence;
     private TbConnectionConfiguration connection;
 
-
 }

@@ -50,7 +50,8 @@ public class DefaultHttpService implements HttpService {
         this.gateway = gateway;
     }
 
-    public void init(ObjectNode configurationNode) throws IOException {
+    @Override
+    public void init(JsonNode configurationNode) throws IOException {
         HttpConfiguration configuration;
         try {
             configuration = ConfigurationTools.readConfiguration(configurationNode, HttpConfiguration.class);
@@ -72,7 +73,7 @@ public class DefaultHttpService implements HttpService {
     }
 
     @Override
-    public void update(ObjectNode configurationNode) throws Exception {
+    public void update(JsonNode configurationNode) throws Exception {
 
     }
 

@@ -70,10 +70,10 @@ public class DefaultTenantManagerService implements TenantManagerService {
         }
     }
 
-    private void onExtensionConfigurationUpdate(String label, String c) {
-        //TODO: add logging
+    private void onExtensionConfigurationUpdate(String label, String config) {
         TenantServicesRegistry registry = gateways.get(label);
-        registry.updateExtensionConfiguration(c);
+        log.info("[{}] Updating extension configuration", label);
+        httpServices = registry.updateExtensionConfiguration(config);
     }
 
     @Override
@@ -88,7 +88,7 @@ public class DefaultTenantManagerService implements TenantManagerService {
         for (String label : gateways.keySet()) {
             try {
                 TenantServicesRegistry registry = gateways.get(label);
-                for (ExtensionService extension : registry.getExtensions()) {
+                for (ExtensionService extension : registry.getExtensions().values()) {
                     try {
                         extension.destroy();
                     } catch (Exception e) {

@@ -18,16 +18,10 @@ package org.thingsboard.gateway.extensions.opc;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
 import org.thingsboard.gateway.extensions.opc.conf.OpcUaConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -47,7 +41,8 @@ public class DefaultOpcUaService implements OpcUaService {
         this.gateway = gateway;
     }
 
-    public void init(ObjectNode configurationNode) throws Exception {
+    @Override
+    public void init(JsonNode configurationNode) throws Exception {
         log.info("Initializing OPC-UA service!", gateway.getTenantLabel());
         OpcUaConfiguration configuration;
         try {
@@ -67,10 +62,11 @@ public class DefaultOpcUaService implements OpcUaService {
     }
 
     @Override
-    public void update(ObjectNode configurationNode) throws Exception {
+    public void update(JsonNode configurationNode) throws Exception {
 
     }
 
+    @Override
     public void destroy() {
         if (monitors != null) {
             monitors.forEach(OpcUaServerMonitor::disconnect);

@@ -40,7 +40,8 @@ public class DefaultFileTailService implements ExtensionService {
         this.gateway = gateway;
     }
 
-    public void init(ObjectNode configurationNode) throws Exception {
+    @Override
+    public void init(JsonNode configurationNode) throws Exception {
         log.info("[{}] Initializing File Tail service!", gateway.getTenantLabel());
         FileTailConfiguration configuration;
         try {
@@ -59,10 +60,12 @@ public class DefaultFileTailService implements ExtensionService {
         }
     }
 
-    public void update(ObjectNode configuration) {
+    @Override
+    public void update(JsonNode configuration) {
 
     }
 
+    @Override
     public void destroy() {
         if (brokers != null) {
             brokers.forEach(FileMonitor::stop);

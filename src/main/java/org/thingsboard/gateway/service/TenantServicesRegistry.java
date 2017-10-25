@@ -15,38 +15,81 @@
  */
 package org.thingsboard.gateway.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.thingsboard.gateway.extensions.ExtensionService;
 import org.thingsboard.gateway.extensions.file.DefaultFileTailService;
 import org.thingsboard.gateway.extensions.http.DefaultHttpService;
+import org.thingsboard.gateway.extensions.http.HttpService;
 import org.thingsboard.gateway.extensions.mqtt.client.DefaultMqttClientService;
 import org.thingsboard.gateway.extensions.opc.DefaultOpcUaService;
 import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created by ashvayka on 29.09.17.
  */
+@Slf4j
 @Data
 public class TenantServicesRegistry {
 
     private final GatewayService service;
-    private final List<ExtensionService> extensions;
+    private final Map<String, ExtensionService> extensions;
 
     public TenantServicesRegistry(GatewayService service) {
         this.service = service;
-        this.extensions = new ArrayList<>();
+        this.extensions = new HashMap<>();
     }
 
-    public void updateExtensionConfiguration(String c) {
-        //TODO: implement
+    public List<HttpService> updateExtensionConfiguration(String config) {
+        ObjectMapper mapper = new ObjectMapper();
+        List<HttpService> httpServices = new ArrayList<>();
+        JsonNode extensionsArray;
+        try {
+            extensionsArray = mapper.readTree(config);
+            for (String id : extensions.keySet()) {
+                for (int i = 0; i < extensionsArray.size(); i++) {
+                    if (id.equals(extensionsArray.get(i).get("id").asText())) {
+                        break;
+                    } else {
+                        if (i == extensionsArray.size() - 1) {
+                            log.info("Destroying extension: [{}]", extensionsArray.get(i).get("type").asText());
+                            extensions.get(id).destroy();
+                            extensions.remove(id);
+                        }
+                    }
+                }
+            }
+            for (int i = 0; i < extensionsArray.size(); i++) {
+                TbExtensionConfiguration extensionConfiguration = mapper.treeToValue(extensionsArray.get(i), TbExtensionConfiguration.class);
+                if (extensions.containsKey(extensionConfiguration.getId())) {
+                    log.info("Updating extension configuration: [{}]", extensionConfiguration.getType());
+                    extensions.get(extensionConfiguration.getId()).update(extensionConfiguration.getConfiguration());
+                } else {
+                    log.info("Initializing extension: [{}]", extensionConfiguration.getType());
+                    ExtensionService extension = createExtensionServiceByType(service, extensionConfiguration.getType());
+                    extension.init(extensionConfiguration.getConfiguration());
+                    if (extensionConfiguration.getType().equals("http")) {
+                        httpServices.add((HttpService) extension);
+                    }
+                    extensions.put(extensionConfiguration.getId(), extension);
+                }
+            }
+        } catch (Exception e) {
+            log.info("Failed to read configuration attribute", e);
+        }
+        return httpServices;
     }
 
-    private ExtensionService createExtensionServiceByType(GatewayService gateway, TbExtensionConfiguration configuration) {
-        switch (configuration.getType()) {
+    private ExtensionService createExtensionServiceByType(GatewayService gateway, String type) {
+        switch (type) {
             case "file":
                 return new DefaultFileTailService(gateway);
             case "opc":
@@ -56,7 +99,7 @@ public class TenantServicesRegistry {
             case "mqtt":
                 return new DefaultMqttClientService(gateway);
             default:
-                throw new IllegalArgumentException("Extension: " + configuration.getType() + " is not supported!");
+                throw new IllegalArgumentException("Extension: " + type + " is not supported!");
         }
     }
 }

@@ -39,7 +39,8 @@ public class DefaultMqttClientService implements MqttClientService {
         this.gateway = gateway;
     }
 
-    public void init(ObjectNode configurationNode) throws Exception {
+    @Override
+    public void init(JsonNode configurationNode) throws Exception {
         log.info("[{}] Initializing MQTT client service!", gateway.getTenantLabel());
         MqttClientConfiguration configuration;
         try {
@@ -59,7 +60,7 @@ public class DefaultMqttClientService implements MqttClientService {
     }
 
     @Override
-    public void update(ObjectNode configurationNode) {
+    public void update(JsonNode configurationNode) {
 
     }
 
