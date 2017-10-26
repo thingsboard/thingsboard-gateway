@@ -51,41 +51,45 @@ public class TenantServicesRegistry {
     public List<HttpService> updateExtensionConfiguration(String config) {
         ObjectMapper mapper = new ObjectMapper();
         List<HttpService> httpServices = new ArrayList<>();
-        JsonNode extensionsArray;
         try {
-            extensionsArray = mapper.readTree(config);
-            for (String id : extensions.keySet()) {
-                for (int i = 0; i < extensionsArray.size(); i++) {
-                    if (id.equals(extensionsArray.get(i).get("id").asText())) {
-                        break;
-                    } else {
-                        if (i == extensionsArray.size() - 1) {
-                            log.info("Destroying extension: [{}]", extensionsArray.get(i).get("type").asText());
-                            extensions.get(id).destroy();
-                            extensions.remove(id);
-                        }
-                    }
+            List<TbExtensionConfiguration> updatedExtensions = new ArrayList<>();
+            for (JsonNode updatedExtension : mapper.readTree(config)) {
+                updatedExtensions.add(mapper.treeToValue(updatedExtension, TbExtensionConfiguration.class));
+            }
+            for (String existingExtensionId : extensions.keySet()) {
+                if (!extensionIdContainsInArray(existingExtensionId, updatedExtensions)) {
+                    log.info("Destroying extension: [{}]", existingExtensionId);
+                    extensions.get(existingExtensionId).destroy();
+                    extensions.remove(existingExtensionId);
                 }
             }
-            for (int i = 0; i < extensionsArray.size(); i++) {
-                TbExtensionConfiguration extensionConfiguration = mapper.treeToValue(extensionsArray.get(i), TbExtensionConfiguration.class);
-                if (extensions.containsKey(extensionConfiguration.getId())) {
-                    log.info("Updating extension configuration: [{}]", extensionConfiguration.getType());
-                    extensions.get(extensionConfiguration.getId()).update(extensionConfiguration.getConfiguration());
+            for (TbExtensionConfiguration updatedExtension : updatedExtensions) {
+                if (extensions.containsKey(updatedExtension.getId())) {
+                    log.info("Updating extension configuration: [{}][{}]", updatedExtension.getId(), updatedExtension.getType());
+                    extensions.get(updatedExtension.getId()).update(updatedExtension.getConfiguration());
                 } else {
-                    log.info("Initializing extension: [{}]", extensionConfiguration.getType());
-                    ExtensionService extension = createExtensionServiceByType(service, extensionConfiguration.getType());
-                    extension.init(extensionConfiguration.getConfiguration());
-                    if (extensionConfiguration.getType().equals("http")) {
+                    log.info("Initializing extension: [{}][{}]", updatedExtension.getId(), updatedExtension.getType());
+                    ExtensionService extension = createExtensionServiceByType(service, updatedExtension.getType());
+                    extension.init(updatedExtension.getConfiguration());
+                    if ("http".equals(updatedExtension.getType())) {
                         httpServices.add((HttpService) extension);
                     }
-                    extensions.put(extensionConfiguration.getId(), extension);
+                    extensions.put(updatedExtension.getId(), extension);
                 }
             }
         } catch (Exception e) {
             log.info("Failed to read configuration attribute", e);
         }
         return httpServices;
+    }
+
+    private boolean extensionIdContainsInArray(String extensionId, List<TbExtensionConfiguration> array) {
+        for (TbExtensionConfiguration jsonNode : array) {
+            if (jsonNode.getId().equalsIgnoreCase(extensionId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ExtensionService createExtensionServiceByType(GatewayService gateway, String type) {
