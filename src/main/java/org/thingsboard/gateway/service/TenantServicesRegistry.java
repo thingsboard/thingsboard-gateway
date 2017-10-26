@@ -64,10 +64,7 @@ public class TenantServicesRegistry {
                 }
             }
             for (TbExtensionConfiguration updatedExtension : updatedExtensions) {
-                if (extensions.containsKey(updatedExtension.getId())) {
-                    log.info("Updating extension configuration: [{}][{}]", updatedExtension.getId(), updatedExtension.getType());
-                    extensions.get(updatedExtension.getId()).update(updatedExtension.getConfiguration());
-                } else {
+                if (!extensions.containsKey(updatedExtension.getId())) {
                     log.info("Initializing extension: [{}][{}]", updatedExtension.getId(), updatedExtension.getType());
                     ExtensionService extension = createExtensionServiceByType(service, updatedExtension.getType());
                     extension.init(updatedExtension.getConfiguration());
@@ -75,6 +72,11 @@ public class TenantServicesRegistry {
                         httpServices.add((HttpService) extension);
                     }
                     extensions.put(updatedExtension.getId(), extension);
+                } else {
+                    if(!updatedExtension.getConfiguration().equals(extensions.get(updatedExtension.getId()).getCurrentConfiguration())) {
+                        log.info("Updating extension: [{}][{}]", updatedExtension.getId(), updatedExtension.getType());
+                        extensions.get(updatedExtension.getId()).update(updatedExtension.getConfiguration());
+                    }
                 }
             }
         } catch (Exception e) {

@@ -16,9 +16,9 @@
 package org.thingsboard.gateway.extensions.file;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.thingsboard.gateway.extensions.ExtensionService;
+import org.thingsboard.gateway.extensions.ExtensionUpdate;
 import org.thingsboard.gateway.extensions.file.conf.FileTailConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
@@ -30,10 +30,10 @@ import java.util.stream.Collectors;
  * Created by ashvayka on 15.05.17.
  */
 @Slf4j
-public class DefaultFileTailService implements ExtensionService {
+public class DefaultFileTailService extends ExtensionUpdate implements ExtensionService {
 
     private final GatewayService gateway;
-
+    private JsonNode currentConfiguration;
     private List<FileMonitor> brokers;
 
     public DefaultFileTailService(GatewayService gateway) {
@@ -41,7 +41,13 @@ public class DefaultFileTailService implements ExtensionService {
     }
 
     @Override
+    public JsonNode getCurrentConfiguration() {
+        return currentConfiguration;
+    }
+
+    @Override
     public void init(JsonNode configurationNode) throws Exception {
+        currentConfiguration = configurationNode;
         log.info("[{}] Initializing File Tail service!", gateway.getTenantLabel());
         FileTailConfiguration configuration;
         try {
@@ -58,11 +64,6 @@ public class DefaultFileTailService implements ExtensionService {
             log.error("[{}] File Tail service initialization failed!", gateway.getTenantLabel(), e);
             throw e;
         }
-    }
-
-    @Override
-    public void update(JsonNode configuration) throws Exception {
-
     }
 
     @Override

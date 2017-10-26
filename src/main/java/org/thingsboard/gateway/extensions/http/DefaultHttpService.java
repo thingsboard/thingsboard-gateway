@@ -16,9 +16,9 @@
 package org.thingsboard.gateway.extensions.http;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
+import org.thingsboard.gateway.extensions.ExtensionUpdate;
 import org.thingsboard.gateway.extensions.http.conf.HttpConfiguration;
 import org.thingsboard.gateway.extensions.http.conf.HttpConverterConfiguration;
 import org.thingsboard.gateway.extensions.http.conf.mapping.HttpDeviceDataConverter;
@@ -38,12 +38,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class DefaultHttpService implements HttpService {
+public class DefaultHttpService extends ExtensionUpdate implements HttpService {
 
     private static final int OPERATION_TIMEOUT_IN_SEC = 10;
 
     private final GatewayService gateway;
-
+    private JsonNode currentConfiguration;
     private Map<String, HttpConverterConfiguration> httpConverterConfigurations;
 
     public DefaultHttpService(GatewayService gateway) {
@@ -51,7 +51,13 @@ public class DefaultHttpService implements HttpService {
     }
 
     @Override
+    public JsonNode getCurrentConfiguration() {
+        return currentConfiguration;
+    }
+
+    @Override
     public void init(JsonNode configurationNode) throws IOException {
+        currentConfiguration = configurationNode;
         HttpConfiguration configuration;
         try {
             configuration = ConfigurationTools.readConfiguration(configurationNode, HttpConfiguration.class);
@@ -70,11 +76,6 @@ public class DefaultHttpService implements HttpService {
             log.error("[{}] Http service configuration failed!", gateway.getTenantLabel(), e);
             throw e;
         }
-    }
-
-    @Override
-    public void update(JsonNode configurationNode) throws Exception {
-
     }
 
     @Override

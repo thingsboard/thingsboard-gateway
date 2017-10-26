@@ -16,8 +16,8 @@
 package org.thingsboard.gateway.extensions.opc;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
+import org.thingsboard.gateway.extensions.ExtensionUpdate;
 import org.thingsboard.gateway.extensions.opc.conf.OpcUaConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
@@ -31,10 +31,10 @@ import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.
  * Created by ashvayka on 06.01.17.
  */
 @Slf4j
-public class DefaultOpcUaService implements OpcUaService {
+public class DefaultOpcUaService extends ExtensionUpdate implements OpcUaService {
 
     private final GatewayService gateway;
-
+    private JsonNode currentConfiguration;
     private List<OpcUaServerMonitor> monitors;
 
     public DefaultOpcUaService(GatewayService gateway) {
@@ -42,7 +42,13 @@ public class DefaultOpcUaService implements OpcUaService {
     }
 
     @Override
+    public JsonNode getCurrentConfiguration() {
+        return currentConfiguration;
+    }
+
+    @Override
     public void init(JsonNode configurationNode) throws Exception {
+        currentConfiguration = configurationNode;
         log.info("Initializing OPC-UA service!", gateway.getTenantLabel());
         OpcUaConfiguration configuration;
         try {
@@ -59,11 +65,6 @@ public class DefaultOpcUaService implements OpcUaService {
             log.error("OPC-UA service initialization failed!", gateway.getTenantLabel(), e);
             throw e;
         }
-    }
-
-    @Override
-    public void update(JsonNode configurationNode) throws Exception {
-
     }
 
     @Override
