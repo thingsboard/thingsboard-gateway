@@ -15,13 +15,13 @@
  */
 package org.thingsboard.gateway.extensions.http;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.extensions.ExtensionUpdate;
 import org.thingsboard.gateway.extensions.http.conf.HttpConfiguration;
 import org.thingsboard.gateway.extensions.http.conf.HttpConverterConfiguration;
 import org.thingsboard.gateway.extensions.http.conf.mapping.HttpDeviceDataConverter;
+import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.service.gateway.MqttDeliveryFuture;
 import org.thingsboard.gateway.service.data.DeviceData;
@@ -43,7 +43,7 @@ public class DefaultHttpService extends ExtensionUpdate implements HttpService {
     private static final int OPERATION_TIMEOUT_IN_SEC = 10;
 
     private final GatewayService gateway;
-    private JsonNode currentConfiguration;
+    private TbExtensionConfiguration currentConfiguration;
     private Map<String, HttpConverterConfiguration> httpConverterConfigurations;
 
     public DefaultHttpService(GatewayService gateway) {
@@ -51,16 +51,16 @@ public class DefaultHttpService extends ExtensionUpdate implements HttpService {
     }
 
     @Override
-    public JsonNode getCurrentConfiguration() {
+    public TbExtensionConfiguration getCurrentConfiguration() {
         return currentConfiguration;
     }
 
     @Override
-    public void init(JsonNode configurationNode) throws IOException {
+    public void init(TbExtensionConfiguration configurationNode) throws IOException {
         currentConfiguration = configurationNode;
         HttpConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationNode, HttpConfiguration.class);
+            configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), HttpConfiguration.class);
             if (configuration.getConverterConfigurations() != null) {
                 httpConverterConfigurations = configuration
                         .getConverterConfigurations()

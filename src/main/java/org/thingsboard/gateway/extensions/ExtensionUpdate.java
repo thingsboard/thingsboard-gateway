@@ -15,11 +15,11 @@
  */
 package org.thingsboard.gateway.extensions;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 
 public abstract class ExtensionUpdate implements ExtensionService {
 
-    public void update (JsonNode configurationNode) throws Exception {
+    public void update (TbExtensionConfiguration configurationNode) throws Exception {
         destroy();
         init(configurationNode);
     }

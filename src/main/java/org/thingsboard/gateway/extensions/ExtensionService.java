@@ -15,18 +15,18 @@
  */
 package org.thingsboard.gateway.extensions;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 
 /**
  * Created by ashvayka on 29.09.17.
  */
 public interface ExtensionService {
 
-    JsonNode getCurrentConfiguration();
+    TbExtensionConfiguration getCurrentConfiguration();
 
-    void init(JsonNode configuration) throws Exception;
+    void init(TbExtensionConfiguration configuration) throws Exception;
 
-    void update(JsonNode configuration) throws Exception;
+    void update(TbExtensionConfiguration configuration) throws Exception;
 
     void destroy() throws Exception;
 }

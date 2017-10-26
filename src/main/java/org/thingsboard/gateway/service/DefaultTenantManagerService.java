@@ -19,7 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.thingsboard.gateway.extensions.ExtensionService;
-import org.thingsboard.gateway.extensions.http.HttpService;
 import org.thingsboard.gateway.service.conf.TbGatewayConfiguration;
 import org.thingsboard.gateway.service.conf.TbTenantConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
@@ -27,9 +26,7 @@ import org.thingsboard.gateway.service.gateway.MqttGatewayService;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -44,12 +41,9 @@ public class DefaultTenantManagerService implements TenantManagerService {
 
     private Map<String, TenantServicesRegistry> gateways;
 
-    private List<HttpService> httpServices;
-
     @PostConstruct
     public void init() {
         gateways = new HashMap<>();
-        httpServices = new ArrayList<>();
         for (TbTenantConfiguration configuration : configuration.getTenants()) {
             String label = configuration.getLabel();
             log.info("[{}] Initializing gateway", configuration.getLabel());
@@ -73,13 +67,13 @@ public class DefaultTenantManagerService implements TenantManagerService {
     private void onExtensionConfigurationUpdate(String label, String config) {
         TenantServicesRegistry registry = gateways.get(label);
         log.info("[{}] Updating extension configuration", label);
-        httpServices = registry.updateExtensionConfiguration(config);
+        registry.updateExtensionConfiguration(config);
     }
 
     @Override
     public void processRequest(String converterId, String token, String body) throws Exception {
-        for (HttpService service : httpServices) {
-            service.processRequest(converterId, token, body);
+        for (TenantServicesRegistry tenant : gateways.values()) {
+            tenant.processRequest(converterId, token, body);
         }
     }
 

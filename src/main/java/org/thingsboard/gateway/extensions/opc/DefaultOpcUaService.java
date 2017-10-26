@@ -15,17 +15,15 @@
  */
 package org.thingsboard.gateway.extensions.opc;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.thingsboard.gateway.extensions.ExtensionUpdate;
 import org.thingsboard.gateway.extensions.opc.conf.OpcUaConfiguration;
+import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
 
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint;
 
 /**
  * Created by ashvayka on 06.01.17.
@@ -34,7 +32,7 @@ import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.
 public class DefaultOpcUaService extends ExtensionUpdate implements OpcUaService {
 
     private final GatewayService gateway;
-    private JsonNode currentConfiguration;
+    private TbExtensionConfiguration currentConfiguration;
     private List<OpcUaServerMonitor> monitors;
 
     public DefaultOpcUaService(GatewayService gateway) {
@@ -42,17 +40,17 @@ public class DefaultOpcUaService extends ExtensionUpdate implements OpcUaService
     }
 
     @Override
-    public JsonNode getCurrentConfiguration() {
+    public TbExtensionConfiguration getCurrentConfiguration() {
         return currentConfiguration;
     }
 
     @Override
-    public void init(JsonNode configurationNode) throws Exception {
+    public void init(TbExtensionConfiguration configurationNode) throws Exception {
         currentConfiguration = configurationNode;
         log.info("Initializing OPC-UA service!", gateway.getTenantLabel());
         OpcUaConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationNode, OpcUaConfiguration.class);
+            configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), OpcUaConfiguration.class);
         } catch (Exception e) {
             log.error("OPC-UA service configuration failed!", gateway.getTenantLabel(), e);
             throw e;

@@ -43,51 +43,57 @@ public class TenantServicesRegistry {
     private final GatewayService service;
     private final Map<String, ExtensionService> extensions;
 
+    private List<HttpService> httpServices;
+
+    private static final String HTTP_EXTENSION = "http";
+    private static final String OPC_EXTENSION = "opc";
+    private static final String MQTT_EXTENSION = "mqtt";
+    private static final String FILE_EXTENSION = "file";
+
     public TenantServicesRegistry(GatewayService service) {
         this.service = service;
         this.extensions = new HashMap<>();
     }
 
-    public List<HttpService> updateExtensionConfiguration(String config) {
+    public void updateExtensionConfiguration(String config) {
         ObjectMapper mapper = new ObjectMapper();
-        List<HttpService> httpServices = new ArrayList<>();
+        httpServices = new ArrayList<>();
         try {
-            List<TbExtensionConfiguration> updatedExtensions = new ArrayList<>();
+            List<TbExtensionConfiguration> updatedConfigurations = new ArrayList<>();
             for (JsonNode updatedExtension : mapper.readTree(config)) {
-                updatedExtensions.add(mapper.treeToValue(updatedExtension, TbExtensionConfiguration.class));
+                updatedConfigurations.add(mapper.treeToValue(updatedExtension, TbExtensionConfiguration.class));
             }
             for (String existingExtensionId : extensions.keySet()) {
-                if (!extensionIdContainsInArray(existingExtensionId, updatedExtensions)) {
+                if (!extensionIdContainsInArray(existingExtensionId, updatedConfigurations)) {
                     log.info("Destroying extension: [{}]", existingExtensionId);
                     extensions.get(existingExtensionId).destroy();
                     extensions.remove(existingExtensionId);
                 }
             }
-            for (TbExtensionConfiguration updatedExtension : updatedExtensions) {
-                if (!extensions.containsKey(updatedExtension.getId())) {
-                    log.info("Initializing extension: [{}][{}]", updatedExtension.getId(), updatedExtension.getType());
-                    ExtensionService extension = createExtensionServiceByType(service, updatedExtension.getType());
-                    extension.init(updatedExtension.getConfiguration());
-                    if ("http".equals(updatedExtension.getType())) {
+            for (TbExtensionConfiguration updatedConfiguration : updatedConfigurations) {
+                if (!extensions.containsKey(updatedConfiguration.getId())) {
+                    log.info("Initializing extension: [{}][{}]", updatedConfiguration.getId(), updatedConfiguration.getType());
+                    ExtensionService extension = createExtensionServiceByType(service, updatedConfiguration.getType());
+                    extension.init(updatedConfiguration);
+                    if (HTTP_EXTENSION.equals(updatedConfiguration.getType())) {
                         httpServices.add((HttpService) extension);
                     }
-                    extensions.put(updatedExtension.getId(), extension);
+                    extensions.put(updatedConfiguration.getId(), extension);
                 } else {
-                    if(!updatedExtension.getConfiguration().equals(extensions.get(updatedExtension.getId()).getCurrentConfiguration())) {
-                        log.info("Updating extension: [{}][{}]", updatedExtension.getId(), updatedExtension.getType());
-                        extensions.get(updatedExtension.getId()).update(updatedExtension.getConfiguration());
+                    if (!updatedConfiguration.equals(extensions.get(updatedConfiguration.getId()).getCurrentConfiguration())) {
+                        log.info("Updating extension: [{}][{}]", updatedConfiguration.getId(), updatedConfiguration.getType());
+                        extensions.get(updatedConfiguration.getId()).update(updatedConfiguration);
                     }
                 }
             }
         } catch (Exception e) {
             log.info("Failed to read configuration attribute", e);
         }
-        return httpServices;
     }
 
     private boolean extensionIdContainsInArray(String extensionId, List<TbExtensionConfiguration> array) {
-        for (TbExtensionConfiguration jsonNode : array) {
-            if (jsonNode.getId().equalsIgnoreCase(extensionId)) {
+        for (TbExtensionConfiguration configuration : array) {
+            if (configuration.getId().equalsIgnoreCase(extensionId)) {
                 return true;
             }
         }
@@ -96,16 +102,22 @@ public class TenantServicesRegistry {
 
     private ExtensionService createExtensionServiceByType(GatewayService gateway, String type) {
         switch (type) {
-            case "file":
+            case FILE_EXTENSION:
                 return new DefaultFileTailService(gateway);
-            case "opc":
+            case OPC_EXTENSION:
                 return new DefaultOpcUaService(gateway);
-            case "http":
+            case HTTP_EXTENSION:
                 return new DefaultHttpService(gateway);
-            case "mqtt":
+            case MQTT_EXTENSION:
                 return new DefaultMqttClientService(gateway);
             default:
                 throw new IllegalArgumentException("Extension: " + type + " is not supported!");
+        }
+    }
+
+    public void processRequest(String converterId, String token, String body) throws Exception {
+        for (HttpService service : httpServices) {
+            service.processRequest(converterId, token, body);
         }
     }
 }

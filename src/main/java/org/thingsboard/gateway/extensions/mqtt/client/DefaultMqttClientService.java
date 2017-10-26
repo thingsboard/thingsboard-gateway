@@ -15,10 +15,10 @@
  */
 package org.thingsboard.gateway.extensions.mqtt.client;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.thingsboard.gateway.extensions.ExtensionUpdate;
 import org.thingsboard.gateway.extensions.mqtt.client.conf.MqttClientConfiguration;
+import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
 
@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 public class DefaultMqttClientService extends ExtensionUpdate implements MqttClientService {
 
     private final GatewayService gateway;
-    private JsonNode currentConfiguration;
+    private TbExtensionConfiguration currentConfiguration;
     private List<MqttBrokerMonitor> brokers;
 
     public DefaultMqttClientService(GatewayService gateway) {
@@ -40,17 +40,17 @@ public class DefaultMqttClientService extends ExtensionUpdate implements MqttCli
     }
 
     @Override
-    public JsonNode getCurrentConfiguration() {
+    public TbExtensionConfiguration getCurrentConfiguration() {
         return currentConfiguration;
     }
 
     @Override
-    public void init(JsonNode configurationNode) throws Exception {
+    public void init(TbExtensionConfiguration configurationNode) throws Exception {
         currentConfiguration = configurationNode;
         log.info("[{}] Initializing MQTT client service!", gateway.getTenantLabel());
         MqttClientConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationNode, MqttClientConfiguration.class);
+            configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), MqttClientConfiguration.class);
         } catch (Exception e) {
             log.error("[{}] MQTT client service configuration failed!", gateway.getTenantLabel(), e);
             throw e;

@@ -15,11 +15,10 @@
  */
 package org.thingsboard.gateway.extensions.file;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
-import org.thingsboard.gateway.extensions.ExtensionService;
 import org.thingsboard.gateway.extensions.ExtensionUpdate;
 import org.thingsboard.gateway.extensions.file.conf.FileTailConfiguration;
+import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
 
@@ -30,10 +29,10 @@ import java.util.stream.Collectors;
  * Created by ashvayka on 15.05.17.
  */
 @Slf4j
-public class DefaultFileTailService extends ExtensionUpdate implements ExtensionService {
+public class DefaultFileTailService extends ExtensionUpdate {
 
     private final GatewayService gateway;
-    private JsonNode currentConfiguration;
+    private TbExtensionConfiguration currentConfiguration;
     private List<FileMonitor> brokers;
 
     public DefaultFileTailService(GatewayService gateway) {
@@ -41,17 +40,17 @@ public class DefaultFileTailService extends ExtensionUpdate implements Extension
     }
 
     @Override
-    public JsonNode getCurrentConfiguration() {
+    public TbExtensionConfiguration getCurrentConfiguration() {
         return currentConfiguration;
     }
 
     @Override
-    public void init(JsonNode configurationNode) throws Exception {
+    public void init(TbExtensionConfiguration configurationNode) throws Exception {
         currentConfiguration = configurationNode;
         log.info("[{}] Initializing File Tail service!", gateway.getTenantLabel());
         FileTailConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationNode, FileTailConfiguration.class);
+            configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), FileTailConfiguration.class);
         } catch (Exception e) {
             log.error("[{}] File Tail service configuration failed!", gateway.getTenantLabel(), e);
             throw e;
