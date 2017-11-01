@@ -1,6 +1,6 @@
 {
   "id": "mqtt",
-  "type": "mqtt",
+  "type": "MQTT",
   "configuration": {
     "brokers": [
       {

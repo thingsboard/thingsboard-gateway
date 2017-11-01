@@ -45,10 +45,10 @@ public class TenantServicesRegistry {
 
     private List<HttpService> httpServices;
 
-    private static final String HTTP_EXTENSION = "http";
-    private static final String OPC_EXTENSION = "opc";
-    private static final String MQTT_EXTENSION = "mqtt";
-    private static final String FILE_EXTENSION = "file";
+    private static final String HTTP_EXTENSION = "HTTP";
+    private static final String OPC_EXTENSION = "OPC UA";
+    private static final String MQTT_EXTENSION = "MQTT";
+    private static final String FILE_EXTENSION = "FILE";
 
     public TenantServicesRegistry(GatewayService service) {
         this.service = service;

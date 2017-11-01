@@ -47,9 +47,7 @@ public class DefaultTenantManagerService implements TenantManagerService {
         for (TbTenantConfiguration configuration : configuration.getTenants()) {
             String label = configuration.getLabel();
             log.info("[{}] Initializing gateway", configuration.getLabel());
-            GatewayService service = new MqttGatewayService(configuration, c -> {
-                onExtensionConfigurationUpdate(label, c);
-            });
+            GatewayService service = new MqttGatewayService(configuration, c -> onExtensionConfigurationUpdate(label, c));
             try {
                 service.init();
                 gateways.put(label, new TenantServicesRegistry(service));

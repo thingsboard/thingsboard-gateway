@@ -1,6 +1,6 @@
 {
   "id": "opc",
-  "type": "opc",
+  "type": "OPC UA",
   "configuration": {
     "servers": [
       {

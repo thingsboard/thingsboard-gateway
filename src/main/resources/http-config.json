@@ -1,6 +1,6 @@
 {
   "id": "http",
-  "type": "http",
+  "type": "HTTP",
   "configuration": {
     "deviceTypeConfigurations": [
       {

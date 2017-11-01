@@ -1,6 +1,6 @@
 {
   "id": "file",
-  "type": "file",
+  "type": "FILE",
   "configuration": {
     "fileMonitorConfigurations": [
       {

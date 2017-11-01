@@ -1,7 +1,7 @@
 [
   {
     "id": "http",
-    "type": "http",
+    "type": "HTTP",
     "configuration": {
       "deviceTypeConfigurations": [
         {
@@ -48,7 +48,7 @@
   },
   {
     "id": "file",
-    "type": "file",
+    "type": "FILE",
     "configuration": {
       "fileMonitorConfigurations": [
         {
@@ -89,7 +89,7 @@
   },
   {
     "id": "mqtt",
-    "type": "mqtt",
+    "type": "MQTT",
     "configuration": {
       "brokers": [
         {
@@ -210,7 +210,7 @@
   },
   {
     "id": "opc",
-    "type": "opc",
+    "type": "OPC UA",
     "configuration": {
       "servers": [
         {
