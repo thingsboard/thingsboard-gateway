@@ -45,6 +45,10 @@ public class CertPemClientCredentials implements MqttClientCredentials {
 
     private static final String TLS_VERSION = "TLSv1.2";
 
+    private String caCertFileName;
+    private String privateKeyFileName;
+    private String certFileName;
+
     private String caCert;
     private String privateKey;
     private String cert;
