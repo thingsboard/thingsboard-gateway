@@ -17,9 +17,9 @@ package org.thingsboard.gateway.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.*;
@@ -62,7 +62,7 @@ public class ConfigurationTools {
         }
     }
 
-    private static InputStream getResourceAsStream(String configurationFile) {
-        return ConfigurationTools.class.getClassLoader().getResourceAsStream(configurationFile);
+    private static InputStream getResourceAsStream(byte[] fileContent) {
+        return new ByteArrayInputStream(fileContent);
     }
 }
