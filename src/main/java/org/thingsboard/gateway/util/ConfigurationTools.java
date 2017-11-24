@@ -18,6 +18,7 @@ package org.thingsboard.gateway.util;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tomcat.util.codec.binary.Base64;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -62,7 +63,8 @@ public class ConfigurationTools {
         }
     }
 
-    private static InputStream getResourceAsStream(byte[] fileContent) {
-        return new ByteArrayInputStream(fileContent);
+    private static InputStream getResourceAsStream(String fileContent) {
+        byte[] decoded = Base64.decodeBase64(fileContent);
+        return new ByteArrayInputStream(decoded);
     }
 }

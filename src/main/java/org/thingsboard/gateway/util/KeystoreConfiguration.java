@@ -24,7 +24,7 @@ import lombok.Data;
 public class KeystoreConfiguration {
 
     private String type;
-    private byte[] location;
+    private String location;
     private String locationFileName;
     private String password;
     private String alias;
