@@ -116,4 +116,9 @@ public interface GatewayService {
      */
     void onError(String deviceName, Exception e);
 
+    /**
+     * Report applied configuration
+     * @param configuration - extension configuration
+     */
+    void onAppliedConfiguration(String configuration) throws Exception;
 }

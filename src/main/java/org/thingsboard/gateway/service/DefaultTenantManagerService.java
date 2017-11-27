@@ -55,17 +55,17 @@ public class DefaultTenantManagerService implements TenantManagerService {
                 log.info("[{}] Failed to initialize the service ", label, e);
                 try {
                     service.destroy();
-                } catch (Exception e1) {
-                    log.info("[{}] Failed to stop the service ", label, e1);
+                } catch (Exception exc) {
+                    log.info("[{}] Failed to stop the service ", label, exc);
                 }
             }
         }
     }
 
-    private void onExtensionConfigurationUpdate(String label, String config) {
+    private void onExtensionConfigurationUpdate(String label, String configuration) {
         TenantServicesRegistry registry = gateways.get(label);
         log.info("[{}] Updating extension configuration", label);
-        registry.updateExtensionConfiguration(config);
+        registry.updateExtensionConfiguration(configuration);
     }
 
     @Override

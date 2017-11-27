@@ -36,9 +36,9 @@ gateways:
         path: storage
         bufferSize: 1000
       connection:
-        host: "${GATEWAY_HOST:demo.thingsboard.io}"
+        host: "${GATEWAY_HOST:localhost}"
         port: 1883
         retryInterval: 3000
         maxInFlight: 1000
         security:
-          accessToken: "${GATEWAY_ACCESS_TOKEN:X3FrlzWlmqb7ZM9XAWAp}"
+          accessToken: "${GATEWAY_ACCESS_TOKEN:THrZ09LGjI8s4biYWuEG}"

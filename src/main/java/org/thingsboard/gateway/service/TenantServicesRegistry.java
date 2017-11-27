@@ -42,8 +42,7 @@ public class TenantServicesRegistry {
 
     private final GatewayService service;
     private final Map<String, ExtensionService> extensions;
-
-    private List<HttpService> httpServices;
+    private final Map<String, HttpService> httpServices;
 
     private static final String HTTP_EXTENSION = "HTTP";
     private static final String OPC_EXTENSION = "OPC UA";
@@ -53,11 +52,11 @@ public class TenantServicesRegistry {
     public TenantServicesRegistry(GatewayService service) {
         this.service = service;
         this.extensions = new HashMap<>();
+        this.httpServices = new HashMap<>();
     }
 
     public void updateExtensionConfiguration(String config) {
         ObjectMapper mapper = new ObjectMapper();
-        httpServices = new ArrayList<>();
         try {
             List<TbExtensionConfiguration> updatedConfigurations = new ArrayList<>();
             for (JsonNode updatedExtension : mapper.readTree(config)) {
@@ -68,6 +67,7 @@ public class TenantServicesRegistry {
                     log.info("Destroying extension: [{}]", existingExtensionId);
                     extensions.get(existingExtensionId).destroy();
                     extensions.remove(existingExtensionId);
+                    httpServices.remove(existingExtensionId);
                 }
             }
             for (TbExtensionConfiguration updatedConfiguration : updatedConfigurations) {
@@ -76,7 +76,7 @@ public class TenantServicesRegistry {
                     ExtensionService extension = createExtensionServiceByType(service, updatedConfiguration.getType());
                     extension.init(updatedConfiguration);
                     if (HTTP_EXTENSION.equals(updatedConfiguration.getType())) {
-                        httpServices.add((HttpService) extension);
+                        httpServices.put(updatedConfiguration.getId(), (HttpService) extension);
                     }
                     extensions.put(updatedConfiguration.getId(), extension);
                 } else {
@@ -88,6 +88,7 @@ public class TenantServicesRegistry {
             }
         } catch (Exception e) {
             log.info("Failed to read configuration attribute", e);
+            throw new RuntimeException("Failed to update configuration", e);
         }
     }
 
@@ -116,7 +117,7 @@ public class TenantServicesRegistry {
     }
 
     public void processRequest(String converterId, String token, String body) throws Exception {
-        for (HttpService service : httpServices) {
+        for (HttpService service : httpServices.values()) {
             service.processRequest(converterId, token, body);
         }
     }

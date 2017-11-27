@@ -216,7 +216,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         msg.setId(msgId);
         return publishAsync(GATEWAY_TELEMETRY_TOPIC, msg,
                 token -> {
-                    log.debug("[{}][{}] Device telemetry published to Thingsboard!", msgId, deviceName);
+                    log.debug("[{}][{}] Device telemetry published to ThingsBoard!", msgId, deviceName);
                     telemetryCount.addAndGet(packSize);
                 },
                 error -> log.warn("[{}][{}] Failed to publish device telemetry!", deviceName, msgId, error));
@@ -325,16 +325,16 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
                             }
                         }).waitForCompletion();
 
-                        tbClient.subscribe(DEVICE_ATTRIBUTES_TOPIC,1, (IMqttMessageListener) this);
+                        tbClient.subscribe(DEVICE_ATTRIBUTES_TOPIC, 1, (IMqttMessageListener) this).waitForCompletion();
 
-                        tbClient.subscribe(DEVICE_GET_ATTRIBUTES_RESPONSE_PLUS_TOPIC, 1, (IMqttMessageListener) this);
+                        tbClient.subscribe(DEVICE_GET_ATTRIBUTES_RESPONSE_PLUS_TOPIC, 1, (IMqttMessageListener) this).waitForCompletion();
                         ObjectNode node = newNode().put("shared", "configuration");
                         MqttMessage msg = new MqttMessage(toBytes(node));
-                        tbClient.publish(DEVICE_GET_ATTRIBUTES_REQUEST_TOPIC, msg);
+                        tbClient.publish(DEVICE_GET_ATTRIBUTES_REQUEST_TOPIC, msg).waitForCompletion();
 
                         devices.forEach((k, v) -> onDeviceConnect(v.getName(), v.getType()));
-                    } catch (MqttException e) {
-                        log.warn("Failed to connect to Thingsboard!", e);
+                    } catch (Exception e) {
+                        log.warn("Failed to connect to ThingsBoard!", e);
                         if (!tbClient.isConnected()) {
                             try {
                                 Thread.sleep(connection.getRetryInterval());
@@ -407,17 +407,23 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     @Override
     public void messageArrived(String topic, MqttMessage message) throws Exception {
         log.trace("Message arrived [{}] {}", topic, message.getId());
-        if (topic.equals(GATEWAY_ATTRIBUTES_TOPIC)) {
-            onAttributesUpdate(message);
-        } else if (topic.equals(GATEWAY_RESPONSES_ATTRIBUTES_TOPIC)) {
-            onDeviceAttributesResponse(message);
-        } else if (topic.equals(GATEWAY_RPC_TOPIC)) {
-            onRpcCommand(message);
-        } else if (topic.equals(DEVICE_ATTRIBUTES_TOPIC)) {
-            onGatewayAttributesUpdate(message);
-        } else if (topic.equals(DEVICE_GET_ATTRIBUTES_RESPONSE_TOPIC)) {
-            onGatewayAttributesGet(message);
-        }
+        callbackExecutor.submit(() -> {
+            try {
+                if (topic.equals(GATEWAY_ATTRIBUTES_TOPIC)) {
+                    onAttributesUpdate(message);
+                } else if (topic.equals(GATEWAY_RESPONSES_ATTRIBUTES_TOPIC)) {
+                    onDeviceAttributesResponse(message);
+                } else if (topic.equals(GATEWAY_RPC_TOPIC)) {
+                    onRpcCommand(message);
+                } else if (topic.equals(DEVICE_ATTRIBUTES_TOPIC)) {
+                    onGatewayAttributesUpdate(message);
+                } else if (topic.equals(DEVICE_GET_ATTRIBUTES_RESPONSE_TOPIC)) {
+                    onGatewayAttributesGet(message);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to process arrived message", message);
+            }
+        });
     }
 
     @Override
@@ -468,23 +474,46 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         }
     }
 
-    private void onGatewayAttributesGet(MqttMessage message) throws MqttException {
+    private void onGatewayAttributesGet(MqttMessage message) {
+        log.info("Configuration arrived! {}", message.toString());
         JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));
-        if(payload.get("shared").get("configuration") != null) {
+        if (payload.get("shared").get("configuration") != null) {
             String configuration = payload.get("shared").get("configuration").asText();
             if (!StringUtils.isEmpty(configuration)) {
-                extensionsConfigListener.accept(configuration);
+                updateConfiguration(configuration);
             }
         }
     }
 
     private void onGatewayAttributesUpdate(MqttMessage message) {
+        log.info("Configuration updates arrived! {}", message.toString());
         JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));
-        if(payload.has("configuration")){
+        if (payload.has("configuration")) {
             String configuration = payload.get("configuration").asText();
-            if(!StringUtils.isEmpty(configuration)) {
-                extensionsConfigListener.accept(configuration);
+            if (!StringUtils.isEmpty(configuration)) {
+                updateConfiguration(configuration);
             }
+        }
+    }
+
+    private void updateConfiguration(String configuration) {
+        try {
+            extensionsConfigListener.accept(configuration);
+            onAppliedConfiguration(configuration);
+        } catch (Exception e) {
+            log.warn("Failed to update extension configurations");
+        }
+    }
+
+    @Override
+    public void onAppliedConfiguration(String configuration) {
+        try {
+            ObjectNode node = newNode();
+            node.put("appliedConfiguration", configuration);
+            MqttMessage msg = new MqttMessage(JsonTools.toString(node).getBytes(StandardCharsets.UTF_8));
+            tbClient.publish(DEVICE_ATTRIBUTES_TOPIC, msg).waitForCompletion();
+        } catch (Exception e) {
+            log.warn("Could not publish applied configuration", e);
         }
     }
 
