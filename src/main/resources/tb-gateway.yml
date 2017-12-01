@@ -41,4 +41,4 @@ gateways:
         retryInterval: 3000
         maxInFlight: 1000
         security:
-          accessToken: "${GATEWAY_ACCESS_TOKEN:KrPCWCRn63estmSPkWMJ}"
+          accessToken: "${GATEWAY_ACCESS_TOKEN:gqsvtukOWCjsddnx2XuB}"
