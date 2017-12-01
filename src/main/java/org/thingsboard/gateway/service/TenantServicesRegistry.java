@@ -44,6 +44,9 @@ public class TenantServicesRegistry {
     private final Map<String, ExtensionService> extensions;
     private final Map<String, HttpService> httpServices;
 
+    private static final String STATUS_INIT = "Initialized";
+    private static final String STATUS_UPDATE = "Updated";
+    private static final String STATUS_DELETE = "Removed";
     private static final String HTTP_EXTENSION = "HTTP";
     private static final String OPC_EXTENSION = "OPC UA";
     private static final String MQTT_EXTENSION = "MQTT";
@@ -68,6 +71,7 @@ public class TenantServicesRegistry {
                     extensions.get(existingExtensionId).destroy();
                     extensions.remove(existingExtensionId);
                     httpServices.remove(existingExtensionId);
+                    service.onConfigurationStatus(existingExtensionId, STATUS_DELETE);
                 }
             }
             for (TbExtensionConfiguration updatedConfiguration : updatedConfigurations) {
@@ -75,6 +79,7 @@ public class TenantServicesRegistry {
                     log.info("Initializing extension: [{}][{}]", updatedConfiguration.getId(), updatedConfiguration.getType());
                     ExtensionService extension = createExtensionServiceByType(service, updatedConfiguration.getType());
                     extension.init(updatedConfiguration);
+                    service.onConfigurationStatus(updatedConfiguration.getId(), STATUS_INIT);
                     if (HTTP_EXTENSION.equals(updatedConfiguration.getType())) {
                         httpServices.put(updatedConfiguration.getId(), (HttpService) extension);
                     }
@@ -83,6 +88,7 @@ public class TenantServicesRegistry {
                     if (!updatedConfiguration.equals(extensions.get(updatedConfiguration.getId()).getCurrentConfiguration())) {
                         log.info("Updating extension: [{}][{}]", updatedConfiguration.getId(), updatedConfiguration.getType());
                         extensions.get(updatedConfiguration.getId()).update(updatedConfiguration);
+                        service.onConfigurationStatus(updatedConfiguration.getId(), STATUS_UPDATE);
                     }
                 }
             }

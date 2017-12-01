@@ -24,11 +24,8 @@ import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.util.StringUtils;
 import org.thingsboard.gateway.service.AttributesUpdateListener;
 import org.thingsboard.gateway.service.RpcCommandListener;
-import org.thingsboard.gateway.service.conf.TbTenantConfiguration;
+import org.thingsboard.gateway.service.conf.*;
 import org.thingsboard.gateway.service.data.*;
-import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
-import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
-import org.thingsboard.gateway.service.conf.TbReportingConfiguration;
 import org.thingsboard.gateway.util.JsonTools;
 import org.thingsboard.server.common.data.kv.*;
 
@@ -502,6 +499,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             onAppliedConfiguration(configuration);
         } catch (Exception e) {
             log.warn("Failed to update extension configurations");
+            onConfigurationError(e, configuration);
         }
     }
 
@@ -515,6 +513,38 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         } catch (Exception e) {
             log.warn("Could not publish applied configuration", e);
         }
+    }
+
+    @Override
+    public void onConfigurationError(Exception e, String configuration) {
+        try {
+            ArrayNode fromString = (ArrayNode) fromString(configuration);
+            String id = fromString.get(0).get("id").asText();
+            ObjectNode node = newNode();
+            node.put(id + "ExtensionError", toString(e));
+            MqttMessage msg = new MqttMessage(toBytes(node));
+            tbClient.publish(DEVICE_TELEMETRY_TOPIC, msg).waitForCompletion();
+
+            node = newNode();
+            node.put(id + "ExtensionStatus", "Failure");
+            msg = new MqttMessage(toBytes(node));
+            tbClient.publish(DEVICE_TELEMETRY_TOPIC, msg).waitForCompletion();
+        } catch (Exception e1) {
+            log.warn("Could not report telemetry error", e1);
+        }
+    }
+
+    @Override
+    public void onConfigurationStatus(String id, String status) throws MqttException {
+        ObjectNode objectNode = newNode();
+        reportStatus(objectNode, id, status);
+    }
+
+    private void reportStatus(ObjectNode objectNode, String id, String status) throws MqttException {
+        objectNode.put(id + "ExtensionStatus", status);
+        MqttMessage msg = new MqttMessage(toBytes(objectNode));
+        tbClient.publish(DEVICE_TELEMETRY_TOPIC, msg).waitForCompletion();
+        log.info("Reported status [{}] of extension [{}]", status, id);
     }
 
     private void onDeviceAttributesResponse(MqttMessage message) {

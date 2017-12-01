@@ -41,6 +41,8 @@ public class DefaultTenantManagerService implements TenantManagerService {
 
     private Map<String, TenantServicesRegistry> gateways;
 
+    private static final String STATUS_STOP = "Stopped";
+
     @PostConstruct
     public void init() {
         gateways = new HashMap<>();
@@ -82,6 +84,7 @@ public class DefaultTenantManagerService implements TenantManagerService {
                 TenantServicesRegistry registry = gateways.get(label);
                 for (ExtensionService extension : registry.getExtensions().values()) {
                     try {
+                        registry.getService().onConfigurationStatus(extension.getCurrentConfiguration().getId(), STATUS_STOP);
                         extension.destroy();
                     } catch (Exception e) {
                         log.info("[{}] Failed to stop the extension ", label, e);

@@ -120,5 +120,19 @@ public interface GatewayService {
      * Report applied configuration
      * @param configuration - extension configuration
      */
-    void onAppliedConfiguration(String configuration) throws Exception;
+    void onAppliedConfiguration(String configuration);
+
+    /**
+     * Report extension configuration error
+     * @param e - the error
+     * @param configuration - extension configuration
+     */
+    void onConfigurationError(Exception e, String configuration);
+
+    /**
+     * Report extension configuration status
+     * @param id - extension id
+     * @param status - extension status
+     */
+    void onConfigurationStatus(String id, String status) throws Exception;
 }
