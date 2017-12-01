@@ -53,6 +53,7 @@ public class DefaultFileTailService extends ExtensionUpdate {
             configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), FileTailConfiguration.class);
         } catch (Exception e) {
             log.error("[{}] File Tail service configuration failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
 
@@ -61,6 +62,7 @@ public class DefaultFileTailService extends ExtensionUpdate {
             brokers.forEach(FileMonitor::init);
         } catch (Exception e) {
             log.error("[{}] File Tail service initialization failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
     }

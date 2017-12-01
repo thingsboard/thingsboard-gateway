@@ -53,6 +53,7 @@ public class DefaultOpcUaService extends ExtensionUpdate implements OpcUaService
             configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), OpcUaConfiguration.class);
         } catch (Exception e) {
             log.error("OPC-UA service configuration failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
 
@@ -61,6 +62,7 @@ public class DefaultOpcUaService extends ExtensionUpdate implements OpcUaService
             monitors.forEach(OpcUaServerMonitor::connect);
         } catch (Exception e) {
             log.error("OPC-UA service initialization failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
     }

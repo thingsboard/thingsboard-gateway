@@ -53,6 +53,7 @@ public class DefaultMqttClientService extends ExtensionUpdate implements MqttCli
             configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), MqttClientConfiguration.class);
         } catch (Exception e) {
             log.error("[{}] MQTT client service configuration failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
 
@@ -61,6 +62,7 @@ public class DefaultMqttClientService extends ExtensionUpdate implements MqttCli
             brokers.forEach(MqttBrokerMonitor::connect);
         } catch (Exception e) {
             log.error("[{}] MQTT client service initialization failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
     }

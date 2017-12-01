@@ -418,7 +418,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
                     onGatewayAttributesGet(message);
                 }
             } catch (Exception e) {
-                log.warn("Failed to process arrived message", message);
+                log.warn("Failed to process arrived message!", message);
             }
         });
     }
@@ -499,7 +499,6 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             onAppliedConfiguration(configuration);
         } catch (Exception e) {
             log.warn("Failed to update extension configurations");
-            onConfigurationError(e, configuration);
         }
     }
 
@@ -516,10 +515,9 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     }
 
     @Override
-    public void onConfigurationError(Exception e, String configuration) {
+    public void onConfigurationError(Exception e, TbExtensionConfiguration configuration) {
         try {
-            ArrayNode fromString = (ArrayNode) fromString(configuration);
-            String id = fromString.get(0).get("id").asText();
+            String id = configuration.getId();
             ObjectNode node = newNode();
             node.put(id + "ExtensionError", toString(e));
             MqttMessage msg = new MqttMessage(toBytes(node));
@@ -530,21 +528,31 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             msg = new MqttMessage(toBytes(node));
             tbClient.publish(DEVICE_TELEMETRY_TOPIC, msg).waitForCompletion();
         } catch (Exception e1) {
-            log.warn("Could not report telemetry error", e1);
+            log.warn("Could not report extension error", e1);
         }
     }
 
     @Override
-    public void onConfigurationStatus(String id, String status) throws MqttException {
+    public void onConfigurationStatus(String id, String status) {
         ObjectNode objectNode = newNode();
-        reportStatus(objectNode, id, status);
-    }
+        try {
+            objectNode.put(id + "ExtensionStatus", status);
+            MqttMessage msg = new MqttMessage(toBytes(objectNode));
+            tbClient.publish(DEVICE_TELEMETRY_TOPIC, msg).waitForCompletion();
+            log.info("Reported status [{}] of extension [{}]", status, id);
+        } catch (Exception e) {
+            log.warn("Extension status reporting failed", e);
+        }
 
-    private void reportStatus(ObjectNode objectNode, String id, String status) throws MqttException {
-        objectNode.put(id + "ExtensionStatus", status);
-        MqttMessage msg = new MqttMessage(toBytes(objectNode));
-        tbClient.publish(DEVICE_TELEMETRY_TOPIC, msg).waitForCompletion();
-        log.info("Reported status [{}] of extension [{}]", status, id);
+        try {
+            objectNode = newNode();
+            objectNode.put(id + "ExtensionError", "");
+            MqttMessage msg = new MqttMessage(toBytes(objectNode));
+            tbClient.publish(DEVICE_TELEMETRY_TOPIC, msg).waitForCompletion();
+        } catch (Exception e) {
+            log.warn("Extension error clearing failed", e);
+        }
+
     }
 
     private void onDeviceAttributesResponse(MqttMessage message) {

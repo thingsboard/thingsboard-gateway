@@ -74,12 +74,14 @@ public class DefaultHttpService extends ExtensionUpdate implements HttpService {
             }
         } catch (IOException e) {
             log.error("[{}] Http service configuration failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
     }
 
     @Override
-    public void destroy() throws Exception { }
+    public void destroy() throws Exception {
+    }
 
     @Override
     public void processRequest(String converterId, String token, String body) throws Exception {
