@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.service;
+package org.thingsboard.gateway.service.gateway;
 
 import lombok.Data;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;

@@ -13,12 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.opc;
+package org.thingsboard.gateway.extensions.http.conf;
 
-import org.thingsboard.gateway.extensions.ExtensionService;
+import lombok.Data;
+import org.thingsboard.gateway.extensions.http.conf.mapping.HttpDeviceDataConverter;
 
-/**
- * Created by ashvayka on 16.01.17.
- */
-public interface OpcUaService extends ExtensionService {
+import java.util.List;
+
+@Data
+public class HttpConverterConfiguration {
+
+    private String converterId;
+    private String deviceTypeId;
+    private String token;
+    private List<HttpDeviceDataConverter> converters;
 }

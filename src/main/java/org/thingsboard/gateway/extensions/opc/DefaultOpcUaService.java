@@ -19,10 +19,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Service;
 import org.thingsboard.gateway.extensions.opc.conf.OpcUaConfiguration;
-import org.thingsboard.gateway.service.GatewayService;
+import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
 
 import javax.annotation.PostConstruct;
@@ -35,41 +34,39 @@ import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.
 /**
  * Created by ashvayka on 06.01.17.
  */
-@Service
-@ConditionalOnProperty(prefix = "opc", value = "enabled", havingValue = "true", matchIfMissing = false)
 @Slf4j
 public class DefaultOpcUaService implements OpcUaService {
 
-    @Autowired
-    private GatewayService service;
-
-    @Value("${opc.configuration}")
-    private String configurationFile;
+    private final GatewayService gateway;
+    private final String configurationFile;
 
     private List<OpcUaServerMonitor> monitors;
 
-    @PostConstruct
+    public DefaultOpcUaService(GatewayService gateway, String configurationFile) {
+        this.gateway = gateway;
+        this.configurationFile = configurationFile;
+    }
+
     public void init() throws Exception {
-        log.info("Initializing OPC-UA service!");
+        log.info("Initializing OPC-UA service!", gateway.getTenantLabel());
         OpcUaConfiguration configuration;
         try {
             configuration = ConfigurationTools.readConfiguration(configurationFile, OpcUaConfiguration.class);
         } catch (Exception e) {
-            log.error("OPC-UA service configuration failed!", e);
+            log.error("OPC-UA service configuration failed!", gateway.getTenantLabel(), e);
             throw e;
         }
 
         try {
-            monitors = configuration.getServers().stream().map(c -> new OpcUaServerMonitor(service, c)).collect(Collectors.toList());
+            monitors = configuration.getServers().stream().map(c -> new OpcUaServerMonitor(gateway, c)).collect(Collectors.toList());
             monitors.forEach(OpcUaServerMonitor::connect);
         } catch (Exception e) {
-            log.error("OPC-UA service initialization failed!", e);
+            log.error("OPC-UA service initialization failed!", gateway.getTenantLabel(), e);
             throw e;
         }
     }
 
-    @PreDestroy
-    public void preDestroy() {
+    public void destroy() {
         if (monitors != null) {
             monitors.forEach(OpcUaServerMonitor::disconnect);
         }

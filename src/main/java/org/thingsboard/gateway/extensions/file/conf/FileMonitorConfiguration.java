@@ -13,13 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox.conf;
+package org.thingsboard.gateway.extensions.file.conf;
 
 import lombok.Data;
 
-import java.util.List;
-
+/**
+ * Created by ashvayka on 15.05.17.
+ */
 @Data
-public class SigfoxConfiguration {
-    List<SigfoxDeviceTypeConfiguration> deviceTypeConfigurations;
+public class FileMonitorConfiguration {
+
+    private String file;
+    private int skipLines;
+    private int updateInterval;
+    private String[] csvColumns;
+    private CsvDeviceDataConverter converter;
 }

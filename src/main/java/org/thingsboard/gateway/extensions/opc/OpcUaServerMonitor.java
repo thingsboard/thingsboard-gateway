@@ -36,7 +36,7 @@ import org.eclipse.milo.opcua.stack.core.types.structured.*;
 import org.thingsboard.gateway.extensions.opc.conf.OpcUaServerConfiguration;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.DeviceMapping;
 import org.thingsboard.gateway.extensions.opc.scan.OpcUaNode;
-import org.thingsboard.gateway.service.GatewayService;
+import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.CertificateInfo;
 import org.thingsboard.gateway.util.ConfigurationTools;
 import org.thingsboard.server.common.data.kv.KvEntry;
@@ -209,7 +209,7 @@ public class OpcUaServerMonitor {
                 }
             }
             device.calculateDeviceName(readTags(deviceNameTags));
-            gateway.onDeviceConnect(device.getDeviceName());
+            gateway.onDeviceConnect(device.getDeviceName(), null);
         }
 
         device.updateScanTs();

@@ -25,5 +25,6 @@ public class KVMapping {
     private String key;
     private DataTypeMapping type;
     private String value;
-
+    private String ts;
+    private String tsFormat;
 }

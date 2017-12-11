@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.service;
+package org.thingsboard.gateway.service.gateway;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -21,8 +21,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.thingsboard.gateway.service.AttributesUpdateListener;
+import org.thingsboard.gateway.service.RpcCommandListener;
+import org.thingsboard.gateway.service.conf.TbTenantConfiguration;
 import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
 import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
@@ -30,8 +32,6 @@ import org.thingsboard.gateway.service.conf.TbReportingConfiguration;
 import org.thingsboard.gateway.util.JsonTools;
 import org.thingsboard.server.common.data.kv.*;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
@@ -47,7 +47,6 @@ import static org.thingsboard.gateway.util.JsonTools.*;
 /**
  * Created by ashvayka on 16.01.17.
  */
-@Service
 @Slf4j
 public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMessageListener {
 
@@ -66,17 +65,15 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     private final AtomicInteger msgIdSeq = new AtomicInteger();
     private final Set<AttributesUpdateSubscription> attributeUpdateSubs = ConcurrentHashMap.newKeySet();
     private final Set<RpcCommandSubscription> rpcCommandSubs = ConcurrentHashMap.newKeySet();
+    private final Map<AttributeRequestKey, AttributeRequestListener> pendingAttrRequestsMap = new ConcurrentHashMap<>();
+
+    private final String tenantLabel;
+    private final TbTenantConfiguration configuration;
+    private final TbConnectionConfiguration connection;
+    private final TbReportingConfiguration reporting;
+    private final TbPersistenceConfiguration persistence;
 
     private volatile ObjectNode error;
-
-    @Autowired
-    private TbConnectionConfiguration connection;
-
-    @Autowired
-    private TbReportingConfiguration reporting;
-
-    @Autowired
-    private TbPersistenceConfiguration persistence;
 
     private MqttAsyncClient tbClient;
     private MqttConnectOptions tbClientOptions;
@@ -86,9 +83,15 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     private ScheduledExecutorService scheduler;
     private ExecutorService callbackExecutor = Executors.newCachedThreadPool();
 
-    private Map<AttributeRequestKey, AttributeRequestListener> pendingAttrRequestsMap = new ConcurrentHashMap<>();
+    public MqttGatewayService(TbTenantConfiguration configuration) {
+        this.configuration = configuration;
+        this.tenantLabel = configuration.getLabel();
+        this.connection = configuration.getConnection();
+        this.reporting = configuration.getReporting();
+        this.persistence = configuration.getPersistence();
+    }
 
-    @PostConstruct
+    @Override
     public void init() throws Exception {
         scheduler = Executors.newSingleThreadScheduledExecutor();
 
@@ -116,21 +119,29 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
     }
 
-    @PreDestroy
-    public void preDestroy() throws Exception {
+    @Override
+    public void destroy() throws Exception {
         scheduler.shutdownNow();
         callbackExecutor.shutdownNow();
         tbClient.disconnect();
     }
 
     @Override
-    public MqttDeliveryFuture onDeviceConnect(final String deviceName) {
+    public String getTenantLabel() {
+        return tenantLabel;
+    }
+
+    @Override
+    public MqttDeliveryFuture onDeviceConnect(final String deviceName, final String deviceType) {
         final int msgId = msgIdSeq.incrementAndGet();
-        byte[] msgData = toBytes(newNode().put("device", deviceName));
-        MqttMessage msg = new MqttMessage(msgData);
+        ObjectNode node = newNode().put("device", deviceName);
+        if (!StringUtils.isEmpty(deviceType)) {
+            node.put("type", deviceType);
+        }
+        MqttMessage msg = new MqttMessage(toBytes(node));
         msg.setId(msgId);
         log.info("[{}] Device Connected!", deviceName);
-        devices.putIfAbsent(deviceName, new DeviceInfo(deviceName));
+        devices.putIfAbsent(deviceName, new DeviceInfo(deviceName, deviceType));
         return publishAsync(GATEWAY_CONNECT_TOPIC, msg,
                 token -> {
                     log.info("[{}][{}] Device connect event is reported to Thingsboard!", deviceName, msgId);
@@ -307,7 +318,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
                         }).waitForCompletion();
 //                        tbClient.subscribe(GATEWAY_ATTRIBUTES_TOPIC, 1, (IMqttMessageListener) this);
 //                        tbClient.subscribe(GATEWAY_RPC_TOPIC, 1, (IMqttMessageListener) this);
-                        devices.forEach((k, v) -> onDeviceConnect(k));
+                        devices.forEach((k, v) -> onDeviceConnect(v.getName(), v.getType()));
                     } catch (MqttException e) {
                         log.warn("Failed to connect to Thingsboard!", e);
                         if (!tbClient.isConnected()) {
@@ -325,7 +336,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     private void checkDeviceConnected(String deviceName) {
         if (!devices.containsKey(deviceName)) {
-            onDeviceConnect(deviceName);
+            onDeviceConnect(deviceName, null);
         }
     }
 
@@ -419,7 +430,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         JsonNode payload = fromString(new String(message.getPayload(), StandardCharsets.UTF_8));
         String deviceName = payload.get("device").asText();
         Set<RpcCommandListener> listeners = rpcCommandSubs.stream()
-                .filter(sub -> sub.matches(deviceName)).map(sub -> sub.getListener())
+                .filter(sub -> sub.matches(deviceName)).map(RpcCommandSubscription::getListener)
                 .collect(Collectors.toSet());
         if (!listeners.isEmpty()) {
             JsonNode data = payload.get("data");
@@ -484,7 +495,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     private void checkClientReconnected() {
         if (tbClient.isConnected()) {
-            devices.forEach((k, v) -> onDeviceConnect(k));
+            devices.forEach((k, v) -> onDeviceConnect(v.getName(), v.getType()));
         } else {
             scheduler.schedule(this::checkClientReconnected, CLIENT_RECONNECT_CHECK_INTERVAL, TimeUnit.SECONDS);
         }

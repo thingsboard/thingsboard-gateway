@@ -15,7 +15,6 @@
  */
 package org.thingsboard.gateway.service.data;
 
-import lombok.Builder;
 import lombok.Data;
 
 /**

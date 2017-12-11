@@ -13,38 +13,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox;
+package org.thingsboard.gateway.extensions.http;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
-import org.thingsboard.gateway.extensions.sigfox.conf.SigfoxRequestProcessingError;
+import org.thingsboard.gateway.extensions.http.conf.HttpRequestProcessingError;
+import org.thingsboard.gateway.service.TenantManagerService;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
 @RestController
-@RequestMapping("/sigfox")
-@ConditionalOnProperty(prefix = "sigfox", value = "enabled", havingValue = "true")
 @Slf4j
-public class SigfoxController {
+public class HttpController {
     private static final String TOKEN_HEADER = "Authorization";
 
     @Autowired
-    private SigfoxService service;
+    private TenantManagerService service;
 
     private ObjectMapper mapper = new ObjectMapper();
 
 
-    @RequestMapping(value = "/{deviceTypeId}", method = RequestMethod.POST)
-    public void handleRequest(@PathVariable String deviceTypeId,
+    @RequestMapping(value = "/sigfox/{deviceTypeId}", method = RequestMethod.POST)
+    public void handleSigfoxRequest(@PathVariable String deviceTypeId,
                               @RequestHeader(TOKEN_HEADER) String token,
                               @RequestBody String body) throws Exception {
         service.processRequest(deviceTypeId, token, body);
+    }
+
+    @RequestMapping(value = "/uplink/{converterId}", method = RequestMethod.POST)
+    public void handleRequest(@PathVariable String converterId,
+                              @RequestBody String body) throws Exception {
+        service.processRequest(converterId, null, body);
     }
 
     @ExceptionHandler(Exception.class)
@@ -56,10 +60,10 @@ public class SigfoxController {
                 if (exception instanceof SecurityException) {
                     response.setStatus(HttpStatus.FORBIDDEN.value());
                     mapper.writeValue(response.getWriter(),
-                            new SigfoxRequestProcessingError("You don't have permission to perform this operation!"));
+                            new HttpRequestProcessingError("You don't have permission to perform this operation!"));
                 } else {
                     response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
-                    mapper.writeValue(response.getWriter(), new SigfoxRequestProcessingError(exception.getMessage()));
+                    mapper.writeValue(response.getWriter(), new HttpRequestProcessingError(exception.getMessage()));
                 }
             } catch (IOException e) {
                 log.error("Can't handle exception", e);

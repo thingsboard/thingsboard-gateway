@@ -13,12 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.opc;
+package org.thingsboard.gateway.extensions.file.conf;
 
-import org.thingsboard.gateway.extensions.ExtensionService;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.extern.slf4j.Slf4j;
+import org.thingsboard.gateway.util.converter.BasicJsonConverter;
 
-/**
- * Created by ashvayka on 16.01.17.
- */
-public interface OpcUaService extends ExtensionService {
+@Data
+@EqualsAndHashCode(callSuper = true)
+@Slf4j
+public class CsvDeviceDataConverter extends BasicJsonConverter {
+
 }

@@ -13,12 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.opc;
+package org.thingsboard.gateway.service;
 
+import lombok.Data;
 import org.thingsboard.gateway.extensions.ExtensionService;
+import org.thingsboard.gateway.service.gateway.GatewayService;
+
+import java.util.List;
 
 /**
- * Created by ashvayka on 16.01.17.
+ * Created by ashvayka on 29.09.17.
  */
-public interface OpcUaService extends ExtensionService {
+@Data
+public class TenantServicesRegistry {
+
+    private final GatewayService service;
+    private final List<ExtensionService> extensions;
+
 }

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox.conf.mapping;
+package org.thingsboard.gateway.util.converter.transformer;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -28,10 +28,13 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 public interface DataValueTransformer {
 
     Double transformToDouble(String strValue);
+
     Long transformToLong(String strValue);
+
     String transformToString(String strValue);
+
     Boolean transformToBoolean(String strValue);
 
-    String getName();
+    boolean isApplicable(String strValue);
 
 }

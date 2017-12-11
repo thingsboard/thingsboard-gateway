@@ -13,14 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox.conf;
+package org.thingsboard.gateway.extensions.file.conf;
 
 import lombok.Data;
-import org.thingsboard.gateway.extensions.sigfox.conf.mapping.SigfoxDeviceDataConverter;
 
+import java.util.List;
+
+/**
+ * Created by ashvayka on 15.05.17.
+ */
 @Data
-public class SigfoxDeviceTypeConfiguration {
-    private String deviceTypeId;
-    private String token;
-    private SigfoxDeviceDataConverter converter;
+public class FileTailConfiguration {
+
+    List<FileMonitorConfiguration> fileMonitorConfigurations;
 }

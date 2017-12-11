@@ -13,8 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox;
+package org.thingsboard.gateway.extensions.http;
 
-public interface SigfoxService {
-    void processRequest(String deviceTypeId, String token, String body) throws Exception;
+import org.thingsboard.gateway.extensions.ExtensionService;
+
+public interface HttpService extends ExtensionService {
+
+    void processRequest(String converterId, String token, String body) throws Exception;
 }

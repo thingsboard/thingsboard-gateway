@@ -13,12 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.opc;
+package org.thingsboard.gateway.util.converter;
 
-import org.thingsboard.gateway.extensions.ExtensionService;
+import lombok.Data;
 
-/**
- * Created by ashvayka on 16.01.17.
- */
-public interface OpcUaService extends ExtensionService {
+@Data
+public class AttributesMapping extends TransformerKVMapping {
 }

@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.mqtt.client;
+package org.thingsboard.gateway.extensions.file;
 
 import lombok.extern.slf4j.Slf4j;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.MqttClientConfiguration;
+import org.thingsboard.gateway.extensions.ExtensionService;
+import org.thingsboard.gateway.extensions.file.conf.FileTailConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
 
@@ -24,45 +25,44 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Created by ashvayka on 23.01.17.
+ * Created by ashvayka on 15.05.17.
  */
 @Slf4j
-public class DefaultMqttClientService implements MqttClientService {
+public class DefaultFileTailService implements ExtensionService {
 
     private final GatewayService gateway;
     private final String configurationFile;
 
-    private List<MqttBrokerMonitor> brokers;
+    private List<FileMonitor> brokers;
 
-    public DefaultMqttClientService(GatewayService gateway, String configurationFile) {
+    public DefaultFileTailService(GatewayService gateway, String configurationFile) {
         this.gateway = gateway;
         this.configurationFile = configurationFile;
     }
 
     public void init() throws Exception {
-        log.info("[{}] Initializing MQTT client service!", gateway.getTenantLabel());
-        MqttClientConfiguration configuration;
+        log.info("[{}] Initializing File Tail service!", gateway.getTenantLabel());
+        FileTailConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationFile, MqttClientConfiguration.class);
+            configuration = ConfigurationTools.readConfiguration(configurationFile, FileTailConfiguration.class);
         } catch (Exception e) {
-            log.error("[{}] MQTT client service configuration failed!", gateway.getTenantLabel(), e);
+            log.error("[{}] File Tail service configuration failed!", gateway.getTenantLabel(), e);
             throw e;
         }
 
         try {
-            brokers = configuration.getBrokers().stream().map(c -> new MqttBrokerMonitor(gateway, c)).collect(Collectors.toList());
-            brokers.forEach(MqttBrokerMonitor::connect);
+            brokers = configuration.getFileMonitorConfigurations().stream().map(c -> new FileMonitor(gateway, c)).collect(Collectors.toList());
+            brokers.forEach(FileMonitor::init);
         } catch (Exception e) {
-            log.error("[{}] MQTT client service initialization failed!", gateway.getTenantLabel(), e);
+            log.error("[{}] File Tail service initialization failed!", gateway.getTenantLabel(), e);
             throw e;
         }
     }
 
     public void destroy() {
         if (brokers != null) {
-            brokers.forEach(MqttBrokerMonitor::disconnect);
+            brokers.forEach(FileMonitor::stop);
         }
     }
-
 
 }

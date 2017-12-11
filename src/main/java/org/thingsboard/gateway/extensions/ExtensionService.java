@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions.sigfox.conf.mapping;
+package org.thingsboard.gateway.extensions;
 
-import lombok.Data;
-import org.thingsboard.gateway.extensions.common.conf.mapping.KVMapping;
+/**
+ * Created by ashvayka on 29.09.17.
+ */
+public interface ExtensionService {
 
-@Data
-public class SigfoxKVMapping extends KVMapping{
-    private DataValueTransformer transformer;
+    void init() throws Exception;
+
+    void destroy() throws Exception;
 }
