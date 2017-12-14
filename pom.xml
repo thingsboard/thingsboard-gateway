@@ -22,7 +22,7 @@
 
     <groupId>org.thingsboard</groupId>
     <artifactId>gateway</artifactId>
-    <version>1.2.1</version>
+    <version>1.2.2</version>
     <packaging>jar</packaging>
 
     <name>Thingsboard Gateway</name>
@@ -37,7 +37,7 @@
         <java.version>1.8</java.version>
         <thingsboard.version>1.2.3</thingsboard.version>
         <!-- Eclipse Paho 1.1.0 contains major issue with persistence of buffered messages. Using 1.1.1-SNAPSHOT for now. Need to remove this after Paho 1.1.1 release -->
-        <paho.client.version>1.1.1</paho.client.version>
+        <paho.client.version>1.2.0</paho.client.version>
         <milo.client.version>0.1.0</milo.client.version>
         <json-path.version>2.2.0</json-path.version>
         <spring-boot.version>1.4.3.RELEASE</spring-boot.version>

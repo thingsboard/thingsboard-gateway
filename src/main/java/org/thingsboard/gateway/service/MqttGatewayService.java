@@ -80,11 +80,13 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     private MqttAsyncClient tbClient;
     private MqttConnectOptions tbClientOptions;
+    private PriorityBlockingQueue<MqttMessageWrapper> mqttMessageQueue;
 
     private Object connectLock = new Object();
 
     private ScheduledExecutorService scheduler;
     private ExecutorService callbackExecutor = Executors.newCachedThreadPool();
+    private ExecutorService senderExecutor = Executors.newSingleThreadExecutor();
 
     private Map<AttributeRequestKey, AttributeRequestListener> pendingAttrRequestsMap = new ConcurrentHashMap<>();
 
@@ -111,6 +113,9 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             options.setPersistBuffer(true);
             tbClient.setBufferOpts(options);
         }
+
+        mqttMessageQueue = new PriorityBlockingQueue<>();
+        senderExecutor.submit(new MqttMessageSender(mqttMessageQueue, tbClient, connection.getRetryInterval(), connection.getMaxQueueSize()));
         connect();
 
         scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
@@ -328,25 +333,12 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             onDeviceConnect(deviceName);
         }
     }
-
     private MqttDeliveryFuture publishAsync(final String topic, MqttMessage msg, Consumer<IMqttToken> onSuccess, Consumer<Throwable> onFailure) {
-        try {
-            IMqttDeliveryToken token = tbClient.publish(topic, msg, null, new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    onSuccess.accept(asyncActionToken);
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable e) {
-                    onFailure.accept(e);
-                }
-            });
-            return new MqttDeliveryFuture(token);
-        } catch (MqttException e) {
-            onFailure.accept(e);
-            return new MqttDeliveryFuture(e);
+        if (mqttMessageQueue.size() < connection.getMaxQueueSize()) {
+            MqttMessageWrapper messageWrapper = new MqttMessageWrapper(topic, msg, onSuccess, onFailure, System.currentTimeMillis());
+            mqttMessageQueue.add(messageWrapper);
         }
+        return null;
     }
 
     private void reportStats() {
