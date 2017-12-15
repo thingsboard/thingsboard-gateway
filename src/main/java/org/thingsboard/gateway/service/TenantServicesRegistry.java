@@ -38,7 +38,7 @@ import java.util.Map;
  */
 @Slf4j
 @Data
-public class TenantServicesRegistry {
+public class TenantServicesRegistry implements ExtensionServiceCreation {
 
     private final GatewayService service;
     private final Map<String, ExtensionService> extensions;
@@ -78,7 +78,7 @@ public class TenantServicesRegistry {
                 if (!extensions.containsKey(updatedConfiguration.getId())) {
                     log.info("Initializing extension: [{}][{}]", updatedConfiguration.getId(), updatedConfiguration.getType());
                     ExtensionService extension = createExtensionServiceByType(service, updatedConfiguration.getType());
-                    extension.init(updatedConfiguration);
+                    extension.init(updatedConfiguration, true);
                     service.onConfigurationStatus(updatedConfiguration.getId(), STATUS_INIT);
                     if (HTTP_EXTENSION.equals(updatedConfiguration.getType())) {
                         httpServices.put(updatedConfiguration.getId(), (HttpService) extension);
@@ -107,7 +107,8 @@ public class TenantServicesRegistry {
         return false;
     }
 
-    private ExtensionService createExtensionServiceByType(GatewayService gateway, String type) {
+    @Override
+    public ExtensionService createExtensionServiceByType(GatewayService gateway, String type) {
         switch (type) {
             case FILE_EXTENSION:
                 return new DefaultFileTailService(gateway);

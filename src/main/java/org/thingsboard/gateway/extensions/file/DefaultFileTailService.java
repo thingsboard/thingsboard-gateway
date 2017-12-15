@@ -45,12 +45,16 @@ public class DefaultFileTailService extends ExtensionUpdate {
     }
 
     @Override
-    public void init(TbExtensionConfiguration configurationNode) throws Exception {
+    public void init(TbExtensionConfiguration configurationNode, Boolean isRemote) throws Exception {
         currentConfiguration = configurationNode;
         log.info("[{}] Initializing File Tail service!", gateway.getTenantLabel());
         FileTailConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), FileTailConfiguration.class);
+            if(isRemote) {
+                configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), FileTailConfiguration.class);
+            } else {
+                configuration = ConfigurationTools.readFileConfiguration(configurationNode.getExtensionConfiguration(), FileTailConfiguration.class);
+            }
         } catch (Exception e) {
             log.error("[{}] File Tail service configuration failed!", gateway.getTenantLabel(), e);
             gateway.onConfigurationError(e, currentConfiguration);

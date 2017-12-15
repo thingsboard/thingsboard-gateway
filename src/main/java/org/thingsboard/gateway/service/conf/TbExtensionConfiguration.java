@@ -28,5 +28,5 @@ public class TbExtensionConfiguration {
     private String id;
     private String type;
     private JsonNode configuration;
-
+    private String extensionConfiguration;
 }

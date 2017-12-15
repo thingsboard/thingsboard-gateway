@@ -45,12 +45,16 @@ public class DefaultOpcUaService extends ExtensionUpdate implements OpcUaService
     }
 
     @Override
-    public void init(TbExtensionConfiguration configurationNode) throws Exception {
+    public void init(TbExtensionConfiguration configurationNode, Boolean isRemote) throws Exception {
         currentConfiguration = configurationNode;
         log.info("Initializing OPC-UA service!", gateway.getTenantLabel());
         OpcUaConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), OpcUaConfiguration.class);
+            if(isRemote) {
+                configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), OpcUaConfiguration.class);
+            } else {
+                configuration = ConfigurationTools.readFileConfiguration(configurationNode.getExtensionConfiguration(), OpcUaConfiguration.class);
+            }
         } catch (Exception e) {
             log.error("OPC-UA service configuration failed!", gateway.getTenantLabel(), e);
             gateway.onConfigurationError(e, currentConfiguration);

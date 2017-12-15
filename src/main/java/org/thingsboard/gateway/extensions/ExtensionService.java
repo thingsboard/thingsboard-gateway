@@ -24,7 +24,7 @@ public interface ExtensionService {
 
     TbExtensionConfiguration getCurrentConfiguration();
 
-    void init(TbExtensionConfiguration configuration) throws Exception;
+    void init(TbExtensionConfiguration configuration, Boolean isRemote) throws Exception;
 
     void update(TbExtensionConfiguration configuration) throws Exception;
 

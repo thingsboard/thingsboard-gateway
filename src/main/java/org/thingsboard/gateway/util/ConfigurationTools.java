@@ -43,6 +43,15 @@ public class ConfigurationTools {
         }
     }
 
+    public static <T> T readFileConfiguration(String configurationFile, Class<T> clazz) throws IOException {
+        try {
+            return mapper.readValue(getFileAsStream(configurationFile), clazz);
+        } catch (IOException e) {
+            log.error("Failed to load {} configuration from {}", clazz, configurationFile);
+            throw e;
+        }
+    }
+
     public static CertificateInfo loadCertificate(KeystoreConfiguration configuration) throws GeneralSecurityException, IOException {
         try {
             KeyStore keyStore = KeyStore.getInstance(configuration.getType());
@@ -66,5 +75,9 @@ public class ConfigurationTools {
     private static InputStream getResourceAsStream(String fileContent) {
         byte[] decoded = Base64.decodeBase64(fileContent);
         return new ByteArrayInputStream(decoded);
+    }
+
+    private static InputStream getFileAsStream(String configurationFile) {
+        return ConfigurationTools.class.getClassLoader().getResourceAsStream(configurationFile);
     }
 }

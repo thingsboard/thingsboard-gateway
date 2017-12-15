@@ -13,14 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.extensions;
+package org.thingsboard.gateway.service;
 
-import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
+import org.thingsboard.gateway.extensions.ExtensionService;
+import org.thingsboard.gateway.service.gateway.GatewayService;
 
-public abstract class ExtensionUpdate implements ExtensionService {
+public interface ExtensionServiceCreation {
 
-    public void update (TbExtensionConfiguration configurationNode) throws Exception {
-        destroy();
-        init(configurationNode, true);
-    }
+    ExtensionService createExtensionServiceByType(GatewayService gateway, String type);
 }

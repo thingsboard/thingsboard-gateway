@@ -41,4 +41,10 @@ gateways:
         retryInterval: 3000
         maxInFlight: 1000
         security:
-          accessToken: "${GATEWAY_ACCESS_TOKEN:gqsvtukOWCjsddnx2XuB}"
+          accessToken: "${GATEWAY_ACCESS_TOKEN:FEmEBH7T5rHunWlfTV6r}"
+      remoteConfiguration: false
+      extensions:
+        -
+          id: "http"
+          type: "HTTP"
+          extensionConfiguration: http-config.json

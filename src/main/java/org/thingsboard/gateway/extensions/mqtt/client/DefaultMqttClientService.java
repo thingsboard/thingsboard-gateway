@@ -45,12 +45,16 @@ public class DefaultMqttClientService extends ExtensionUpdate implements MqttCli
     }
 
     @Override
-    public void init(TbExtensionConfiguration configurationNode) throws Exception {
+    public void init(TbExtensionConfiguration configurationNode, Boolean isRemote) throws Exception {
         currentConfiguration = configurationNode;
         log.info("[{}] Initializing MQTT client service!", gateway.getTenantLabel());
         MqttClientConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), MqttClientConfiguration.class);
+            if(isRemote) {
+                configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), MqttClientConfiguration.class);
+            } else {
+                configuration = ConfigurationTools.readFileConfiguration(configurationNode.getExtensionConfiguration(), MqttClientConfiguration.class);
+            }
         } catch (Exception e) {
             log.error("[{}] MQTT client service configuration failed!", gateway.getTenantLabel(), e);
             gateway.onConfigurationError(e, currentConfiguration);

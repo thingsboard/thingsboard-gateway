@@ -56,11 +56,15 @@ public class DefaultHttpService extends ExtensionUpdate implements HttpService {
     }
 
     @Override
-    public void init(TbExtensionConfiguration configurationNode) throws IOException {
+    public void init(TbExtensionConfiguration configurationNode, Boolean isRemote) throws IOException {
         currentConfiguration = configurationNode;
         HttpConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), HttpConfiguration.class);
+            if (isRemote) {
+                configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), HttpConfiguration.class);
+            } else {
+                configuration = ConfigurationTools.readFileConfiguration(configurationNode.getExtensionConfiguration(), HttpConfiguration.class);
+            }
             if (configuration.getConverterConfigurations() != null) {
                 httpConverterConfigurations = configuration
                         .getConverterConfigurations()
