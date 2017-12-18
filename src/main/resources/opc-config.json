@@ -1,47 +1,43 @@
 {
-  "id": "opc",
-  "type": "OPC UA",
-  "configuration": {
-    "servers": [
-      {
-        "applicationName": "Thingsboard OPC-UA client",
-        "applicationUri": "",
-        "host": "localhost",
-        "port": 49320,
-        "scanPeriodInSeconds": 10,
-        "timeoutInMillis": 5000,
-        "security": "Basic128Rsa15",
-        "identity": {
-          "type": "anonymous"
-        },
-        "keystore": {
-          "type": "PKCS12",
-          "location": "example.pfx",
-          "password": "secret",
-          "alias": "gateway",
-          "keyPassword": "secret"
-        },
-        "mapping": [
-          {
-            "deviceNodePattern": "Channel1\\.Device\\d+$",
-            "deviceNamePattern": "Device ${_System._DeviceId}",
-            "attributes": [
-              {
-                "key": "Tag1",
-                "type": "string",
-                "value": "${Tag1}"
-              }
-            ],
-            "timeseries": [
-              {
-                "key": "Tag2",
-                "type": "long",
-                "value": "${Tag2}"
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  }
+  "servers": [
+    {
+      "applicationName": "Thingsboard OPC-UA client",
+      "applicationUri": "",
+      "host": "localhost",
+      "port": 49320,
+      "scanPeriodInSeconds": 10,
+      "timeoutInMillis": 5000,
+      "security": "Basic128Rsa15",
+      "identity": {
+        "type": "anonymous"
+      },
+      "keystore": {
+        "type": "PKCS12",
+        "location": "example.pfx",
+        "password": "secret",
+        "alias": "gateway",
+        "keyPassword": "secret"
+      },
+      "mapping": [
+        {
+          "deviceNodePattern": "Channel1\\.Device\\d+$",
+          "deviceNamePattern": "Device ${_System._DeviceId}",
+          "attributes": [
+            {
+              "key": "Tag1",
+              "type": "string",
+              "value": "${Tag1}"
+            }
+          ],
+          "timeseries": [
+            {
+              "key": "Tag2",
+              "type": "long",
+              "value": "${Tag2}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }

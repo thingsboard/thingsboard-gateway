@@ -44,11 +44,10 @@ public class DefaultTenantManagerService implements TenantManagerService {
     private TbGatewayConfiguration configuration;
 
     private Map<String, TenantServicesRegistry> gateways;
-
     private List<HttpService> httpServices;
+    private Boolean isRemoteConfiguration;
 
     private static final String STATUS_STOP = "Stopped";
-    private Boolean isRemoteConfiguration;
 
     @PostConstruct
     public void init() {
@@ -91,8 +90,8 @@ public class DefaultTenantManagerService implements TenantManagerService {
                     log.info("[{}] Failed to initialize the service ", label, e);
                     try {
                         service.destroy();
-                    } catch (Exception e1) {
-                        log.info("[{}] Failed to stop the service ", label, e1);
+                    } catch (Exception exc) {
+                        log.info("[{}] Failed to stop the service ", label, exc);
                     }
                 }
             }
@@ -107,7 +106,7 @@ public class DefaultTenantManagerService implements TenantManagerService {
 
     @Override
     public void processRequest(String converterId, String token, String body) throws Exception {
-        if(isRemoteConfiguration) {
+        if (isRemoteConfiguration) {
             for (TenantServicesRegistry tenant : gateways.values()) {
                 tenant.processRequest(converterId, token, body);
             }
@@ -125,7 +124,7 @@ public class DefaultTenantManagerService implements TenantManagerService {
                 TenantServicesRegistry registry = gateways.get(label);
                 for (ExtensionService extension : registry.getExtensions().values()) {
                     try {
-                        if(isRemoteConfiguration) {
+                        if (isRemoteConfiguration) {
                             registry.getService().onConfigurationStatus(extension.getCurrentConfiguration().getId(), STATUS_STOP);
                         }
                         extension.destroy();
