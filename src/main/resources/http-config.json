@@ -1,7 +1,7 @@
 {
   "deviceTypeConfigurations": [
     {
-      "deviceTypeId": "58ac4b889058c24616a43b3b",
+      "deviceTypeId": "YOUR_DEVICE_TYPE_ID",
       "token": "TOKEN",
       "converters": [
         {

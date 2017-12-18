@@ -36,7 +36,7 @@
           "converter": {
             "type": "json",
             "filterExpression": "",
-            "deviceNameTopicExpression": "(?<=sensor/)(.*?)(?=/temperature)",
+            "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/temperature)",
             "timeout": 60000,
             "timeseries": [
               {
@@ -55,7 +55,7 @@
         },
         {
           "topicFilter": "sensor/+/connect",
-          "deviceNameTopicExpression": "(?<=sensor/)(.*?)(?=/connect)"
+          "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/connect)"
         }
       ],
       "disconnectRequests": [
@@ -65,7 +65,7 @@
         },
         {
           "topicFilter": "sensor/+/disconnect",
-          "deviceNameTopicExpression": "(?<=sensor/)(.*?)(?=/disconnect)"
+          "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/disconnect)"
         }
       ],
       "attributeRequests": [
@@ -80,9 +80,9 @@
         },
         {
           "topicFilter": "sensors/+/attributes/+/request/+",
-          "deviceNameTopicExpression": "(?<=sensors/)(.*?)(?=/attributes)",
-          "attributeKeyTopicExpression": "(?<=attributes/)(.*?)(?=/request)",
-          "requestIdTopicExpression": "(?<=request/)(.*?)($)",
+          "deviceNameTopicExpression": "(?<=sensors\/)(.*?)(?=\/attributes)",
+          "attributeKeyTopicExpression": "(?<=attributes\/)(.*?)(?=\/request)",
+          "requestIdTopicExpression": "(?<=request\/)(.*?)($)",
           "clientScope": false,
           "responseTopicExpression": "sensors/${deviceName}/attributes/${attributeKey}/response/${requestId}",
           "valueExpression": "${attributeValue}"
