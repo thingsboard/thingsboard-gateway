@@ -21,6 +21,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.*;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.thingsboard.gateway.service.data.*;
@@ -33,6 +35,7 @@ import org.thingsboard.server.common.data.kv.*;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.io.PrintWriter;
+import java.io.Serializable;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -78,9 +81,11 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     @Autowired
     private TbPersistenceConfiguration persistence;
 
+    private DB db;
+
     private MqttAsyncClient tbClient;
     private MqttConnectOptions tbClientOptions;
-    private PriorityBlockingQueue<MqttMessageWrapper> mqttMessageQueue;
+    private PersistentQueue<MqttMessageWrapper> mqttMessageQueue;
 
     private Object connectLock = new Object();
 
@@ -103,7 +108,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         security.setupSecurityOptions(tbClientOptions);
 
         tbClient = new MqttAsyncClient((security.isSsl() ? "ssl" : "tcp") + "://" + connection.getHost() + ":" + connection.getPort(),
-                security.getClientId(), persistence.getPersistence());
+                security.getClientId(), null);
         tbClient.setCallback(this);
 
         if (persistence.getBufferSize() > 0) {
@@ -114,8 +119,9 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             tbClient.setBufferOpts(options);
         }
 
-        mqttMessageQueue = new PriorityBlockingQueue<>();
-        senderExecutor.submit(new MqttMessageSender(mqttMessageQueue, tbClient, connection.getRetryInterval(), connection.getMaxQueueSize()));
+        db = DBMaker.fileDB(persistence.getPath()).closeOnJvmShutdown().checksumHeaderBypass().make();
+        mqttMessageQueue = new PersistentQueue<>(db);
+        senderExecutor.submit(new MqttMessageSender(mqttMessageQueue, tbClient, connection.getRetryInterval()));
         connect();
 
         scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
@@ -126,6 +132,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         scheduler.shutdownNow();
         callbackExecutor.shutdownNow();
         tbClient.disconnect();
+        db.commit();
+        db.close();
     }
 
     @Override
@@ -137,7 +145,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         log.info("[{}] Device Connected!", deviceName);
         devices.putIfAbsent(deviceName, new DeviceInfo(deviceName));
         return publishAsync(GATEWAY_CONNECT_TOPIC, msg,
-                token -> {
+                (Consumer & Serializable) token -> {
                     log.info("[{}][{}] Device connect event is reported to Thingsboard!", deviceName, msgId);
                 },
                 error -> log.warn("[{}][{}] Failed to report device connection!", deviceName, msgId, error));
@@ -334,10 +342,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         }
     }
     private MqttDeliveryFuture publishAsync(final String topic, MqttMessage msg, Consumer<IMqttToken> onSuccess, Consumer<Throwable> onFailure) {
-        if (mqttMessageQueue.size() < connection.getMaxQueueSize()) {
-            MqttMessageWrapper messageWrapper = new MqttMessageWrapper(topic, msg, onSuccess, onFailure, System.currentTimeMillis());
-            mqttMessageQueue.add(messageWrapper);
-        }
+        MqttMessageWrapper messageWrapper = new MqttMessageWrapper(topic, msg.getPayload(), System.currentTimeMillis());
+        mqttMessageQueue.add(messageWrapper);
         return null;
     }
 

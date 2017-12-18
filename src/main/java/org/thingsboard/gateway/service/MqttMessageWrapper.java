@@ -5,6 +5,7 @@ import lombok.Data;
 import org.eclipse.paho.client.mqttv3.IMqttToken;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 
+import java.io.Serializable;
 import java.util.function.Consumer;
 
 /**
@@ -12,22 +13,23 @@ import java.util.function.Consumer;
  */
 @Data
 @AllArgsConstructor
-public class MqttMessageWrapper implements Comparable<MqttMessageWrapper>{
+public class MqttMessageWrapper implements Comparable<MqttMessageWrapper>, Serializable {
+
+    private static final long serialVersionUID = -7371568402081050843L;
 
     private String topic;
-    private MqttMessage msg;
-    private Consumer<IMqttToken> onSuccess;
-    private Consumer<Throwable> onFailure;
+    private byte[] payload;
     private long timestamp;
 
     @Override
     public int compareTo(MqttMessageWrapper that) {
-        if (that.timestamp > this.timestamp) {
+        if (that.timestamp < this.timestamp) {
             return 1;
         }
-        if (that.timestamp < this.timestamp) {
+        if (that.timestamp > this.timestamp) {
             return -1;
         }
         return 0;
     }
+
 }
