@@ -13,22 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.service.conf;
+package org.thingsboard.gateway.extensions;
 
-import lombok.Data;
+import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 
-import java.util.List;
+public abstract class ExtensionUpdate implements ExtensionService {
 
-/**
- * Created by ashvayka on 29.09.17.
- */
-@Data
-public class TbTenantConfiguration {
-
-    private String label;
-    private TbReportingConfiguration reporting;
-    private TbPersistenceConfiguration persistence;
-    private TbConnectionConfiguration connection;
-    private Boolean remoteConfiguration;
-    private List<TbExtensionConfiguration> extensions;
+    public void update (TbExtensionConfiguration configurationNode) throws Exception {
+        destroy();
+        init(configurationNode, true);
+    }
 }

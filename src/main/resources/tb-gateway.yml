@@ -36,13 +36,15 @@ gateways:
         path: storage
         bufferSize: 1000
       connection:
-        host: "${GATEWAY_HOST:demo.thingsboard.io}"
+        host: "${GATEWAY_HOST:YOUR_HOST}"
         port: 1883
         retryInterval: 3000
         maxInFlight: 1000
         security:
-          accessToken: "${GATEWAY_ACCESS_TOKEN:your_access_token}"
+          accessToken: "${GATEWAY_ACCESS_TOKEN:YOUR_TOKEN}"
+      remoteConfiguration: true
       extensions:
         -
-          type: "http"
-          configuration: http-config.json
+          id: "http"
+          type: "HTTP"
+          extensionConfiguration: http-config.json

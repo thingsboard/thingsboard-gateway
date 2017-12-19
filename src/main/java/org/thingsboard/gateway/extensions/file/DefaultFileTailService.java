@@ -16,8 +16,9 @@
 package org.thingsboard.gateway.extensions.file;
 
 import lombok.extern.slf4j.Slf4j;
-import org.thingsboard.gateway.extensions.ExtensionService;
+import org.thingsboard.gateway.extensions.ExtensionUpdate;
 import org.thingsboard.gateway.extensions.file.conf.FileTailConfiguration;
+import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
 
@@ -28,25 +29,35 @@ import java.util.stream.Collectors;
  * Created by ashvayka on 15.05.17.
  */
 @Slf4j
-public class DefaultFileTailService implements ExtensionService {
+public class DefaultFileTailService extends ExtensionUpdate {
 
     private final GatewayService gateway;
-    private final String configurationFile;
-
+    private TbExtensionConfiguration currentConfiguration;
     private List<FileMonitor> brokers;
 
-    public DefaultFileTailService(GatewayService gateway, String configurationFile) {
+    public DefaultFileTailService(GatewayService gateway) {
         this.gateway = gateway;
-        this.configurationFile = configurationFile;
     }
 
-    public void init() throws Exception {
+    @Override
+    public TbExtensionConfiguration getCurrentConfiguration() {
+        return currentConfiguration;
+    }
+
+    @Override
+    public void init(TbExtensionConfiguration configurationNode, Boolean isRemote) throws Exception {
+        currentConfiguration = configurationNode;
         log.info("[{}] Initializing File Tail service!", gateway.getTenantLabel());
         FileTailConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationFile, FileTailConfiguration.class);
+            if(isRemote) {
+                configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), FileTailConfiguration.class);
+            } else {
+                configuration = ConfigurationTools.readFileConfiguration(configurationNode.getExtensionConfiguration(), FileTailConfiguration.class);
+            }
         } catch (Exception e) {
             log.error("[{}] File Tail service configuration failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
 
@@ -55,10 +66,12 @@ public class DefaultFileTailService implements ExtensionService {
             brokers.forEach(FileMonitor::init);
         } catch (Exception e) {
             log.error("[{}] File Tail service initialization failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
     }
 
+    @Override
     public void destroy() {
         if (brokers != null) {
             brokers.forEach(FileMonitor::stop);

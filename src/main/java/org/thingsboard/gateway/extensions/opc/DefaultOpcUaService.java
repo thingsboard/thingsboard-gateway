@@ -16,44 +16,48 @@
 package org.thingsboard.gateway.extensions.opc;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
+import org.thingsboard.gateway.extensions.ExtensionUpdate;
 import org.thingsboard.gateway.extensions.opc.conf.OpcUaConfiguration;
+import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint;
 
 /**
  * Created by ashvayka on 06.01.17.
  */
 @Slf4j
-public class DefaultOpcUaService implements OpcUaService {
+public class DefaultOpcUaService extends ExtensionUpdate implements OpcUaService {
 
     private final GatewayService gateway;
-    private final String configurationFile;
-
+    private TbExtensionConfiguration currentConfiguration;
     private List<OpcUaServerMonitor> monitors;
 
-    public DefaultOpcUaService(GatewayService gateway, String configurationFile) {
+    public DefaultOpcUaService(GatewayService gateway) {
         this.gateway = gateway;
-        this.configurationFile = configurationFile;
     }
 
-    public void init() throws Exception {
+    @Override
+    public TbExtensionConfiguration getCurrentConfiguration() {
+        return currentConfiguration;
+    }
+
+    @Override
+    public void init(TbExtensionConfiguration configurationNode, Boolean isRemote) throws Exception {
+        currentConfiguration = configurationNode;
         log.info("Initializing OPC-UA service!", gateway.getTenantLabel());
         OpcUaConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationFile, OpcUaConfiguration.class);
+            if(isRemote) {
+                configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), OpcUaConfiguration.class);
+            } else {
+                configuration = ConfigurationTools.readFileConfiguration(configurationNode.getExtensionConfiguration(), OpcUaConfiguration.class);
+            }
         } catch (Exception e) {
             log.error("OPC-UA service configuration failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
 
@@ -62,10 +66,12 @@ public class DefaultOpcUaService implements OpcUaService {
             monitors.forEach(OpcUaServerMonitor::connect);
         } catch (Exception e) {
             log.error("OPC-UA service initialization failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
     }
 
+    @Override
     public void destroy() {
         if (monitors != null) {
             monitors.forEach(OpcUaServerMonitor::disconnect);

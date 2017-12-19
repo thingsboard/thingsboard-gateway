@@ -23,10 +23,18 @@
           "deviceNodePattern": "Channel1\\.Device\\d+$",
           "deviceNamePattern": "Device ${_System._DeviceId}",
           "attributes": [
-            {"key":"Tag1", "type": "string", "value": "${Tag1}"}
+            {
+              "key": "Tag1",
+              "type": "string",
+              "value": "${Tag1}"
+            }
           ],
           "timeseries": [
-            {"key":"Tag2", "type": "long", "value": "${Tag2}"}
+            {
+              "key": "Tag2",
+              "type": "long",
+              "value": "${Tag2}"
+            }
           ]
         }
       ]

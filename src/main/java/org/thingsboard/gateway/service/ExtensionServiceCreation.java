@@ -13,22 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.service.conf;
+package org.thingsboard.gateway.service;
 
-import lombok.Data;
+import org.thingsboard.gateway.extensions.ExtensionService;
+import org.thingsboard.gateway.service.gateway.GatewayService;
 
-import java.util.List;
+public interface ExtensionServiceCreation {
 
-/**
- * Created by ashvayka on 29.09.17.
- */
-@Data
-public class TbTenantConfiguration {
-
-    private String label;
-    private TbReportingConfiguration reporting;
-    private TbPersistenceConfiguration persistence;
-    private TbConnectionConfiguration connection;
-    private Boolean remoteConfiguration;
-    private List<TbExtensionConfiguration> extensions;
+    ExtensionService createExtensionServiceByType(GatewayService gateway, String type);
 }

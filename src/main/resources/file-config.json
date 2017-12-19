@@ -14,8 +14,7 @@
       "converter": {
         "deviceNameJsonExpression": "${$.device}",
         "deviceTypeJsonExpression": "${$.type}",
-        "attributes": [
-        ],
+        "attributes": [],
         "timeseries": [
           {
             "type": "double",
