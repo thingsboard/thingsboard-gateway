@@ -55,7 +55,11 @@ public class ConfigurationTools {
     public static CertificateInfo loadCertificate(KeystoreConfiguration configuration) throws GeneralSecurityException, IOException {
         try {
             KeyStore keyStore = KeyStore.getInstance(configuration.getType());
-            keyStore.load(getResourceAsStream(configuration.getLocation()), configuration.getPassword().toCharArray());
+            if (configuration.getLocationFileName() != null) {
+                keyStore.load(getResourceAsStream(configuration.getLocation()), configuration.getPassword().toCharArray());
+            } else {
+                keyStore.load(getFileAsStream(configuration.getLocation()), configuration.getPassword().toCharArray());
+            }
 
             Key key = keyStore.getKey(configuration.getAlias(), configuration.getKeyPassword().toCharArray());
             if (key instanceof PrivateKey) {
