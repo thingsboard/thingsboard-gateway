@@ -63,6 +63,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     public static final String GATEWAY_RESPONSES_ATTRIBUTES_TOPIC = "v1/gateway/attributes/response";
     public static final String GATEWAY_CONNECT_TOPIC = "v1/gateway/connect";
     public static final String GATEWAY_DISCONNECT_TOPIC = "v1/gateway/disconnect";
+    public static final String GATEWAY = "GATEWAY";
     private final ConcurrentMap<String, DeviceInfo> devices = new ConcurrentHashMap<>();
     private final AtomicLong attributesCount = new AtomicLong();
     private final AtomicLong telemetryCount = new AtomicLong();
@@ -85,13 +86,13 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     private MqttAsyncClient tbClient;
     private MqttConnectOptions tbClientOptions;
-    private PersistentQueue<MqttMessageWrapper> mqttMessageQueue;
+    private PersistentQueue<MqttMessageWrapper, IMqttToken> mqttMessageQueue;
 
     private Object connectLock = new Object();
 
     private ScheduledExecutorService scheduler;
     private ExecutorService callbackExecutor = Executors.newCachedThreadPool();
-    private ExecutorService senderExecutor = Executors.newSingleThreadExecutor();
+    private ExecutorService senderExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
     private Map<AttributeRequestKey, AttributeRequestListener> pendingAttrRequestsMap = new ConcurrentHashMap<>();
 
@@ -120,6 +121,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         }
 
         db = DBMaker.fileDB(persistence.getPath()).closeOnJvmShutdown().checksumHeaderBypass().make();
+
         mqttMessageQueue = new PersistentQueue<>(db);
         senderExecutor.submit(new MqttMessageSender(mqttMessageQueue, tbClient, connection.getRetryInterval()));
         connect();
@@ -144,8 +146,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         msg.setId(msgId);
         log.info("[{}] Device Connected!", deviceName);
         devices.putIfAbsent(deviceName, new DeviceInfo(deviceName));
-        return publishAsync(GATEWAY_CONNECT_TOPIC, msg,
-                (Consumer & Serializable) token -> {
+        return publishAsync(GATEWAY_CONNECT_TOPIC, msg, deviceName,
+                token -> {
                     log.info("[{}][{}] Device connect event is reported to Thingsboard!", deviceName, msgId);
                 },
                 error -> log.warn("[{}][{}] Failed to report device connection!", deviceName, msgId, error));
@@ -159,7 +161,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             MqttMessage msg = new MqttMessage(msgData);
             msg.setId(msgId);
             log.info("[{}][{}] Device Disconnected!", deviceName, msgId);
-            MqttDeliveryFuture future = publishAsync(GATEWAY_DISCONNECT_TOPIC, msg,
+            MqttDeliveryFuture future = publishAsync(GATEWAY_DISCONNECT_TOPIC, msg, deviceName,
                     token -> {
                         log.info("[{}][{}] Device disconnect event is delivered!", deviceName, msgId);
                     },
@@ -182,7 +184,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         final int packSize = attributes.size();
         MqttMessage msg = new MqttMessage(toBytes(node));
         msg.setId(msgId);
-        return publishAsync(GATEWAY_ATTRIBUTES_TOPIC, msg,
+        return publishAsync(GATEWAY_ATTRIBUTES_TOPIC, msg, deviceName,
                 token -> {
                     log.debug("[{}][{}] Device attributes were delivered!", deviceName, msgId);
                     attributesCount.addAndGet(packSize);
@@ -208,7 +210,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         final int packSize = telemetry.size();
         MqttMessage msg = new MqttMessage(toBytes(node));
         msg.setId(msgId);
-        return publishAsync(GATEWAY_TELEMETRY_TOPIC, msg,
+        return publishAsync(GATEWAY_TELEMETRY_TOPIC, msg, deviceName,
                 token -> {
                     log.debug("[{}][{}] Device telemetry published to Thingsboard!", msgId, deviceName);
                     telemetryCount.addAndGet(packSize);
@@ -233,7 +235,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
         msg.setId(msgId);
         pendingAttrRequestsMap.put(requestKey, new AttributeRequestListener(request, listener));
-        publishAsync(GATEWAY_REQUESTS_ATTRIBUTES_TOPIC, msg,
+        publishAsync(GATEWAY_REQUESTS_ATTRIBUTES_TOPIC, msg, deviceName,
                 token -> {
                     log.debug("[{}][{}] Device attributes request was delivered!", deviceName, msgId);
                 },
@@ -257,7 +259,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         node.put("data", data);
         MqttMessage msg = new MqttMessage(toBytes(node));
         msg.setId(msgId);
-        publishAsync(GATEWAY_RPC_TOPIC, msg,
+        publishAsync(GATEWAY_RPC_TOPIC, msg, deviceName,
                 token -> {
                     log.debug("[{}][{}] RPC response from device was delivered!", deviceName, requestId);
                 },
@@ -341,9 +343,9 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             onDeviceConnect(deviceName);
         }
     }
-    private MqttDeliveryFuture publishAsync(final String topic, MqttMessage msg, Consumer<IMqttToken> onSuccess, Consumer<Throwable> onFailure) {
-        MqttMessageWrapper messageWrapper = new MqttMessageWrapper(topic, msg.getPayload(), System.currentTimeMillis());
-        mqttMessageQueue.add(messageWrapper);
+    private MqttDeliveryFuture publishAsync(final String topic, MqttMessage msg, String deviceId, Consumer<IMqttToken> onSuccess, Consumer<Throwable> onFailure) {
+        MqttMessageWrapper messageWrapper = new MqttMessageWrapper(topic, deviceId, msg.getId(), msg.getPayload(), System.currentTimeMillis());
+        mqttMessageQueue.add(messageWrapper, onSuccess, onFailure);
         return null;
     }
 
@@ -365,7 +367,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         }
         MqttMessage msg = new MqttMessage(toBytes(node));
         msg.setId(msgIdSeq.incrementAndGet());
-        publishAsync(DEVICE_TELEMETRY_TOPIC, msg,
+        publishAsync(DEVICE_TELEMETRY_TOPIC, msg, GATEWAY,
                 token -> log.info("Gateway statistics {} reported!", node),
                 error -> log.warn("Failed to report gateway statistics!", error));
     }

@@ -38,6 +38,7 @@
         <thingsboard.version>1.2.3</thingsboard.version>
         <!-- Eclipse Paho 1.1.0 contains major issue with persistence of buffered messages. Using 1.1.1-SNAPSHOT for now. Need to remove this after Paho 1.1.1 release -->
         <paho.client.version>1.2.0</paho.client.version>
+        <mapdb.version>3.0.5</mapdb.version>
         <milo.client.version>0.1.0</milo.client.version>
         <json-path.version>2.2.0</json-path.version>
         <spring-boot.version>1.4.3.RELEASE</spring-boot.version>
@@ -106,6 +107,11 @@
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcpkix-jdk15on</artifactId>
             <version>${bouncycastle.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mapdb</groupId>
+            <artifactId>mapdb</artifactId>
+            <version>${mapdb.version}</version>
         </dependency>
     </dependencies>
 

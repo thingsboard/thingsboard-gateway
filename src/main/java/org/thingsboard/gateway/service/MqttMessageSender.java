@@ -4,6 +4,9 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.*;
 
+import java.util.Optional;
+import java.util.function.Consumer;
+
 /**
  * Created by Valerii Sosliuk on 12/12/2017.
  */
@@ -11,7 +14,7 @@ import org.eclipse.paho.client.mqttv3.*;
 @AllArgsConstructor
 public class MqttMessageSender implements Runnable {
 
-    private PersistentQueue<MqttMessageWrapper> queue;
+    private PersistentQueue<MqttMessageWrapper, IMqttToken> queue;
     private MqttAsyncClient tbClient;
     private long retryInterval;
 
@@ -24,14 +27,21 @@ public class MqttMessageSender implements Runnable {
                     tbClient.publish(messageWrapper.getTopic(), new MqttMessage(messageWrapper.getPayload()), null, new IMqttActionListener() {
                         @Override
                         public void onSuccess(IMqttToken asyncActionToken) {
-                            log.info("Message send succeded");
-                            //messageWrapper.getOnSuccess().accept(asyncActionToken);
+                            Optional<Consumer<IMqttToken>> successCallbackOpt = queue.getSuccessCallback(messageWrapper);
+                            Consumer<IMqttToken> successCallback = successCallbackOpt.orElse(token -> {
+                                log.debug("[{}][{}] Device attributes request was delivered!");
+                            });
+                            queue.removeCallbacks(messageWrapper);
+                            successCallback.accept(asyncActionToken);
                         }
 
                         @Override
                         public void onFailure(IMqttToken asyncActionToken, Throwable e) {
-                            log.info("Message send failed");
-                           // messageWrapper.getOnFailure().accept(e);
+                            Optional<Consumer<Throwable>> failureCallbackOpt = queue.getFailureCallback(messageWrapper);
+                            Consumer<Throwable> failureCallback = failureCallbackOpt.orElse(token -> {
+                                log.info("[{}][{}] Failed to send message");
+                            });
+                            failureCallback.accept(e);
                         }
                     });
                 }  catch (MqttException e) {

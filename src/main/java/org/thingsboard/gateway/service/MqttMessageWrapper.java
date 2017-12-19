@@ -18,8 +18,11 @@ public class MqttMessageWrapper implements Comparable<MqttMessageWrapper>, Seria
     private static final long serialVersionUID = -7371568402081050843L;
 
     private String topic;
+    private String deviceId;
+    private int messageId;
     private byte[] payload;
     private long timestamp;
+
 
     @Override
     public int compareTo(MqttMessageWrapper that) {
