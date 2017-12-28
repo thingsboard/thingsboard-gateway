@@ -36,6 +36,8 @@ public class TbPersistenceConfiguration {
     private String type;
     private String path;
     private int bufferSize;
+    private int maxMessagesPerPoll;
+    private long pollingInterval;
 
     public MqttClientPersistence getPersistence() {
         if (StringUtils.isEmpty(type) || type.equals("memory")) {
