@@ -19,7 +19,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Function;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.util.concurrent.Promise;
 import lombok.extern.slf4j.Slf4j;
+import nl.jk5.mqtt.MqttClient;
+import nl.jk5.mqtt.MqttClientConfig;
+import nl.jk5.mqtt.MqttConnectResult;
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -33,6 +41,8 @@ import org.thingsboard.server.common.data.kv.*;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import javax.net.ssl.SSLException;
+import java.io.File;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
@@ -89,6 +99,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     private MqttConnectOptions tbClientOptions;
 
+    private MqttClient tbClient;
+
     private ScheduledExecutorService scheduler;
     private ExecutorService mqttSenderExecutor;
     private ExecutorService callbackExecutor = Executors.newCachedThreadPool();
@@ -98,6 +110,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     @PostConstruct
     public void init() throws Exception {
         initTbClientOptions();
+        initMqttClient();
         initMqttSender();
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
@@ -119,6 +132,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         scheduler.shutdownNow();
         callbackExecutor.shutdownNow();
         mqttSenderExecutor.shutdownNow();
+        tbClient.disconnect();
     }
 
     @Override
@@ -426,7 +440,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     private void initMqttSender() {
         mqttSenderExecutor = Executors.newSingleThreadExecutor();
-        mqttSenderExecutor.submit(new MqttMessageSender(persistence, connection, mqttSenderService, messageRepository));
+        mqttSenderExecutor.submit(new MqttMessageSender(persistence, tbClient, mqttSenderService, messageRepository));
     }
 
     private static String toString(Exception e) {
@@ -453,5 +467,58 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             log.warn("Subscription was already removed: {}", sub);
             return false;
         }
+    }
+
+    private MqttClient initMqttClient() {
+        try {
+            MqttClientConfig mqttClientConfig = getMqttClientConfig();
+            mqttClientConfig.setUsername(connection.getSecurity().getAccessToken());
+            tbClient = MqttClient.create(mqttClientConfig);
+            tbClient.setEventLoop(new NioEventLoopGroup(100));
+            Promise<MqttConnectResult> connectResult = (Promise<MqttConnectResult>) tbClient.connect(connection.getHost(), connection.getPort());
+            connectResult.addListener(future -> {
+                if (future.isSuccess()) {
+                    MqttConnectResult result = (MqttConnectResult) future.getNow();
+                    log.debug("Gateway connect result code: [{}]", result.getReturnCode());
+                } else {
+                    log.error("Unable to connect to mqtt server!");
+                    if (future.cause() != null) {
+                        log.error(future.cause().getMessage(), future.cause());
+                    }
+                }
+            });
+            connectResult.get();
+            return tbClient;
+        } catch (InterruptedException e) {
+            log.error(e.getMessage(), e);
+            Thread.currentThread().interrupt();
+            return null;
+        } catch (ExecutionException e) {
+            log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    private MqttClientConfig getMqttClientConfig() {
+        MqttClientConfig mqttClientConfig;
+        if (!StringUtils.isEmpty(connection.getSecurity().getAccessToken())) {
+            mqttClientConfig = new MqttClientConfig();
+            mqttClientConfig.setUsername(connection.getSecurity().getAccessToken());
+        } else {
+            File trustStore = new File(connection.getSecurity().getTruststore());
+            File keyStore = new File(connection.getSecurity().getKeystore());
+            try {
+                // TODO: check if it works
+                SslContext sslCtx = SslContextBuilder.forClient().keyManager(trustStore, keyStore, connection.getSecurity().getKeystorePassword())
+                        .build();
+                mqttClientConfig = new MqttClientConfig(sslCtx);
+
+            } catch (SSLException e) {
+                log.error(e.getMessage(), e);
+                throw new RuntimeException(e);
+            }
+
+        }
+        return mqttClientConfig;
     }
 }
