@@ -57,22 +57,28 @@ public class MqttMessageServiceImpl implements MqttMessageService {
 
         PersistentMqttMessage mqttMessage = PersistentMqttMessage.builder().id(null).timestamp(System.currentTimeMillis())
                 .deviceId(deviceId).messageId(msg.getId()).payload(msg.getPayload()).topic(topic).build();
-        messageRepository.save(mqttMessage);
-        return null;
+        mqttMessage = messageRepository.save(mqttMessage);
+        MqttDeliveryFuture future = new MqttDeliveryFuture();
+        futures.put(mqttMessage.getId(), future);
+        return future;
     }
 
     @Override
     public void resolveFutureSuccess(UUID id) {
         successCallbacks.remove(id);
         failureCallbacks.remove(id);
-        // TODO: replace MqttDeliveryFuture with Promise and resolve it here as successful
         MqttDeliveryFuture future = futures.remove(id);
+        if (future != null) {
+            future.complete(null);
+        }
     }
 
     @Override
     public void resolveFutureFailed(UUID id) {
-        // TODO: replace MqttDeliveryFuture with Promise and resolve it here as failed
         MqttDeliveryFuture future = futures.remove(id);
+        if (future != null) {
+            future.complete(null);
+        }
     }
 
     @Override

@@ -23,7 +23,7 @@ import java.util.concurrent.*;
 /**
  * Created by ashvayka on 23.03.17.
  */
-public class MqttDeliveryFuture implements Future<Void> {
+public class MqttDeliveryFuture extends CompletableFuture<Void> implements Future<Void> {
 
     private final IMqttDeliveryToken token;
     private final Exception e;
@@ -36,6 +36,11 @@ public class MqttDeliveryFuture implements Future<Void> {
     public MqttDeliveryFuture(Exception e) {
         this.token = null;
         this.e = e;
+    }
+
+    public MqttDeliveryFuture() {
+        this.token = null;
+        this.e = null;
     }
 
     @Override
@@ -77,4 +82,5 @@ public class MqttDeliveryFuture implements Future<Void> {
             throw new ExecutionException(e);
         }
     }
+
 }

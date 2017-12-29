@@ -97,8 +97,14 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     @PostConstruct
     public void init() throws Exception {
+        initTbClientOptions();
+        initMqttSender();
         scheduler = Executors.newSingleThreadScheduledExecutor();
-        // TODO: do I need it here?
+        scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
+    }
+
+    private void initTbClientOptions() {
+        // TODO: move it to Configuration class?
         tbClientOptions = new MqttConnectOptions();
         tbClientOptions.setCleanSession(false);
         tbClientOptions.setMaxInflight(connection.getMaxInFlight());
@@ -106,8 +112,6 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
         MqttGatewaySecurityConfiguration security = connection.getSecurity();
         security.setupSecurityOptions(tbClientOptions);
-
-        initMqttSender();
     }
 
     @PreDestroy
@@ -312,7 +316,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     @Override
     public void connectionLost(Throwable cause) {
-        //TODO: reply with error
+        //TODO: remove as connection is maintained in MqttMessageSender
         pendingAttrRequestsMap.clear();
         //scheduler.schedule(this::checkClientReconnected, CLIENT_RECONNECT_CHECK_INTERVAL, TimeUnit.SECONDS);
     }

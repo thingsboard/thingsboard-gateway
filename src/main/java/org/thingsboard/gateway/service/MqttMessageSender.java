@@ -97,6 +97,7 @@ public class MqttMessageSender implements Runnable {
     private void reconnectClient() {
         try {
             tbClient.connect(connection.getHost(), connection.getPort()).get();
+            log.info("Successfully reconnected to ThingsBoard!");
         } catch (InterruptedException e) {
             log.error(e.getMessage(), e);
             Thread.currentThread().interrupt();
