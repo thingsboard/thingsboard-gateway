@@ -1,27 +1,28 @@
+/**
+ * Copyright © 2017 The Thingsboard Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.thingsboard.gateway.service;
 
 import io.netty.buffer.Unpooled;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.util.concurrent.Promise;
 import lombok.extern.slf4j.Slf4j;
-import nl.jk5.mqtt.ChannelClosedException;
 import nl.jk5.mqtt.MqttClient;
-import nl.jk5.mqtt.MqttClientConfig;
-import nl.jk5.mqtt.MqttConnectResult;
-import org.apache.commons.lang3.StringUtils;
 import org.thingsboard.gateway.dao.PersistentMqttMessage;
 import org.thingsboard.gateway.dao.PersistentMqttMessageRepository;
-import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
 import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
 
-import javax.net.ssl.SSLException;
-import java.io.File;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -38,7 +39,7 @@ public class MqttMessageSender implements Runnable {
 
     private PersistentMqttMessageRepository messageRepository;
 
-    private Consumer<PersistentMqttMessage> defaultSuccessCallback = message -> log.debug("Successfully sent message: [{}]", message);
+    private Consumer<Void> defaultSuccessCallback = message -> log.debug("Successfully sent message: [{}]", message);
     private Consumer<Throwable> defaultFailureCallback = e -> log.warn("Failed to send message: [{}]", e);
 
     public MqttMessageSender(TbPersistenceConfiguration persistence,
@@ -54,39 +55,39 @@ public class MqttMessageSender implements Runnable {
     @Override
     public void run() {
         while (true) {
-            List<PersistentMqttMessage> storedMessages = null;
-            storedMessages = mqttSenderService.getMessages(persistence.getMaxMessagesPerPoll());
-            if (!storedMessages.isEmpty()) {
-                for (PersistentMqttMessage message : storedMessages) {
-                    messageRepository.delete(message);
-                    tbClient.publish(message.getTopic(), Unpooled.wrappedBuffer(message.getPayload())).addListener(
-                            future -> {
-                                if (future.isSuccess()) {
-                                    Consumer<PersistentMqttMessage> successCallback = mqttSenderService.getSuccessCallback(message.getId()).orElse(defaultSuccessCallback);
-                                    successCallback.accept(message);
-                                    mqttSenderService.resolveFutureSuccess(message.getId());
-                                } else {
-                                    messageRepository.save(new PersistentMqttMessage(message));
-                                    /*
-                                    if (future.cause() instanceof ChannelClosedException) {
-                                        tbClient.c
+            try {
+                List<PersistentMqttMessage> storedMessages = null;
+                storedMessages = mqttSenderService.getMessages(persistence.getMaxMessagesPerPoll());
+                if (!storedMessages.isEmpty()) {
+                    for (PersistentMqttMessage message : storedMessages) {
+                        messageRepository.delete(message);
+                        tbClient.publish(message.getTopic(), Unpooled.wrappedBuffer(message.getPayload())).addListener(
+                                future -> {
+                                    if (future.isSuccess()) {
+                                        Consumer<Void> successCallback = mqttSenderService.getSuccessCallback(message.getId()).orElse(defaultSuccessCallback);
+                                        successCallback.accept(null);
+                                        mqttSenderService.resolveFutureSuccess(message.getId());
+                                    } else {
+                                        messageRepository.save(new PersistentMqttMessage(message));
+                                        mqttSenderService.getFailureCallback(message.getId()).orElse(defaultFailureCallback).accept(future.cause());
+                                        mqttSenderService.resolveFutureFailed(message.getId(), future.cause());
+                                        log.warn("Failed to send message [{}] due to [{}]", message, future.cause());
                                     }
-                                    */
-                                    mqttSenderService.getFailureCallback(message.getId()).orElse(defaultFailureCallback).accept(future.cause());
-                                    mqttSenderService.resolveFutureFailed(message.getId());
-                                    log.warn("Failed to send message [{}] due to [{}]", message, future.cause());
                                 }
-                            }
-                    );
+                        );
+                    }
+                } else {
+                    try {
+                        Thread.sleep(persistence.getPollingInterval());
+                    } catch (InterruptedException e) {
+                        log.error(e.getMessage(), e);
+                        Thread.currentThread().interrupt();
+                    }
                 }
-            } else {
-                try {
-                    Thread.sleep(persistence.getPollingInterval());
-                } catch (InterruptedException e) {
-                    log.error(e.getMessage(), e);
-                    Thread.currentThread().interrupt();
-                }
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
             }
         }
+
     }
 }

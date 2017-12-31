@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 The Thingsboard Authors
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,6 +25,7 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.util.concurrent.Promise;
 import lombok.extern.slf4j.Slf4j;
 import nl.jk5.mqtt.MqttClient;
+import nl.jk5.mqtt.MqttClientCallback;
 import nl.jk5.mqtt.MqttClientConfig;
 import nl.jk5.mqtt.MqttConnectResult;
 import org.apache.commons.lang3.StringUtils;
@@ -60,7 +61,7 @@ import static org.thingsboard.gateway.util.JsonTools.*;
  */
 @Service
 @Slf4j
-public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMessageListener {
+public class MqttGatewayService implements GatewayService, MqttCallback, MqttClientCallback, IMqttMessageListener {
 
     private static final long CLIENT_RECONNECT_CHECK_INTERVAL = 1;
     public static final String DEVICE_TELEMETRY_TOPIC = "v1/devices/me/telemetry";
@@ -330,9 +331,9 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     @Override
     public void connectionLost(Throwable cause) {
-        //TODO: remove as connection is maintained in MqttMessageSender
+        log.warn("Lost connection to ThingsBoard. Attempting to reconnect");
         pendingAttrRequestsMap.clear();
-        //scheduler.schedule(this::checkClientReconnected, CLIENT_RECONNECT_CHECK_INTERVAL, TimeUnit.SECONDS);
+        scheduler.schedule(tbClient::reconnect, CLIENT_RECONNECT_CHECK_INTERVAL, TimeUnit.SECONDS);
     }
 
     @Override
@@ -475,6 +476,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             mqttClientConfig.setUsername(connection.getSecurity().getAccessToken());
             tbClient = MqttClient.create(mqttClientConfig);
             tbClient.setEventLoop(new NioEventLoopGroup(100));
+            tbClient.setCallback(this);
             Promise<MqttConnectResult> connectResult = (Promise<MqttConnectResult>) tbClient.connect(connection.getHost(), connection.getPort());
             connectResult.addListener(future -> {
                 if (future.isSuccess()) {
