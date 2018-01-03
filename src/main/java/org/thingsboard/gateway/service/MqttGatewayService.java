@@ -32,7 +32,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.thingsboard.gateway.dao.PersistentMqttMessageRepository;
 import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
 import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
@@ -44,6 +43,7 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.net.ssl.SSLException;
 import java.io.File;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
@@ -93,10 +93,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
     private TbPersistenceConfiguration persistence;
 
     @Autowired
-    private MqttMessageService mqttSenderService;
-
-    @Autowired
-    private PersistentMqttMessageRepository messageRepository;
+    private PersistentFileService persistentFileService;
 
     private MqttConnectOptions tbClientOptions;
 
@@ -140,11 +137,9 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
     public MqttDeliveryFuture onDeviceConnect(final String deviceName) {
         final int msgId = msgIdSeq.incrementAndGet();
         byte[] msgData = toBytes(newNode().put("device", deviceName));
-        MqttMessage msg = new MqttMessage(msgData);
-        msg.setId(msgId);
         log.info("[{}] Device Connected!", deviceName);
         devices.putIfAbsent(deviceName, new DeviceInfo(deviceName));
-        return mqttSenderService.sendMessage(GATEWAY_CONNECT_TOPIC, msg, deviceName,
+        return persistMessage(GATEWAY_CONNECT_TOPIC, msgId, msgData, deviceName,
                 message -> {
                     log.info("[{}][{}] Device connect event is reported to Thingsboard!", deviceName, msgId);
                 },
@@ -157,10 +152,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
         if (devices.remove(deviceName) != null) {
             final int msgId = msgIdSeq.incrementAndGet();
             byte[] msgData = toBytes(newNode().put("device", deviceName));
-            MqttMessage msg = new MqttMessage(msgData);
-            msg.setId(msgId);
             log.info("[{}][{}] Device Disconnected!", deviceName, msgId);
-            return Optional.ofNullable(mqttSenderService.sendMessage(GATEWAY_DISCONNECT_TOPIC, msg, deviceName,
+            return Optional.ofNullable(persistMessage(GATEWAY_DISCONNECT_TOPIC, msgId, msgData, deviceName,
                     message -> {
                         log.info("[{}][{}] Device disconnect event is delivered!", deviceName, msgId);
                     },
@@ -180,15 +173,12 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
         ObjectNode deviceNode = node.putObject(deviceName);
         attributes.forEach(kv -> putToNode(deviceNode, kv));
         final int packSize = attributes.size();
-        MqttMessage msg = new MqttMessage(toBytes(node));
-        msg.setId(msgId);
-        return mqttSenderService.sendMessage(GATEWAY_ATTRIBUTES_TOPIC, msg, deviceName,
+        return persistMessage(GATEWAY_ATTRIBUTES_TOPIC, msgId, toBytes(node), deviceName,
                 message -> {
                     log.debug("[{}][{}] Device attributes were delivered!", deviceName, msgId);
                     attributesCount.addAndGet(packSize);
                 },
                 error -> log.warn("[{}][{}] Failed to report device attributes!", deviceName, msgId, error));
-
     }
 
     @Override
@@ -207,15 +197,26 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
             kv.getValue().forEach(v -> putToNode(valuesNode, v));
         });
         final int packSize = telemetry.size();
-        MqttMessage msg = new MqttMessage(toBytes(node));
-        msg.setId(msgId);
-        return mqttSenderService.sendMessage(GATEWAY_TELEMETRY_TOPIC, msg, deviceName,
+        return persistMessage(GATEWAY_TELEMETRY_TOPIC, msgId, toBytes(node), deviceName,
                 message -> {
                     log.debug("[{}][{}] Device telemetry published to Thingsboard!", msgId, deviceName);
                     telemetryCount.addAndGet(packSize);
                 },
                 error -> log.warn("[{}][{}] Failed to publish device telemetry!", deviceName, msgId, error));
+    }
 
+    private MqttDeliveryFuture persistMessage(String topic,
+                                              int msgId,
+                                              byte[] payload,
+                                              String deviceId,
+                                              Consumer<Void> onSuccess,
+                                              Consumer<Throwable> onFailure) {
+        try {
+            return persistentFileService.persistMessage(topic, msgId, payload, deviceId, onSuccess, onFailure);
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -235,14 +236,12 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
 
         msg.setId(msgId);
         pendingAttrRequestsMap.put(requestKey, new AttributeRequestListener(request, listener));
-        mqttSenderService.sendMessage(GATEWAY_REQUESTS_ATTRIBUTES_TOPIC, msg, deviceName,
-                token -> {
+        persistMessage(GATEWAY_TELEMETRY_TOPIC, msgId, toBytes(node), deviceName,
+                message -> {
                     log.debug("[{}][{}] Device attributes request was delivered!", deviceName, msgId);
                 },
-                error -> {
-                    log.warn("[{}][{}] Failed to report device attributes!", deviceName, msgId, error);
-                    pendingAttrRequestsMap.remove(requestKey);
-                });
+                error -> {log.warn("[{}][{}] Failed to report device attributes!", deviceName, msgId, error);
+                        pendingAttrRequestsMap.remove(requestKey);});
     }
 
     @Override
@@ -257,9 +256,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
         node.put("id", requestId);
         node.put("device", deviceName);
         node.put("data", data);
-        MqttMessage msg = new MqttMessage(toBytes(node));
-        msg.setId(msgId);
-        mqttSenderService.sendMessage(GATEWAY_RPC_TOPIC, msg, deviceName,
+        persistMessage(GATEWAY_RPC_TOPIC, msgId, toBytes(node), deviceName,
                 token -> {
                     log.debug("[{}][{}] RPC response from device was delivered!", deviceName, requestId);
                 },
@@ -322,9 +319,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
             valuesNode.put("latestError", JsonTools.toString(error));
             error = null;
         }
-        MqttMessage msg = new MqttMessage(toBytes(node));
-        msg.setId(msgIdSeq.incrementAndGet());
-        mqttSenderService.sendMessage(DEVICE_TELEMETRY_TOPIC, msg, GATEWAY,
+        persistMessage(DEVICE_TELEMETRY_TOPIC, msgIdSeq.incrementAndGet(), toBytes(node), GATEWAY,
                 token -> log.info("Gateway statistics {} reported!", node),
                 error -> log.warn("Failed to report gateway statistics!", error));
     }
@@ -441,7 +436,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
 
     private void initMqttSender() {
         mqttSenderExecutor = Executors.newSingleThreadExecutor();
-        mqttSenderExecutor.submit(new MqttMessageSender(persistence, connection, tbClient, mqttSenderService, messageRepository));
+        mqttSenderExecutor.submit(new MqttMessageSender(persistence, connection, tbClient, persistentFileService));
     }
 
     private static String toString(Exception e) {

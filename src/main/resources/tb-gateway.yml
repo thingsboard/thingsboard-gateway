@@ -18,9 +18,9 @@ gateway:
   reporting:
     interval: 60000
   persistence:
-    type: file
     path: storage
     bufferSize: 1000
+    pollingInterval: 1000
   connection:
     host: "demo.thingsboard.io"
     port: 1883
