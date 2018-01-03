@@ -441,7 +441,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
 
     private void initMqttSender() {
         mqttSenderExecutor = Executors.newSingleThreadExecutor();
-        mqttSenderExecutor.submit(new MqttMessageSender(persistence, tbClient, mqttSenderService, messageRepository));
+        mqttSenderExecutor.submit(new MqttMessageSender(persistence, connection, tbClient, mqttSenderService, messageRepository));
     }
 
     private static String toString(Exception e) {
