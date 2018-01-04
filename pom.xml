@@ -22,7 +22,7 @@
 
     <groupId>org.thingsboard</groupId>
     <artifactId>gateway</artifactId>
-    <version>1.2.1</version>
+    <version>1.2.2</version>
     <packaging>jar</packaging>
 
     <name>Thingsboard Gateway</name>
@@ -36,11 +36,14 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>1.8</java.version>
         <thingsboard.version>1.2.3</thingsboard.version>
+        <commons-lang3.version>3.4</commons-lang3.version>
         <!-- Eclipse Paho 1.1.0 contains major issue with persistence of buffered messages. Using 1.1.1-SNAPSHOT for now. Need to remove this after Paho 1.1.1 release -->
-        <paho.client.version>1.1.1</paho.client.version>
-        <milo.client.version>0.1.0</milo.client.version>
+        <paho.client.version>1.2.0</paho.client.version>
         <json-path.version>2.2.0</json-path.version>
+        <milo.client.version>0.1.0</milo.client.version>
+        <netty-mqtt.version>2.0.0TB</netty-mqtt.version>
         <spring-boot.version>1.4.3.RELEASE</spring-boot.version>
+        <spring.version>4.3.4.RELEASE</spring.version>
         <lombok.version>1.16.10</lombok.version>
         <winsw.version>2.0.1</winsw.version>
         <bouncycastle.version>1.52</bouncycastle.version>
@@ -97,15 +100,35 @@
             <optional>true</optional>
         </dependency>
         <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>${commons-lang3.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <version>${spring-boot.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-integration</artifactId>
+            <version>${spring-boot.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.integration</groupId>
+            <artifactId>spring-integration-jpa</artifactId>
+            <version>${spring.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcpkix-jdk15on</artifactId>
             <version>${bouncycastle.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>nl.jk5.netty-mqtt</groupId>
+            <artifactId>netty-mqtt</artifactId>
+            <version>${netty-mqtt.version}</version>
         </dependency>
     </dependencies>
 

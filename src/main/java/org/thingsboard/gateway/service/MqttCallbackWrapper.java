@@ -15,11 +15,18 @@
  */
 package org.thingsboard.gateway.service;
 
-import java.util.concurrent.CompletableFuture;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
+import java.util.function.Consumer;
 
 /**
- * Created by ashvayka on 23.03.17.
+ * Created by Valerii Sosliuk on 12/30/2017.
  */
-public class MqttDeliveryFuture extends CompletableFuture<Boolean> {
+@Data
+@AllArgsConstructor
+public class MqttCallbackWrapper {
 
+    private Consumer<Void> successCallback;
+    private Consumer<Throwable> failureCallback;
 }

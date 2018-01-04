@@ -18,14 +18,15 @@ gateway:
   reporting:
     interval: 60000
   persistence:
-    type: file
     path: storage
     bufferSize: 1000
+    pollingInterval: 1000
   connection:
     host: "demo.thingsboard.io"
     port: 1883
     retryInterval: 3000
     maxInFlight: 1000
+    maxQueueSize: 10000
     security:
       accessToken: your_token
 #      keystore: mqttclient.jks
