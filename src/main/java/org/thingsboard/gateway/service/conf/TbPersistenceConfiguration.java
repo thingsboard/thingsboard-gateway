@@ -30,6 +30,7 @@ import org.springframework.util.StringUtils;
 @Slf4j
 public class TbPersistenceConfiguration {
 
+    private String type;
     private String path;
     private int bufferSize;
     private long pollingInterval;

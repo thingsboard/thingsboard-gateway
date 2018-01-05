@@ -31,6 +31,7 @@ public class TbConnectionConfiguration {
     private String host;
     private int port;
     private long retryInterval;
+    private long connectionTimeout;
     private int maxInFlight;
     private int maxQueueSize;
     private MqttGatewaySecurityConfiguration security;

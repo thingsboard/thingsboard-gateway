@@ -74,6 +74,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
     public static final String GATEWAY_DISCONNECT_TOPIC = "v1/gateway/disconnect";
     public static final String GATEWAY = "GATEWAY";
     private static final long STATISTICS_START_DELAY = 5000;
+    private static final long DEFAULT_CONNECTION_TIMEOUT = 10000;
     private final ConcurrentMap<String, DeviceInfo> devices = new ConcurrentHashMap<>();
     private final AtomicLong attributesCount = new AtomicLong();
     private final AtomicLong telemetryCount = new AtomicLong();
@@ -240,8 +241,10 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
                 message -> {
                     log.debug("[{}][{}] Device attributes request was delivered!", deviceName, msgId);
                 },
-                error -> {log.warn("[{}][{}] Failed to report device attributes!", deviceName, msgId, error);
-                        pendingAttrRequestsMap.remove(requestKey);});
+                error -> {
+                    log.warn("[{}][{}] Failed to report device attributes!", deviceName, msgId, error);
+                    pendingAttrRequestsMap.remove(requestKey);
+                });
     }
 
     @Override
@@ -484,7 +487,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
                     }
                 }
             });
-            connectResult.get();
+            connectResult.get(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
             return tbClient;
         } catch (InterruptedException e) {
             log.error(e.getMessage(), e);
@@ -493,6 +496,10 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
         } catch (ExecutionException e) {
             log.error(e.getMessage(), e);
             throw new RuntimeException(e);
+        } catch (TimeoutException e) {
+            String message = "Unable to connect to ThingsBoard. Connection timed out after [" + connection.getConnectionTimeout() + "] milliseconds";
+            log.error(message, e);
+            throw new RuntimeException(message);
         }
     }
 

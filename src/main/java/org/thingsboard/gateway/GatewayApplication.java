@@ -15,12 +15,14 @@
  */
 package org.thingsboard.gateway;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.security.SecurityAutoConfiguration;
 
 import java.util.Arrays;
 
+@Slf4j
 @SpringBootApplication(exclude = {SecurityAutoConfiguration.class })
 public class GatewayApplication {
 
@@ -28,7 +30,12 @@ public class GatewayApplication {
     public static final String DEFAULT_SPRING_CONFIG_PARAM = SPRING_CONFIG_NAME_KEY + "=" + "tb-gateway";
 
     public static void main(String[] args) {
-        SpringApplication.run(GatewayApplication.class, updateArguments(args));
+        try {
+            SpringApplication.run(GatewayApplication.class, updateArguments(args));
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            System.exit(1);
+        }
     }
 
     private static String[] updateArguments(String[] args) {
