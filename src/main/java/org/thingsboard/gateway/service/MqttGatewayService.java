@@ -29,33 +29,29 @@ import nl.jk5.mqtt.MqttClient;
 import nl.jk5.mqtt.MqttClientCallback;
 import nl.jk5.mqtt.MqttClientConfig;
 import nl.jk5.mqtt.MqttConnectResult;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.CertPemClientCredentials;
-import org.thingsboard.gateway.extensions.mqtt.client.conf.MqttClientConf;
-import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
 import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
 import org.thingsboard.gateway.service.conf.TbReportingConfiguration;
+import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.gateway.util.JsonTools;
 import org.thingsboard.server.common.data.kv.*;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import javax.net.ssl.*;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
 import java.io.*;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -105,8 +101,6 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
     @Autowired
     private PersistentFileService persistentFileService;
 
-    private MqttConnectOptions tbClientOptions;
-
     private MqttClient tbClient;
 
     private ScheduledExecutorService scheduler;
@@ -117,22 +111,10 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
 
     @PostConstruct
     public void init() throws Exception {
-        initTbClientOptions();
         initMqttClient();
         initMqttSender();
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
-    }
-
-    private void initTbClientOptions() {
-        // TODO: move it to Configuration class?
-        tbClientOptions = new MqttConnectOptions();
-        tbClientOptions.setCleanSession(false);
-        tbClientOptions.setMaxInflight(connection.getMaxInFlight());
-        tbClientOptions.setAutomaticReconnect(true);
-
-        MqttGatewaySecurityConfiguration security = connection.getSecurity();
-        security.setupSecurityOptions(tbClientOptions);
     }
 
     @PreDestroy
@@ -519,27 +501,12 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
             mqttClientConfig.setUsername(connection.getSecurity().getAccessToken());
         } else {
             try {
-                MqttClientConf mqttClientConf = new MqttClientConf();
-                mqttClientConf.setHost(connection.getHost());
-                mqttClientConf.setPort(connection.getPort());
-                mqttClientConf.setConnectTimeoutSec((int) connection.getConnectionTimeout() / 1000);
-                mqttClientConf.setClientId(RandomStringUtils.randomAlphanumeric(10));
-                mqttClientConf.setSsl(true);
-
-                CertPemClientCredentials credentials = new CertPemClientCredentials();
-                credentials.setCaCert(connection.getSecurity().getTruststore());
-                credentials.setCert(connection.getSecurity().getCert());
-                credentials.setPrivateKey(connection.getSecurity().getPrivateKey());
-                credentials.setPassword(connection.getSecurity().getKeystorePassword());
-
-                mqttClientConf.setCredentials(credentials);
                 SslContext sslCtx = initSslContext(connection.getSecurity());
-                    mqttClientConfig = new MqttClientConfig(sslCtx);
+                mqttClientConfig = new MqttClientConfig(sslCtx);
             } catch (Exception e) {
                 log.error(e.getMessage(), e);
                 throw new RuntimeException(e);
             }
-
         }
         return mqttClientConfig;
     }
