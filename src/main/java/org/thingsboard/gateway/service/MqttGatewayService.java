@@ -77,9 +77,9 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
     public static final String GATEWAY_CONNECT_TOPIC = "v1/gateway/connect";
     public static final String GATEWAY_DISCONNECT_TOPIC = "v1/gateway/disconnect";
     public static final String GATEWAY = "GATEWAY";
-    private static final long STATISTICS_START_DELAY = 5000;
     private static final long DEFAULT_CONNECTION_TIMEOUT = 10000;
     private static final String JKS = "JKS";
+    private static final long DEFAULT_POLLING_INTERVAL = 1000;
     private final ConcurrentMap<String, DeviceInfo> devices = new ConcurrentHashMap<>();
     private final AtomicLong attributesCount = new AtomicLong();
     private final AtomicLong telemetryCount = new AtomicLong();
@@ -111,16 +111,20 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
 
     @PostConstruct
     public void init() throws Exception {
-        initConnectionTimeout();
+        initTimeouts();
         initMqttClient();
         initMqttSender();
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
     }
 
-    private void initConnectionTimeout() {
+    private void initTimeouts() {
+        // Backwards compatibility with old config file
         if (connection.getConnectionTimeout() == 0) {
             connection.setConnectionTimeout(DEFAULT_CONNECTION_TIMEOUT);
+        }
+        if (persistence.getPollingInterval() == 0) {
+            persistence.setPollingInterval(DEFAULT_POLLING_INTERVAL);
         }
     }
 
