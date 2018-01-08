@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Function;
+import com.google.common.io.Resources;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
@@ -32,22 +33,25 @@ import org.apache.commons.lang3.StringUtils;
 import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
 import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
 import org.thingsboard.gateway.service.conf.TbReportingConfiguration;
+import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.gateway.util.JsonTools;
 import org.thingsboard.server.common.data.kv.*;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import javax.net.ssl.SSLException;
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.*;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.security.KeyStore;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -75,6 +79,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
     public static final String GATEWAY = "GATEWAY";
     private static final long STATISTICS_START_DELAY = 5000;
     private static final long DEFAULT_CONNECTION_TIMEOUT = 10000;
+    private static final String JKS = "JKS";
     private final ConcurrentMap<String, DeviceInfo> devices = new ConcurrentHashMap<>();
     private final AtomicLong attributesCount = new AtomicLong();
     private final AtomicLong telemetryCount = new AtomicLong();
@@ -96,8 +101,6 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
     @Autowired
     private PersistentFileService persistentFileService;
 
-    private MqttConnectOptions tbClientOptions;
-
     private MqttClient tbClient;
 
     private ScheduledExecutorService scheduler;
@@ -108,22 +111,10 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
 
     @PostConstruct
     public void init() throws Exception {
-        initTbClientOptions();
         initMqttClient();
         initMqttSender();
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
-    }
-
-    private void initTbClientOptions() {
-        // TODO: move it to Configuration class?
-        tbClientOptions = new MqttConnectOptions();
-        tbClientOptions.setCleanSession(false);
-        tbClientOptions.setMaxInflight(connection.getMaxInFlight());
-        tbClientOptions.setAutomaticReconnect(true);
-
-        MqttGatewaySecurityConfiguration security = connection.getSecurity();
-        security.setupSecurityOptions(tbClientOptions);
     }
 
     @PreDestroy
@@ -509,20 +500,37 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
             mqttClientConfig = new MqttClientConfig();
             mqttClientConfig.setUsername(connection.getSecurity().getAccessToken());
         } else {
-            File trustStore = new File(connection.getSecurity().getTruststore());
-            File keyStore = new File(connection.getSecurity().getKeystore());
             try {
-                // TODO: check if it works
-                SslContext sslCtx = SslContextBuilder.forClient().keyManager(trustStore, keyStore, connection.getSecurity().getKeystorePassword())
-                        .build();
+                SslContext sslCtx = initSslContext(connection.getSecurity());
                 mqttClientConfig = new MqttClientConfig(sslCtx);
-
-            } catch (SSLException e) {
+            } catch (Exception e) {
                 log.error(e.getMessage(), e);
                 throw new RuntimeException(e);
             }
-
         }
         return mqttClientConfig;
+    }
+
+    private SslContext initSslContext(MqttGatewaySecurityConfiguration configuration) throws Exception {
+        URL ksUrl = Resources.getResource(configuration.getKeystore());
+        File ksFile = new File(ksUrl.toURI());
+        URL tsUrl = Resources.getResource(configuration.getTruststore());
+        File tsFile = new File(tsUrl.toURI());
+
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        KeyStore trustStore = KeyStore.getInstance(JKS);
+        try (InputStream tsFileInputStream = new FileInputStream(tsFile)) {
+            trustStore.load(tsFileInputStream, configuration.getTruststorePassword().toCharArray());
+        }
+        tmf.init(trustStore);
+
+        KeyStore keyStore = KeyStore.getInstance(JKS);
+        try (InputStream ksFileInputStream = new FileInputStream(ksFile)) {
+            keyStore.load(ksFileInputStream, configuration.getKeystorePassword().toCharArray());
+        }
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        kmf.init(keyStore, configuration.getKeystorePassword().toCharArray());
+
+        return SslContextBuilder.forClient().keyManager(kmf).trustManager(tmf).build();
     }
 }
