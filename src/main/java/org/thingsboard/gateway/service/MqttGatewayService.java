@@ -111,10 +111,17 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
 
     @PostConstruct
     public void init() throws Exception {
+        initConnectionTimeout();
         initMqttClient();
         initMqttSender();
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
+    }
+
+    private void initConnectionTimeout() {
+        if (connection.getConnectionTimeout() == 0) {
+            connection.setConnectionTimeout(DEFAULT_CONNECTION_TIMEOUT);
+        }
     }
 
     @PreDestroy
