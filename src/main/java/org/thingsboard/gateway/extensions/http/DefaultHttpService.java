@@ -23,7 +23,7 @@ import org.thingsboard.gateway.extensions.http.conf.HttpConverterConfiguration;
 import org.thingsboard.gateway.extensions.http.conf.mapping.HttpDeviceDataConverter;
 import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
-import org.thingsboard.gateway.service.gateway.MqttDeliveryFuture;
+import org.thingsboard.gateway.service.MqttDeliveryFuture;
 import org.thingsboard.gateway.service.data.DeviceData;
 import org.thingsboard.gateway.util.ConfigurationTools;
 

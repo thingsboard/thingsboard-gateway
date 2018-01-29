@@ -32,13 +32,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Created by ashvayka on 29.09.17.
  */
-@Service
 @Slf4j
-public class DefaultTenantManagerService implements TenantManagerService {
+public abstract class DefaultTenantManagerService implements TenantManagerService {
 
     @Autowired
     private TbGatewayConfiguration configuration;
@@ -49,6 +49,8 @@ public class DefaultTenantManagerService implements TenantManagerService {
 
     private static final String STATUS_STOP = "Stopped";
 
+    public abstract GatewayService getGatewayService(TbTenantConfiguration configuration, Consumer<String> extensionsConfigListener);
+
     @PostConstruct
     public void init() {
         gateways = new HashMap<>();
@@ -58,7 +60,7 @@ public class DefaultTenantManagerService implements TenantManagerService {
             if (isRemoteConfiguration) {
                 String label = configuration.getLabel();
                 log.info("[{}] Initializing gateway", configuration.getLabel());
-                GatewayService service = new MqttGatewayService(configuration, c -> onExtensionConfigurationUpdate(label, c));
+                GatewayService service = getGatewayService(configuration, c -> onExtensionConfigurationUpdate(label, c));//new MqttGatewayService(configuration, c -> onExtensionConfigurationUpdate(label, c));
                 try {
                     service.init();
                     gateways.put(label, new TenantServicesRegistry(service));
@@ -73,9 +75,9 @@ public class DefaultTenantManagerService implements TenantManagerService {
             } else {
                 String label = configuration.getLabel();
                 log.info("[{}] Initializing gateway", configuration.getLabel());
-                GatewayService service = new MqttGatewayService(configuration, c -> {});
+                GatewayService service = getGatewayService(configuration, c -> {});//new MqttGatewayService(configuration, c -> {});
                 try {
-                    service.init();
+                    //service.init();
                     ExtensionServiceCreation serviceCreation = new TenantServicesRegistry(service);
                     for (TbExtensionConfiguration extensionConfiguration : configuration.getExtensions()) {
                         log.info("[{}] Initializing extension: [{}]", configuration.getLabel(), extensionConfiguration.getType());

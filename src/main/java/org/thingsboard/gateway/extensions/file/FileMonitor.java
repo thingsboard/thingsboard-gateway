@@ -19,7 +19,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.thingsboard.gateway.extensions.file.conf.FileMonitorConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
-import org.thingsboard.gateway.service.gateway.MqttDeliveryFuture;
+import org.thingsboard.gateway.service.MqttDeliveryFuture;
 import org.thingsboard.gateway.service.data.DeviceData;
 import org.thingsboard.gateway.util.JsonTools;
 

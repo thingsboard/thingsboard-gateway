@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 The Thingsboard Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,25 +18,42 @@ package org.thingsboard.gateway.service.gateway;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.common.base.Function;
+import com.google.common.io.Resources;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.util.concurrent.Promise;
 import lombok.extern.slf4j.Slf4j;
+import nl.jk5.mqtt.*;
+import nl.jk5.mqtt.MqttClient;
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.paho.client.mqttv3.*;
-import org.springframework.util.StringUtils;
-import org.thingsboard.gateway.service.AttributesUpdateListener;
-import org.thingsboard.gateway.service.RpcCommandListener;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
+import org.thingsboard.gateway.service.*;
 import org.thingsboard.gateway.service.conf.*;
 import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.gateway.util.JsonTools;
 import org.thingsboard.server.common.data.kv.*;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
+import javax.annotation.PostConstruct;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.*;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.security.KeyStore;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.thingsboard.gateway.util.JsonTools.*;
@@ -45,7 +62,9 @@ import static org.thingsboard.gateway.util.JsonTools.*;
  * Created by ashvayka on 16.01.17.
  */
 @Slf4j
-public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMessageListener {
+@Component
+@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
+public class MqttGatewayService implements GatewayService, MqttCallback, MqttClientCallback, IMqttMessageListener {
 
     private static final long CLIENT_RECONNECT_CHECK_INTERVAL = 1;
     public static final String DEVICE_TELEMETRY_TOPIC = "v1/devices/me/telemetry";
@@ -56,10 +75,15 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     public static final String GATEWAY_RESPONSES_ATTRIBUTES_TOPIC = "v1/gateway/attributes/response";
     public static final String GATEWAY_CONNECT_TOPIC = "v1/gateway/connect";
     public static final String GATEWAY_DISCONNECT_TOPIC = "v1/gateway/disconnect";
+    public static final String GATEWAY = "GATEWAY";
+    private static final long DEFAULT_CONNECTION_TIMEOUT = 10000;
+    private static final String JKS = "JKS";
+    private static final long DEFAULT_POLLING_INTERVAL = 1000;
     public static final String DEVICE_ATTRIBUTES_TOPIC = "v1/devices/me/attributes";
     public static final String DEVICE_GET_ATTRIBUTES_REQUEST_TOPIC = "v1/devices/me/attributes/request/1";
     public static final String DEVICE_GET_ATTRIBUTES_RESPONSE_TOPIC = "v1/devices/me/attributes/response/1";
     public static final String DEVICE_GET_ATTRIBUTES_RESPONSE_PLUS_TOPIC = "v1/devices/me/attributes/response/+";
+
 
     private final ConcurrentMap<String, DeviceInfo> devices = new ConcurrentHashMap<>();
     private final AtomicLong attributesCount = new AtomicLong();
@@ -69,65 +93,60 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     private final Set<RpcCommandSubscription> rpcCommandSubs = ConcurrentHashMap.newKeySet();
     private final Map<AttributeRequestKey, AttributeRequestListener> pendingAttrRequestsMap = new ConcurrentHashMap<>();
 
-    private final String tenantLabel;
-    private final TbTenantConfiguration configuration;
-    private final TbConnectionConfiguration connection;
-    private final TbReportingConfiguration reporting;
-    private final TbPersistenceConfiguration persistence;
-    private final Consumer<String> extensionsConfigListener;
+    private String tenantLabel;
+
+    private PersistentFileService persistentFileService;
+
+    private Consumer<String> extensionsConfigListener;
+    private TbTenantConfiguration configuration;
+    private TbConnectionConfiguration connection;
+    private TbReportingConfiguration reporting;
+    private TbPersistenceConfiguration persistence;
+
 
     private volatile ObjectNode error;
-
-    private MqttAsyncClient tbClient;
-    private MqttConnectOptions tbClientOptions;
-
-    private Object connectLock = new Object();
+    private MqttClient tbClient;
 
     private ScheduledExecutorService scheduler;
+    private ExecutorService mqttSenderExecutor;
     private ExecutorService callbackExecutor = Executors.newCachedThreadPool();
 
 
     public MqttGatewayService(TbTenantConfiguration configuration, Consumer<String> extensionsConfigListener) {
         this.configuration = configuration;
         this.extensionsConfigListener = extensionsConfigListener;
+    }
+
+    @Override
+    @PostConstruct
+    public void init() {
         this.tenantLabel = configuration.getLabel();
         this.connection = configuration.getConnection();
         this.reporting = configuration.getReporting();
         this.persistence = configuration.getPersistence();
+        this.tenantLabel = configuration.getLabel();
+        initTimeouts();
+        initMqttClient();
+        initMqttSender();
+        scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
     }
 
-    @Override
-    public void init() throws Exception {
-        scheduler = Executors.newSingleThreadScheduledExecutor();
-
-        tbClientOptions = new MqttConnectOptions();
-        tbClientOptions.setCleanSession(false);
-        tbClientOptions.setMaxInflight(connection.getMaxInFlight());
-        tbClientOptions.setAutomaticReconnect(true);
-
-        MqttGatewaySecurityConfiguration security = connection.getSecurity();
-        security.setupSecurityOptions(tbClientOptions);
-
-        tbClient = new MqttAsyncClient((security.isSsl() ? "ssl" : "tcp") + "://" + connection.getHost() + ":" + connection.getPort(),
-                security.getClientId(), persistence.getPersistence());
-        tbClient.setCallback(this);
-
-        if (persistence.getBufferSize() > 0) {
-            DisconnectedBufferOptions options = new DisconnectedBufferOptions();
-            options.setBufferSize(persistence.getBufferSize());
-            options.setBufferEnabled(true);
-            options.setPersistBuffer(true);
-            tbClient.setBufferOpts(options);
+    private void initTimeouts() {
+        // Backwards compatibility with old config file
+        if (connection.getConnectionTimeout() == 0) {
+            connection.setConnectionTimeout(DEFAULT_CONNECTION_TIMEOUT);
         }
-        connect();
-
-        scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
+        if (persistence.getPollingInterval() == 0) {
+            persistence.setPollingInterval(DEFAULT_POLLING_INTERVAL);
+        }
     }
 
     @Override
     public void destroy() throws Exception {
         scheduler.shutdownNow();
         callbackExecutor.shutdownNow();
+        mqttSenderExecutor.shutdownNow();
         tbClient.disconnect();
     }
 
@@ -139,19 +158,15 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
     @Override
     public MqttDeliveryFuture onDeviceConnect(final String deviceName, final String deviceType) {
         final int msgId = msgIdSeq.incrementAndGet();
-        ObjectNode node = newNode().put("device", deviceName);
-        if (!StringUtils.isEmpty(deviceType)) {
-            node.put("type", deviceType);
-        }
-        MqttMessage msg = new MqttMessage(toBytes(node));
-        msg.setId(msgId);
+        byte[] msgData = toBytes(newNode().put("device", deviceName));
         log.info("[{}] Device Connected!", deviceName);
         devices.putIfAbsent(deviceName, new DeviceInfo(deviceName, deviceType));
-        return publishAsync(GATEWAY_CONNECT_TOPIC, msg,
-                token -> {
+        return persistMessage(GATEWAY_CONNECT_TOPIC, msgId, msgData, deviceName,
+                message -> {
                     log.info("[{}][{}] Device connect event is reported to Thingsboard!", deviceName, msgId);
                 },
                 error -> log.warn("[{}][{}] Failed to report device connection!", deviceName, msgId, error));
+
     }
 
     @Override
@@ -159,15 +174,12 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         if (devices.remove(deviceName) != null) {
             final int msgId = msgIdSeq.incrementAndGet();
             byte[] msgData = toBytes(newNode().put("device", deviceName));
-            MqttMessage msg = new MqttMessage(msgData);
-            msg.setId(msgId);
             log.info("[{}][{}] Device Disconnected!", deviceName, msgId);
-            MqttDeliveryFuture future = publishAsync(GATEWAY_DISCONNECT_TOPIC, msg,
-                    token -> {
+            return Optional.ofNullable(persistMessage(GATEWAY_DISCONNECT_TOPIC, msgId, msgData, deviceName,
+                    message -> {
                         log.info("[{}][{}] Device disconnect event is delivered!", deviceName, msgId);
                     },
-                    error -> log.warn("[{}][{}] Failed to report device disconnect!", deviceName, msgId, error));
-            return Optional.of(future);
+                    error -> log.warn("[{}][{}] Failed to report device disconnect!", deviceName, msgId, error)));
         } else {
             log.debug("[{}] Device was disconnected before. Nothing is going to happened.", deviceName);
             return Optional.empty();
@@ -183,10 +195,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         ObjectNode deviceNode = node.putObject(deviceName);
         attributes.forEach(kv -> putToNode(deviceNode, kv));
         final int packSize = attributes.size();
-        MqttMessage msg = new MqttMessage(toBytes(node));
-        msg.setId(msgId);
-        return publishAsync(GATEWAY_ATTRIBUTES_TOPIC, msg,
-                token -> {
+        return persistMessage(GATEWAY_ATTRIBUTES_TOPIC, msgId, toBytes(node), deviceName,
+                message -> {
                     log.debug("[{}][{}] Device attributes were delivered!", deviceName, msgId);
                     attributesCount.addAndGet(packSize);
                 },
@@ -209,14 +219,27 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             kv.getValue().forEach(v -> putToNode(valuesNode, v));
         });
         final int packSize = telemetry.size();
-        MqttMessage msg = new MqttMessage(toBytes(node));
-        msg.setId(msgId);
-        return publishAsync(GATEWAY_TELEMETRY_TOPIC, msg,
-                token -> {
+        return persistMessage(GATEWAY_TELEMETRY_TOPIC, msgId, toBytes(node), deviceName,
+                message -> {
                     log.debug("[{}][{}] Device telemetry published to ThingsBoard!", msgId, deviceName);
                     telemetryCount.addAndGet(packSize);
                 },
                 error -> log.warn("[{}][{}] Failed to publish device telemetry!", deviceName, msgId, error));
+    }
+
+
+    private MqttDeliveryFuture persistMessage(String topic,
+                                              int msgId,
+                                              byte[] payload,
+                                              String deviceId,
+                                              Consumer<Void> onSuccess,
+                                              Consumer<Throwable> onFailure) {
+        try {
+            return persistentFileService.persistMessage(topic, msgId, payload, deviceId, onSuccess, onFailure);
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -236,8 +259,8 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
         msg.setId(msgId);
         pendingAttrRequestsMap.put(requestKey, new AttributeRequestListener(request, listener));
-        publishAsync(GATEWAY_REQUESTS_ATTRIBUTES_TOPIC, msg,
-                token -> {
+        persistMessage(GATEWAY_REQUESTS_ATTRIBUTES_TOPIC, msgId, toBytes(node), deviceName,
+                message -> {
                     log.debug("[{}][{}] Device attributes request was delivered!", deviceName, msgId);
                 },
                 error -> {
@@ -258,9 +281,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         node.put("id", requestId);
         node.put("device", deviceName);
         node.put("data", data);
-        MqttMessage msg = new MqttMessage(toBytes(node));
-        msg.setId(msgId);
-        publishAsync(GATEWAY_RPC_TOPIC, msg,
+        persistMessage(GATEWAY_RPC_TOPIC, msgId, toBytes(node), deviceName,
                 token -> {
                     log.debug("[{}][{}] RPC response from device was delivered!", deviceName, requestId);
                 },
@@ -305,77 +326,23 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         error = node;
     }
 
-    private void connect() {
-        if (!tbClient.isConnected()) {
-            synchronized (connectLock) {
-                while (!tbClient.isConnected()) {
-                    log.debug("Attempt to connect to Thingsboard!");
-                    try {
-                        tbClient.connect(tbClientOptions, null, new IMqttActionListener() {
-                            @Override
-                            public void onSuccess(IMqttToken iMqttToken) {
-                                log.info("Connected to Thingsboard!");
-                            }
+    /*
+                            TODO: fix publish!
 
-                            @Override
-                            public void onFailure(IMqttToken iMqttToken, Throwable e) {
-                            }
-                        }).waitForCompletion();
+                            MqttMessage msg = new MqttMessage(toBytes(node));
+                            tbClient.publish(DEVICE_GET_ATTRIBUTES_REQUEST_TOPIC, msg).waitForCompletion();
 
-                        tbClient.subscribe(DEVICE_ATTRIBUTES_TOPIC, 1, (IMqttMessageListener) this).waitForCompletion();
-
-                        tbClient.subscribe(DEVICE_GET_ATTRIBUTES_RESPONSE_PLUS_TOPIC, 1, (IMqttMessageListener) this).waitForCompletion();
-                        ObjectNode node = newNode().put("shared", "configuration");
-                        MqttMessage msg = new MqttMessage(toBytes(node));
-                        tbClient.publish(DEVICE_GET_ATTRIBUTES_REQUEST_TOPIC, msg).waitForCompletion();
-
-                        devices.forEach((k, v) -> onDeviceConnect(v.getName(), v.getType()));
-                    } catch (Exception e) {
-                        log.warn("Failed to connect to ThingsBoard!", e);
-                        if (!tbClient.isConnected()) {
-                            try {
-                                Thread.sleep(connection.getRetryInterval());
-                            } catch (InterruptedException e1) {
-                                log.trace("Failed to wait for retry interval!", e);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
+                            devices.forEach((k, v) -> onDeviceConnect(v.getName(), v.getType()));
+                        } catch (Exception e) {
+                            log.warn("Failed to connect to ThingsBoard!", e);
+                            */
     private void checkDeviceConnected(String deviceName) {
         if (!devices.containsKey(deviceName)) {
             onDeviceConnect(deviceName, null);
         }
     }
 
-    private MqttDeliveryFuture publishAsync(final String topic, MqttMessage msg, Consumer<IMqttToken> onSuccess, Consumer<Throwable> onFailure) {
-        try {
-            IMqttDeliveryToken token = tbClient.publish(topic, msg, null, new IMqttActionListener() {
-                @Override
-                public void onSuccess(IMqttToken asyncActionToken) {
-                    onSuccess.accept(asyncActionToken);
-                }
-
-                @Override
-                public void onFailure(IMqttToken asyncActionToken, Throwable e) {
-                    onFailure.accept(e);
-                }
-            });
-            return new MqttDeliveryFuture(token);
-        } catch (MqttException e) {
-            onFailure.accept(e);
-            return new MqttDeliveryFuture(e);
-        }
-    }
-
     private void reportStats() {
-        if (tbClient == null) {
-            log.info("Can't report stats because client was not initialized yet!");
-            return;
-        }
         ObjectNode node = newNode();
         node.put("ts", System.currentTimeMillis());
         ObjectNode valuesNode = node.putObject("values");
@@ -387,18 +354,16 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             valuesNode.put("latestError", JsonTools.toString(error));
             error = null;
         }
-        MqttMessage msg = new MqttMessage(toBytes(node));
-        msg.setId(msgIdSeq.incrementAndGet());
-        publishAsync(DEVICE_TELEMETRY_TOPIC, msg,
+        persistMessage(DEVICE_TELEMETRY_TOPIC, msgIdSeq.incrementAndGet(), toBytes(node), GATEWAY,
                 token -> log.info("Gateway statistics {} reported!", node),
                 error -> log.warn("Failed to report gateway statistics!", error));
     }
 
     @Override
     public void connectionLost(Throwable cause) {
-        //TODO: reply with error
+        log.warn("Lost connection to ThingsBoard. Attempting to reconnect");
         pendingAttrRequestsMap.clear();
-        scheduler.schedule(this::checkClientReconnected, CLIENT_RECONNECT_CHECK_INTERVAL, TimeUnit.SECONDS);
+        scheduler.schedule(tbClient::reconnect, CLIENT_RECONNECT_CHECK_INTERVAL, TimeUnit.SECONDS);
     }
 
     @Override
@@ -495,7 +460,9 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     private void updateConfiguration(String configuration) {
         try {
-            extensionsConfigListener.accept(configuration);
+            if (extensionsConfigListener != null) {
+                extensionsConfigListener.accept(configuration);
+            }
             onAppliedConfiguration(configuration);
         } catch (Exception e) {
             log.warn("Failed to update extension configurations");
@@ -504,55 +471,36 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
 
     @Override
     public void onAppliedConfiguration(String configuration) {
-        try {
-            ObjectNode node = newNode();
-            node.put("appliedConfiguration", configuration);
-            MqttMessage msg = new MqttMessage(JsonTools.toString(node).getBytes(StandardCharsets.UTF_8));
-            tbClient.publish(DEVICE_ATTRIBUTES_TOPIC, msg).waitForCompletion();
-        } catch (Exception e) {
-            log.warn("Could not publish applied configuration", e);
-        }
+        byte[] msgData = toBytes(newNode().put("appliedConfiguration", configuration));
+        persistMessage(DEVICE_ATTRIBUTES_TOPIC, msgIdSeq.incrementAndGet(), msgData, null, null,
+                error ->
+                        log.warn("Could not publish applied configuration", error));
     }
 
     @Override
     public void onConfigurationError(Exception e, TbExtensionConfiguration configuration) {
-        try {
-            String id = configuration.getId();
-            ObjectNode node = newNode();
-            node.put(id + "ExtensionError", toString(e));
-            MqttMessage msg = new MqttMessage(toBytes(node));
-            tbClient.publish(DEVICE_TELEMETRY_TOPIC, msg).waitForCompletion();
+        String id = configuration.getId();
+        byte[] msgDataError = toBytes(newNode().put(id + "ExtensionError", toString(e)));
+        persistMessage(DEVICE_TELEMETRY_TOPIC, msgIdSeq.incrementAndGet(), msgDataError, null, null,
+                error -> log.warn("Could not report extension error", error));
 
-            node = newNode();
-            node.put(id + "ExtensionStatus", "Failure");
-            msg = new MqttMessage(toBytes(node));
-            tbClient.publish(DEVICE_TELEMETRY_TOPIC, msg).waitForCompletion();
-        } catch (Exception e1) {
-            log.warn("Could not report extension error", e1);
-        }
+        byte[] msgDataStatus = toBytes(newNode().put(id + "ExtensionStatus", "Failure"));
+        persistMessage(DEVICE_TELEMETRY_TOPIC, msgIdSeq.incrementAndGet(), msgDataStatus, null, null,
+                error -> log.warn("Could not report extension error status", error));
     }
 
     @Override
     public void onConfigurationStatus(String id, String status) {
-        ObjectNode objectNode = newNode();
-        try {
-            objectNode.put(id + "ExtensionStatus", status);
-            MqttMessage msg = new MqttMessage(toBytes(objectNode));
-            tbClient.publish(DEVICE_TELEMETRY_TOPIC, msg).waitForCompletion();
-            log.info("Reported status [{}] of extension [{}]", status, id);
-        } catch (Exception e) {
-            log.warn("Extension status reporting failed", e);
-        }
+        byte[] extentionStatusData = toBytes(newNode().put(id + "ExtensionStatus", status));
+        persistMessage(DEVICE_TELEMETRY_TOPIC, msgIdSeq.incrementAndGet(), extentionStatusData, null,
+                message -> log.info("Reported status [{}] of extension [{}]", status, id),
+                error -> log.warn("Extension status reporting failed", error));
 
-        try {
-            objectNode = newNode();
-            objectNode.put(id + "ExtensionError", "");
-            MqttMessage msg = new MqttMessage(toBytes(objectNode));
-            tbClient.publish(DEVICE_TELEMETRY_TOPIC, msg).waitForCompletion();
-        } catch (Exception e) {
-            log.warn("Extension error clearing failed", e);
-        }
 
+        byte[] extentionErrorData = toBytes(newNode().put(id + "ExtensionError", ""));
+        persistMessage(DEVICE_TELEMETRY_TOPIC, msgIdSeq.incrementAndGet(), extentionErrorData, null,
+                null, error ->
+                        log.warn("Extension error clearing failed", error));
     }
 
     private void onDeviceAttributesResponse(MqttMessage message) {
@@ -598,12 +546,9 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
         });
     }
 
-    private void checkClientReconnected() {
-        if (tbClient.isConnected()) {
-            devices.forEach((k, v) -> onDeviceConnect(v.getName(), v.getType()));
-        } else {
-            scheduler.schedule(this::checkClientReconnected, CLIENT_RECONNECT_CHECK_INTERVAL, TimeUnit.SECONDS);
-        }
+    private void initMqttSender() {
+        mqttSenderExecutor = Executors.newSingleThreadExecutor();
+        mqttSenderExecutor.submit(new MqttMessageSender(persistence, connection, tbClient, persistentFileService));
     }
 
     private static String toString(Exception e) {
@@ -630,5 +575,100 @@ public class MqttGatewayService implements GatewayService, MqttCallback, IMqttMe
             log.warn("Subscription was already removed: {}", sub);
             return false;
         }
+    }
+
+
+    private MqttHandler getMqttHandler() {
+        return new MqttHandlerImpl(extensionsConfigListener, persistentFileService);
+    }
+
+    private MqttClient initMqttClient() {
+        try {
+            MqttClientConfig mqttClientConfig = getMqttClientConfig();
+            mqttClientConfig.setUsername(connection.getSecurity().getAccessToken());
+            tbClient = MqttClient.create(mqttClientConfig);
+            tbClient.setEventLoop(new NioEventLoopGroup(100));
+            tbClient.setCallback(this);
+            Promise<MqttConnectResult> connectResult = (Promise<MqttConnectResult>) tbClient.connect(connection.getHost(), connection.getPort());
+            connectResult.addListener(future -> {
+                if (future.isSuccess()) {
+                    MqttConnectResult result = (MqttConnectResult) future.getNow();
+                    log.debug("Gateway connect result code: [{}]", result.getReturnCode());
+                } else {
+                    log.error("Unable to connect to mqtt server!");
+                    if (future.cause() != null) {
+                        log.error(future.cause().getMessage(), future.cause());
+                    }
+                }
+            });
+            connectResult.get(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
+
+            MqttHandler mqttHandler = getMqttHandler();
+            tbClient.on(DEVICE_ATTRIBUTES_TOPIC, mqttHandler).await(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
+            tbClient.on(DEVICE_GET_ATTRIBUTES_RESPONSE_PLUS_TOPIC, mqttHandler).await(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
+            tbClient.on(DEVICE_GET_ATTRIBUTES_RESPONSE_PLUS_TOPIC, mqttHandler).await(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
+
+
+            byte[] msgData = toBytes(newNode().put("shared", "configuration"));
+            persistMessage(DEVICE_GET_ATTRIBUTES_REQUEST_TOPIC, msgIdSeq.incrementAndGet(), msgData, null,
+                    null,
+                    error -> log.warn("Error getiing attributes", error));
+            return tbClient;
+        } catch (InterruptedException e) {
+            log.error(e.getMessage(), e);
+            Thread.currentThread().interrupt();
+            return null;
+        } catch (ExecutionException e) {
+            log.error(e.getMessage(), e);
+            throw new RuntimeException(e);
+        } catch (TimeoutException e) {
+            String message = "Unable to connect to ThingsBoard. Connection timed out after [" + connection.getConnectionTimeout() + "] milliseconds";
+            log.error(message, e);
+            throw new RuntimeException(message);
+        }
+    }
+
+    private MqttClientConfig getMqttClientConfig() {
+        MqttClientConfig mqttClientConfig;
+        if (!StringUtils.isEmpty(connection.getSecurity().getAccessToken())) {
+            mqttClientConfig = new MqttClientConfig();
+            mqttClientConfig.setUsername(connection.getSecurity().getAccessToken());
+        } else {
+            try {
+                SslContext sslCtx = initSslContext(connection.getSecurity());
+                mqttClientConfig = new MqttClientConfig(sslCtx);
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
+                throw new RuntimeException(e);
+            }
+        }
+        return mqttClientConfig;
+    }
+
+    private SslContext initSslContext(MqttGatewaySecurityConfiguration configuration) throws Exception {
+        URL ksUrl = Resources.getResource(configuration.getKeystore());
+        File ksFile = new File(ksUrl.toURI());
+        URL tsUrl = Resources.getResource(configuration.getTruststore());
+        File tsFile = new File(tsUrl.toURI());
+
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        KeyStore trustStore = KeyStore.getInstance(JKS);
+        try (InputStream tsFileInputStream = new FileInputStream(tsFile)) {
+            trustStore.load(tsFileInputStream, configuration.getTruststorePassword().toCharArray());
+        }
+        tmf.init(trustStore);
+
+        KeyStore keyStore = KeyStore.getInstance(JKS);
+        try (InputStream ksFileInputStream = new FileInputStream(ksFile)) {
+            keyStore.load(ksFileInputStream, configuration.getKeystorePassword().toCharArray());
+        }
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        kmf.init(keyStore, configuration.getKeystorePassword().toCharArray());
+
+        return SslContextBuilder.forClient().keyManager(kmf).trustManager(tmf).build();
+    }
+
+    public void setPersistentFileService(PersistentFileService persistentFileService) {
+        this.persistentFileService = persistentFileService;
     }
 }
