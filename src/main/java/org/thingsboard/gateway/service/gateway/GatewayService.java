@@ -15,6 +15,7 @@
  */
 package org.thingsboard.gateway.service.gateway;
 
+import org.thingsboard.gateway.service.MqttDeliveryFuture;
 import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.server.common.data.kv.KvEntry;
