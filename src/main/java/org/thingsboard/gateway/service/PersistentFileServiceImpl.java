@@ -71,7 +71,8 @@ public class PersistentFileServiceImpl implements PersistentFileService {
     }
 
     private void initStorageDir() {
-        storageDir = new File(persistence.getPath());
+        String storageSubdir = tenantName.replaceAll(" ", "_");
+        storageDir = new File(persistence.getPath(), storageSubdir);
         if (!storageDir.exists()) {
             storageDir.mkdirs();
         }
@@ -83,9 +84,8 @@ public class PersistentFileServiceImpl implements PersistentFileService {
     }
 
     private List<File> getFiles(String nameRegex) {
-        List<File> files = new LinkedList<>();
         File[] filesArray = storageDir.listFiles((file) -> {return !file.isDirectory() && file.getName().matches(nameRegex);});
-        Arrays.sort(filesArray, (File a, File b) -> a.compareTo(b));
+        Arrays.sort(filesArray, Comparator.comparing(File::lastModified));
         return new ArrayList<>(Arrays.asList(filesArray));
     }
 
