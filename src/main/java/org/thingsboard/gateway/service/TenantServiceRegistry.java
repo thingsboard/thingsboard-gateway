@@ -38,9 +38,9 @@ import java.util.Map;
  */
 @Slf4j
 @Data
-public class TenantServicesRegistry implements ExtensionServiceCreation {
+public class TenantServiceRegistry implements ExtensionServiceCreation {
 
-    private final GatewayService service;
+    private GatewayService service;
     private final Map<String, ExtensionService> extensions;
     private final Map<String, HttpService> httpServices;
 
@@ -52,13 +52,13 @@ public class TenantServicesRegistry implements ExtensionServiceCreation {
     private static final String MQTT_EXTENSION = "MQTT";
     private static final String FILE_EXTENSION = "FILE";
 
-    public TenantServicesRegistry(GatewayService service) {
-        this.service = service;
+    public TenantServiceRegistry() {
         this.extensions = new HashMap<>();
         this.httpServices = new HashMap<>();
     }
 
     public void updateExtensionConfiguration(String config) {
+        log.info("[{}] Updating extension configuration", service.getTenantLabel());
         ObjectMapper mapper = new ObjectMapper();
         try {
             List<TbExtensionConfiguration> updatedConfigurations = new ArrayList<>();

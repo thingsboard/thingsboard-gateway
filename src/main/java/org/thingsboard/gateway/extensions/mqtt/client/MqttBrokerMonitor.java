@@ -123,6 +123,7 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
 
                             @Override
                             public void onFailure(IMqttToken iMqttToken, Throwable e) {
+                                log.warn("[{}:{}] MQTT broker connection faied! {}", configuration.getHost(), configuration.getPort(), e.getMessage(), e);
                             }
                         }).waitForCompletion();
                         subscribeToTopics();
@@ -350,7 +351,6 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
 
     @Override
     public void messageArrived(String topic, MqttMessage message) throws Exception {
-
     }
 
     @Override
