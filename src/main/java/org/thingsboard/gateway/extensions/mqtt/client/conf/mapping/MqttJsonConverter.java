@@ -16,8 +16,10 @@
 package org.thingsboard.gateway.extensions.mqtt.client.conf.mapping;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.Option;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
@@ -83,7 +85,10 @@ public class MqttJsonConverter extends BasicJsonConverter implements MqttDataCon
     private List<DeviceData> parse(String topic, List<String> srcList) {
         List<DeviceData> result = new ArrayList<>(srcList.size());
         for (String src : srcList) {
-            DocumentContext document = JsonPath.parse(src);
+            Configuration conf = Configuration.builder()
+                    .options(Option.SUPPRESS_EXCEPTIONS).build();
+
+            DocumentContext document = JsonPath.using(conf).parse(src);
             long ts = System.currentTimeMillis();
             String deviceName;
             String deviceType = null;
