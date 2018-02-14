@@ -51,6 +51,7 @@
         <pkg.unixLogFolder>/var/log/${pkg.name}</pkg.unixLogFolder>
         <pkg.installFolder>/usr/share/${pkg.name}</pkg.installFolder>
         <pkg.win.dist>${project.build.directory}/windows</pkg.win.dist>
+        <thingsboard.version>1.4.0-SNAPSHOT</thingsboard.version>
     </properties>
 
     <dependencies>
