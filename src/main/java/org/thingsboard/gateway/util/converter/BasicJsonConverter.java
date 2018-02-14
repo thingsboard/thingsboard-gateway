@@ -108,7 +108,10 @@ public class BasicJsonConverter extends AbstractJsonConverter {
                 if (transformer != null && transformer.isApplicable(strVal)) {
                     result.add(getKvEntry(mapping, key, strVal, transformer));
                 } else if (transformer == null) {
-                    result.add(getKvEntry(mapping, key, strVal));
+                    KvEntry kvEntry = getKvEntry(mapping, key, strVal);
+                    if (kvEntry != null) {
+                        result.add(getKvEntry(mapping, key, strVal));
+                    }
                 }
             }
         }
@@ -137,6 +140,9 @@ public class BasicJsonConverter extends AbstractJsonConverter {
     }
 
     private BasicKvEntry getKvEntry(TransformerKVMapping mapping, String key, String strVal) {
+        if (strVal == null) {
+            return null;
+        }
         switch (mapping.getType().getDataType()) {
             case STRING:
                 return new StringDataEntry(key, strVal);
