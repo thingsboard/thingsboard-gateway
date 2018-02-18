@@ -50,7 +50,7 @@ public abstract class AbstractJsonConverter {
                 String tagValueStr = ((Object) apply(document, exp)).toString();
                 result = result.replace(tag, tagValueStr);
             } else {
-                return null;
+                continue;
             }
         }
         return result;
