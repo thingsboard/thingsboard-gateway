@@ -13,23 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.service.conf;
+package org.thingsboard.gateway.service;
 
-import lombok.Data;
-import org.thingsboard.gateway.service.gateway.MqttGatewaySecurityConfiguration;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * Created by ashvayka on 18.01.17.
+ * Created by ashvayka on 23.03.17.
  */
-@Data
-public class TbConnectionConfiguration {
-
-    private String host;
-    private int port;
-    private long retryInterval;
-    private long connectionTimeout;
-    private int maxInFlight;
-    private int maxQueueSize;
-    private MqttGatewaySecurityConfiguration security;
+public class MqttDeliveryFuture extends CompletableFuture<Boolean> {
 
 }

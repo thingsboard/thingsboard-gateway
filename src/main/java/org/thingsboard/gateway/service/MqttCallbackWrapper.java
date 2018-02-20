@@ -13,23 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.service.conf;
+package org.thingsboard.gateway.service;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
-import org.thingsboard.gateway.service.gateway.MqttGatewaySecurityConfiguration;
+
+import java.util.function.Consumer;
 
 /**
- * Created by ashvayka on 18.01.17.
+ * Created by Valerii Sosliuk on 12/30/2017.
  */
 @Data
-public class TbConnectionConfiguration {
+@AllArgsConstructor
+public class MqttCallbackWrapper {
 
-    private String host;
-    private int port;
-    private long retryInterval;
-    private long connectionTimeout;
-    private int maxInFlight;
-    private int maxQueueSize;
-    private MqttGatewaySecurityConfiguration security;
-
+    private Consumer<Void> successCallback;
+    private Consumer<Throwable> failureCallback;
 }

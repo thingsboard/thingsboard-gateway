@@ -13,23 +13,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.service.conf;
+package org.thingsboard.gateway.service;
 
+import lombok.Builder;
 import lombok.Data;
-import org.thingsboard.gateway.service.gateway.MqttGatewaySecurityConfiguration;
+
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.UUID;
 
 /**
- * Created by ashvayka on 18.01.17.
+ * Created by Valerii Sosliuk on 1/2/2018.
  */
 @Data
-public class TbConnectionConfiguration {
+@Builder
+public class MqttPersistentMessage implements Serializable {
 
-    private String host;
-    private int port;
-    private long retryInterval;
-    private long connectionTimeout;
-    private int maxInFlight;
-    private int maxQueueSize;
-    private MqttGatewaySecurityConfiguration security;
+    private static final long serialVersionUID = -3133461476074777891L;
+
+    private UUID id;
+    private long timestamp;
+    private String deviceId;
+    private int messageId;
+    private String topic;
+    private byte[] payload;
 
 }
