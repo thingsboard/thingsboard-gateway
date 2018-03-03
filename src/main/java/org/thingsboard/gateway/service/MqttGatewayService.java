@@ -152,7 +152,7 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
 
     @Override
     public Optional<MqttDeliveryFuture> onDeviceDisconnect(String deviceName) {
-        if (devices.remove(deviceName) != null) {
+        if (deviceName != null && devices.remove(deviceName) != null) {
             final int msgId = msgIdSeq.incrementAndGet();
             byte[] msgData = toBytes(newNode().put("device", deviceName));
             log.info("[{}][{}] Device Disconnected!", deviceName, msgId);

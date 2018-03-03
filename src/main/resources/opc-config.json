@@ -3,7 +3,6 @@
     {
       "applicationName": "Thingsboard OPC-UA client",
       "applicationUri": "",
-      "host": "localhost",
       "port": 49320,
       "scanPeriodInSeconds": 10,
       "timeoutInMillis": 5000,
@@ -14,9 +13,9 @@
       "keystore": {
         "type": "PKCS12",
         "location": "example.pfx",
-        "password": "secret",
-        "alias": "gateway",
-        "keyPassword": "secret"
+        "password": "password",
+        "alias": "tb_gateway",
+        "keyPassword": "password"
       },
       "mapping": [
         {

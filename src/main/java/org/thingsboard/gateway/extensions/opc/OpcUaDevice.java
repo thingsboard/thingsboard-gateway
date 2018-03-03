@@ -107,7 +107,7 @@ public class OpcUaDevice {
     }
 
     public List<TsKvEntry> getAffectedTimeseries(NodeId tagId, DataValue dataValue) {
-        List<AttributesMapping> attributes = getAttributesMapping(tagId);
+        List<TimeseriesMapping> attributes = getTimeseriesMapping(tagId);
         if (attributes.size() > 0) {
             return getKvEntries(attributes).stream()
                     .map(kv -> new BasicTsKvEntry(dataValue.getSourceTime().getJavaTime(), kv))
