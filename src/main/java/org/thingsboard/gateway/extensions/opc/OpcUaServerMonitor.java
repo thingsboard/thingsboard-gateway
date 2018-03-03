@@ -151,7 +151,7 @@ public class OpcUaServerMonitor {
     private void scanForDevices(OpcUaNode node) {
         log.trace("Scanning node: {}", node);
         List<DeviceMapping> matchedMappings = mappings.entrySet().stream()
-                .filter(mappingEntry -> mappingEntry.getKey().matcher(node.getName()).matches())
+                .filter(mappingEntry -> mappingEntry.getKey().matcher(node.getNodeId().getIdentifier().toString()).matches())
                 .map(m -> m.getValue()).collect(Collectors.toList());
 
         matchedMappings.forEach(m -> {
@@ -315,8 +315,15 @@ public class OpcUaServerMonitor {
                     log.trace("Ignoring remote node: {}", rd.getNodeId());
                     continue;
                 }
+
                 String browseName = rd.getBrowseName().getName();
-                String name = browseName.substring(deviceNodeName.length() + 1); // 1 is for extra .
+                String name;
+                String childIdStr = childId.getIdentifier().toString();
+                if (childIdStr.contains(deviceNodeName)) {
+                    name = childIdStr.substring(childIdStr.indexOf(deviceNodeName) + deviceNodeName.length() + 1, childIdStr.length());
+                } else {
+                    name = rd.getBrowseName().getName();
+                }
                 if (tags.contains(name)) {
                     values.put(name, childId);
                 }
