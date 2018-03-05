@@ -13,8 +13,8 @@
       "keystore": {
         "type": "PKCS12",
         "location": "example.pfx",
-        "password": "password",
-        "alias": "tb_gateway",
+        "password": "secret",
+        "alias": "gateway",
         "keyPassword": "password"
       },
       "mapping": [
