@@ -13,24 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.service.conf;
+package org.thingsboard.gateway.service;
 
+import io.netty.util.concurrent.Future;
+import lombok.AllArgsConstructor;
 import lombok.Data;
-import org.thingsboard.gateway.service.gateway.MqttGatewaySecurityConfiguration;
 
 /**
- * Created by ashvayka on 18.01.17.
+ * Created by Valerii Sosliuk on 3/10/2018.
  */
 @Data
-public class TbConnectionConfiguration {
+@AllArgsConstructor
+public class MessageFuturePair {
 
-    private String host;
-    private int port;
-    private long retryInterval;
-    private long connectionTimeout;
-    private int maxInFlight;
-    private int maxQueueSize;
-    private int incomingQueueWarningThreshold;
-    private MqttGatewaySecurityConfiguration security;
-
+    Future<? super Void> future;
+    MqttPersistentMessage message;
 }
