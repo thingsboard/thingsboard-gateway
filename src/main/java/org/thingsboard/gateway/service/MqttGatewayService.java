@@ -105,15 +105,18 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
 
     private ScheduledExecutorService scheduler;
     private ExecutorService mqttSenderExecutor;
+    private ExecutorService mqttReceiverExecutor;
     private ExecutorService callbackExecutor = Executors.newCachedThreadPool();
 
     private Map<AttributeRequestKey, AttributeRequestListener> pendingAttrRequestsMap = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void init() throws Exception {
+        BlockingQueue<MessageFuturePair> incomingQueue = new LinkedBlockingQueue<>();
         initTimeouts();
         initMqttClient();
-        initMqttSender();
+        initMqttSender(incomingQueue);
+        initMqttReceiver(incomingQueue);
         scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleAtFixedRate(this::reportStats, 0, reporting.getInterval(), TimeUnit.MILLISECONDS);
     }
@@ -439,9 +442,14 @@ public class MqttGatewayService implements GatewayService, MqttCallback, MqttCli
         });
     }
 
-    private void initMqttSender() {
+    private void initMqttSender(BlockingQueue<MessageFuturePair> incomingQueue) {
         mqttSenderExecutor = Executors.newSingleThreadExecutor();
-        mqttSenderExecutor.submit(new MqttMessageSender(persistence, connection, tbClient, persistentFileService));
+        mqttSenderExecutor.submit(new MqttMessageSender(persistence, connection, tbClient, persistentFileService, incomingQueue));
+    }
+
+    private void initMqttReceiver(BlockingQueue<MessageFuturePair> incomingQueue) {
+        mqttReceiverExecutor = Executors.newSingleThreadExecutor();
+        mqttReceiverExecutor.submit(new MqttMessageReceiver(persistentFileService, incomingQueue, connection.getIncomingQueueWarningThreshold()));
     }
 
     private static String toString(Exception e) {
