@@ -28,7 +28,7 @@ import java.util.function.Consumer;
 @Slf4j
 public class MqttMessageReceiver implements Runnable {
 
-    private static final int INCOMING_QUEUE_DEFAULT_WARNING_THRESHOLD = 10000;
+    private static final int INCOMING_QUEUE_DEFAULT_WARNING_THRESHOLD = 1000;
 
     private PersistentFileService persistentFileService;
     private BlockingQueue<MessageFuturePair> incomingQueue;
@@ -65,17 +65,17 @@ public class MqttMessageReceiver implements Runnable {
                     log.warn("Failed to send message [{}] due to [{}]", message, future.cause());
                 }
             } catch (InterruptedException e) {
-                log.error(e.getMessage(), e);
-                Thread.currentThread().interrupt();
-            } catch (IOException e) {
+                log.warn(e.getMessage(), e);
+                break;
+            } catch (Exception e) {
                 log.error(e.getMessage(), e);
             }
         }
     }
 
     private void checkIncomingQueueSize() {
-        if (incomingQueue.size() > INCOMING_QUEUE_DEFAULT_WARNING_THRESHOLD) {
-            log.warn("Incoming queue has [{}] messages which is more than thee specified threshold of [{}]", incomingQueue.size());
+        if (incomingQueue.size() > incomingQueueWarningThreshold) {
+            log.warn("Incoming queue has [{}] messages which is more than thee specified threshold of [{}]", incomingQueue.size(), incomingQueueWarningThreshold);
         }
     }
 }
