@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
@@ -46,14 +47,14 @@ public class MqttMessageSender implements Runnable {
 
     private final TbConnectionConfiguration connection;
 
-    private Queue<MessageFuturePair> incomingQueue;
+    private BlockingQueue<MessageFuturePair> incomingQueue;
     private Queue<Future<Void>> outgoingQueue;
 
     public MqttMessageSender(TbPersistenceConfiguration persistence,
                              TbConnectionConfiguration connection,
                              MqttClient tbClient,
                              PersistentFileService persistentFileService,
-                             Queue<MessageFuturePair> incomingQueue) {
+                             BlockingQueue<MessageFuturePair> incomingQueue) {
         this.persistence = persistence;
         this.connection = connection;
         this.tbClient = tbClient;
@@ -102,7 +103,7 @@ public class MqttMessageSender implements Runnable {
 
     private Future<Void> publishMqttMessage(MqttPersistentMessage message) {
         return tbClient.publish(message.getTopic(), Unpooled.wrappedBuffer(message.getPayload()), MqttQoS.AT_LEAST_ONCE).addListener(
-                future -> incomingQueue.add(new MessageFuturePair(future, message))
+                future -> incomingQueue.put(new MessageFuturePair(future, message))
         );
     }
 
@@ -128,7 +129,7 @@ public class MqttMessageSender implements Runnable {
 
     private boolean checkClientConnected() throws InterruptedException {
         if (!tbClient.isConnected()) {
-            outgoingQueue.stream().forEach(future -> future.cancel(true));
+            outgoingQueue.forEach(future -> future.cancel(true));
             outgoingQueue.clear();
             log.info("ThingsBoard MQTT connection failed. Reconnecting in [{}] milliseconds", connection.getRetryInterval());
             Thread.sleep(connection.getRetryInterval());
