@@ -56,7 +56,7 @@ public class ConfigurationTools {
         try {
             KeyStore keyStore = KeyStore.getInstance(configuration.getType());
             if (isRemote) {
-                keyStore.load(getResourceAsStream(configuration.getLocation()), configuration.getPassword().toCharArray());
+                keyStore.load(getResourceAsStream(configuration.getFileContent()), configuration.getPassword().toCharArray());
             } else {
                 keyStore.load(getFileAsStream(configuration.getLocation()), configuration.getPassword().toCharArray());
             }

@@ -25,7 +25,7 @@ public class KeystoreConfiguration {
 
     private String type;
     private String location;
-    private String fileName;
+    private String fileContent;
     private String password;
     private String alias;
     private String keyPassword;
