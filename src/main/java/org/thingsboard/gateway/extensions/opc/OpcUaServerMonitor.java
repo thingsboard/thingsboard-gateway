@@ -79,10 +79,10 @@ public class OpcUaServerMonitor {
         this.mappings = configuration.getMapping().stream().collect(Collectors.toMap(m -> Pattern.compile(m.getDeviceNodePattern()), Function.identity()));
     }
 
-    public void connect() {
+    public void connect(Boolean isRemote) {
         try {
             log.info("Initializing OPC-UA server connection to [{}:{}]!", configuration.getHost(), configuration.getPort());
-            CertificateInfo certificate = ConfigurationTools.loadCertificate(configuration.getKeystore());
+            CertificateInfo certificate = ConfigurationTools.loadCertificate(configuration.getKeystore(), isRemote);
 
             SecurityPolicy securityPolicy = SecurityPolicy.valueOf(configuration.getSecurity());
             IdentityProvider identityProvider = configuration.getIdentity().toProvider();

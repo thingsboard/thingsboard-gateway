@@ -13,6 +13,7 @@
       "keystore": {
         "type": "PKCS12",
         "location": "example.pfx",
+        "fileContent": "",
         "password": "secret",
         "alias": "gateway",
         "keyPassword": "password"

@@ -52,11 +52,11 @@ public class ConfigurationTools {
         }
     }
 
-    public static CertificateInfo loadCertificate(KeystoreConfiguration configuration) throws GeneralSecurityException, IOException {
+    public static CertificateInfo loadCertificate(KeystoreConfiguration configuration, Boolean isRemote) throws GeneralSecurityException, IOException {
         try {
             KeyStore keyStore = KeyStore.getInstance(configuration.getType());
-            if (configuration.getLocationFileName() != null) {
-                keyStore.load(getResourceAsStream(configuration.getLocation()), configuration.getPassword().toCharArray());
+            if (isRemote) {
+                keyStore.load(getResourceAsStream(configuration.getFileContent()), configuration.getPassword().toCharArray());
             } else {
                 keyStore.load(getFileAsStream(configuration.getLocation()), configuration.getPassword().toCharArray());
             }

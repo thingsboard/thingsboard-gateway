@@ -63,7 +63,9 @@ public class DefaultOpcUaService extends ExtensionUpdate implements OpcUaService
 
         try {
             monitors = configuration.getServers().stream().map(c -> new OpcUaServerMonitor(gateway, c)).collect(Collectors.toList());
-            monitors.forEach(OpcUaServerMonitor::connect);
+            for (OpcUaServerMonitor monitor : monitors) {
+                monitor.connect(isRemote);
+            }
         } catch (Exception e) {
             log.error("OPC-UA service initialization failed!", gateway.getTenantLabel(), e);
             gateway.onConfigurationError(e, currentConfiguration);
