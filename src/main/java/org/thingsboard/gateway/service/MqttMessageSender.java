@@ -21,6 +21,7 @@ import io.netty.handler.codec.mqtt.MqttQoS;
 import io.netty.util.concurrent.Future;
 import lombok.extern.slf4j.Slf4j;
 import nl.jk5.mqtt.MqttClient;
+import nl.jk5.mqtt.MqttConnectResult;
 import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
 import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
 
@@ -31,6 +32,8 @@ import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 /**
@@ -82,7 +85,7 @@ public class MqttMessageSender implements Runnable {
                             break;
                         }
                         MqttPersistentMessage message = iter.next();
-                        log.info("Sending message [{}]", message);
+                        log.debug("Sending message [{}]", message);
                         Future<Void> publishFuture = publishMqttMessage(message);
                         outgoingQueue.add(publishFuture);
                     }
@@ -134,8 +137,13 @@ public class MqttMessageSender implements Runnable {
             log.info("ThingsBoard MQTT connection failed. Reconnecting in [{}] milliseconds", connection.getRetryInterval());
             Thread.sleep(connection.getRetryInterval());
             try {
-                tbClient.reconnect().get();
-            } catch (ExecutionException e) {
+                MqttConnectResult result = tbClient.reconnect().get(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
+                if (result.isSuccess()) {
+                    log.info("Successfully reconnected to ThingsBoard.");
+                }
+            } catch (TimeoutException e) {
+                log.trace(e.getMessage(), e);
+            } catch (Exception e) {
                 log.error(e.getMessage(), e);
             }
             return false;
