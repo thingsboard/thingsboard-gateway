@@ -128,6 +128,7 @@ buildDeb {
     configurationFile("${pkgInstallFolder}/conf/mqtt-config.json")
     configurationFile("${pkgInstallFolder}/conf/opc-config.json")
     configurationFile("${pkgInstallFolder}/conf/http-config.json")
+    configurationFile("${pkgInstallFolder}/conf/modbus-config.json")
 
     preInstall file("${buildDir}/control/deb/preinst")
     postInstall file("${buildDir}/control/deb/postinst")

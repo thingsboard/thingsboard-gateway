@@ -23,6 +23,7 @@ import org.thingsboard.gateway.extensions.ExtensionService;
 import org.thingsboard.gateway.extensions.file.DefaultFileTailService;
 import org.thingsboard.gateway.extensions.http.DefaultHttpService;
 import org.thingsboard.gateway.extensions.http.HttpService;
+import org.thingsboard.gateway.extensions.modbus.DefaultModbusService;
 import org.thingsboard.gateway.extensions.mqtt.client.DefaultMqttClientService;
 import org.thingsboard.gateway.extensions.opc.DefaultOpcUaService;
 import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
@@ -51,6 +52,7 @@ public class TenantServiceRegistry implements ExtensionServiceCreation {
     private static final String OPC_EXTENSION = "OPC UA";
     private static final String MQTT_EXTENSION = "MQTT";
     private static final String FILE_EXTENSION = "FILE";
+    private static final String MODBUS_EXTENSION = "MODBUS";
 
     public TenantServiceRegistry() {
         this.extensions = new HashMap<>();
@@ -118,6 +120,8 @@ public class TenantServiceRegistry implements ExtensionServiceCreation {
                 return new DefaultHttpService(gateway);
             case MQTT_EXTENSION:
                 return new DefaultMqttClientService(gateway);
+            case MODBUS_EXTENSION:
+                return new DefaultModbusService(gateway);
             default:
                 throw new IllegalArgumentException("Extension: " + type + " is not supported!");
         }
