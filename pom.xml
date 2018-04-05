@@ -48,6 +48,7 @@
         <bouncycastle.version>1.52</bouncycastle.version>
         <slf4j.version>1.7.7</slf4j.version>
         <logback.version>1.1.7</logback.version>
+        <j2mod.version>2.4.1</j2mod.version>
         <pkg.name>tb-gateway</pkg.name>
         <pkg.user>thingsboard</pkg.user>
         <pkg.unixLogFolder>/var/log/${pkg.name}</pkg.unixLogFolder>
@@ -151,6 +152,11 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>${logback.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.ghgande</groupId>
+            <artifactId>j2mod</artifactId>
+            <version>${j2mod.version}</version>
         </dependency>
     </dependencies>
 
