@@ -35,6 +35,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import java.text.ParseException;
+
 /**
  * Created by ashvayka on 23.01.17.
  */
@@ -82,7 +84,7 @@ public class MqttJsonConverter extends BasicJsonConverter implements MqttDataCon
         return parse(topic, srcList);
     }
 
-    private List<DeviceData> parse(String topic, List<String> srcList) {
+    private List<DeviceData> parse(String topic, List<String> srcList) throws ParseException{
         List<DeviceData> result = new ArrayList<>(srcList.size());
         for (String src : srcList) {
             Configuration conf = Configuration.builder()
@@ -105,9 +107,7 @@ public class MqttJsonConverter extends BasicJsonConverter implements MqttDataCon
 
             if (!StringUtils.isEmpty(deviceName)) {
                 List<KvEntry> attrData = getKvEntries(document, attributes);
-                List<TsKvEntry> tsData = getKvEntries(document, timeseries).stream()
-                        .map(kv -> new BasicTsKvEntry(ts, kv))
-                        .collect(Collectors.toList());
+                List<TsKvEntry> tsData = getTsKvEntries(document, timeseries, ts);
                 result.add(new DeviceData(deviceName, deviceType, attrData, tsData, timeout));
             }
         }

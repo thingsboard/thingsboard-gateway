@@ -71,7 +71,7 @@ public class BasicJsonConverter extends AbstractJsonConverter {
         }
     }
 
-    private List<TsKvEntry> getTsKvEntries(DocumentContext document, List<? extends TimeseriesMapping> mappings, long defaultTs) throws ParseException {
+    protected List<TsKvEntry> getTsKvEntries(DocumentContext document, List<? extends TimeseriesMapping> mappings, long defaultTs) throws ParseException {
         List<TsKvEntry> result = new ArrayList<>();
         if (mappings != null) {
             for (TransformerKVMapping mapping : mappings) {
