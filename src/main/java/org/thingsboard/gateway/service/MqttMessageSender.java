@@ -97,7 +97,7 @@ public class MqttMessageSender implements Runnable {
                         Thread.currentThread().interrupt();
                     }
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log.error(e.getMessage(), e);
             }
         }

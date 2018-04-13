@@ -255,7 +255,7 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
         log.trace("[{}][{}] Updating device telemetry: {}", deviceName, msgId, telemetry);
         checkDeviceConnected(deviceName);
         ObjectNode node = newNode();
-        Map<Long, List<TsKvEntry>> tsMap = telemetry.stream().collect(Collectors.groupingBy(v -> v.getTs()));
+        Map<Long, List<TsKvEntry>> tsMap = telemetry.stream().collect(Collectors.groupingBy(TsKvEntry::getTs));
         ArrayNode deviceNode = node.putArray(deviceName);
         tsMap.entrySet().forEach(kv -> {
             Long ts = kv.getKey();
@@ -282,7 +282,7 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
                                               Consumer<Throwable> onFailure) {
         try {
             return persistentFileService.persistMessage(topic, msgId, payload, deviceId, onSuccess, onFailure);
-        } catch (IOException e) {
+        } catch (Throwable e) {
             log.error(e.getMessage(), e);
             throw new RuntimeException(e);
         }
@@ -389,20 +389,24 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
     }
 
     private void reportStats() {
-        ObjectNode node = newNode();
-        node.put("ts", System.currentTimeMillis());
-        ObjectNode valuesNode = node.putObject("values");
+        try {
+            ObjectNode node = newNode();
+            node.put("ts", System.currentTimeMillis());
+            ObjectNode valuesNode = node.putObject("values");
 
-        valuesNode.put("devicesOnline", devices.size());
-        valuesNode.put("attributesUploaded", attributesCount.getAndSet(0));
-        valuesNode.put("telemetryUploaded", telemetryCount.getAndSet(0));
-        if (error != null) {
-            valuesNode.put("latestError", JsonTools.toString(error));
-            error = null;
+            valuesNode.put("devicesOnline", devices.size());
+            valuesNode.put("attributesUploaded", attributesCount.getAndSet(0));
+            valuesNode.put("telemetryUploaded", telemetryCount.getAndSet(0));
+            if (error != null) {
+                valuesNode.put("latestError", JsonTools.toString(error));
+                error = null;
+            }
+            persistMessage(DEVICE_TELEMETRY_TOPIC, msgIdSeq.incrementAndGet(), toBytes(node), GATEWAY,
+                    token -> log.info("Gateway statistics {} reported!", node),
+                    error -> log.warn("Failed to report gateway statistics!", error));
+        } catch (Throwable e) {
+            log.error("Failed to persist statistics message!", e);
         }
-        persistMessage(DEVICE_TELEMETRY_TOPIC, msgIdSeq.incrementAndGet(), toBytes(node), GATEWAY,
-                token -> log.info("Gateway statistics {} reported!", node),
-                error -> log.warn("Failed to report gateway statistics!", error));
     }
 
     @Override
