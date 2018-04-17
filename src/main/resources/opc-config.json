@@ -3,6 +3,7 @@
     {
       "applicationName": "Thingsboard OPC-UA client",
       "applicationUri": "",
+      "host": "localhost",
       "port": 49320,
       "scanPeriodInSeconds": 10,
       "timeoutInMillis": 5000,
@@ -16,7 +17,7 @@
         "fileContent": "",
         "password": "secret",
         "alias": "gateway",
-        "keyPassword": "password"
+        "keyPassword": "secret"
       },
       "mapping": [
         {
