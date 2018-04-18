@@ -204,12 +204,14 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
     @Override
     public MqttDeliveryFuture onDeviceConnect(final String deviceName, final String deviceType) {
         final int msgId = msgIdSeq.incrementAndGet();
-        byte[] msgData = toBytes(newNode().put("device", deviceName));
+        ObjectNode gwMsg = newNode().put("device", deviceName);
+        gwMsg.put("type", deviceType);
+        byte[] msgData = toBytes(gwMsg);
         log.info("[{}] Device Connected!", deviceName);
         devices.putIfAbsent(deviceName, new DeviceInfo(deviceName, deviceType));
         return persistMessage(GATEWAY_CONNECT_TOPIC, msgId, msgData, deviceName,
                 message -> {
-                    log.info("[{}][{}] Device connect event is reported to Thingsboard!", deviceName, msgId);
+                    log.info("[{}][{}][{}] Device connect event is reported to Thingsboard!", deviceName, deviceType, msgId);
                 },
                 error -> log.warn("[{}][{}] Failed to report device connection!", deviceName, msgId, error));
 
