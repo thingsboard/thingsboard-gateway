@@ -47,4 +47,4 @@ gateways:
         -
           id: "mqtt"
           type: "MQTT"
-          extensionConfiguration: "${MQTT_CONFIG:mqtt-config.json}"
+          extensionConfiguration: "${MQTT_CONFIG:mqtt-config-two-filters.json}"

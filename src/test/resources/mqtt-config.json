@@ -1,0 +1,31 @@
+{
+  "brokers": [
+    {
+      "host": "localhost",
+      "port": 7883,
+      "ssl": false,
+      "retryInterval": 3000,
+      "credentials": {
+        "type": "anonymous"
+      },
+      "mapping": [
+        {
+          "topicFilter": "sensor/+/temperature",
+          "converter": {
+            "type": "json",
+            "filterExpression": "",
+            "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/temperature)",
+            "timeout": 60000,
+            "timeseries": [
+              {
+                "type": "double",
+                "key": "temperature",
+                "value": "${$.value}"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

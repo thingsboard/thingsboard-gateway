@@ -13,21 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway;
+package org.thingsboard.gateway.rules;
 
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
-@RunWith(SpringRunner.class)
-@SpringBootTest()
-public class GatewayApplicationTests {
+/**
+ * Created by Valerii Sosliuk on 5/9/2018.
+ */
+public class AbstractGatewayTestRule implements TestRule {
+    @Override
+    public Statement apply(Statement base, Description description) {
+        return new Statement() {
 
-	@Test
-	@Ignore
-	public void contextLoads() {
-	}
+            @Override
+            public void evaluate() throws Throwable {
+                base.evaluate();
+            }
+        };
+    }
 
 }
