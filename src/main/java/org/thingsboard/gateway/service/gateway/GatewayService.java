@@ -151,4 +151,27 @@ public interface GatewayService {
      * @param status - extension status
      */
     void onConfigurationStatus(String id, String status);
+
+    /**
+     * Receivve device attributes from Thingsboard
+     *
+     * @param deviceName - the device name
+     * @param attributes  - the attributes values list
+     *
+     */
+    void onAttributesUpdate(String deviceName, List<KvEntry> attributes);
+
+    /**
+     * Receive device RPC request from Thingsboard
+     *
+     * @param deviceName - the device name
+     * @param command    - the RPC command
+     */
+    void onRpcCommand(String deviceName, RpcCommandData command);
+
+    /**
+     * Receive gateway attributes update from Thingsboard
+     * @param message   - message body
+     */
+    void onGatewayAttributesUpdate(String message);
 }
