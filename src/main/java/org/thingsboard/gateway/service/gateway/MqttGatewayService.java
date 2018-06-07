@@ -579,7 +579,7 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
             response.data(Optional.empty());
         } else if (value.isBoolean()) {
             response.data(Optional.of(new BooleanDataEntry(key, value.asBoolean())));
-        } else if (value.isLong()) {
+        } else if (value.canConvertToLong()) {
             response.data(Optional.of(new LongDataEntry(key, value.asLong())));
         } else if (value.isDouble()) {
             response.data(Optional.of(new DoubleDataEntry(key, value.asDouble())));
