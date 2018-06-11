@@ -84,7 +84,7 @@ public class JsonTools {
             JsonNode value = field.getValue();
             if (value.isBoolean()) {
                 attributes.add(new BooleanDataEntry(key, value.asBoolean()));
-            } else if (value.isLong()) {
+            } else if (value.canConvertToLong()) {
                 attributes.add(new LongDataEntry(key, value.asLong()));
             } else if (value.isDouble()) {
                 attributes.add(new DoubleDataEntry(key, value.asDouble()));
