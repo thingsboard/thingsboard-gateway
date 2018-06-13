@@ -15,52 +15,27 @@
  */
 package org.thingsboard.gateway.mqtt;
 
-import org.json.JSONException;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.skyscreamer.jsonassert.Customization;
-import org.skyscreamer.jsonassert.JSONAssert;
-import org.skyscreamer.jsonassert.JSONCompareMode;
-import org.skyscreamer.jsonassert.RegularExpressionValueMatcher;
-import org.skyscreamer.jsonassert.comparator.CustomComparator;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringRunner;
-import org.thingsboard.gateway.AbstractGatewayIntegrationTest;
-import org.thingsboard.gateway.rules.MqttBrokerRule;
-import org.thingsboard.gateway.rules.MqttClientRule;
-import org.thingsboard.gateway.rules.TbSimulatorRule;
+import org.thingsboard.gateway.AbstractGatewayMqttIntegrationTest;
+import org.thingsboard.gateway.mqtt.simulators.MqttTestClient;
 import org.thingsboard.gateway.util.IoUtils;
 import org.thingsboard.gateway.util.JsonUtils;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-@RunWith(SpringRunner.class)
-@SpringBootTest()
 @ActiveProfiles("mqtt-two-filters")
-public class MqttTwoFiltersIntegrationTest extends AbstractGatewayIntegrationTest {
+public class MqttTwoFiltersIntegrationTest extends AbstractGatewayMqttIntegrationTest {
 
-    private static final int EXTERNAL_BROKER_PORT = 7883;
-    private static final long MQTT_TIMEOUT = 1000;
-    private static final int TB_BROKER_PORT = 7884;
-    private static final String LOCALHOST = "localhost";
+    @Autowired
+    private MqttTestClient deviceSimulator;
 
-    @Rule
-    public MqttBrokerRule externalBroker = new MqttBrokerRule(LOCALHOST, EXTERNAL_BROKER_PORT, true);
-
-    @Rule
-    public MqttClientRule deviceSimulator = new MqttClientRule(LOCALHOST, EXTERNAL_BROKER_PORT, MQTT_TIMEOUT);
-
-    @Rule
-    public TbSimulatorRule tbSimulator = new TbSimulatorRule(LOCALHOST, TB_BROKER_PORT, MQTT_TIMEOUT);
+    @Autowired
+    private TestMqttHandler testMqttHandler;
 
     @Test
     public void testMqttTwoFiltersOnSameTopic() throws Exception {
@@ -68,14 +43,14 @@ public class MqttTwoFiltersIntegrationTest extends AbstractGatewayIntegrationTes
         deviceSimulator.publish("sensor/1111", IoUtils.getResourceAsString("mqtt/mqtt-1111-publish.json").getBytes(), 0);
 
         Thread.sleep(10000);
-        List<String> receivedConnectMessages = tbSimulator.getValues("v1/gateway/connect");
+        List<String> receivedConnectMessages = testMqttHandler.getValues("v1/gateway/connect");
         assertNotNull("recievedConnectMessage was expected to be non-null", receivedConnectMessages);
 
         assertEquals("Exactly 2 connect messages were expected", 2, receivedConnectMessages.size());
         assertEquals(IoUtils.getResourceAsString("mqtt/connect-1110.json"), receivedConnectMessages.get(0));
         assertEquals(IoUtils.getResourceAsString("mqtt/connect-1111.json"), receivedConnectMessages.get(1));
 
-        List<String> recievedTelemetryMessages = tbSimulator.getValues("v1/gateway/telemetry");
+        List<String> recievedTelemetryMessages = testMqttHandler.getValues("v1/gateway/telemetry");
         assertNotNull("recievedTelemetryMessage was expected to be non-null", recievedTelemetryMessages);
         assertEquals("Exactly 2 telemetry message were expected", 2, recievedTelemetryMessages.size());
 
@@ -90,4 +65,5 @@ public class MqttTwoFiltersIntegrationTest extends AbstractGatewayIntegrationTes
         JsonUtils.assertWithoutTimestamp("Device 1111", expectedTelemetry1111, actualTelemetry1111);
 
     }
+
 }

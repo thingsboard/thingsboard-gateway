@@ -16,9 +16,9 @@
 package org.thingsboard.gateway.mqtt;
 
 import org.json.JSONException;
-import org.junit.After;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ActiveProfiles;
 import org.thingsboard.gateway.AbstractGatewayMqttIntegrationTest;
 import org.thingsboard.gateway.mqtt.simulators.MqttTestClient;
 import org.thingsboard.gateway.util.IoUtils;
@@ -30,7 +30,8 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-public class MqttIntegrationTest extends AbstractGatewayMqttIntegrationTest {
+@ActiveProfiles("mqtt-timestamp-format")
+public class MqttTimestampFormatIntegrationTest extends AbstractGatewayMqttIntegrationTest {
 
     @Autowired
     private MqttTestClient deviceSimulator;
@@ -39,11 +40,10 @@ public class MqttIntegrationTest extends AbstractGatewayMqttIntegrationTest {
     private TestMqttHandler testMqttHandler;
 
     @Test
-    public void testSendAndReceiveSimpleJson() throws IOException, InterruptedException, JSONException {
-
+    public void testPublishWithTimestampFormat() throws IOException, InterruptedException, JSONException {
         try {
-            deviceSimulator.publish("sensor/SN-001/temperature",
-                    IoUtils.getResourceAsString("mqtt/single-value-publish.json").getBytes(), 0);
+            deviceSimulator.publish("sensor/SN-001/humidity",
+                    IoUtils.getResourceAsString("mqtt/single-value-with-ts-format-publish.json").getBytes(), 0);
         } catch (Throwable e) {
             e.printStackTrace();
         }
@@ -57,10 +57,10 @@ public class MqttIntegrationTest extends AbstractGatewayMqttIntegrationTest {
         assertNotNull("receivedTelemetryMessage was expected to be non-null", receivedTelemetryMessage);
         assertEquals("Only one telemetry message was expected", 1, receivedTelemetryMessage.size());
 
-        String expectedTelemetryJson = IoUtils.getResourceAsString("mqtt/single-value-result.json");
+        String expectedTelemetryJson = IoUtils.getResourceAsString("mqtt/single-value-with-ts-format-result.json");
         String actualTelemetryJson = receivedTelemetryMessage.get(0);
 
-        JsonUtils.assertWithoutTimestamp("SN-001", expectedTelemetryJson, actualTelemetryJson);
+        JsonUtils.assertEquals(expectedTelemetryJson, actualTelemetryJson);
     }
 
 }

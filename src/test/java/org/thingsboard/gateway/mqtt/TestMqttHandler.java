@@ -35,6 +35,10 @@ public class TestMqttHandler implements MqttHandler {
         payloads = new HashMap<>();
     }
 
+    public void cleanup() {
+        payloads.clear();
+    }
+
     @Override
     public void onMessage(String topic, ByteBuf payload) {
         List<String> payloads = this.payloads.get(topic);

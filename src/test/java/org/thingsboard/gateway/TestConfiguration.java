@@ -13,25 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.gateway.rules;
+package org.thingsboard.gateway;
 
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.thingsboard.gateway.mqtt.TestMqttHandler;
 
 /**
- * Created by Valerii Sosliuk on 5/9/2018.
+ * Created by Valerii Sosliuk on 6/12/2018.
  */
-public class AbstractGatewayTestRule implements TestRule {
-    @Override
-    public Statement apply(Statement base, Description description) {
-        return new Statement() {
+@Configuration
+@ComponentScan("org.thingsboard.gateway")
+public class TestConfiguration {
 
-            @Override
-            public void evaluate() throws Throwable {
-                base.evaluate();
-            }
-        };
+    @Bean
+    public TestMqttHandler getMqttHandler() {
+        return new TestMqttHandler();
     }
 
 }

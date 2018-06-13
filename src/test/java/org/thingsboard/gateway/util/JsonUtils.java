@@ -37,10 +37,12 @@ public class JsonUtils {
     }
 
     public static void assertWithoutTimestamp(String deviceName, String expected, String actual) throws JSONException, IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode expectedJson = mapper.readTree(expected);
         JSONAssert.assertEquals(expected, actual,
                 new CustomComparator(JSONCompareMode.STRICT, new Customization(deviceName + "[0].ts",
                         new RegularExpressionValueMatcher<>("\\d+"))));
+    }
+
+    public static void assertEquals(String expected, String actual) throws JSONException {
+        JSONAssert.assertEquals(expected, actual, JSONCompareMode.LENIENT);
     }
 }
