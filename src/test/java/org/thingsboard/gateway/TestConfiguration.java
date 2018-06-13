@@ -15,19 +15,21 @@
  */
 package org.thingsboard.gateway;
 
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.thingsboard.gateway.mqtt.TestMqttHandler;
 
-@RunWith(SpringRunner.class)
-@SpringBootTest()
-public class GatewayApplicationTests {
+/**
+ * Created by Valerii Sosliuk on 6/12/2018.
+ */
+@Configuration
+@ComponentScan("org.thingsboard.gateway")
+public class TestConfiguration {
 
-	@Test
-	@Ignore
-	public void contextLoads() {
-	}
+    @Bean
+    public TestMqttHandler getMqttHandler() {
+        return new TestMqttHandler();
+    }
 
 }

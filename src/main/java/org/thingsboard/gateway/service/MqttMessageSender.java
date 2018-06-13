@@ -26,6 +26,7 @@ import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
 import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
@@ -72,7 +73,7 @@ public class MqttMessageSender implements Runnable {
             try {
                 checkClientConnected();
                 if (!checkOutgoingQueueIsEmpty()) {
-                    log.info("Waiting until all messages are sent before going to the next bucket");
+                    log.debug("Waiting until all messages are sent before going to the next bucket");
                     Thread.sleep(persistence.getPollingInterval());
                     continue;
                 }
@@ -85,7 +86,7 @@ public class MqttMessageSender implements Runnable {
                             break;
                         }
                         MqttPersistentMessage message = iter.next();
-                        log.debug("Sending message [{}]", message);
+                        log.debug("Sending message [{}][{}]", message, new String(message.getPayload()));
                         Future<Void> publishFuture = publishMqttMessage(message);
                         outgoingQueue.add(publishFuture);
                     }

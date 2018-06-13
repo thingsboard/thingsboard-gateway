@@ -47,16 +47,4 @@ gateways:
         -
           id: "mqtt"
           type: "MQTT"
-          extensionConfiguration: "${MQTT_CONFIG:mqtt-config.json}"
-
-test:
-  host: localhost
-mqtt:
-  broker:
-    external:
-      port: 7883
-      allowAnonymous: true
-    tb:
-      port: 7884
-      allowAnonymous: true
-  timeout: 10000
+          extensionConfiguration: "${MQTT_CONFIG:mqtt-config-two-filters.json}"
