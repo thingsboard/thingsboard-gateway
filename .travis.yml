@@ -7,3 +7,4 @@ jdk:
 language: java
 sudo: required
 script: mvn clean verify
+install: false
