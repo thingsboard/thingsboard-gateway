@@ -86,7 +86,7 @@ public class MqttMessageSender implements Runnable {
                             break;
                         }
                         MqttPersistentMessage message = iter.next();
-                        log.debug("Sending message [{}][{}]", message, new String(message.getPayload()));
+                        log.debug("Sending message [{}]", message);
                         Future<Void> publishFuture = publishMqttMessage(message);
                         outgoingQueue.add(publishFuture);
                     }
