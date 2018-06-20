@@ -67,13 +67,14 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -683,11 +684,21 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
     private MqttClientConfig getMqttClientConfig() {
         MqttClientConfig mqttClientConfig;
         if (!StringUtils.isEmpty(connection.getSecurity().getAccessToken())) {
-            mqttClientConfig = new MqttClientConfig();
-            mqttClientConfig.setUsername(connection.getSecurity().getAccessToken());
+            if (StringUtils.isEmpty(connection.getSecurity().getTruststore())) {
+                mqttClientConfig = new MqttClientConfig();
+                mqttClientConfig.setUsername(connection.getSecurity().getAccessToken());
+            } else {
+                try {
+                    SslContext sslCtx = initOneWaySslContext(connection.getSecurity());
+                    mqttClientConfig = new MqttClientConfig(sslCtx);
+                } catch (Exception e) {
+                    log.error(e.getMessage(), e);
+                    throw new RuntimeException(e);
+                }
+            }
         } else {
             try {
-                SslContext sslCtx = initSslContext(connection.getSecurity());
+                SslContext sslCtx = initTwoWaySslContext(connection.getSecurity());
                 mqttClientConfig = new MqttClientConfig(sslCtx);
             } catch (Exception e) {
                 log.error(e.getMessage(), e);
@@ -697,7 +708,21 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
         return mqttClientConfig;
     }
 
-    private SslContext initSslContext(MqttGatewaySecurityConfiguration configuration) throws Exception {
+    private SslContext initOneWaySslContext(MqttGatewaySecurityConfiguration configuration) throws Exception {
+        URL tsUrl = Resources.getResource(configuration.getTruststore());
+        File tsFile = new File(tsUrl.toURI());
+
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        KeyStore trustStore = KeyStore.getInstance(JKS);
+        try (InputStream tsFileInputStream = new FileInputStream(tsFile)) {
+            trustStore.load(tsFileInputStream, configuration.getTruststorePassword().toCharArray());
+        }
+        tmf.init(trustStore);
+
+        return SslContextBuilder.forClient().trustManager(tmf).build();
+    }
+
+    private SslContext initTwoWaySslContext(MqttGatewaySecurityConfiguration configuration) throws Exception {
         URL ksUrl = Resources.getResource(configuration.getKeystore());
         File ksFile = new File(ksUrl.toURI());
         URL tsUrl = Resources.getResource(configuration.getTruststore());
