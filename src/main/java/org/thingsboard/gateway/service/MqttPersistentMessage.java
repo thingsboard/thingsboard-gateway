@@ -19,10 +19,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Created by Valerii Sosliuk on 1/2/2018.
@@ -40,4 +37,15 @@ public class MqttPersistentMessage implements Serializable {
     private String topic;
     private byte[] payload;
 
+    @Override
+    public String toString() {
+        return "{" +
+                ", deviceId='" + deviceId + '\'' +
+                ", payload=" + new String(payload) +
+                ", timestamp=" + timestamp +
+                ", topic='" + topic + '\'' +
+                "id=" + id +
+                ", messageId=" + messageId +
+                '}';
+    }
 }
