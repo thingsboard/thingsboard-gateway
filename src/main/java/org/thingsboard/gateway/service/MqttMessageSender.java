@@ -30,11 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 /**
@@ -69,7 +65,7 @@ public class MqttMessageSender implements Runnable {
 
     @Override
     public void run() {
-        while (true) {
+        while (!Thread.interrupted()) {
             try {
                 checkClientConnected();
                 if (!checkOutgoingQueueIsEmpty()) {
@@ -91,13 +87,11 @@ public class MqttMessageSender implements Runnable {
                         outgoingQueue.add(publishFuture);
                     }
                 } else {
-                    try {
-                        Thread.sleep(persistence.getPollingInterval());
-                    } catch (InterruptedException e) {
-                        log.error(e.getMessage(), e);
-                        Thread.currentThread().interrupt();
-                    }
+                    Thread.sleep(persistence.getPollingInterval());
                 }
+            } catch (InterruptedException e) {
+                log.trace(e.getMessage());
+                Thread.currentThread().interrupt();
             } catch (Throwable e) {
                 log.error(e.getMessage(), e);
             }

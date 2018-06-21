@@ -48,7 +48,7 @@ public class MqttMessageReceiver implements Runnable {
 
     @Override
     public void run() {
-        while (true) {
+        while (!Thread.interrupted()) {
             checkIncomingQueueSize();
             try {
                 MessageFuturePair messageFuturePair = incomingQueue.take();
@@ -65,7 +65,8 @@ public class MqttMessageReceiver implements Runnable {
                     log.warn("Failed to send message [{}] due to [{}]", message, future.cause());
                 }
             } catch (InterruptedException e) {
-                log.warn(e.getMessage(), e);
+                log.info(e.getMessage());
+                Thread.currentThread().interrupt();
                 break;
             } catch (Exception e) {
                 log.error(e.getMessage(), e);
