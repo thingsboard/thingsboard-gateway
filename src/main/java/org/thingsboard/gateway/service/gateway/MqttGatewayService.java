@@ -62,7 +62,7 @@ import org.thingsboard.server.common.data.kv.LongDataEntry;
 import org.thingsboard.server.common.data.kv.StringDataEntry;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 
-import javax.annotation.PostConstruct;
+import javax.annotation.*;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.File;
@@ -70,11 +70,9 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
-import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -100,6 +98,7 @@ import static org.thingsboard.gateway.util.JsonTools.getKvEntries;
 import static org.thingsboard.gateway.util.JsonTools.newNode;
 import static org.thingsboard.gateway.util.JsonTools.putToNode;
 import static org.thingsboard.gateway.util.JsonTools.toBytes;
+import static sun.java2d.loops.GraphicsPrimitive.TraceReporter.setShutdownHook;
 
 /**
  * Created by ashvayka on 16.01.17.
@@ -194,6 +193,7 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
         scheduler.shutdownNow();
         callbackExecutor.shutdownNow();
         mqttSenderExecutor.shutdownNow();
+        mqttReceiverExecutor.shutdownNow();
         tbClient.disconnect();
     }
 
