@@ -68,7 +68,7 @@ public class MqttMessageReceiver implements Runnable {
                 log.info(e.getMessage());
                 Thread.currentThread().interrupt();
                 break;
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log.error(e.getMessage(), e);
             }
         }

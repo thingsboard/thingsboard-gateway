@@ -26,12 +26,10 @@ import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
 import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.*;
-import java.util.function.Consumer;
 
 /**
  * Created by Valerii Sosliuk on 12/12/2017.
@@ -125,13 +123,13 @@ public class MqttMessageSender implements Runnable {
         return true;
     }
 
-    private boolean checkClientConnected() throws InterruptedException {
+    private boolean checkClientConnected() {
         if (!tbClient.isConnected()) {
-            outgoingQueue.forEach(future -> future.cancel(true));
-            outgoingQueue.clear();
-            log.info("ThingsBoard MQTT connection failed. Reconnecting in [{}] milliseconds", connection.getRetryInterval());
-            Thread.sleep(connection.getRetryInterval());
             try {
+                clearOutgoingQueue();
+                log.info("ThingsBoard MQTT connection failed. Reconnecting in [{}] milliseconds", connection.getRetryInterval());
+                Thread.sleep(connection.getRetryInterval());
+                log.info("Attempting to reconnect to ThingsBoard.");
                 MqttConnectResult result = tbClient.reconnect().get(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
                 if (result.isSuccess()) {
                     log.info("Successfully reconnected to ThingsBoard.");
@@ -144,6 +142,17 @@ public class MqttMessageSender implements Runnable {
             return false;
         }
         return true;
+    }
+
+    private void clearOutgoingQueue() {
+        outgoingQueue.forEach(future -> {
+            try {
+                future.cancel(true);
+            } catch (CancellationException e) {
+                log.warn("Failed to cancel outgoing message on disconnected client. Reason: " + e.getMessage(), e);
+            }
+        });
+        outgoingQueue.clear();
     }
 
     private List<MqttPersistentMessage> getMessages() {
