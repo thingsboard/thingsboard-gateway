@@ -439,7 +439,7 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
 
     @Override
     public void connectionLost(Throwable throwable) {
-        log.warn("Lost connection to ThingsBoard. Attempting to reconnect..");
+        log.warn("Lost connection to ThingsBoard.");
         pendingAttrRequestsMap.clear();
         devices.clear();
     }

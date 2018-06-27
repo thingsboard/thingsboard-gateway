@@ -39,8 +39,7 @@ public class MqttPersistentMessage implements Serializable {
 
     @Override
     public String toString() {
-        return "{" +
-                ", deviceId='" + deviceId + '\'' +
+        return "{deviceId='" + deviceId + '\'' +
                 ", payload=" + new String(payload) +
                 ", timestamp=" + timestamp +
                 ", topic='" + topic + '\'' +
