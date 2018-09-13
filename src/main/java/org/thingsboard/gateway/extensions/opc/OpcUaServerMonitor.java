@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 The Thingsboard Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,6 +18,7 @@ package org.thingsboard.gateway.extensions.opc;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
 import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfig;
+import org.eclipse.milo.opcua.sdk.client.api.config.OpcUaClientConfigBuilder;
 import org.eclipse.milo.opcua.sdk.client.api.identity.IdentityProvider;
 import org.eclipse.milo.opcua.sdk.client.api.nodes.VariableNode;
 import org.eclipse.milo.opcua.sdk.client.api.subscriptions.UaMonitoredItem;
@@ -42,6 +43,8 @@ import org.thingsboard.gateway.util.ConfigurationTools;
 import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -82,7 +85,6 @@ public class OpcUaServerMonitor {
     public void connect(Boolean isRemote) {
         try {
             log.info("Initializing OPC-UA server connection to [{}:{}]!", configuration.getHost(), configuration.getPort());
-            CertificateInfo certificate = ConfigurationTools.loadCertificate(configuration.getKeystore(), isRemote);
 
             SecurityPolicy securityPolicy = SecurityPolicy.valueOf(configuration.getSecurity());
             IdentityProvider identityProvider = configuration.getIdentity().toProvider();
@@ -93,15 +95,7 @@ public class OpcUaServerMonitor {
                     .filter(e -> e.getSecurityPolicyUri().equals(securityPolicy.getSecurityPolicyUri()))
                     .findFirst().orElseThrow(() -> new Exception("no desired endpoints returned"));
 
-            OpcUaClientConfig config = OpcUaClientConfig.builder()
-                    .setApplicationName(LocalizedText.english(configuration.getApplicationName()))
-                    .setApplicationUri(configuration.getApplicationUri())
-                    .setCertificate(certificate.getCertificate())
-                    .setKeyPair(certificate.getKeyPair())
-                    .setEndpoint(endpoint)
-                    .setIdentityProvider(identityProvider)
-                    .setRequestTimeout(uint(configuration.getTimeoutInMillis()))
-                    .build();
+            OpcUaClientConfig config = getOpcUaClientConfig(securityPolicy, identityProvider, endpoint, isRemote);
 
             client = new OpcUaClient(config);
             client.connect().get();
@@ -113,6 +107,25 @@ public class OpcUaServerMonitor {
             log.error("OPC-UA server connection failed!", e);
             throw new RuntimeException("OPC-UA server connection failed!", e);
         }
+    }
+
+    private OpcUaClientConfig getOpcUaClientConfig(SecurityPolicy securityPolicy, IdentityProvider identityProvider, EndpointDescription endpoint, boolean isRemote) throws GeneralSecurityException, IOException {
+
+        OpcUaClientConfigBuilder builder = OpcUaClientConfig.builder()
+                .setApplicationName(LocalizedText.english(configuration.getApplicationName()))
+                .setApplicationUri(configuration.getApplicationUri())
+
+                .setEndpoint(endpoint)
+                .setIdentityProvider(identityProvider)
+                .setRequestTimeout(uint(configuration.getTimeoutInMillis()));
+
+
+        if (securityPolicy != SecurityPolicy.None) {
+            CertificateInfo certificate = ConfigurationTools.loadCertificate(configuration.getKeystore(), isRemote);
+            builder.setCertificate(certificate.getCertificate())
+                    .setKeyPair(certificate.getKeyPair());
+        }
+        return builder.build();
     }
 
     public void disconnect() {
