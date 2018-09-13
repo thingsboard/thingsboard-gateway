@@ -117,7 +117,6 @@ public class MqttMessageSender implements Runnable {
                 outgoingQueue = new ConcurrentLinkedQueue();
                 return true;
             }
-            log.info("Outgoing queue is not empty. [{}] messages are still in progress", pendingCount);
             return false;
         }
         return true;

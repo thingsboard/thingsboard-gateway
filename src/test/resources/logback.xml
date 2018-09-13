@@ -24,7 +24,7 @@
         </layout>
     </appender>
 
-    <logger name="org.thingsboard" level="TRACE" />
+    <logger name="org.thingsboard" level="DEBUG" />
     <logger name="org.eclipse.milo" level="INFO" />
     <logger name="org.eclipse.paho" level="INFO" />
     <logger name="io.moquette.spi" level="WARN" />
