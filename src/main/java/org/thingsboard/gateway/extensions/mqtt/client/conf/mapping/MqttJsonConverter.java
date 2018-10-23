@@ -127,7 +127,7 @@ public class MqttJsonConverter extends BasicJsonConverter implements MqttDataCon
 
     private String evalDeviceType(String topic) {
         if (deviceTypeTopicPattern == null) {
-            deviceTypeTopicPattern = Pattern.compile(deviceTypeJsonExpression);
+            deviceTypeTopicPattern = Pattern.compile(deviceTypeTopicExpression);
         }
         Matcher matcher = deviceTypeTopicPattern.matcher(topic);
         while (matcher.find()) {
