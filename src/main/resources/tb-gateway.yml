@@ -36,12 +36,12 @@ gateways:
         path: storage
         bufferSize: 1000
       connection:
-        host: "${GATEWAY_HOST:YOUR_HOST}"
+        host: "${GATEWAY_HOST:localhost}"
         port: 1883
         retryInterval: 3000
         maxInFlight: 1000
         security:
-          accessToken: "${GATEWAY_ACCESS_TOKEN:YOUR_TOKEN}"
+          accessToken: "${GATEWAY_ACCESS_TOKEN:VsDMARSZQJoNnYFpX6VP}"
       remoteConfiguration: true
       extensions:
         -
