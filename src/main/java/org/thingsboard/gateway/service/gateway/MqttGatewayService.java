@@ -98,7 +98,6 @@ import static org.thingsboard.gateway.util.JsonTools.getKvEntries;
 import static org.thingsboard.gateway.util.JsonTools.newNode;
 import static org.thingsboard.gateway.util.JsonTools.putToNode;
 import static org.thingsboard.gateway.util.JsonTools.toBytes;
-import static sun.java2d.loops.GraphicsPrimitive.TraceReporter.setShutdownHook;
 
 /**
  * Created by ashvayka on 16.01.17.
