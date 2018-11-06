@@ -77,6 +77,10 @@ public class BasicJsonConverter extends AbstractJsonConverter {
             for (TransformerKVMapping mapping : mappings) {
                 String key = eval(document, mapping.getKey());
                 String strVal = eval(document, mapping.getValue());
+                if(mapping.getValue().equals(strVal)){
+                    //取值错误，跳过这个数据
+                    continue;
+                }
                 long ts = defaultTs;
                 if (!StringUtils.isEmpty(mapping.getTs())) {
                     String tsVal = eval(document, mapping.getTs());
@@ -104,6 +108,10 @@ public class BasicJsonConverter extends AbstractJsonConverter {
             for (TransformerKVMapping mapping : mappings) {
                 String key = eval(document, mapping.getKey());
                 String strVal = eval(document, mapping.getValue());
+                if(mapping.getValue().equals(strVal)){
+                    //取值错误，跳过这个数据
+                    continue;
+                }
                 DataValueTransformer transformer = mapping.getTransformer();
                 if (transformer != null && transformer.isApplicable(strVal)) {
                     result.add(getKvEntry(mapping, key, strVal, transformer));
