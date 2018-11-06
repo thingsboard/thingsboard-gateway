@@ -78,7 +78,8 @@ public class BasicJsonConverter extends AbstractJsonConverter {
                 String key = eval(document, mapping.getKey());
                 String strVal = eval(document, mapping.getValue());
                 if(mapping.getValue().equals(strVal)){
-                    //取值错误，跳过这个数据
+                    //if no value is taken, mapping is returned.
+                    //it solves the problem of updating data by passing only one telemetry data.
                     continue;
                 }
                 long ts = defaultTs;
@@ -109,7 +110,8 @@ public class BasicJsonConverter extends AbstractJsonConverter {
                 String key = eval(document, mapping.getKey());
                 String strVal = eval(document, mapping.getValue());
                 if(mapping.getValue().equals(strVal)){
-                    //取值错误，跳过这个数据
+                    //if no value is taken, mapping is returned.
+                    //it solves the problem of updating data by passing only one telemetry data.
                     continue;
                 }
                 DataValueTransformer transformer = mapping.getTransformer();
