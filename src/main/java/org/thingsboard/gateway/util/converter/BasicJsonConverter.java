@@ -77,6 +77,11 @@ public class BasicJsonConverter extends AbstractJsonConverter {
             for (TransformerKVMapping mapping : mappings) {
                 String key = eval(document, mapping.getKey());
                 String strVal = eval(document, mapping.getValue());
+                if(mapping.getValue().equals(strVal)){
+                    //if no value is taken, mapping is returned.
+                    //it solves the problem of updating data by passing only one telemetry data.
+                    continue;
+                }
                 long ts = defaultTs;
                 if (!StringUtils.isEmpty(mapping.getTs())) {
                     String tsVal = eval(document, mapping.getTs());
@@ -104,6 +109,11 @@ public class BasicJsonConverter extends AbstractJsonConverter {
             for (TransformerKVMapping mapping : mappings) {
                 String key = eval(document, mapping.getKey());
                 String strVal = eval(document, mapping.getValue());
+                if(mapping.getValue().equals(strVal)){
+                    //if no value is taken, mapping is returned.
+                    //it solves the problem of updating data by passing only one telemetry data.
+                    continue;
+                }
                 DataValueTransformer transformer = mapping.getTransformer();
                 if (transformer != null && transformer.isApplicable(strVal)) {
                     result.add(getKvEntry(mapping, key, strVal, transformer));
