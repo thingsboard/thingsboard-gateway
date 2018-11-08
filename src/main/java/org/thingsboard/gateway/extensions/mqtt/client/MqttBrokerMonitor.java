@@ -106,6 +106,12 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
 
     public void disconnect() {
         devices.forEach(gateway::onDeviceDisconnect);
+        try {
+            client.disconnect();
+            log.info("[{}:{}] MQTT client closed!", configuration.getHost(), configuration.getPort());
+        } catch (MqttException e) {
+            log.warn("[{}:{}] MQTT client disconnection faied! {}", configuration.getHost(), configuration.getPort(), e.getMessage(), e);
+        }
         scheduler.shutdownNow();
     }
 
