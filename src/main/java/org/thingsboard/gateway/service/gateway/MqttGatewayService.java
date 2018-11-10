@@ -661,7 +661,7 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
             tbClient.on(GATEWAY_ATTRIBUTES_TOPIC, this).await(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
             tbClient.on(GATEWAY_RPC_TOPIC, this).await(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
 
-            byte[] msgData = toBytes(newNode().put("shared", "configuration"));
+            byte[] msgData = toBytes(newNode().put("sharedKeys", "configuration"));
             persistMessage(DEVICE_GET_ATTRIBUTES_REQUEST_TOPIC, msgIdSeq.incrementAndGet(), msgData, null,
                     null,
                     error -> log.warn("Error getiing attributes", error));
