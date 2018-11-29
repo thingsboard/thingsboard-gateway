@@ -40,6 +40,7 @@ gateways:
         port: 7884
         retryInterval: 3000
         maxInFlight: 1000
+        maxMessageSize: 65536
         security:
           accessToken: "${GATEWAY_ACCESS_TOKEN:YOUR_TOKEN}"
       remoteConfiguration: false

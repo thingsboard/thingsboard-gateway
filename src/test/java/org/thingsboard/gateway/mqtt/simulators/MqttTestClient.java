@@ -21,6 +21,7 @@ import io.netty.handler.codec.mqtt.MqttQoS;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import nl.jk5.mqtt.MqttClient;
+import nl.jk5.mqtt.MqttClientConfig;
 import nl.jk5.mqtt.MqttHandler;
 import org.junit.After;
 import org.springframework.beans.factory.annotation.Value;
@@ -56,7 +57,7 @@ public class MqttTestClient {
 
     @PostConstruct
     public void init() {
-        mqttClient = MqttClient.create();
+        mqttClient = MqttClient.create(new MqttClientConfig(), null);
         mqttClient.setEventLoop(new NioEventLoopGroup());
         try {
             mqttClient.connect(host, port).get(timeout, TimeUnit.MILLISECONDS);

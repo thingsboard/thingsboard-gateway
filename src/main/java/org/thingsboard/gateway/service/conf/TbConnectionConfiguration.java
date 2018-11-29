@@ -31,6 +31,7 @@ public class TbConnectionConfiguration {
     private int maxInFlight;
     private int maxQueueSize;
     private int incomingQueueWarningThreshold;
+    private int maxMessageSize;
     private MqttGatewaySecurityConfiguration security;
 
 }
