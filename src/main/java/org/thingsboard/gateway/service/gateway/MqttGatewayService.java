@@ -473,7 +473,7 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
             RpcCommandData rpcCommand = new RpcCommandData();
             rpcCommand.setRequestId(data.get("id").asInt());
             rpcCommand.setMethod(data.get("method").asText());
-            rpcCommand.setParams(JsonTools.toString(data.get("params")));
+            rpcCommand.setParams(data.get("params").asText());
             listeners.forEach(listener -> callbackExecutor.submit(() -> {
                 try {
                     listener.onRpcCommand(deviceName, rpcCommand);
