@@ -28,6 +28,6 @@ public class DeviceMapping {
     private String deviceName;
     private int attributesPollPeriod = ModbusExtensionConstants.DEFAULT_POLL_PERIOD;
     private int timeseriesPollPeriod = ModbusExtensionConstants.DEFAULT_POLL_PERIOD;
-    private List<TagMapping> attributes = Collections.emptyList(); // FIXME: Is it a real case, what device is without attributes?
-    private List<TagMapping> timeseries = Collections.emptyList(); // FIXME: Is it a real case, what device is without timeseries?
+    private List<PollingTagMapping> attributes = Collections.emptyList(); // FIXME: Is it a real case, what device is without attributes?
+    private List<PollingTagMapping> timeseries = Collections.emptyList(); // FIXME: Is it a real case, what device is without timeseries?
 }

@@ -16,6 +16,7 @@
 package org.thingsboard.gateway.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -51,9 +52,25 @@ public class JsonTools {
         }
     }
 
+    public static <T> T fromString(String data, TypeReference<T> type) {
+        try {
+            return JSON.readValue(data, type);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static String toString(JsonNode node) {
         try {
             return JSON.writeValueAsString(node);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static String toString(Map<String, String> map) {
+        try {
+            return JSON.writeValueAsString(map);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
