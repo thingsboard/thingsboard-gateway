@@ -20,13 +20,13 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.mqtt.MqttQoS;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import nl.jk5.mqtt.MqttClient;
-import nl.jk5.mqtt.MqttHandler;
-import org.junit.After;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import org.thingsboard.mqtt.MqttClient;
+import org.thingsboard.mqtt.MqttClientConfig;
+import org.thingsboard.mqtt.MqttHandler;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -57,7 +57,8 @@ public class MqttTestClient {
 
     @PostConstruct
     public void init() {
-        mqttClient = MqttClient.create(defaultHandler);
+        MqttClientConfig mqttClientConfig = new MqttClientConfig();
+        mqttClient = MqttClient.create(mqttClientConfig, defaultHandler);
         mqttClient.setEventLoop(new NioEventLoopGroup());
         try {
             mqttClient.connect(host, port).get(timeout, TimeUnit.MILLISECONDS);

@@ -46,7 +46,6 @@ public class TbSimulator {
     @Value("${mqtt.timeout:10000}")
     private long timeout;
 
-
     @Autowired
     private TestMqttHandler mqttHandler;
 
