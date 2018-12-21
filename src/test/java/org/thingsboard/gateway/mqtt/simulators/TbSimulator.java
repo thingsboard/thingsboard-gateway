@@ -46,7 +46,6 @@ public class TbSimulator {
     @Value("${mqtt.timeout:10000}")
     private long timeout;
 
-
     @Autowired
     private TestMqttHandler mqttHandler;
 
@@ -62,7 +61,7 @@ public class TbSimulator {
         brokerRule.setPort(port);
         brokerRule.setAllowAnonymous(true);
         brokerRule.init();
-        clientRule = new MqttTestClient();
+        clientRule = new MqttTestClient(mqttHandler);
         clientRule.setHost(host);
         clientRule.setPort(port);
         clientRule.setTimeout(timeout);
