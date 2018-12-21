@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 public class MqttTestClient {
 
     private MqttClient mqttClient;
+    private MqttHandler defaultHandler;
 
     @Value("${test.host:localhost}")
     private String host;
@@ -50,13 +51,13 @@ public class MqttTestClient {
     @Value("${mqtt.timeout:10000}")
     private long timeout;
 
-    public MqttTestClient() {
-
+    public MqttTestClient(MqttHandler defaultHandler) {
+        this.defaultHandler = defaultHandler;
     }
 
     @PostConstruct
     public void init() {
-        mqttClient = MqttClient.create();
+        mqttClient = MqttClient.create(defaultHandler);
         mqttClient.setEventLoop(new NioEventLoopGroup());
         try {
             mqttClient.connect(host, port).get(timeout, TimeUnit.MILLISECONDS);

@@ -62,7 +62,7 @@ public class TbSimulator {
         brokerRule.setPort(port);
         brokerRule.setAllowAnonymous(true);
         brokerRule.init();
-        clientRule = new MqttTestClient();
+        clientRule = new MqttTestClient(mqttHandler);
         clientRule.setHost(host);
         clientRule.setPort(port);
         clientRule.setTimeout(timeout);

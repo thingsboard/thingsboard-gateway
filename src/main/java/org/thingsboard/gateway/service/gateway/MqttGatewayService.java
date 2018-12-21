@@ -443,6 +443,11 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
         devices.clear();
     }
 
+    @Override
+    public void onSuccessfulReconnect() {
+
+    }
+
     private void onAttributesUpdate(String message) {
         JsonNode payload = fromString(message);
         String deviceName = payload.get("device").asText();
@@ -636,7 +641,7 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
         try {
             MqttClientConfig mqttClientConfig = getMqttClientConfig();
             mqttClientConfig.setUsername(connection.getSecurity().getAccessToken());
-            tbClient = MqttClient.create(mqttClientConfig);
+            tbClient = MqttClient.create(mqttClientConfig, this);
             tbClient.setCallback(this);
             tbClient.setEventLoop(nioEventLoopGroup);
             Promise<MqttConnectResult> connectResult = (Promise<MqttConnectResult>) tbClient.connect(connection.getHost(), connection.getPort());
