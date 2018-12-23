@@ -16,7 +16,7 @@
 package org.thingsboard.gateway.mqtt;
 
 import io.netty.buffer.ByteBuf;
-import nl.jk5.mqtt.MqttHandler;
+import org.thingsboard.mqtt.MqttHandler;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
