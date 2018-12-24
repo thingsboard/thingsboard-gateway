@@ -13,18 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.thingsboard.gateway.extensions.modbus.conf.mapping;
 
 import lombok.Data;
-import org.thingsboard.gateway.extensions.common.conf.mapping.DataTypeMapping;
+import lombok.ToString;
 
 @Data
-public class DataMapping {
-    private String key;
-    private DataTypeMapping type;
-    private String functionCode;
-    private int address; //TODO: If we need hexadecimal value, the String type need to be used as it does for the function code.
-    private Boolean bigEndian = true;
-    private int registerCount = 1;
+@ToString(callSuper=true)
+public class TagValueMapping extends TagMapping {
+    private Object value;
 }
