@@ -17,7 +17,6 @@ package org.thingsboard.gateway.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -50,9 +49,9 @@ public class JsonTools {
         }
     }
 
-    public static <T> T fromStringToMap(String data) {
+    public static <T> T fromString(String data, TypeReference<T> type) {
         try {
-            return JSON.readValue(data, new TypeReference<T>(){});
+            return JSON.readValue(data, type);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

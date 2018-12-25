@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2018 The Thingsboard Authors
+ * Copyright © 2017 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 package org.thingsboard.gateway.extensions.opc.rpc;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Sets;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.milo.opcua.sdk.client.OpcUaClient;
@@ -76,7 +77,7 @@ public class RpcProcessor implements RpcCommandListener {
         }
 
         Map<String, String> results = new HashMap<>();
-        HashMap<String, Object> values = JsonTools.fromStringToMap(command.getParams());
+        HashMap<String, Object> values = JsonTools.fromString(command.getParams(), new TypeReference<HashMap<String, Object>>() {});
 
         Map<String, NodeId> nodeIds = resolveNodeIds(device, values.keySet());
         Set<String> notFoundTags = Sets.difference(values.keySet(), nodeIds.keySet());
