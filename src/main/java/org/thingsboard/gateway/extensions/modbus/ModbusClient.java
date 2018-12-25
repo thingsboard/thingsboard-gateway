@@ -88,7 +88,8 @@ public class ModbusClient implements ModbusDeviceAware {
             return new ModbusTCPMaster(tcpConf.getHost(),
                                        tcpConf.getPort(),
                                        tcpConf.getTimeout(),
-                                       false);
+                                       tcpConf.isReconnect(),
+                                       tcpConf.isRtuOverTcp());
         } else if (configuration instanceof ModbusUdpTransportConfiguration) {
             ModbusUdpTransportConfiguration udpConf = (ModbusUdpTransportConfiguration) configuration;
             log.trace("Creating UDP Modbus client [{}]", udpConf);

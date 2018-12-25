@@ -34,7 +34,9 @@
       {
         "type": "tcp",
         "host": "localhost",
-        "port": 503
+        "port": 503,
+        "rtuOverTcp": false,
+        "reconnect": true
       },
       "devices": [
         {
