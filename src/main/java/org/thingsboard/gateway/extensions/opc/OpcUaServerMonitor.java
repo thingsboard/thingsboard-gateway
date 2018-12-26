@@ -27,16 +27,16 @@ import org.eclipse.milo.opcua.stack.client.UaTcpStackClient;
 import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
 import org.eclipse.milo.opcua.stack.core.security.SecurityPolicy;
-import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
-import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
-import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
-import org.eclipse.milo.opcua.stack.core.types.builtin.QualifiedName;
-import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UInteger;
+import org.eclipse.milo.opcua.stack.core.types.builtin.*;
+import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.*;
 import org.eclipse.milo.opcua.stack.core.types.enumerated.*;
 import org.eclipse.milo.opcua.stack.core.types.structured.*;
 import org.thingsboard.gateway.extensions.opc.conf.OpcUaServerConfiguration;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.DeviceMapping;
+import org.thingsboard.gateway.extensions.opc.rpc.RpcProcessor;
 import org.thingsboard.gateway.extensions.opc.scan.OpcUaNode;
+import org.thingsboard.gateway.extensions.opc.util.OpcUaUtils;
+import org.thingsboard.gateway.service.data.RpcCommandSubscription;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.CertificateInfo;
 import org.thingsboard.gateway.util.ConfigurationTools;
@@ -60,7 +60,7 @@ import static org.eclipse.milo.opcua.stack.core.util.ConversionUtil.toList;
  * Created by ashvayka on 16.01.17.
  */
 @Slf4j
-public class OpcUaServerMonitor {
+public class OpcUaServerMonitor implements OpcUaDeviceAware {
 
     private final GatewayService gateway;
     private final OpcUaServerConfiguration configuration;
@@ -69,10 +69,13 @@ public class OpcUaServerMonitor {
     private UaSubscription subscription;
     private Map<NodeId, OpcUaDevice> devices;
     private Map<NodeId, List<OpcUaDevice>> devicesByTags;
+    private Map<String, OpcUaDevice> devicesByName;
     private Map<Pattern, DeviceMapping> mappings;
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     private final AtomicLong clientHandles = new AtomicLong(1L);
+
+    private RpcProcessor rpcProcessor;
 
     public OpcUaServerMonitor(GatewayService gateway, OpcUaServerConfiguration configuration) {
         this.gateway = gateway;
@@ -80,6 +83,7 @@ public class OpcUaServerMonitor {
         this.devices = new HashMap<>();
         this.devicesByTags = new HashMap<>();
         this.mappings = configuration.getMapping().stream().collect(Collectors.toMap(m -> Pattern.compile(m.getDeviceNodePattern()), Function.identity()));
+        this.devicesByName = new HashMap<>();
     }
 
     public void connect(Boolean isRemote) {
@@ -101,6 +105,7 @@ public class OpcUaServerMonitor {
             client.connect().get();
 
             subscription = client.getSubscriptionManager().createSubscription(1000.0).get();
+            rpcProcessor = new RpcProcessor(gateway, client, this);
 
             scanForDevices();
         } catch (Exception e) {
@@ -161,6 +166,11 @@ public class OpcUaServerMonitor {
         }, configuration.getScanPeriodInSeconds(), TimeUnit.SECONDS);
     }
 
+    @Override
+    public OpcUaDevice getDevice(String deviceName) {
+        return devicesByName.get(deviceName);
+    }
+
     private void scanForDevices(OpcUaNode node) {
         log.trace("Scanning node: {}", node);
         List<DeviceMapping> matchedMappings = mappings.entrySet().stream()
@@ -176,7 +186,7 @@ public class OpcUaServerMonitor {
         });
 
         try {
-            BrowseResult browseResult = client.browse(getBrowseDescription(node.getNodeId())).get();
+            BrowseResult browseResult = client.browse(OpcUaUtils.getBrowseDescription(node.getNodeId())).get();
             List<ReferenceDescription> references = toList(browseResult.getReferences());
 
             for (ReferenceDescription rd : references) {
@@ -201,14 +211,14 @@ public class OpcUaServerMonitor {
         log.debug("Scanning device node: {}", node);
         Set<String> tags = m.getAllTags();
         log.debug("Scanning node hierarchy for tags: {}", tags);
-        Map<String, NodeId> tagMap = lookupTags(node.getNodeId(), node.getName(), tags);
+        Map<String, NodeId> tagMap = OpcUaUtils.lookupTags(client, node.getNodeId(), node.getName(), tags);
         log.debug("Scanned {} tags out of {}", tagMap.size(), tags.size());
 
         OpcUaDevice device;
         if (devices.containsKey(node.getNodeId())) {
             device = devices.get(node.getNodeId());
         } else {
-            device = new OpcUaDevice(node.getNodeId(), m);
+            device = new OpcUaDevice(node, m);
             devices.put(node.getNodeId(), device);
 
             Map<String, NodeId> deviceNameTags = new HashMap<>();
@@ -221,8 +231,12 @@ public class OpcUaServerMonitor {
                     deviceNameTags.put(tag, tagNode);
                 }
             }
-            device.calculateDeviceName(readTags(deviceNameTags));
-            gateway.onDeviceConnect(device.getDeviceName(), null);
+
+            String deviceName = device.calculateDeviceName(readTags(deviceNameTags));
+            devicesByName.put(deviceName, device);
+
+            gateway.onDeviceConnect(deviceName, null);
+            gateway.subscribe(new RpcCommandSubscription(deviceName, rpcProcessor));
         }
 
         device.updateScanTs();
@@ -312,51 +326,5 @@ public class OpcUaServerMonitor {
             result.put(tag, value.getValue().getValue().toString());
         }
         return result;
-    }
-
-    private Map<String, NodeId> lookupTags(NodeId nodeId, String deviceNodeName, Set<String> tags) {
-        Map<String, NodeId> values = new HashMap<>();
-        try {
-            BrowseResult browseResult = client.browse(getBrowseDescription(nodeId)).get();
-            List<ReferenceDescription> references = toList(browseResult.getReferences());
-
-            for (ReferenceDescription rd : references) {
-                NodeId childId;
-                if (rd.getNodeId().isLocal()) {
-                    childId = rd.getNodeId().local().get();
-                } else {
-                    log.trace("Ignoring remote node: {}", rd.getNodeId());
-                    continue;
-                }
-
-                String browseName = rd.getBrowseName().getName();
-                String name;
-                String childIdStr = childId.getIdentifier().toString();
-                if (childIdStr.contains(deviceNodeName)) {
-                    name = childIdStr.substring(childIdStr.indexOf(deviceNodeName) + deviceNodeName.length() + 1, childIdStr.length());
-                } else {
-                    name = rd.getBrowseName().getName();
-                }
-                if (tags.contains(name)) {
-                    values.put(name, childId);
-                }
-                // recursively browse to children
-                values.putAll(lookupTags(childId, deviceNodeName, tags));
-            }
-        } catch (InterruptedException | ExecutionException e) {
-            log.error("Browsing nodeId={} failed: {}", nodeId, e.getMessage(), e);
-        }
-        return values;
-    }
-
-    private BrowseDescription getBrowseDescription(NodeId nodeId) {
-        return new BrowseDescription(
-                nodeId,
-                BrowseDirection.Forward,
-                Identifiers.References,
-                true,
-                uint(NodeClass.Object.getValue() | NodeClass.Variable.getValue()),
-                uint(BrowseResultMask.All.getValue())
-        );
     }
 }

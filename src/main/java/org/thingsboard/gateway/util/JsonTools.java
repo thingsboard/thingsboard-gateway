@@ -24,10 +24,7 @@ import org.thingsboard.server.common.data.kv.*;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Created by ashvayka on 19.01.17.
