@@ -42,7 +42,6 @@
         <jsonassert.version>1.5.0</jsonassert.version>
         <milo.client.version>0.1.0</milo.client.version>
         <moquette.version>0.10</moquette.version>
-        <netty-mqtt.version>2.0.0TB</netty-mqtt.version>
         <netty.version>4.1.22.Final</netty.version>
         <spring-boot.version>1.4.3.RELEASE</spring-boot.version>
         <lombok.version>1.16.18</lombok.version>
@@ -51,13 +50,13 @@
         <bouncycastle.version>1.52</bouncycastle.version>
         <slf4j.version>1.7.7</slf4j.version>
         <logback.version>1.1.7</logback.version>
-        <j2mod.version>2.4.1</j2mod.version>
+        <j2mod.version>2.5.3</j2mod.version>
         <pkg.name>tb-gateway</pkg.name>
         <pkg.user>thingsboard</pkg.user>
         <pkg.unixLogFolder>/var/log/${pkg.name}</pkg.unixLogFolder>
         <pkg.installFolder>/usr/share/${pkg.name}</pkg.installFolder>
         <pkg.win.dist>${project.build.directory}/windows</pkg.win.dist>
-        <thingsboard.version>2.1.1-SNAPSHOT</thingsboard.version>
+        <thingsboard.version>2.2.1-SNAPSHOT</thingsboard.version>
     </properties>
 
     <dependencies>
@@ -74,6 +73,11 @@
         <dependency>
             <groupId>org.thingsboard.common</groupId>
             <artifactId>data</artifactId>
+            <version>${thingsboard.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard</groupId>
+            <artifactId>netty-mqtt</artifactId>
             <version>${thingsboard.version}</version>
         </dependency>
         <dependency>
@@ -130,11 +134,6 @@
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcpkix-jdk15on</artifactId>
             <version>${bouncycastle.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>nl.jk5.netty-mqtt</groupId>
-            <artifactId>netty-mqtt</artifactId>
-            <version>${netty-mqtt.version}</version>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
