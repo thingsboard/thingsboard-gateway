@@ -22,6 +22,7 @@ import org.thingsboard.gateway.extensions.opc.conf.mapping.AttributesMapping;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.DeviceMapping;
 import org.thingsboard.gateway.extensions.common.conf.mapping.KVMapping;
 import org.thingsboard.gateway.extensions.opc.conf.mapping.TimeseriesMapping;
+import org.thingsboard.gateway.extensions.opc.scan.OpcUaNode;
 import org.thingsboard.server.common.data.kv.*;
 
 import java.util.*;
@@ -33,7 +34,7 @@ import java.util.stream.Collectors;
 @Data
 public class OpcUaDevice {
 
-    private final NodeId nodeId;
+    private final OpcUaNode opcNode;
     private final DeviceMapping mapping;
     private final Map<String, NodeId> tagKeysMap = new HashMap<>();
     private final Map<NodeId, String> tagIdsMap = new HashMap<>();
@@ -68,12 +69,14 @@ public class OpcUaDevice {
         return tagKeysMap.put(kv.getKey(), kv.getValue());
     }
 
-    public void calculateDeviceName(Map<String, String> deviceNameTagValues) {
+    public String calculateDeviceName(Map<String, String> deviceNameTagValues) {
         String deviceNameTmp = mapping.getDeviceNamePattern();
         for (Map.Entry<String, String> kv : deviceNameTagValues.entrySet()) {
             deviceNameTmp = deviceNameTmp.replace(escape(kv.getKey()), kv.getValue());
         }
         this.deviceName = deviceNameTmp;
+
+        return this.deviceName;
     }
 
     public void updateTag(NodeId tagId, DataValue dataValue) {
@@ -115,6 +118,10 @@ public class OpcUaDevice {
         } else {
             return Collections.emptyList();
         }
+    }
+
+    public NodeId getTagNodeId(String tag) {
+        return tagKeysMap.get(tag);
     }
 
     private List<KvEntry> getKvEntries(List<? extends KVMapping> mappings) {

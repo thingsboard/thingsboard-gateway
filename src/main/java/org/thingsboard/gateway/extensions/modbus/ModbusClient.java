@@ -27,18 +27,21 @@ import com.ghgande.j2mod.modbus.util.SerialParameters;
 import lombok.extern.slf4j.Slf4j;
 import org.thingsboard.gateway.extensions.modbus.conf.ModbusExtensionConstants;
 import org.thingsboard.gateway.extensions.modbus.conf.ModbusServerConfiguration;
-import org.thingsboard.gateway.extensions.modbus.conf.mapping.TagMapping;
+import org.thingsboard.gateway.extensions.modbus.conf.mapping.PollingTagMapping;
 import org.thingsboard.gateway.extensions.modbus.conf.transport.*;
+import org.thingsboard.gateway.extensions.modbus.rpc.RpcProcessor;
+import org.thingsboard.gateway.service.data.RpcCommandSubscription;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class ModbusClient {
+public class ModbusClient implements ModbusDeviceAware {
 
     private GatewayService gateway;
     private ModbusServerConfiguration configuration;
@@ -47,17 +50,24 @@ public class ModbusClient {
     private ModbusTransaction transaction;
     private String serverName;
 
-    private List<ModbusDevice> devices;
+    private Map<String, ModbusDevice> devices;
 
     private ScheduledExecutorService executor;
+    private RpcProcessor rpcProcessor;
 
     public ModbusClient(GatewayService gateway, ModbusServerConfiguration configuration) {
         this.gateway = gateway;
         this.configuration = configuration;
         this.client = createClient(this.configuration.getTransport());
         this.executor = Executors.newSingleThreadScheduledExecutor();
-        this.devices = this.configuration.getDevices().stream().map(conf -> new ModbusDevice(conf)).collect(Collectors.toList());
+        this.devices = this.configuration.getDevices().stream().collect(Collectors.toMap(c -> c.getDeviceName(), c -> new ModbusDevice(c)));
         this.serverName = createServerName(this.configuration.getTransport());
+        this.rpcProcessor = new RpcProcessor(this.gateway, this.client, this);
+    }
+
+    @Override
+    public ModbusDevice getDevice(String deviceName) {
+        return devices.get(deviceName);
     }
 
     private String createServerName(ModbusTransportConfiguration configuration) {
@@ -78,7 +88,8 @@ public class ModbusClient {
             return new ModbusTCPMaster(tcpConf.getHost(),
                                        tcpConf.getPort(),
                                        tcpConf.getTimeout(),
-                                       false);
+                                       tcpConf.isReconnect(),
+                                       tcpConf.isRtuOverTcp());
         } else if (configuration instanceof ModbusUdpTransportConfiguration) {
             ModbusUdpTransportConfiguration udpConf = (ModbusUdpTransportConfiguration) configuration;
             log.trace("Creating UDP Modbus client [{}]", udpConf);
@@ -123,11 +134,12 @@ public class ModbusClient {
     private void firstRead() {
         log.info("MBS[{}] going to first read", serverName);
 
-        devices.stream().forEach(device -> {
+        devices.forEach((name, device) -> {
             readTags(device, device.getAttributesMappings());
             readTags(device, device.getTimeseriesMappings());
 
             gateway.onDeviceConnect(device.getName(), null);
+            gateway.subscribe(new RpcCommandSubscription(device.getName(), rpcProcessor));
 
             log.info("MBS[{}] connected new MBD[{}]", serverName, device.getName());
 
@@ -138,7 +150,7 @@ public class ModbusClient {
     private void startPolling() {
         log.info("Start polling MBS[{}]", serverName);
 
-        devices.stream().forEach(device -> {
+        devices.forEach((name, device) -> {
             device.getSortedTagMappings().entrySet().stream().forEach(tags -> {
                 log.info("MBS[{}] Schedule polling [{}] slave for tag(s) [{}], period {} ms",
                         serverName,
@@ -165,11 +177,11 @@ public class ModbusClient {
         }
     }
 
-    private void readTags(ModbusDevice device, List<TagMapping> mappings) {
+    private void readTags(ModbusDevice device, List<PollingTagMapping> mappings) {
         mappings.stream().forEach(m -> readTag(device, m));
     }
 
-    private void readTag(ModbusDevice device, TagMapping mapping) {
+    private void readTag(ModbusDevice device, PollingTagMapping mapping) {
         ModbusRequest request = createRequest(device, mapping);
         transaction.setRequest(request);
         try {
@@ -180,7 +192,7 @@ public class ModbusClient {
         }
     }
 
-    private ModbusRequest createRequest(ModbusDevice device, TagMapping mapping) {
+    private ModbusRequest createRequest(ModbusDevice device, PollingTagMapping mapping) {
         ModbusRequest request = null;
 
         switch (mapping.getFunctionCode()) {
@@ -207,7 +219,7 @@ public class ModbusClient {
         return request;
     }
 
-    private void processResponse(ModbusResponse response, ModbusDevice device, TagMapping mapping) {
+    private void processResponse(ModbusResponse response, ModbusDevice device, PollingTagMapping mapping) {
         switch (mapping.getFunctionCode()) {
             case Modbus.READ_COILS:
                 ReadCoilsResponse rcResp = (ReadCoilsResponse) response;
@@ -239,9 +251,9 @@ public class ModbusClient {
         client.disconnect();
         log.info("Disconnected from MBS[{}]", serverName);
 
-        devices.stream().forEach((d)->{
-                gateway.onDeviceDisconnect(d.getName());
-                log.info("MBS[{}] disconnected MBD[{}]", serverName, d.getName());
+        devices.forEach((name, device)->{
+                gateway.onDeviceDisconnect(device.getName());
+                log.info("MBS[{}] disconnected MBD[{}]", serverName, name);
         });
     }
 }
