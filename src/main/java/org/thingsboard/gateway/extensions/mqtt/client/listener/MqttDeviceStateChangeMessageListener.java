@@ -47,7 +47,7 @@ public class MqttDeviceStateChangeMessageListener extends AbstractJsonConverter 
     @Override
     public void messageArrived(String topic, MqttMessage msg) throws Exception {
         try {
-            String deviceName = null;
+            String deviceName;
             String deviceType = null;
             if (!StringUtils.isEmpty(mapping.getDeviceNameTopicExpression())) {
                 deviceName = eval(topic);
