@@ -25,6 +25,7 @@ import org.thingsboard.gateway.extensions.modbus.conf.mapping.PollingTagMapping;
 import org.thingsboard.gateway.extensions.modbus.conf.mapping.TagMapping;
 import org.thingsboard.server.common.data.kv.*;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -176,6 +177,12 @@ public class ModbusUtils {
                 outputBuf[outputBuf.length - i - 1] = data[i / 2].toBytes()[i % 2];
             }
             return outputBuf;
+        }else if (format.equalsIgnoreCase(ModbusExtensionConstants.BIG_ENDIAN_BYTE_SWAP)) {
+            StringBuffer str = new StringBuffer();
+            for (int i = data.length - 1; i >= 0; i--) {
+                str.append(decimalToBinary(data[i].getValue()));
+            }
+            return toBytes(binaryToDecimal(str.toString()),data.length);
         }
 
         int length = format.length();
@@ -247,5 +254,14 @@ public class ModbusUtils {
         }
 
         return entry;
+    }
+    public static String decimalToBinary(int decimalSource) {
+        BigInteger bi = new BigInteger(String.valueOf(decimalSource));
+        return bi.toString(2);
+    }
+
+    public static Integer binaryToDecimal(String binarySource) {
+        BigInteger bi = new BigInteger(binarySource, 2);
+        return Integer.parseInt(bi.toString());
     }
 }
