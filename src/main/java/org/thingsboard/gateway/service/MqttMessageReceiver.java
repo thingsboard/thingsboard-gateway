@@ -76,7 +76,7 @@ public class MqttMessageReceiver implements Runnable {
 
     private void checkIncomingQueueSize() {
         if (incomingQueue.size() > incomingQueueWarningThreshold) {
-            log.warn("Incoming queue has [{}] messages which is more than thee specified threshold of [{}]", incomingQueue.size(), incomingQueueWarningThreshold);
+            log.warn("Incoming queue has [{}] messages which is more than the specified threshold of [{}]", incomingQueue.size(), incomingQueueWarningThreshold);
         }
     }
 }
