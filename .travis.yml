@@ -15,4 +15,4 @@ language: java
 sudo: required
 script:
   - mvn clean package
-  - make -C docker build APP=$DOCKER_NAME PROJECT=$DOCKER_REPO
+  - make -C docker push APP=$DOCKER_NAME PROJECT=$DOCKER_REPO
