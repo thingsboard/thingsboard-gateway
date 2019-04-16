@@ -1,4 +1,4 @@
-VERSION=1.2.1
+VERSION=$(shell grep -oP '(?<=<version>).*?(?=<)' ../pom.xml | head -n1)
 PROJECT=thingsboard
 APP=gateway
 
