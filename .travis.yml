@@ -4,7 +4,12 @@ before_install:
   - export MAVEN_OPTS="-Dmaven.repo.local=$HOME/.m2/repository -Xms1024m -Xmx3072m"
 jdk:
  - oraclejdk8
+cache:
+  directories:
+    - "$HOME/.m2"
+install:
+  - curl -o $HOME/.m2/settings.xml $SETTINGS_XML_URL
 language: java
 sudo: required
-script: mvn clean verify
-install: true
+script:
+  - mvn clean package
