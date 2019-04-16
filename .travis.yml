@@ -7,9 +7,12 @@ jdk:
 cache:
   directories:
     - "$HOME/.m2"
+services:
+  - docker
 install:
   - curl -o $HOME/.m2/settings.xml $SETTINGS_XML_URL
 language: java
 sudo: required
 script:
   - mvn clean package
+  - make -C docker build APP=$DOCKER_NAME PROJECT=$DOCKER_REPO
