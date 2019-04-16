@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-dpkg -i /tb-gateway.deb
 
 # Copying env variables into conf files
 printenv | awk -F "=" '{print "export " $1 "='\''" $2 "'\''"}' >> /usr/share/tb-gateway/conf/tb-gateway.conf
