@@ -67,7 +67,7 @@ class TBModbusServer():
     def _get_values_check_send_to_tb(self, check_data_changed, item, type_of_data, device):
         bit = self._get_parameter(item, "bit", 0)
 
-        # todo куда биты деваются и как их использвоать? из конфига
+        # todo where we use bits
         #log.debug(self.item["functionCode"])
         result = self.client.read_coils(item["address"], 8, unit=device["unitId"])
 
