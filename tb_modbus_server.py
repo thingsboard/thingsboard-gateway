@@ -1,5 +1,4 @@
 import threading
-
 from pymodbus.client.sync import ModbusTcpClient
 import logging
 import os
@@ -12,6 +11,7 @@ from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BlockingScheduler
 
 log = logging.getLogger(__name__)
+
 
 class TBModbusServer():
     _TIMEOUT = 3000
@@ -52,7 +52,7 @@ class TBModbusServer():
                     self._process_message_tcp(ts, device_ts_poll_period, "ts", device_check_data_changed, device)
                 for atr in device["attributes"]:
                     self._process_message_tcp(atr, device_attr_poll_period, "atr", device_check_data_changed, device)
-        if self._server["transport"]["type"] == "SMTh else":
+        if self._server["transport"]["type"] == "udp":
             # todo add other transport types
             pass
 
@@ -67,14 +67,14 @@ class TBModbusServer():
     def _get_values_check_send_to_tb(self, check_data_changed, item, type_of_data, device):
         bit = self._get_parameter(item, "bit", 0)
 
-        # todo where we use bits
-        #log.debug(self.item["functionCode"])
-        result = self.client.read_coils(item["address"], 8, unit=device["unitId"])
-
-        # result = self._dict_functions[self.item["functionCode"](self.item["address"],
-        #                                                        self._get_parameter(self.item,
-        #                                                                            "registerCount",
-        #                                                                            1))]
+        # todo where do we use bits
+        result = self.client.read_coils(1, 1)
+        print(result.bits)
+        print(self._dict_functions[item["functionCode"]])
+        result = self._dict_functions[item["functionCode"](item["address"],
+                                                           self._get_parameter(item,
+                                                                               "registerCount",
+                                                                               1))]
 
         # todo make class or function for result transforming to one format
         if not check_data_changed or self._check_ts_atr_changed(result, type_of_data, device, item):
@@ -82,7 +82,6 @@ class TBModbusServer():
 
     def _send_to_tb(self, data):
         log.info(data.bits)
-
 # todo stopped working after pymodbus, understand and fix
     def _check_ts_atr_changed(self, value, type_of_data, device, item):
         key = self._server["transport"]["host"] + "|" + str(self._server["transport"]["port"]) + "|" \
@@ -101,3 +100,11 @@ class TBModbusServer():
             return data.get(param)
         else:
             return default_value
+
+    def write_to_server(self, config_file):
+        with open(config_file, 'r') as f:
+            log.debug("reading file")
+        # connect to server if not connected
+        # send data with lock?
+
+# todo add error support
