@@ -11,21 +11,32 @@ class TBModbusTransportManager:
         self.client = None
         transport = config["type"]
         if transport == "tcp":
-            # todo rework timeout, pymodbus timeout param isnt working correctly
-            # todo add reconnect param use
+            # todo rework timeout, pymodbus timeout param isn't working correctly
             self.client = ModbusTcpClient(config["host"],
-                                          port=502 if not config.get("port") else config.get("port"))
+                                          port=502 if not config.get("port") else config["port"])
+
         self.client.connect()
+        log.debug("connected to host {host}:{port}".format(host=config["host"], port=config["port"]))
         self._dict_functions = {
             1: self.client.read_coils,
             2: self.client.read_discrete_inputs,
-            3: self.client.read_holding_registers,
-            4: self.client.read_input_registers
+            3: self.client.read_input_registers,
+            4: self.client.read_holding_registers
         }
 
-    def get_data_from_device(self, config):
-        # todo add bit parameter support, this will not work for boolean with bit parameter correctly
-        # todo this is hardcode, rework it
-        result = self._dict_functions[1](config["address"],
-                                         1 if not config.get("registerCount") else config["registerCount"])
+    def get_data_from_device(self, config, unit_id):
+        result = self._dict_functions[config["functionCode"]](config["address"],
+                                                              self.get_parameter(config, "registerCount", 1),
+                                                              unit=unit_id)
         return result
+
+    def write_data_to_device(self, config):
+        # todo add
+        pass
+
+    @staticmethod
+    def get_parameter(data, param, default_value):
+        if param not in data:
+            return default_value
+        else:
+            return data[param]

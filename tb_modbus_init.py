@@ -1,10 +1,4 @@
-import logging
-import os
-import socket
-import threading
 from json import load
-
-from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from tb_modbus_server import TBModbusServer
@@ -27,5 +21,6 @@ class TBModbusInitializer:
         self._scheduler.start()
 
     def stop_server(self, server):
+        # todo add
         result = True
         return result
