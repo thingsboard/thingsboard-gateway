@@ -1,5 +1,6 @@
 import threading
 from pymodbus.client.sync import ModbusTcpClient
+from tb_modbus_transport_manager import TBModbusTransportManager
 import logging
 import os
 import socket
@@ -14,8 +15,7 @@ log = logging.getLogger(__name__)
 
 
 class TBModbusServer():
-    _TIMEOUT = 3000
-    _POLL_PERIOD = 1000
+    _POLL_PERIOD = 1000  # time in milliseconds
     _thread = None
     scheduler = None
     client = None
@@ -30,34 +30,19 @@ class TBModbusServer():
         self._thread.start()
 
     def _server_processor_thread(self):
-        if self._server["transport"]["type"] == "tcp":
-            self.client = ModbusTcpClient(self._server["transport"]["host"],
-                                          timeout=self._get_parameter(self._server["transport"],
-                                                                      "timeout",
-                                                                      self._TIMEOUT) / 1000)
-            self.client.connect()
-            self._dict_functions = {
-                1: self.client.read_coils,
-                2: self.client.read_discrete_inputs,
-                3: self.client.read_holding_registers,
-                4: self.client.read_input_registers
-            }
+        self.client = TBModbusTransportManager(self._server["transport"])
+        for device in self._server["devices"]:
+            device_check_data_changed = self._get_parameter(device, "sendDataOnlyOnChange", False)
+            device_attr_poll_period = self._get_parameter(device, "attributesPollPeriod", self._POLL_PERIOD)
+            device_ts_poll_period = self._get_parameter(device, "timeseriesPollPeriod", self._POLL_PERIOD)
 
-            for device in self._server["devices"]:
-                device_check_data_changed = self._get_parameter(device, "sendDataOnlyOnChange", False)
-                device_attr_poll_period = self._get_parameter(device, "attributesPollPeriod", self._POLL_PERIOD)
-                device_ts_poll_period = self._get_parameter(device, "timeseriesPollPeriod", self._POLL_PERIOD)
+            for ts in device["timeseries"]:
+                self._process_message(ts, device_ts_poll_period, "ts", device_check_data_changed, device)
+            for atr in device["attributes"]:
+                self._process_message(atr, device_attr_poll_period, "atr", device_check_data_changed, device)
 
-                for ts in device["timeseries"]:
-                    self._process_message_tcp(ts, device_ts_poll_period, "ts", device_check_data_changed, device)
-                for atr in device["attributes"]:
-                    self._process_message_tcp(atr, device_attr_poll_period, "atr", device_check_data_changed, device)
-        if self._server["transport"]["type"] == "udp":
-            # todo add other transport types
-            pass
-
-    def _process_message_tcp(self, item, device_poll_period, type_of_data, device_check_data_changed, device):
-        poll_period = self._get_parameter(item, "pollPeriod", device_poll_period) / 1000
+    def _process_message(self, item, device_poll_period, type_of_data, device_check_data_changed, device):
+        poll_period = self._get_parameter(item, "pollPeriod", device_poll_period) / 1000  # millis to seconds
         check_data_changed = self._get_parameter(item, "sendDataOnlyOnChange", device_check_data_changed)
         self.scheduler.add_job(self._get_values_check_send_to_tb,
                                'interval',
@@ -65,23 +50,14 @@ class TBModbusServer():
                                args=(check_data_changed, item, type_of_data, device))
 
     def _get_values_check_send_to_tb(self, check_data_changed, item, type_of_data, device):
-        bit = self._get_parameter(item, "bit", 0)
-
-        # todo where do we use bits
-        result = self.client.read_coils(1, 1)
-        print(result.bits)
-        print(self._dict_functions[item["functionCode"]])
-        result = self._dict_functions[item["functionCode"](item["address"],
-                                                           self._get_parameter(item,
-                                                                               "registerCount",
-                                                                               1))]
-
-        # todo make class or function for result transforming to one format
+        result = self.client.get_data_from_device(item)
+        result = self.transform_ansver_to_readable_format(result, item)
         if not check_data_changed or self._check_ts_atr_changed(result, type_of_data, device, item):
             self._send_to_tb(result)
 
     def _send_to_tb(self, data):
         log.info(data.bits)
+
 # todo stopped working after pymodbus, understand and fix
     def _check_ts_atr_changed(self, value, type_of_data, device, item):
         key = self._server["transport"]["host"] + "|" + str(self._server["transport"]["port"]) + "|" \
@@ -107,4 +83,6 @@ class TBModbusServer():
         # connect to server if not connected
         # send data with lock?
 
-# todo add error support
+    def transform_ansver_to_readable_format(self, ans, item):
+        result = ans
+        return result
