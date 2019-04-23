@@ -1,7 +1,10 @@
 from json import load
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.events import EVENT_JOB_ERROR
 from tb_modbus_server import TBModbusServer
+import logging
+log = logging.getLogger(__name__)
 
 
 class TBModbusInitializer:
@@ -13,12 +16,17 @@ class TBModbusInitializer:
         if number_of_processes > 1:
             executors.update({'processpool': ProcessPoolExecutor(number_of_processes)})
         self._scheduler = BackgroundScheduler(executors=executors)
+        self._scheduler.add_listener(TBModbusInitializer.listener, EVENT_JOB_ERROR)
         with open(config_file, "r") as config:
             for server in load(config)["servers"]:
                 self._servers.add(TBModbusServer(server, self._scheduler))
 
     def start(self):
         self._scheduler.start()
+
+    @staticmethod
+    def listener(event):
+        log.exception(event.exception)
 
     def stop_server(self, server):
         # todo add

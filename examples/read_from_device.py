@@ -4,5 +4,6 @@ from time import sleep
 logging.basicConfig(level=logging.DEBUG)
 init = TBModbusInitializer()
 init.start()
+# works in a background, so we need script to not stop
 while True:
     sleep(1)

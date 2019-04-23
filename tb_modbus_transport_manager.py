@@ -1,19 +1,26 @@
 import logging
-from pymodbus.client.sync import ModbusTcpClient
+from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusRtuFramer
 log = logging.getLogger(__name__)
 
 
 class TBModbusTransportManager:
-    _TIMEOUT = 3
-
     def __init__(self, config):
         log.info(config)
-        self.client = None
         transport = config["type"]
+        host = TBModbusTransportManager.get_parameter(config, "host", "127.0.0.1")
+        port = TBModbusTransportManager.get_parameter(config, "port", 502)
+        client = None
         if transport == "tcp":
-            # todo rework timeout, pymodbus timeout param isn't working correctly
-            self.client = ModbusTcpClient(config["host"],
-                                          port=502 if not config.get("port") else config["port"])
+            client = ModbusTcpClient
+        elif transport == "udp":
+            client = ModbusUdpClient
+        else:
+            log.warning("Unknown transport type, possible options now are tcp and udp")
+        rtu = ModbusRtuFramer if (config.get("rtuOverTcp") or config.get("rtuOverUdp")) else None
+        if rtu:
+            self.client = client(host, port, ModbusRtuFramer)
+        else:
+            self.client = client(host, port)
 
         self.client.connect()
         log.debug("connected to host {host}:{port}".format(host=config["host"], port=config["port"]))
