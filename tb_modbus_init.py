@@ -27,8 +27,3 @@ class TBModbusInitializer:
     @staticmethod
     def listener(event):
         log.exception(event.exception)
-
-    def stop_server(self, server):
-        # todo add
-        result = True
-        return result
