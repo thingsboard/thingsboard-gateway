@@ -1,6 +1,8 @@
 import logging
 import threading
 from tb_modbus_transport_manager import TBModbusTransportManager as Manager
+from pymodbus.constants import Endian
+from pymodbus.payload import BinaryPayloadDecoder
 import datetime
 log = logging.getLogger(__name__)
 
@@ -25,6 +27,7 @@ class TBModbusServer:
         if len(self._server["devices"]) == 0:
             # should we make it warning? it would be easier to be found in logs
             log.warning("there are no devices to process")
+        # todo add_job here with config.json to periodicaly write smth to
         for device in self._server["devices"]:
             log.debug("adding polling job for device id {id}".format(id=device["unitId"]))
             device_check_data_changed = Manager.get_parameter(device, "sendDataOnlyOnChange", False)
@@ -77,11 +80,12 @@ class TBModbusServer:
     def write_to_server(self, config_file):
         with open(config_file, 'r') as f:
             log.debug("reading file")
-        # connect to server if not connected
         # send data with lock() call?
 
     @staticmethod
     def _transform_answer_to_readable_format(result, config):
+        # todo depending of byte order need to reshuffle result
+
         if config.get("functionCode") == 1 or config.get("functionCode") == 2:
             # we use registerCount to slice off always empty unused bits
             if "registerCount" in config:
@@ -98,5 +102,5 @@ class TBModbusServer:
                 result = "0000000000000000" + str(bin(result)[2:])
                 # get length of 16, then get bit, then cast it to int(0||1 from "0"||"1", then cast to boolean)
                 return bool(int((result[len(result) - 16:])[15 - position]))
-        # todo add byte order
         return result
+# todo write response processing?
