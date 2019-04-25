@@ -1,28 +1,43 @@
 import logging
-import threading
+from threading import Thread, Lock
 from tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder
+from queue import Queue, Empty
+import time
 import datetime
 log = logging.getLogger(__name__)
 
 
-class TBModbusServer:
+class TBModbusServer(Thread):
     _POLL_PERIOD = 1000  # time in milliseconds
-    _thread = None
+    _RUN_TIMEOUT = 0.1
+
     scheduler = None
     client = None
     _server = None
 
     def __init__(self, server, scheduler):
+        super(TBModbusServer, self).__init__()
+        self.devices_names = set()
+        self.queue_write_to_device = Queue()
         self.scheduler = scheduler
         self._server = server
+        self.lock = Lock()
         self._dict_current_parameters = {}
-        self._thread = threading.Thread(target=self._server_processor_thread)
-        self._thread.daemon = True
-        self._thread.start()
+        self.daemon = True
+        self._read_from_devices_jobs_add()
+        self.start()
 
-    def _server_processor_thread(self):
+    def run(self):
+        while True:
+            try:
+                item = self.queue_write_to_device.get()
+                self.client.write_data_to_device(item)
+            except Empty:
+                time.sleep(self._RUN_TIMEOUT)
+
+    def _read_from_devices_jobs_add(self):
         self.client = Manager(self._server["transport"])
         if len(self._server["devices"]) == 0:
             # should we make it warning? it would be easier to be found in logs
@@ -37,6 +52,7 @@ class TBModbusServer:
                 self._process_message(ts, device_ts_poll_period, "ts", device_check_data_changed, device)
             for atr in device["attributes"]:
                 self._process_message(atr, device_attr_poll_period, "atr", device_check_data_changed, device)
+            self.devices_names.add(device["deviceName"])
 
     def _process_message(self, item, device_poll_period, type_of_data, device_check_data_changed, device):
         poll_period = Manager.get_parameter(item, "pollPeriod", device_poll_period) / 1000  # millis to seconds
@@ -77,23 +93,35 @@ class TBModbusServer:
             self._dict_current_parameters.update({key: value})
             return True
 
-    def write_to_server(self, config_file):
-        with open(config_file, 'r') as f:
-            log.debug("reading file")
-        # send data with lock() call?
+    def write_to_device(self, config):
+        log.debug(config)
+        with self.lock:
+            self.queue_write_to_device.put(config)
+
+
+# todo in read and write compare tag with byte order and smth?
+    @staticmethod
+    def _transform_request_to_device_format(request):
+        log.debug(request)
 
     @staticmethod
     def _transform_answer_to_readable_format(result, config):
-        # todo depending of byte order need to reshuffle result
-
+        # todo depending on byte order need to reshuffle result
         if config.get("functionCode") == 1 or config.get("functionCode") == 2:
-            # we use registerCount to slice off always empty unused bits
+            result = result.bits
             if "registerCount" in config:
-                result = result.bits[:config["registerCount"]]
+                return result[:config["registerCount"]]
             else:
-                result = result.bits[0]
+                return result[0]
         elif config.get("functionCode") == 3 or config.get("functionCode") == 4:
+            byte_order = config.get("byteOrder")
+            type_of_data = config.get("type")
+
+            decoder = BinaryPayloadDecoder.fromRegisters(result.registers,
+                                                         byteorder=Endian.Little)
+            decoder.decode_32bit_int()
             result = result.registers
+            # todo redone it,
             if "bit" in config:
                 # with "bit" param we need only one bit, so there cannot be more then one pymodbus register
                 result = result[0]

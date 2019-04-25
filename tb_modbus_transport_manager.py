@@ -59,15 +59,17 @@ class TBModbusTransportManager:
         return result
 
     def write_data_to_device(self, config):
+        log.info("I AM TRANSPORT "+str(config))
+
         # todo here add call to transform_value_to_device_format
-        resp = self._dict_write_functions[config["functionCode"]](config["address"],
-                                                                  config["value"]
-                                                                  )  # todo here unitId may be used
-        log.info("----------------------------------")
-        log.info(resp)
-        log.info("----------------------------------")
-        # todo add write resp processing
-        pass
+        # resp = self._dict_write_functions[config["functionCode"]](config["address"],
+        #                                                           config["value"]
+        #                                                           )  # todo here unitId may be used
+        # log.info("----------------------------------")
+        # log.info(resp)
+        # log.info("----------------------------------")
+        # # todo add write resp processing
+        # pass
 
     @staticmethod
     def get_parameter(data, param, default_value):
