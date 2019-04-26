@@ -47,7 +47,7 @@ class TBModbusTransportManager:
         self._dict_write_functions ={
             5: self.client.write_coil,
             6: self.client.write_registers,
-            15: self.client.write_coils,
+            # 15: self.client.write_coils, # see docs, there is not such function, maybe add it?
             16: self.client.write_registers
         }
         self.client.connect()
@@ -59,17 +59,15 @@ class TBModbusTransportManager:
         return result
 
     def write_data_to_device(self, config):
-        log.info("I AM TRANSPORT "+str(config))
+        # todo where do we get unitId value from??
+        log.debug(config)
 
         # todo here add call to transform_value_to_device_format
-        # resp = self._dict_write_functions[config["functionCode"]](config["address"],
-        #                                                           config["value"]
-        #                                                           )  # todo here unitId may be used
-        # log.info("----------------------------------")
-        # log.info(resp)
-        # log.info("----------------------------------")
-        # # todo add write resp processing
-        # pass
+        resp = self._dict_write_functions[config["functionCode"]](config["address"],
+                                                                  config["value"],
+                                                                  unit=config["unitId"])
+        # todo here unitId may be used
+        # todo add write resp processing
 
     @staticmethod
     def get_parameter(data, param, default_value):

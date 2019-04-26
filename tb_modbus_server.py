@@ -74,9 +74,10 @@ class TBModbusServer(Thread):
     def _send_to_tb(self, data):
         # todo send data to thingsboard
         # maybe method should be public
-        log.info("++++++++++++++++++++++++++++++++++++++++++")
-        log.info(data)
-        log.info("++++++++++++++++++++++++++++++++++++++++++")
+        pass
+        # log.info("++++++++++++++++++++++++++++++++++++++++++")
+        # log.info(data)
+        # log.info("++++++++++++++++++++++++++++++++++++++++++")
 
     def _check_ts_atr_changed(self, value, type_of_data, device, item):
         key = self._server["transport"]["host"] + "|" + str(self._server["transport"]["port"]) + "|" \
@@ -106,6 +107,7 @@ class TBModbusServer(Thread):
 
     @staticmethod
     def _transform_answer_to_readable_format(result, config):
+        log.debug(result)
         # todo depending on byte order need to reshuffle result
         if config.get("functionCode") == 1 or config.get("functionCode") == 2:
             result = result.bits
@@ -114,13 +116,17 @@ class TBModbusServer(Thread):
             else:
                 return result[0]
         elif config.get("functionCode") == 3 or config.get("functionCode") == 4:
-            byte_order = config.get("byteOrder")
+            byte_order = Manager.get_parameter(config, "byteOrder", "BIG")
             type_of_data = config.get("type")
-
             decoder = BinaryPayloadDecoder.fromRegisters(result.registers,
-                                                         byteorder=Endian.Little)
-            decoder.decode_32bit_int()
-            result = result.registers
+                                                         byteorder=byte_order)
+
+            dict_decode = {"string": decoder.decode_string,
+                           "": decoder.decode_32bit_int}
+            result = dict_decode["string"](result)
+            print(result)
+
+
             # todo redone it,
             if "bit" in config:
                 # with "bit" param we need only one bit, so there cannot be more then one pymodbus register
