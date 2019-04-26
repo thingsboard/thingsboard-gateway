@@ -8,11 +8,11 @@ import time
 import datetime
 log = logging.getLogger(__name__)
 
-
+#todo should we log and wrap param getting?
 class TBModbusServer(Thread):
     _POLL_PERIOD = 1000  # time in milliseconds
     _RUN_TIMEOUT = 0.1
-
+        # ну кушать я пойду через сколько-то там
     scheduler = None
     client = None
     _server = None
@@ -75,9 +75,7 @@ class TBModbusServer(Thread):
         # todo send data to thingsboard
         # maybe method should be public
         pass
-        # log.info("++++++++++++++++++++++++++++++++++++++++++")
-        # log.info(data)
-        # log.info("++++++++++++++++++++++++++++++++++++++++++")
+
 
     def _check_ts_atr_changed(self, value, type_of_data, device, item):
         key = self._server["transport"]["host"] + "|" + str(self._server["transport"]["port"]) + "|" \
@@ -103,7 +101,19 @@ class TBModbusServer(Thread):
 # todo in read and write compare tag with byte order and smth?
     @staticmethod
     def _transform_request_to_device_format(request):
+        # we choose hardware type dependently of tb type and hardware registers
         log.debug(request)
+        reg_count = Manager.get_parameter(request, "registerCount", 1)
+        data_type = ""
+
+
+        dict_request_types={
+            "Bool": 1,
+            "Word": 2,
+            "DWord/int": 3,
+            "long": 4
+        }
+        return request
 
     @staticmethod
     def _transform_answer_to_readable_format(result, config):
@@ -117,7 +127,8 @@ class TBModbusServer(Thread):
                 return result[0]
         elif config.get("functionCode") == 3 or config.get("functionCode") == 4:
             byte_order = Manager.get_parameter(config, "byteOrder", "BIG")
-            type_of_data = config.get("type")
+            # todo slice it. it begins with "Write", continues with our data, ends with byte_order
+            type_of_data = config["tag"]
             decoder = BinaryPayloadDecoder.fromRegisters(result.registers,
                                                          byteorder=byte_order)
 
@@ -127,14 +138,15 @@ class TBModbusServer(Thread):
             print(result)
 
 
-            # todo redone it,
+            # todo redone it, it may not work at all if reg_count is more than x
             if "bit" in config:
-                # with "bit" param we need only one bit, so there cannot be more then one pymodbus register
-                result = result[0]
-                position = 15 - config["bit"]  # reverse order
-                # transform result to string representation of a bit sequence, add "0" to make it longer >16
-                result = "0000000000000000" + str(bin(result)[2:])
-                # get length of 16, then get bit, then cast it to int(0||1 from "0"||"1", then cast to boolean)
-                return bool(int((result[len(result) - 16:])[15 - position]))
+                pass
+                # # with "bit" param we need only one bit, so there cannot be more then one pymodbus register
+                # result = result[0]
+                # position = 15 - config["bit"]  # reverse order
+                # # transform result to string representation of a bit sequence, add "0" to make it longer >16
+                # result = "0000000000000000" + str(bin(result)[2:])
+                # # get length of 16, then get bit, then cast it to int(0||1 from "0"||"1", then cast to boolean)
+                # return bool(int((result[len(result) - 16:])[15 - position]))
         return result
 # todo write response processing?
