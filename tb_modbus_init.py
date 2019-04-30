@@ -32,12 +32,13 @@ class TBModbusInitializer:
     def write_to_device(self, config):
         log.debug("config")
         try:
-            self._dict_devices_servers[config["deviceName"]].write_to_device(config)
+            result = self._dict_devices_servers[config["deviceName"]].write_to_device(config)
         except KeyError:
             log.debug("There is not device with name {name}".format(name=config["deviceName"]))
         # if there is not such device log error, look at java code
         # todo repeate java code logic
         # if there is such device, call corresponding server
+        return result
 
     def start(self):
         self._scheduler.start()

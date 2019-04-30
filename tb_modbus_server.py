@@ -1,8 +1,9 @@
+import re
 import logging
 from threading import Thread, Lock
 from tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from pymodbus.constants import Endian
-from pymodbus.payload import BinaryPayloadDecoder
+from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
 from queue import Queue, Empty
 import time
 import datetime
@@ -76,7 +77,6 @@ class TBModbusServer(Thread):
         # maybe method should be public
         pass
 
-
     def _check_ts_atr_changed(self, value, type_of_data, device, item):
         key = self._server["transport"]["host"] + "|" + str(self._server["transport"]["port"]) + "|" \
               + str(device["unitId"]) + "|" + type_of_data + "|" + str(item["address"])
@@ -96,24 +96,60 @@ class TBModbusServer(Thread):
         log.debug(config)
         with self.lock:
             self.queue_write_to_device.put(config)
+        #todo this is future? here we can return response OR retrieve conn to mqtt broker and use it later
 
-
-# todo in read and write compare tag with byte order and smth?
     @staticmethod
     def _transform_request_to_device_format(request):
         # we choose hardware type dependently of tb type and hardware registers
+        # firstly we choose byte order
+        bo = {"BIG": Endian.Big,
+              "LITTLE": Endian.Little,
+              # TODO add support for custom byte orders
+              1023: None,
+              "CD AB EG FH": None}
+        byte_order = bo[request["byteOrder"] if request.get("byteOrder") else Endian.Big]
+        builder = BinaryPayloadBuilder(byteorder=byte_order)
+        reg_count = Manager.get_parameter(request, "regiserCount", 1)
+        value = request["value"]
+
+        # todo is it enough to log.debug error in config?
+        # all values are signed, # todo should we add logic for auto choosing unsigned?
+        tags = (re.findall('[A-Z][a-z]*', request["tag"]))
+        if "Coil" in tags:
+            builder.add_bits(value)
+        elif "String" in tags:
+            builder.add_string(value)
+        elif "Double" in tags:
+            if reg_count == 2:
+                builder.add_32bit_float(value)
+            else:
+                log.debug("unsupported amount of registers with double type")
+            # todo add double support, there is no double method in library
+        elif "Float" in tags:
+            if reg_count == 2:
+                builder.add_32bit_float(value)
+            else:
+                pass
+                # here can be double?
+        elif "Integer" in tags:
+            if reg_count == 2:
+                builder.add_32bit_int(value)
+            else:
+                log.debug("unsupported amount of registers with integer type")
+        else:
+            # todo raise exception? or return?
+            pass
+
         log.debug(request)
-        reg_count = Manager.get_parameter(request, "registerCount", 1)
-        data_type = ""
-
-
-        dict_request_types={
-            "Bool": 1,
-            "Word": 2,
-            "DWord/int": 3,
-            "long": 4
-        }
-        return request
+        payload = None
+        # todo shound we add examination of correlation of functionCode to type? some types does not fit to some fc's
+        if request["functionCode"] in [5, 6]:
+            payload = builder.to_coils()
+        elif request["functionCode"] == 16:
+            payload = builder.to_registers()
+        else:
+            log.debug("Unsupported function code")
+        return payload
 
     @staticmethod
     def _transform_answer_to_readable_format(result, config):
@@ -136,7 +172,6 @@ class TBModbusServer(Thread):
                            "": decoder.decode_32bit_int}
             result = dict_decode["string"](result)
             print(result)
-
 
             # todo redone it, it may not work at all if reg_count is more than x
             if "bit" in config:
