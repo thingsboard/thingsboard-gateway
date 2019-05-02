@@ -13,7 +13,6 @@ log = logging.getLogger(__name__)
 class TBModbusServer(Thread):
     _POLL_PERIOD = 1000  # time in milliseconds
     _RUN_TIMEOUT = 0.1
-        # ну кушать я пойду через сколько-то там
     scheduler = None
     client = None
     _server = None
@@ -100,6 +99,7 @@ class TBModbusServer(Thread):
 
     @staticmethod
     def _transform_request_to_device_format(request):
+        # todo should we throw exception and remove
         # we choose hardware type dependently of tb type and hardware registers
         # firstly we choose byte order
         bo = {"BIG": Endian.Big,
@@ -109,7 +109,7 @@ class TBModbusServer(Thread):
               "CD AB EG FH": None}
         byte_order = bo[request["byteOrder"] if request.get("byteOrder") else Endian.Big]
         builder = BinaryPayloadBuilder(byteorder=byte_order)
-        reg_count = Manager.get_parameter(request, "regiserCount", 1)
+        reg_count = Manager.get_parameter(request, "registerCount", 1)
         value = request["value"]
 
         # todo is it enough to log.debug error in config?
@@ -120,24 +120,21 @@ class TBModbusServer(Thread):
         elif "String" in tags:
             builder.add_string(value)
         elif "Double" in tags:
-            if reg_count == 2:
-                builder.add_32bit_float(value)
+            if reg_count == 4:
+                builder.add_64bit_float(value)
             else:
                 log.debug("unsupported amount of registers with double type")
-            # todo add double support, there is no double method in library
         elif "Float" in tags:
             if reg_count == 2:
                 builder.add_32bit_float(value)
             else:
-                pass
-                # here can be double?
+                log.debug("unsupported amount of registers with float type")
         elif "Integer" in tags:
             if reg_count == 2:
                 builder.add_32bit_int(value)
             else:
                 log.debug("unsupported amount of registers with integer type")
         else:
-            # todo raise exception? or return?
             pass
 
         log.debug(request)
@@ -153,8 +150,8 @@ class TBModbusServer(Thread):
 
     @staticmethod
     def _transform_answer_to_readable_format(result, config):
+        # todo can we extract logic from loop to avoid repeats?
         log.debug(result)
-        # todo depending on byte order need to reshuffle result
         if config.get("functionCode") == 1 or config.get("functionCode") == 2:
             result = result.bits
             if "registerCount" in config:
