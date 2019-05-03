@@ -22,19 +22,7 @@ class TBModbusTransportManager:
         else:
             log.warning("Unknown transport type, possible options are 'tcp' and 'udp'")  # and "rtu"
 
-        # if transport == "rtu":
-        #     dict_parity = {
-        #         "none": "N",
-        #         "even": "E",
-        #         "odd": "O"
-        #     }
-        #     self.client = client(method=config["encoding"],
-        #                          port=config["portName"],
-        #                          stopbits=config["stopBits"],
-        #                          baudrate=config["baudRate"],
-        #                          parity=dict_parity[config["parity"]])
-
-        if rtu_over_everything:  # if rtu is used, there is "elif" in place of "if"
+        if rtu_over_everything:
             self.client = client(host, port, ModbusRtuFramer)
         else:
             self.client = client(host, port)
@@ -44,7 +32,7 @@ class TBModbusTransportManager:
             3: self.client.read_input_registers,
             4: self.client.read_holding_registers
         }
-        self._dict_write_functions ={
+        self._dict_write_functions = {
             5: self.client.write_coil,
             6: self.client.write_registers,
             # 15: self.client.write_coils, # see docs, there is not such function, maybe add it?
@@ -64,10 +52,9 @@ class TBModbusTransportManager:
 
         # todo here add call to transform_value_to_device_format
         resp = self._dict_write_functions[config["functionCode"]](config["address"],
-                                                                  config["value"],
+                                                                  config["payload"],
                                                                   unit=config["unitId"])
-        # todo here unitId may be used
-        # todo add write resp processing
+        # todo add write resp processing?
 
     @staticmethod
     def get_parameter(data, param, default_value):

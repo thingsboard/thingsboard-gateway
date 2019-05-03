@@ -20,8 +20,9 @@ class TBGateway:
 
             # todo if client wasn't created repeat creation and connection and log it
             mqtt = TBGatewayMqttClient(host, token)
+
             mqtt.connect()
-            # # todo not working
+            # todo not working
             # conn = False
             # def conn_callback(*args):
             #     print(1)
@@ -45,15 +46,27 @@ class TBGateway:
                     number_of_workers = Manager.get_parameter(extension, "threads number", 20)
                     number_of_processes = Manager.get_parameter(extension, "processes number", 1)
                     # todo log extension start w/ its id or throw id into start
-                    init = TBModbusInitializer(conf, number_of_workers, number_of_processes)
+                    init = TBModbusInitializer(self, conf, number_of_workers, number_of_processes)
                     init.start()
-                elif extension["extension type"] == "OPC-UA":  # todo check spelling in docs
-                    pass
+                elif extension["extension type"] == "OPC-UA":
+                    log.info("OPC UA isn't implemented yet")
                 elif extension["extention type"] == "Sigfox":
-                    pass
+                    log.info("Sigfox isn't implemented yet")
                 else:
                     log.debug("unknown extension type")  # todo is it enough for?
-            # todo init extensions
+
+    @staticmethod
+    def send_modbus_data_to_storage(data, type_of_data):
+        result = {"eventType": type_of_data, "data": data}
+
+        log.critical("wrapped data")
+        log.critical(result)
+        log.critical("sent data")
+        # todo event_storage.write(result)
+        pass
+
+    def send_tb_request_to_modbus(self, *args):
+        pass
 
 
 def main(config_json_file):

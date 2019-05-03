@@ -9,7 +9,8 @@ import time
 import datetime
 log = logging.getLogger(__name__)
 
-#todo should we log and wrap param getting?
+
+# todo should we log and wrap param getting?
 class TBModbusServer(Thread):
     _POLL_PERIOD = 1000  # time in milliseconds
     _RUN_TIMEOUT = 0.1
@@ -17,8 +18,9 @@ class TBModbusServer(Thread):
     client = None
     _server = None
 
-    def __init__(self, server, scheduler):
+    def __init__(self, server, scheduler, gateway):
         super(TBModbusServer, self).__init__()
+        self.gateway = gateway
         self.devices_names = set()
         self.queue_write_to_device = Queue()
         self.scheduler = scheduler
@@ -68,13 +70,7 @@ class TBModbusServer(Thread):
         result = self._transform_answer_to_readable_format(result, config)
         # firstly we check if we need to check data change, if true then do it
         if not check_data_changed or self._check_ts_atr_changed(result, type_of_data, device, config):
-            self._send_to_tb(result)
-            # todo maybe here we should return result, not just send to tb?
-
-    def _send_to_tb(self, data):
-        # todo send data to thingsboard
-        # maybe method should be public
-        pass
+            self.gateway.send_modbus_data_to_storage(result, config)
 
     def _check_ts_atr_changed(self, value, type_of_data, device, item):
         key = self._server["transport"]["host"] + "|" + str(self._server["transport"]["port"]) + "|" \
@@ -92,10 +88,11 @@ class TBModbusServer(Thread):
             return True
 
     def write_to_device(self, config):
+        config.update({"payload": TBModbusServer._transform_request_to_device_format(config)})
         log.debug(config)
         with self.lock:
             self.queue_write_to_device.put(config)
-        #todo this is future? here we can return response OR retrieve conn to mqtt broker and use it later
+        # todo this is future? here we can return response OR retrieve conn to mqtt broker and use it later
 
     @staticmethod
     def _transform_request_to_device_format(request):
@@ -129,13 +126,18 @@ class TBModbusServer(Thread):
                 builder.add_32bit_float(value)
             else:
                 log.debug("unsupported amount of registers with float type")
-        elif "Integer" in tags:
+        elif "Integer" in tags or "DWord" in tags or "DWord/Integer" in tags:
             if reg_count == 2:
                 builder.add_32bit_int(value)
             else:
                 log.debug("unsupported amount of registers with integer type")
+        elif "Word" in tags:
+            if reg_count == 1:
+                builder.add_16bit_int(value)
+            else:
+                log.debug("unsupported amount of registers with word type")
         else:
-            pass
+            log.debug("unsupported hardware data type")
 
         log.debug(request)
         payload = None
@@ -149,26 +151,43 @@ class TBModbusServer(Thread):
         return payload
 
     @staticmethod
-    def _transform_answer_to_readable_format(result, config):
+    def _transform_answer_to_readable_format(answer, config):
         # todo can we extract logic from loop to avoid repeats?
-        log.debug(result)
+        result = None
         if config.get("functionCode") == 1 or config.get("functionCode") == 2:
-            result = result.bits
+            result = answer.bits
+            log.debug(result)
             if "registerCount" in config:
                 return result[:config["registerCount"]]
             else:
                 return result[0]
         elif config.get("functionCode") == 3 or config.get("functionCode") == 4:
+            result = answer.registers
             byte_order = Manager.get_parameter(config, "byteOrder", "BIG")
-            # todo slice it. it begins with "Write", continues with our data, ends with byte_order
-            type_of_data = config["tag"]
-            decoder = BinaryPayloadDecoder.fromRegisters(result.registers,
+            reg_count = Manager.get_parameter(config, "registerCount", 1)
+            # todo slice it. it begins with , continues with our data, ends with byte_order
+            type_of_data = config["type"]
+            decoder = BinaryPayloadDecoder.fromRegisters(result,
                                                          byteorder=byte_order)
-
-            dict_decode = {"string": decoder.decode_string,
-                           "": decoder.decode_32bit_int}
-            result = dict_decode["string"](result)
-            print(result)
+            if type_of_data == "string":
+                amount_of_characters_in_register = 2
+                decoder.decode_string(amount_of_characters_in_register * reg_count)
+            elif type_of_data == "long":
+                if reg_count == 1:
+                    decoder.decode_16bit_int()
+                elif reg_count == 2:
+                    decoder.decode_32bit_int()
+                else:
+                    log.debug("unsupported register count for long data type")
+            elif type_of_data == "double":
+                if reg_count == 2:
+                    decoder.decode_32bit_float()
+                elif reg_count == 4:
+                    decoder.decode_64bit_float()
+                else:
+                    log.debug("unsupported register count for double data type")
+            else:
+                log.debug("unknown data type, not string, long or double")
 
             # todo redone it, it may not work at all if reg_count is more than x
             if "bit" in config:
