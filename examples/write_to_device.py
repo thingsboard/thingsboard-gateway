@@ -2,7 +2,7 @@ from tb_modbus_init import TBModbusInitializer
 import logging
 from time import sleep
 logging.basicConfig(level=logging.DEBUG)
-init = TBModbusInitializer()
+init = TBModbusInitializer(None)
 # todo this is not final look of config, change it
 #init.write_to_device({"deviceName": "Temp Sensor", "tag": "WriteCoil", "value": True, "functionCode": 5, "address": 2, "byteOrder": "BIG"})
 sleep(3)

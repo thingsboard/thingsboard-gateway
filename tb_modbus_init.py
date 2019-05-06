@@ -13,6 +13,8 @@ class TBModbusInitializer:
 
     def __init__(self,
                  gateway,
+                 # todo make use of extension id later
+                 extension_id,
                  config_file="modbus-config.json",
                  number_of_workers=20,
                  number_of_processes=1,
@@ -37,9 +39,8 @@ class TBModbusInitializer:
             result = self._dict_devices_servers[config["deviceName"]].write_to_device(config)
         except KeyError:
             # todo is it enough to log device name error?
-            log.debug("There is not device with name {name}".format(name=config["deviceName"]))
+            log.error("There is not device with name {name}".format(name=config["deviceName"]))
         # todo repeate java code logic
-        # if there is such device, call corresponding server
         # todo should we return Exception?
         return result
 

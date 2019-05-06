@@ -17,8 +17,6 @@ class TBModbusTransportManager:
             client = ModbusTcpClient
         elif transport == "udp":
             client = ModbusUdpClient
-        # elif transport == "rtu":
-        #     client = ModbusSerialClient
         else:
             log.warning("Unknown transport type, possible options are 'tcp' and 'udp'")  # and "rtu"
 
@@ -35,7 +33,7 @@ class TBModbusTransportManager:
         self._dict_write_functions = {
             5: self.client.write_coil,
             6: self.client.write_registers,
-            # 15: self.client.write_coils, # see docs, there is not such function, maybe add it?
+            # 15: self.client.write_coils, # check docs, there is not such function, maybe add it?
             16: self.client.write_registers
         }
         self.client.connect()

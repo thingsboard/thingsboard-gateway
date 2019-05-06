@@ -5,7 +5,7 @@
     "1":
     {
       "extension type": "Modbus",
-      "config file name": "modbus.json",
+      "config file name": "modbus-config.json",
       "enabled": true
     },
     "2":
@@ -16,6 +16,6 @@
     }
   },
   "storage": {
-
+      "path": "./data"
   }
 }
