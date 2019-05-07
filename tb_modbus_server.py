@@ -15,13 +15,15 @@ log = logging.getLogger(__name__)
 
 class TBModbusServer(Thread):
     _POLL_PERIOD = 1000  # time in milliseconds
-    _RUN_TIMEOUT = 0.1
+    _RUN_TIMEOUT = 0.1  # time in seconds
+    _CHARS_IN_REGISTER = 2
     scheduler = None
     client = None
     _server = None
 
-    def __init__(self, server, scheduler, gateway):
+    def __init__(self, server, scheduler, gateway, ext_id):
         super(TBModbusServer, self).__init__()
+        self.ext_id = ext_id
         self.gateway = gateway
         self.devices_names = set()
         self.queue_write_to_device = Queue()
@@ -41,14 +43,61 @@ class TBModbusServer(Thread):
             except Empty:
                 time.sleep(self._RUN_TIMEOUT)
 
-    def _read_from_devices_jobs_add(self):
-        self.client = Manager(self._server["transport"])
+    def _read_from_devices_pack_jobs_add(self):
+        self.client = Manager(self._server["transport"], self.ext_id)
         if len(self._server["devices"]) == 0:
-            # should we make it warning? it would be easier to be found in logs
-            log.warning("there are no devices to process")
-        # todo add_job here with config.json to periodicaly write smth to
+            log.warning("there are no devices to process, extension id {id}".format(id=self.ext_id))
         for device in self._server["devices"]:
-            log.debug("adding polling job for device id {id}".format(id=device["unitId"]))
+            log.debug("adding polling job for device id {id}, extension id {extid}".format(id=device["unitId"],
+                                                                                           extid=self.ext_id))
+            device_check_data_changed = Manager.get_parameter(device, "sendDataOnlyOnChange", False)
+            device_attr_poll_period = Manager.get_parameter(device, "attributesPollPeriod", self._POLL_PERIOD)
+            device_ts_poll_period = Manager.get_parameter(device, "timeseriesPollPeriod", self._POLL_PERIOD)
+
+
+            # todo find params with similar timings and send them in one message
+            # we do not check attributes and tss simultaneously because their periods usually differentiate drastically
+            dict_ts_poll_periods = {}
+            dict_atr_poll_periods = {}
+
+            def update_poll_period_dicts_add_jobs(device_poll_period, item_type, dict_poll_period):
+                for item in device[item_type]:
+                    poll_period = Manager.get_parameter(item, "pollPeriod", device_poll_period) / 1000  # millis to secs
+
+                    if poll_period not in dict_poll_period:
+                        dict_poll_period.update({poll_period: [item]})
+                    else:
+                        dict_poll_period[poll_period].append(item)
+                add_jobs_from_dict(dict_poll_period, item_type)
+
+            def add_jobs_from_dict(dict_read_values, data_type):
+                for poll_period in dict_read_values:
+                    list_check_values_update = []
+                    # todo check_data_changed = Manager.get_parameter(item, "sendDataOnlyOnChange", device_check_data_changed)
+                    payload = None
+                    # todo create payload
+                    for config in dict_read_values[poll_period]:
+                        list_check_values_update.append(dict_read_values[poll_period][config])
+                    self.scheduler.add_job(self._get_values_pack_check_send_to_tb,
+                                           'interval',
+                                           seconds=poll_period,
+                                           next_run_time=datetime.datetime.now(),
+                                           args=(payload, list_check_values_update, data_type, device["unitId"]))
+
+            update_poll_period_dicts_add_jobs(device_ts_poll_period, device["timeseries"], dict_ts_poll_periods)
+            update_poll_period_dicts_add_jobs(device_attr_poll_period, device["attributes"], dict_atr_poll_periods)
+            self.devices_names.add(device["deviceName"])
+
+    def _get_values_pack_check_send_to_tb(self, payload, data_type, unit_id):
+        pass
+
+    def _read_from_devices_jobs_add(self):
+        self.client = Manager(self._server["transport"], self.ext_id)
+        if len(self._server["devices"]) == 0:
+            log.warning("there are no devices to process")
+        for device in self._server["devices"]:
+            log.debug("adding polling job for device id {id}, extension id {ext_id}".format(id=device["unitId"],
+                                                                                            ext_id=self.ext_id))
             device_check_data_changed = Manager.get_parameter(device, "sendDataOnlyOnChange", False)
             device_attr_poll_period = Manager.get_parameter(device, "attributesPollPeriod", self._POLL_PERIOD)
             device_ts_poll_period = Manager.get_parameter(device, "timeseriesPollPeriod", self._POLL_PERIOD)
@@ -104,15 +153,14 @@ class TBModbusServer(Thread):
 
     def write_to_device(self, config):
         log.debug(config)
-        payload = TBModbusServer._transform_request_to_device_format(config)
+        payload = self._transform_request_to_device_format(config)
         if payload:
             config.update({"payload": payload})
             with self.lock:
                 self.queue_write_to_device.put(config)
         # todo if we need to respond to tb (according to old config) make this a future and return(?)
 
-    @staticmethod
-    def _transform_request_to_device_format(request):
+    def _transform_request_to_device_format(self, request):
         # we choose hardware type dependently of tb type and hardware registers
         # firstly we choose byte order
         bo = {"BIG": Endian.Big,
@@ -137,43 +185,45 @@ class TBModbusServer(Thread):
             if reg_count == 4:
                 builder.add_64bit_float(value)
             else:
-                log.warning("unsupported amount of registers with double type")
+                log.warning("unsupported amount of registers with double type,"
+                            " ext id {id}".format(id=self.ext_id))
                 return None
         elif "Float" in tags:
             if reg_count == 2:
                 builder.add_32bit_float(value)
             else:
-                log.warning("unsupported amount of registers with float type")
+                log.warning("unsupported amount of registers with float type, "
+                            "extension id {id}".format(id=self.ext_id))
                 return None
         elif "Integer" in tags or "DWord" in tags or "DWord/Integer" in tags:
             if reg_count == 2:
                 builder.add_32bit_int(value)
             else:
-                log.warning("unsupported amount of registers with integer type")
+                log.warning("unsupported amount of registers with integer type,"
+                            " extension id {id}".format(id=self.ext_id))
                 return None
         elif "Word" in tags:
             if reg_count == 1:
                 builder.add_16bit_int(value)
             else:
-                log.warning("unsupported amount of registers with word type")
+                log.warning("unsupported amount of registers with word type,"
+                            " extension id {id}".format(id=self.ext_id))
                 return None
         else:
-            log.warning("unsupported hardware data type")
+            log.warning("unsupported hardware data type, extension id {id}".format(id=self.ext_id))
         # todo now if values of config file are wrong, we just log this fact and return empty payload, is it valid?
         log.debug(request)
-        payload = None
         # todo shound we add examination of correlation of functionCode to type? some types does not fit to some fc's
         if request["functionCode"] in [5, 6]:
             payload = builder.to_coils()
         elif request["functionCode"] == 16:
             payload = builder.to_registers()
         else:
-            log.warning("Unsupported function code")
+            log.warning("Unsupported function code, extension id {id}".format(id=self.ext_id))
             return None
         return payload
 
-    @staticmethod
-    def _transform_answer_to_readable_format(answer, config):
+    def _transform_answer_to_readable_format(self, answer, config):
         # todo can we extract logic from loop to avoid repeats?
         result = None
         # working with coils
@@ -193,15 +243,15 @@ class TBModbusServer(Thread):
             decoder = BinaryPayloadDecoder.fromRegisters(result,
                                                          byteorder=byte_order)
             if type_of_data == "string":
-                amount_of_characters_in_register = 2
-                decoder.decode_string(amount_of_characters_in_register * reg_count)
+                decoder.decode_string(TBModbusServer._CHARS_IN_REGISTER * reg_count)
             elif type_of_data == "long":
                 if reg_count == 1:
                     decoder.decode_16bit_int()
                 elif reg_count == 2:
                     decoder.decode_32bit_int()
                 else:
-                    log.warning("unsupported register count for long data type")
+                    log.warning("unsupported register count for long data type,"
+                                " extension id {id}".format(id=self.ext_id))
                     return None
             elif type_of_data == "double":
                 if reg_count == 2:
@@ -209,14 +259,17 @@ class TBModbusServer(Thread):
                 elif reg_count == 4:
                     decoder.decode_64bit_float()
                 else:
-                    log.warning("unsupported register count for double data type")
+                    log.warning("unsupported register count for double data type,"
+                                " extension id {id}".format(id=self.ext_id))
                     return None
             else:
-                log.warning("unknown data type, not string, long or double")
+                log.warning("unknown data type, not string, long or double,"
+                            " extension id {id}".format(id=self.ext_id))
                 return None
             if "bit" in config:
                 if len(result) > 1:
-                    log.warning("with bit parameter only one register is expected, got more then one")
+                    log.warning("with bit parameter only one register is expected, got more then one,"
+                                " extension id {id}".format(id=self.ext_id))
                     return None
                 result = result[0]
                 position = 15 - config["bit"]  # reverse order

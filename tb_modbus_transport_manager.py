@@ -4,9 +4,9 @@ log = logging.getLogger(__name__)
 
 
 class TBModbusTransportManager:
-    def __init__(self, config):
+    def __init__(self, config, ext_id):
         log.info(config)
-
+        self.ext_id = ext_id
         transport = config["type"]
         host = TBModbusTransportManager.get_parameter(config, "host", "127.0.0.1")
         port = TBModbusTransportManager.get_parameter(config, "port", 502)
@@ -18,7 +18,8 @@ class TBModbusTransportManager:
         elif transport == "udp":
             client = ModbusUdpClient
         else:
-            log.warning("Unknown transport type, possible options are 'tcp' and 'udp'")  # and "rtu"
+            log.warning("Unknown transport type, possible options are 'tcp' and 'udp',"
+                        " extension id {id}".format(id=self.ext_id))  # and "rtu"
 
         if rtu_over_everything:
             self.client = client(host, port, ModbusRtuFramer)
@@ -45,9 +46,7 @@ class TBModbusTransportManager:
         return result
 
     def write_data_to_device(self, config):
-        # todo where do we get unitId value from??
         log.debug(config)
-
         # todo here add call to transform_value_to_device_format
         resp = self._dict_write_functions[config["functionCode"]](config["address"],
                                                                   config["payload"],

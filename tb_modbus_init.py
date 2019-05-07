@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 
 class TBModbusInitializer:
     _scheduler = None
-    _dict_devices_servers = {}
+    dict_devices_servers = {}
 
     def __init__(self,
                  gateway,
@@ -19,16 +19,17 @@ class TBModbusInitializer:
                  number_of_workers=20,
                  number_of_processes=1,
                  start_immediately=True):
+        self.ext_id = extension_id
         executors = {'default': ThreadPoolExecutor(number_of_workers)}
         if number_of_processes > 1:
             executors.update({'processpool': ProcessPoolExecutor(number_of_processes)})
         self._scheduler = BackgroundScheduler(executors=executors)
         self._scheduler.add_listener(TBModbusInitializer.listener, EVENT_JOB_ERROR)
         with open(config_file, "r") as config:
-            for server in load(config)["servers"]:
-                server = TBModbusServer(server, self._scheduler, gateway)
+            for server_config in load(config)["servers"]:
+                server = TBModbusServer(server_config, self._scheduler, gateway, self.ext_id)
                 # todo should we make it a future?
-                self._dict_devices_servers.update({device_name: server for device_name in server.devices_names})
+                self.dict_devices_servers.update({device_name: server for device_name in server.devices_names})
         if start_immediately:
             self.start()
 
@@ -36,10 +37,12 @@ class TBModbusInitializer:
         result = None
         log.debug("config")
         try:
-            result = self._dict_devices_servers[config["deviceName"]].write_to_device(config)
+            # todo check if this works irl
+            result = self.dict_devices_servers[config["deviceName"]].write_to_device(config)
         except KeyError:
             # todo is it enough to log device name error?
-            log.error("There is not device with name {name}".format(name=config["deviceName"]))
+            log.error("There is not device with name {name}, extension {ext_id}".format(name=config["deviceName"],
+                                                                                        ext_id=self.ext_id))
         # todo repeate java code logic
         # todo should we return Exception?
         return result
