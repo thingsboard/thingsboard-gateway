@@ -8,7 +8,6 @@ from queue import Queue, Empty
 import time
 import datetime
 log = logging.getLogger(__name__)
-
 # todo first try of retrieving data returns None and raises error, may be critical
 # todo should we log and wrap param getting?
 
@@ -20,6 +19,16 @@ class TBModbusServer(Thread):
     scheduler = None
     client = None
     _server = None
+    dict_bo = {
+                "A": 0,
+                "B": 1,
+                "C": 2,
+                "D": 3,
+                "E": 4,
+                "F": 5,
+                "G": 6,
+                "H": 7
+            }
 
     def __init__(self, server, scheduler, gateway, ext_id):
         super(TBModbusServer, self).__init__()
@@ -119,7 +128,6 @@ class TBModbusServer(Thread):
     def _get_values_check_send_to_tb(self, check_data_changed, config, type_of_data, device):
         result = self.client.get_data_from_device(config, device["unitId"])
         result = self._transform_answer_to_readable_format(result, config)
-
         # firstly we check if we need to check data change, if true then do it
         if result and (check_data_changed or self._check_ts_atr_changed(result, type_of_data, device, config)):
             # todo this is version with only one key in data (telem/atr) update
@@ -132,7 +140,6 @@ class TBModbusServer(Thread):
                 }
             ]
             # todo should we convert time to local? do we check timezone?
-
             # wrap result to ts and other shit
             self.gateway.send_modbus_data_to_storage(result, type_of_data)
 
@@ -163,24 +170,30 @@ class TBModbusServer(Thread):
     def _transform_request_to_device_format(self, request):
         # we choose hardware type dependently of tb type and hardware registers
         # firstly we choose byte order
-        bo = {"BIG": Endian.Big,
-              "LITTLE": Endian.Little,
-              # TODO add support for custom byte orders
-              1023: None,
-              "CD AB EG FH": None}
-        byte_order = bo[request["byteOrder"] if request.get("byteOrder") else Endian.Big]
-        builder = BinaryPayloadBuilder(byteorder=byte_order)
+        byte_order = request["byteOrder"] if request.get("byteOrder") else Endian.Big
+        if byte_order == "LITTLE":
+            builder = BinaryPayloadBuilder(byteorder=Endian.Little, wordorder=Endian.Little)
+        elif byte_order == "BIG":
+            builder = BinaryPayloadBuilder(byteorder=Endian.Big, wordorder=Endian.Big)
+        else:
+
+            byte_order = byte_order.replace(" ", "")
+            if not byte_order[0].isdigit():
+                byte_order = list(map(lambda letter: self.dict_bo[letter], byte_order))
+            builder = BinaryPayloadBuilder(byteorder=Endian.Big, wordorder=Endian.Big)
+            # todo here we may check byte_order validity
         # we do not use register count for something else then checking needed registers for related data type
         reg_count = Manager.get_parameter(request, "registerCount", 1)
         value = request["value"]
-
-        # todo is it enough to log.debug error in config?
         # all values are signed, # todo should we add logic for auto choosing unsigned?
         tags = (re.findall('[A-Z][a-z]*', request["tag"]))
+        # todo here goes all logic for payload transforming
+
         if "Coil" in tags:
             builder.add_bits(value)
         elif "String" in tags:
             builder.add_string(value)
+            # todo builder will not accept custom byte order for string and will raise error, should process it?
         elif "Double" in tags:
             if reg_count == 4:
                 builder.add_64bit_float(value)
@@ -215,13 +228,19 @@ class TBModbusServer(Thread):
         log.debug(request)
         # todo shound we add examination of correlation of functionCode to type? some types does not fit to some fc's
         if request["functionCode"] in [5, 6]:
-            payload = builder.to_coils()
+            return builder.to_coils()
         elif request["functionCode"] == 16:
-            payload = builder.to_registers()
+            if byte_order is not Endian.Big and byte_order is not Endian.Little:
+                input_payload = builder._payload[0]
+                result_payload = bytearray(len(input_payload))
+                for byte in range(len(input_payload)):
+                    result_payload[byte_order[byte]] = input_payload[byte]
+                builder._payload = result_payload
+                x = builder.to_registers()
+            return builder.to_registers()
         else:
             log.warning("Unsupported function code, extension id {id}".format(id=self.ext_id))
             return None
-        return payload
 
     def _transform_answer_to_readable_format(self, answer, config):
         # todo can we extract logic from loop to avoid repeats?
@@ -231,9 +250,9 @@ class TBModbusServer(Thread):
             result = answer.bits
             log.debug(result)
             if "registerCount" in config:
-                return result[:config["registerCount"]]
+                result = result[:config["registerCount"]]
             else:
-                return result[0]
+                result = result[0]
         # working with registers
         elif config.get("functionCode") == 3 or config.get("functionCode") == 4:
             result = answer.registers

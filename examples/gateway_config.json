@@ -16,6 +16,9 @@
     }
   },
   "storage": {
-      "path": "./data"
+      "path": "./data",
+      "max_records_per_file": 5,
+      "max_records_between_fsync": 5,
+      "max_file_count": 2
   }
 }
