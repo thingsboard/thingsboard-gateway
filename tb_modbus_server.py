@@ -7,6 +7,7 @@ from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
 from queue import Queue, Empty
 import time
 import datetime
+from struct import pack, unpack
 log = logging.getLogger(__name__)
 # todo first try of retrieving data returns None and raises error, may be critical
 # todo should we log and wrap param getting?
@@ -29,6 +30,17 @@ class TBModbusServer(Thread):
                 "G": 6,
                 "H": 7
             }
+    WC = {
+        "b": 1,
+        "h": 2,
+        "i": 4,
+        "l": 4,
+        "q": 8,
+        "f": 4,
+        "d": 8
+    }
+
+
 
     def __init__(self, server, scheduler, gateway, ext_id):
         super(TBModbusServer, self).__init__()
@@ -165,12 +177,34 @@ class TBModbusServer(Thread):
             config.update({"payload": payload})
             with self.lock:
                 self.queue_write_to_device.put(config)
-        # todo if we need to respond to tb (according to old config) make this a future and return(?)
 
     def _transform_request_to_device_format(self, request):
+        def pack_words(fstring, value):
+
+            value = pack("!{}".format(fstring), value)
+            wc = self.WC.get(fstring.lower()) // 2
+            up = "!{}H".format(wc)
+            payload = unpack(up, value)
+
+            if byte_order == "LITTLE":
+                payload = list(reversed(payload))
+                fstring = Endian.Little + "H"
+            elif byte_order == "BIG":
+                fstring = Endian.Big + "H"
+            else:
+                fstring = Endian.Big + "H"
+
+                input_payload = payload[0]
+                result_payload = bytearray(len(input_payload))
+                for item in range(len(input_payload)):
+                    result_payload[byte_order[item]] = input_payload[item]
+            payload = [pack(fstring, word) for word in payload]
+            payload = b''.join(payload)
+            return payload
+
         # we choose hardware type dependently of tb type and hardware registers
         # firstly we choose byte order
-        byte_order = request["byteOrder"] if request.get("byteOrder") else Endian.Big
+        byte_order = request["byteOrder"] if request.get("byteOrder") else "LITTLE"
         if byte_order == "LITTLE":
             builder = BinaryPayloadBuilder(byteorder=Endian.Little, wordorder=Endian.Little)
         elif byte_order == "BIG":
@@ -180,69 +214,88 @@ class TBModbusServer(Thread):
             byte_order = byte_order.replace(" ", "")
             if not byte_order[0].isdigit():
                 byte_order = list(map(lambda letter: self.dict_bo[letter], byte_order))
-            builder = BinaryPayloadBuilder(byteorder=Endian.Big, wordorder=Endian.Big)
-            # todo here we may check byte_order validity
+            builder = BinaryPayloadBuilder(byteorder=Endian.Little, wordorder=Endian.Big)
         # we do not use register count for something else then checking needed registers for related data type
         reg_count = Manager.get_parameter(request, "registerCount", 1)
         value = request["value"]
-        # all values are signed, # todo should we add logic for auto choosing unsigned?
+        # all values are signed
         tags = (re.findall('[A-Z][a-z]*', request["tag"]))
-        # todo here goes all logic for payload transforming
 
         if "Coil" in tags:
+            # todo add order
             builder.add_bits(value)
         elif "String" in tags:
+            # todo add wordorder for string? problem is last char if len is even, so we need to add one space to make wordorder
             builder.add_string(value)
-            # todo builder will not accept custom byte order for string and will raise error, should process it?
         elif "Double" in tags:
             if reg_count == 4:
-                builder.add_64bit_float(value)
+                p_string = pack_words("d", value)
+                builder._payload.append(p_string)
+                # builder.add_64bit_float(value)
             else:
                 log.warning("unsupported amount of registers with double type,"
                             " ext id {id}".format(id=self.ext_id))
                 return None
         elif "Float" in tags:
             if reg_count == 2:
-                builder.add_32bit_float(value)
+                p_string = pack_words("f", value)
+                builder._payload.append(p_string)
+                # builder.add_32bit_float(value)
             else:
                 log.warning("unsupported amount of registers with float type, "
                             "extension id {id}".format(id=self.ext_id))
                 return None
-        elif "Integer" in tags or "DWord" in tags or "DWord/Integer" in tags:
-            if reg_count == 2:
-                builder.add_32bit_int(value)
-            else:
-                log.warning("unsupported amount of registers with integer type,"
-                            " extension id {id}".format(id=self.ext_id))
-                return None
-        elif "Word" in tags:
+        elif "Integer" in tags or "DWord" in tags or "DWord/Integer" in tags or "Word" in tags:
             if reg_count == 1:
-                builder.add_16bit_int(value)
+                # todo this may not work
+                p_string = pack_words("h", value)
+                builder._payload.append(p_string)
+                # builder.add_16bit_int(value)
+            elif reg_count == 2:
+                p_string = pack_words("i", value)
+                builder._payload.append(p_string)
+                # builder.add_32bit_int(value)
+            elif reg_count == 4:
+                p_string = pack_words("q", value)
+                builder._payload.append(p_string)
+                # builder.add_64bit_int(value)
             else:
-                log.warning("unsupported amount of registers with word type,"
+                log.warning("unsupported amount of registers with integer/word/dword type,"
                             " extension id {id}".format(id=self.ext_id))
                 return None
         else:
             log.warning("unsupported hardware data type, extension id {id}".format(id=self.ext_id))
         # todo now if values of config file are wrong, we just log this fact and return empty payload, is it valid?
+        print(request)
         log.debug(request)
         # todo shound we add examination of correlation of functionCode to type? some types does not fit to some fc's
+
         if request["functionCode"] in [5, 6]:
             return builder.to_coils()
         elif request["functionCode"] == 16:
-            if byte_order is not Endian.Big and byte_order is not Endian.Little:
-                input_payload = builder._payload[0]
-                result_payload = bytearray(len(input_payload))
-                for byte in range(len(input_payload)):
-                    result_payload[byte_order[byte]] = input_payload[byte]
-                builder._payload = result_payload
-                x = builder.to_registers()
             return builder.to_registers()
         else:
             log.warning("Unsupported function code, extension id {id}".format(id=self.ext_id))
             return None
 
     def _transform_answer_to_readable_format(self, answer, config):
+        def unpack_words(fstring, value):
+            value = value.encode()
+            wc = self.WC.get(fstring.lower()) // 2
+            up = "!{}H".format(wc)
+            value = unpack(up, value)
+            if decoder._wordorder == Endian.Little:
+                value = list(reversed(value))
+            elif decoder._wordorder == Endian.Big:
+                pass
+            else:
+                pass
+                # todo implement decoding
+            # Repack as unsigned Integer
+            pk = decoder._byteorder + 'H'
+            value = [pack(pk, p) for p in value]
+            value = b''.join(value)
+            return value
         # todo can we extract logic from loop to avoid repeats?
         result = None
         # working with coils
@@ -256,18 +309,33 @@ class TBModbusServer(Thread):
         # working with registers
         elif config.get("functionCode") == 3 or config.get("functionCode") == 4:
             result = answer.registers
-            byte_order = Manager.get_parameter(config, "byteOrder", "BIG")
+            byte_order = Manager.get_parameter(config, "byteOrder", "LITTLE")
             reg_count = Manager.get_parameter(config, "registerCount", 1)
             type_of_data = config["type"]
-            decoder = BinaryPayloadDecoder.fromRegisters(result,
-                                                         byteorder=byte_order)
+            #todo implement decodig here, we do not count byte and word order now!
+            if byte_order == "LITTLE":
+                decoder = BinaryPayloadDecoder(result,
+                                                             byteorder=Endian.Little,
+                                                             wordorder=Endian.Little)
+            elif byte_order == "BIG":
+                decoder = BinaryPayloadDecoder.fromRegisters(result,
+                                                             byteorder=Endian.Big,
+                                                             wordorder=Endian.Big)
+            else:
+                decoder = BinaryPayloadDecoder.fromRegisters(result,
+                                                             byteorder=Endian.Little,
+                                                             wordorder=Endian.Big)
+
             if type_of_data == "string":
                 decoder.decode_string(TBModbusServer._CHARS_IN_REGISTER * reg_count)
             elif type_of_data == "long":
                 if reg_count == 1:
-                    decoder.decode_16bit_int()
+                    result = unpack_words(byte_order + "h", result[0])
+                    #decoder.decode_16bit_int()
                 elif reg_count == 2:
                     decoder.decode_32bit_int()
+                elif reg_count == 4:
+                    decoder.decode_64bit_int()
                 else:
                     log.warning("unsupported register count for long data type,"
                                 " extension id {id}".format(id=self.ext_id))
