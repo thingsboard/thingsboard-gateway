@@ -19,6 +19,12 @@
       "path": "./data",
       "max_records_per_file": 5,
       "max_records_between_fsync": 5,
-      "max_file_count": 2
+      "max_file_count": 2,
+      "read_interval": 1,
+      "max_read_record_count": 10
+  },
+  "performance": {
+      "threads_to_use": 5,
+      "processes_to_use": 1
   }
 }

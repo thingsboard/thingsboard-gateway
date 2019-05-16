@@ -47,11 +47,9 @@ class TBModbusTransportManager:
 
     def write_data_to_device(self, config):
         log.debug(config)
-        # todo here add call to transform_value_to_device_format
         resp = self._dict_write_functions[config["functionCode"]](config["address"],
                                                                   config["payload"],
                                                                   unit=config["unitId"])
-        # todo add write resp processing?
 
     @staticmethod
     def get_parameter(data, param, default_value):

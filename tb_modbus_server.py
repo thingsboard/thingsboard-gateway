@@ -20,27 +20,8 @@ class TBModbusServer(Thread):
     scheduler = None
     client = None
     _server = None
-    dict_bo = {
-                "A": 0,
-                "B": 1,
-                "C": 2,
-                "D": 3,
-                "E": 4,
-                "F": 5,
-                "G": 6,
-                "H": 7
-            }
-    WC = {
-        "b": 1,
-        "h": 2,
-        "i": 4,
-        "l": 4,
-        "q": 8,
-        "f": 4,
-        "d": 8
-    }
-
-
+    # dict_bo = {"A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5, "G": 6, "H": 7}
+    # WC = {"b": 1, "h": 2, "i": 4, "l": 4, "q": 8, "f": 4, "d": 8}
 
     def __init__(self, server, scheduler, gateway, ext_id):
         super(TBModbusServer, self).__init__()
@@ -63,54 +44,6 @@ class TBModbusServer(Thread):
                 self.client.write_data_to_device(item)
             except Empty:
                 time.sleep(self._RUN_TIMEOUT)
-
-    def _read_from_devices_pack_jobs_add(self):
-        self.client = Manager(self._server["transport"], self.ext_id)
-        if len(self._server["devices"]) == 0:
-            log.warning("there are no devices to process, extension id {id}".format(id=self.ext_id))
-        for device in self._server["devices"]:
-            log.debug("adding polling job for device id {id}, extension id {extid}".format(id=device["unitId"],
-                                                                                           extid=self.ext_id))
-            device_check_data_changed = Manager.get_parameter(device, "sendDataOnlyOnChange", False)
-            device_attr_poll_period = Manager.get_parameter(device, "attributesPollPeriod", self._POLL_PERIOD)
-            device_ts_poll_period = Manager.get_parameter(device, "timeseriesPollPeriod", self._POLL_PERIOD)
-
-
-            # todo find params with similar timings and send them in one message
-            # we do not check attributes and tss simultaneously because their periods usually differentiate drastically
-            dict_ts_poll_periods = {}
-            dict_atr_poll_periods = {}
-
-            def update_poll_period_dicts_add_jobs(device_poll_period, item_type, dict_poll_period):
-                for item in device[item_type]:
-                    poll_period = Manager.get_parameter(item, "pollPeriod", device_poll_period) / 1000  # millis to secs
-
-                    if poll_period not in dict_poll_period:
-                        dict_poll_period.update({poll_period: [item]})
-                    else:
-                        dict_poll_period[poll_period].append(item)
-                add_jobs_from_dict(dict_poll_period, item_type)
-
-            def add_jobs_from_dict(dict_read_values, data_type):
-                for poll_period in dict_read_values:
-                    list_check_values_update = []
-                    # todo check_data_changed = Manager.get_parameter(item, "sendDataOnlyOnChange", device_check_data_changed)
-                    payload = None
-                    # todo create payload
-                    for config in dict_read_values[poll_period]:
-                        list_check_values_update.append(dict_read_values[poll_period][config])
-                    self.scheduler.add_job(self._get_values_pack_check_send_to_tb,
-                                           'interval',
-                                           seconds=poll_period,
-                                           next_run_time=datetime.datetime.now(),
-                                           args=(payload, list_check_values_update, data_type, device["unitId"]))
-
-            update_poll_period_dicts_add_jobs(device_ts_poll_period, device["timeseries"], dict_ts_poll_periods)
-            update_poll_period_dicts_add_jobs(device_attr_poll_period, device["attributes"], dict_atr_poll_periods)
-            self.devices_names.add(device["deviceName"])
-
-    def _get_values_pack_check_send_to_tb(self, payload, data_type, unit_id):
-        pass
 
     def _read_from_devices_jobs_add(self):
         self.client = Manager(self._server["transport"], self.ext_id)
@@ -153,7 +86,7 @@ class TBModbusServer(Thread):
             ]
             # todo should we convert time to local? do we check timezone?
             # wrap result to ts and other shit
-            self.gateway.send_modbus_data_to_storage(result, type_of_data)
+            self.gateway.send_data_to_storage(result, type_of_data)
 
     def _check_ts_atr_changed(self, value, type_of_data, device, item):
         key = self._server["transport"]["host"] + "|" + str(self._server["transport"]["port"]) + "|" \
@@ -179,94 +112,92 @@ class TBModbusServer(Thread):
                 self.queue_write_to_device.put(config)
 
     def _transform_request_to_device_format(self, request):
-        def pack_words(fstring, value):
-
-            value = pack("!{}".format(fstring), value)
-            wc = self.WC.get(fstring.lower()) // 2
-            up = "!{}H".format(wc)
-            payload = unpack(up, value)
-
-            if byte_order == "LITTLE":
-                payload = list(reversed(payload))
-                fstring = Endian.Little + "H"
-            elif byte_order == "BIG":
-                fstring = Endian.Big + "H"
-            else:
-                fstring = Endian.Big + "H"
-
-                input_payload = payload[0]
-                result_payload = bytearray(len(input_payload))
-                for item in range(len(input_payload)):
-                    result_payload[byte_order[item]] = input_payload[item]
-            payload = [pack(fstring, word) for word in payload]
-            payload = b''.join(payload)
-            return payload
+        # def pack_words(fstring, value):
+        #     value = pack("!{}".format(fstring), value)
+        #     wc = self.WC.get(fstring.lower()) // 2
+        #     up = "!{}H".format(wc)
+        #     payload = unpack(up, value)
+        #
+        #     if byte_order == "LITTLE":
+        #         payload = list(reversed(payload))
+        #         fstring = Endian.Little + "H"
+        #     elif byte_order == "BIG":
+        #         fstring = Endian.Big + "H"
+        #     else:
+        #         # todo add custom wordorder logic
+        #         fstring = Endian.Big + "H"
+        #
+        #         input_payload = payload[0]
+        #         result_payload = bytearray(len(input_payload))
+        #         for item in range(len(input_payload)):
+        #             result_payload[byte_order[item]] = input_payload[item]
+        #     payload = [pack(fstring, word) for word in payload]
+        #     payload = b''.join(payload)
+        #     return payload
 
         # we choose hardware type dependently of tb type and hardware registers
         # firstly we choose byte order
         byte_order = request["byteOrder"] if request.get("byteOrder") else "LITTLE"
         if byte_order == "LITTLE":
-            builder = BinaryPayloadBuilder(byteorder=Endian.Little, wordorder=Endian.Little)
+            builder = BinaryPayloadBuilder(byteorder=Endian.Little)
         elif byte_order == "BIG":
-            builder = BinaryPayloadBuilder(byteorder=Endian.Big, wordorder=Endian.Big)
+            builder = BinaryPayloadBuilder(byteorder=Endian.Big)
         else:
-
-            byte_order = byte_order.replace(" ", "")
-            if not byte_order[0].isdigit():
-                byte_order = list(map(lambda letter: self.dict_bo[letter], byte_order))
-            builder = BinaryPayloadBuilder(byteorder=Endian.Little, wordorder=Endian.Big)
+            log.warning("byte order is not BIG or LITTLE")
+            return
+            # todo implement custom byteorders
+            # byte_order = byte_order.replace(" ", "")
+            # if not byte_order[0].isdigit():
+            #     byte_order = list(map(lambda letter: self.dict_bo[letter], byte_order))
+            # builder = BinaryPayloadBuilder(byteorder=Endian.Little, wordorder=Endian.Big)
         # we do not use register count for something else then checking needed registers for related data type
         reg_count = Manager.get_parameter(request, "registerCount", 1)
         value = request["value"]
         # all values are signed
         tags = (re.findall('[A-Z][a-z]*', request["tag"]))
-
         if "Coil" in tags:
-            # todo add order
             builder.add_bits(value)
         elif "String" in tags:
             # todo add wordorder for string? problem is last char if len is even, so we need to add one space to make wordorder
             builder.add_string(value)
         elif "Double" in tags:
             if reg_count == 4:
-                p_string = pack_words("d", value)
-                builder._payload.append(p_string)
-                # builder.add_64bit_float(value)
+                # p_string = pack_words("d", value)
+                # builder._payload.append(p_string)
+                builder.add_64bit_float(value)
             else:
                 log.warning("unsupported amount of registers with double type,"
                             " ext id {id}".format(id=self.ext_id))
-                return None
+                return
         elif "Float" in tags:
             if reg_count == 2:
-                p_string = pack_words("f", value)
-                builder._payload.append(p_string)
-                # builder.add_32bit_float(value)
+                # p_string = pack_words("f", value)
+                # builder._payload.append(p_string)
+                builder.add_32bit_float(value)
             else:
                 log.warning("unsupported amount of registers with float type, "
                             "extension id {id}".format(id=self.ext_id))
-                return None
+                return
         elif "Integer" in tags or "DWord" in tags or "DWord/Integer" in tags or "Word" in tags:
             if reg_count == 1:
-                # todo this may not work
-                p_string = pack_words("h", value)
-                builder._payload.append(p_string)
-                # builder.add_16bit_int(value)
+                # p_string = pack_words("h", value)
+                # builder._payload.append(p_string)
+                builder.add_16bit_int(value)
             elif reg_count == 2:
-                p_string = pack_words("i", value)
-                builder._payload.append(p_string)
-                # builder.add_32bit_int(value)
+                # p_string = pack_words("i", value)
+                # builder._payload.append(p_string)
+                builder.add_32bit_int(value)
             elif reg_count == 4:
-                p_string = pack_words("q", value)
-                builder._payload.append(p_string)
-                # builder.add_64bit_int(value)
+                # p_string = pack_words("q", value)
+                # builder._payload.append(p_string)
+                builder.add_64bit_int(value)
             else:
                 log.warning("unsupported amount of registers with integer/word/dword type,"
                             " extension id {id}".format(id=self.ext_id))
-                return None
+                return
         else:
             log.warning("unsupported hardware data type, extension id {id}".format(id=self.ext_id))
         # todo now if values of config file are wrong, we just log this fact and return empty payload, is it valid?
-        print(request)
         log.debug(request)
         # todo shound we add examination of correlation of functionCode to type? some types does not fit to some fc's
 
@@ -276,26 +207,28 @@ class TBModbusServer(Thread):
             return builder.to_registers()
         else:
             log.warning("Unsupported function code, extension id {id}".format(id=self.ext_id))
-            return None
+            return
 
     def _transform_answer_to_readable_format(self, answer, config):
-        def unpack_words(fstring, value):
-            value = value.encode()
-            wc = self.WC.get(fstring.lower()) // 2
-            up = "!{}H".format(wc)
-            value = unpack(up, value)
-            if decoder._wordorder == Endian.Little:
-                value = list(reversed(value))
-            elif decoder._wordorder == Endian.Big:
-                pass
-            else:
-                pass
-                # todo implement decoding
-            # Repack as unsigned Integer
-            pk = decoder._byteorder + 'H'
-            value = [pack(pk, p) for p in value]
-            value = b''.join(value)
-            return value
+        # def unpack_words(fstring, value):
+        #     #todo add "default" fstring value handling
+        #     value = value.encode()
+        #     wc = self.WC.get(fstring.lower()) // 2
+        #     up = "!{}H".format(wc)
+        #     value = unpack(up, value)
+        #     if decoder._wordorder == Endian.Little:
+        #         value = list(reversed(value))
+        #     elif decoder._wordorder == Endian.Big:
+        #         pass
+        #     else:
+        #         # todo implement decoding
+        #         pass
+        #
+        #     # Repack as unsigned Integer
+        #     pk = decoder._byteorder + 'H'
+        #     value = [pack(pk, p) for p in value]
+        #     value = b''.join(value)
+        #     return value
         # todo can we extract logic from loop to avoid repeats?
         result = None
         # working with coils
@@ -312,52 +245,62 @@ class TBModbusServer(Thread):
             byte_order = Manager.get_parameter(config, "byteOrder", "LITTLE")
             reg_count = Manager.get_parameter(config, "registerCount", 1)
             type_of_data = config["type"]
-            #todo implement decodig here, we do not count byte and word order now!
             if byte_order == "LITTLE":
-                decoder = BinaryPayloadDecoder(result,
-                                                             byteorder=Endian.Little,
-                                                             wordorder=Endian.Little)
+                decoder = BinaryPayloadDecoder.fromRegisters(result)
             elif byte_order == "BIG":
-                decoder = BinaryPayloadDecoder.fromRegisters(result,
-                                                             byteorder=Endian.Big,
-                                                             wordorder=Endian.Big)
+                decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Big)
             else:
-                decoder = BinaryPayloadDecoder.fromRegisters(result,
-                                                             byteorder=Endian.Little,
-                                                             wordorder=Endian.Big)
-
+                log.warning("byte order is not BIG or LITTLE")
+                return
+            # if byte_order == "default":
+            #     decoder = BinaryPayloadDecoder.fromRegisters(result,
+            #                                                  byteorder=Endian.Little,
+            #                                                  wordorder=Endian.Big)
+            # elif byte_order == "LITTLE":
+            #     decoder = BinaryPayloadDecoder.fromRegisters(result,
+            #                                                  byteorder=Endian.Little,
+            #                                                  wordorder=Endian.Little)
+            # elif byte_order == "BIG":
+            #     decoder = BinaryPayloadDecoder.fromRegisters(result,
+            #                                                  byteorder=Endian.Big,
+            #                                                  wordorder=Endian.Big)
+            # else:
+            #     decoder = BinaryPayloadDecoder.fromRegisters(result,
+            #                                                  byteorder=Endian.Little,
+            #                                                  wordorder=Endian.Big)
             if type_of_data == "string":
-                decoder.decode_string(TBModbusServer._CHARS_IN_REGISTER * reg_count)
+                result = decoder.decode_string(TBModbusServer._CHARS_IN_REGISTER * reg_count)
             elif type_of_data == "long":
                 if reg_count == 1:
-                    result = unpack_words(byte_order + "h", result[0])
-                    #decoder.decode_16bit_int()
+                    # result = unpack_words(byte_order + "h", result[0])
+                    # result = unpack(decoder._byteorder, result)[0]
+                    result = decoder.decode_16bit_int()
                 elif reg_count == 2:
-                    decoder.decode_32bit_int()
+                    result = decoder.decode_32bit_int()
                 elif reg_count == 4:
-                    decoder.decode_64bit_int()
+                    result = decoder.decode_64bit_int()
                 else:
                     log.warning("unsupported register count for long data type,"
                                 " extension id {id}".format(id=self.ext_id))
-                    return None
+                    return
             elif type_of_data == "double":
                 if reg_count == 2:
-                    decoder.decode_32bit_float()
+                    result = decoder.decode_32bit_float()
                 elif reg_count == 4:
-                    decoder.decode_64bit_float()
+                    result = decoder.decode_64bit_float()
                 else:
                     log.warning("unsupported register count for double data type,"
                                 " extension id {id}".format(id=self.ext_id))
-                    return None
+                    return
             else:
                 log.warning("unknown data type, not string, long or double,"
                             " extension id {id}".format(id=self.ext_id))
-                return None
+                return
             if "bit" in config:
                 if len(result) > 1:
                     log.warning("with bit parameter only one register is expected, got more then one,"
                                 " extension id {id}".format(id=self.ext_id))
-                    return None
+                    return
                 result = result[0]
                 position = 15 - config["bit"]  # reverse order
                 # transform result to string representation of a bit sequence, add "0" to make it longer >16

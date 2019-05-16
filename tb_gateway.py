@@ -2,9 +2,12 @@ from tb_modbus_init import TBModbusInitializer
 from tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from tb_gateway_mqtt import TBGatewayMqttClient
 from tb_event_storage import TBEventStorage
-from json import load
+from json import load, dumps
 import time
 import logging
+from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.events import EVENT_JOB_ERROR
 log = logging.getLogger(__name__)
 
 
@@ -14,17 +17,29 @@ class TBGateway:
             config = load(config)
             host = config["host"]
             token = config["token"]
-            # todo validate?
             dict_extensions_settings = config["extensions"]
             dict_storage_settings = config["storage"]
+            dict_performance_settings = config.get("performance")
             data_folder_path = dict_storage_settings["path"]
             max_records_per_file = dict_storage_settings["max_records_per_file"]
             max_records_between_fsync = dict_storage_settings["max_records_between_fsync"]
             max_file_count = dict_storage_settings["max_file_count"]
+            read_interval = dict_storage_settings["read_interval"]
+            max_read_record_count = dict_storage_settings["max_read_record_count"]
+            if dict_storage_settings:
+                number_of_processes = Manager.get_parameter("threads_to_use", dict_performance_settings, 20)
+                number_of_workers = Manager.get_parameter("processes_to_use", dict_performance_settings, 1)
             self.devices = {}
+
+            # initialize scheduler
+            executors = {'default': ThreadPoolExecutor(number_of_workers)}
+            if number_of_processes > 1:
+                executors.update({'processpool': ProcessPoolExecutor(number_of_processes)})
+            self._scheduler = BackgroundScheduler(executors=executors)
+            self._scheduler.add_listener(TBGateway.listener, EVENT_JOB_ERROR)
+
             # initialize client
             self.mqtt_gateway = TBGatewayMqttClient(host, token)
-            # todo this may work only on first connection
             while not self.mqtt_gateway._TBDeviceMqttClient__is_connected:
                 try:
                     self.mqtt_gateway.connect()
@@ -34,11 +49,8 @@ class TBGateway:
                 time.sleep(1)
             self.mqtt_gateway.gw_set_server_side_rpc_request_handler(self.rpc_request_handler)
 
-            self.event_storage = TBEventStorage(data_folder_path,
-                                                max_records_per_file,
-                                                max_records_between_fsync,
-                                                max_file_count)
-            # todo if client receives rpc, extension must process it, maybe extract to somewhere elsewhere
+            self.event_storage = TBEventStorage(data_folder_path, max_records_per_file, max_records_between_fsync,
+                                                max_file_count, read_interval, max_read_record_count, self._scheduler)
             for ext_id in dict_extensions_settings:
                 extension = dict_extensions_settings[ext_id]
                 if extension["extension type"] == "Modbus" and extension["enabled"]:
@@ -54,13 +66,13 @@ class TBGateway:
                 else:
                     log.error("unknown extension type")
 
-    def send_modbus_data_to_storage(self, data, type_of_data):
+    def on_device_connected(self, device_name, rpc_handler):
+        pass
+
+    def send_data_to_storage(self, data, type_of_data):
         result = {"eventType": type_of_data.upper(), "data": data}
         log.critical(result)
-        self.event_storage.write(str(result))
-
-    def send_tb_request_to_modbus(self, *args):
-        pass
+        self.event_storage.write(dumps(result))
 
     def rpc_request_handler(self, request_body):
         # request body contains id, method and other parameters
@@ -71,7 +83,9 @@ class TBGateway:
         # todo if there are not such device return error, check java code
         # todo add try catch to not fall from exception
         req_id = request_body["data"]["id"]
-
         # dependently of request method we send different data back
+        # todo every extension has its reply method in init or server, or we do it here?
+    @staticmethod
+    def listener(event):
+        log.exception(event.exception)
 
-        #todo every extension has its reply method in init or server, or we do it here?

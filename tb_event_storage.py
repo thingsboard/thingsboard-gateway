@@ -3,7 +3,7 @@ import threading
 import time
 import logging
 from json import load, dump, loads, dumps
-
+from datetime import datetime
 log = logging.getLogger(__name__)
 
 
@@ -31,12 +31,11 @@ class TBEventStorage:
 
         @staticmethod
         def file_line_count(file_pass):
-            i = 0
             if os.path.isfile(file_pass):
                 with open(file_pass, 'r') as f:
-                    for line_number, line in enumerate(f):
-                        i = line_number + 1
-            return i
+                    for line_number, l in enumerate(f):
+                        pass
+            return line_number + 1
 
         def current_file_name(self):
             return self.__files[-1]
@@ -65,12 +64,35 @@ class TBEventStorage:
             pass
 
     class __TBEventStorageReaderState:
-        def __init__(self, current_file_name, current_file_pos):
+        def __init__(self, current_file_name, current_file_pos,  read_interval, max_read_record_count, storage):
             self.current_file_name = current_file_name
             self.current_file_pos = current_file_pos
+            self.read_interval = read_interval
+            self.max_read_record_count = max_read_record_count
+            self.storage = storage
 
         def __str__(self):
             return '[' + str(self.current_file_name) + '|' + str(self.current_file_pos) + ']'
+
+        def read(self):
+            # read one by one
+            result = None
+            count_to_read = 5
+            file_counter = 0
+            with self.storage.__writer_lock:
+                while count_to_read > 0:
+                    file = self.storage.__files.get(file_counter)
+                    try:
+                        with open(file) as f:
+                            pass
+                            # todo (test) readlines
+                            # todo "count_to_read - actually_read_lines"
+                    except FileNotFoundError:
+                        log.debug("there are not files to read")
+                        return result
+                    file_counter += 1
+            # todo here change read_state (maybe)
+            return result
 
     class __TBEventStorageWriterState:
         def __init__(self, p_dir, max_records_per_file, max_records_between_fsync):
@@ -101,7 +123,8 @@ class TBEventStorage:
         def __str__(self):
             return '[' + str(self.current_file_name) + '|' + str(self.current_file_size) + ']'
 
-    def __init__(self, data_folder_path, max_records_per_file, max_records_between_fsync, max_file_count):
+    def __init__(self, data_folder_path, max_records_per_file, max_records_between_fsync, max_file_count,
+                 read_interval, max_read_record_count, scheduler, gateway):
         if max_records_per_file <= 0:
             raise self.TBStorageInitializationError("'Max records per file' parameter is <= 0")
         elif max_records_per_file > 1000000:
@@ -115,21 +138,43 @@ class TBEventStorage:
             raise self.TBStorageInitializationError("'Max data files' parameter is <= 0")
         elif max_file_count > 1000000:
             raise self.TBStorageInitializationError("'Max data files' parameter is > 1000000")
+        if read_interval <= 0:
+            raise self.TBStorageInitializationError("'Read interval' parameter is <= 0")
+        if max_read_record_count <=0:
+            raise self.TBStorageInitializationError("'Max read record count' parameter is <= 0")
+        # todo add params validation?
         self.__writer_lock = threading.Lock()
         self.__dir = self.__TBEventStorageDir(data_folder_path, max_file_count)
-        self.__init_reader_state(data_folder_path)
+        self.__init_reader_state(data_folder_path, read_interval, max_read_record_count)
         self.__writer = self.__TBEventStorageWriterState(self.__dir, max_records_per_file, max_records_between_fsync)
+        scheduler.add_job(self.read, 'interval', seconds=read_interval, next_run_time=datetime.now())
+        # todo REMOVE AFTER UNIT TESTING
+        scheduler.start()
 
-    def __init_reader_state(self, data_folder_path):
+        self.__gateway = gateway
+
+    def __init_reader_state(self, data_folder_path, read_interval, max_read_record_count):
         self.__reader_state_file_name = data_folder_path + ".reader_state"
         if os.path.isfile(self.__reader_state_file_name):
             with open(self.__reader_state_file_name, 'r') as state_file:
                 data = load(state_file)
                 self.__reader_state = self.__TBEventStorageReaderState(data['current_file_name'],
-                                                                       data['current_file_pos'])
+                                                                       data['current_file_pos'],
+                                                                       read_interval,
+                                                                       max_read_record_count,
+                                                                       self)
         else:
-            self.__reader_state = self.__TBEventStorageReaderState(self.__dir.current_file_name(), 0)
+            self.__reader_state = self.__TBEventStorageReaderState(self.__dir.current_file_name(),
+                                                                   0,
+                                                                   read_interval,
+                                                                   max_read_record_count)
         log.info("Reader state: %s", self.__reader_state)
+
+    def __change_reader_state(self, file, pos):
+        with open(self.__reader_state_file_name, 'w') as state_file:
+            # todo add
+            state_file.write("12345678")
+        log.info("reader state changed, pass")
 
     def write(self, data):
         if self.__writer_lock.acquire(True, 60):
@@ -142,4 +187,13 @@ class TBEventStorage:
             finally:
                 self.__writer_lock.release()
         else:
-            log.warning("Failed to acquire write log for an event storage!")
+            log.warning("Failed to acquire write log for an event storage!")  # todo lock or log?
+
+    def read(self):
+        #todo add file deleting before read logic here?
+        result = self.__reader_state.read()
+        if result:
+            log.critical(result)
+            log.critical("here goes gateway data to tb sending logic")
+            log.critical("we need to differentiate attributes and telemetry and do one of two things: put them in one"
+                         " message or send them 'as is'")
