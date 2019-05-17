@@ -88,23 +88,6 @@ class TBEventStorage:
             to_read = self.max_read_record_count
             result = []
 
-            def get_oldest():
-                try:
-                    return files[0]
-                except IndexError:
-                    return None
-
-            def get_next_to_current(current, files):
-                try:
-                    return files[files.index(current) + 1]
-                except IndexError:
-                    to_read = 0
-                    raise TBEventStorage.TBEndOfEventStorageError()
-
-            def serialize_state(current_file, pos):
-                with open(".reader_state", "w") as reader_file:
-                    dump({"prev_file": current_file, "pos": pos}, reader_file)
-
             with self.lock:
                 self.storage.dir.init_data_files()
                 files = self.storage.dir.files
@@ -112,7 +95,10 @@ class TBEventStorage:
                     if prev_file and os.path.isfile("data/"+prev_file):
                         current_file = prev_file
                     else:
-                        current_file = get_oldest()
+                        try:
+                            current_file = files[0]
+                        except IndexError:
+                            current_file = None
                         pos = 0
                     try:
                         if current_file:
@@ -125,9 +111,14 @@ class TBEventStorage:
                                     prev_file = current_file
                                     pos = line_number
                                 else:
-                                    prev_file = get_next_to_current(current_file, files)
+                                    try:
+                                        prev_file = files[files.index(current_file) + 1]
+                                    except IndexError:
+                                        to_read = 0
+                                        raise TBEventStorage.TBEndOfEventStorageError()
                                     pos = 0
-                                serialize_state(current_file, pos)
+                                with open(".reader_state", "w") as reader_file:
+                                    dump({"prev_file": current_file, "pos": pos}, reader_file)
                     except FileNotFoundError:
                         pass
                     except TBEventStorage.TBEndOfEventStorageError:
@@ -180,7 +171,7 @@ class TBEventStorage:
             raise self.TBStorageInitializationError("'Max data files' parameter is > 1000000")
         if read_interval <= 0:
             raise self.TBStorageInitializationError("'Read interval' parameter is <= 0")
-        if max_read_record_count <=0:
+        if max_read_record_count <= 0:
             raise self.TBStorageInitializationError("'Max read record count' parameter is <= 0")
         # todo add params validation?
         self.writer_lock = threading.Lock()
@@ -211,12 +202,6 @@ class TBEventStorage:
                                                                    self)
         log.info("Reader state: %s", self.__reader_state)
 
-    # def __change_reader_state(self, file, pos):
-    #     with open(self.__reader_state_file_name, 'w') as state_file:
-    #         # todo add
-    #         state_file.write("12345678")
-    #     log.info("reader state changed, pass")
-
     def write(self, data):
         if self.writer_lock.acquire(True, 60):
             try:
@@ -228,14 +213,10 @@ class TBEventStorage:
             finally:
                 self.writer_lock.release()
         else:
-            log.warning("Failed to acquire write log for an event storage!")  # todo lock or log?
+            log.warning("Failed to acquire write lock for an event storage!")
 
     def read(self):
-        #todo add file deleting before read logic here?
         result = self.__reader_state.read()
         if result:
-            print(result)
-            log.critical(result)
-            log.critical("here goes gateway data to tb sending logic")
-            log.critical("we need to differentiate attributes and telemetry and do one of two things: put them in one"
-                         " message or send them 'as is'")
+            log.info(result)
+            # todo add tb call here
