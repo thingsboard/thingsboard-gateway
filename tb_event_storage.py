@@ -12,12 +12,15 @@ class TBEventStorage:
         def __init__(self, message):
             super(Exception, self).__init__(message)
 
+    class TBEndOfEventStorageError(Exception):
+        pass
+
     class __TBEventStorageDir:
         def __init__(self, data_folder_path, max_file_count):
             self.__max_file_count = max_file_count
-            self.__data_folder_path = data_folder_path
+            self._data_folder_path = data_folder_path
             self.__init_data_folder(data_folder_path)
-            self.__init_data_files(data_folder_path)
+            self.init_data_files()
 
         @staticmethod
         def __init_data_folder(data_folder_path):
@@ -38,27 +41,27 @@ class TBEventStorage:
             return line_number + 1
 
         def current_file_name(self):
-            return self.__files[-1]
+            return self.files[-1]
 
         def register_new_file(self, file_name):
-            return self.__files.append(file_name)
+            return self.files.append(file_name)
 
         def get_full_file_name(self, current_file_name):
-            return self.__data_folder_path + "/" + current_file_name
+            return self._data_folder_path + "/" + current_file_name
 
-        def __init_data_files(self, data_folder_path):
-            files = os.listdir(data_folder_path)
+        def init_data_files(self):
+            files = os.listdir(self._data_folder_path)
             files = list(filter(lambda file_name: file_name.startswith('data_'), files))
             files.sort()
-            self.__files = files
-            if len(self.__files) > 0:
-                log.info("Following files found: %s", self.__files)
+            self.files = files
+            if len(self.files) > 0:
+                log.info("Following files found: %s", self.files)
             else:
                 files.append(self.get_new_file_name())
 
         def cleanup(self):
-            while len(self.__files) > self.__max_file_count:
-                oldest_file = self.__files.pop(0)
+            while len(self.files) > self.__max_file_count:
+                oldest_file = self.files.pop(0)
                 log.info("Deleting old data file: %s", oldest_file)
                 os.remove(self.get_full_file_name(oldest_file))
             pass
@@ -70,48 +73,85 @@ class TBEventStorage:
             self.read_interval = read_interval
             self.max_read_record_count = max_read_record_count
             self.storage = storage
+            self.lock = storage.writer_lock
 
         def __str__(self):
             return '[' + str(self.current_file_name) + '|' + str(self.current_file_pos) + ']'
 
         def read(self):
-            # read one by one
-            result = None
-            count_to_read = 5
-            file_counter = 0
-            with self.storage.__writer_lock:
-                while count_to_read > 0:
-                    file = self.storage.__files.get(file_counter)
+            prev_file = None
+            if os.path.isfile(".reader_state"):
+                with open(".reader_state") as reader_file:
+                    state = load(reader_file)
+                    pos = state["pos"]
+                    prev_file = state["prev_file"]
+            to_read = self.max_read_record_count
+            result = []
+
+            def get_oldest():
+                try:
+                    return files[0]
+                except IndexError:
+                    return None
+
+            def get_next_to_current(current, files):
+                try:
+                    return files[files.index(current) + 1]
+                except IndexError:
+                    to_read = 0
+                    raise TBEventStorage.TBEndOfEventStorageError()
+
+            def serialize_state(current_file, pos):
+                with open(".reader_state", "w") as reader_file:
+                    dump({"prev_file": current_file, "pos": pos}, reader_file)
+
+            with self.lock:
+                self.storage.dir.init_data_files()
+                files = self.storage.dir.files
+                while to_read > 0:
+                    if prev_file and os.path.isfile("data/"+prev_file):
+                        current_file = prev_file
+                    else:
+                        current_file = get_oldest()
+                        pos = 0
                     try:
-                        with open(file) as f:
-                            pass
-                            # todo (test) readlines
-                            # todo "count_to_read - actually_read_lines"
+                        if current_file:
+                            with open("data/"+current_file) as f:
+                                for line_number, line in enumerate(f):
+                                    if to_read > 0 and pos <= line_number:
+                                        result.append(line.strip())
+                                        to_read -= 1
+                                if to_read == 0:
+                                    prev_file = current_file
+                                    pos = line_number
+                                else:
+                                    prev_file = get_next_to_current(current_file, files)
+                                    pos = 0
+                                serialize_state(current_file, pos)
                     except FileNotFoundError:
-                        log.debug("there are not files to read")
-                        return result
-                    file_counter += 1
-            # todo here change read_state (maybe)
+                        pass
+                    except TBEventStorage.TBEndOfEventStorageError:
+                        break
             return result
 
     class __TBEventStorageWriterState:
         def __init__(self, p_dir, max_records_per_file, max_records_between_fsync):
-            self.__dir = p_dir
+            self.dir = p_dir
             self.__max_records_per_file = max_records_per_file
             self.__max_records_between_fsync = max_records_between_fsync
-            self.current_file_name = self.__dir.current_file_name()
-            self.current_file_size = self.__dir.file_line_count(self.__dir.get_full_file_name(self.current_file_name))
-            self.__writer_fd = open(self.__dir.get_full_file_name(self.current_file_name), 'a')
+            self.current_file_name = self.dir.current_file_name()
+            self.current_file_size = self.dir.file_line_count(self.dir.get_full_file_name(self.current_file_name))
+            self.__writer_fd = open(self.dir.get_full_file_name(self.current_file_name), 'a')
 
         def is_full(self):
             return self.current_file_size >= self.__max_records_per_file
 
         def switch_to_new_file(self):
             self.__writer_fd.close()
-            self.current_file_name = self.__dir.get_new_file_name()
+            self.current_file_name = self.dir.get_new_file_name()
             self.current_file_size = 0
-            self.__writer_fd = open(self.__dir.get_full_file_name(self.current_file_name), 'a')
-            self.__dir.register_new_file(self.current_file_name)
+            self.__writer_fd = open(self.dir.get_full_file_name(self.current_file_name), 'a')
+            self.dir.register_new_file(self.current_file_name)
             pass
 
         def write(self, data):
@@ -143,10 +183,10 @@ class TBEventStorage:
         if max_read_record_count <=0:
             raise self.TBStorageInitializationError("'Max read record count' parameter is <= 0")
         # todo add params validation?
-        self.__writer_lock = threading.Lock()
-        self.__dir = self.__TBEventStorageDir(data_folder_path, max_file_count)
+        self.writer_lock = threading.Lock()
+        self.dir = self.__TBEventStorageDir(data_folder_path, max_file_count)
         self.__init_reader_state(data_folder_path, read_interval, max_read_record_count)
-        self.__writer = self.__TBEventStorageWriterState(self.__dir, max_records_per_file, max_records_between_fsync)
+        self.__writer = self.__TBEventStorageWriterState(self.dir, max_records_per_file, max_records_between_fsync)
         scheduler.add_job(self.read, 'interval', seconds=read_interval, next_run_time=datetime.now())
         # todo REMOVE AFTER UNIT TESTING
         scheduler.start()
@@ -164,28 +204,29 @@ class TBEventStorage:
                                                                        max_read_record_count,
                                                                        self)
         else:
-            self.__reader_state = self.__TBEventStorageReaderState(self.__dir.current_file_name(),
+            self.__reader_state = self.__TBEventStorageReaderState(self.dir.current_file_name(),
                                                                    0,
                                                                    read_interval,
-                                                                   max_read_record_count)
+                                                                   max_read_record_count,
+                                                                   self)
         log.info("Reader state: %s", self.__reader_state)
 
-    def __change_reader_state(self, file, pos):
-        with open(self.__reader_state_file_name, 'w') as state_file:
-            # todo add
-            state_file.write("12345678")
-        log.info("reader state changed, pass")
+    # def __change_reader_state(self, file, pos):
+    #     with open(self.__reader_state_file_name, 'w') as state_file:
+    #         # todo add
+    #         state_file.write("12345678")
+    #     log.info("reader state changed, pass")
 
     def write(self, data):
-        if self.__writer_lock.acquire(True, 60):
+        if self.writer_lock.acquire(True, 60):
             try:
                 if self.__writer.is_full():
                     log.debug("Writer is full: %s", self.__writer)
                     self.__writer.switch_to_new_file()
-                    self.__dir.cleanup()
+                    self.dir.cleanup()
                 self.__writer.write(data)
             finally:
-                self.__writer_lock.release()
+                self.writer_lock.release()
         else:
             log.warning("Failed to acquire write log for an event storage!")  # todo lock or log?
 
@@ -193,6 +234,7 @@ class TBEventStorage:
         #todo add file deleting before read logic here?
         result = self.__reader_state.read()
         if result:
+            print(result)
             log.critical(result)
             log.critical("here goes gateway data to tb sending logic")
             log.critical("we need to differentiate attributes and telemetry and do one of two things: put them in one"
