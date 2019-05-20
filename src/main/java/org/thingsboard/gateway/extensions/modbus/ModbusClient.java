@@ -208,6 +208,9 @@ public class ModbusClient implements ModbusDeviceAware {
             case Modbus.READ_HOLDING_REGISTERS:
                 request = new ReadMultipleRegistersRequest(mapping.getAddress(), mapping.getRegisterCount());
                 break;
+            case Modbus.WRITE_COIL:
+                request = new WriteCoilRequest(mapping.getAddress(), mapping.getCoilStatus());
+                break;
             default:
                 log.error("MBS[{}] function {} is not supported: MBD[{}], tag [{}]",
                         serverName, mapping.getFunctionCode(), device.getName(), mapping.getTag());
@@ -236,6 +239,10 @@ public class ModbusClient implements ModbusDeviceAware {
             case Modbus.READ_HOLDING_REGISTERS:
                 ReadMultipleRegistersResponse rmrResp = (ReadMultipleRegistersResponse) response;
                 device.updateTag(mapping, rmrResp.getRegisters());
+                break;
+            case Modbus.WRITE_COIL:
+                WriteCoilResponse wcResp = (WriteCoilResponse) response;
+                device.updateTag(mapping, wcResp.getCoil());
                 break;
             default:
                 log.error("MBS[{}] function {} is not supported: MBD[{}], tag [{}]",

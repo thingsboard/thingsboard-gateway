@@ -25,6 +25,8 @@ public class ModbusExtensionConstants {
 
     public static final int DEFAULT_REGISTER_COUNT = 1;
 
+    public static final Boolean DEFAULT_COIL_STATUS = false;
+
     public static final int DEFAULT_BIT_INDEX_FOR_BOOLEAN = 0;
     public static final int NO_BIT_INDEX_DEFINED = -1;
     public static final int DEFAULT_REGISTER_COUNT_FOR_BOOLEAN = 1;

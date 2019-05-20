@@ -26,6 +26,7 @@ public class TagMapping {
     private int functionCode;
     private int address;
     private int registerCount = ModbusExtensionConstants.DEFAULT_REGISTER_COUNT;
+    private Boolean coilStatus = ModbusExtensionConstants.DEFAULT_COIL_STATUS;
     private String byteOrder = ModbusExtensionConstants.BIG_ENDIAN_BYTE_ORDER;
     private int bit = ModbusExtensionConstants.NO_BIT_INDEX_DEFINED;
 }
