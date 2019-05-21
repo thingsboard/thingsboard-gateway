@@ -26,9 +26,9 @@ class TBGateway:
             max_file_count = dict_storage_settings["max_file_count"]
             read_interval = dict_storage_settings["read_interval"]
             max_read_record_count = dict_storage_settings["max_read_record_count"]
-            if dict_storage_settings:
-                number_of_processes = Manager.get_parameter("threads_to_use", dict_performance_settings, 20)
-                number_of_workers = Manager.get_parameter("processes_to_use", dict_performance_settings, 1)
+            if dict_performance_settings:
+                number_of_processes = Manager.get_parameter(dict_performance_settings, "processes_to_use", 20)
+                number_of_workers = Manager.get_parameter(dict_performance_settings, "threads_to_use", 1)
             self.devices = {}
 
             # initialize scheduler
@@ -49,15 +49,17 @@ class TBGateway:
                 time.sleep(1)
             self.mqtt_gateway.gw_set_server_side_rpc_request_handler(self.rpc_request_handler)
 
+            # initialize event_storage
             self.event_storage = TBEventStorage(data_folder_path, max_records_per_file, max_records_between_fsync,
-                                                max_file_count, read_interval, max_read_record_count, self._scheduler)
+                                                max_file_count, read_interval, max_read_record_count, self._scheduler,
+                                                self)
+
+            # initialize extensions
             for ext_id in dict_extensions_settings:
                 extension = dict_extensions_settings[ext_id]
                 if extension["extension type"] == "Modbus" and extension["enabled"]:
                     conf = Manager.get_parameter(extension, "config file name", "modbus-config.json")
-                    number_of_workers = Manager.get_parameter(extension, "threads number", 20)
-                    number_of_processes = Manager.get_parameter(extension, "processes number", 1)
-                    initializer = TBModbusInitializer(self, ext_id, conf, number_of_workers, number_of_processes)
+                    initializer = TBModbusInitializer(self, ext_id, self._scheduler, conf)
                     self.devices.update(initializer.dict_devices_servers)
                 elif extension["extension type"] == "OPC-UA" and extension["enabled"]:
                     log.warning("OPC UA isn't implemented yet")
@@ -67,25 +69,28 @@ class TBGateway:
                     log.error("unknown extension type")
 
     def on_device_connected(self, device_name, rpc_handler):
-        pass
+        self.devices.update({device_name: rpc_handler})
+
+    def on_device_disconnected(self, device_name):
+        try:
+            self.devices.pop(device_name)
+        except KeyError:
+            log.warning("tried to remove {}, device not found".format(device_name))
 
     def send_data_to_storage(self, data, type_of_data):
         result = {"eventType": type_of_data.upper(), "data": data}
-        log.critical(result)
         self.event_storage.write(dumps(result))
 
     def rpc_request_handler(self, request_body):
+        # todo transform request to standard of redone modbus functions to fit request form
         # request body contains id, method and other parameters
         log.debug(request_body)
-        # todo this may be relevant for mqtt, but not for modbus
-        method = request_body["data"]["method"]
         device = request_body["device"]
+        self.devices[device](request_body)
+
         # todo if there are not such device return error, check java code
-        # todo add try catch to not fall from exception
-        req_id = request_body["data"]["id"]
-        # dependently of request method we send different data back
-        # todo every extension has its reply method in init or server, or we do it here?
+        # todo return data back?
+
     @staticmethod
     def listener(event):
         log.exception(event.exception)
-

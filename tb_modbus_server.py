@@ -19,7 +19,7 @@ class TBModbusServer(Thread):
     _CHARS_IN_REGISTER = 2
     scheduler = None
     client = None
-    _server = None
+    _server_config = None
     # dict_bo = {"A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5, "G": 6, "H": 7}
     # WC = {"b": 1, "h": 2, "i": 4, "l": 4, "q": 8, "f": 4, "d": 8}
 
@@ -30,7 +30,7 @@ class TBModbusServer(Thread):
         self.devices_names = set()
         self.queue_write_to_device = Queue()
         self.scheduler = scheduler
-        self._server = server
+        self._server_config = server
         self.lock = Lock()
         self._dict_current_parameters = {}
         self.daemon = True
@@ -46,10 +46,10 @@ class TBModbusServer(Thread):
                 time.sleep(self._RUN_TIMEOUT)
 
     def _read_from_devices_jobs_add(self):
-        self.client = Manager(self._server["transport"], self.ext_id)
-        if len(self._server["devices"]) == 0:
+        self.client = Manager(self._server_config["transport"], self.ext_id)
+        if len(self._server_config["devices"]) == 0:
             log.warning("there are no devices to process")
-        for device in self._server["devices"]:
+        for device in self._server_config["devices"]:
             log.debug("adding polling job for device id {id}, extension id {ext_id}".format(id=device["unitId"],
                                                                                             ext_id=self.ext_id))
             device_check_data_changed = Manager.get_parameter(device, "sendDataOnlyOnChange", False)
@@ -60,6 +60,11 @@ class TBModbusServer(Thread):
             for atr in device["attributes"]:
                 self._process_message(atr, device_attr_poll_period, "atr", device_check_data_changed, device)
             self.devices_names.add(device["deviceName"])
+            self.gateway.on_device_connected(device["deviceName"], self.rpc_handler)
+
+    def rpc_handler(self):
+        pass
+        log.debug("modbus handler for rpc")
 
     def _process_message(self, item, device_poll_period, type_of_data, device_check_data_changed, device):
         poll_period = Manager.get_parameter(item, "pollPeriod", device_poll_period) / 1000  # millis to seconds
@@ -75,7 +80,6 @@ class TBModbusServer(Thread):
         result = self._transform_answer_to_readable_format(result, config)
         # firstly we check if we need to check data change, if true then do it
         if result and (check_data_changed or self._check_ts_atr_changed(result, type_of_data, device, config)):
-            # todo this is version with only one key in data (telem/atr) update
             result = [
                 {
                     "ts": int(round(time.time() * 1000)),
@@ -89,7 +93,7 @@ class TBModbusServer(Thread):
             self.gateway.send_data_to_storage(result, type_of_data)
 
     def _check_ts_atr_changed(self, value, type_of_data, device, item):
-        key = self._server["transport"]["host"] + "|" + str(self._server["transport"]["port"]) + "|" \
+        key = self._server_config["transport"]["host"] + "|" + str(self._server_config["transport"]["port"]) + "|" \
               + str(device["unitId"]) + "|" + type_of_data + "|" + str(item["address"])
         if self._dict_current_parameters.get(key) == value:
             log.debug("{type} value {val} related to device id {id} didn't change".format(type=type_of_data,
@@ -158,7 +162,8 @@ class TBModbusServer(Thread):
         if "Coil" in tags:
             builder.add_bits(value)
         elif "String" in tags:
-            # todo add wordorder for string? problem is last char if len is even, so we need to add one space to make wordorder
+            # todo add wordorder for string? problem is last char if len is even,
+            #  so we need to add one space to make wordorder
             builder.add_string(value)
         elif "Double" in tags:
             if reg_count == 4:

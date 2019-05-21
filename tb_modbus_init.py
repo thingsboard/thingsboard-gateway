@@ -11,7 +11,6 @@ class TBModbusInitializer:
 
     def __init__(self,
                  gateway,
-                 # todo make use of extension id later
                  extension_id,
                  scheduler,
                  config_file="modbus-config.json",
@@ -30,16 +29,12 @@ class TBModbusInitializer:
         result = None
         log.debug("config")
         try:
-            # todo check if this works irl
             result = self.dict_devices_servers[config["deviceName"]].write_to_device(config)
         except KeyError:
-            # todo is it enough to log device name error?
             log.error("There is not device with name {name}, extension {ext_id}".format(name=config["deviceName"],
                                                                                         ext_id=self.ext_id))
-        # todo repeate java code logic
         # todo should we return Exception?
         return result
 
     def start(self):
         self._scheduler.start()
-

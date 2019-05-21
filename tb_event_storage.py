@@ -2,7 +2,7 @@ import os
 import threading
 import time
 import logging
-from json import load, dump, loads, dumps
+from json import load, dump
 from datetime import datetime
 log = logging.getLogger(__name__)
 
@@ -19,6 +19,7 @@ class TBEventStorage:
         def __init__(self, data_folder_path, max_file_count):
             self.__max_file_count = max_file_count
             self._data_folder_path = data_folder_path
+            self.files = None
             self.__init_data_folder(data_folder_path)
             self.init_data_files()
 
@@ -101,24 +102,25 @@ class TBEventStorage:
                             current_file = None
                         pos = 0
                     try:
-                        if current_file:
-                            with open("data/"+current_file) as f:
-                                for line_number, line in enumerate(f):
-                                    if to_read > 0 and pos <= line_number:
-                                        result.append(line.strip())
-                                        to_read -= 1
-                                if to_read == 0:
-                                    prev_file = current_file
-                                    pos = line_number
-                                else:
-                                    try:
-                                        prev_file = files[files.index(current_file) + 1]
-                                    except IndexError:
-                                        to_read = 0
-                                        raise TBEventStorage.TBEndOfEventStorageError()
-                                    pos = 0
-                                with open(".reader_state", "w") as reader_file:
-                                    dump({"prev_file": current_file, "pos": pos}, reader_file)
+                        with open("data/"+current_file) as f:
+                            for line_number, line in enumerate(f):
+                                if to_read > 0 and pos <= line_number:
+                                    result.append(line.strip())
+                                    to_read -= 1
+                            if to_read == 0:
+                                prev_file = current_file
+                                pos = line_number
+                            else:
+                                try:
+                                    prev_file = files[files.index(current_file) + 1]
+                                except IndexError:
+                                    to_read = 0
+                                    with open(".reader_state", "w") as reader_file:
+                                        dump({"prev_file": current_file, "pos": line_number+1}, reader_file)
+                                    raise TBEventStorage.TBEndOfEventStorageError()
+                                pos = 0
+                            with open(".reader_state", "w") as reader_file:
+                                dump({"prev_file": current_file, "pos": pos}, reader_file)
                     except FileNotFoundError:
                         pass
                     except TBEventStorage.TBEndOfEventStorageError:
@@ -179,9 +181,8 @@ class TBEventStorage:
         self.__init_reader_state(data_folder_path, read_interval, max_read_record_count)
         self.__writer = self.__TBEventStorageWriterState(self.dir, max_records_per_file, max_records_between_fsync)
         scheduler.add_job(self.read, 'interval', seconds=read_interval, next_run_time=datetime.now())
-        # todo REMOVE AFTER UNIT TESTING
-        scheduler.start()
-
+        # # todo REMOVE AFTER UNIT TESTING
+        # scheduler.start()
         self.__gateway = gateway
 
     def __init_reader_state(self, data_folder_path, read_interval, max_read_record_count):
