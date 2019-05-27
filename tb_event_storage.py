@@ -2,8 +2,9 @@ import os
 import threading
 import time
 import logging
-from json import load, dump
+from json import load, dump, loads
 from datetime import datetime
+from json import JSONDecodeError
 log = logging.getLogger(__name__)
 
 
@@ -35,6 +36,7 @@ class TBEventStorage:
 
         @staticmethod
         def file_line_count(file_pass):
+            line_number = 0
             if os.path.isfile(file_pass):
                 with open(file_pass, 'r') as f:
                     for line_number, l in enumerate(f):
@@ -80,47 +82,63 @@ class TBEventStorage:
             return '[' + str(self.current_file_name) + '|' + str(self.current_file_pos) + ']'
 
         def read(self):
-            prev_file = None
-            if os.path.isfile(".reader_state"):
-                with open(".reader_state") as reader_file:
-                    state = load(reader_file)
-                    pos = state["pos"]
-                    prev_file = state["prev_file"]
             to_read = self.max_read_record_count
             result = []
-
+            prev_file = None
+            pos = 0
+            if os.path.isfile(".reader_state"):
+                with open(".reader_state") as reader_file:
+                    try:
+                        state = load(reader_file)
+                        try:
+                            pos = state["pos"]
+                            prev_file = state["prev_file"]
+                        except KeyError:
+                            pass
+                    except JSONDecodeError:
+                        pass
             with self.lock:
+                # get list of files in data dir
                 self.storage.dir.init_data_files()
                 files = self.storage.dir.files
                 while to_read > 0:
+                    # acknowledge previous file
                     if prev_file and os.path.isfile("data/"+prev_file):
                         current_file = prev_file
+                    # else get oldest file and set pos to 0
                     else:
                         try:
                             current_file = files[0]
                         except IndexError:
+                            # if no files left, on open we get FileNotFound and exit from loop
                             current_file = None
                         pos = 0
                     try:
                         with open("data/"+current_file) as f:
+                            # read file by line and add to result lines after pos
+                            current_line = 0
                             for line_number, line in enumerate(f):
                                 if to_read > 0 and pos <= line_number:
                                     result.append(line.strip())
                                     to_read -= 1
+                                    current_line = line_number
+                            # if we read needed amount of lines, recognise position and file and save to .reader_state
                             if to_read == 0:
                                 prev_file = current_file
-                                pos = line_number
+                                pos = current_line
+                            # else try to get newer data file
                             else:
                                 try:
                                     prev_file = files[files.index(current_file) + 1]
                                 except IndexError:
+                                    # if there are not any data files save position and current file to .reader_state
                                     to_read = 0
                                     with open(".reader_state", "w") as reader_file:
-                                        dump({"prev_file": current_file, "pos": line_number+1}, reader_file)
+                                        dump({"prev_file": current_file, "pos": line_number + 1}, reader_file)
                                     raise TBEventStorage.TBEndOfEventStorageError()
                                 pos = 0
                             with open(".reader_state", "w") as reader_file:
-                                dump({"prev_file": current_file, "pos": pos}, reader_file)
+                                dump({"prev_file": current_file, "pos": pos}, reader_file) # pos -> curr + 1
                     except FileNotFoundError:
                         pass
                     except TBEventStorage.TBEndOfEventStorageError:
@@ -217,7 +235,9 @@ class TBEventStorage:
             log.warning("Failed to acquire write lock for an event storage!")
 
     def read(self):
-        result = self.__reader_state.read()
-        if result:
-            log.info(result)
-            # todo add tb call here
+        result = (self.__reader_state.read())
+        for event in result:
+            event = loads(event)
+            device = event["device"]
+            if event["eventType"] == "TS":
+                self.__gateway.mqtt_gateway.gw_send_telemetry(device, event["data"])

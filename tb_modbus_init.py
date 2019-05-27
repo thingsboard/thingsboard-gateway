@@ -1,5 +1,4 @@
 from json import load
-
 from tb_modbus_server import TBModbusServer
 import logging
 log = logging.getLogger(__name__)
@@ -13,17 +12,12 @@ class TBModbusInitializer:
                  gateway,
                  extension_id,
                  scheduler,
-                 config_file="modbus-config.json",
-                 start_immediately=True):
+                 config_file="modbus-config.json"):
         self.ext_id = extension_id
         self._scheduler = scheduler
         with open(config_file, "r") as config:
             for server_config in load(config)["servers"]:
-                server = TBModbusServer(server_config, self._scheduler, gateway, self.ext_id)
-                # todo should we make it a future?
-                self.dict_devices_servers.update({device_name: server for device_name in server.devices_names})
-        if start_immediately:
-            self.start()
+                TBModbusServer(server_config, self._scheduler, gateway, self.ext_id)
 
     def write_to_device(self, config):
         result = None
@@ -35,6 +29,3 @@ class TBModbusInitializer:
                                                                                         ext_id=self.ext_id))
         # todo should we return Exception?
         return result
-
-    def start(self):
-        self._scheduler.start()

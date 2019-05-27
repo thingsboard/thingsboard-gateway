@@ -7,7 +7,6 @@ from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
 from queue import Queue, Empty
 import time
 import datetime
-from struct import pack, unpack
 log = logging.getLogger(__name__)
 # todo first try of retrieving data returns None and raises error, may be critical
 # todo should we log and wrap param getting?
@@ -55,16 +54,13 @@ class TBModbusServer(Thread):
             device_check_data_changed = Manager.get_parameter(device, "sendDataOnlyOnChange", False)
             device_attr_poll_period = Manager.get_parameter(device, "attributesPollPeriod", self._POLL_PERIOD)
             device_ts_poll_period = Manager.get_parameter(device, "timeseriesPollPeriod", self._POLL_PERIOD)
+            device_name = device["deviceName"]
             for ts in device["timeseries"]:
                 self._process_message(ts, device_ts_poll_period, "ts", device_check_data_changed, device)
             for atr in device["attributes"]:
                 self._process_message(atr, device_attr_poll_period, "atr", device_check_data_changed, device)
-            self.devices_names.add(device["deviceName"])
-            self.gateway.on_device_connected(device["deviceName"], self.rpc_handler)
-
-    def rpc_handler(self):
-        pass
-        log.debug("modbus handler for rpc")
+            self.devices_names.add(device_name)
+            self.gateway.on_device_connected(device_name, self.write_to_device)
 
     def _process_message(self, item, device_poll_period, type_of_data, device_check_data_changed, device):
         poll_period = Manager.get_parameter(item, "pollPeriod", device_poll_period) / 1000  # millis to seconds
@@ -79,7 +75,9 @@ class TBModbusServer(Thread):
         result = self.client.get_data_from_device(config, device["unitId"])
         result = self._transform_answer_to_readable_format(result, config)
         # firstly we check if we need to check data change, if true then do it
-        if result and (check_data_changed or self._check_ts_atr_changed(result, type_of_data, device, config)):
+        if result is not None and (not check_data_changed or self._check_ts_atr_changed(result, type_of_data, device,
+                                                                                        config)):
+            # todo add attributes!
             result = [
                 {
                     "ts": int(round(time.time() * 1000)),
@@ -88,9 +86,10 @@ class TBModbusServer(Thread):
                     }
                 }
             ]
+
+
             # todo should we convert time to local? do we check timezone?
-            # wrap result to ts and other shit
-            self.gateway.send_data_to_storage(result, type_of_data)
+            self.gateway.send_data_to_storage(result, type_of_data, device["deviceName"])
 
     def _check_ts_atr_changed(self, value, type_of_data, device, item):
         key = self._server_config["transport"]["host"] + "|" + str(self._server_config["transport"]["port"]) + "|" \
@@ -251,7 +250,7 @@ class TBModbusServer(Thread):
             reg_count = Manager.get_parameter(config, "registerCount", 1)
             type_of_data = config["type"]
             if byte_order == "LITTLE":
-                decoder = BinaryPayloadDecoder.fromRegisters(result)
+                decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Little)
             elif byte_order == "BIG":
                 decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Big)
             else:
