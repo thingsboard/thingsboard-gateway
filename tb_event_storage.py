@@ -138,7 +138,7 @@ class TBEventStorage:
                                     raise TBEventStorage.TBEndOfEventStorageError()
                                 pos = 0
                             with open(".reader_state", "w") as reader_file:
-                                dump({"prev_file": current_file, "pos": pos}, reader_file) # pos -> curr + 1
+                                dump({"prev_file": current_file, "pos": pos}, reader_file)
                     except FileNotFoundError:
                         pass
                     except TBEventStorage.TBEndOfEventStorageError:
@@ -193,14 +193,11 @@ class TBEventStorage:
             raise self.TBStorageInitializationError("'Read interval' parameter is <= 0")
         if max_read_record_count <= 0:
             raise self.TBStorageInitializationError("'Max read record count' parameter is <= 0")
-        # todo add params validation?
         self.writer_lock = threading.Lock()
         self.dir = self.__TBEventStorageDir(data_folder_path, max_file_count)
         self.__init_reader_state(data_folder_path, read_interval, max_read_record_count)
         self.__writer = self.__TBEventStorageWriterState(self.dir, max_records_per_file, max_records_between_fsync)
         scheduler.add_job(self.read, 'interval', seconds=read_interval, next_run_time=datetime.now())
-        # # todo REMOVE AFTER UNIT TESTING
-        # scheduler.start()
         self.__gateway = gateway
 
     def __init_reader_state(self, data_folder_path, read_interval, max_read_record_count):
@@ -239,5 +236,7 @@ class TBEventStorage:
         for event in result:
             event = loads(event)
             device = event["device"]
-            if event["eventType"] == "TS":
+            if event["eventType"] == "TELEMETRY":
                 self.__gateway.mqtt_gateway.gw_send_telemetry(device, event["data"])
+            else:
+                self.__gateway.mqtt_gateway.gw_send_attributes(device, event["data"]["values"])

@@ -1,7 +1,7 @@
+from importlib import import_module
 from tb_modbus_init import TBModbusInitializer
 from tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from tb_gateway_mqtt import TBGatewayMqttClient
-from tb_modbus_server import TBModbusServer
 from tb_event_storage import TBEventStorage
 from json import load, dumps
 import time
@@ -30,7 +30,8 @@ class TBGateway:
             if dict_performance_settings:
                 number_of_processes = Manager.get_parameter(dict_performance_settings, "processes_to_use", 20)
                 number_of_workers = Manager.get_parameter(dict_performance_settings, "threads_to_use", 1)
-            self.devices = {}
+            self.dict_ext_by_device_name = {}
+            self.dict_rpc_handlers_by_device = {}
 
             # initialize scheduler
             executors = {'default': ThreadPoolExecutor(number_of_workers)}
@@ -52,21 +53,31 @@ class TBGateway:
                 time.sleep(1)
 
             def rpc_request_handler(self, request_body):
-                # request body contains id, method and other parameters
-                log.debug(request_body)
-                # if it is call from mqtt client
-                # todo got an unexpected behavior, tried to put class method into dict, got class inst
-                # todo hardcoded it with .write_to_device call, mb later rename to rpc_to_device if no solution
+                # if type(self.gateway.dict_ext_by_device_name[device]) == TBModbusServer:
+                device = request_body["device"]
+                method = request_body["data"]["method"]
+                dict_values = None
                 if True:
-                    #todo rename map device-extension ext by dev name
-                # if type(self.gateway.devices[device]) == TBModbusServer:
-                    method = request_body["data"]["method"]
-                    device = request_body["device"]
-                    req_id = request_body["data"]["id"]
-                    self.gateway.devices["Temp Sensor"](
-                        {"deviceName": "Temp Sensor", "tag": "WriteInteger", "value": 42,  #request_body["data"]["params"]*100,
-                         "functionCode": 16, "address": 0, "unitId": 1,
-                         "byteOrder": "BIG", "registerCount": 1})
+                    #todo for testing, remove later
+                    device = "Temp Sensor"
+                    handler = self.gateway.dict_rpc_handlers_by_device[device][method]
+                    if type(handler) == str:
+                        m = import_module(handler)
+                        # m = import_module(self.gateway.dict_rpc_handlers_by_device[request_body["device"]])
+                        params = None
+                        try:
+                            params = request_body["data"]["params"]
+                        except KeyError:
+                            pass
+                        dict_values = m.rpc_handler(method, params)
+                    elif type(handler) == dict:
+                        dict_values = handler
+                        dict_values.update({"deviceName": device})
+                    else:
+                        log.warning("rpc handler not in dict format nor in string path to python file")
+                        return
+                # self.gateway.dict_ext_by_device_name[device](dict_values.update({"deviceName": device}))
+                self.gateway.dict_ext_by_device_name[device](dict_values)
 
             self.mqtt_gateway.devices_server_side_rpc_request_handler = rpc_request_handler
             # todo remove, its hardcode for presentation
@@ -83,7 +94,7 @@ class TBGateway:
                 if extension["extension type"] == "Modbus" and extension["enabled"]:
                     conf = Manager.get_parameter(extension, "config file name", "modbus-config.json")
                     self.modbus_initializer = TBModbusInitializer(self, ext_id, self._scheduler, conf)
-                    self.devices.update(self.modbus_initializer.dict_devices_servers)
+                    self.dict_ext_by_device_name.update(self.modbus_initializer.dict_devices_servers)
                 elif extension["extension type"] == "OPC-UA" and extension["enabled"]:
                     log.warning("OPC UA isn't implemented yet")
                 elif extension["extension type"] == "Sigfox" and extension["enabled"]:
@@ -91,22 +102,22 @@ class TBGateway:
                 elif extension["enabled"]:
                     log.error("unknown extension type: {}".format(extension["extension type"]))
 
-    def on_device_connected(self, device_name, handler):
+    def on_device_connected(self, device_name, handler, rpc_handlers):
         self.mqtt_gateway.gw_connect_device(device_name)
-        self.devices.update({device_name: handler})
+        self.dict_ext_by_device_name.update({device_name: handler})
+        self.dict_rpc_handlers_by_device.update({device_name: rpc_handlers})
 
     def on_device_disconnected(self, device_name):
         try:
-            self.devices.pop(device_name)
+            self.dict_ext_by_device_name.pop(device_name)
         except KeyError:
             log.warning("tried to remove {}, device not found".format(device_name))
 
     def send_data_to_storage(self, data, type_of_data, device):
-        result = {"eventType": type_of_data.upper(), "device": device, "data": data}
-        self.event_storage.write(dumps(result) + "\n")
-
-        # todo if there are not such device return error, check java code
-        # todo return data back?
+        if type_of_data == "tms":
+            self.event_storage.write(dumps({"eventType": "TELEMETRY", "device": device, "data": data}) + "\n")
+        else:
+            self.event_storage.write(dumps({"eventType": "ATTRIBUTES", "device": device, "data": data}) + "\n")
 
     @staticmethod
     def listener(event):

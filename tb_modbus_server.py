@@ -56,11 +56,12 @@ class TBModbusServer(Thread):
             device_ts_poll_period = Manager.get_parameter(device, "timeseriesPollPeriod", self._POLL_PERIOD)
             device_name = device["deviceName"]
             for ts in device["timeseries"]:
-                self._process_message(ts, device_ts_poll_period, "ts", device_check_data_changed, device)
+                self._process_message(ts, device_ts_poll_period, "tms", device_check_data_changed, device)
             for atr in device["attributes"]:
                 self._process_message(atr, device_attr_poll_period, "atr", device_check_data_changed, device)
             self.devices_names.add(device_name)
-            self.gateway.on_device_connected(device_name, self.write_to_device)
+            rpc_handlers = device.get("rpc")
+            self.gateway.on_device_connected(device_name, self.write_to_device, rpc_handlers)
 
     def _process_message(self, item, device_poll_period, type_of_data, device_check_data_changed, device):
         poll_period = Manager.get_parameter(item, "pollPeriod", device_poll_period) / 1000  # millis to seconds
@@ -78,15 +79,17 @@ class TBModbusServer(Thread):
         if result is not None and (not check_data_changed or self._check_ts_atr_changed(result, type_of_data, device,
                                                                                         config)):
             # todo add attributes!
-            result = [
-                {
-                    "ts": int(round(time.time() * 1000)),
+
+            result = {
                     "values": {
                         config["tag"]: result
                     }
                 }
-            ]
 
+            if type_of_data == "tms":
+                result.update({
+                    "ts": int(round(time.time() * 1000))
+                    })
 
             # todo should we convert time to local? do we check timezone?
             self.gateway.send_data_to_storage(result, type_of_data, device["deviceName"])
