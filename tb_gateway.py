@@ -53,17 +53,21 @@ class TBGateway:
                 time.sleep(1)
 
             def rpc_request_handler(self, request_body):
-                # if type(self.gateway.dict_ext_by_device_name[device]) == TBModbusServer:
                 device = request_body["device"]
                 method = request_body["data"]["method"]
                 dict_values = None
+                # if type(self.gateway.dict_ext_by_device_name[device]) == TBModbusServer:
                 if True:
                     #todo for testing, remove later
                     device = "Temp Sensor"
-                    handler = self.gateway.dict_rpc_handlers_by_device[device][method]
+                    try:
+                        handler = self.gateway.dict_rpc_handlers_by_device[device][method]
+                    except KeyError:
+                        #todo check it
+                        self.send_rpc_reply(device, request_body["data"]["id"], {"error": "Unsupported RPC method"})
+                        return
                     if type(handler) == str:
                         m = import_module(handler)
-                        # m = import_module(self.gateway.dict_rpc_handlers_by_device[request_body["device"]])
                         params = None
                         try:
                             params = request_body["data"]["params"]
@@ -76,8 +80,9 @@ class TBGateway:
                     else:
                         log.warning("rpc handler not in dict format nor in string path to python file")
                         return
-                # self.gateway.dict_ext_by_device_name[device](dict_values.update({"deviceName": device}))
-                self.gateway.dict_ext_by_device_name[device](dict_values)
+                resp = self.gateway.dict_ext_by_device_name[device](dict_values)
+                if resp:
+                    self.gw_send_rpc_reply(device, request_body["data"]["id"], resp)
 
             self.mqtt_gateway.devices_server_side_rpc_request_handler = rpc_request_handler
             # todo remove, its hardcode for presentation

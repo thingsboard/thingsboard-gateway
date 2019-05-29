@@ -38,11 +38,15 @@ class TBModbusServer(Thread):
 
     def run(self):
         while True:
+            t = 0
             try:
+                t = time.time()
                 item = self.queue_write_to_device.get()
-                self.client.write_data_to_device(item)
+                resp = self.client.write_data_to_device(item)
             except Empty:
-                time.sleep(self._RUN_TIMEOUT)
+                t = time.time() - t
+                if t < self._RUN_TIMEOUT:
+                    time.sleep(self._RUN_TIMEOUT - t)
 
     def _read_from_devices_jobs_add(self):
         self.client = Manager(self._server_config["transport"], self.ext_id)
@@ -110,6 +114,7 @@ class TBModbusServer(Thread):
             return True
 
     def write_to_device(self, config):
+
         log.debug(config)
         payload = self._transform_request_to_device_format(config)
         if payload:

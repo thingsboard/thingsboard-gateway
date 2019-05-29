@@ -1,3 +1,5 @@
+from pymodbus.register_write_message import WriteMultipleRegistersResponse
+from pymodbus.bit_write_message import WriteSingleCoilResponse
 import logging
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusRtuFramer
 log = logging.getLogger(__name__)
@@ -18,8 +20,7 @@ class TBModbusTransportManager:
         elif transport == "udp":
             client = ModbusUdpClient
         else:
-            log.warning("Unknown transport type, possible options are 'tcp' and 'udp',"
-                        " extension id {id}".format(id=self.ext_id))  # and "rtu"
+            raise Exception("invalid modbus transport type, not tcp or udp, extension {}".format(self.ext_id))
 
         if rtu_over_everything:
             self.client = client(host, port, ModbusRtuFramer)
@@ -47,9 +48,17 @@ class TBModbusTransportManager:
 
     def write_data_to_device(self, config):
         log.debug(config)
-        resp = self._dict_write_functions[config["functionCode"]](config["address"],
-                                                                  config["payload"],
-                                                                  unit=config["unitId"])
+        resp = None
+        try:
+            resp = self._dict_write_functions[config["functionCode"]](config["address"],
+                                                                      config["payload"],
+                                                                      unit=config["unitId"])
+        except Exception as e:
+            log.error(e)
+        if type(resp) in (WriteMultipleRegistersResponse, WriteSingleCoilResponse):
+            return True
+        else:
+            return False
 
     @staticmethod
     def get_parameter(data, param, default_value):
