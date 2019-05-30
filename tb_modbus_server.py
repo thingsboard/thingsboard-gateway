@@ -43,6 +43,8 @@ class TBModbusServer(Thread):
                 t = time.time()
                 item = self.queue_write_to_device.get()
                 resp = self.client.write_data_to_device(item)
+                # todo here we can reply to rpc with id (add id to config)
+
             except Empty:
                 t = time.time() - t
                 if t < self._RUN_TIMEOUT:

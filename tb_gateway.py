@@ -65,6 +65,7 @@ class TBGateway:
                     except KeyError:
                         #todo check it
                         self.send_rpc_reply(device, request_body["data"]["id"], {"error": "Unsupported RPC method"})
+                        log.error('"error": "Unsupported RPC method": {}'.format(request_body))
                         return
                     if type(handler) == str:
                         m = import_module(handler)
@@ -78,7 +79,11 @@ class TBGateway:
                         dict_values = handler
                         dict_values.update({"deviceName": device})
                     else:
-                        log.warning("rpc handler not in dict format nor in string path to python file")
+                        log.error("rpc handler not in dict format nor in string path to python file")
+                        return
+                    if "tag" not in dict_values:
+                        self.send_rpc_reply(device, request_body["data"]["id"], {"ErrorWriteTag": "No tag found"})
+                        log.error('"ErrorWriteTag": "No tag found": {}'.format(request_body))
                         return
                 resp = self.gateway.dict_ext_by_device_name[device](dict_values)
                 if resp:
