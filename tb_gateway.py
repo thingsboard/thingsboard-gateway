@@ -3,12 +3,13 @@ from tb_modbus_init import TBModbusInitializer
 from tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from tb_gateway_mqtt import TBGatewayMqttClient
 from tb_event_storage import TBEventStorage
-from json import load, dumps
+from json import load, dumps, dump
 import time
 import logging
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR
+from threading import Lock
 log = logging.getLogger(__name__)
 
 
@@ -32,6 +33,7 @@ class TBGateway:
                 number_of_workers = Manager.get_parameter(dict_performance_settings, "threads_to_use", 1)
             self.dict_ext_by_device_name = {}
             self.dict_rpc_handlers_by_device = {}
+            self.lock = Lock()
 
             # initialize scheduler
             executors = {'default': ThreadPoolExecutor(number_of_workers)}
@@ -122,10 +124,34 @@ class TBGateway:
         self.mqtt_gateway.gw_connect_device(device_name)
         self.dict_ext_by_device_name.update({device_name: handler})
         self.dict_rpc_handlers_by_device.update({device_name: rpc_handlers})
+        with self.lock:
+            with open("connectedDevices.json") as f:
+                try:
+                    connected_devices = load(f)
+                except:
+                    connected_devices = {}
+            if device_name in connected_devices:
+                log.debug("{} already in connected devices json".format(device_name))
+            else:
+                connected_devices.update({device_name: {}})
+                with open("connectedDevices.json", "w") as f:
+                    dump(connected_devices, f)
 
     def on_device_disconnected(self, device_name):
         try:
-            self.dict_ext_by_device_name.pop(device_name)
+            with self.lock:
+                self.dict_ext_by_device_name.pop(device_name)
+                with open("connectedDevices.json") as f:
+                    try:
+                        connected_devices = load(f)
+                    except:
+                        log.debug("there are no connected devices json")
+                if device_name not in connected_devices:
+                    log.debug("{} not connected in json file".format(device_name))
+                else:
+                    connected_devices.pop(device_name)
+                    with open("connectedDevices.json", "w") as f:
+                        dump(connected_devices, f)
         except KeyError:
             log.warning("tried to remove {}, device not found".format(device_name))
 
