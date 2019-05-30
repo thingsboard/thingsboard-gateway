@@ -53,17 +53,23 @@ class TBGateway:
                 time.sleep(1)
 
             def rpc_request_handler(self, request_body):
-                device = request_body["device"]
                 method = request_body["data"]["method"]
+                device = request_body.get("device")
                 dict_values = None
+                # todo remove if true, uncomment if type..., remove connect(test device), they were for testing purpses
                 # if type(self.gateway.dict_ext_by_device_name[device]) == TBModbusServer:
                 if True:
-                    #todo for testing, remove later
                     device = "Temp Sensor"
                     try:
-                        handler = self.gateway.dict_rpc_handlers_by_device[device][method]
+                        dict_device_handlers = self.gateway.dict_rpc_handlers_by_device[device]
                     except KeyError:
-                        #todo check it
+                        pass
+                        self.send_rpc_reply("o device {} found".format(device))
+                        log.error("no device {} found".format(device))
+                        return
+                    try:
+                        handler = dict_device_handlers[method]
+                    except KeyError:
                         self.send_rpc_reply(device, request_body["data"]["id"], {"error": "Unsupported RPC method"})
                         log.error('"error": "Unsupported RPC method": {}'.format(request_body))
                         return

@@ -18,14 +18,3 @@ class TBModbusInitializer:
         with open(config_file, "r") as config:
             for server_config in load(config)["servers"]:
                 TBModbusServer(server_config, self._scheduler, gateway, self.ext_id)
-
-    def write_to_device(self, config):
-        result = None
-        log.debug("config")
-        try:
-            result = self.dict_devices_servers[config["deviceName"]].write_to_device(config)
-        except KeyError:
-            log.error("There is not device with name {name}, extension {ext_id}".format(name=config["deviceName"],
-                                                                                        ext_id=self.ext_id))
-        # todo should we return Exception?
-        return result
