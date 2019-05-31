@@ -3,13 +3,14 @@ from tb_modbus_init import TBModbusInitializer
 from tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from tb_gateway_mqtt import TBGatewayMqttClient
 from tb_event_storage import TBEventStorage
-from json import load, dumps, dump
+from json import load, dumps, dump, JSONDecodeError
+from queue import Queue
 import time
 import logging
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR
-from threading import Lock
+from threading import Lock, Thread
 log = logging.getLogger(__name__)
 
 
@@ -34,6 +35,8 @@ class TBGateway:
             self.dict_ext_by_device_name = {}
             self.dict_rpc_handlers_by_device = {}
             self.lock = Lock()
+
+
 
             # initialize scheduler
             executors = {'default': ThreadPoolExecutor(number_of_workers)}
@@ -100,6 +103,61 @@ class TBGateway:
             self.mqtt_gateway.devices_server_side_rpc_request_handler = rpc_request_handler
             # todo remove, its hardcode for presentation
             self.mqtt_gateway.gw_connect_device("Test Device A2")
+            # connect devices from file
+            self._connect_devices_from_file()
+            # initialize connected device logging thread
+            self.q = Queue()
+
+            def update_connected_devices():
+                while True:
+                    item = self.q.get()
+                    is_method_connect = item[0]
+                    device_name = item[1]
+                    # if method is "connect device"
+                    if is_method_connect:
+                        handler = item[2]
+                        rpc_handlers = item[3]
+                        self.mqtt_gateway.gw_connect_device(device_name)
+                        self.dict_ext_by_device_name.update({device_name: handler})
+                        self.dict_rpc_handlers_by_device.update({device_name: rpc_handlers})
+
+                        with open("connectedDevices.json") as f:
+                            try:
+                                connected_devices = load(f)
+                            except:
+                                connected_devices = {}
+                        if device_name in connected_devices:
+                            log.debug("{} already in connected devices json".format(device_name))
+                        else:
+                            connected_devices.update({device_name: {}})
+                            with open("connectedDevices.json", "w") as f:
+                                dump(connected_devices, f)
+                    # if method is "disconnect device"
+                    else:
+                        try:
+                            self.dict_ext_by_device_name.pop(device_name)
+                            with open("connectedDevices.json") as f:
+                                try:
+                                    connected_devices = load(f)
+                                except:
+                                    log.debug("there are no connected devices json")
+                            if device_name not in connected_devices:
+                                log.debug("{} not connected in json file".format(device_name))
+                            else:
+                                connected_devices.pop(device_name)
+                                with open("connectedDevices.json", "w") as f:
+                                    dump(connected_devices, f)
+                        except KeyError:
+                            log.warning("tried to remove {}, device not found".format(device_name))
+                    queue_size = self.q.qsize()
+                    if queue_size == 0:
+                        timeout = 0.5
+                    elif queue_size < 5:
+                        timeout = 0.1
+                    else:
+                        timeout = 0.05
+                    time.sleep(timeout)
+            self.t = Thread(target=update_connected_devices).start()
 
             # initialize event_storage
             self.event_storage = TBEventStorage(data_folder_path, max_records_per_file, max_records_between_fsync,
@@ -121,39 +179,10 @@ class TBGateway:
                     log.error("unknown extension type: {}".format(extension["extension type"]))
 
     def on_device_connected(self, device_name, handler, rpc_handlers):
-        self.mqtt_gateway.gw_connect_device(device_name)
-        self.dict_ext_by_device_name.update({device_name: handler})
-        self.dict_rpc_handlers_by_device.update({device_name: rpc_handlers})
-        with self.lock:
-            with open("connectedDevices.json") as f:
-                try:
-                    connected_devices = load(f)
-                except:
-                    connected_devices = {}
-            if device_name in connected_devices:
-                log.debug("{} already in connected devices json".format(device_name))
-            else:
-                connected_devices.update({device_name: {}})
-                with open("connectedDevices.json", "w") as f:
-                    dump(connected_devices, f)
+        self.q.put((True, device_name, handler, rpc_handlers))
 
     def on_device_disconnected(self, device_name):
-        try:
-            with self.lock:
-                self.dict_ext_by_device_name.pop(device_name)
-                with open("connectedDevices.json") as f:
-                    try:
-                        connected_devices = load(f)
-                    except:
-                        log.debug("there are no connected devices json")
-                if device_name not in connected_devices:
-                    log.debug("{} not connected in json file".format(device_name))
-                else:
-                    connected_devices.pop(device_name)
-                    with open("connectedDevices.json", "w") as f:
-                        dump(connected_devices, f)
-        except KeyError:
-            log.warning("tried to remove {}, device not found".format(device_name))
+        self.q.put((False, device_name))
 
     def send_data_to_storage(self, data, type_of_data, device):
         if type_of_data == "tms":
@@ -164,3 +193,14 @@ class TBGateway:
     @staticmethod
     def listener(event):
         log.exception(event.exception)
+
+    def _connect_devices_from_file(self):
+        with open("connectedDevices.json") as f:
+            try:
+                serialized_devices = load(f)
+                for device in serialized_devices:
+                    self.mqtt_gateway.gw_connect_device(device)
+            except JSONDecodeError:
+                log.error("connectedDevices.json is corrupted, got JSONDecodeError")
+            except FileNotFoundError:
+                log.warning("no connectedDevices.json file found")
