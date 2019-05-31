@@ -62,9 +62,9 @@ class TBGateway:
                 device = request_body.get("device")
                 dict_values = None
                 # todo remove if true, uncomment if type..., remove connect(test device), they were for testing purpses
-                # if type(self.gateway.dict_ext_by_device_name[device]) == TBModbusServer:
-                if True:
-                    device = "Temp Sensor"
+                if type(self.gateway.dict_ext_by_device_name[device]) == TBModbusServer:
+                # if True:
+                #     device = "Temp Sensor"
                     try:
                         dict_device_handlers = self.gateway.dict_rpc_handlers_by_device[device]
                     except KeyError:
@@ -101,8 +101,7 @@ class TBGateway:
                     self.gw_send_rpc_reply(device, request_body["data"]["id"], resp)
 
             self.mqtt_gateway.devices_server_side_rpc_request_handler = rpc_request_handler
-            # todo remove, its hardcode for presentation
-            self.mqtt_gateway.gw_connect_device("Test Device A2")
+            # self.mqtt_gateway.gw_connect_device("Test Device A2")
             # connect devices from file
             self._connect_devices_from_file()
             # initialize connected device logging thread
@@ -195,12 +194,14 @@ class TBGateway:
         log.exception(event.exception)
 
     def _connect_devices_from_file(self):
-        with open("connectedDevices.json") as f:
-            try:
+        try:
+            with open("connectedDevices.json") as f:
+
                 serialized_devices = load(f)
                 for device in serialized_devices:
                     self.mqtt_gateway.gw_connect_device(device)
-            except JSONDecodeError:
-                log.error("connectedDevices.json is corrupted, got JSONDecodeError")
-            except FileNotFoundError:
-                log.warning("no connectedDevices.json file found")
+        except JSONDecodeError:
+            log.error("connectedDevices.json is corrupted, got JSONDecodeError")
+        except FileNotFoundError:
+            log.warning("no connectedDevices.json file found, creating one")
+            open("connectedDevices.json", "w")
