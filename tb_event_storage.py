@@ -134,7 +134,7 @@ class TBEventStorage:
                                     # if there are not any data files save position and current file to .reader_state
                                     to_read = 0
                                     with open(".reader_state", "w") as reader_file:
-                                        dump({"prev_file": current_file, "pos": line_number + 1}, reader_file)
+                                        dump({"prev_file": current_file, "pos": current_line + 1}, reader_file)
                                     raise TBEventStorage.TBEndOfEventStorageError()
                                 pos = 0
                             with open(".reader_state", "w") as reader_file:
