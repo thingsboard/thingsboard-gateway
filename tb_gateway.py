@@ -37,8 +37,6 @@ class TBGateway:
             self.dict_rpc_handlers_by_device = {}
             self.lock = Lock()
 
-
-
             # initialize scheduler
             executors = {'default': ThreadPoolExecutor(number_of_workers)}
             if number_of_processes > 1:
@@ -174,6 +172,9 @@ class TBGateway:
                 elif extension["extension type"] == "OPC-UA" and extension["enabled"]:
                     log.warning("OPC UA isn't implemented yet")
                 elif extension["extension type"] == "Sigfox" and extension["enabled"]:
+                    log.warning("Sigfox isn't implemented yet")
+                elif extension["extension type"] == "BLE" and extension["enabled"]:
+                    conf = Manager.get_parameter(extension, "config file name", "ble-config.json")
                     log.warning("Sigfox isn't implemented yet")
                 elif extension["enabled"]:
                     log.error("unknown extension type: {}".format(extension["extension type"]))
