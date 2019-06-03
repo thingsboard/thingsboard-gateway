@@ -1,5 +1,6 @@
 from importlib import import_module
 from tb_modbus_init import TBModbusInitializer
+from tb_modbus_server import TBModbusServer
 from tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from tb_gateway_mqtt import TBGatewayMqttClient
 from tb_event_storage import TBEventStorage
