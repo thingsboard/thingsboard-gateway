@@ -4,7 +4,7 @@ from tb_modbus_server import TBModbusServer
 from tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from tb_gateway_mqtt import TBGatewayMqttClient
 from tb_event_storage import TBEventStorage
-from json import load, dumps, dump, JSONDecodeError
+from json import load, dumps, dump
 from queue import Queue
 import time
 import logging
@@ -102,7 +102,7 @@ class TBGateway:
             self.mqtt_gateway.devices_server_side_rpc_request_handler = rpc_request_handler
             # self.mqtt_gateway.gw_connect_device("Test Device A2")
             # connect devices from file
-            self._connect_devices_from_file()
+            self.mqtt_gateway.connect_devices_from_file()
             # initialize connected device logging thread
             self.q = Queue()
 
@@ -195,15 +195,4 @@ class TBGateway:
     def listener(event):
         log.exception(event.exception)
 
-    def _connect_devices_from_file(self):
-        try:
-            with open("connectedDevices.json") as f:
 
-                serialized_devices = load(f)
-                for device in serialized_devices:
-                    self.mqtt_gateway.gw_connect_device(device)
-        except JSONDecodeError:
-            log.error("connectedDevices.json is corrupted, got JSONDecodeError")
-        except FileNotFoundError:
-            log.warning("no connectedDevices.json file found, creating one")
-            open("connectedDevices.json", "w")

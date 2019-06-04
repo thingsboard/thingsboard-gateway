@@ -1,6 +1,6 @@
 import logging
 import time
-from json import dumps
+from json import dumps, JSONDecodeError, load
 from tb_device_mqtt import TBDeviceMqttClient, DEVICE_TS_KV_VALIDATOR, KV_VALIDATOR
 
 GATEWAY_ATTRIBUTES_TOPIC = "v1/gateway/attributes"
@@ -30,6 +30,8 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         super()._on_connect(client, userdata, flags, rc, *extra_params)
         if rc == 0:
+            if self.gateway:
+                self.connect_devices_from_file(self)
             self._client.subscribe(GATEWAY_ATTRIBUTES_TOPIC, qos=1)
             self._client.subscribe(GATEWAY_ATTRIBUTES_RESPONSE_TOPIC + "/+")
             self._client.subscribe(GATEWAY_RPC_TOPIC + "/+")
@@ -159,3 +161,17 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                                     dumps({"device": device, "id": req_id, "data": resp}),
                                     qos=quality_of_service)
         return info
+
+    @staticmethod
+    def connect_devices_from_file(self):
+        try:
+            with open("connectedDevices.json") as f:
+
+                serialized_devices = load(f)
+                for device in serialized_devices:
+                    self.gw_connect_device(device)
+        except JSONDecodeError:
+            log.error("connectedDevices.json is corrupted, got JSONDecodeError")
+        except FileNotFoundError:
+            log.warning("no connectedDevices.json file found, creating one")
+            open("connectedDevices.json", "w")
