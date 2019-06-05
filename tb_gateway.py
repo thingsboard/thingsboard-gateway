@@ -12,6 +12,7 @@ from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR
 from threading import Lock, Thread
+from tb_ble import TBBluethoothLE
 log = logging.getLogger(__name__)
 
 
@@ -41,9 +42,9 @@ class TBGateway:
             executors = {'default': ThreadPoolExecutor(number_of_workers)}
             if number_of_processes > 1:
                 executors.update({'processpool': ProcessPoolExecutor(number_of_processes)})
-            self._scheduler = BackgroundScheduler(executors=executors)
-            self._scheduler.add_listener(TBGateway.listener, EVENT_JOB_ERROR)
-            self._scheduler.start()
+            self.scheduler = BackgroundScheduler(executors=executors)
+            self.scheduler.add_listener(TBGateway.listener, EVENT_JOB_ERROR)
+            self.scheduler.start()
 
             # initialize client
             self.mqtt_gateway = TBGatewayMqttClient(host, token, self)
@@ -159,7 +160,7 @@ class TBGateway:
 
             # initialize event_storage
             self.event_storage = TBEventStorage(data_folder_path, max_records_per_file, max_records_between_fsync,
-                                                max_file_count, read_interval, max_read_record_count, self._scheduler,
+                                                max_file_count, read_interval, max_read_record_count, self.scheduler,
                                                 self)
 
             # initialize extensions
@@ -167,14 +168,14 @@ class TBGateway:
                 extension = dict_extensions_settings[ext_id]
                 if extension["extension type"] == "Modbus" and extension["enabled"]:
                     conf = Manager.get_parameter(extension, "config file name", "modbus-config.json")
-                    self.modbus_initializer = TBModbusInitializer(self, ext_id, self._scheduler, conf)
+                    self.modbus_initializer = TBModbusInitializer(self, ext_id, self.scheduler, conf)
                     self.dict_ext_by_device_name.update(self.modbus_initializer.dict_devices_servers)
+                elif extension["extension type"] == "BLE" and extension["enabled"]:
+                    conf = Manager.get_parameter(extension, "config file name", "ble-config.json")
+                    self.ble = TBBluethoothLE(self, conf, ext_id)
                 elif extension["extension type"] == "OPC-UA" and extension["enabled"]:
                     log.warning("OPC UA isn't implemented yet")
                 elif extension["extension type"] == "Sigfox" and extension["enabled"]:
-                    log.warning("Sigfox isn't implemented yet")
-                elif extension["extension type"] == "BLE" and extension["enabled"]:
-                    conf = Manager.get_parameter(extension, "config file name", "ble-config.json")
                     log.warning("Sigfox isn't implemented yet")
                 elif extension["enabled"]:
                     log.error("unknown extension type: {}".format(extension["extension type"]))

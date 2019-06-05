@@ -1,8 +1,8 @@
+from datetime import datetime
 from bluepy.btle import DefaultDelegate, Peripheral, Scanner
-from tb_modbus_transport_manager import TBModbusTransportManager
+from tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from json import load
 from importlib import import_module
-import os.path
 import logging
 log = logging.getLogger(__name__)
 
@@ -18,21 +18,35 @@ class TBBluethoothLE:
             elif isNewData:
                 log.debug("Received new data from: {}".format(dev.addr))
 
-    def __init__(self, gateway, config_file):
+    def __init__(self, gateway, config_file, ext_id):
         with open(config_file) as config:
             config = load(config)
+            self.polling_jobs = []
             self.gateway = gateway
             self.known_devices = {}
-            self.scan_duration = TBModbusTransportManager.get_parameter(config, "scan_duration", 15)
+            self.scan_duration = Manager.get_parameter(config, "scan_duration", 15)
+            rescan_period = Manager.get_parameter(config, "rescanPeriod", 120)
             # CURRENT_SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
             for ble_name, extension_data in config["devices"]:
                 extension_module = import_module("extension.ble." + extension_data["extension"])
                 extension_class = extension_module.Extension
-                self.known_devices[ble_name] = {"extension": extension_class, "scanned": {}}
-            #todo add rescan job
+                self.known_devices[ble_name] = {
+                    "extension": extension_class,
+                    "scanned": {},
+                    "poll_period": Manager.get_parameter(extension_data,
+                                                         "poll_period",
+                                                         Manager.get_parameter(config, "poll_period", 100)),
+                    "check_data_changed": Manager.get_parameter(extension_data,
+                                                                "sendDataOnlyOnChange",
+                                                                Manager.get_parameter(config,
+                                                                                      "sendDataOnlyOnChange",
+                                                                                      False))}
+            self.gateway.scheduler.add_job(self.rescan, 'interval', seconds=rescan_period, next_run_time=datetime.now())
 
     def rescan(self):
-        #todo remove all ble jobs for connecting at the beginning
+        for job in self.polling_jobs:
+            self.gateway.scheduler.remove_job(job)
+        self.polling_jobs.clear()
         for dev, dev_data in self.known_devices.items():
             for scanned, scanned_data in dev_data["scanned"].items():
                 tb_name = scanned_data["tb_name"]
@@ -58,9 +72,14 @@ class TBBluethoothLE:
                                 "periph": Peripheral(),
                                 "tb_name": tb_name
                             }
-                            # todo add polling job here
-                            # todo add rpc handler processing
                             self.gateway.on_device_connected(tb_name, "Nonehandler", "nonerpchandler")
+                            job = self.gateway.scheduler.add_job(self.get_data_from_device,
+                                                                 'interval',
+                                                                 seconds=self.known_devices[value]["poll_period"],
+                                                                 next_run_time=datetime.now(),
+                                                                 args=(value, self.known_devices[value]))
+                            self.polling_jobs.append(job)
+                            # todo add rpc handler processing
                             # todo check if added device has "active: true" attribute
 
                             known_devices_found = True
@@ -99,10 +118,14 @@ class TBBluethoothLE:
                 poll_telemetry = instance.poll(ble_periph)
                 log.debug("Data received: {}".format(poll_telemetry))
                 telemetry.update(poll_telemetry)
-                if not telemetry:
+
+                def check_data_changed(telemetry, adr):
+                    pass
+                    #todo add
+                if not telemetry or not (dev_data["check_data_changed"] and check_data_changed(telemetry, dev_addr)):
                     continue
+
                 log.debug(telemetry)
-                #todo check if data changed here
                 #todo send_to_storage
             except Exception as e:
                 print("Exception caught:", e)

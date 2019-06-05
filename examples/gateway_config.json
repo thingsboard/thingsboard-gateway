@@ -2,18 +2,22 @@
   "host": "127.0.0.1",
   "token": "SGxDCjGxUUnm5ZJOnYHh",
   "extensions": {
-    "1":
-    {
+    "1": {
       "extension type": "Modbus",
       "config file name": "modbus-config.json",
       "enabled": true
     },
-    "2":
-    {
+    "2": {
       "extension type": "Modbus",
       "config file name": "second_modbus_config.json",
       "enabled": false
+    },
+    "3": {
+      "extension type": "BLE",
+      "config file name": "ble-config.json",
+      "enabled": true
     }
+
   },
   "storage": {
       "path": "./data",
