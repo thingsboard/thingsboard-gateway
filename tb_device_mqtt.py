@@ -172,7 +172,7 @@ class TBDeviceMqttClient:
             else:
                 log.error("connection FAIL with unknown error")
 
-    def connect(self, callback=None, min_reconnect_delay=1, timeout=120, tls=False, port=1883, ca_certs=None, cert_file=None, key_file=None):
+    def connect(self, callback=None, min_reconnect_delay=1, timeout=120, tls=False, port=1883, ca_certs=None, cert_file=None, key_file=None, keepalive=60):
         if tls:
             self._client.tls_set(ca_certs=ca_certs,
                                  certfile=cert_file,
@@ -181,7 +181,7 @@ class TBDeviceMqttClient:
                                  tls_version=ssl.PROTOCOL_TLSv1_2,
                                  ciphers=None)
             self._client.tls_insecure_set(False)
-        self._client.connect(self.__host, port)
+        self._client.connect(self.__host, port, keepalive=keepalive)
         self._client.loop_start()
         self.__connect_callback = callback
         self.reconnect_delay_set(min_reconnect_delay, timeout)

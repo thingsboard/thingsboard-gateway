@@ -78,7 +78,7 @@ class TBGateway:
                         log.error('"error": "Unsupported RPC method": {}'.format(request_body))
                         return
                     if type(handler) == str:
-                        m = import_module(handler)
+                        m = import_module("extensions.modbus."+handler)
                         params = None
                         try:
                             params = request_body["data"]["params"]
