@@ -28,4 +28,9 @@ public class ModbusRtuTransportConfiguration implements ModbusTransportConfigura
     private int dataBits;
     private float stopBits;
     private String parity;
+
+    @Override
+    public long getRetryInterval() {
+        return timeout;
+    }
 }
