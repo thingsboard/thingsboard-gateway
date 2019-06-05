@@ -1,18 +1,19 @@
+import logging
+import time
 from importlib import import_module
-from tb_modbus_init import TBModbusInitializer
-from tb_modbus_server import TBModbusServer
-from tb_modbus_transport_manager import TBModbusTransportManager as Manager
-from tb_gateway_mqtt import TBGatewayMqttClient
-from tb_event_storage import TBEventStorage
 from json import load, dumps, dump
 from queue import Queue
-import time
-import logging
+from threading import Lock, Thread
+
+from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.events import EVENT_JOB_ERROR
-from threading import Lock, Thread
-from tb_ble import TBBluethoothLE
+from tb_event_storage import TBEventStorage
+from tb_extension_modbus import TBModbusServer
+from tb_gateway_mqtt import TBGatewayMqttClient
+from tb_modbus_init import TBModbusInitializer
+from tb_modbus_transport_manager import TBModbusTransportManager as Manager
+
 log = logging.getLogger(__name__)
 
 

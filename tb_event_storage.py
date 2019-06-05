@@ -1,10 +1,11 @@
+import logging
 import os
 import threading
 import time
-import logging
-from json import load, dump, loads
 from datetime import datetime
 from json import JSONDecodeError
+from json import load, dump, loads
+
 log = logging.getLogger(__name__)
 
 

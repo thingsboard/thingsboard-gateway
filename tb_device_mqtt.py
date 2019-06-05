@@ -1,13 +1,14 @@
-import paho.mqtt.client as paho
 import logging
-import time
 import queue
-from json import loads, dumps
-from jsonschema import Draft7Validator
 import ssl
-from jsonschema import ValidationError
+import time
+from json import loads, dumps
 from threading import Lock
 from threading import Thread
+
+import paho.mqtt.client as paho
+from jsonschema import Draft7Validator
+from jsonschema import ValidationError
 
 KV_SCHEMA = {
     "type": "object",
@@ -78,7 +79,7 @@ class TBQoSException(Exception):
     pass
 
 
-class TBPublishInfo():
+class TBPublishInfo:
     TB_ERR_AGAIN = -1
     TB_ERR_SUCCESS = 0
     TB_ERR_NOMEM = 1

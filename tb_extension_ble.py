@@ -7,7 +7,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-class TBBluethoothLE:
+class TBBluetoothLE:
     class ScanDelegate(DefaultDelegate):
         def __init__(self):
             DefaultDelegate.__init__(self)

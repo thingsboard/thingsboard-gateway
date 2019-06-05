@@ -1,6 +1,7 @@
 import logging
 import time
 from json import dumps, JSONDecodeError, load
+
 from tb_device_mqtt import TBDeviceMqttClient, DEVICE_TS_KV_VALIDATOR, KV_VALIDATOR
 
 GATEWAY_ATTRIBUTES_TOPIC = "v1/gateway/attributes"

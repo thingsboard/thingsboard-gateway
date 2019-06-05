@@ -1,6 +1,8 @@
-from json import load
-from tb_modbus_server import TBModbusServer
 import logging
+from json import load
+
+from tb_extension_modbus import TBModbusServer
+
 log = logging.getLogger(__name__)
 
 

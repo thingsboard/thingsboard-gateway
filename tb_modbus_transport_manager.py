@@ -1,7 +1,9 @@
-from pymodbus.register_write_message import WriteMultipleRegistersResponse
-from pymodbus.bit_write_message import WriteSingleCoilResponse
 import logging
+
+from pymodbus.bit_write_message import WriteSingleCoilResponse
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusRtuFramer
+from pymodbus.register_write_message import WriteMultipleRegistersResponse
+
 log = logging.getLogger(__name__)
 
 
