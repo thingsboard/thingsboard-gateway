@@ -13,7 +13,7 @@ GATEWAY_RPC_TOPIC = "v1/gateway/rpc"
 log = logging.getLogger(__name__)
 
 
-class TBGatewayAPI():
+class TBGatewayAPI:
     pass
 
 

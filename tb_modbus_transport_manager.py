@@ -1,5 +1,5 @@
 import logging
-
+from tb_utility import TBUtility
 from pymodbus.bit_write_message import WriteSingleCoilResponse
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusRtuFramer
 from pymodbus.register_write_message import WriteMultipleRegistersResponse
@@ -7,13 +7,13 @@ from pymodbus.register_write_message import WriteMultipleRegistersResponse
 log = logging.getLogger(__name__)
 
 
-class TBModbusTransportManager:
+class TBModbusTransportManager():
     def __init__(self, config, ext_id):
         log.info(config)
         self.ext_id = ext_id
         transport = config["type"]
-        host = TBModbusTransportManager.get_parameter(config, "host", "127.0.0.1")
-        port = TBModbusTransportManager.get_parameter(config, "port", 502)
+        host = TBUtility.get_parameter(config, "host", "127.0.0.1")
+        port = TBUtility.get_parameter(config, "port", 502)
         rtu_over_everything = ModbusRtuFramer if (config.get("rtuOverTcp") or config.get("rtuOverUdp")) else False
         client = None
 
@@ -44,7 +44,7 @@ class TBModbusTransportManager:
 
     def get_data_from_device(self, config, unit_id):
         result = self._dict_read_functions[config["functionCode"]](config["address"],
-                                                                   self.get_parameter(config, "registerCount", 1),
+                                                                   TBUtility.get_parameter(config, "registerCount", 1),
                                                                    unit=unit_id)
         return result
 
@@ -61,10 +61,3 @@ class TBModbusTransportManager:
             return True
         else:
             return False
-
-    @staticmethod
-    def get_parameter(data, param, default_value):
-        if param not in data:
-            return default_value
-        else:
-            return data[param]

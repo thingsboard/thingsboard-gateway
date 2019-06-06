@@ -1,4 +1,4 @@
-from extensions import ExtensionInterface
+from . import ExtensionInterface
 
 # Extracts data from ESP test device and sends it to TB. Both polling and notifications
 # are supported.

@@ -15,7 +15,7 @@
     "3": {
       "extension type": "BLE",
       "config file name": "ble-config.json",
-      "enabled": true
+      "enabled": false
     }
 
   },

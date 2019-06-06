@@ -5,7 +5,7 @@
   "devices":  {
     "MJ_HT_V1": {
       "extension": "MiTempHumidityExtension",
-      "pollPeriod": 50,
+      "pollPeriod": 5,
       "sendDataOnlyOnChange": false,
       "rpc": {
         "getTelemetry": true,

@@ -10,9 +10,10 @@ from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from tb_event_storage import TBEventStorage
 from tb_extension_modbus import TBModbusServer
+from tb_extension_ble import TBBluetoothLE
 from tb_gateway_mqtt import TBGatewayMqttClient
 from tb_modbus_init import TBModbusInitializer
-from tb_modbus_transport_manager import TBModbusTransportManager as Manager
+from tb_utility import TBUtility
 
 log = logging.getLogger(__name__)
 
@@ -33,8 +34,8 @@ class TBGateway:
             read_interval = dict_storage_settings["read_interval"]
             max_read_record_count = dict_storage_settings["max_read_record_count"]
             if dict_performance_settings:
-                number_of_processes = Manager.get_parameter(dict_performance_settings, "processes_to_use", 20)
-                number_of_workers = Manager.get_parameter(dict_performance_settings, "threads_to_use", 1)
+                number_of_processes = TBUtility.get_parameter(dict_performance_settings, "processes_to_use", 20)
+                number_of_workers = TBUtility.get_parameter(dict_performance_settings, "threads_to_use", 1)
             self.dict_ext_by_device_name = {}
             self.dict_rpc_handlers_by_device = {}
             self.lock = Lock()
@@ -104,7 +105,7 @@ class TBGateway:
             self.mqtt_gateway.devices_server_side_rpc_request_handler = rpc_request_handler
             # self.mqtt_gateway.gw_connect_device("Test Device A2")
             # connect devices from file
-            self.mqtt_gateway.connect_devices_from_file()
+            self.mqtt_gateway.connect_devices_from_file(self.mqtt_gateway)
             # initialize connected device logging thread
             self.q = Queue()
 
@@ -168,12 +169,14 @@ class TBGateway:
             for ext_id in dict_extensions_settings:
                 extension = dict_extensions_settings[ext_id]
                 if extension["extension type"] == "Modbus" and extension["enabled"]:
-                    conf = Manager.get_parameter(extension, "config file name", "modbus-config.json")
-                    self.modbus_initializer = TBModbusInitializer(self, ext_id, self.scheduler, conf)
-                    self.dict_ext_by_device_name.update(self.modbus_initializer.dict_devices_servers)
+                    conf = TBUtility.get_parameter(extension, "config file name", "modbus-config.json")
+                    with open(conf, "r") as config_file:
+                        for server_config in load(config_file)["servers"]:
+                            TBModbusServer(server_config, self.scheduler, self, ext_id)
+
                 elif extension["extension type"] == "BLE" and extension["enabled"]:
-                    conf = Manager.get_parameter(extension, "config file name", "ble-config.json")
-                    self.ble = TBBluethoothLE(self, conf, ext_id)
+                    conf = TBUtility.get_parameter(extension, "config file name", "ble-config.json")
+                    self.ble = TBBluetoothLE(self, conf, ext_id)
                 elif extension["extension type"] == "OPC-UA" and extension["enabled"]:
                     log.warning("OPC UA isn't implemented yet")
                 elif extension["extension type"] == "Sigfox" and extension["enabled"]:

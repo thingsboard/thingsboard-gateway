@@ -1,6 +1,7 @@
 import re
 import logging
 from threading import Thread, Lock
+from tb_utility import TBUtility
 from tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
@@ -57,9 +58,9 @@ class TBModbusServer(Thread):
         for device in self._server_config["devices"]:
             log.debug("adding polling job for device id {id}, extension id {ext_id}".format(id=device["unitId"],
                                                                                             ext_id=self.ext_id))
-            device_check_data_changed = Manager.get_parameter(device, "sendDataOnlyOnChange", False)
-            device_attr_poll_period = Manager.get_parameter(device, "attributesPollPeriod", self._POLL_PERIOD)
-            device_ts_poll_period = Manager.get_parameter(device, "timeseriesPollPeriod", self._POLL_PERIOD)
+            device_check_data_changed = TBUtility.get_parameter(device, "sendDataOnlyOnChange", False)
+            device_attr_poll_period = TBUtility.get_parameter(device, "attributesPollPeriod", self._POLL_PERIOD)
+            device_ts_poll_period = TBUtility.get_parameter(device, "timeseriesPollPeriod", self._POLL_PERIOD)
             device_name = device["deviceName"]
             for ts in device["timeseries"]:
                 self._process_message(ts, device_ts_poll_period, "tms", device_check_data_changed, device)
@@ -70,8 +71,8 @@ class TBModbusServer(Thread):
             self.gateway.on_device_connected(device_name, self.write_to_device, rpc_handlers)
 
     def _process_message(self, item, device_poll_period, type_of_data, device_check_data_changed, device):
-        poll_period = Manager.get_parameter(item, "pollPeriod", device_poll_period) / 1000  # millis to seconds
-        check_data_changed = Manager.get_parameter(item, "sendDataOnlyOnChange", device_check_data_changed)
+        poll_period = TBUtility.get_parameter(item, "pollPeriod", device_poll_period) / 1000  # millis to seconds
+        check_data_changed = TBUtility.get_parameter(item, "sendDataOnlyOnChange", device_check_data_changed)
         self.scheduler.add_job(self._get_values_check_send_to_tb,
                                'interval',
                                seconds=poll_period,
@@ -164,7 +165,7 @@ class TBModbusServer(Thread):
             #     byte_order = list(map(lambda letter: self.dict_bo[letter], byte_order))
             # builder = BinaryPayloadBuilder(byteorder=Endian.Little, wordorder=Endian.Big)
         # we do not use register count for something else then checking needed registers for related data type
-        reg_count = Manager.get_parameter(request, "registerCount", 1)
+        reg_count = TBUtility.get_parameter(request, "registerCount", 1)
         value = request["value"]
         # all values are signed
         tags = (re.findall('[A-Z][a-z]*', request["tag"]))
@@ -256,8 +257,8 @@ class TBModbusServer(Thread):
         # working with registers
         elif config.get("functionCode") == 3 or config.get("functionCode") == 4:
             result = answer.registers
-            byte_order = Manager.get_parameter(config, "byteOrder", "LITTLE")
-            reg_count = Manager.get_parameter(config, "registerCount", 1)
+            byte_order = TBUtility.get_parameter(config, "byteOrder", "LITTLE")
+            reg_count = TBUtility.get_parameter(config, "registerCount", 1)
             type_of_data = config["type"]
             if byte_order == "LITTLE":
                 decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Little)

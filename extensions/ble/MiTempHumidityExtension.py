@@ -1,4 +1,4 @@
-from extensions import ExtensionInterface
+from . import ExtensionInterface
 
 from bluepy.btle import DefaultDelegate, Peripheral, Scanner
 
