@@ -22,6 +22,7 @@ class TBBluetoothLE:
     def __init__(self, gateway, config_file, ext_id):
         with open(config_file) as config:
             config = load(config)
+            self.dict_check_ts_changed = {}
             self.polling_jobs = []
             self.gateway = gateway
             self.known_devices = {}
@@ -41,7 +42,9 @@ class TBBluetoothLE:
                                                                   "sendDataOnlyOnChange",
                                                                   TBUtility.get_parameter(config,
                                                                                           "sendDataOnlyOnChange",
-                                                                                          False))}
+                                                                                          False)),
+                    "rpc": extension_data.get("rpc")
+                }
             self.gateway.scheduler.add_job(self.rescan, 'interval', seconds=rescan_period, next_run_time=datetime.now())
 
     def rescan(self):
@@ -73,21 +76,33 @@ class TBBluetoothLE:
                                 "periph": Peripheral(),
                                 "tb_name": tb_name
                             }
-                            self.gateway.on_device_connected(tb_name, "Nonehandler", "nonerpchandler")
+                            self.gateway.on_device_connected(tb_name, self.write_to_device, self.known_devices["rpc"])
                             job = self.gateway.scheduler.add_job(self.get_data_from_device,
                                                                  'interval',
                                                                  seconds=self.known_devices[value]["poll_period"],
                                                                  next_run_time=datetime.now(),
                                                                  args=(value, self.known_devices[value]))
                             self.polling_jobs.append(job)
-                            # todo add rpc handler processing
-                            # todo check if added device has "active: true" attribute
 
                             known_devices_found = True
             except Exception as e:
                 log.error(e)
 
-    def get_data_from_device(self, device_type, device_type_data):
+    def write_to_device(self, adr, *args):
+        esp = Peripheral()
+        esp.connect(adr)
+        srvs = esp.getServices()
+        resp = esp.writeCharacteristic(args[0], args[1], args[2])
+        # return resp
+        # todo check resp
+        esp.disconnect()
+
+    def get_data_from_device_once(self, dev_type):
+        self.gateway.scheduler.add_job(self.get_data_from_device,
+                                       next_run_time=datetime.now(),
+                                       args=(dev_type, self.known_devices[dev_type], True))
+
+    def get_data_from_device(self, device_type, device_type_data, is_rpc_read_call=False):
         for dev_addr, dev_data in device_type_data["scanned"].items():
             ble_periph = dev_data["periph"]
             try:
@@ -120,10 +135,20 @@ class TBBluetoothLE:
                 log.debug("Data received: {}".format(poll_telemetry))
                 telemetry.update(poll_telemetry)
 
-                def check_data_changed(telemetry, adr):
+                def check_ts_changed(telemetry, device_uniq_name):
+                    if self.dict_check_ts_changed.get(device_uniq_name) == telemetry:
+                        log.debug("value {val} related to device id {id} didn't change".format(val=telemetry,
+                                                                                               id=device_uniq_name))
+                        return
+                    log.debug("value {val} related to device id {id} changed".format(val=telemetry,
+                                                                                     id=device_uniq_name))
+                    self.dict_check_ts_changed.update({device_uniq_name: telemetry})
                     return True
-                    # todo add
-                if not telemetry or not (self.known_devices[device_type]["check_data_changed"] and check_data_changed(telemetry, dev_addr)):
+
+                if is_rpc_read_call:
+                    return {"ts": int(round(time() * 1000)), "values": telemetry}
+                if not telemetry or not (self.known_devices[device_type]["check_data_changed"] and
+                                         check_ts_changed(telemetry, dev_addr)):
                     continue
 
                 telemetry = {
@@ -137,4 +162,5 @@ class TBBluetoothLE:
                 print("Disconnecting from device")
                 ble_periph.disconnect()
         pass
-    # todo add write rpc processing
+
+    # todo test for known_devices data consistency

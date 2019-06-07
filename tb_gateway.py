@@ -9,10 +9,9 @@ from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from tb_event_storage import TBEventStorage
-from tb_extension_modbus import TBModbusServer
-from tb_extension_ble import TBBluetoothLE
+from tb_modbus_extension import TBModbus
+from tb_ble_extension import TBBluetoothLE
 from tb_gateway_mqtt import TBGatewayMqttClient
-from tb_modbus_init import TBModbusInitializer
 from tb_utility import TBUtility
 
 log = logging.getLogger(__name__)
@@ -62,43 +61,56 @@ class TBGateway:
             def rpc_request_handler(self, request_body):
                 method = request_body["data"]["method"]
                 device = request_body.get("device")
-                dict_values = None
+                values = None
                 # todo remove if true, uncomment if type..., remove connect(test device), they were for testing purpses
-                if type(self.gateway.dict_ext_by_device_name[device]) == TBModbusServer:
+                try:
+                    dict_device_handlers = self.gateway.dict_rpc_handlers_by_device[device]
+                except KeyError:
+                    pass
+                    self.send_rpc_reply("o device {} found".format(device))
+                    log.error("no device {} found".format(device))
+                    return
+                try:
+                    handler = dict_device_handlers[method]
+                except KeyError:
+                    self.send_rpc_reply(device, request_body["data"]["id"], {"error": "Unsupported RPC method"})
+                    log.error('"error": "Unsupported RPC method": {}'.format(request_body))
+                    return
+                if type(self.gateway.dict_ext_by_device_name[device]) == TBModbus:
                 # if True:
                 #     device = "Temp Sensor"
-                    try:
-                        dict_device_handlers = self.gateway.dict_rpc_handlers_by_device[device]
-                    except KeyError:
-                        pass
-                        self.send_rpc_reply("o device {} found".format(device))
-                        log.error("no device {} found".format(device))
-                        return
-                    try:
-                        handler = dict_device_handlers[method]
-                    except KeyError:
-                        self.send_rpc_reply(device, request_body["data"]["id"], {"error": "Unsupported RPC method"})
-                        log.error('"error": "Unsupported RPC method": {}'.format(request_body))
-                        return
                     if type(handler) == str:
                         m = import_module("extensions.modbus."+handler)
                         params = None
                         try:
                             params = request_body["data"]["params"]
+                            values = m.rpc_handler(method, params)
                         except KeyError:
                             pass
-                        dict_values = m.rpc_handler(method, params)
                     elif type(handler) == dict:
-                        dict_values = handler
-                        dict_values.update({"deviceName": device})
+                        values = handler
+                        values.update({"deviceName": device})
                     else:
                         log.error("rpc handler not in dict format nor in string path to python file")
                         return
-                    if "tag" not in dict_values:
+                    if "tag" not in values:
                         self.send_rpc_reply(device, request_body["data"]["id"], {"ErrorWriteTag": "No tag found"})
                         log.error('"ErrorWriteTag": "No tag found": {}'.format(request_body))
                         return
-                resp = self.gateway.dict_ext_by_device_name[device](dict_values)
+
+                elif type(self.gateway.dict_ext_by_device_name[device]) == TBBluetoothLE:
+                    if handler.get("getTelemetry"):
+                        self.send_rpc_reply({device, request_body["data"]["id"],
+                                            self.gateway.ble.get_data_from_device_once(device)})
+                    if handler.get("handler"):
+                        m = import_module("extensions.ble."+handler["handler"])
+                        params = None
+                        try:
+                            params = request_body["data"]["params"]
+                            values = m.rpc_handler(method, params)
+                        except KeyError:
+                            pass
+                resp = self.gateway.dict_ext_by_device_name[device](values)
                 if resp:
                     self.gw_send_rpc_reply(device, request_body["data"]["id"], resp)
 
@@ -172,7 +184,7 @@ class TBGateway:
                     conf = TBUtility.get_parameter(extension, "config file name", "modbus-config.json")
                     with open(conf, "r") as config_file:
                         for server_config in load(config_file)["servers"]:
-                            TBModbusServer(server_config, self.scheduler, self, ext_id)
+                            TBModbus(server_config, self.scheduler, self, ext_id)
 
                 elif extension["extension type"] == "BLE" and extension["enabled"]:
                     conf = TBUtility.get_parameter(extension, "config file name", "ble-config.json")

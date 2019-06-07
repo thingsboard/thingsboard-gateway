@@ -8,8 +8,13 @@
       "pollPeriod": 5,
       "sendDataOnlyOnChange": false,
       "rpc": {
-        "getTelemetry": true,
-        "customRPC": "ble-rpc-handler"
+        "giveMeTheTelemetry":{
+          "getTelemetry": true
+        },
+       "callMeSomeCustomShit":{
+         "getTelemetry": false,
+         "handler": "ble-rpc-handler"
+        }
       }
     },
     "ESP_GATTS_DEMO": {

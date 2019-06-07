@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 # todo should we log and wrap param getting?
 
 
-class TBModbusServer(Thread):
+class TBModbus(Thread):
     _POLL_PERIOD = 1000  # time in milliseconds
     _RUN_TIMEOUT = 0.1  # time in seconds
     _CHARS_IN_REGISTER = 2
@@ -24,7 +24,7 @@ class TBModbusServer(Thread):
     # WC = {"b": 1, "h": 2, "i": 4, "l": 4, "q": 8, "f": 4, "d": 8}
 
     def __init__(self, server, scheduler, gateway, ext_id):
-        super(TBModbusServer, self).__init__()
+        super(TBModbus, self).__init__()
         self.ext_id = ext_id
         self.gateway = gateway
         self.devices_names = set()
@@ -284,7 +284,7 @@ class TBModbusServer(Thread):
             #                                                  byteorder=Endian.Little,
             #                                                  wordorder=Endian.Big)
             if type_of_data == "string":
-                result = decoder.decode_string(TBModbusServer._CHARS_IN_REGISTER * reg_count)
+                result = decoder.decode_string(TBModbus._CHARS_IN_REGISTER * reg_count)
             elif type_of_data == "long":
                 if reg_count == 1:
                     # result = unpack_words(byte_order + "h", result[0])
