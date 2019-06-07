@@ -188,7 +188,7 @@ class TBGateway:
 
                 elif extension["extension type"] == "BLE" and extension["enabled"]:
                     conf = TBUtility.get_parameter(extension, "config file name", "ble-config.json")
-                    self.ble = TBBluetoothLE(self, conf, ext_id)
+                    TBBluetoothLE(self, conf)
                 elif extension["extension type"] == "OPC-UA" and extension["enabled"]:
                     log.warning("OPC UA isn't implemented yet")
                 elif extension["extension type"] == "Sigfox" and extension["enabled"]:

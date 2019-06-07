@@ -19,7 +19,7 @@ class TBBluetoothLE:
             elif isNewData:
                 log.debug("Received new data from: {}".format(dev.addr))
 
-    def __init__(self, gateway, config_file, ext_id):
+    def __init__(self, gateway, config_file):
         with open(config_file) as config:
             config = load(config)
             self.dict_check_ts_changed = {}
@@ -54,8 +54,6 @@ class TBBluetoothLE:
         for dev_data in self.known_devices.values():
             for scanned, scanned_data in dev_data["scanned"].items():
                 tb_name = scanned_data["tb_name"]
-                # tb_gateway.gw_connect_device(tb_name)
-                # tb_gateway.gw_send_attributes(tb_name, {"active": False})
                 self.gateway.mqtt_gateway.tb_gateway.gw_disconnect_device(tb_name)
             dev_data["scanned"].clear()
         known_devices_found = False
@@ -67,6 +65,7 @@ class TBBluetoothLE:
                     log.info("Device {} ({}), RSSI={} dB".format(device.addr, device.addrType, device.rssi))
                     for (adtype, desc, value) in device.getScanData():
                         log.debug("  {} = {}".format(desc, value))
+                        # log.critical(value)
                         if desc == "Complete Local Name" and value in self.known_devices:
                             log.debug("Known device found: {}".format(value))
                             tb_name = value + "_" + device.addr.replace(':', '').upper()
@@ -76,14 +75,18 @@ class TBBluetoothLE:
                                 "periph": Peripheral(),
                                 "tb_name": tb_name
                             }
-                            self.gateway.on_device_connected(tb_name, self.write_to_device, self.known_devices["rpc"])
+                            log.warning(self.known_devices)
+                            self.gateway.on_device_connected(tb_name,
+                                                             self.write_to_device,
+                                                             self.known_devices[value]["rpc"])
                             job = self.gateway.scheduler.add_job(self.get_data_from_device,
                                                                  'interval',
                                                                  seconds=self.known_devices[value]["poll_period"],
                                                                  next_run_time=datetime.now(),
                                                                  args=(value, self.known_devices[value]))
                             self.polling_jobs.append(job)
-
+                            # log.critical("++++++++++++++++++++++++++++++++++++++")
+                            # log.critical(self.polling_jobs)
                             known_devices_found = True
             except Exception as e:
                 log.error(e)
@@ -102,7 +105,8 @@ class TBBluetoothLE:
                                        next_run_time=datetime.now(),
                                        args=(dev_type, self.known_devices[dev_type], True))
 
-    def get_data_from_device(self, device_type, device_type_data, is_rpc_read_call=False):
+    def get_data_from_device(self, device_type, device_type_data):
+        # log.critical("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
         for dev_addr, dev_data in device_type_data["scanned"].items():
             ble_periph = dev_data["periph"]
             try:
@@ -155,7 +159,9 @@ class TBBluetoothLE:
                     "ts": int(round(time() * 1000)),
                     "values": telemetry
                 }
-                self.gateway.send_data_to_storage(telemetry, "tms", tb_dev_name)
+                log.critical("====================================================")
+                log.critical(telemetry)
+                # self.gateway.send_data_to_storage(telemetry, "tms", tb_dev_name)
             except Exception as e:
                 print("Exception caught:", e)
             finally:
