@@ -145,6 +145,7 @@ class TBBluetoothLE(Thread):
                 poll_telemetry = instance.poll(ble_periph)
                 log.debug("Data received: {}".format(poll_telemetry))
                 telemetry.update(poll_telemetry)
+                log.critical(telemetry)
 
                 def check_ts_changed(telemetry, device_uniq_name):
                     if self.dict_check_ts_changed.get(device_uniq_name) == telemetry:
