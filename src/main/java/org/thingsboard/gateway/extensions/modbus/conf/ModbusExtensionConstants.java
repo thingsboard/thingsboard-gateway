@@ -34,7 +34,7 @@ public class ModbusExtensionConstants {
 
     public static final String LITTLE_ENDIAN_BYTE_ORDER = "LITTLE";
     public static final String BIG_ENDIAN_BYTE_ORDER = "BIG";
-    public static final String BIG_ENDIAN_BYTE_SWAP = "BIG_SWAP";
+    public static final String BIG_ENDIAN_BYTE_SWAP = "BIG_SWAP"; //2 byte and 2 byte exchange
 
     public static final int WORD_REGISTER_COUNT = 1;
     public static final int INTEGER_REGISTER_COUNT = 2;

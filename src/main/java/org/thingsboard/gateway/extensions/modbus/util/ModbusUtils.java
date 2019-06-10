@@ -178,11 +178,8 @@ public class ModbusUtils {
             }
             return outputBuf;
         }else if (format.equalsIgnoreCase(ModbusExtensionConstants.BIG_ENDIAN_BYTE_SWAP)) {
-            StringBuffer str = new StringBuffer();
-            for (int i = data.length - 1; i >= 0; i--) {
-                str.append(decimalToBinary(data[i].getValue()));
-            }
-            return toBytes(binaryToDecimal(str.toString()),data.length);
+            Integer ing =data[0].getValue()+data[1].getValue()*65536;
+            return toBytes(ing,data.length);
         }
 
         int length = format.length();
@@ -254,14 +251,5 @@ public class ModbusUtils {
         }
 
         return entry;
-    }
-    public static String decimalToBinary(int decimalSource) {
-        BigInteger bi = new BigInteger(String.valueOf(decimalSource));
-        return bi.toString(2);
-    }
-
-    public static Integer binaryToDecimal(String binarySource) {
-        BigInteger bi = new BigInteger(binarySource, 2);
-        return Integer.parseInt(bi.toString());
     }
 }
