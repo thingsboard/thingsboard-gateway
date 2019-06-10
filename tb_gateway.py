@@ -61,6 +61,7 @@ class TBGateway:
             def rpc_request_handler(self, request_body):
                 method = request_body["data"]["method"]
                 device = request_body.get("device")
+                device = "MJ_HT_V1_4C65A8DF8E3F"
                 values = None
                 # todo remove if true, uncomment if type..., remove connect(test device), they were for testing purpses
                 try:
@@ -98,10 +99,17 @@ class TBGateway:
                         log.error('"ErrorWriteTag": "No tag found": {}'.format(request_body))
                         return
 
-                elif type(self.gateway.dict_ext_by_device_name[device]) == TBBluetoothLE:
+                # elif type(self.gateway.dict_ext_by_device_name[device]) == TBBluetoothLE:
+                elif True:
+
+                    log.critical("++++++++++++++++++++++++++++++++++++++++++++++++++++")
+                    log.critical("++++++++++++++++++++++++++++++++++++++++++++++++++++")
+                    if method == "doRescan":
+                        self.gateway.dict_ext_by_device_name[device].rescan()
                     if handler.get("getTelemetry"):
-                        self.send_rpc_reply({device, request_body["data"]["id"],
-                                            self.gateway.ble.get_data_from_device_once(device)})
+                        self.send_rpc_reply({device,
+                                             request_body["data"]["id"],
+                                             self.gateway.dict_ext_by_device_name[device].get_data_from_device_once(device)})
                     if handler.get("handler"):
                         m = import_module("extensions.ble."+handler["handler"])
                         params = None
@@ -111,11 +119,13 @@ class TBGateway:
                         except KeyError:
                             pass
                 resp = self.gateway.dict_ext_by_device_name[device](values)
+                log.warning("8888888888888888888888888888888888")
+                log.critical(resp)
                 if resp:
                     self.gw_send_rpc_reply(device, request_body["data"]["id"], resp)
 
             self.mqtt_gateway.devices_server_side_rpc_request_handler = rpc_request_handler
-            # self.mqtt_gateway.gw_connect_device("Test Device A2")
+            self.mqtt_gateway.gw_connect_device("Test Device A2")
             # connect devices from file
             self.mqtt_gateway.connect_devices_from_file(self.mqtt_gateway)
             # initialize connected device logging thread
