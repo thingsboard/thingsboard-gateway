@@ -5,10 +5,11 @@ from json import load
 from importlib import import_module
 from time import time
 import logging
+from threading import Thread
 log = logging.getLogger(__name__)
 
 
-class TBBluetoothLE:
+class TBBluetoothLE(Thread):
     class ScanDelegate(DefaultDelegate):
         def __init__(self):
             DefaultDelegate.__init__(self)
@@ -20,6 +21,8 @@ class TBBluetoothLE:
                 log.debug("Received new data from: {}".format(dev.addr))
 
     def __init__(self, gateway, config_file):
+        super(TBBluetoothLE, self).__init__()
+        self.daemon = True
         with open(config_file) as config:
             config = load(config)
             self.dict_check_ts_changed = {}
@@ -46,6 +49,7 @@ class TBBluetoothLE:
                     "rpc": extension_data.get("rpc")
                 }
             self.gateway.scheduler.add_job(self.rescan, 'interval', seconds=rescan_period, next_run_time=datetime.now())
+            self.start()
 
     def rescan(self):
         for job in self.polling_jobs:
@@ -54,7 +58,8 @@ class TBBluetoothLE:
         for dev_data in self.known_devices.values():
             for scanned, scanned_data in dev_data["scanned"].items():
                 tb_name = scanned_data["tb_name"]
-                self.gateway.mqtt_gateway.tb_gateway.gw_disconnect_device(tb_name)
+                self.gateway.on_device_disconnected(tb_name)
+                # self.gateway.mqtt_gateway.tb_gateway.gw_disconnect_device(tb_name)
             dev_data["scanned"].clear()
         known_devices_found = False
         while not known_devices_found:
@@ -85,8 +90,7 @@ class TBBluetoothLE:
                                                                  next_run_time=datetime.now(),
                                                                  args=(value, self.known_devices[value]))
                             self.polling_jobs.append(job)
-                            # log.critical("++++++++++++++++++++++++++++++++++++++")
-                            # log.critical(self.polling_jobs)
+                            log.critical(self.polling_jobs)
                             known_devices_found = True
             except Exception as e:
                 log.error(e)
@@ -105,8 +109,7 @@ class TBBluetoothLE:
                                        next_run_time=datetime.now(),
                                        args=(dev_type, self.known_devices[dev_type], True))
 
-    def get_data_from_device(self, device_type, device_type_data):
-        # log.critical("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    def get_data_from_device(self, device_type, device_type_data, is_rpc_read_call=False):
         for dev_addr, dev_data in device_type_data["scanned"].items():
             ble_periph = dev_data["periph"]
             try:
@@ -150,18 +153,17 @@ class TBBluetoothLE:
                     return True
 
                 if is_rpc_read_call:
+                    #todo return?
                     return {"ts": int(round(time() * 1000)), "values": telemetry}
-                if not telemetry or not (self.known_devices[device_type]["check_data_changed"] and
-                                         check_ts_changed(telemetry, dev_addr)):
-                    continue
 
-                telemetry = {
-                    "ts": int(round(time() * 1000)),
-                    "values": telemetry
-                }
-                log.critical("====================================================")
-                log.critical(telemetry)
-                # self.gateway.send_data_to_storage(telemetry, "tms", tb_dev_name)
+                if telemetry and (not self.known_devices[device_type]["check_data_changed"] or check_ts_changed(telemetry, dev_addr)):
+                    telemetry = {
+                        "ts": int(round(time() * 1000)),
+                        "values": telemetry
+                    }
+                    # todo replace
+                    log.critical(telemetry)
+                    # self.gateway.send_data_to_storage(telemetry, "tms", tb_dev_name)
             except Exception as e:
                 print("Exception caught:", e)
             finally:
