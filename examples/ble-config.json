@@ -1,12 +1,12 @@
 {
-  "pollPeriod": 30,
+  "pollPeriod": 50,
   "rescanPeriod": 120,
   "sendDataOnlyOnChange": true,
   "devices":  {
     "MJ_HT_V1": {
       "extension": "MiTempHumidityExtension",
       "pollPeriod": 5,
-      "sendDataOnlyOnChange": false,
+      "sendDataOnlyOnChange": true,
       "rpc": {
         "giveMeTheTelemetry":{
           "getTelemetry": true
