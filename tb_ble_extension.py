@@ -85,17 +85,16 @@ class TBBluetoothLE(Thread):
                             known_devices_found = True
                 for known_device in self.known_devices:
                     for scanned_device in self.known_devices[known_device]["scanned"]:
-                        pass
-                        # job = self.gateway.scheduler.add_job(self._process_request,
-                        #                                      'interval',
-                        #                                      max_instances=1,
-                        #                                      seconds=self.known_devices[known_device]["poll_period"],
-                        #                                      next_run_time=datetime.now(),
-                        #                                      args=(known_device,
-                        #                                            self.known_devices[known_device]["scanned"][
-                        #                                                scanned_device],
-                        #                                            scanned_device))
-                        # self.polling_jobs.append(job)
+                        job = self.gateway.scheduler.add_job(self._process_request,
+                                                             'interval',
+                                                             max_instances=1,
+                                                             seconds=self.known_devices[known_device]["poll_period"],
+                                                             next_run_time=datetime.now(),
+                                                             args=(known_device,
+                                                                   self.known_devices[known_device]["scanned"][
+                                                                       scanned_device],
+                                                                   scanned_device))
+                        self.polling_jobs.append(job)
             except Exception as e:
                 log.error(e)
             self.is_scanning = False
@@ -144,14 +143,9 @@ class TBBluetoothLE(Thread):
                 self.dict_check_ts_changed.update({device_uniq_name: telemetry})
                 return True
 
-            # if is_rpc_read_call:
-            #     return {"ts": int(round(time() * 1000)), "values": telemetry}
-
             if telemetry and ((not self.known_devices[device_type]["check_data_changed"]) or
                               check_ts_changed(telemetry, dev_addr)):
-                # log.critical(telemetry)
                 telemetry = {"ts": int(round(time() * 1000)), "values": telemetry}
-                # log.critical(telemetry)
                 self.gateway.send_data_to_storage(telemetry, "tms", tb_dev_name)
 
         except Exception as e:
