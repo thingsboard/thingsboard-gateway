@@ -9,8 +9,8 @@ from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from tb_event_storage import TBEventStorage
-from tb_modbus_extension import TBModbus
-from tb_ble_extension import TBBluetoothLE
+from modbus.tb_modbus_extension import TBModbus
+from ble.tb_ble_extension import TBBluetoothLE
 from tb_gateway_mqtt import TBGatewayMqttClient
 from tb_utility import TBUtility
 
@@ -61,7 +61,7 @@ class TBGateway:
             def rpc_request_handler(self, request_body):
                 method = request_body["data"]["method"]
                 device = request_body.get("device")
-                device = "MJ_HT_V1_4c65a8df8e3f"
+                # device = "MJ_HT_V1_4c65a8df8e3f"
                 #todo this is for testing, in worst case test for modbus
                 extension_class = self.gateway.dict_ext_by_device_name[device]
                 values = None
@@ -78,9 +78,8 @@ class TBGateway:
                 except KeyError:
                     self.send_rpc_reply(device, request_body["data"]["id"], {"error": "Unsupported RPC method"})
                     log.error('"error": "Unsupported RPC method": {}'.format(request_body))
-                    #todo uncomment after testing
-                    # return
-                if type(self.gateway.dict_ext_by_device_name[device]) == TBModbus:
+                    return
+                if type(extension_class) == TBModbus:
                 # if True:
                 #     device = "Temp Sensor"
                     if type(handler) == str:
@@ -105,22 +104,21 @@ class TBGateway:
                     if resp:
                         self.gw_send_rpc_reply(device, request_body["data"]["id"], resp)
 
-                # elif type(self.gateway.dict_ext_by_device_name[device]) == TBBluetoothLE:
-                elif True:
+                elif type(self.gateway.dict_ext_by_device_name[device]) == TBBluetoothLE:
                     if method == "doRescan":
                         self.gateway.dict_ext_by_device_name[device].rescan()
-                    if True or handler.get("getTelemetry"):
+                    if handler.get("getTelemetry"):
                         log.critical("++++-")
-                        #todo check
                         self.gateway.dict_ext_by_device_name[device].get_data_from_device_once(device)
-                    if handler.get("handler"):
-                        m = import_module("extensions.ble."+handler["handler"])
-                        params = None
-                        try:
-                            params = request_body["data"]["params"]
-                            values = m.rpc_handler(method, params)
-                        except KeyError:
-                            pass
+                    # todo imploment write to device rpc
+                    # if handler.get("handler"):
+                    #     m = import_module("extensions.ble."+handler["handler"])
+                    #     params = None
+                    #     try:
+                    #         params = request_body["data"]["params"]
+                    #         values = m.rpc_handler(method, params)
+                    #     except KeyError:
+                    #         pass
 
             self.mqtt_gateway.devices_server_side_rpc_request_handler = rpc_request_handler
             self.mqtt_gateway.gw_connect_device("Test Device A2")

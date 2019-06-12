@@ -79,7 +79,7 @@ class TBQoSException(Exception):
     pass
 
 
-class TBPublishInfo:
+class TBPublishInfox:
     TB_ERR_AGAIN = -1
     TB_ERR_SUCCESS = 0
     TB_ERR_NOMEM = 1

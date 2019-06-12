@@ -1,8 +1,0 @@
-{
-    "MiTempHumidityExtension": {
-        "ble_name": "MJ_HT_V1"
-    },
-    "EspGattDemoExtension": {
-        "ble_name": "ESP_GATTS_DEMO"
-    }
-}

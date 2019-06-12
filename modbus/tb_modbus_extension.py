@@ -2,7 +2,7 @@ import re
 import logging
 from threading import Thread, Lock
 from tb_utility import TBUtility
-from tb_modbus_transport_manager import TBModbusTransportManager as Manager
+from modbus.tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
 from queue import Queue, Empty
