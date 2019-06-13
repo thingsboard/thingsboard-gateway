@@ -28,44 +28,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.thingsboard.gateway.service.AttributesUpdateListener;
-import org.thingsboard.gateway.service.MessageFuturePair;
-import org.thingsboard.gateway.service.MqttDeliveryFuture;
-import org.thingsboard.gateway.service.MqttMessageReceiver;
-import org.thingsboard.gateway.service.MqttMessageSender;
-import org.thingsboard.gateway.service.PersistentFileService;
-import org.thingsboard.gateway.service.RpcCommandListener;
-import org.thingsboard.gateway.service.conf.TbConnectionConfiguration;
-import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
-import org.thingsboard.gateway.service.conf.TbPersistenceConfiguration;
-import org.thingsboard.gateway.service.conf.TbReportingConfiguration;
-import org.thingsboard.gateway.service.conf.TbTenantConfiguration;
-import org.thingsboard.gateway.service.data.AttributeRequest;
-import org.thingsboard.gateway.service.data.AttributeRequestKey;
-import org.thingsboard.gateway.service.data.AttributeRequestListener;
-import org.thingsboard.gateway.service.data.AttributeResponse;
-import org.thingsboard.gateway.service.data.AttributesUpdateSubscription;
-import org.thingsboard.gateway.service.data.DeviceInfo;
-import org.thingsboard.gateway.service.data.RpcCommandData;
-import org.thingsboard.gateway.service.data.RpcCommandResponse;
-import org.thingsboard.gateway.service.data.RpcCommandSubscription;
+import org.thingsboard.gateway.service.*;
+import org.thingsboard.gateway.service.conf.*;
+import org.thingsboard.gateway.service.data.*;
 import org.thingsboard.gateway.util.JsonTools;
 import org.thingsboard.mqtt.*;
-import org.thingsboard.server.common.data.kv.BooleanDataEntry;
-import org.thingsboard.server.common.data.kv.DoubleDataEntry;
-import org.thingsboard.server.common.data.kv.KvEntry;
-import org.thingsboard.server.common.data.kv.LongDataEntry;
-import org.thingsboard.server.common.data.kv.StringDataEntry;
-import org.thingsboard.server.common.data.kv.TsKvEntry;
+import org.thingsboard.server.common.data.kv.*;
 
-import javax.annotation.*;
+import javax.annotation.PostConstruct;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
+import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
@@ -73,27 +46,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.thingsboard.gateway.util.JsonTools.fromString;
-import static org.thingsboard.gateway.util.JsonTools.getKvEntries;
-import static org.thingsboard.gateway.util.JsonTools.newNode;
-import static org.thingsboard.gateway.util.JsonTools.putToNode;
-import static org.thingsboard.gateway.util.JsonTools.toBytes;
+import static org.thingsboard.gateway.util.JsonTools.*;
 
 /**
  * Created by ashvayka on 16.01.17.
@@ -640,20 +600,7 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
             tbClient = MqttClient.create(mqttClientConfig, this);
             tbClient.setCallback(this);
             tbClient.setEventLoop(nioEventLoopGroup);
-            Promise<MqttConnectResult> connectResult = (Promise<MqttConnectResult>) tbClient.connect(connection.getHost(), connection.getPort());
-            connectResult.addListener(future -> {
-                if (future.isSuccess()) {
-                    MqttConnectResult result = (MqttConnectResult) future.getNow();
-                    log.debug("Gateway connect result code: [{}]", result.getReturnCode());
-                } else {
-                    log.error("Unable to connect to mqtt server!");
-                    if (future.cause() != null) {
-                        log.error(future.cause().getMessage(), future.cause());
-                    }
-                }
-            });
-            connectResult.get(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
-
+            checkConnection();
 
             tbClient.on(DEVICE_ATTRIBUTES_TOPIC, this).await(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
             tbClient.on(DEVICE_GET_ATTRIBUTES_RESPONSE_PLUS_TOPIC, this).await(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
@@ -671,16 +618,58 @@ public class MqttGatewayService implements GatewayService, MqttHandler, MqttClie
             log.error(e.getMessage(), e);
             Thread.currentThread().interrupt();
             return null;
-        } catch (ExecutionException e) {
-            log.error(e.getMessage(), e);
-            throw new RuntimeException(e);
-        } catch (TimeoutException e) {
-            String message = "Unable to connect to ThingsBoard. Connection timed out after [" + connection.getConnectionTimeout() + "] milliseconds";
-            log.error(message, e);
-            throw new RuntimeException(message);
         }
     }
 
+    private Object connectLock = new Object();
+
+    /**
+     * TODO 检查与tb服务的连接，并尝试重新连接
+     */
+    private void checkConnection() {
+        if (!tbClient.isConnected()) {
+            synchronized (connectLock) {
+                while (!tbClient.isConnected()) {
+                    log.debug("[{}:{}] ThingsBoard connection attempt!", connection.getHost(), connection.getPort());
+                    Promise<MqttConnectResult> connectResult = (Promise<MqttConnectResult>) tbClient.connect(connection.getHost(), connection.getPort());
+                    connectResult.addListener(future -> {
+                        if (future.isSuccess()) {
+                            MqttConnectResult result = (MqttConnectResult) future.getNow();
+                            log.debug("Gateway connect result code: [{}]", result.getReturnCode());
+                        } else {
+                            log.error("Unable to connect to mqtt server!");
+                            if (future.cause() != null) {
+                                log.error(future.cause().getMessage(), future.cause());
+                            }
+                        }
+                    });
+                    try {
+                        connectResult.get(connection.getConnectionTimeout(), TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException e) {
+                        log.error(e.getMessage(), e);
+                        Thread.currentThread().interrupt();
+                    } catch (ExecutionException e) {
+                        log.error(e.getMessage(), e);
+                    } catch (TimeoutException e) {
+                        log.warn("Unable to connect to ThingsBoard. Connection timed out after [{}] milliseconds", connection.getConnectionTimeout(), e);
+                        if (!tbClient.isConnected()) {
+                            try {
+                                Thread.sleep(connection.getRetryInterval());
+                            } catch (InterruptedException e1) {
+                                log.trace("Failed to wait for retry interval!", e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * TODO mqtt连接是否ssl
+     *
+     * @return
+     */
     private MqttClientConfig getMqttClientConfig() {
         MqttClientConfig mqttClientConfig;
         if (!StringUtils.isEmpty(connection.getSecurity().getAccessToken())) {
