@@ -30,9 +30,11 @@ import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
 import org.thingsboard.gateway.service.gateway.GatewayService;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Created by ashvayka on 29.09.17.
@@ -54,11 +56,14 @@ public class TenantServiceRegistry implements ExtensionServiceCreation {
     private static final String FILE_EXTENSION = "FILE";
     private static final String MODBUS_EXTENSION = "MODBUS";
 
+    ExecutorService cachedThreadPool = Executors.newCachedThreadPool();
+
     public TenantServiceRegistry() {
-        this.extensions = new HashMap<>();
-        this.httpServices = new HashMap<>();
+        this.extensions = new ConcurrentHashMap<>();
+        this.httpServices = new ConcurrentHashMap<>();
     }
 
+    // TODO 请求远端扩展配置
     public void updateExtensionConfiguration(String config) {
         log.info("[{}] Updating extension configuration", service.getTenantLabel());
         ObjectMapper mapper = new ObjectMapper();
@@ -67,6 +72,7 @@ public class TenantServiceRegistry implements ExtensionServiceCreation {
             for (JsonNode updatedExtension : mapper.readTree(config)) {
                 updatedConfigurations.add(mapper.treeToValue(updatedExtension, TbExtensionConfiguration.class));
             }
+            // TODO 删除旧配置
             for (String existingExtensionId : extensions.keySet()) {
                 if (!extensionIdContainsInArray(existingExtensionId, updatedConfigurations)) {
                     log.info("Destroying extension: [{}]", existingExtensionId);
@@ -76,23 +82,32 @@ public class TenantServiceRegistry implements ExtensionServiceCreation {
                     service.onConfigurationStatus(existingExtensionId, STATUS_DELETE);
                 }
             }
+            // TODO 更新配置
             for (TbExtensionConfiguration updatedConfiguration : updatedConfigurations) {
-                if (!extensions.containsKey(updatedConfiguration.getId())) {
-                    log.info("Initializing extension: [{}][{}]", updatedConfiguration.getId(), updatedConfiguration.getType());
-                    ExtensionService extension = createExtensionServiceByType(service, updatedConfiguration.getType());
-                    extension.init(updatedConfiguration, true);
-                    service.onConfigurationStatus(updatedConfiguration.getId(), STATUS_INIT);
-                    if (HTTP_EXTENSION.equals(updatedConfiguration.getType())) {
-                        httpServices.put(updatedConfiguration.getId(), (HttpService) extension);
+                // TODO 加入线程池更新
+                cachedThreadPool.execute(() -> {
+                    try {
+                        if (!extensions.containsKey(updatedConfiguration.getId())) {
+                            log.info("Initializing extension: [{}][{}]", updatedConfiguration.getId(), updatedConfiguration.getType());
+                            ExtensionService extension = createExtensionServiceByType(service, updatedConfiguration.getType());
+                            extension.init(updatedConfiguration, true);
+                            service.onConfigurationStatus(updatedConfiguration.getId(), STATUS_INIT);
+                            if (HTTP_EXTENSION.equals(updatedConfiguration.getType())) {
+                                httpServices.put(updatedConfiguration.getId(), (HttpService) extension);
+                            }
+                            extensions.put(updatedConfiguration.getId(), extension);
+                        } else {
+                            if (!updatedConfiguration.equals(extensions.get(updatedConfiguration.getId()).getCurrentConfiguration())) {
+                                log.info("Updating extension: [{}][{}]", updatedConfiguration.getId(), updatedConfiguration.getType());
+                                extensions.get(updatedConfiguration.getId()).update(updatedConfiguration);
+                                service.onConfigurationStatus(updatedConfiguration.getId(), STATUS_UPDATE);
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.info("Failed to update extension", e);
+                        throw new RuntimeException("Failed to update extension", e);
                     }
-                    extensions.put(updatedConfiguration.getId(), extension);
-                } else {
-                    if (!updatedConfiguration.equals(extensions.get(updatedConfiguration.getId()).getCurrentConfiguration())) {
-                        log.info("Updating extension: [{}][{}]", updatedConfiguration.getId(), updatedConfiguration.getType());
-                        extensions.get(updatedConfiguration.getId()).update(updatedConfiguration);
-                        service.onConfigurationStatus(updatedConfiguration.getId(), STATUS_UPDATE);
-                    }
-                }
+                });
             }
         } catch (Exception e) {
             log.info("Failed to read configuration attribute", e);
@@ -109,6 +124,13 @@ public class TenantServiceRegistry implements ExtensionServiceCreation {
         return false;
     }
 
+    /**
+     * TODO 开始根据不同扩展类型构造
+     *
+     * @param gateway
+     * @param type
+     * @return
+     */
     @Override
     public ExtensionService createExtensionServiceByType(GatewayService gateway, String type) {
         switch (type) {
