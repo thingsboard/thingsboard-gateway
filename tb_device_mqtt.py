@@ -79,7 +79,7 @@ class TBQoSException(Exception):
     pass
 
 
-class TBPublishInfox:
+class TBPublishInfo:
     TB_ERR_AGAIN = -1
     TB_ERR_SUCCESS = 0
     TB_ERR_NOMEM = 1
@@ -138,12 +138,9 @@ class TBDeviceMqttClient:
         self._client.on_log = self._on_log
         self._client.on_publish = self._on_publish
         self._client.on_message = self._on_message
-        # TODO: enable configuration available here:
-        # https://pypi.org/project/paho-mqtt/#option-functions
 
     def _on_log(self, client, userdata, level, buf):
         log.debug(buf)
-        pass
 
     def _on_publish(self, client, userdata, result):
         log.debug("Data published to ThingsBoard!")

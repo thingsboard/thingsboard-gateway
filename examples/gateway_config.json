@@ -16,6 +16,11 @@
       "extension type": "BLE",
       "config file name": "ble-config.json",
       "enabled": false
+    },
+    "4": {
+      "extension type": "MQTT",
+      "config file name": "mqtt-config.json",
+      "enabled": true
     }
 
   },

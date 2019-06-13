@@ -1,10 +1,11 @@
+from tb_device_storage import TBDeviceStorage
 import logging
 import time
 from importlib import import_module
 from json import load, dumps, dump
 from queue import Queue
 from threading import Lock, Thread
-
+from mqtt.tb_mqtt_extension import TBMQTT
 from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -104,11 +105,10 @@ class TBGateway:
                     if resp:
                         self.gw_send_rpc_reply(device, request_body["data"]["id"], resp)
 
-                elif type(self.gateway.dict_ext_by_device_name[device]) == TBBluetoothLE:
+                elif type(extension_class) == TBBluetoothLE:
                     if method == "doRescan":
                         self.gateway.dict_ext_by_device_name[device].rescan()
                     if handler.get("getTelemetry"):
-                        log.critical("++++-")
                         self.gateway.dict_ext_by_device_name[device].get_data_from_device_once(device)
                     # todo imploment write to device rpc
                     # if handler.get("handler"):
@@ -124,59 +124,10 @@ class TBGateway:
             self.mqtt_gateway.gw_connect_device("Test Device A2")
             # connect devices from file
             self.mqtt_gateway.connect_devices_from_file(self.mqtt_gateway)
-            # initialize connected device logging thread
+            # initialize connected device logging
+
             self.q = Queue()
-
-            def update_connected_devices():
-                while True:
-                    item = self.q.get()
-                    is_method_connect = item[0]
-                    device_name = item[1]
-                    # if method is "connect device"
-                    if is_method_connect:
-                        handler = item[2]
-                        rpc_handlers = item[3]
-                        self.mqtt_gateway.gw_connect_device(device_name)
-                        self.dict_ext_by_device_name.update({device_name: handler})
-                        self.dict_rpc_handlers_by_device.update({device_name: rpc_handlers})
-
-                        with open("connectedDevices.json") as f:
-                            try:
-                                connected_devices = load(f)
-                            except:
-                                connected_devices = {}
-                        if device_name in connected_devices:
-                            log.debug("{} already in connected devices json".format(device_name))
-                        else:
-                            connected_devices.update({device_name: {}})
-                            with open("connectedDevices.json", "w") as f:
-                                dump(connected_devices, f)
-                    # if method is "disconnect device"
-                    else:
-                        try:
-                            self.dict_ext_by_device_name.pop(device_name)
-                            with open("connectedDevices.json") as f:
-                                try:
-                                    connected_devices = load(f)
-                                except:
-                                    log.debug("there are no connected devices json")
-                            if device_name not in connected_devices:
-                                log.debug("{} not connected in json file".format(device_name))
-                            else:
-                                connected_devices.pop(device_name)
-                                with open("connectedDevices.json", "w") as f:
-                                    dump(connected_devices, f)
-                        except KeyError:
-                            log.warning("tried to remove {}, device not found".format(device_name))
-                    queue_size = self.q.qsize()
-                    if queue_size == 0:
-                        timeout = 0.5
-                    elif queue_size < 5:
-                        timeout = 0.1
-                    else:
-                        timeout = 0.05
-                    time.sleep(timeout)
-            self.t = Thread(target=update_connected_devices).start()
+            device_storage = TBDeviceStorage(self.q)
 
             # initialize event_storage
             self.event_storage = TBEventStorage(data_folder_path, max_records_per_file, max_records_between_fsync,
@@ -189,12 +140,16 @@ class TBGateway:
                 if extension["extension type"] == "Modbus" and extension["enabled"]:
                     conf = TBUtility.get_parameter(extension, "config file name", "modbus-config.json")
                     with open(conf, "r") as config_file:
-                        for server_config in load(config_file)["servers"]:
-                            TBModbus(server_config, self.scheduler, self, ext_id)
-
+                        for modbus_config in load(config_file)["servers"]:
+                            TBModbus(modbus_config, self.scheduler, self, ext_id)
                 elif extension["extension type"] == "BLE" and extension["enabled"]:
                     conf = TBUtility.get_parameter(extension, "config file name", "ble-config.json")
                     TBBluetoothLE(self, conf)
+                elif extension["extension type"] == "MQTT" and extension["enabled"]:
+                    conf = TBUtility.get_parameter(extension, "config file name", "mqtt-config.json")
+                    with open(conf, "r") as config_file:
+                        for broker_config in load(config_file)["brokers"]:
+                            TBMQTT(broker_config, self, ext_id)
                 elif extension["extension type"] == "OPC-UA" and extension["enabled"]:
                     log.warning("OPC UA isn't implemented yet")
                 elif extension["extension type"] == "Sigfox" and extension["enabled"]:

@@ -234,6 +234,7 @@ class TBEventStorage:
 
     def read(self):
         result = (self.__reader_state.read())
+        # todo result will be combo of two - position+file and old result. we send result to gw and if everything is fine we call discard which rewrites .readerstate
         for event in result:
             event = loads(event)
             device = event["device"]
@@ -241,3 +242,6 @@ class TBEventStorage:
                 self.__gateway.mqtt_gateway.gw_send_telemetry(device, event["data"])
             else:
                 self.__gateway.mqtt_gateway.gw_send_attributes(device, event["data"]["values"])
+    def discard(self):
+        # todo add
+        pass
