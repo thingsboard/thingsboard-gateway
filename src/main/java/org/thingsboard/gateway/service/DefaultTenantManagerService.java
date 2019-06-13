@@ -26,10 +26,10 @@ import org.thingsboard.gateway.service.gateway.GatewayService;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -49,13 +49,10 @@ public abstract class DefaultTenantManagerService implements TenantManagerServic
 
     public abstract GatewayService getGatewayService(TbTenantConfiguration configuration, Consumer<String> extensionsConfigListener);
 
-    ExecutorService cachedThreadPool = Executors.newCachedThreadPool();
-
     @PostConstruct
     public void init() {
-        gateways = new ConcurrentHashMap<>();
-        httpServices = Collections.synchronizedList(new ArrayList<>());
-        //TODO 加载连接tb配置
+        gateways = new HashMap<>();
+        httpServices = new ArrayList<>();
         for (TbTenantConfiguration configuration : configuration.getTenants()) {
             isRemoteConfiguration = configuration.getRemoteConfiguration();
             if (isRemoteConfiguration) {
@@ -83,27 +80,17 @@ public abstract class DefaultTenantManagerService implements TenantManagerServic
                 GatewayService service = null;
                 try {
                     TenantServiceRegistry tenantServiceRegistry = new TenantServiceRegistry();
-                    service = getGatewayService(configuration, c -> {
-                    });
+                    service = getGatewayService(configuration, c -> {});
                     tenantServiceRegistry.setService(service);
-                    // TODO 本地扩展开始读取配置构造
                     for (TbExtensionConfiguration extensionConfiguration : configuration.getExtensions()) {
-                        // TODO 加入线程池更新
-                        cachedThreadPool.execute(() -> {
-                            try {
-                                log.info("[{}] Initializing extension: [{}]", configuration.getLabel(), extensionConfiguration.getType());
-                                ExtensionService extension = tenantServiceRegistry.createExtensionServiceByType(tenantServiceRegistry.getService(), extensionConfiguration.getType());
-                                extension.init(extensionConfiguration, isRemoteConfiguration);
-                                if (extensionConfiguration.getType().equals("HTTP")) {
-                                    httpServices.add((HttpService) extension);
-                                }
-                            } catch (Exception e) {
-                                log.info("Failed to update extension", e);
-                                throw new RuntimeException("Failed to update extension", e);
-                            }
-                        });
-                        gateways.put(label, tenantServiceRegistry);
+                        log.info("[{}] Initializing extension: [{}]", configuration.getLabel(), extensionConfiguration.getType());
+                        ExtensionService extension = tenantServiceRegistry.createExtensionServiceByType(service, extensionConfiguration.getType());
+                        extension.init(extensionConfiguration, isRemoteConfiguration);
+                        if (extensionConfiguration.getType().equals("HTTP")) {
+                            httpServices.add((HttpService) extension);
+                        }
                     }
+                    gateways.put(label, (TenantServiceRegistry) tenantServiceRegistry);
                 } catch (Exception e) {
                     log.info("[{}] Failed to initialize the service ", label, e);
                     try {
