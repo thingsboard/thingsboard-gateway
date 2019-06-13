@@ -1,0 +1,56 @@
+{
+  "servers": [
+    {
+      "transport": {
+        "type": "tcp",
+        "host": "192.168.56.101",
+        "port": 502,
+        "timeout": 35000,
+        "rtuOverTcp": false
+      },
+      "devices": [
+        {
+          "unitId": 1,
+          "deviceName": "Temp Sensor",
+          "attributesPollPeriod": 5000,
+          "timeseriesPollPeriod": 5000,
+          "sendDataOnlyOnChange": true,
+          "attributes": [],
+          "timeseries": [
+            {
+              "byteOrder": "BIG",
+              "tag": "test",
+              "type": "long",
+              "functionCode": 4,
+              "registerCount": 1,
+              "address": 0
+            }
+          ],
+          "rpc": {
+            "turnLightOn": {
+              "address": 4,
+              "bit": 2,
+              "value": true
+            },
+            "turnLightOff": {
+              "address": 4,
+              "bit": 2,
+              "value": false
+            },
+            "getCPULoad": {
+              "tag": "WriteInteger",
+              "value": 42,
+              "functionCode": 16,
+              "address": 0,
+              "unitId": 1,
+              "byteOrder": "BIG",
+              "registerCount": 1
+            },
+            "rpcHandlerFunction": "modbus-rpc-handler-1",
+            "rpcHandlerFunction2": "modbus-rpc-handler-1"
+          }
+        }
+      ]
+    }
+  ]
+}
