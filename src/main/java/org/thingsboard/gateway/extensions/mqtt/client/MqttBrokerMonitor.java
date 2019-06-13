@@ -34,11 +34,7 @@ import org.thingsboard.server.common.data.kv.KvEntry;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -67,6 +63,11 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
         this.devices = new HashSet<>();
     }
 
+    ExecutorService cachedThreadPool = Executors.newCachedThreadPool();
+
+    /**
+     * TODO 连接mqtt服务
+     */
     public void connect() {
         try {
             client = new MqttAsyncClient((configuration.isSsl() ? "ssl" : "tcp") + "://" + configuration.getHost() + ":" + configuration.getPort(),
@@ -83,7 +84,7 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
                 clientOptions.setSSLProperties(sslProperties);
             }
             configuration.getCredentials().configure(clientOptions);
-            checkConnection();
+            cachedThreadPool.execute(this::checkConnection);
             if (configuration.getAttributeUpdates() != null) {
                 configuration.getAttributeUpdates().forEach(mapping ->
                         gateway.subscribe(new AttributesUpdateSubscription(mapping.getDeviceNameFilter(), this))

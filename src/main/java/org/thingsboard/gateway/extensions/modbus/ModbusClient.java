@@ -35,6 +35,7 @@ import org.thingsboard.gateway.service.gateway.GatewayService;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -54,6 +55,10 @@ public class ModbusClient implements ModbusDeviceAware {
 
     private ScheduledExecutorService executor;
     private RpcProcessor rpcProcessor;
+
+    ExecutorService cachedThreadPool = Executors.newCachedThreadPool();
+
+    private Object connectLock = new Object();
 
     public ModbusClient(GatewayService gateway, ModbusServerConfiguration configuration) {
         this.gateway = gateway;
@@ -115,8 +120,8 @@ public class ModbusClient implements ModbusDeviceAware {
     }
 
     public void connect() {
-        try {
-            log.trace("MBS[{}] connecting...", serverName);
+        cachedThreadPool.execute(this::checkConnection);
+    }
 
             client.connect();
             transaction = client.getTransport().createTransaction();

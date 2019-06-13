@@ -1,124 +1,114 @@
 {
   "servers": [
     {
-      "transport":
-      {
-        "type": "rtu",
-        "portName": "COM1",
-        "encoding": "ascii",
+      "transport": {
+        "type": "tcp",
+        "host": "localhost",
+        "port": 502,
         "timeout": 5000,
-        "baudRate": 115200,
-        "dataBits": 7,
-        "stopBits": 1,
-        "parity": "even"
+        "reconnect": true,
+        "rtuOverTcp": false
       },
       "devices": [
         {
-          "unitId": 115,
-          "deviceName": "Pressure Sensor",
+          "unitId": 1,
+          "deviceName": "F8S001",
+          "attributesPollPeriod": 3000,
+          "timeseriesPollPeriod": 3000,
+          "attributes": [],
           "timeseries": [
             {
-              "tag": "Pressure",
-              "type": "double",
-              "byteOrder": "1032",
+              "tag": "status",
+              "type": "boolean",
+              "pollPeriod": 5000,
               "functionCode": 3,
-              "address": 1001,
-              "registerCount": 2
+              "address": 1,
+              "registerCount": 1,
+              "bit": 3,
+              "byteOrder": "BIG"
+            },
+
+            {
+              "tag": "mainLength",
+              "type": "long",
+              "pollPeriod": 10000,
+              "functionCode": 3,
+              "address": 3,
+              "registerCount": 2,
+              "bit": 0,
+              "byteOrder": "BIG_SWAP"
+            },
+            {
+              "tag": "speed",
+              "type": "long",
+              "pollPeriod": 10000,
+              "functionCode": 3,
+              "address": 7,
+              "registerCount": 1,
+              "bit": 0,
+              "byteOrder": "BIG"
             }
           ]
         }
       ]
     },
     {
-      "transport":
-      {
+      "transport": {
         "type": "tcp",
         "host": "localhost",
         "port": 503,
-        "rtuOverTcp": false,
-        "reconnect": true
+        "timeout": 5000,
+        "reconnect": true,
+        "rtuOverTcp": false
       },
       "devices": [
         {
           "unitId": 1,
-          "deviceName": "Temp Sensor",
+          "deviceName": "F8S002",
+          "attributesPollPeriod": 3000,
+          "timeseriesPollPeriod": 3000,
+          "attributes": [],
           "timeseries": [
             {
-              "tag": "Coil",
+              "tag": "status",
               "type": "boolean",
-              "functionCode": 1,
-              "address": 75
-            },
-            {
-              "tag": "DiscrInput",
-              "type": "boolean",
-              "functionCode": 2,
-              "address": 135
-            },
-            {
-              "tag": "BooleanValue",
-              "type": "boolean",
+              "pollPeriod": 3000,
               "functionCode": 3,
-              "address": 150,
-              "bit": 14,
-              "byteOrder": "little"
+              "address": 1,
+              "registerCount": 1,
+              "bit": 3,
+              "byteOrder": "BIG"
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "transport": {
+        "type": "tcp",
+        "host": "localhost",
+        "port": 504,
+        "timeout": 5000,
+        "reconnect": true,
+        "rtuOverTcp": false
+      },
+      "devices": [
         {
-          "unitId": 2,
-          "deviceName": "Humidity Sensor",
-          "attributesPollPeriod": 5000,
-          "timeseriesPollPeriod": 5000,
-          "attributes": [
-            {
-              "tag": "Serial number",
-              "type": "string",
-              "functionCode": 4,
-              "address": 146,
-              "registerCount": 6,
-              "pollPeriod": 3600000
-            }
-          ],
+          "unitId": 1,
+          "deviceName": "F8S003",
+          "attributesPollPeriod": 3000,
+          "timeseriesPollPeriod": 3000,
+          "attributes": [],
           "timeseries": [
             {
-              "tag": "ShortValue",
-              "type": "long",
-              "functionCode": 4,
-              "address": 126,
-              "byteOrder": "LITTLE"
-            },
-            {
-              "tag": "IntValue",
-              "type": "long",
+              "tag": "status",
+              "type": "boolean",
+              "pollPeriod": 3000,
               "functionCode": 3,
-              "address": 152,
-              "registerCount": 2,
-              "byteOrder": "BADC"
-            },
-            {
-              "tag": "LongValue",
-              "type": "long",
-              "functionCode": 3,
-              "address": 154,
-              "registerCount": 4,
-              "byteOrder": "AB CD EF GH"
-            },
-            {
-              "tag": "FloatValue",
-              "type": "double",
-              "byteOrder": "2301",
-              "functionCode": 3,
-              "address": 158,
-              "registerCount": 2
-            },
-            {
-              "tag": "DoubleValue",
-              "type": "double",
-              "byteOrder": "23 01 67 45",
-              "functionCode": 4,
-              "address": 160,
-              "registerCount": 4
+              "address": 1,
+              "registerCount": 1,
+              "bit": 3,
+              "byteOrder": "BIG"
             }
           ]
         }
