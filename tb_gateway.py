@@ -2,7 +2,7 @@ from tb_device_storage import TBDeviceStorage
 import logging
 import time
 from importlib import import_module
-from json import load, dumps, dump
+from json import load, dumps, dump, loads
 from queue import Queue
 from threading import Lock, Thread
 from mqtt.tb_mqtt_extension import TBMQTT
@@ -168,6 +168,17 @@ class TBGateway:
             self.event_storage.write(dumps({"eventType": "TELEMETRY", "device": device, "data": data}) + "\n")
         else:
             self.event_storage.write(dumps({"eventType": "ATTRIBUTES", "device": device, "data": data}) + "\n")
+
+    def send_data_to_tb(self, data):
+        for event in data:
+            event = loads(event)
+            device = event["device"]
+            if event["eventType"] == "TELEMETRY":
+                self.mqtt_gateway.gw_send_telemetry(device, event["data"])
+            else:
+                self.mqtt_gateway.gw_send_attributes(device, event["data"]["values"])
+        log.critical("++++++++++++++++++++++++++++++++++++")
+        return True
 
     @staticmethod
     def listener(event):

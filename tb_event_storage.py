@@ -134,17 +134,21 @@ class TBEventStorage:
                                 except IndexError:
                                     # if there are not any data files save position and current file to .reader_state
                                     to_read = 0
-                                    with open(".reader_state", "w") as reader_file:
-                                        dump({"prev_file": current_file, "pos": current_line + 1}, reader_file)
+                                    self.file = current_file
+                                    self.pos = current_line + 1
+                                    # with open(".reader_state", "w") as reader_file:
+                                    #     dump({"prev_file": current_file, "pos": current_line + 1}, reader_file)
                                     raise TBEventStorage.TBEndOfEventStorageError()
-                                pos = 0
-                            with open(".reader_state", "w") as reader_file:
-                                dump({"prev_file": current_file, "pos": pos}, reader_file)
+                                self.file = current_file
+                                self.pos = 0
+                                # pos = 0
+                            # with open(".reader_state", "w") as reader_file:
+                            #     dump({"prev_file": current_file, "pos": pos}, reader_file)
                     except FileNotFoundError:
                         pass
                     except TBEventStorage.TBEndOfEventStorageError:
                         break
-            return result
+            return {"events": result, "pos": self.pos, "file": self.file}
 
     class __TBEventStorageWriterState:
         def __init__(self, p_dir, max_records_per_file, max_records_between_fsync):
@@ -235,13 +239,8 @@ class TBEventStorage:
     def read(self):
         result = (self.__reader_state.read())
         # todo result will be combo of two - position+file and old result. we send result to gw and if everything is fine we call discard which rewrites .readerstate
-        for event in result:
-            event = loads(event)
-            device = event["device"]
-            if event["eventType"] == "TELEMETRY":
-                self.__gateway.mqtt_gateway.gw_send_telemetry(device, event["data"])
-            else:
-                self.__gateway.mqtt_gateway.gw_send_attributes(device, event["data"]["values"])
-    def discard(self):
-        # todo add
-        pass
+
+        if self.__gateway.send_data_to_tb(result["events"]):
+            with open(".reader_state", "w") as reader_file:
+                dump({"prev_file": self.__reader_state.file, "pos": self.__reader_state.pos}, reader_file)
+                log.critical("reader state changed")

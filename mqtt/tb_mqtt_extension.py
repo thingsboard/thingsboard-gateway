@@ -81,11 +81,15 @@ class TBMQTT(Thread):
                 log.error("connection FAIL with unknown error, extension {}".format(self.ext_id))
 
     def _on_message(self, client, userdata, message):
-        content = loads(message.payload.decode("utf-8"))
         message.payload = loads(message.payload.decode("utf-8"))
         # log.debug(content)
         # log.debug(message.topic)
-        self._on_decoded_message(content, message)
+        # todo put in queue and work with in another Thread
+        self._on_decoded_message(message)
 
-    def _on_decoded_message(self, content, message):
+
+    def _on_decoded_message(self, message):
+        for item in message.topic.split():
+
+            pass
         pass
