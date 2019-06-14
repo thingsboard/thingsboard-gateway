@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
  package org.thingsboard.gateway.extensions.modbus.conf.transport;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
@@ -31,5 +31,10 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = ModbusUdpTransportConfiguration.class, name = "udp"),
         @JsonSubTypes.Type(value = ModbusRtuTransportConfiguration.class, name = "rtu")})
 public interface ModbusTransportConfiguration {
-
+    /**
+     * 获取尝试周期时间
+     *
+     * @return
+     */
+    long getRetryInterval();
 }
