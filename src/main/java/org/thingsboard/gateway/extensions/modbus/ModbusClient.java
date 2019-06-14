@@ -123,16 +123,30 @@ public class ModbusClient implements ModbusDeviceAware {
         cachedThreadPool.execute(this::checkConnection);
     }
 
-            client.connect();
-            transaction = client.getTransport().createTransaction();
+    private void checkConnection() {
+        if (null == client.getTransport()) {
+            synchronized (connectLock) {
+                while (null == client.getTransport() && !executor.isShutdown()) {
+                    log.trace("MBS[{}] connecting...", serverName);
+                    try {
+                        client.connect();
+                        transaction = client.getTransport().createTransaction();
+                        log.info("MBS[{}] connected", serverName);
 
-            log.info("MBS[{}] connected", serverName);
-
-            firstRead();
-            startPolling();
-        } catch (Exception e) {
-            log.error("MBS[{}] connection failed!", serverName, e);
-            throw new RuntimeException("MBS connection failed!", e);
+                        firstRead();
+                        startPolling();
+                    } catch (Exception e) {
+                        log.error("MBS[{}] connection failed!", serverName, e);
+                        if (null == client.getTransport()) {
+                            try {
+                                Thread.sleep(configuration.getTransport().getRetryInterval());
+                            } catch (InterruptedException e1) {
+                                log.trace("Failed to wait for retry interval!", e);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
