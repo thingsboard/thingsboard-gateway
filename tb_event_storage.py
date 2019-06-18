@@ -202,6 +202,7 @@ class TBEventStorage:
         self.dir = self.__TBEventStorageDir(data_folder_path, max_file_count)
         self.__init_reader_state(data_folder_path, read_interval, max_read_record_count)
         self.__writer = self.__TBEventStorageWriterState(self.dir, max_records_per_file, max_records_between_fsync)
+        log.critical("_=--")
         scheduler.add_job(self.read, 'interval', seconds=read_interval, next_run_time=datetime.now())
         self.__gateway = gateway
 
@@ -237,7 +238,9 @@ class TBEventStorage:
             log.warning("Failed to acquire write lock for an event storage!")
 
     def read(self):
+        log.critical("++++++++++++++++++++++")
         result = (self.__reader_state.read())
+        log.critical("++++++++++++++++++++++")
         # todo result will be combo of two - position+file and old result. we send result to gw and if everything is fine we call discard which rewrites .readerstate
 
         if self.__gateway.send_data_to_tb(result["events"]):

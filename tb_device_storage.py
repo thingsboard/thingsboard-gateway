@@ -7,7 +7,8 @@ log = logging.getLogger(__name__)
 
 class TBDeviceStorage(Thread):
     def __init__(self, gateway):
-        super(TBDeviceStorage).__init__()
+        super(TBDeviceStorage, self).__init__()
+        self.daemon = True
         self.gateway = gateway
         self.start()
         self.__run()

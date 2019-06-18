@@ -5,7 +5,7 @@
     "1": {
       "extension type": "Modbus",
       "config file name": "modbus-config.json",
-      "enabled": true
+      "enabled": false
     },
     "2": {
       "extension type": "Modbus",
@@ -33,7 +33,7 @@
       "max_read_record_count": 10
   },
   "performance": {
-      "threads_to_use": 5,
+      "additional_threads_to_use": 5,
       "processes_to_use": 1
   }
 }

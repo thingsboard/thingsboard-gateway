@@ -35,7 +35,7 @@ class TBGateway:
             max_read_record_count = dict_storage_settings["max_read_record_count"]
             if dict_performance_settings:
                 number_of_processes = TBUtility.get_parameter(dict_performance_settings, "processes_to_use", 20)
-                number_of_workers = TBUtility.get_parameter(dict_performance_settings, "threads_to_use", 1)
+                number_of_workers = TBUtility.get_parameter(dict_performance_settings, "additional_threads_to_use", 5)
             self.dict_ext_by_device_name = {}
             self.dict_rpc_handlers_by_device = {}
             self.lock = Lock()
@@ -127,8 +127,10 @@ class TBGateway:
             # initialize connected device logging
 
             self.q = Queue()
-            device_storage = TBDeviceStorage(self.q)
-
+            #todo fix!!!!!
+            # device_storage = TBDeviceStorage(self)
+            # todo remove
+            self.on_device_connected("MJ_HT_V1_4c65a8df8e3f", None, None)
             # initialize event_storage
             self.event_storage = TBEventStorage(data_folder_path, max_records_per_file, max_records_between_fsync,
                                                 max_file_count, read_interval, max_read_record_count, self.scheduler,
@@ -177,7 +179,7 @@ class TBGateway:
                 self.mqtt_gateway.gw_send_telemetry(device, event["data"])
             else:
                 self.mqtt_gateway.gw_send_attributes(device, event["data"]["values"])
-        log.critical("++++++++++++++++++++++++++++++++++++")
+        # log.critical("++++++++++++++++++++++++++++++++++++")
         return True
 
     @staticmethod
