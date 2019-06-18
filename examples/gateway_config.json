@@ -21,7 +21,7 @@
     "4": {
       "extension type": "MQTT",
       "config file name": "mqtt-config.json",
-      "enabled": true
+      "enabled": false
     }
 
   },

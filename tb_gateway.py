@@ -129,8 +129,8 @@ class TBGateway:
             # initialize connected device logging
 
             self.q = Queue()
-            #todo fix!!!!!
-            # device_storage = TBDeviceStorage(self)
+            # todo fix!!!!!
+            device_storage = TBDeviceStorage(self)
 
             # initialize event_storage
             self.event_storage = TBEventStorage(data_folder_path, max_records_per_file, max_records_between_fsync,
@@ -175,11 +175,12 @@ class TBGateway:
     def send_data_to_tb(self, data):
         for event in data:
             event = loads(event)
+            print(event)
             device = event["device"]
-            if event["eventType"] == "TELEMETRY":
-                self.mqtt_gateway.gw_send_telemetry(device, event["data"])
-            else:
-                self.mqtt_gateway.gw_send_attributes(device, event["data"]["values"])
+            # if event["eventType"] == "TELEMETRY":
+            #     self.mqtt_gateway.gw_send_telemetry(device, event["data"])
+            # else:
+            #     self.mqtt_gateway.gw_send_attributes(device, event["data"]["values"])
         return True
 
     @staticmethod

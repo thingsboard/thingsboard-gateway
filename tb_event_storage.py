@@ -133,7 +133,7 @@ class TBEventStorage:
                                     prev_file = files[files.index(current_file) + 1]
                                 except IndexError:
                                     # if there are not any data files save position and current file to .reader_state
-                                    to_read = 0
+                                    # to_read = 0
                                     self.file = current_file
                                     self.pos = current_line + 1
                                     # with open(".reader_state", "w") as reader_file:
@@ -243,6 +243,5 @@ class TBEventStorage:
         if self.__gateway.send_data_to_tb(result["events"]):
             with open(".reader_state", "w") as reader_file:
                 pass
-                # todo remove!!!!
-                # dump({"prev_file": self.__reader_state.file, "pos": self.__reader_state.pos}, reader_file)
-                # log.critical("reader state changed")
+                dump({"prev_file": self.__reader_state.file, "pos": self.__reader_state.pos}, reader_file)
+                log.critical("reader state changed")
