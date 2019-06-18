@@ -44,7 +44,6 @@ class TBMQTT(Thread):
         for mapping in conf["mappings"]:
             topic_filter = mapping["topicFilter"]
             extension_module = import_module("extensions.mqtt." + mapping["handler"])
-            # todo remove
             extension_class = extension_module.Extension
             self.dict_handlers.update({topic_filter: [topic_filter.split(), extension_class]})
             log.critical("++++++++++++++++++++++")
@@ -70,7 +69,7 @@ class TBMQTT(Thread):
         # todo implement wildcard subscription
 
     def _on_log(self, client, userdata, level, buf):
-        log.debug(buf)
+        log.critical(buf)
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         result_codes = {
@@ -100,7 +99,6 @@ class TBMQTT(Thread):
         message.payload = loads(message.payload.decode("utf-8"))
         # log.debug(content)
         # log.debug(message.topic)
-        # todo put in queue and work with in another Thread
         self.decode_message_queue.put(message)
 
     def _on_decoded_message(self):
@@ -119,7 +117,6 @@ class TBMQTT(Thread):
         while True:
             try:
                 message = self.decode_message_queue.get(timeout=1)
-                log.critical(1234)
             except Exception as e:
                 sleep(QUEUE_SLEEP_INTERVAL)
                 continue
@@ -128,19 +125,18 @@ class TBMQTT(Thread):
                 topic_filter_as_list = self.dict_handlers[topic_filter][0]
                 tmp_topic = deepcopy(topic_s)
                 if is_equivalent(topic_filter_as_list, tmp_topic):
-                    log.critical("++++++++++++++++++++++++++++++++++++++++++++++++++++")
                     exctension_instance = self.dict_handlers[topic_filter][1]()
+
                     result = exctension_instance.convert_message_to_json_for_storage(message.topic,
                                                                                      message.payload)
-                    # todo this is test version
+
                     if result[0] == "to_storage":
                         self.gateway.send_data_to_storage(data=result[1][0],
                                                           type_of_data=result[1][1],
                                                           device=result[1][2])
                     else:
                         log.warning("'to storage' is only available now")
-                    # todo for logging, remove
             #todo make proper sleep with dynamic interval
             sleep(QUEUE_SLEEP_INTERVAL)
 
-            #todo find a nd add try except where needed!!!
+            #todo find and add try except where needed!

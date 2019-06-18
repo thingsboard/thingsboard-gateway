@@ -238,12 +238,11 @@ class TBEventStorage:
             log.warning("Failed to acquire write lock for an event storage!")
 
     def read(self):
-        log.critical("++++++++++++++++++++++")
         result = (self.__reader_state.read())
-        log.critical("++++++++++++++++++++++")
-        # todo result will be combo of two - position+file and old result. we send result to gw and if everything is fine we call discard which rewrites .readerstate
 
         if self.__gateway.send_data_to_tb(result["events"]):
             with open(".reader_state", "w") as reader_file:
-                dump({"prev_file": self.__reader_state.file, "pos": self.__reader_state.pos}, reader_file)
-                log.critical("reader state changed")
+                pass
+                # todo remove!!!!
+                # dump({"prev_file": self.__reader_state.file, "pos": self.__reader_state.pos}, reader_file)
+                # log.critical("reader state changed")

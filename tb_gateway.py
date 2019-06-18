@@ -23,6 +23,7 @@ class TBGateway:
         with open(config_file) as config:
             config = load(config)
             host = config["host"]
+            port = TBUtility.get_parameter(config, "port", 1883)
             token = config["token"]
             dict_extensions_settings = config["extensions"]
             dict_storage_settings = config["storage"]
@@ -51,9 +52,10 @@ class TBGateway:
             # initialize client
             self.mqtt_gateway = TBGatewayMqttClient(host, token, self)
 
+            # todo add tls
             while not self.mqtt_gateway._TBDeviceMqttClient__is_connected:
                 try:
-                    self.mqtt_gateway.connect()
+                    self.mqtt_gateway.connect(port=port)
                 except Exception as e:
                     log.error(e)
                 log.debug("connecting to ThingsBoard...")
@@ -129,8 +131,7 @@ class TBGateway:
             self.q = Queue()
             #todo fix!!!!!
             # device_storage = TBDeviceStorage(self)
-            # todo remove
-            self.on_device_connected("MJ_HT_V1_4c65a8df8e3f", None, None)
+
             # initialize event_storage
             self.event_storage = TBEventStorage(data_folder_path, max_records_per_file, max_records_between_fsync,
                                                 max_file_count, read_interval, max_read_record_count, self.scheduler,
@@ -179,7 +180,6 @@ class TBGateway:
                 self.mqtt_gateway.gw_send_telemetry(device, event["data"])
             else:
                 self.mqtt_gateway.gw_send_attributes(device, event["data"]["values"])
-        # log.critical("++++++++++++++++++++++++++++++++++++")
         return True
 
     @staticmethod
