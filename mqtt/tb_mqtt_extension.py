@@ -46,7 +46,6 @@ class TBMQTT(Thread):
             extension_module = import_module("extensions.mqtt." + mapping["handler"])
             extension_class = extension_module.Extension
             self.dict_handlers.update({topic_filter: [topic_filter.split(), extension_class]})
-            log.critical("++++++++++++++++++++++")
         self.client = Client()
         self.client._on_log = self._on_log
         self.client._on_connect = self._on_connect
@@ -63,13 +62,9 @@ class TBMQTT(Thread):
         self.client.loop_start()
         # todo check
         self.client.reconnect_delay_set(retryInterval, retryInterval)
-        # todo add callbacks like on_connect
-        # create and connect client
-        # subscribe
-        # todo implement wildcard subscription
 
     def _on_log(self, client, userdata, level, buf):
-        log.critical(buf)
+        log.debug("{}, extension {}".format(buf, self.ext_id))
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         result_codes = {
@@ -82,7 +77,7 @@ class TBMQTT(Thread):
 
         if rc == 0:
             self.__is_connected = True
-            log.info("connection SUCCESS")
+            log.info("connection SUCCESS for extension {}".format(self.ext_id))
 
             # todo subscribe to everything from json
             self.client.subscribe(list((topic, 1) for topic in self.dict_handlers))
