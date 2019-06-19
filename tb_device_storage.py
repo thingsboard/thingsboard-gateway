@@ -3,7 +3,7 @@ from json import load, dump
 import logging
 import time
 log = logging.getLogger(__name__)
-INTERVAL = 1
+INTERVAL = 0.5
 
 
 class TBDeviceStorage:

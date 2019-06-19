@@ -18,7 +18,6 @@ class TBMQTT(Thread):
     def __init__(self, conf, gateway, ext_id):
         super(TBMQTT, self).__init__()
         self.daemon = True
-        # todo implement ext_id in logging
         self.ext_id = ext_id
         self.gateway = gateway
         self.start()
@@ -29,16 +28,7 @@ class TBMQTT(Thread):
         # todo check if its implemented in client, mb yes
         # todo make  time in seconds??
         retryInterval = TBUtility.get_parameter(conf, "retryInterval", 3000) / 100
-        credentials = conf["credentials"]
-        # todo add other types
-        if credentials["type"] == "anonymous":
-            pass
-        elif credentials["type"] == "basic":
-            log.warning("basic cred type is not implemented yet")
-            return
-        if credentials["type"] == "cert.PEM":
-            log.warning("cert pem type is not implemented yet")
-            return
+
         client_id = TBUtility.get_parameter(conf, "clientId", uuid1())
         self.dict_handlers = {}
         for mapping in conf["mappings"]:
@@ -47,20 +37,50 @@ class TBMQTT(Thread):
             extension_class = extension_module.Extension
             self.dict_handlers.update({topic_filter: [topic_filter.split(), extension_class]})
         self.client = Client()
+        try:
+            credentials = conf["credentials"]
+            if credentials["type"] == "anonymous":
+                pass
+
+            elif credentials["type"] == "basic":
+                username = credentials["username"]
+                password = credentials["password"]
+                self.client.username_pw_set(username, password)
+                log.warning("basic cred type is not implemented yet")
+                return
+
+            if credentials["type"] == "cert.PEM":
+                ca_cert = credentials["caCert"]
+                private_key = credentials["privateKey"]
+                cert = credentials["cert"]
+
+                self.client.tls_set(ca_certs=ca_cert,
+                                    certfile=cert,
+                                    keyfile=private_key,
+                                    cert_reqs=ssl.CERT_REQUIRED,
+                                    tls_version=ssl.PROTOCOL_TLSv1_2,
+                                    ciphers=None)
+                self.client.tls_insecure_set(False)
+        except KeyError as e:
+            log.error("got error while parsing config file: {}. extension {}".format(e, ext_id))
+
         self.client._on_log = self._on_log
         self.client._on_connect = self._on_connect
         self.client._on_message = self._on_message
 
-        # todo implement max_size?
         self.decode_message_queue = Queue()
         self.decode_message_thread = Thread(target=self._on_decoded_message)
         self.decode_message_thread.daemon = True
         self.decode_message_thread.start()
 
-        # todo tls goes here
-        self.client.connect(host, port, keepalive)
+        while not self.__is_connected:
+            try:
+                self.client.connect(host, port, keepalive)
+            except:
+                pass
+            log.debug("connecting to ThingsBoard... ext id {}".format(ext_id))
+            sleep(1)
         self.client.loop_start()
-        # todo check
         self.client.reconnect_delay_set(retryInterval, retryInterval)
 
     def _on_log(self, client, userdata, level, buf):
@@ -79,11 +99,9 @@ class TBMQTT(Thread):
             self.__is_connected = True
             log.info("connection SUCCESS for extension {}".format(self.ext_id))
 
-            # todo subscribe to everything from json
             self.client.subscribe(list((topic, 1) for topic in self.dict_handlers))
         else:
             if rc in result_codes:
-                # todo log with ext_id?
                 log.error("connection FAIL with error {} {}, extension {}".format(rc,
                                                                                   result_codes[rc],
                                                                                   self.ext_id))
@@ -111,27 +129,26 @@ class TBMQTT(Thread):
                     return True
         while True:
             try:
-                message = self.decode_message_queue.get(timeout=1)
+                if self.decode_message_queue.qsize() > 0:
+                    message = self.decode_message_queue.get(timeout=1)
+                    topic_s = message.topic.split()
+                    for topic_filter in self.dict_handlers:
+                        topic_filter_as_list = self.dict_handlers[topic_filter][0]
+                        tmp_topic = deepcopy(topic_s)
+                        if is_equivalent(topic_filter_as_list, tmp_topic):
+                            exctension_instance = self.dict_handlers[topic_filter][1]()
+                            result = exctension_instance.convert_message_to_json_for_storage(message.topic,
+                                                                                             message.payload)
+
+                            if result[0] == "to_storage":
+                                self.gateway.send_data_to_storage(data=result[1][0],
+                                                                  type_of_data=result[1][1],
+                                                                  device=result[1][2])
+                            else:
+                                log.warning("'to storage' is only available now")
+                else:
+                    sleep(QUEUE_SLEEP_INTERVAL)
+                    continue
             except Exception as e:
                 sleep(QUEUE_SLEEP_INTERVAL)
-                continue
-            topic_s = message.topic.split()
-            for topic_filter in self.dict_handlers:
-                topic_filter_as_list = self.dict_handlers[topic_filter][0]
-                tmp_topic = deepcopy(topic_s)
-                if is_equivalent(topic_filter_as_list, tmp_topic):
-                    exctension_instance = self.dict_handlers[topic_filter][1]()
 
-                    result = exctension_instance.convert_message_to_json_for_storage(message.topic,
-                                                                                     message.payload)
-
-                    if result[0] == "to_storage":
-                        self.gateway.send_data_to_storage(data=result[1][0],
-                                                          type_of_data=result[1][1],
-                                                          device=result[1][2])
-                    else:
-                        log.warning("'to storage' is only available now")
-            #todo make proper sleep with dynamic interval
-            sleep(QUEUE_SLEEP_INTERVAL)
-
-            #todo find and add try except where needed!
