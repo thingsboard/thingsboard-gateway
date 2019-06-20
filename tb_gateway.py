@@ -86,7 +86,7 @@ class TBGateway:
                 # if True:
                 #     device = "Temp Sensor"
                     if type(handler) == str:
-                        m = import_module("extensions.modbus."+handler)
+                        m = import_module("extensions.modbus."+handler).Extension()
                         params = None
                         try:
                             params = request_body["data"]["params"]
