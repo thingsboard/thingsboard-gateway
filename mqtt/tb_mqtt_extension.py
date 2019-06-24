@@ -1,12 +1,12 @@
 from paho.mqtt.client import Client
 from threading import Thread
 from json import loads
-from tb_device_mqtt import TBDeviceMqttClient
-from tb_utility import TBUtility
+from utility.tb_utility import TBUtility
+from utility.tb_extension_base import TBExtension
 from uuid import uuid1
 import logging
 from time import sleep
-from queue import Queue, Empty
+from queue import Queue
 from importlib import import_module
 from copy import deepcopy
 
@@ -14,28 +14,28 @@ log = logging.getLogger(__name__)
 QUEUE_SLEEP_INTERVAL = 0.5
 
 
-class TBMQTT(Thread):
+class TBMQTT(TBExtension):
     def __init__(self, conf, gateway, ext_id):
-        super(TBMQTT, self).__init__()
-        self.daemon = True
-        self.ext_id = ext_id
-        self.gateway = gateway
-        self.start()
+        super(TBMQTT, self).__init__(ext_id, gateway)
         host = TBUtility.get_parameter(conf, "host", "localhost")
+        #todo check
+        self.__is_connected = False
         port = TBUtility.get_parameter(conf, "port", 1883)
         ssl = TBUtility.get_parameter(conf, "ssl", False)
-        keepalive = TBUtility.get_parameter(conf, "keepAlive", 60)
+        keepalive = TBUtility.get_parameter(conf, "keep_alive", 60)
         # todo check if its implemented in client, mb yes
         # todo make  time in seconds??
-        retryInterval = TBUtility.get_parameter(conf, "retryInterval", 3000) / 100
+        retry_interval = TBUtility.get_parameter(conf, "retry_interval", 3000) / 1000
 
-        client_id = TBUtility.get_parameter(conf, "clientId", uuid1())
+        # todo fix, error is here! uuid has len()
+        # client_id = TBUtility.get_parameter(conf, "client_id", uuid1())
         self.dict_handlers = {}
         for mapping in conf["mappings"]:
-            topic_filter = mapping["topicFilter"]
+            topic_filter = mapping["topic_filter"]
             extension_module = import_module("extensions.mqtt." + mapping["handler"])
             extension_class = extension_module.Extension
             self.dict_handlers.update({topic_filter: [topic_filter.split(), extension_class]})
+        # self.client = Client(client_id=client_id)
         self.client = Client()
         try:
             credentials = conf["credentials"]
@@ -76,12 +76,12 @@ class TBMQTT(Thread):
         while not self.__is_connected:
             try:
                 self.client.connect(host, port, keepalive)
-            except:
-                pass
+            except Exception as e:
+                log.error(e)
             log.debug("connecting to ThingsBoard... ext id {}".format(ext_id))
             sleep(1)
         self.client.loop_start()
-        self.client.reconnect_delay_set(retryInterval, retryInterval)
+        self.client.reconnect_delay_set(retry_interval, retry_interval)
 
     def _on_log(self, client, userdata, level, buf):
         log.debug("{}, extension {}".format(buf, self.ext_id))
@@ -136,16 +136,23 @@ class TBMQTT(Thread):
                         topic_filter_as_list = self.dict_handlers[topic_filter][0]
                         tmp_topic = deepcopy(topic_s)
                         if is_equivalent(topic_filter_as_list, tmp_topic):
-                            exctension_instance = self.dict_handlers[topic_filter][1]()
-                            result = exctension_instance.convert_message_to_json_for_storage(message.topic,
-                                                                                             message.payload)
+                            extension_instance = self.dict_handlers[topic_filter][1]()
+                            result = extension_instance.convert_message_to_json_for_storage(message.topic,
+                                                                                            message.payload)
+                            if not result:
+                                continue
+                            for device_data in result:
+                                telemetry = None
+                                device_name = device_data["device_name"]
+                                if device_data.get("telemetry"):
+                                    telemetry = device_data.pop("telemetry")
+                                if device_data.get("attributes"):
+                                    atributes = device_data.pop("attributes")
+                                    self.gateway.send_attributes_to_storage(atributes,
+                                                                            device_name)
+                                if telemetry:
+                                    self.gateway.send_telemetry_to_storage(telemetry, device_name)
 
-                            if result[0] == "to_storage":
-                                self.gateway.send_data_to_storage(data=result[1][0],
-                                                                  type_of_data=result[1][1],
-                                                                  device=result[1][2])
-                            else:
-                                log.warning("'to storage' is only available now")
                 else:
                     sleep(QUEUE_SLEEP_INTERVAL)
                     continue

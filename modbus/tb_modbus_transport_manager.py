@@ -1,5 +1,5 @@
 import logging
-from tb_utility import TBUtility
+from utility.tb_utility import TBUtility
 from pymodbus.bit_write_message import WriteSingleCoilResponse
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusRtuFramer
 from pymodbus.register_write_message import WriteMultipleRegistersResponse

@@ -1,7 +1,7 @@
 import logging
+import time
 from tb_gateway import TBGateway
 logging.basicConfig(level=logging.DEBUG)
-gateway = TBGateway("gateway_config.json")
-import time
+gateway = TBGateway("GatewayConfig.json")
 while True:
     time.sleep(1)

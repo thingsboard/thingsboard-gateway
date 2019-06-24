@@ -1,0 +1,19 @@
+{
+  "brokers": [
+    {
+      "host": "localhost",
+      "port": 1883,
+      "ssl": false,
+      "retry_interval": 3000,
+      "credentials": {
+        "type": "anonymous"
+      },
+      "mappings": [
+        {
+          "topic_filter": "sensors",
+          "handler": "ExtensionTempSensor"
+        }
+      ]
+    }
+  ]
+}

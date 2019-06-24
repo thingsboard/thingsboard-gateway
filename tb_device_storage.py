@@ -30,7 +30,7 @@ class TBDeviceStorage:
             self.gateway.dict_ext_by_device_name.update({device_name: handler})
             self.gateway.dict_rpc_handlers_by_device.update({device_name: rpc_handlers})
 
-            with open("connectedDevices.json") as f:
+            with open("ConnectedDevices.json") as f:
                 try:
                     connected_devices = load(f)
                 except:
@@ -39,13 +39,13 @@ class TBDeviceStorage:
                 log.debug("{} already in connected devices json".format(device_name))
             else:
                 connected_devices.update({device_name: {}})
-                with open("connectedDevices.json", "w") as f:
+                with open("ConnectedDevices.json", "w") as f:
                     dump(connected_devices, f)
         # if method is "disconnect device"
         else:
             try:
                 self.gateway.dict_ext_by_device_name.pop(device_name)
-                with open("connectedDevices.json") as f:
+                with open("ConnectedDevices.json") as f:
                     try:
                         connected_devices = load(f)
                     except:
@@ -54,7 +54,7 @@ class TBDeviceStorage:
                     log.debug("{} not connected in json file".format(device_name))
                 else:
                     connected_devices.pop(device_name)
-                    with open("connectedDevices.json", "w") as f:
+                    with open("ConnectedDevices.json", "w") as f:
                         dump(connected_devices, f)
             except KeyError:
                 log.warning("tried to remove {}, device not found".format(device_name))

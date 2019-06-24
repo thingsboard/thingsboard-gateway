@@ -166,13 +166,13 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
     @staticmethod
     def connect_devices_from_file(self):
         try:
-            with open("connectedDevices.json") as f:
+            with open("ConnectedDevices.json") as f:
 
                 serialized_devices = load(f)
                 for device in serialized_devices:
                     self.gw_connect_device(device)
         except JSONDecodeError:
-            log.error("connectedDevices.json is corrupted, got JSONDecodeError")
+            log.error("ConnectedDevices.json is corrupted, got JSONDecodeError")
         except FileNotFoundError:
-            log.warning("no connectedDevices.json file found, creating one")
-            open("connectedDevices.json", "w")
+            log.warning("no ConnectedDevices.json file found, creating one")
+            open("ConnectedDevices.json", "w")

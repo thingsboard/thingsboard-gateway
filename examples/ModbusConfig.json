@@ -46,8 +46,8 @@
               "byteOrder": "BIG",
               "registerCount": 1
             },
-            "rpcHandlerFunction": "modbus-rpc-handler-1",
-            "rpcHandlerFunction2": "modbus-rpc-handler-1"
+            "rpcHandlerFunction": "ModbusHandler",
+            "rpcHandlerFunction2": "ModbusHandler"
           }
         }
       ]

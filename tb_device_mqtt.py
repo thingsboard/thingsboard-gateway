@@ -3,7 +3,7 @@ import queue
 import ssl
 import time
 from json import loads, dumps
-from threading import Lock
+from threading import RLock
 from threading import Thread
 
 import paho.mqtt.client as paho
@@ -120,7 +120,7 @@ class TBDeviceMqttClient:
             log.warning("token is not set, connection without tls wont be established")
         else:
             self._client.username_pw_set(token)
-        self._lock = Lock()
+        self._lock = RLock()
         self._attr_request_dict = {}
         self.__timeout_queue = queue.Queue()
         self.__timeout_thread = Thread(target=self.__timeout_check)
@@ -215,13 +215,15 @@ class TBDeviceMqttClient:
         elif message.topic.startswith(RPC_RESPONSE_TOPIC):
             with self._lock:
                 request_id = int(message.topic[len(RPC_RESPONSE_TOPIC):len(message.topic)])
-                self.__device_client_rpc_dict.pop(request_id)(request_id, content, None)
+                callback = self.__device_client_rpc_dict.pop(request_id)
+            callback(request_id, content, None)
         elif message.topic == ATTRIBUTES_TOPIC:
+            dict_results = []
             with self._lock:
                 # callbacks for everything
                 if self.__device_sub_dict.get("*"):
                     for x in self.__device_sub_dict["*"]:
-                        self.__device_sub_dict["*"][x](content, None)
+                        dict_results.append(self.__device_sub_dict["*"][x])
                 # specific callback
                 keys = content.keys()
                 keys_list = []
@@ -232,12 +234,15 @@ class TBDeviceMqttClient:
                     # find key in our dict
                     if self.__device_sub_dict.get(key):
                         for x in self.__device_sub_dict[key]:
-                            self.__device_sub_dict[key][x](content, None)
+                            dict_results.append(self.__device_sub_dict[key][x])
+            for res in dict_results:
+                res(content, None)
         elif message.topic.startswith(ATTRIBUTES_TOPIC_RESPONSE):
             with self._lock:
                 req_id = int(message.topic[len(ATTRIBUTES_TOPIC+"/response/"):])
                 # pop callback and use it
-                self._attr_request_dict.pop(req_id)(content, None)
+                callback = self._attr_request_dict.pop(req_id)
+            callback(content, None)
 
     def max_inflight_messages_set(self, inflight):
         """Set the maximum number of messages with QoS>0 that can be part way through their network flow at once.

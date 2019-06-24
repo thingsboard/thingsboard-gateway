@@ -1,7 +1,8 @@
 import re
 import logging
 from threading import Thread, Lock
-from tb_utility import TBUtility
+from utility.tb_utility import TBUtility
+from utility.tb_extension_base import TBExtension
 from modbus.tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
@@ -13,7 +14,7 @@ log = logging.getLogger(__name__)
 # todo should we log and wrap param getting?
 
 
-class TBModbus(Thread):
+class TBModbus(TBExtension):
     _POLL_PERIOD = 1000  # time in milliseconds
     _RUN_TIMEOUT = 0.1  # time in seconds
     _CHARS_IN_REGISTER = 2
@@ -24,18 +25,14 @@ class TBModbus(Thread):
     # WC = {"b": 1, "h": 2, "i": 4, "l": 4, "q": 8, "f": 4, "d": 8}
 
     def __init__(self, server, scheduler, gateway, ext_id):
-        super(TBModbus, self).__init__()
-        self.ext_id = ext_id
-        self.gateway = gateway
+        super(TBModbus, self).__init__(ext_id, gateway)
         self.devices_names = set()
         self.queue_write_to_device = Queue()
         self.scheduler = scheduler
         self._server_config = server
         self.lock = Lock()
         self._dict_current_parameters = {}
-        self.daemon = True
         self._read_from_devices_jobs_add()
-        self.start()
 
     def run(self):
         while True:
@@ -63,7 +60,7 @@ class TBModbus(Thread):
             device_ts_poll_period = TBUtility.get_parameter(device, "timeseriesPollPeriod", self._POLL_PERIOD)
             device_name = device["deviceName"]
             for ts in device["timeseries"]:
-                self._process_message(ts, device_ts_poll_period, "tms", device_check_data_changed, device)
+                self._process_message(ts, device_ts_poll_period, "telemetry", device_check_data_changed, device)
             for atr in device["attributes"]:
                 self._process_message(atr, device_attr_poll_period, "atr", device_check_data_changed, device)
             self.devices_names.add(device_name)

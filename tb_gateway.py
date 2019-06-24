@@ -2,9 +2,9 @@ from tb_device_storage import TBDeviceStorage
 import logging
 import time
 from importlib import import_module
-from json import load, dumps, dump, loads
+from json import load, dumps
 from queue import Queue
-from threading import Lock, Thread
+from threading import Lock
 from mqtt.tb_mqtt_extension import TBMQTT
 from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
@@ -13,7 +13,7 @@ from tb_event_storage import TBEventStorage
 from modbus.tb_modbus_extension import TBModbus
 from ble.tb_ble_extension import TBBluetoothLE
 from tb_gateway_mqtt import TBGatewayMqttClient
-from tb_utility import TBUtility
+from utility.tb_utility import TBUtility
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +24,14 @@ class TBGateway:
             config = load(config)
             host = config["host"]
             port = TBUtility.get_parameter(config, "port", 1883)
-            token = config["token"]
+            credentials = config["credentials"]
+            credentials_type =TBUtility.get_parameter(credentials, "type", "basic")
+            if credentials_type == "basic":
+                token = config["token"]
+            elif credentials_type == "cert":
+                # todo add
+                log.warning("cert cred type not implemented yet")
+                return
             dict_extensions_settings = config["extensions"]
             dict_storage_settings = config["storage"]
             dict_performance_settings = config.get("performance")
@@ -32,7 +39,7 @@ class TBGateway:
             max_records_per_file = dict_storage_settings["max_records_per_file"]
             max_records_between_fsync = dict_storage_settings["max_records_between_fsync"]
             max_file_count = dict_storage_settings["max_file_count"]
-            read_interval = dict_storage_settings["read_interval"]
+            read_interval = dict_storage_settings["read_interval"] / 1000
             max_read_record_count = dict_storage_settings["max_read_record_count"]
             if dict_performance_settings:
                 number_of_processes = TBUtility.get_parameter(dict_performance_settings, "processes_to_use", 20)
@@ -140,25 +147,27 @@ class TBGateway:
             # initialize extensions
             for ext_id in dict_extensions_settings:
                 extension = dict_extensions_settings[ext_id]
-                if extension["extension type"] == "Modbus" and extension["enabled"]:
-                    conf = TBUtility.get_parameter(extension, "config file name", "modbus-config.json")
+                extension_type = extension["extension_type"]
+                extension_is_enabled = extension["enabled"]
+                if extension_type == "Modbus" and extension_is_enabled:
+                    conf = TBUtility.get_parameter(extension, "config_filename", "ModbusConfig.json")
                     with open(conf, "r") as config_file:
                         for modbus_config in load(config_file)["servers"]:
                             TBModbus(modbus_config, self.scheduler, self, ext_id)
-                elif extension["extension type"] == "BLE" and extension["enabled"]:
-                    conf = TBUtility.get_parameter(extension, "config file name", "ble-config.json")
-                    TBBluetoothLE(self, conf)
-                elif extension["extension type"] == "MQTT" and extension["enabled"]:
-                    conf = TBUtility.get_parameter(extension, "config file name", "mqtt-config.json")
+                elif extension_type == "BLE" and extension_is_enabled:
+                    conf = TBUtility.get_parameter(extension, "config_filename", "BLEConfig.json")
+                    TBBluetoothLE(self, conf, ext_id)
+                elif extension_type == "MQTT" and extension_is_enabled:
+                    conf = TBUtility.get_parameter(extension, "config_filename", "MQTTConfig.json")
                     with open(conf, "r") as config_file:
                         for broker_config in load(config_file)["brokers"]:
                             TBMQTT(broker_config, self, ext_id)
-                elif extension["extension type"] == "OPC-UA" and extension["enabled"]:
+                elif extension_type == "OPC-UA" and extension_is_enabled:
                     log.warning("OPC UA isn't implemented yet")
-                elif extension["extension type"] == "Sigfox" and extension["enabled"]:
-                    log.warning("Sigfox isn't implemented yet")
-                elif extension["enabled"]:
-                    log.error("unknown extension type: {}".format(extension["extension type"]))
+                elif extension_is_enabled:
+                    log.error("unknown extension_type: {}".format(extension["extension_type"]))
+                else:
+                    log.debug("id {}, type {} is not enabled, skipping...".format(ext_id ,extension_type))
 
     def on_device_connected(self, device_name, handler, rpc_handlers):
         self.q.put((True, device_name, handler, rpc_handlers))
@@ -166,17 +175,23 @@ class TBGateway:
     def on_device_disconnected(self, device_name):
         self.q.put((False, device_name))
 
+    # todo implement methods
+    def send_attributes_to_storage(self, data, device):
+        self.event_storage.write(dumps({"eventType": "ATTRIBUTES", "device": device, "data": data}) + "\n")
+
+    def send_telemetry_to_storage(self, data, device):
+        self.event_storage.write(dumps({"eventType": "ATTRIBUTES", "device": device, "data": data}) + "\n")
+
     def send_data_to_storage(self, data, type_of_data, device):
-        if type_of_data == "tms":
+        if type_of_data == "telemetry":
             self.event_storage.write(dumps({"eventType": "TELEMETRY", "device": device, "data": data}) + "\n")
         else:
             self.event_storage.write(dumps({"eventType": "ATTRIBUTES", "device": device, "data": data}) + "\n")
 
     def send_data_to_tb(self, data):
         for event in data:
-            event = loads(event)
-            print(event)
             device = event["device"]
+            # todo uncomment
             # if event["eventType"] == "TELEMETRY":
             #     self.mqtt_gateway.gw_send_telemetry(device, event["data"])
             # else:

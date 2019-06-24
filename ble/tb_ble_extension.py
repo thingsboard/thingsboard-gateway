@@ -1,16 +1,16 @@
 from datetime import datetime
 from bluepy.btle import DefaultDelegate, Peripheral, Scanner
-from tb_utility import TBUtility
+from utility.tb_utility import TBUtility
+from utility.tb_extension_base import TBExtension
 from json import load
 from importlib import import_module
 from time import time
 import logging
-from threading import Thread
 from copy import deepcopy
 log = logging.getLogger(__name__)
 
 
-class TBBluetoothLE(Thread):
+class TBBluetoothLE(TBExtension):
     class ScanDelegate(DefaultDelegate):
         def __init__(self):
             DefaultDelegate.__init__(self)
@@ -21,20 +21,16 @@ class TBBluetoothLE(Thread):
             elif isNewData:
                 log.debug("Received new data from: {}".format(dev.addr))
 
-    def __init__(self, gateway, config_file):
-        super(TBBluetoothLE, self).__init__()
-        self.daemon = True
-        self.start()
-
+    def __init__(self, gateway, config_file, ext_id):
+        super(TBBluetoothLE, self).__init__(ext_id, gateway)
         self.is_scanning = False
         with open(config_file) as config:
             config = load(config)
             self.dict_check_ts_changed = {}
             self.polling_jobs = []
-            self.gateway = gateway
             self.known_devices = {}
-            self.scan_duration = TBUtility.get_parameter(config, "scan_duration", 15)
-            rescan_period = TBUtility.get_parameter(config, "rescanPeriod", 120)
+            self.scan_duration = TBUtility.get_parameter(config, "scan_duration", 15000) / 1000
+            rescan_period = TBUtility.get_parameter(config, "rescanPeriod", 120000) / 1000
             for ble_name, extension_data in config["devices"].items():
                 extension_module = import_module("extensions.ble." + extension_data["extension"])
                 extension_class = extension_module.Extension
@@ -43,7 +39,7 @@ class TBBluetoothLE(Thread):
                     "scanned": {},
                     "poll_period": TBUtility.get_parameter(extension_data,
                                                            "pollPeriod",
-                                                           TBUtility.get_parameter(config, "pollPeriod", 100)),
+                                                           TBUtility.get_parameter(config, "pollPeriod", 100000)) / 1000,
                     "check_data_changed": TBUtility.get_parameter(extension_data,
                                                                   "sendDataOnlyOnChange",
                                                                   TBUtility.get_parameter(config,
@@ -146,7 +142,7 @@ class TBBluetoothLE(Thread):
             if telemetry and ((not self.known_devices[device_type]["check_data_changed"]) or
                               check_ts_changed(telemetry, dev_addr)):
                 telemetry = {"ts": int(round(time() * 1000)), "values": telemetry}
-                self.gateway.send_data_to_storage(telemetry, "tms", tb_dev_name)
+                self.gateway.send_data_to_storage(telemetry, "telemetry", tb_dev_name)
 
         except Exception as e:
             log.error("Exception caught: {}".format(e))

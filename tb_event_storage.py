@@ -120,7 +120,10 @@ class TBEventStorage:
                             current_line = 0
                             for line_number, line in enumerate(f):
                                 if to_read > 0 and pos <= line_number:
-                                    result.append(line.strip())
+                                    try:
+                                        result.append(loads(line.strip()))
+                                    except:
+                                        pass
                                     to_read -= 1
                                     current_line = line_number
                             # if we read needed amount of lines, recognise position and file and save to .reader_state
