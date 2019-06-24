@@ -80,7 +80,7 @@ public class ModbusDevice {
     }
 
     private void updateTag(PollingTagMapping mapping, KvEntry entry) {
-        if (attributes.containsKey(mapping.getTag())) {
+        if (attributes.containsKey(mapping)) {
             KvEntry oldEntry = attributes.get(mapping.getTag());
             if (oldEntry == null || !oldEntry.getValue().equals(entry.getValue())) {
                 attributes.put(mapping, entry);
