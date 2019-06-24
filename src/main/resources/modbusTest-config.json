@@ -1,0 +1,190 @@
+{
+  "servers": [
+    {
+      "transport": {
+        "type": "tcp",
+        "host": "localhost",
+        "port": 501,
+        "timeout": 5000,
+        "reconnect": true,
+        "rtuOverTcp": false
+      },
+      "devices": [
+        {
+          "unitId": 1,
+          "deviceName": "D001",
+          "attributesPollPeriod": 3000,
+          "timeseriesPollPeriod": 3000,
+          "attributes": [{
+            "tag": "key1",
+            "type": "boolean",
+            "pollPeriod": 1000,
+            "functionCode": 3,
+            "address": 1,
+            "registerCount": 1,
+            "bit": 3,
+            "byteOrder": "BIG"
+          },
+            {
+              "tag": "key2",
+              "type": "long",
+              "pollPeriod": 1000,
+              "functionCode": 3,
+              "address": 3,
+              "registerCount": 2,
+              "bit": 0,
+              "byteOrder": "BIG"
+            }
+          ],
+          "timeseries": [
+
+            {
+              "tag": "key3",
+              "type": "long",
+              "pollPeriod": 1000,
+              "functionCode": 3,
+              "address": 5,
+              "registerCount": 2,
+              "bit": 0,
+              "byteOrder": "BIG_SWAP"
+            },
+            {
+              "tag": "key4",
+              "type": "long",
+              "pollPeriod": 1000,
+              "functionCode": 3,
+               "address": 7,
+              "registerCount": 1,
+              "bit": 0,
+              "byteOrder": "BIG"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "transport": {
+        "type": "tcp",
+        "host": "localhost",
+        "port": 502,
+        "timeout": 5000,
+        "reconnect": true,
+        "rtuOverTcp": false
+      },
+      "devices": [
+        {
+          "unitId": 1,
+          "deviceName": "D002",
+          "attributesPollPeriod": 3000,
+          "timeseriesPollPeriod": 3000,
+          "attributes": [{
+            "tag": "key1",
+            "type": "boolean",
+            "pollPeriod": 1000,
+            "functionCode": 3,
+            "address": 1,
+            "registerCount": 1,
+            "bit": 3,
+            "byteOrder": "BIG"
+          },
+            {
+              "tag": "key2",
+              "type": "long",
+              "pollPeriod": 1000,
+              "functionCode": 3,
+              "address": 3,
+              "registerCount": 2,
+              "bit": 0,
+              "byteOrder": "BIG"
+            }
+          ],
+          "timeseries": [
+
+            {
+              "tag": "key3",
+              "type": "long",
+              "pollPeriod": 1000,
+              "functionCode": 3,
+              "address": 5,
+              "registerCount": 2,
+              "bit": 0,
+              "byteOrder": "BIG_SWAP"
+            },
+            {
+              "tag": "key4",
+              "type": "long",
+              "pollPeriod": 1000,
+              "functionCode": 3,
+              "address": 7,
+              "registerCount": 1,
+              "bit": 0,
+              "byteOrder": "BIG"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "transport": {
+        "type": "tcp",
+        "host": "localhost",
+        "port": 503,
+        "timeout": 5000,
+        "reconnect": true,
+        "rtuOverTcp": false
+      },
+      "devices": [
+        {
+          "unitId": 1,
+          "deviceName": "D003",
+          "attributesPollPeriod": 3000,
+          "timeseriesPollPeriod": 3000,
+          "attributes": [{
+            "tag": "key1",
+            "type": "boolean",
+            "pollPeriod": 1000,
+            "functionCode": 3,
+            "address": 1,
+            "registerCount": 1,
+            "bit": 3,
+            "byteOrder": "BIG"
+          },
+            {
+              "tag": "key2",
+              "type": "long",
+              "pollPeriod": 1000,
+              "functionCode": 3,
+              "address": 3,
+              "registerCount": 2,
+              "bit": 0,
+              "byteOrder": "BIG"
+            }
+          ],
+          "timeseries": [
+
+            {
+              "tag": "key3",
+              "type": "long",
+              "pollPeriod": 1000,
+              "functionCode": 3,
+              "address": 5,
+              "registerCount": 2,
+              "bit": 0,
+              "byteOrder": "BIG_SWAP"
+            },
+            {
+              "tag": "key4",
+              "type": "long",
+              "pollPeriod": 1000,
+              "functionCode": 3,
+              "address": 7,
+              "registerCount": 1,
+              "bit": 0,
+              "byteOrder": "BIG"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
