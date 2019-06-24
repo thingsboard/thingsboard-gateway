@@ -24,4 +24,8 @@ public class ModbusIpTransportConfiguration implements ModbusTransportConfigurat
     private String host;
     private int port = ModbusExtensionConstants.DEFAULT_MODBUS_TCP_PORT;
     private int timeout = ModbusExtensionConstants.DEFAULT_SOCKET_TIMEOUT;
+    @Override
+    public long getRetryInterval() {
+        return timeout;
+    }
 }

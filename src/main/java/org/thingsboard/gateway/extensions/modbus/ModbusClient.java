@@ -35,6 +35,7 @@ import org.thingsboard.gateway.service.gateway.GatewayService;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -54,6 +55,10 @@ public class ModbusClient implements ModbusDeviceAware {
 
     private ScheduledExecutorService executor;
     private RpcProcessor rpcProcessor;
+
+    ExecutorService cachedThreadPool = Executors.newCachedThreadPool();
+
+    private Object connectLock = new Object();
 
     public ModbusClient(GatewayService gateway, ModbusServerConfiguration configuration) {
         this.gateway = gateway;
@@ -86,16 +91,16 @@ public class ModbusClient implements ModbusDeviceAware {
             ModbusTcpTransportConfiguration tcpConf = (ModbusTcpTransportConfiguration) configuration;
             log.trace("Creating TCP Modbus client [{}]", tcpConf);
             return new ModbusTCPMaster(tcpConf.getHost(),
-                                       tcpConf.getPort(),
-                                       tcpConf.getTimeout(),
-                                       tcpConf.isReconnect(),
-                                       tcpConf.isRtuOverTcp());
+                    tcpConf.getPort(),
+                    tcpConf.getTimeout(),
+                    tcpConf.isReconnect(),
+                    tcpConf.isRtuOverTcp());
         } else if (configuration instanceof ModbusUdpTransportConfiguration) {
             ModbusUdpTransportConfiguration udpConf = (ModbusUdpTransportConfiguration) configuration;
             log.trace("Creating UDP Modbus client [{}]", udpConf);
             return new ModbusUDPMaster(udpConf.getHost(),
-                                       udpConf.getPort(),
-                                       udpConf.getTimeout());
+                    udpConf.getPort(),
+                    udpConf.getTimeout());
         } else if (configuration instanceof ModbusRtuTransportConfiguration) {
             ModbusRtuTransportConfiguration rtuConf = (ModbusRtuTransportConfiguration) configuration;
             SerialParameters serialParams = new SerialParameters();
@@ -115,19 +120,33 @@ public class ModbusClient implements ModbusDeviceAware {
     }
 
     public void connect() {
-        try {
-            log.trace("MBS[{}] connecting...", serverName);
+        cachedThreadPool.execute(this::checkConnection);
+    }
 
-            client.connect();
-            transaction = client.getTransport().createTransaction();
+    private void checkConnection() {
+        if (null == client.getTransport()) {
+            synchronized (connectLock) {
+                while (null == client.getTransport() && !executor.isShutdown()) {
+                    log.trace("MBS[{}] connecting...", serverName);
+                    try {
+                        client.connect();
+                        transaction = client.getTransport().createTransaction();
+                        log.info("MBS[{}] connected", serverName);
 
-            log.info("MBS[{}] connected", serverName);
-
-            firstRead();
-            startPolling();
-        } catch (Exception e) {
-            log.error("MBS[{}] connection failed!", serverName, e);
-            throw new RuntimeException("MBS connection failed!", e);
+                        firstRead();
+                        startPolling();
+                    } catch (Exception e) {
+                        log.error("MBS[{}] connection failed!", serverName, e);
+                        if (null == client.getTransport()) {
+                            try {
+                                Thread.sleep(configuration.getTransport().getRetryInterval());
+                            } catch (InterruptedException e1) {
+                                log.trace("Failed to wait for retry interval!", e);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -159,11 +178,11 @@ public class ModbusClient implements ModbusDeviceAware {
                         tags.getKey());
 
                 executor.scheduleAtFixedRate(()->{
-                    device.clearUpdates();
-                    readTags(device, tags.getValue());
-                    checkDeviceDataUpdates(device);
-                },
-                tags.getKey(), tags.getKey(), TimeUnit.MILLISECONDS);
+                            device.clearUpdates();
+                            readTags(device, tags.getValue());
+                            checkDeviceDataUpdates(device);
+                        },
+                        tags.getKey(), tags.getKey(), TimeUnit.MILLISECONDS);
             });
         });
     }
@@ -252,8 +271,8 @@ public class ModbusClient implements ModbusDeviceAware {
         log.info("Disconnected from MBS[{}]", serverName);
 
         devices.forEach((name, device)->{
-                gateway.onDeviceDisconnect(device.getName());
-                log.info("MBS[{}] disconnected MBD[{}]", serverName, name);
+            gateway.onDeviceDisconnect(device.getName());
+            log.info("MBS[{}] disconnected MBD[{}]", serverName, name);
         });
     }
 }

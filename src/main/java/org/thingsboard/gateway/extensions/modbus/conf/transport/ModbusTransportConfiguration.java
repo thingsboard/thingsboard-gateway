@@ -31,5 +31,11 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = ModbusUdpTransportConfiguration.class, name = "udp"),
         @JsonSubTypes.Type(value = ModbusRtuTransportConfiguration.class, name = "rtu")})
 public interface ModbusTransportConfiguration {
+ /**
+  * Get the trial cycle time
+  *
+  * @return
+  */
+ long getRetryInterval();
 
 }
