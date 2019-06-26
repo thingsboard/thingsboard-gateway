@@ -5,7 +5,7 @@ from importlib import import_module
 from json import load, dumps
 from queue import Queue
 from threading import Lock
-from mqtt.tb_mqtt_extension import TBMQTT
+from mqtt.tb_mqtt_extension import TB_MQTT_Extension
 from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -25,7 +25,8 @@ class TBGateway:
             host = config["host"]
             port = TBUtility.get_parameter(config, "port", 1883)
             credentials = config["credentials"]
-            credentials_type =TBUtility.get_parameter(credentials, "type", "basic")
+            keep_alive = TBUtility.get_parameter(config, "keep_alive", 60)
+            credentials_type = TBUtility.get_parameter(credentials, "type", "basic")
             if credentials_type == "basic":
                 token = config["token"]
             elif credentials_type == "cert":
@@ -62,7 +63,7 @@ class TBGateway:
             # todo add tls
             while not self.mqtt_gateway._TBDeviceMqttClient__is_connected:
                 try:
-                    self.mqtt_gateway.connect(port=port)
+                    self.mqtt_gateway.connect(port=port, keepalive=keep_alive)
                 except Exception as e:
                     log.error(e)
                 log.debug("connecting to ThingsBoard...")
@@ -135,9 +136,9 @@ class TBGateway:
             self.mqtt_gateway.connect_devices_from_file(self.mqtt_gateway)
             # initialize connected device logging
 
+            device_thread_interval = TBUtility.get_parameter(config, "device_storage_thread_read_interval", 1000) / 1000
             self.q = Queue()
-            # todo fix!!!!!
-            device_storage = TBDeviceStorage(self)
+            device_storage = TBDeviceStorage(self, device_thread_interval)
 
             # initialize event_storage
             self.event_storage = TBEventStorage(data_folder_path, max_records_per_file, max_records_between_fsync,
@@ -161,13 +162,13 @@ class TBGateway:
                     conf = TBUtility.get_parameter(extension, "config_filename", "MQTTConfig.json")
                     with open(conf, "r") as config_file:
                         for broker_config in load(config_file)["brokers"]:
-                            TBMQTT(broker_config, self, ext_id)
+                            TB_MQTT_Extension(broker_config, self, ext_id)
                 elif extension_type == "OPC-UA" and extension_is_enabled:
                     log.warning("OPC UA isn't implemented yet")
                 elif extension_is_enabled:
                     log.error("unknown extension_type: {}".format(extension["extension_type"]))
                 else:
-                    log.debug("id {}, type {} is not enabled, skipping...".format(ext_id ,extension_type))
+                    log.debug("id {}, type {} is not enabled, skipping...".format(ext_id, extension_type))
 
     def on_device_connected(self, device_name, handler, rpc_handlers):
         self.q.put((True, device_name, handler, rpc_handlers))
@@ -191,15 +192,18 @@ class TBGateway:
     def send_data_to_tb(self, data):
         for event in data:
             device = event["device"]
-            # todo uncomment
+            if device not in self.dict_ext_by_device_name:
+                self.mqtt_gateway.gw_connect_device("device").wait_for_publish()
+
+                # todo add wait for publish (get)
+            # todo uncomment to test real tb server
             # if event["eventType"] == "TELEMETRY":
             #     self.mqtt_gateway.gw_send_telemetry(device, event["data"])
             # else:
             #     self.mqtt_gateway.gw_send_attributes(device, event["data"]["values"])
+            # todo add checking if messages arrived
         return True
 
     @staticmethod
     def listener(event):
         log.exception(event.exception)
-
-

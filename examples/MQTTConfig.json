@@ -4,7 +4,7 @@
       "host": "localhost",
       "port": 1883,
       "ssl": false,
-      "retry_interval": 3000,
+      "retry_interval": 6000,
       "credentials": {
         "type": "anonymous"
       },

@@ -14,16 +14,15 @@ log = logging.getLogger(__name__)
 QUEUE_SLEEP_INTERVAL = 0.5
 
 
-class TBMQTT(TBExtension):
+class TB_MQTT_Extension(TBExtension):
     def __init__(self, conf, gateway, ext_id):
-        super(TBMQTT, self).__init__(ext_id, gateway)
+        super(TB_MQTT_Extension, self).__init__(ext_id, gateway)
         host = TBUtility.get_parameter(conf, "host", "localhost")
-        #todo check
         self.__is_connected = False
+        self._connected_devices = set()
         port = TBUtility.get_parameter(conf, "port", 1883)
         ssl = TBUtility.get_parameter(conf, "ssl", False)
-        keepalive = TBUtility.get_parameter(conf, "keep_alive", 60)
-        # todo check if its implemented in client, mb yes
+        keep_alive = TBUtility.get_parameter(conf, "keep_alive", 60)
         # todo make  time in seconds??
         retry_interval = TBUtility.get_parameter(conf, "retry_interval", 3000) / 1000
 
@@ -75,13 +74,13 @@ class TBMQTT(TBExtension):
 
         while not self.__is_connected:
             try:
-                self.client.connect(host, port, keepalive)
+                self.client.connect(host, port, keep_alive)
+                self.client.loop_start()
+                self.client.reconnect_delay_set(retry_interval)
             except Exception as e:
                 log.error(e)
             log.debug("connecting to ThingsBoard... ext id {}".format(ext_id))
             sleep(1)
-        self.client.loop_start()
-        self.client.reconnect_delay_set(retry_interval, retry_interval)
 
     def _on_log(self, client, userdata, level, buf):
         log.debug("{}, extension {}".format(buf, self.ext_id))
@@ -98,8 +97,7 @@ class TBMQTT(TBExtension):
         if rc == 0:
             self.__is_connected = True
             log.info("connection SUCCESS for extension {}".format(self.ext_id))
-
-            self.client.subscribe(list((topic, 1) for topic in self.dict_handlers))
+            self.client.subscribe("#")
         else:
             if rc in result_codes:
                 log.error("connection FAIL with error {} {}, extension {}".format(rc,
@@ -115,6 +113,7 @@ class TBMQTT(TBExtension):
         self.decode_message_queue.put(message)
 
     def _on_decoded_message(self):
+
         def is_equivalent(mask, topic):
             len_mask = len(mask)
             if len(topic) >= len_mask:
@@ -131,7 +130,20 @@ class TBMQTT(TBExtension):
             try:
                 if self.decode_message_queue.qsize() > 0:
                     message = self.decode_message_queue.get(timeout=1)
-                    topic_s = message.topic.split()
+                    topic_s = message.topic.split("/")
+                    last_word = topic_s[-1]
+
+                    # connect case
+                    if last_word == "connect":
+                        topic_s = topic_s[:-1]
+                        # todo add rpc handler update here
+                        # todo create set_devices??? and use here
+                        self.gateway.on_device_connected(topic_s[-1], self, rpc_handlers=None)
+                    # disconnect case
+                    elif last_word == "disconnect":
+                        self.gateway.on_device_disconnected(topic_s[-2])
+                        raise Exception("disconnect")
+                    # connect case with parameters or plain telemetry #todo if atrs go here
                     for topic_filter in self.dict_handlers:
                         topic_filter_as_list = self.dict_handlers[topic_filter][0]
                         tmp_topic = deepcopy(topic_s)
@@ -140,9 +152,10 @@ class TBMQTT(TBExtension):
                             result = extension_instance.convert_message_to_json_for_storage(message.topic,
                                                                                             message.payload)
                             if not result:
-                                continue
+                                raise Exception("no result")
                             for device_data in result:
                                 telemetry = None
+                                # todo add device_type here
                                 device_name = device_data["device_name"]
                                 if device_data.get("telemetry"):
                                     telemetry = device_data.pop("telemetry")

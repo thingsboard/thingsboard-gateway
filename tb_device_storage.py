@@ -2,33 +2,33 @@ from datetime import datetime
 from json import load, dump
 import logging
 import time
+from queue import Empty
 log = logging.getLogger(__name__)
-INTERVAL = 0.5
 
 
 class TBDeviceStorage:
-    def __init__(self, gateway):
+    def __init__(self, gateway, interval):
         self.gateway = gateway
         self.gateway.scheduler.add_job(self.__run,
                                        'interval',
-                                       seconds=INTERVAL,
+                                       seconds=interval,
                                        next_run_time=datetime.now(),
                                        max_instances=1)
 
     def __run(self):
         try:
             item = self.gateway.q.get(timeout=0.05)
-        except Exception:
-            return
+        except Empty:
+            return True
         is_method_connect = item[0]
         device_name = item[1]
         # if method is "connect device"
         if is_method_connect:
             handler = item[2]
             rpc_handlers = item[3]
-            self.gateway.mqtt_gateway.gw_connect_device(device_name)
             self.gateway.dict_ext_by_device_name.update({device_name: handler})
             self.gateway.dict_rpc_handlers_by_device.update({device_name: rpc_handlers})
+            self.gateway.mqtt_gateway.gw_connect_device(device_name)
 
             with open("ConnectedDevices.json") as f:
                 try:

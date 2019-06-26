@@ -119,13 +119,14 @@ class TBEventStorage:
                             # read file by line and add to result lines after pos
                             current_line = 0
                             for line_number, line in enumerate(f):
+                                current_line = line_number
                                 if to_read > 0 and pos <= line_number:
                                     try:
                                         result.append(loads(line.strip()))
                                     except:
                                         pass
                                     to_read -= 1
-                                    current_line = line_number
+
                             # if we read needed amount of lines, recognise position and file and save to .reader_state
                             if to_read == 0:
                                 prev_file = current_file
@@ -205,7 +206,6 @@ class TBEventStorage:
         self.dir = self.__TBEventStorageDir(data_folder_path, max_file_count)
         self.__init_reader_state(data_folder_path, read_interval, max_read_record_count)
         self.__writer = self.__TBEventStorageWriterState(self.dir, max_records_per_file, max_records_between_fsync)
-        log.critical("_=--")
         scheduler.add_job(self.read, 'interval', seconds=read_interval, next_run_time=datetime.now())
         self.__gateway = gateway
 
@@ -242,9 +242,8 @@ class TBEventStorage:
 
     def read(self):
         result = (self.__reader_state.read())
-
-        if self.__gateway.send_data_to_tb(result["events"]):
+        events = result["events"]
+        if events and self.__gateway.send_data_to_tb(events):
             with open(".reader_state", "w") as reader_file:
-                pass
                 dump({"prev_file": self.__reader_state.file, "pos": self.__reader_state.pos}, reader_file)
                 log.critical("reader state changed")
