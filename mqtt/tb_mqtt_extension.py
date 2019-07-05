@@ -28,38 +28,54 @@ class TB_MQTT_Extension(TBExtension):
 
         # todo fix, error is here! uuid has len()
         # client_id = TBUtility.get_parameter(conf, "client_id", uuid1())
-        self.dict_handlers = {}
+        self.telemetry_atrs_dict_handlers = {}
         for mapping in conf["mappings"]:
             topic_filter = mapping["topic_filter"]
             extension_module = import_module("extensions.mqtt." + mapping["handler"])
             extension_class = extension_module.Extension
-            self.dict_handlers.update({topic_filter: [topic_filter.split(), extension_class]})
+            self.telemetry_atrs_dict_handlers.update({topic_filter: [topic_filter.split(), extension_class]})
         # self.client = Client(client_id=client_id)
+        # todo add
+        self.attribute_requests_handler_dict = {}
+        if conf.get("attribute_requests"):
+            for attribute_request in conf["attribute_requests"]:
+                topic_filter = attribute_request["topic_filter"]
+                extension_module = import_module("extensions.mqtt." + attribute_request["handler"])
+                extension_class = extension_module.Extension
+                self.attribute_requests_handler_dict.update({topic_filter: [topic_filter.split(), extension_class]})
+
         self.client = Client()
         try:
             credentials = conf["credentials"]
-            if credentials["type"] == "anonymous":
+            credentials_type = credentials["type"]
+            if ssl:
+                ca_cert = credentials["caCert"]
+                self.client.tls_set(ca_cert)
+                self.client.tls_insecure_set(False)
+
+            if credentials_type == "anonymous":
                 pass
 
-            elif credentials["type"] == "basic":
+            elif credentials_type == "basic":
                 username = credentials["username"]
                 password = credentials["password"]
                 self.client.username_pw_set(username, password)
-                log.warning("basic cred type is not implemented yet")
-                return
 
-            if credentials["type"] == "cert.PEM":
+            elif credentials_type == "cert.PEM":
                 ca_cert = credentials["caCert"]
                 private_key = credentials["privateKey"]
                 cert = credentials["cert"]
 
+                # todo add protocol version support
                 self.client.tls_set(ca_certs=ca_cert,
                                     certfile=cert,
                                     keyfile=private_key,
                                     cert_reqs=ssl.CERT_REQUIRED,
-                                    tls_version=ssl.PROTOCOL_TLSv1_2,
                                     ciphers=None)
                 self.client.tls_insecure_set(False)
+            else:
+                log.error("unknown credentials type: {}".format(credentials_type))
+                return
         except KeyError as e:
             log.error("got error while parsing config file: {}. extension {}".format(e, ext_id))
 
@@ -113,7 +129,9 @@ class TB_MQTT_Extension(TBExtension):
         self.decode_message_queue.put(message)
 
     def _on_decoded_message(self):
-
+        #if topic == attributes
+        # get handler
+        #
         def is_equivalent(mask, topic):
             len_mask = len(mask)
             if len(topic) >= len_mask:
@@ -132,7 +150,67 @@ class TB_MQTT_Extension(TBExtension):
                     message = self.decode_message_queue.get(timeout=1)
                     topic_s = message.topic.split("/")
                     last_word = topic_s[-1]
+                    # attribute request case
+                    is_atr_request = False
+                    for topic_filter in self.attribute_requests_handler_dict:
+                        pass
+                        topic_filter_as_list = self.attribute_requests_handler_dict[topic_filter][0]
+                        tmp_topic = deepcopy(topic_s)
+                        if is_equivalent(topic_filter_as_list, tmp_topic):
+                            extension_instance = self.attribute_requests_handler_dict[topic_filter][1]()
+                            result, id = extension_instance.convert_message_to_atr_request(message.topic,
+                                                                                           message.payload)
+                            # todo remove after new version testing
+                            # callback = extension_instance.callback
+                            if not result:
+                                continue
+                            for item in result:  # result = {}
+                                device_name = item["device_name"]
 
+                                ext = self
+
+                                class Callback:
+                                    def __init__(self, ext, id, device_name, atr_name):
+                                        self.mqtt_ext = ext
+                                        self.request_id = id
+                                        self.device = device_name
+                                        self.atr = atr_name
+
+                                    def __call__(self, request_result, exception):
+                                        if not exception:
+                                            self.mqtt_ext.gw_send_rpc_reply(self.device,
+                                                                            self.request_id,
+                                                                            {key: request_result["value"]})
+                                        else: log.error(exception)
+
+
+                                def callback(result, exception):
+                                    if not Exception:
+                                        return result
+                                    else:
+                                        log.error(exception)
+
+                                if item.get("client_keys"):
+                                    # is_atr_request = True
+                                    for key in item["client_keys"]:
+                                        callback = Callback(ext, id, device_name, key)
+                                        self.gateway.mqtt_gateway.gw_request_client_attributes(device_name,
+                                                                                               key,
+                                                                                               callback)
+
+                                if item.get("shared_keys"):
+                                    for key in item ["client_keys"]:
+
+                                    # is_atr_request = True
+                                        callback = Callback(ext, id, device_name, key)
+                                        self.gateway.mqtt_gateway.gw_request_shared_attributes(device_name,
+                                                                                               item["shared_keys"],
+                                                                                               callback)
+                                    #todo add else log.warning?
+                                # todo add gateway method?
+                    # if it is attribute request we should skip other
+                    if is_atr_request:
+                        raise Exception("is atr request")
                     # connect case
                     if last_word == "connect":
                         topic_s = topic_s[:-1]
@@ -144,15 +222,16 @@ class TB_MQTT_Extension(TBExtension):
                         self.gateway.on_device_disconnected(topic_s[-2])
                         raise Exception("disconnect")
                     # connect case with parameters or plain telemetry #todo if atrs go here
-                    for topic_filter in self.dict_handlers:
-                        topic_filter_as_list = self.dict_handlers[topic_filter][0]
+                    for topic_filter in self.telemetry_atrs_dict_handlers:
+                        topic_filter_as_list = self.telemetry_atrs_dict_handlers[topic_filter][0]
                         tmp_topic = deepcopy(topic_s)
                         if is_equivalent(topic_filter_as_list, tmp_topic):
-                            extension_instance = self.dict_handlers[topic_filter][1]()
+                            extension_instance = self.telemetry_atrs_dict_handlers[topic_filter][1]()
                             result = extension_instance.convert_message_to_json_for_storage(message.topic,
                                                                                             message.payload)
                             if not result:
-                                raise Exception("no result")
+                                # todo log error of extension?
+                                continue
                             for device_data in result:
                                 telemetry = None
                                 # todo add device_type here

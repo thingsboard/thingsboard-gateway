@@ -81,7 +81,7 @@ class TBGateway:
                     dict_device_handlers = self.gateway.dict_rpc_handlers_by_device[device]
                 except KeyError:
                     pass
-                    self.send_rpc_reply("o device {} found".format(device))
+                    self.send_rpc_reply("no device {} found".format(device))
                     log.error("no device {} found".format(device))
                     return
                 try:
@@ -90,6 +90,9 @@ class TBGateway:
                     self.send_rpc_reply(device, request_body["data"]["id"], {"error": "Unsupported RPC method"})
                     log.error('"error": "Unsupported RPC method": {}'.format(request_body))
                     return
+
+                resp = None
+                # extension_class.handler
                 if type(extension_class) == TBModbus:
                 # if True:
                 #     device = "Temp Sensor"
@@ -116,19 +119,9 @@ class TBGateway:
                         self.gw_send_rpc_reply(device, request_body["data"]["id"], resp)
 
                 elif type(extension_class) == TBBluetoothLE:
-                    if method == "doRescan":
-                        self.gateway.dict_ext_by_device_name[device].rescan()
-                    if handler.get("getTelemetry"):
-                        self.gateway.dict_ext_by_device_name[device].get_data_from_device_once(device)
-                    # todo imploment write to device rpc
-                    # if handler.get("handler"):
-                    #     m = import_module("extensions.ble."+handler["handler"])
-                    #     params = None
-                    #     try:
-                    #         params = request_body["data"]["params"]
-                    #         values = m.rpc_handler(method, params)
-                    #     except KeyError:
-                    #         pass
+                    self.gateway.dict_ext_by_device_name[device].rpc_handler(request_body, handler)
+                if resp:
+                    self.gw_send_rpc_reply(device, request_body["data"]["id"], resp)
 
             self.mqtt_gateway.devices_server_side_rpc_request_handler = rpc_request_handler
             self.mqtt_gateway.gw_connect_device("Test Device A2")
@@ -138,7 +131,8 @@ class TBGateway:
 
             device_thread_interval = TBUtility.get_parameter(config, "device_storage_thread_read_interval", 1000) / 1000
             self.q = Queue()
-            device_storage = TBDeviceStorage(self, device_thread_interval)
+
+            TBDeviceStorage(self, device_thread_interval)
 
             # initialize event_storage
             self.event_storage = TBEventStorage(data_folder_path, max_records_per_file, max_records_between_fsync,

@@ -2,3 +2,9 @@
 class ExtensionInterface:
     def convert_message_to_json_for_storage(self, topic, payload):
         pass
+
+    def convert_message_to_atr_request(self, topic, payload):
+        pass
+
+    def callback(self, result, exception):
+        pass

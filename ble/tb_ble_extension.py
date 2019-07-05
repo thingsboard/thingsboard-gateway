@@ -21,6 +21,24 @@ class TBBluetoothLE(TBExtension):
             elif isNewData:
                 log.debug("Received new data from: {}".format(dev.addr))
 
+    def rpc_handler(self, request_body, handler):
+        method = request_body["data"]["method"]
+        device = request_body.get("device")
+        if method == "doRescan":
+            self.gateway.dict_ext_by_device_name[device].rescan()
+        if handler.get("getTelemetry"):
+            self.gateway.dict_ext_by_device_name[device].get_data_from_device_once(device)
+
+        # todo imploment write to device rpc
+        # if handler.get("handler"):
+        #     m = import_module("extensions.ble."+handler["handler"])
+        #     params = None
+        #     try:
+        #         params = request_body["data"]["params"]
+        #         values = m.rpc_handler(method, params)
+        #     except KeyError:
+        #         pass
+
     def __init__(self, gateway, config_file, ext_id):
         super(TBBluetoothLE, self).__init__(ext_id, gateway)
         self.is_scanning = False

@@ -4,6 +4,12 @@ from . import ExtensionInterface
 
 
 class Extension(ExtensionInterface.ExtensionInterface):
+    def convert_message_to_atr_request(self, topic, payload):
+        pass
+
+    def callback(self, result, exception):
+        pass
+
     def convert_message_to_json_for_storage(self, topic, payload):
         ts = int(round(time() * 1000))
         try:
