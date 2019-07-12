@@ -15,6 +15,22 @@ QUEUE_SLEEP_INTERVAL = 0.5
 
 
 class TB_MQTT_Extension(TBExtension):
+    class Callback:
+        def __init__(self, ext, id, device_name, atr_name, mqtt_ext_id):
+            self.mqtt_ext = ext
+            self.request_id = id
+            self.mqtt_ext_id = mqtt_ext_id
+            self.device = device_name
+            self.atr = atr_name
+
+        def __call__(self, request_result, exception):
+            if not exception:
+                self.mqtt_ext.gw_send_rpc_reply(self.device,
+                                                self.request_id,
+                                                {key: request_result["value"]})
+            else:
+                log.error("{} {}".format(exception, self.mqtt_ext_id))
+
     def __init__(self, conf, gateway, ext_id):
         super(TB_MQTT_Extension, self).__init__(ext_id, gateway)
         host = TBUtility.get_parameter(conf, "host", "localhost")
@@ -101,6 +117,7 @@ class TB_MQTT_Extension(TBExtension):
     def _on_log(self, client, userdata, level, buf):
         log.debug("{}, extension {}".format(buf, self.ext_id))
 
+
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         result_codes = {
             1: "incorrect protocol version",
@@ -129,9 +146,6 @@ class TB_MQTT_Extension(TBExtension):
         self.decode_message_queue.put(message)
 
     def _on_decoded_message(self):
-        #if topic == attributes
-        # get handler
-        #
         def is_equivalent(mask, topic):
             len_mask = len(mask)
             if len(topic) >= len_mask:
@@ -153,59 +167,37 @@ class TB_MQTT_Extension(TBExtension):
                     # attribute request case
                     is_atr_request = False
                     for topic_filter in self.attribute_requests_handler_dict:
-                        pass
                         topic_filter_as_list = self.attribute_requests_handler_dict[topic_filter][0]
-                        tmp_topic = deepcopy(topic_s)
-                        if is_equivalent(topic_filter_as_list, tmp_topic):
-                            extension_instance = self.attribute_requests_handler_dict[topic_filter][1]()
-                            result, id = extension_instance.convert_message_to_atr_request(message.topic,
-                                                                                           message.payload)
-                            # todo remove after new version testing
-                            # callback = extension_instance.callback
-                            if not result:
-                                continue
-                            for item in result:  # result = {}
-                                device_name = item["device_name"]
+                        for topic in topic_filter_as_list:
+                            tmp_filter = topic.split("/")
+                            tmp_topic = deepcopy(topic_s)
+                            if is_equivalent(tmp_filter, tmp_topic):
+                                extension_instance = self.attribute_requests_handler_dict[topic_filter][1]()
+                                result, id = extension_instance.convert_message_to_atr_request(message.topic,
+                                                                                               message.payload)
+                                # todo remove after new version testing
+                                # callback = extension_instance.callback
+                                if not result:
+                                    continue
+                                for item in result:  # result = {}
+                                    device_name = item["device_name"]
 
-                                ext = self
+                                    ext = self
+                                    if item.get("client_keys"):
+                                        # is_atr_request = True
+                                        for key in item["client_keys"]:
+                                            callback = TB_MQTT_Extension.Callback(ext, id, device_name, key, self.ext_id)
+                                            self.gateway.mqtt_gateway.gw_request_client_attributes(device_name,
+                                                                                                   key,
+                                                                                                   callback)
 
-                                class Callback:
-                                    def __init__(self, ext, id, device_name, atr_name):
-                                        self.mqtt_ext = ext
-                                        self.request_id = id
-                                        self.device = device_name
-                                        self.atr = atr_name
-
-                                    def __call__(self, request_result, exception):
-                                        if not exception:
-                                            self.mqtt_ext.gw_send_rpc_reply(self.device,
-                                                                            self.request_id,
-                                                                            {key: request_result["value"]})
-                                        else: log.error(exception)
-
-
-                                def callback(result, exception):
-                                    if not Exception:
-                                        return result
-                                    else:
-                                        log.error(exception)
-
-                                if item.get("client_keys"):
-                                    # is_atr_request = True
-                                    for key in item["client_keys"]:
-                                        callback = Callback(ext, id, device_name, key)
-                                        self.gateway.mqtt_gateway.gw_request_client_attributes(device_name,
-                                                                                               key,
-                                                                                               callback)
-
-                                if item.get("shared_keys"):
-                                    for key in item ["client_keys"]:
-
-                                    # is_atr_request = True
-                                        callback = Callback(ext, id, device_name, key)
-                                        self.gateway.mqtt_gateway.gw_request_shared_attributes(device_name,
-                                                                                               item["shared_keys"],
-                                                                                               callback)
+                                    if item.get("shared_keys"):
+                                        for key in item["shared_keys"]:
+                                            # is_atr_request = True
+                                            callback = TB_MQTT_Extension.Callback(ext, id, device_name, key, self.ext_id)
+                                            self.gateway.mqtt_gateway.gw_request_shared_attributes(device_name,
+                                                                                                   item["shared_keys"],
+                                                                                                   callback)
                                     #todo add else log.warning?
                                 # todo add gateway method?
                     # if it is attribute request we should skip other
@@ -233,6 +225,7 @@ class TB_MQTT_Extension(TBExtension):
                                 # todo log error of extension?
                                 continue
                             for device_data in result:
+
                                 telemetry = None
                                 # todo add device_type here
                                 device_name = device_data["device_name"]

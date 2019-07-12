@@ -5,3 +5,4 @@ logging.basicConfig(level=logging.DEBUG)
 gateway = TBGateway("GatewayConfig.json")
 while True:
     time.sleep(1)
+

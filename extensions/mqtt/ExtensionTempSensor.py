@@ -5,10 +5,12 @@ from . import ExtensionInterface
 
 class Extension(ExtensionInterface.ExtensionInterface):
     def convert_message_to_atr_request(self, topic, payload):
-        pass
-
-    def callback(self, result, exception):
-        pass
+        id = payload["id"]
+        device = payload["device"]
+        shared = payload["shared"]
+        item = [{"device_name": device, "shared_keys": shared}]
+        print(item)
+        return item, id
 
     def convert_message_to_json_for_storage(self, topic, payload):
         ts = int(round(time() * 1000))
