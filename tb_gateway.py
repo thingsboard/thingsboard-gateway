@@ -90,10 +90,16 @@ class TBGateway:
                     self.send_rpc_reply(device, request_body["data"]["id"], {"error": "Unsupported RPC method"})
                     log.error('"error": "Unsupported RPC method": {}'.format(request_body))
                     return
+                # todo rework handler call to give handler device name etc
 
                 resp = None
                 # extension_class.handler
-                if type(extension_class) == TBModbus:
+                if type(extension_class) == TB_MQTT_Extension:
+                    resp = self.gateway.dict_ext_by_device_name[device].rpc_handler(request_body)
+
+                # todo rework if type(...) == xx -> ext.handler(params)
+                # todo need we add another thread for rpc responses? maybe no
+                elif type(extension_class) == TBModbus:
                 # if True:
                 #     device = "Temp Sensor"
                     if type(handler) == str:
@@ -124,7 +130,6 @@ class TBGateway:
                     self.gw_send_rpc_reply(device, request_body["data"]["id"], resp)
 
             self.mqtt_gateway.devices_server_side_rpc_request_handler = rpc_request_handler
-            self.mqtt_gateway.gw_connect_device("Test Device A2")
             # connect devices from file
             self.mqtt_gateway.connect_devices_from_file(self.mqtt_gateway)
             # initialize connected device logging
@@ -175,7 +180,7 @@ class TBGateway:
         self.event_storage.write(dumps({"eventType": "ATTRIBUTES", "device": device, "data": data}) + "\n")
 
     def send_telemetry_to_storage(self, data, device):
-        self.event_storage.write(dumps({"eventType": "ATTRIBUTES", "device": device, "data": data}) + "\n")
+        self.event_storage.write(dumps({"eventType": "TELEMETRY", "device": device, "data": data}) + "\n")
 
     def send_data_to_storage(self, data, type_of_data, device):
         if type_of_data == "telemetry":
@@ -189,12 +194,11 @@ class TBGateway:
             if device not in self.dict_ext_by_device_name:
                 self.mqtt_gateway.gw_connect_device("device").wait_for_publish()
 
-                # todo add wait for publish (get)
-            # todo uncomment to test real tb server
-            # if event["eventType"] == "TELEMETRY":
-            #     self.mqtt_gateway.gw_send_telemetry(device, event["data"])
-            # else:
-            #     self.mqtt_gateway.gw_send_attributes(device, event["data"]["values"])
+                # todo add wait for publish (get)??
+            if event["eventType"] == "TELEMETRY":
+                self.mqtt_gateway.gw_send_telemetry(device, event["data"])
+            else:
+                self.mqtt_gateway.gw_send_attributes(device, event["data"]["values"])
             # todo add checking if messages arrived
         return True
 

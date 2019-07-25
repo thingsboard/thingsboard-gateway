@@ -10,7 +10,7 @@
       },
       "mappings": [
         {
-          "topic_filter": "sensors",
+          "topic_filter": "sensors/+",
           "handler": "ExtensionTempSensor"
         }
       ],
@@ -19,7 +19,12 @@
           "topic_filter": "sensors/request",
           "handler": "ExtensionTempSensor"
         }
-      ]
+      ],
+      "server_side_rpc":
+        {
+         "handler": "localhost_handler"
+        }
     }
   ]
 }
+

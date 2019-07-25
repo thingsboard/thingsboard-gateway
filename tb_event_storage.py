@@ -246,4 +246,4 @@ class TBEventStorage:
         if events and self.__gateway.send_data_to_tb(events):
             with open(".reader_state", "w") as reader_file:
                 dump({"prev_file": self.__reader_state.file, "pos": self.__reader_state.pos}, reader_file)
-                log.critical("reader state changed")
+                log.debug("reader state changed")
