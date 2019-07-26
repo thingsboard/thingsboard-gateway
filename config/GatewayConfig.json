@@ -8,22 +8,22 @@
   "extensions": {
     "1": {
       "extension_type": "Modbus",
-      "config_filename": "ModbusConfig.json",
+      "config_filename": "config/ModbusConfig.json",
       "enabled": false
     },
     "2": {
       "extension_type": "Modbus",
-      "config_filename": "SecondModbusConfig.json",
+      "config_filename": "config/SecondModbusConfig.json",
       "enabled": false
     },
     "3": {
       "extension_type": "BLE",
-      "config_filename": "BLEConfig.json",
+      "config_filename": "config/BLEConfig.json",
       "enabled": false
     },
     "4": {
       "extension_type": "MQTT",
-      "config_filename": "MQTTConfig.json",
+      "config_filename": "config/MQTTConfig.json",
       "enabled": true
     }
   },

@@ -51,7 +51,7 @@ class TB_MQTT_Extension(TBExtension):
         self.telemetry_atrs_dict_handlers = {}
         for mapping in conf["mappings"]:
             topic_filter = mapping["topic_filter"]
-            extension_module = import_module("extensions.mqtt." + mapping["handler"])
+            extension_module = import_module("extensions.custom.mqtt." + mapping["handler"])
             extension_class = extension_module.Extension
             self.telemetry_atrs_dict_handlers.update({topic_filter: [topic_filter.split(), extension_class]})
         # todo add client id
@@ -62,7 +62,7 @@ class TB_MQTT_Extension(TBExtension):
         if conf.get("attribute_requests"):
             for attribute_request in conf["attribute_requests"]:
                 topic_filter = attribute_request["topic_filter"]
-                extension_module = import_module("extensions.mqtt." + attribute_request["handler"])
+                extension_module = import_module("extensions.custom.mqtt." + attribute_request["handler"])
                 extension_class = extension_module.Extension
                 self.attribute_requests_handler_dict.update({topic_filter: [topic_filter.split(), extension_class]})
         self._rpc_handler_by_method_name_dict = {}
@@ -153,13 +153,7 @@ class TB_MQTT_Extension(TBExtension):
         # log.debug(message.topic)
         self.decode_message_queue.put(message)
 
-
-    class RPC_Callback:
-        def __init__(self):
-            pass
-
     def __handler(self, request_body):
-
         device = request_body["device"]
         req_id = request_body["data"]["id"]
         method = request_body["data"]["method"]

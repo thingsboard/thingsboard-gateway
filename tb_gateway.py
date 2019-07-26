@@ -5,16 +5,15 @@ from importlib import import_module
 from json import load, dumps
 from queue import Queue
 from threading import Lock
-from mqtt.tb_mqtt_extension import TB_MQTT_Extension
+from extensions.mqtt.tb_mqtt_extension import TB_MQTT_Extension
 from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from tb_event_storage import TBEventStorage
-from modbus.tb_modbus_extension import TBModbus
-from ble.tb_ble_extension import TBBluetoothLE
+from extensions.modbus.tb_modbus_extension import TBModbus
+from extensions.ble.tb_ble_extension import TBBluetoothLE
 from tb_gateway_mqtt import TBGatewayMqttClient
 from utility.tb_utility import TBUtility
-
 log = logging.getLogger(__name__)
 
 

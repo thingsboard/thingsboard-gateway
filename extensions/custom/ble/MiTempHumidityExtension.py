@@ -1,6 +1,7 @@
 from . import ExtensionInterface
 
-from bluepy.btle import DefaultDelegate, Peripheral, Scanner
+from bluepy.btle import DefaultDelegate
+
 
 # Extracts data from MI sensor
 class Extension(ExtensionInterface.ExtensionInterface):

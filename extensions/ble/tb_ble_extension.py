@@ -50,7 +50,7 @@ class TBBluetoothLE(TBExtension):
             self.scan_duration = TBUtility.get_parameter(config, "scan_duration", 15000) / 1000
             rescan_period = TBUtility.get_parameter(config, "rescanPeriod", 120000) / 1000
             for ble_name, extension_data in config["devices"].items():
-                extension_module = import_module("extensions.ble." + extension_data["extension"])
+                extension_module = import_module("extensions.custom.ble." + extension_data["extension"])
                 extension_class = extension_module.Extension
                 self.known_devices[ble_name] = {
                     "extension": extension_class,

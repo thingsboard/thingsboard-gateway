@@ -1,9 +1,9 @@
 import re
 import logging
-from threading import Thread, Lock
+from threading import Lock
 from utility.tb_utility import TBUtility
 from utility.tb_extension_base import TBExtension
-from modbus.tb_modbus_transport_manager import TBModbusTransportManager as Manager
+from extensions.modbus.tb_modbus_transport_manager import TBModbusTransportManager as Manager
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
 from queue import Queue, Empty
