@@ -119,10 +119,15 @@ class TBEventStorage:
                             # read file by line and add to result lines after pos
                             current_line = 0
                             for line_number, line in enumerate(f):
+                                current_line = line_number
                                 if to_read > 0 and pos <= line_number:
-                                    result.append(line.strip())
+                                    try:
+                                        result.append(loads(line.strip()))
+                                    except:
+                                        pass
                                     to_read -= 1
-                                    current_line = line_number
+
+
                             # if we read needed amount of lines, recognise position and file and save to .reader_state
                             if to_read == 0:
                                 prev_file = current_file
@@ -133,18 +138,23 @@ class TBEventStorage:
                                     prev_file = files[files.index(current_file) + 1]
                                 except IndexError:
                                     # if there are not any data files save position and current file to .reader_state
-                                    to_read = 0
-                                    with open(".reader_state", "w") as reader_file:
-                                        dump({"prev_file": current_file, "pos": current_line + 1}, reader_file)
+                                    # to_read = 0
+                                    self.file = current_file
+                                    self.pos = current_line + 1
+                                    # with open(".reader_state", "w") as reader_file:
+                                    #     dump({"prev_file": current_file, "pos": current_line + 1}, reader_file)
                                     raise TBEventStorage.TBEndOfEventStorageError()
-                                pos = 0
-                            with open(".reader_state", "w") as reader_file:
-                                dump({"prev_file": current_file, "pos": pos}, reader_file)
+                                self.file = current_file
+                                self.pos = 0
+                                # pos = 0
+                            # with open(".reader_state", "w") as reader_file:
+                            #     dump({"prev_file": current_file, "pos": pos}, reader_file)
+
                     except FileNotFoundError:
                         pass
                     except TBEventStorage.TBEndOfEventStorageError:
                         break
-            return result
+            return {"events": result, "pos": self.pos, "file": self.file}
 
     class __TBEventStorageWriterState:
         def __init__(self, p_dir, max_records_per_file, max_records_between_fsync):
@@ -234,10 +244,8 @@ class TBEventStorage:
 
     def read(self):
         result = (self.__reader_state.read())
-        for event in result:
-            event = loads(event)
-            device = event["device"]
-            if event["eventType"] == "TELEMETRY":
-                self.__gateway.mqtt_gateway.gw_send_telemetry(device, event["data"])
-            else:
-                self.__gateway.mqtt_gateway.gw_send_attributes(device, event["data"]["values"])
+        events = result["events"]
+        if events and self.__gateway.send_data_to_tb(events):
+            with open(".reader_state", "w") as reader_file:
+                dump({"prev_file": self.__reader_state.file, "pos": self.__reader_state.pos}, reader_file)
+                log.debug("reader state changed")

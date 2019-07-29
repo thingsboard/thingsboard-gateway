@@ -1,0 +1,24 @@
+{
+  "pollPeriod": 50000,
+  "rescanPeriod": 120000,
+  "sendDataOnlyOnChange": true,
+  "devices":  {
+    "MJ_HT_V1": {
+      "extension": "MiTempHumidityExtension",
+      "pollPeriod": 50000,
+      "sendDataOnlyOnChange": true,
+      "rpc": {
+        "giveMeTheTelemetry":{
+          "getTelemetry": true
+        },
+       "callMeSomeCustomShit":{
+         "getTelemetry": false,
+         "handler": "ble-rpc-handler"
+        }
+      }
+    },
+    "ESP_GATTS_DEMO": {
+        "extension": "EspGattDemoExtension"
+    }
+  }
+}
