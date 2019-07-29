@@ -6,6 +6,7 @@ from json import load, dumps
 from queue import Queue
 from threading import Lock
 from extensions.mqtt.tb_mqtt_extension import TB_MQTT_Extension
+
 from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -14,6 +15,7 @@ from extensions.modbus.tb_modbus_extension import TBModbus
 from extensions.ble.tb_ble_extension import TBBluetoothLE
 from tb_gateway_mqtt import TBGatewayMqttClient
 from utility.tb_utility import TBUtility
+
 log = logging.getLogger(__name__)
 
 
@@ -32,6 +34,7 @@ class TBGateway:
                 # todo add
                 log.warning("cert cred type not implemented yet")
                 return
+
             dict_extensions_settings = config["extensions"]
             dict_storage_settings = config["storage"]
             dict_performance_settings = config.get("performance")
@@ -44,6 +47,7 @@ class TBGateway:
             if dict_performance_settings:
                 number_of_processes = TBUtility.get_parameter(dict_performance_settings, "processes_to_use", 20)
                 number_of_workers = TBUtility.get_parameter(dict_performance_settings, "additional_threads_to_use", 5)
+
             self.dict_ext_by_device_name = {}
             self.dict_rpc_handlers_by_device = {}
             self.lock = Lock()
@@ -63,6 +67,7 @@ class TBGateway:
             while not self.mqtt_gateway._TBDeviceMqttClient__is_connected:
                 try:
                     self.mqtt_gateway.connect(port=port, keepalive=keep_alive)
+
                 except Exception as e:
                     log.error(e)
                 log.debug("connecting to ThingsBoard...")
@@ -81,6 +86,7 @@ class TBGateway:
                 except KeyError:
                     pass
                     self.send_rpc_reply("no device {} found".format(device))
+
                     log.error("no device {} found".format(device))
                     return
                 try:
@@ -103,6 +109,7 @@ class TBGateway:
                 #     device = "Temp Sensor"
                     if type(handler) == str:
                         m = import_module("extensions.modbus."+handler).Extension()
+
                         params = None
                         try:
                             params = request_body["data"]["params"]
@@ -138,6 +145,7 @@ class TBGateway:
 
             TBDeviceStorage(self, device_thread_interval)
 
+
             # initialize event_storage
             self.event_storage = TBEventStorage(data_folder_path, max_records_per_file, max_records_between_fsync,
                                                 max_file_count, read_interval, max_read_record_count, self.scheduler,
@@ -168,6 +176,7 @@ class TBGateway:
                 else:
                     log.debug("id {}, type {} is not enabled, skipping...".format(ext_id, extension_type))
 
+
     def on_device_connected(self, device_name, handler, rpc_handlers):
         self.q.put((True, device_name, handler, rpc_handlers))
 
@@ -183,6 +192,7 @@ class TBGateway:
 
     def send_data_to_storage(self, data, type_of_data, device):
         if type_of_data == "telemetry":
+
             self.event_storage.write(dumps({"eventType": "TELEMETRY", "device": device, "data": data}) + "\n")
         else:
             self.event_storage.write(dumps({"eventType": "ATTRIBUTES", "device": device, "data": data}) + "\n")
@@ -204,3 +214,4 @@ class TBGateway:
     @staticmethod
     def listener(event):
         log.exception(event.exception)
+

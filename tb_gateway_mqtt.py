@@ -167,7 +167,6 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
     def connect_devices_from_file(self):
         try:
             with open("ConnectedDevices.json") as f:
-
                 serialized_devices = load(f)
                 for device in serialized_devices:
                     self.gw_connect_device(device)
@@ -176,3 +175,4 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         except FileNotFoundError:
             log.warning("no ConnectedDevices.json file found, creating one")
             open("ConnectedDevices.json", "w")
+

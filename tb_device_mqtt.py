@@ -79,7 +79,9 @@ class TBQoSException(Exception):
     pass
 
 
+
 class TBPublishInfo:
+
     TB_ERR_AGAIN = -1
     TB_ERR_SUCCESS = 0
     TB_ERR_NOMEM = 1
@@ -121,6 +123,7 @@ class TBDeviceMqttClient:
         else:
             self._client.username_pw_set(token)
         self._lock = RLock()
+
         self._attr_request_dict = {}
         self.__timeout_queue = queue.Queue()
         self.__timeout_thread = Thread(target=self.__timeout_check)
@@ -141,6 +144,7 @@ class TBDeviceMqttClient:
 
     def _on_log(self, client, userdata, level, buf):
         log.debug(buf)
+
 
     def _on_publish(self, client, userdata, result):
         log.debug("Data published to ThingsBoard!")
@@ -219,6 +223,7 @@ class TBDeviceMqttClient:
             callback(request_id, content, None)
         elif message.topic == ATTRIBUTES_TOPIC:
             dict_results = []
+
             with self._lock:
                 # callbacks for everything
                 if self.__device_sub_dict.get("*"):
