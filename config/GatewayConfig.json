@@ -4,7 +4,6 @@
   "credentials": {
     "token": "SGxDCjGxUUnm5ZJOnYHh"
   },
-  "token": "SGxDCjGxUUnm5ZJOnYHh",
   "extensions": {
     "1": {
       "extension_type": "Modbus",

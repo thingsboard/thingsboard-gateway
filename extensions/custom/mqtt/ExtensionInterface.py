@@ -5,3 +5,6 @@ class ExtensionInterface:
 
     def convert_message_to_atr_request(self, topic, payload):
         pass
+
+    def create_rpc_request_to_device(self, *args):
+        pass
