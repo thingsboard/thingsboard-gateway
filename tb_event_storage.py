@@ -127,6 +127,7 @@ class TBEventStorage:
                                         pass
                                     to_read -= 1
 
+
                             # if we read needed amount of lines, recognise position and file and save to .reader_state
                             if to_read == 0:
                                 prev_file = current_file
@@ -148,6 +149,7 @@ class TBEventStorage:
                                 # pos = 0
                             # with open(".reader_state", "w") as reader_file:
                             #     dump({"prev_file": current_file, "pos": pos}, reader_file)
+
                     except FileNotFoundError:
                         pass
                     except TBEventStorage.TBEndOfEventStorageError:
