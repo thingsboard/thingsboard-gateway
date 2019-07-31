@@ -21,9 +21,17 @@
         }
       ],
       "server_side_rpc":
+      [
         {
-         "handler": "localhost_handler"
+          "method": "getCPULoad",
+          "handler": "LocalhostHandler"
+        },
+        {
+          "device": "*",
+          "method": "turnLightsOn",
+          "handler": "handler2"
         }
+      ]
     }
   ]
 }

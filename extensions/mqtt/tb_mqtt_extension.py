@@ -1,3 +1,4 @@
+from json import dumps
 from paho.mqtt.client import Client
 from threading import Thread
 from json import loads
@@ -34,8 +35,8 @@ class TB_MQTT_Extension(TBExtension):
 
     def __init__(self, conf, gateway, ext_id):
         super(TB_MQTT_Extension, self).__init__(ext_id, gateway)
-        self.__device_client_rpc_number = 0
-        self.__device_client_rpc_dict = {}
+        self.max_req_number = 0
+        self.request_callback_dict = {}
         host = TBUtility.get_parameter(conf, "host", "localhost")
         self.__is_connected = False
         self.lock = RLock()
@@ -67,8 +68,16 @@ class TB_MQTT_Extension(TBExtension):
                 self.attribute_requests_handler_dict.update({topic_filter: [topic_filter.split(), extension_class]})
         self._rpc_handler_by_method_name_dict = {}
         if conf.get("server_side_rpc"):
-            for rpc_handler in conf["server_side_rpc"]:
-                pass
+            for rpc_handler_item in conf["server_side_rpc"]:
+                handler = rpc_handler_item.get("handler")
+                method = rpc_handler_item.get("method")
+                if handler and method:
+                    self._rpc_handler_by_method_name_dict.update({method: handler})
+                else:
+                    log.warning("invalid config {handler}, if there is handler it should contain method {ext}".format(
+                        handler=rpc_handler_item,
+                        ext=self.ext_id))
+
         self.client = Client()
         try:
             credentials = conf["credentials"]
@@ -122,6 +131,7 @@ class TB_MQTT_Extension(TBExtension):
                 log.error(e)
             log.debug("connecting to ThingsBoard... ext id {}".format(ext_id))
             sleep(1)
+        self.gateway.on_device_connected("Temp Sensor", self, self.handler)
 
     def _on_log(self, client, userdata, level, buf):
         log.debug("{}, extension {}".format(buf, self.ext_id))
@@ -153,39 +163,52 @@ class TB_MQTT_Extension(TBExtension):
         # log.debug(message.topic)
         self.decode_message_queue.put(message)
 
-    def __handler(self, request_body):
-        device = request_body["device"]
-        req_id = request_body["data"]["id"]
+    def _transform_mapping_to_request(self, request_body, mapping):
         method = request_body["data"]["method"]
+        device = request_body["device"]
+        try:
+            params = request_body["data"]["params"]
+        except Exception:
+            params = {}
+        self.max_req_number += 1
+        req_number = self.max_req_number
+        request_topic = mapping["request_topic_expression"].format(device_name=device,
+                                                                   method=method,
+                                                                   request_id=req_number)
 
-        # self._rpc_handler_by_method_name_dict[method]
+        result = {"device": device,
+                  "request_topic": request_topic,
+                  "request_number": req_number,
+                  "payload": dumps({"method": method, "params": params})}
+        if mapping.get("is_two_way"):
+            pass
+            # todo add for two-way
 
-        # import some
-        # execute
-        # get topic + payload from it
-        # publish
-        # if we dont expect answer fuch this shit im out!
+        return result
 
-        # else(
-        # add handler for
-        # hanlder should
+    def handler(self, request_body):
+        method = request_body["data"]["method"]
+        for method_name in self._rpc_handler_by_method_name_dict:
+            if method == method_name:
+                m = import_module("extensions.custom.mqtt." + self._rpc_handler_by_method_name_dict[method])
+                mapping = m.Extension().create_rpc_request_to_device(request_body)
+                request_dict = self._transform_mapping_to_request(request_body, mapping)
 
+                # todo validate rpc?
+                # todo add timeout
+                # todo add lock usage
+                if not mapping["is_two_way"]:
+                    self.client.publish(request_dict["request_topic"], request_dict["payload"])
+                else:
+                    callback = None
+                    self.request_callback_dict.update({self.max_req_number: callback})
+                    # todo edit topic with custom number dependent on self.max_req_number
 
-
-        #todo add
-        rpc_request_topic, payload = None, None
-        # self.validate(RPC_VALIDATOR, params)
-        # todo add
-        # with self.lock:
-        #     self.__device_client_rpc_number += 1
-        #     self.__device_client_rpc_dict.update({self.__device_client_rpc_number: callback})
-        #     rpc_request_id = self.__device_client_rpc_number
-        # payload = {"method": method, "params": params}
-        # self.client.publish(rpc_request_topic + str(rpc_request_id),
-        #                      dumps(payload),
-        #                      qos=1)
-
-        pass
+                    # todo add
+                    # self.client.publish(topic, payload, qos)
+                    # todo upd dict with parameters: resp_topic
+                    # self.
+                    pass
 
     def _on_decoded_message(self):
         def is_equivalent(mask, topic):
@@ -250,7 +273,7 @@ class TB_MQTT_Extension(TBExtension):
                         topic_s = topic_s[:-1]
                         # todo add rpc handler update here
                         # todo create set_devices??? and use here
-                        self.gateway.on_device_connected(topic_s[-1], self, self.__handler)
+                        self.gateway.on_device_connected(topic_s[-1], self, self._handler)
                     # disconnect case
                     elif last_word == "disconnect":
                         self.gateway.on_device_disconnected(topic_s[-2])
