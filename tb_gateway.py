@@ -29,7 +29,7 @@ class TBGateway:
             keep_alive = TBUtility.get_parameter(config, "keep_alive", 60)
             credentials_type = TBUtility.get_parameter(credentials, "type", "basic")
             if credentials_type == "basic":
-                token = config["token"]
+                token = credentials["token"]
             elif credentials_type == "cert":
                 # todo add
                 log.warning("cert cred type not implemented yet")
@@ -89,24 +89,27 @@ class TBGateway:
 
                     log.error("no device {} found".format(device))
                     return
-                try:
-                    handler = dict_device_handlers[method]
-                except KeyError:
-                    self.send_rpc_reply(device, request_body["data"]["id"], {"error": "Unsupported RPC method"})
-                    log.error('"error": "Unsupported RPC method": {}'.format(request_body))
-                    return
+
                 # todo rework handler call to give handler device name etc
 
                 resp = None
                 # extension_class.handler
-                if type(extension_class) == TB_MQTT_Extension:
-                    resp = self.gateway.dict_ext_by_device_name[device].rpc_handler(request_body)
+
+                # todo remove after testing (30.6)
+                if True:
+                # if type(extension_class) == TB_MQTT_Extension:
+                    resp = self.gateway.dict_ext_by_device_name[device].handler(request_body)
 
                 # todo rework if type(...) == xx -> ext.handler(params)
                 # todo need we add another thread for rpc responses? maybe no
                 elif type(extension_class) == TBModbus:
-                # if True:
-                #     device = "Temp Sensor"
+                    try:
+                        handler = dict_device_handlers[method]
+                    except KeyError:
+                        self.send_rpc_reply(device, request_body["data"]["id"], {"error": "Unsupported RPC method"})
+                        log.error('"error": "Unsupported RPC method": {}'.format(request_body))
+                        return
+
                     if type(handler) == str:
                         m = import_module("extensions.modbus."+handler).Extension()
 
@@ -131,6 +134,12 @@ class TBGateway:
                         self.gw_send_rpc_reply(device, request_body["data"]["id"], resp)
 
                 elif type(extension_class) == TBBluetoothLE:
+                    try:
+                        handler = dict_device_handlers[method]
+                    except KeyError:
+                        self.send_rpc_reply(device, request_body["data"]["id"], {"error": "Unsupported RPC method"})
+                        log.error('"error": "Unsupported RPC method": {}'.format(request_body))
+                        return
                     self.gateway.dict_ext_by_device_name[device].rpc_handler(request_body, handler)
                 if resp:
                     self.gw_send_rpc_reply(device, request_body["data"]["id"], resp)
