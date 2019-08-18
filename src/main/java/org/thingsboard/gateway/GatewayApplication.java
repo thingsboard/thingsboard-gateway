@@ -18,12 +18,11 @@ package org.thingsboard.gateway;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.security.SecurityAutoConfiguration;
 
 import java.util.Arrays;
 
 @Slf4j
-@SpringBootApplication(exclude = {SecurityAutoConfiguration.class })
+@SpringBootApplication
 public class GatewayApplication {
 
     private static final String SPRING_CONFIG_NAME_KEY = "--spring.config.name";
