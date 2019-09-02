@@ -20,3 +20,10 @@ ADD run-application.sh /run-application.sh
 ADD tb-gateway.deb /tb-gateway.deb
 
 RUN chmod +x /run-application.sh
+RUN dpkg -i --force-all /tb-gateway.deb
+RUN mkdir -p /var/log/tb-gateway/
+RUN mkdir -p /usr/share/tb-gateway/conf/
+
+RUN touch /var/log/tb-gateway/tb-gateway.log
+
+CMD ./run-application.sh

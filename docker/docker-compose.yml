@@ -24,4 +24,3 @@ services:
       - GATEWAY_HOST=${GATEWAY_HOST}
     ports:
       - "9090:9090"
-    entrypoint: /run-application.sh
