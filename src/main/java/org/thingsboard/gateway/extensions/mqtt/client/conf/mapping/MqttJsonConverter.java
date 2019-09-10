@@ -57,7 +57,7 @@ public class MqttJsonConverter extends BasicJsonConverter implements MqttDataCon
         String data = new String(msg.getPayload(), StandardCharsets.UTF_8);
         log.trace("Parsing json message: {}", data);
 
-        if (!filterExpression.isEmpty()) {
+        if (filterExpression != null && !filterExpression.isEmpty()) {
             try {
                 log.debug("Data before filtering {}", data);
                 DocumentContext document = JsonPath.parse(data);
