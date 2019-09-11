@@ -1,0 +1,13 @@
+{ "brokers":[
+    {
+      "name":"Default_Device",
+      "host":"localhost",
+      "port":1883,
+      "credentials": {
+        "type": "basic",
+        "username": "3DabqZpTUz7Goj1WKYBI",
+        "password": ""
+      }
+    }
+  ]
+}
