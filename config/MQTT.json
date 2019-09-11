@@ -1,0 +1,9 @@
+"extensions": [
+  {
+    "name": "Default_MQTT",
+    "type": "MQTT",
+    "connector": "default_mqtt",
+    "extension": "default_mqtt.json",
+    "enabled": true
+  }
+]

@@ -1,7 +1,7 @@
 import logging
 import time
 from json import load,dumps
-from tb_gateway_mqtt import TBGatewayMqttClient
+from gateway.tb_gateway_mqtt import TBGatewayMqttClient
 import connectors
 log = logging.getLogger(__name__)
 

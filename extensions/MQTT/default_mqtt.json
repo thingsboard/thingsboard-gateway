@@ -1,0 +1,23 @@
+{ "brokers":[
+    {
+      "name":"Default_Device",
+      "host":"localhost",
+      "port":1883,
+      "credentials": {
+        "type": "basic",
+        "username": "UDK6nHgeavcKFno0mezw",
+        "password": ""
+      }
+    },
+    {
+      "name":"Default_Device2",
+      "host":"cloud.thingsboard.io",
+      "port":1883,
+      "credentials": {
+        "type": "basic",
+        "username": "hfjYuyj1T83EL5Dv6N2y",
+        "password": ""
+      }
+    }
+  ]
+}
