@@ -1,4 +1,5 @@
-"extensions": [
+{
+  "extensions": [
   {
     "name": "Default_MQTT",
     "type": "MQTT",
@@ -7,3 +8,4 @@
     "enabled": true
   }
 ]
+}
