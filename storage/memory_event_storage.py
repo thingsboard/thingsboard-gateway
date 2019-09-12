@@ -4,7 +4,7 @@ import queue
 class MemoryEventStorage(EventStorage):
     def __init__(self, queue_len, events_per_time):
         self.__events_per_time = events_per_time
-        self.__events_queue = queue.LifoQueue(queue_len)
+        self.__events_queue = queue.Queue(queue_len)
         self.__event_pack = []
 
     def put(self,event):

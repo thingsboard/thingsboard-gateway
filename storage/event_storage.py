@@ -1,17 +1,17 @@
-import abc
+from abc import ABC,abstractmethod
 
-class EventStorage():
+class EventStorage(ABC):
 
-    @abc.abstractmethod
+    @abstractmethod
     def put(self, event):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def get_event_pack(self):
         # Returns max "10" events from pack
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def event_pack_processing_done(self):
         # Indicates that events from previous "get_event_pack" may be cleared
         pass
