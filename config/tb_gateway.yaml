@@ -1,0 +1,18 @@
+thingsboard-client:
+  host: 127.0.0.1
+  port: 1883
+  security:
+    accessToken: FUH2Fonov6eajSHi0Zyw
+storage:
+  ## properties for memory storage
+  type: memory
+  read_records_count: 10
+  max_records_count: 1000
+  ## properties for file storage
+#  type: file
+#  data_folder_path: ./data
+#  max_file_count: 5
+#  max_read_records_count: 10
+#  max_records_between_fsync: 1
+#  max_records_per_file: 3
+#  no_records_sleep_interval: 5000
