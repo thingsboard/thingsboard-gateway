@@ -2,6 +2,7 @@ import logging
 import time
 from importlib import import_module
 from json import load, dumps
+import yaml
 from queue import Queue
 from threading import Lock
 
@@ -12,6 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from gateway.tb_client import TBClient
 from tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 from tb_utility.tb_utility import TBUtility
+from storage.memory_event_storage import MemoryEventStorage
 
 log = logging.getLogger(__name__)
 
@@ -19,33 +21,37 @@ log = logging.getLogger(__name__)
 class TBGatewayService:
     def __init__(self, config_file):
         with open(config_file) as config:
-            config = load(config)
+            config = yaml.load(config)
 
-            dict_extensions_settings = config["extensions"]
-            dict_storage_settings = config["storage"]
-            dict_performance_settings = config.get("performance")
-            data_folder_path = dict_storage_settings["path"]
-            max_records_per_file = dict_storage_settings["max_records_per_file"]
-            max_records_between_fsync = dict_storage_settings["max_records_between_fsync"]
-            max_file_count = dict_storage_settings["max_file_count"]
-            read_interval = dict_storage_settings["read_interval"] / 1000
-            max_read_record_count = dict_storage_settings["max_read_record_count"]
-            if dict_performance_settings:
-                number_of_processes = TBUtility.get_parameter(dict_performance_settings, "processes_to_use", 20)
-                number_of_workers = TBUtility.get_parameter(dict_performance_settings, "additional_threads_to_use", 5)
+            # dict_extensions_settings = config["extensions"]
+            if config["storage"]["type"] == "memory":
+                self.__event_storage = MemoryEventStorage(queue_len=config["storage"]["max_records_count"],
+                                                          events_per_time=config["storage"]["read_records_count"])
+            else:
+                pass  # TODO Add file storage
+            # dict_performance_settings = config.get("performance")
+            # data_folder_path = dict_storage_settings["path"]
+            # max_records_per_file = dict_storage_settings["max_records_per_file"]
+            # max_records_between_fsync = dict_storage_settings["max_records_between_fsync"]
+            # max_file_count = dict_storage_settings["max_file_count"]
+            # read_interval = dict_storage_settings["read_interval"] / 1000
+            # max_read_record_count = dict_storage_settings["max_read_record_count"]
+            # if dict_performance_settings:
+            #     number_of_processes = TBUtility.get_parameter(dict_performance_settings, "processes_to_use", 20)
+            #     number_of_workers = TBUtility.get_parameter(dict_performance_settings, "additional_threads_to_use", 5)
 
             self.dict_ext_by_device_name = {}
             self.dict_rpc_handlers_by_device = {}
             self.lock = Lock()
 
-            # initialize scheduler
-            executors = {'default': ThreadPoolExecutor(number_of_workers)}
-            if number_of_processes > 1:
-                executors.update({'processpool': ProcessPoolExecutor(number_of_processes)})
-            self.scheduler = BackgroundScheduler(executors=executors)
-            # TODO: Investigate
-            # self.scheduler.add_listener(TBGateway.listener, EVENT_JOB_ERROR)
-            self.scheduler.start()
+            # # initialize scheduler
+            # executors = {'default': ThreadPoolExecutor(number_of_workers)}
+            # if number_of_processes > 1:
+            #     executors.update({'processpool': ProcessPoolExecutor(number_of_processes)})
+            # self.scheduler = BackgroundScheduler(executors=executors)
+            # # TODO: Investigate
+            # # self.scheduler.add_listener(TBGateway.listener, EVENT_JOB_ERROR)
+            # self.scheduler.start()
 
             # initialize client
             self.tb_client = TBClient(config["thingsboard-client"])

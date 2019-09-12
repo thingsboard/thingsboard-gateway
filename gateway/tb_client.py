@@ -14,7 +14,7 @@ class TBClient:
         self.__host = config["host"]
         self.__port = TBUtility.get_parameter(config, "port", 1883)
         credentials = config["security"]
-        token = credentials["token"]
+        token = credentials["accessToken"]
         self.client = TBGatewayMqttClient(self.__host, self.__port, token, self)
 
     def is_connected(self):
