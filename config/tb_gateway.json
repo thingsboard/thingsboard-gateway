@@ -7,12 +7,16 @@
     }
   },
   "storage": {
-    "type": "file",
-    "data_folder_path": "./data",
-    "max_records_per_file": 3,
-    "max_records_between_fsync": 1,
-    "max_file_count": 5,
-    "no_records_sleep_interval": 5000,
-    "max_read_records_count": 10
+    "file": {
+      "data_folder_path": "./data",
+      "max_records_per_file": 1000,
+      "max_records_between_fsync": 1,
+      "max_file_count": 100,
+      "no_records_sleep_interval": 6000,
+      "max_read_records_count": 10
+    },
+    "memory": {
+
+    }
   }
 }

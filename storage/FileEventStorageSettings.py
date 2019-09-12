@@ -24,4 +24,4 @@ file_event_storage_settings = FileEventStorageSettings()
 with open('../config/tb_gateway.json') as settings_file:
     settings = json.load(settings_file)
 
-file_event_storage_settings.set_storage_settings(**settings['storage'])
+file_event_storage_settings.set_storage_settings(**settings['storage']['file'])
