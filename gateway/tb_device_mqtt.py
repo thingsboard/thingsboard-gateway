@@ -197,8 +197,6 @@ class TBDeviceMqttClient:
     @staticmethod
     def _decode(message):
         content = loads(message.payload.decode("utf-8"))
-        log.debug(content)
-        log.debug(message.topic)
         return content
 
     @staticmethod
@@ -383,4 +381,3 @@ class TBDeviceMqttClient:
                     time.sleep(0.1)
             except Exception as e:
                 log.warning(e)
-                # raise Exeption

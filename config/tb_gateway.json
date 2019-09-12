@@ -1,5 +1,5 @@
 {
-  "host": "cloud.thingsboard.io",
+  "host": "127.0.0.1",
   "port": 1883,
-  "token": "FUH2Fonov6eajSHi0Zyw"
+  "token": "1234567890"
 }

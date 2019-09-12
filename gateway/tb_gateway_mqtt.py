@@ -12,6 +12,15 @@ GATEWAY_RPC_TOPIC = "v1/gateway/rpc"
 
 log = logging.getLogger(__name__)
 
+def LogArguments(func):
+    def wrapper(*args,**kwargs):
+        log.debug('Arguments:')
+        log.debug(args)
+        log.debug('Arguments with keys: \n')
+        log.debug(kwargs)
+        return(func(*args,**kwargs))
+    return wrapper
+
 
 class TBGatewayAPI():
     pass
@@ -65,6 +74,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                     if self.__sub_dict.get(target):
                         for sub_id in self.__sub_dict[target]:
                             self.__sub_dict[target][sub_id](content["data"])
+                            log.debug(self.__sub_dict[target][sub_id])
         elif message.topic == GATEWAY_RPC_TOPIC:
             if self.__devices_server_side_rpc_request_handler:
                 self.__devices_server_side_rpc_request_handler(content)
