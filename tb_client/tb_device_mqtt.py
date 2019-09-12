@@ -1,13 +1,14 @@
-import paho.mqtt.client as paho
 import logging
-import time
 import queue
-from json import loads, dumps
-from jsonschema import Draft7Validator
 import ssl
-from jsonschema import ValidationError
-from threading import Lock
+import time
+from json import loads, dumps
+from threading import RLock
 from threading import Thread
+
+import paho.mqtt.client as paho
+from jsonschema import Draft7Validator
+from jsonschema import ValidationError
 
 KV_SCHEMA = {
     "type": "object",
@@ -78,7 +79,9 @@ class TBQoSException(Exception):
     pass
 
 
-class TBPublishInfo():
+
+class TBPublishInfo:
+
     TB_ERR_AGAIN = -1
     TB_ERR_SUCCESS = 0
     TB_ERR_NOMEM = 1
@@ -112,14 +115,16 @@ class TBPublishInfo():
 
 
 class TBDeviceMqttClient:
-    def __init__(self, host, token=None):
+    def __init__(self, host, port=1883, token=None):
         self._client = paho.Client()
         self.__host = host
+        self.__port = port
         if token == "":
             log.warning("token is not set, connection without tls wont be established")
         else:
             self._client.username_pw_set(token)
-        self._lock = Lock()
+        self._lock = RLock()
+
         self._attr_request_dict = {}
         self.__timeout_queue = queue.Queue()
         self.__timeout_thread = Thread(target=self.__timeout_check)
@@ -137,12 +142,10 @@ class TBDeviceMqttClient:
         self._client.on_log = self._on_log
         self._client.on_publish = self._on_publish
         self._client.on_message = self._on_message
-        # TODO: enable configuration available here:
-        # https://pypi.org/project/paho-mqtt/#option-functions
 
     def _on_log(self, client, userdata, level, buf):
         log.debug(buf)
-        pass
+
 
     def _on_publish(self, client, userdata, result):
         log.debug("Data published to ThingsBoard!")
@@ -172,7 +175,10 @@ class TBDeviceMqttClient:
             else:
                 log.error("connection FAIL with unknown error")
 
-    def connect(self, callback=None, min_reconnect_delay=1, timeout=120, tls=False, port=1883, ca_certs=None, cert_file=None, key_file=None):
+    def is_connected(self):
+        return self.__is_connected
+
+    def connect(self, callback=None, min_reconnect_delay=1, timeout=120, tls=False, ca_certs=None, cert_file=None, key_file=None, keepalive=60):
         if tls:
             self._client.tls_set(ca_certs=ca_certs,
                                  certfile=cert_file,
@@ -181,7 +187,7 @@ class TBDeviceMqttClient:
                                  tls_version=ssl.PROTOCOL_TLSv1_2,
                                  ciphers=None)
             self._client.tls_insecure_set(False)
-        self._client.connect(self.__host, port)
+        self._client.connect(self.__host, self.__port, keepalive=keepalive)
         self._client.loop_start()
         self.__connect_callback = callback
         self.reconnect_delay_set(min_reconnect_delay, timeout)
@@ -197,6 +203,8 @@ class TBDeviceMqttClient:
     @staticmethod
     def _decode(message):
         content = loads(message.payload.decode("utf-8"))
+        log.debug(content)
+        log.debug(message.topic)
         return content
 
     @staticmethod
@@ -215,13 +223,16 @@ class TBDeviceMqttClient:
         elif message.topic.startswith(RPC_RESPONSE_TOPIC):
             with self._lock:
                 request_id = int(message.topic[len(RPC_RESPONSE_TOPIC):len(message.topic)])
-                self.__device_client_rpc_dict.pop(request_id)(request_id, content, None)
+                callback = self.__device_client_rpc_dict.pop(request_id)
+            callback(request_id, content, None)
         elif message.topic == ATTRIBUTES_TOPIC:
+            dict_results = []
+
             with self._lock:
                 # callbacks for everything
                 if self.__device_sub_dict.get("*"):
                     for x in self.__device_sub_dict["*"]:
-                        self.__device_sub_dict["*"][x](content, None)
+                        dict_results.append(self.__device_sub_dict["*"][x])
                 # specific callback
                 keys = content.keys()
                 keys_list = []
@@ -232,12 +243,15 @@ class TBDeviceMqttClient:
                     # find key in our dict
                     if self.__device_sub_dict.get(key):
                         for x in self.__device_sub_dict[key]:
-                            self.__device_sub_dict[key][x](content, None)
+                            dict_results.append(self.__device_sub_dict[key][x])
+            for res in dict_results:
+                res(content, None)
         elif message.topic.startswith(ATTRIBUTES_TOPIC_RESPONSE):
             with self._lock:
                 req_id = int(message.topic[len(ATTRIBUTES_TOPIC+"/response/"):])
                 # pop callback and use it
-                self._attr_request_dict.pop(req_id)(content, None)
+                callback = self._attr_request_dict.pop(req_id)
+            callback(content, None)
 
     def max_inflight_messages_set(self, inflight):
         """Set the maximum number of messages with QoS>0 that can be part way through their network flow at once.
@@ -252,7 +266,7 @@ class TBDeviceMqttClient:
     def reconnect_delay_set(self, min_delay=1, max_delay=120):
         """The client will automatically retry connection. Between each attempt it will wait a number of seconds
          between min_delay and max_delay. When the connection is lost, initially the reconnection attempt is delayed
-         of min_delay seconds. It's doubled between subsequent attempt up to max_delay. The delay is reset to min_delay
+         of min_delay seconds. It’s doubled between subsequent attempt up to max_delay. The delay is reset to min_delay
           when the connection complete (e.g. the CONNACK is received, not just the TCP connection is established)."""
         self._client.reconnect_delay_set(min_delay, max_delay)
 

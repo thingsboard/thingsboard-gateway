@@ -1,8 +1,8 @@
 import logging
 import time
-from json import dumps
-from gateway.tb_device_mqtt import TBDeviceMqttClient, DEVICE_TS_KV_VALIDATOR, KV_VALIDATOR
+from json import dumps, JSONDecodeError, load
 
+from tb_client.tb_device_mqtt import TBDeviceMqttClient, DEVICE_TS_KV_VALIDATOR, KV_VALIDATOR
 
 GATEWAY_ATTRIBUTES_TOPIC = "v1/gateway/attributes"
 GATEWAY_ATTRIBUTES_REQUEST_TOPIC = "v1/gateway/attributes/request"
@@ -12,33 +12,27 @@ GATEWAY_RPC_TOPIC = "v1/gateway/rpc"
 
 log = logging.getLogger(__name__)
 
-def LogArguments(func):
-    def wrapper(*args,**kwargs):
-        log.debug('Arguments:')
-        log.debug(args)
-        log.debug('Arguments with keys: \n')
-        log.debug(kwargs)
-        return(func(*args,**kwargs))
-    return wrapper
 
-
-class TBGatewayAPI():
+class TBGatewayAPI:
     pass
 
 
 class TBGatewayMqttClient(TBDeviceMqttClient):
-    def __init__(self, host, token=None):
-        super().__init__(host, token)
+    def __init__(self, host, port, token=None, gateway=None):
+        super().__init__(host, port, token)
         self.__max_sub_id = 0
         self.__sub_dict = {}
         self.__connected_devices = set("*")
-        self.__devices_server_side_rpc_request_handler = None
+        self.devices_server_side_rpc_request_handler = None
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
+        self.gateway = gateway
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         super()._on_connect(client, userdata, flags, rc, *extra_params)
         if rc == 0:
+            if self.gateway:
+                self.connect_devices_from_file(self)
             self._client.subscribe(GATEWAY_ATTRIBUTES_TOPIC, qos=1)
             self._client.subscribe(GATEWAY_ATTRIBUTES_RESPONSE_TOPIC + "/+")
             self._client.subscribe(GATEWAY_RPC_TOPIC + "/+")
@@ -74,10 +68,9 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                     if self.__sub_dict.get(target):
                         for sub_id in self.__sub_dict[target]:
                             self.__sub_dict[target][sub_id](content["data"])
-                            log.debug(self.__sub_dict[target][sub_id])
         elif message.topic == GATEWAY_RPC_TOPIC:
-            if self.__devices_server_side_rpc_request_handler:
-                self.__devices_server_side_rpc_request_handler(content)
+            if self.devices_server_side_rpc_request_handler:
+                self.devices_server_side_rpc_request_handler(self, content)
 
     def __request_attributes(self, device, keys, callback, type_is_client=False):
         if not keys:
@@ -116,12 +109,17 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
     def gw_connect_device(self, device_name):
         info = self._client.publish(topic=GATEWAY_MAIN_TOPIC + "connect", payload=dumps({"device": device_name}), qos=1)
         self.__connected_devices.add(device_name)
+        # if self.gateway:
+        #     self.gateway.on_device_connected(device_name, self.__devices_server_side_rpc_request_handler)
         log.debug("Connected device {name}".format(name=device_name))
         return info
 
     def gw_disconnect_device(self, device_name):
-        info = self._client.publish(topic=GATEWAY_MAIN_TOPIC + "disconnect", payload=dumps({"device": device_name}), qos=1)
+        info = self._client.publish(topic=GATEWAY_MAIN_TOPIC + "disconnect", payload=dumps({"device": device_name}),
+                                    qos=1)
         self.__connected_devices.remove(device_name)
+        if self.gateway:
+            self.gateway.on_device_disconnected(self, device_name)
         log.debug("Disconnected device {name}".format(name=device_name))
         return info
 
@@ -154,7 +152,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                                                                                                sub_id=subscription_id))
 
     def gw_set_server_side_rpc_request_handler(self, handler):
-        self.__devices_server_side_rpc_request_handler = handler
+        self.devices_server_side_rpc_request_handler = handler
 
     def gw_send_rpc_reply(self, device, req_id, resp, quality_of_service=1):
         if quality_of_service != 0 and quality_of_service != 1:
@@ -164,3 +162,16 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                                     dumps({"device": device, "id": req_id, "data": resp}),
                                     qos=quality_of_service)
         return info
+
+    @staticmethod
+    def connect_devices_from_file(self):
+        try:
+            with open("ConnectedDevices.json") as f:
+                serialized_devices = load(f)
+                for device in serialized_devices:
+                    self.gw_connect_device(device)
+        except JSONDecodeError:
+            log.error("ConnectedDevices.json is corrupted, got JSONDecodeError")
+        except FileNotFoundError:
+            log.warning("no ConnectedDevices.json file found, creating one")
+            open("ConnectedDevices.json", "w")

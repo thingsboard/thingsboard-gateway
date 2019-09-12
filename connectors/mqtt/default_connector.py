@@ -4,11 +4,11 @@ import threading
 import time
 
 try:
-    from gateway.tb_device_mqtt import TBDeviceMqttClient
+    from tb_client.tb_device_mqtt import TBDeviceMqttClient
 except ModuleNotFoundError:
     import sys
     sys.path.append('/home/zenx/Documents/ThingsBoard/main_TB_gateway/ThingsBoard-Gateway')
-    from gateway.tb_device_mqtt import TBDeviceMqttClient
+    from tb_client.tb_device_mqtt import TBDeviceMqttClient
 
 
 log = logging.getLogger(__name__)
