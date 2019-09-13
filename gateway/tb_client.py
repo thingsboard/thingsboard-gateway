@@ -25,7 +25,7 @@ class TBClient:
 
         while not self.client.is_connected():
             try:
-                self.client.connect(keep_alive)
+                self.client.connect(keepalive=keep_alive)
             except Exception as e:
                 log.error(e)
             log.debug("connecting to ThingsBoard...")
