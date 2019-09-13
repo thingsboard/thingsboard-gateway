@@ -25,9 +25,7 @@ class TBGatewayService:
 
             # dict_extensions_settings = config["extensions"]
             if config["storage"]["type"] == "memory":
-                # TODO:parse  config["storage"] elements inside MemoryEventStorage
-                self.__event_storage = MemoryEventStorage(queue_len=config["storage"]["max_records_count"],
-                                                          events_per_time=config["storage"]["read_records_count"])
+                self.__event_storage = MemoryEventStorage(config["storage"])
             else:
                 pass  # TODO Add file storage
             # dict_performance_settings = config.get("performance")
