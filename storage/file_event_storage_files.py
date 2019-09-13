@@ -50,7 +50,45 @@ class FileEventStorageFiles:
             log.error("Failed to create a new file!", e)
             pass
 
+    def delete_file(self, settings, file_list: list, file):
+        full_name = settings.data_folder_path + file
+        try:
+            file_list.remove(file)
+            os.remove(full_name)
+        except ValueError as e:
+            log.warn("There is no file {} in file list".format(file))
+        except OSError as e:
+            log.warn("Could not delete file {}".format(file))
 
+
+
+
+
+class FileEventStoragePointer:
+    def __init__(self):
+        self.file = None
+        self.line = None
+
+    def __eq__(self, other):
+        return self.file == other.file and self.line == other.line
+
+    def get_file(self):
+        return self.file
+
+    def get_line(self):
+        return self.line
+
+    def set_file(self, file):
+        self.file = file
+
+    def set_line(self, line):
+        self.line = line
+
+    def next_line(self):
+        self.line += 1
+
+    def next_file(self, file_list):
+        return sorted(file_list)[0]
 
 
 
