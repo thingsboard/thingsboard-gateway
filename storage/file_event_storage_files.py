@@ -61,9 +61,6 @@ class FileEventStorageFiles:
             log.warn("Could not delete file {}".format(file))
 
 
-
-
-
 class FileEventStoragePointer:
     def __init__(self):
         self.file = None

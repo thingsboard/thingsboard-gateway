@@ -1,3 +1,4 @@
 venv/
 /connectors/mqtt/tb_device_mqtt.py
 /for_tests.py
+/f_test.py
