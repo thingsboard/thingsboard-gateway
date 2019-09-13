@@ -38,7 +38,7 @@
       "topicFilter": "/custom-sensors/+",
       "converter": {
         "type": "custom",
-        "extension": "custom-mqtt-sensor-extension.py"
+        "extension": "CustomMqttSensorExtension"
       }
     }
   ]
