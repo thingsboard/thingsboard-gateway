@@ -1,10 +1,45 @@
 {
-  "extensions": [
-  {
-    "type": "MQTT",
-    "connector": "default_mqtt",
-    "extension": "default_mqtt.json",
-    "enabled": true
-  }
-]
+  "broker": {
+    "name":"Default Broker",
+    "host":"localhost",
+    "port":1883,
+    "credentials": {
+      "type": "basic",
+      "username": "3DabqZpTUz7Goj1WKYBI",
+      "password": ""
+    }
+  },
+  "mapping": [
+    {
+      "topicFilter": "/temperature-sensors/+",
+      "converter": {
+        "type": "json",
+        "filterExpression": "",
+        "deviceNameJsonExpression": "${$.serialNumber}",
+        "deviceTypeJsonExpression": "${$.sensorType}",
+        "timeout": 60000,
+        "attributes": [
+          {
+            "type": "string",
+            "key": "model",
+            "value": "${$.model}"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "double",
+            "key": "temperature",
+            "value": "${$.temperature}"
+          }
+        ]
+      }
+    },
+    {
+      "topicFilter": "/custom-sensors/+",
+      "converter": {
+        "type": "custom",
+        "extension": "custom-mqtt-sensor-extension.py"
+      }
+    }
+  ]
 }

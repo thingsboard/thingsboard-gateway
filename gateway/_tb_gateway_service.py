@@ -25,6 +25,7 @@ class TBGatewayService:
 
             # dict_extensions_settings = config["extensions"]
             if config["storage"]["type"] == "memory":
+                # TODO:parse  config["storage"] elements inside MemoryEventStorage
                 self.__event_storage = MemoryEventStorage(queue_len=config["storage"]["max_records_count"],
                                                           events_per_time=config["storage"]["read_records_count"])
             else:

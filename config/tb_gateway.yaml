@@ -16,3 +16,8 @@ storage:
 #  max_records_between_fsync: 1
 #  max_records_per_file: 3
 #  no_records_sleep_interval: 5000
+connectors:
+  -
+    name: MQTT Broker Connector Example
+    type: mqtt
+    configuration: mqtt.json
