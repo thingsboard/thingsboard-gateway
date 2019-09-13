@@ -1,7 +1,7 @@
 import logging
 import time
 from importlib import import_module
-from json import load, dumps
+from json import load, loads, dumps
 import yaml
 from queue import Queue
 from threading import Lock
@@ -55,6 +55,8 @@ class TBGatewayService:
             # initialize client
             self.tb_client = TBClient(config["thingsboard-client"])
             self.tb_client.connect()
+
+            self.__load_connectors(config)
 
             while True:
                 time.sleep(.1)
@@ -209,3 +211,15 @@ class TBGatewayService:
     # @staticmethod
     # def listener(event):
     #     log.exception(event.exception)
+
+    def __load_connectors(self, config):
+        self.__connectors = []
+        for connector in config['connectors']:
+            try:
+                with open('config/'+connector['configuration'],'r') as conf_file:
+                    connector_conf = load(conf_file)
+                log.debug(connector_conf)
+                #STOPPED HERE :)
+                self.__connectors.append()
+            except Exception as e:
+                log.error(e)

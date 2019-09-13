@@ -4,10 +4,10 @@ from abc import ABC,abstractmethod
 class Connector(ABC):
 
     @abstractmethod
-    def open(self, gateway, config):
+    def open(self):
         pass
 
     @abstractmethod
-    def close(self, config):
+    def close(self):
         pass
 
