@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 class TBGatewayService:
     def __init__(self, config_file):
         with open(config_file) as config:
-            config = yaml.load(config)
+            config = yaml.safe_load(config)
 
             # dict_extensions_settings = config["extensions"]
             if config["storage"]["type"] == "memory":
@@ -56,6 +56,9 @@ class TBGatewayService:
             # initialize client
             self.tb_client = TBClient(config["thingsboard-client"])
             self.tb_client.connect()
+
+            while True:
+                time.sleep(.1)
 
     #         def rpc_request_handler(self, request_body):
     #             method = request_body["data"]["method"]
