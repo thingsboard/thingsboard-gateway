@@ -9,7 +9,7 @@ class FileEventStorage(EventStorage):
         self.__events_per_time = TBUtility.get_parameter(config, "read_records_count", 10)
         self.__records_per_file = TBUtility.get_parameter(config, "records_per_file", 50)
         self.__no_records_sleep_interval = TBUtility.get_parameter(config, "no_records_sleep_interval", 60)
-        self.__events_queue = queue.Queue()
+        self.__events_queue = queue.Queue(self.__queue_len)
         self.__event_pack = []
 
     def put(self, event):

@@ -6,7 +6,7 @@ class MemoryEventStorage(EventStorage):
     def __init__(self,config):
         self.__queue_len = TBUtility.get_parameter(config,"max_records_count",100)
         self.__events_per_time = TBUtility.get_parameter(config,"read_records_count",10)
-        self.__events_queue = queue.Queue()
+        self.__events_queue = queue.Queue(self.__queue_len)
         self.__event_pack = []
 
     def put(self,event):
