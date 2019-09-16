@@ -1,11 +1,11 @@
 {
   "broker": {
     "name":"Default Broker",
-    "host":"localhost",
+    "host":"cloud.thingsboard.io",
     "port":1883,
     "credentials": {
       "type": "basic",
-      "username": "3DabqZpTUz7Goj1WKYBI",
+      "username": "hfjYuyj1T83EL5Dv6N2y",
       "password": ""
     }
   },

@@ -15,6 +15,7 @@ from tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 from tb_utility.tb_utility import TBUtility
 from storage.memory_event_storage import MemoryEventStorage
 
+
 log = logging.getLogger(__name__)
 
 
@@ -57,6 +58,7 @@ class TBGatewayService:
             self.tb_client.connect()
 
             self.__load_connectors(config)
+            self.connect_with_connectors()
 
             while True:
                 time.sleep(.1)
@@ -213,13 +215,26 @@ class TBGatewayService:
     #     log.exception(event.exception)
 
     def __load_connectors(self, config):
-        self.__connectors = []
+        self._connectors = {}
         for connector in config['connectors']:
             try:
                 with open('config/'+connector['configuration'],'r') as conf_file:
                     connector_conf = load(conf_file)
-                log.debug(connector_conf)
-                #STOPPED HERE :)
-                self.__connectors.append()
+                    if not self._connectors.get(connector['type']):
+                        self._connectors[connector['type']] = []
+                    self._connectors[connector['type']].append({connector['configuration']: connector_conf})
             except Exception as e:
                 log.error(e)
+
+    def connect_with_connectors(self):
+        for type in self._connectors:
+            if type == "mqtt":
+                for connector_config in self._connectors[type]:
+                    for config_file in connector_config:
+                        connector_name = TBUtility.get_parameter(connector_config[config_file]["broker"], "connector", type)
+                        connector_path = 'connectors.' + type + '.' + connector_name + '_connector' # TODO select connector file per connector
+                        try:
+                            connector = import_module(connector_path).MqttConnector(self, connector_config[config_file])
+                            connector.open()
+                        except Exception as e:
+                            log.error(e)
