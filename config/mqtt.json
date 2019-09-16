@@ -1,35 +1,36 @@
 {
   "broker": {
     "name":"Default Broker",
-    "host":"localhost",
+    "host":"cloud.thingsboard.io",
     "port":1883,
     "credentials": {
       "type": "basic",
-      "username": "3DabqZpTUz7Goj1WKYBI",
+      "username": "hfjL5Dv683EL5Dv6Np2y",
       "password": ""
     }
   },
   "mapping": [
     {
       "topicFilter": "/temperature-sensors/+",
+      "topicFilter": "v1/devices/me/attributes",
       "converter": {
         "type": "json",
         "filterExpression": "",
-        "deviceNameJsonExpression": "${$.serialNumber}",
-        "deviceTypeJsonExpression": "${$.sensorType}",
+        "deviceNameJsonExpression": "$.serialNumber",
+        "deviceTypeJsonExpression": "$.sensorType",
         "timeout": 60000,
         "attributes": [
           {
             "type": "string",
             "key": "model",
-            "value": "${$.model}"
+            "value": "$.model"
           }
         ],
         "timeseries": [
           {
             "type": "double",
             "key": "temperature",
-            "value": "${$.temperature}"
+            "value": "$.temperature"
           }
         ]
       }

@@ -11,3 +11,6 @@ class Connector(ABC):
     def close(self):
         pass
 
+    @abstractmethod
+    def getName(self):
+        pass

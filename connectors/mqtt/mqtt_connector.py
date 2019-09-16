@@ -1,10 +1,15 @@
 import time
+import logging
+import string
+import random
+from importlib import import_module
 from paho.mqtt.client import Client
 from connectors.connector import Connector
+from connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
 from threading import Thread
 from tb_utility.tb_utility import TBUtility
 from uuid import uuid1
-import logging
+from json import loads, dumps
 
 log = logging.getLogger(__name__)
 
@@ -14,7 +19,10 @@ class MqttConnector(Connector,Thread):
         super().__init__()
         self.__broker = config.get('broker')
         self.__mapping = config.get('mapping')
-        self._client = Client(client_id=str(uuid1()))
+        self.__sub_topics = {}
+        client_id = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
+        self.__name = TBUtility.get_parameter(self.__broker,"name",client_id)
+        self._client = Client(client_id)
         if self.__broker["credentials"]["type"] == "basic":
             self._client.username_pw_set(self.__broker["credentials"]["username"], self.__broker["credentials"]["password"])
 
@@ -49,6 +57,9 @@ class MqttConnector(Connector,Thread):
         self._client.loop_stop()
         self._client.disconnect()
 
+    def getName(self):
+        return self.__name
+
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         result_codes = {
             1: "incorrect protocol version",
@@ -64,12 +75,22 @@ class MqttConnector(Connector,Thread):
             # self._client.subscribe(ATTRIBUTES_TOPIC + "/response/+", 1)
             # self._client.subscribe(RPC_REQUEST_TOPIC + '+')
             # self._client.subscribe(RPC_RESPONSE_TOPIC + '+', qos=1)
-            self.__sub_topics = {}
             for mapping in self.__mapping:
-                self.__sub_topics[mapping["topicFilter"]] = mapping["converter"]
-                self._client.subscribe(mapping["topicFilter"])
-                log.info(f'Subscribe to {mapping["topicFilter"]}')
-            # self._client.publish("v1/devices/me/attributes/request/3",'{"sharedKeys":"asc"}')
+                try:
+                    log.debug(mapping)
+                    if mapping["converter"]["type"] == "custom":
+                        converter = 1
+                        # extension_name = 'connectors.mqtt.' + mapping["converter"]["extension"] # TODO load custom extension
+                        # converter = import_module(extension_name)
+                    else:
+                        converter = JsonMqttUplinkConverter(mapping)
+                    self.__sub_topics[mapping["topicFilter"]] = converter
+                    self._client.subscribe(mapping["topicFilter"])
+                    log.info(f'Subscribe to {mapping["topicFilter"]}')
+                except Exception as e:
+                    log.error(e)
+
+            log.debug(self.__sub_topics)
         else:
             if rc in result_codes:
                 log.error("connection FAIL with error {rc} {explanation}".format(rc=rc,
@@ -85,12 +106,14 @@ class MqttConnector(Connector,Thread):
 
     def _on_message(self, client, userdata, message):
         log.debug("Received message")
-        content = message.decode("UTF-8")
+        content = self._decode(message)
         log.debug(content)
+        log.debug(message.topic)
+        converter = self.__sub_topics.get(message.topic)
+        if converter:
+            converter(content)
 
     @staticmethod
     def _decode(message):
         content = loads(message.payload.decode("utf-8"))
-        log.debug(content)
-        log.debug(message.topic)
         return content

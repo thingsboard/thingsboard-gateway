@@ -1,8 +1,8 @@
 import logging
 import time
-from importlib import import_module
-from json import load, loads, dumps
 import yaml
+from json import load, loads, dumps
+from connectors.mqtt.mqtt_connector import MqttConnector
 from queue import Queue
 from threading import Lock
 
@@ -23,6 +23,7 @@ class TBGatewayService:
     def __init__(self, config_file):
         with open(config_file) as config:
             config = yaml.safe_load(config)
+            self.available_connectors = {}
 
             # dict_extensions_settings = config["extensions"]
             if config["storage"]["type"] == "memory":
@@ -215,26 +216,25 @@ class TBGatewayService:
     #     log.exception(event.exception)
 
     def __load_connectors(self, config):
-        self._connectors = {}
+        self._connectors_configs = {}
         for connector in config['connectors']:
             try:
                 with open('config/'+connector['configuration'],'r') as conf_file:
                     connector_conf = load(conf_file)
-                    if not self._connectors.get(connector['type']):
-                        self._connectors[connector['type']] = []
-                    self._connectors[connector['type']].append({connector['configuration']: connector_conf})
+                    if not self._connectors_configs.get(connector['type']):
+                        self._connectors_configs[connector['type']] = []
+                    self._connectors_configs[connector['type']].append({connector['configuration']: connector_conf})
             except Exception as e:
                 log.error(e)
 
     def connect_with_connectors(self):
-        for type in self._connectors:
+        for type in self._connectors_configs:
             if type == "mqtt":
-                for connector_config in self._connectors[type]:
+                for connector_config in self._connectors_configs[type]:
                     for config_file in connector_config:
-                        connector_name = TBUtility.get_parameter(connector_config[config_file]["broker"], "connector", type)
-                        connector_path = 'connectors.' + type + '.' + connector_name + '_connector' # TODO select connector file per connector
                         try:
-                            connector = import_module(connector_path).MqttConnector(self, connector_config[config_file])
+                            connector = MqttConnector(self, connector_config[config_file])
+                            self.available_connectors[connector.getName()] = connector
                             connector.open()
                         except Exception as e:
                             log.error(e)
