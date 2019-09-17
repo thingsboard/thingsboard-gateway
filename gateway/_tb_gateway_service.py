@@ -232,6 +232,7 @@ class TBGatewayService:
         for type in self._connectors_configs:
             if type == "mqtt":
                 for connector_config in self._connectors_configs[type]:
+                    log.debug(connector_config)
                     for config_file in connector_config:
                         try:
                             connector = MqttConnector(self, connector_config[config_file])
@@ -240,10 +241,9 @@ class TBGatewayService:
                         except Exception as e:
                             log.error(e)
 
-    def send_to_storage(self, connector_name, data):
+    def _send_to_storage(self, connector_name, data):
         # TODO: Validate structure again (just in case someone added wrong connector)
         # TODO: Add counters of incoming messages
-        # TODO: Invoke storage
-        self.__event_storage.put(data)
-        # TODO: add debug logging
-        pass
+        json_data = dumps(data)
+        self.__event_storage.put(json_data)
+        log.debug('%s - Saved information - %s', json_data)
