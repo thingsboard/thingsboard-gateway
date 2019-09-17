@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 class MqttConnector(Connector,Thread):
     def __init__(self, gateway, config):
         super().__init__()
+        self.__gateway = gateway
         self.__broker = config.get('broker')
         self.__mapping = config.get('mapping')
         self.__sub_topics = {}
@@ -111,7 +112,9 @@ class MqttConnector(Connector,Thread):
         log.debug(message.topic)
         converter = self.__sub_topics.get(message.topic)
         if converter:
-            converter(content)
+            self.converted_data = converter(content)
+        else:
+            log.error(f'Cannot find converter for topic:"{message.topic}"')
 
     @staticmethod
     def _decode(message):

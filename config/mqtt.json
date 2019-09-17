@@ -1,11 +1,11 @@
 {
   "broker": {
     "name":"Default Broker",
-    "host":"cloud.thingsboard.io",
+    "host":"localhost",
     "port":1883,
     "credentials": {
       "type": "basic",
-      "username": "hfjL5Dv683EL5Dv6Np2y",
+      "username": "3DabqZpTUz7Goj1WKYBI",
       "password": ""
     }
   },
@@ -16,21 +16,21 @@
       "converter": {
         "type": "json",
         "filterExpression": "",
-        "deviceNameJsonExpression": "$.serialNumber",
-        "deviceTypeJsonExpression": "$.sensorType",
+        "deviceNameJsonExpression": "${$.serialNumber}",
+        "deviceTypeJsonExpression": "${$.sensorType}",
         "timeout": 60000,
         "attributes": [
           {
             "type": "string",
             "key": "model",
-            "value": "$.model"
+            "value": "${$.model}"
           }
         ],
         "timeseries": [
           {
             "type": "double",
             "key": "temperature",
-            "value": "$.temperature"
+            "value": "${$.temperature}"
           }
         ]
       }

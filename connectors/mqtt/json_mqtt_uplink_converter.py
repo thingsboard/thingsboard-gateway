@@ -1,7 +1,7 @@
 from abc import ABC,abstractmethod
 import logging
 import jsonpath_rw_ext as jp
-from re import match
+from re import search
 from connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
 
 log = logging.getLogger(__name__)
@@ -62,18 +62,44 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
     def __init__(self, config):
         self.__config = config
         self.dict_result = {}
-        self.dict_patterns = {}
-
 
     def convert(self, body):
         self.dict_result = {
             "deviceName": jp.match1(self.__config["deviceNameJsonExpression"], body),
             "deviceType": jp.match1(self.__config["deviceTypeJsonExpression"], body),
-            "attributes":[]
+            "attributes": [],
+            "telemetry": []
         }
         for attribute in self.__config.get("attributes"):
-            log.debug(attribute)
-            self.dict_result["attributes"].append({attribute["key"]: jp.match1(attribute["value"], body)})
+            self.dict_result["attributes"].append({attribute["key"]: self.__get_value(attribute["value"],
+                                                                                      body,
+                                                                                      attribute["type"])})
+
+        for timeseria in self.__config.get("timeseries"):
+            self.dict_result["telemetry"].append({timeseria["key"]: self.__get_value(timeseria["value"],
+                                                                                     body,
+                                                                                     timeseria["type"])})
         log.debug(self.dict_result)
+        # log.debug("Type " + self.__get_value("deviceTypeJsonExpression", body))
+        # log.debug(self.__get_value("deviceTestJsonExpression", body))
+        # return dump(self.dict_result)
+
+    @staticmethod
+    def __get_value(expression, body, type="string"):
+        log.debug(expression)
+        p1 = search(r'\${', expression)
+        p2 = search(r'}', expression)
+        if p1 is not None and p2 is not None:
+            p1 = p1.end()
+            p2 = p2.start()
+        else:
+            p1 = 0
+            p2 = len(expression)
+        target_str = str(expression[p1:p2])
+        if type == "string":
+            value = expression[0: min(abs(p1-2), 0)] + str(jp.match1(target_str.split()[0], body)) + expression[p2+1:len(expression)]
+        else:
+            value = jp.match1(target_str.split()[0], body)
+        return value
 
 
