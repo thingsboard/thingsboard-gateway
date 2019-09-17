@@ -1,7 +1,7 @@
 from storage.event_storage import EventStorage
 from tb_utility.tb_utility import TBUtility
 import queue
-
+test = queue.Queue()
 
 class FileEventStorage(EventStorage):
     def __init__(self,config):

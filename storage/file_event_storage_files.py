@@ -1,13 +1,18 @@
+from tb_utility.tb_utility import TBUtility
 import os
 import logging
 import time
+
 
 log = logging.getLogger(__name__)
 
 
 class FileEventStorageFiles:
-    def init_data_folder_if_not_exist(self, settings):
-        path = settings.data_folder_path
+    def __init__(self, config):
+        self.data_folder_path = TBUtility.get_parameter(config, "data_folder_path", './data')
+
+    def init_data_folder_if_not_exist(self, data_folder_path):
+        path = data_folder_path
         if not os.path.exists(path):
             try:
                 os.makedirs(path)
@@ -15,11 +20,11 @@ class FileEventStorageFiles:
                 log.error("Failed to create data folder!", e)
                 pass
 
-    def init_data_files(self, settings):
+    def init_data_files(self, data_folder_path):
         data_files = []
         data_files_size = 0
         state_file = None
-        data_dir = settings.data_folder_path
+        data_dir = data_folder_path
         if os.path.isdir(data_dir):
             for file in os.listdir(data_dir):
                 if file.startswith('data_'):
@@ -28,20 +33,20 @@ class FileEventStorageFiles:
                 elif file.startswith('state_'):
                     state_file = file
             if data_files_size == 0:
-                data_files.append(self.create_new_datafile(settings))
+                data_files.append(self.create_new_datafile(data_folder_path))
             if not state_file:
-                state_file = self.create_file(settings, '/state_', 'file.yaml')
+                state_file = self.create_file(data_folder_path, '/state_', 'file.yaml')
             files = {'state_file': state_file, 'data_files': data_files}
             return files
         else:
-            log.error("{} The specified path is not referred to the directory!".format(settings.data_folder_path))
+            log.error("{} The specified path is not referred to the directory!".format(data_folder_path))
             pass
 
-    def create_new_datafile(self, settings):
-        return self.create_file(settings, '/data_', (str(round(time.time() * 1000))) + '.txt')
+    def create_new_datafile(self, data_folder_path):
+        return self.create_file(data_folder_path, '/data_', (str(round(time.time() * 1000))) + '.txt')
 
-    def create_file(self, settings, prefix, filename):
-        file_path = settings.data_folder_path + prefix + filename
+    def create_file(self, data_folder_path, prefix, filename):
+        file_path = data_folder_path + prefix + filename
         try:
             file = open(file_path, 'w')
             file.close()
@@ -50,8 +55,8 @@ class FileEventStorageFiles:
             log.error("Failed to create a new file!", e)
             pass
 
-    def delete_file(self, settings, file_list: list, file):
-        full_name = settings.data_folder_path + file
+    def delete_file(self, data_folder_path, file_list: list, file):
+        full_name = data_folder_path + file
         try:
             file_list.remove(file)
             os.remove(full_name)
