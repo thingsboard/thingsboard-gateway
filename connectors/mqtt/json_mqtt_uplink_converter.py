@@ -79,10 +79,6 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
             self.dict_result["telemetry"].append({timeseria["key"]: self.__get_value(timeseria["value"],
                                                                                      body,
                                                                                      timeseria["type"])})
-        log.debug(self.dict_result)
-        # log.debug("Type " + self.__get_value("deviceTypeJsonExpression", body))
-        # log.debug(self.__get_value("deviceTestJsonExpression", body))
-        # return dump(self.dict_result)
 
     @staticmethod
     def __get_value(expression, body, type="string"):
