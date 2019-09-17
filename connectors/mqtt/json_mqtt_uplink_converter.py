@@ -65,8 +65,8 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
     def convert(self, body):
         self.dict_result = {
-            "deviceName": jp.match1(self.__config["deviceNameJsonExpression"], body),
-            "deviceType": jp.match1(self.__config["deviceTypeJsonExpression"], body),
+            "deviceName": self.__get_value(self.__config["deviceNameJsonExpression"], body),
+            "deviceType": self.__get_value(self.__config["deviceTypeJsonExpression"], body),
             "attributes": [],
             "telemetry": []
         }
@@ -82,7 +82,6 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
     @staticmethod
     def __get_value(expression, body, type="string"):
-        log.debug(expression)
         p1 = search(r'\${', expression)
         p2 = search(r'}', expression)
         if p1 is not None and p2 is not None:
@@ -96,6 +95,5 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
             value = expression[0: min(abs(p1-2), 0)] + str(jp.match1(target_str.split()[0], body)) + expression[p2+1:len(expression)]
         else:
             value = jp.match1(target_str.split()[0], body)
+        log.debug(f"For expression {expression} parse value: {str(value)}")
         return value
-
-
