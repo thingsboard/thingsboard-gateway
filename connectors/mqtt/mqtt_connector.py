@@ -19,6 +19,7 @@ class MqttConnector(Connector,Thread):
         self.__gateway = gateway
         self.__broker = config.get('broker')
         self.__mapping = config.get('mapping')
+        # regexp -> [converter1, converter2]
         self.__sub_topics = {}
         client_id = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
         self._client = Client(client_id)
@@ -108,15 +109,17 @@ class MqttConnector(Connector,Thread):
 
 
     def _on_message(self, client, userdata, message):
-        log.debug("Received message")
+        log.debug(" Received message")
         content = self._decode(message)
-        log.debug(content)
         log.debug(message.topic)
         converter = self.__sub_topics.get(message.topic)
         if converter:
-            self.__sub_topics.get(message.topic)[converter]= converter(content)
+            self.__sub_topics.get(message.topic)[converter] = converter(content)
         else:
             log.error(f'Cannot find converter for topic:"{message.topic}"')
+
+        # TODO: Check validity of the converter output
+        # TODO: Invoke __gateway.send_to_storage(
 
     @staticmethod
     def _decode(message):

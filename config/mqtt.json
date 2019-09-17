@@ -12,7 +12,6 @@
   "mapping": [
     {
       "topicFilter": "/temperature-sensors/+",
-      "topicFilter": "v1/devices/me/attributes",
       "converter": {
         "type": "json",
         "filterExpression": "",
@@ -31,6 +30,23 @@
             "type": "double",
             "key": "temperature",
             "value": "${$.temperature}"
+          }
+        ]
+      }
+    },
+    {
+      "topicFilter": "/temperature-sensors/+",
+      "converter": {
+        "type": "json",
+        "filterExpression": "",
+        "deviceNameJsonExpression": "${$.sensorId}",
+        "deviceTypeJsonExpression": "${$.sensorType}",
+        "timeout": 60000,
+        "timeseries": [
+          {
+            "type": "double",
+            "key": "humidity",
+            "value": "${$.humidity}"
           }
         ]
       }

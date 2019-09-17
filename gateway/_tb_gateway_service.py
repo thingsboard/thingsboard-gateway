@@ -1,6 +1,7 @@
 import logging
 import time
 import yaml
+from abc import ABC,abstractmethod
 from json import load, loads, dumps
 from connectors.mqtt.mqtt_connector import MqttConnector
 from queue import Queue
@@ -59,7 +60,7 @@ class TBGatewayService:
             self.tb_client.connect()
 
             self.__load_connectors(config)
-            self.connect_with_connectors()
+            self.__connect_with_connectors()
 
             while True:
                 time.sleep(.1)
@@ -227,7 +228,7 @@ class TBGatewayService:
             except Exception as e:
                 log.error(e)
 
-    def connect_with_connectors(self):
+    def __connect_with_connectors(self):
         for type in self._connectors_configs:
             if type == "mqtt":
                 for connector_config in self._connectors_configs[type]:
@@ -238,3 +239,11 @@ class TBGatewayService:
                             connector.open()
                         except Exception as e:
                             log.error(e)
+
+    def send_to_storage(self, connector_name, data):
+        # TODO: Validate structure again (just in case someone added wrong connector)
+        # TODO: Add counters of incoming messages
+        # TODO: Invoke storage
+        self.__event_storage.put(data)
+        # TODO: add debug logging
+        pass

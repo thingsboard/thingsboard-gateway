@@ -64,6 +64,8 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         self.dict_result = {}
 
     def convert(self, body):
+        # TODO: Check that results of conversion are valid. For example: deviceName is not empty, deviceType is not empty.
+        # At least one of attributes or telemetry is present.
         self.dict_result = {
             "deviceName": self.__get_value(self.__config["deviceNameJsonExpression"], body),
             "deviceType": self.__get_value(self.__config["deviceTypeJsonExpression"], body),
