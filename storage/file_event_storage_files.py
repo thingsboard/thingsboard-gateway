@@ -38,8 +38,8 @@ class FileEventStorageFiles:
                 files['data_files'].append(new_data_file)
             if not files['state_file']:
                 new_state_file = self.create_file(data_folder_path, 'state_', 'file.yaml')
-                state_data = {"read_file": new_data_file, "read_line": 0,
-                              "write_file": new_data_file, "write_line": 0
+                state_data = {"read_file": new_data_file, "read_line": 1,
+                              "write_file": new_data_file, "write_line": 1
                               }
                 with open(data_folder_path + new_state_file, 'w') as f:
                     yaml.dump(state_data, f, default_flow_style=False)
