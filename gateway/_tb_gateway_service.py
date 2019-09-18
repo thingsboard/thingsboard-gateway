@@ -25,6 +25,7 @@ class TBGatewayService:
         with open(config_file) as config:
             config = yaml.safe_load(config)
             self.available_connectors = {}
+            self.__connector_incoming_messages = {}
 
             # dict_extensions_settings = config["extensions"]
             if config["storage"]["type"] == "memory":
@@ -42,9 +43,9 @@ class TBGatewayService:
             #     number_of_processes = TBUtility.get_parameter(dict_performance_settings, "processes_to_use", 20)
             #     number_of_workers = TBUtility.get_parameter(dict_performance_settings, "additional_threads_to_use", 5)
 
-            self.dict_ext_by_device_name = {}
-            self.dict_rpc_handlers_by_device = {}
-            self.lock = Lock()
+            # self.dict_ext_by_device_name = {}
+            # self.dict_rpc_handlers_by_device = {}
+            # self.lock = Lock()
 
             # # initialize scheduler
             # executors = {'default': ThreadPoolExecutor(number_of_workers)}
@@ -242,8 +243,13 @@ class TBGatewayService:
                             log.error(e)
 
     def _send_to_storage(self, connector_name, data):
-        # TODO: Validate structure again (just in case someone added wrong connector)
-        # TODO: Add counters of incoming messages
+        if not TBUtility.validate_converted_data(data):
+            log.error("Data from %s connector is invalid.",connector_name)
+            return
+        if not self.__connector_incoming_messages.get(connector_name):
+            self.__connector_incoming_messages[connector_name] = 0
+        else:
+            self.__connector_incoming_messages[connector_name] += 1
         json_data = dumps(data)
         self.__event_storage.put(json_data)
-        log.debug('%s - Saved information - %s', json_data)
+        log.debug('Connector "%s" - Saved information - %s', connector_name, json_data)
