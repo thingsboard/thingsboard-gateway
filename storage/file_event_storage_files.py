@@ -4,13 +4,12 @@ import logging
 import time
 import yaml
 
-
 log = logging.getLogger(__name__)
 
 
 class FileEventStorageFiles:
     def __init__(self, config):
-        self.data_folder_path = TBUtility.get_parameter(config, "data_folder_path", './data/')
+        self.data_folder_path = TBUtility.get_parameter(config, "data_folder_path", './storage/data/')
 
     def init_data_folder_if_not_exist(self, data_folder_path):
         path = data_folder_path
@@ -61,6 +60,7 @@ class FileEventStorageFiles:
         except IOError as e:
             log.error("Failed to create a new file!", e)
             pass
+
     def change_state_line(self, data_folder_path, state_file , line):
         with open(data_folder_path + state_file) as f:
             state = yaml.safe_load(f)
@@ -88,7 +88,6 @@ class FileEventStorageFiles:
             log.warning("Could not delete file {}".format(file))
 
 
-
 class FileEventStoragePointer:
     def __init__(self, path, file, line):
         self.path = path
@@ -110,15 +109,9 @@ class FileEventStoragePointer:
     def set_line(self, line):
         self.line = line
 
-    def check_file(self, file):
-        if file:
-            lines = 0
-            with open(file, 'r') as f:
-                #lines += f.readlines()
-                pass
-
-
-    def get_current_position(self, data_files):
+    def get_write_position(self, path, files):
+        #position = yaml.safe_load(open(path + files['state_file']))
+        #return position['write_file'], position['write_line']
         pass
 
     def file_is_full(self, path, file, max_lines):
@@ -135,7 +128,3 @@ class FileEventStoragePointer:
 
     def next_read_file(self, file_list):
         return sorted(file_list)[0]
-
-
-
-

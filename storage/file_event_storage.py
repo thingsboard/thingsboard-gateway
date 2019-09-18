@@ -40,25 +40,24 @@ class FileEventStorage(EventStorage):
         current_position = yaml.safe_load(open(path + files['state_file']))
         pointer = FileEventStoragePointer(path, current_position['write_file'], current_position['write_line'])
         while True:
-            while self.get_events_queue_size():
-                if pointer.get_line() <= self.__records_per_file and (
-                        not pointer.file_is_full(path, pointer.get_file(), self.__records_per_file)):
-                    with open(path + pointer.get_file(), 'a') as f:
-                        for event in self.get_event_pack():
-                            print(event)
+            events = self.get_event_pack()
+            if events:
+                for event in events:
+                    if pointer.get_line() <= self.__records_per_file and (
+                            not pointer.file_is_full(path, pointer.get_file(), self.__records_per_file)):
+                        with open(path + pointer.get_file(), 'a') as f:
                             f.write(str(event) + '\n')
                             pointer.next_line()
                             data_files.change_state_line(path, files['state_file'], pointer.get_line())
-                            self.event_pack_processing_done()
-
-                else:
-                    pointer.set_file(data_files.create_new_datafile(path))
-                    files['data_files'].append(pointer.get_file())
-                    pointer.set_line(data_files.change_state_line(path, files['state_file'], 1))
-                    print(pointer.get_line())
-
-
-
-
-
-
+                    else:
+                        if pointer.file_is_full(path, files['data_files'][-1], self.__records_per_file):
+                            new_data_file = data_files.create_new_datafile(path)
+                            pointer.set_file(new_data_file)
+                            files['data_files'].append(pointer.get_file())
+                            data_files.change_state_file(path,files['state_file'], pointer.get_file())
+                        pointer.set_file(files['data_files'][-1])
+                        data_files.change_state_file(path, files['state_file'], pointer.get_file())
+                        pointer.set_line(data_files.change_state_line(path, files['state_file'], 1))
+                        with open(path + pointer.get_file(), 'a') as f:
+                            f.write(str(event) + '\n')
+            self.event_pack_processing_done()
