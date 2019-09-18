@@ -244,12 +244,15 @@ class TBGatewayService:
 
     def _send_to_storage(self, connector_name, data):
         if not TBUtility.validate_converted_data(data):
-            log.error("Data from %s connector is invalid.",connector_name)
+            log.error("Data from %s connector is invalid.", connector_name)
             return
         if not self.__connector_incoming_messages.get(connector_name):
             self.__connector_incoming_messages[connector_name] = 0
         else:
             self.__connector_incoming_messages[connector_name] += 1
         json_data = dumps(data)
-        self.__event_storage.put(json_data)
-        log.debug('Connector "%s" - Saved information - %s', connector_name, json_data)
+        save_result = self.__event_storage.put(json_data)
+        if save_result:
+            log.debug('Connector "%s" - Saved information - %s', connector_name, json_data)
+        else:
+            log.error('Data from connector "%s" cannot be saved.')
