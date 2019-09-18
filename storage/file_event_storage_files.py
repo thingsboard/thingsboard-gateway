@@ -90,7 +90,8 @@ class FileEventStorageFiles:
 
 
 class FileEventStoragePointer:
-    def __init__(self, file, line):
+    def __init__(self, path, file, line):
+        self.path = path
         self.file = file
         self.line = line
 
@@ -109,9 +110,25 @@ class FileEventStoragePointer:
     def set_line(self, line):
         self.line = line
 
+    def check_file(self, file):
+        if file:
+            lines = 0
+            with open(file, 'r') as f:
+                #lines += f.readlines()
+                pass
+
 
     def get_current_position(self, data_files):
         pass
+
+    def file_is_full(self, path, file, max_lines):
+        lines = 0
+        with open(path + file) as f:
+            for lines, l in enumerate(f):
+                pass
+        lines += 1
+        return False if lines < max_lines else True
+
 
     def next_line(self):
         self.line += 1

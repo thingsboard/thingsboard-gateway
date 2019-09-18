@@ -7,9 +7,9 @@ import queue
 
 class FileEventStorage(EventStorage):
     def __init__(self, config):
-        self.__queue_len = TBUtility.get_parameter(config, "max_records_count", 100)
-        self.__events_per_time = TBUtility.get_parameter(config, "read_records_count", 10)
-        self.__records_per_file = TBUtility.get_parameter(config, "records_per_file", 50)
+        self.__queue_len = TBUtility.get_parameter(config, "max_records_count", 10)
+        self.__events_per_time = TBUtility.get_parameter(config, "read_records_count", 2)
+        self.__records_per_file = TBUtility.get_parameter(config, "records_per_file", 5)
         self.__no_records_sleep_interval = TBUtility.get_parameter(config, "no_records_sleep_interval", 60)
         self.__events_queue = queue.Queue(self.__queue_len)
         self.__event_pack = []
@@ -37,16 +37,12 @@ class FileEventStorage(EventStorage):
         data_files = FileEventStorageFiles(config)
         path = data_files.data_folder_path
         files = data_files.init_data_files(path)
-        #print(files)
         current_position = yaml.safe_load(open(path + files['state_file']))
-        #print(current_position)
-        pointer = FileEventStoragePointer(current_position['write_file'], current_position['write_line'])
-        #print(type(self.get_events_queue_size()))
-        while self.get_events_queue_size():
-            print(pointer.get_line())
-            print(self.__records_per_file)
-            while True:
-                if pointer.get_line() <= self.__records_per_file:
+        pointer = FileEventStoragePointer(path, current_position['write_file'], current_position['write_line'])
+        while True:
+            while self.get_events_queue_size():
+                if pointer.get_line() <= self.__records_per_file and (
+                        not pointer.file_is_full(path, pointer.get_file(), self.__records_per_file)):
                     with open(path + pointer.get_file(), 'a') as f:
                         for event in self.get_event_pack():
                             print(event)
