@@ -2,6 +2,7 @@ import time
 import logging
 import string
 import random
+import re
 from importlib import import_module
 from paho.mqtt.client import Client
 from connectors.connector import Connector
@@ -19,13 +20,12 @@ class MqttConnector(Connector, Thread):
         self.__gateway = gateway
         self.__broker = config.get('broker')
         self.__mapping = config.get('mapping')
-        # regexp -> [converter1, converter2]
         self.__sub_topics = {}
         client_id = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
         self._client = Client(client_id)
         self.setName(TBUtility.get_parameter(self.__broker,
-                                        "name",
-                                        'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5))))
+                                             "name",
+                                             'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5))))
         if self.__broker["credentials"]["type"] == "basic":
             self._client.username_pw_set(self.__broker["credentials"]["username"], self.__broker["credentials"]["password"])
 
@@ -67,9 +67,9 @@ class MqttConnector(Connector, Thread):
         self._client.loop_stop()
         self._client.disconnect()
         self.__stopped = True
-        log.info('%s has been stopped.', self.getName())
+        log.info('%s has been stopped.', self.get_name())
 
-    def getName(self):
+    def get_name(self):
         return self.name
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
@@ -82,55 +82,54 @@ class MqttConnector(Connector, Thread):
         }
         if rc == 0:
             self._connected = True
-            log.info('%s connected to %s:%s - successfully.', self.getName(), self.__broker["host"], TBUtility.get_parameter(self.__broker, "port", "1883"))
+            log.info('%s connected to %s:%s - successfully.', self.get_name(), self.__broker["host"], TBUtility.get_parameter(self.__broker, "port", "1883"))
 
             for mapping in self.__mapping:
                 try:
-                    log.debug(mapping)
-                    if not self.__sub_topics.get(mapping.get("topicFilter")):
-                        self.__sub_topics[mapping["topicFilter"]] = []
+                    regex_topic = TBUtility.topic_to_regex(mapping.get("topicFilter"))
+                    if not self.__sub_topics.get(regex_topic):
+                        self.__sub_topics[regex_topic] = []
                     if mapping["converter"]["type"] == "custom":
                         converter = 1
-                        # extension_name = 'connectors.mqtt.' + mapping["converter"]["extension"] # TODO load custom extension
-                        # converter = import_module(extension_name)
                     else:
                         converter = JsonMqttUplinkConverter(mapping)
-                    self.__sub_topics[mapping["topicFilter"]].append({converter: None})
-                    self._client.subscribe(mapping["topicFilter"])
-                    log.info('Subscribe to %s', mapping["topicFilter"])
+                    self.__sub_topics[regex_topic].append({converter: None})
+                    self._client.subscribe(TBUtility.regex_to_topic(regex_topic))
+                    log.info('Connector "%s" subscribe to %s', self.get_name(), TBUtility.regex_to_topic(regex_topic))
                 except Exception as e:
                     log.exception(e)
-            log.debug(self.__sub_topics)
 
         else:
             if rc in result_codes:
-                log.error("%s connection FAIL with error %s %s!", self.getName(), rc, result_codes[rc])
+                log.error("%s connection FAIL with error %s %s!", self.get_name(), rc, result_codes[rc])
             else:
-                log.error("%s connection FAIL with unknown error!", self.getName())
+                log.error("%s connection FAIL with unknown error!", self.get_name())
 
     def _on_disconnect(self):
-        log.debug('%s was disconnected.', self.getName())
+        log.debug('"%s" was disconnected.', self.get_name())
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         if granted_qos[0] == 128:
-            log.error("Subscribtion failed, check your configs.")
+            log.error('"%s" subscription failed.', self.get_name())
 
     def _on_message(self, client, userdata, message):
         content = self._decode(message)
-        if self.__sub_topics.get(message.topic):
-            for converter in self.__sub_topics.get(message.topic):
-                log.debug(converter)
-                if converter:
-                    converted_content = converter(content)
-                    # TODO Test this Check validity of the converter output AS UTILITY
-                    if converted_content:
-                        self.__sub_topics.get(message.topic)[converter] = converted_content
+        regex_topic = [regex for regex in self.__sub_topics if re.fullmatch(regex, message.topic)]
+        for regex in regex_topic:
+            if self.__sub_topics.get(regex):
+                for converter in self.__sub_topics.get(regex):
+                    log.debug(converter)
+                    converted_content = {}
+                    if converter:
+                        converted_content = converter(content)
+                        if converted_content and TBUtility.validate_converted_data(converted_content):
+                            self.__sub_topics.get(regex)[converter] = converted_content
+                        else:
+                            continue
                     else:
-                        continue
-
-                else:
-                    log.error('Cannot find converter for topic:"%s"!', message.topic)
-                self.__gateway._send_to_storage(self.getName(),converted_content)
+                        log.error('Cannot find converter for topic:"%s"!', message.topic)
+                    if converted_content:
+                        self.__gateway._send_to_storage(self.get_name(), converted_content)
 
     @staticmethod
     def _decode(message):
