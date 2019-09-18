@@ -1,6 +1,7 @@
 from logging import getLogger
 from json import dumps
 
+
 class TBUtility:
     @staticmethod
     def get_parameter(data, param, default_value):
@@ -30,4 +31,4 @@ class TBUtility:
 
     @staticmethod
     def regex_to_topic(regex):
-        return regex.replace("[^/]+", "+").replace(".+","#")
+        return regex.replace("[^/]+", "+").replace(".+", "#")

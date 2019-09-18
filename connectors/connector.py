@@ -12,5 +12,5 @@ class Connector(ABC):
         pass
 
     @abstractmethod
-    def getName(self):
+    def get_name(self):
         pass

@@ -1,5 +1,4 @@
 import logging
-import json
 import time
 
 from tb_client.tb_gateway_mqtt import TBGatewayMqttClient
@@ -26,16 +25,16 @@ class TBClient:
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         log.debug('Gateway connected to ThingsBoard')
-        self._client._on_connect(client,userdata,flags,rc,*extra_params)
+        self._client._on_connect(client, userdata, flags, rc, *extra_params)
 
     def _on_disconnect(self, client, userdata, rc):
         log.info('Gateway was disconnected trying to reconnect')
 
     def _on_message(self, client, userdata, message):
         content = self._client._decode(message)
-        self._on_decoded_message(content,message)
+        self._on_decoded_message(content, message)
 
-    def _on_decoded_message(self,content,message):
+    def _on_decoded_message(self, content, message):
         log.debug('Received message from ThingsBoard:')
         log.debug(content)
         self._client._on_decoded_message(content, message)

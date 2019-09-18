@@ -8,6 +8,7 @@ from tb_utility.tb_utility import TBUtility
 from threading import Thread
 from connectors.mqtt.mqtt_connector import MqttConnector
 from storage.memory_event_storage import MemoryEventStorage
+from storage.file_event_storage import FileEventStorage
 
 
 log = logging.getLogger(__name__)
@@ -24,13 +25,12 @@ class TBGatewayService:
             if config["storage"]["type"] == "memory":
                 self.__event_storage = MemoryEventStorage(config["storage"])
             else:
-                pass
+                self.__event_storage = FileEventStorage(config["storage"])
             self.tb_client = TBClient(config["thingsboard-client"])
             self.tb_client.connect()
 
             self.__load_connectors(config)
             self.__connect_with_connectors()
-            self.__TEST_PUT_FOR__Send_Thread.start()
             self.__Send_Thread.start()
 
             while True:
@@ -52,7 +52,6 @@ class TBGatewayService:
         for type in self._connectors_configs:
             if type == "mqtt":
                 for connector_config in self._connectors_configs[type]:
-                    log.debug(connector_config)
                     for config_file in connector_config:
                         try:
                             connector = MqttConnector(self, connector_config[config_file])
