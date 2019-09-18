@@ -51,13 +51,17 @@ class FileEventStorage(EventStorage):
                         for event in self.get_event_pack():
                             print(event)
                             f.write(str(event) + '\n')
-                            data_files.change_state_line(path,files['state_file'], pointer.get_line())
                             pointer.next_line()
+                            data_files.change_state_line(path, files['state_file'], pointer.get_line())
                             self.event_pack_processing_done()
+
                 else:
                     pointer.set_file(data_files.create_new_datafile(path))
                     files['data_files'].append(pointer.get_file())
-                    pointer.set_line(data_files.change_state_file(path,files['state_file'], pointer.get_file()))
+                    pointer.set_line(data_files.change_state_line(path, files['state_file'], 1))
+                    print(pointer.get_line())
+
+
 
 
 
