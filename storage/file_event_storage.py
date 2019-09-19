@@ -4,6 +4,9 @@ from storage.file_event_storage_files import FileEventStorageFiles, FileEventSto
 import yaml
 import queue
 import time
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class FileEventStorage(EventStorage):
@@ -65,10 +68,19 @@ class FileEventStorage(EventStorage):
                         f2.close()
             self.event_pack_processing_done()
 
-
     def read_from_storage(self, config):
         data_files = FileEventStorageFiles(config)
         path = data_files.data_folder_path
-        files = data_files.init_data_files(path)
-        current_position = yaml.safe_load(open(path + files['state_file']))
-        pointer = FileEventStoragePointer(path, current_position['read_file'], current_position['read_line'])
+        files = data_files.read_data_files(path)
+        try:
+            current_position = yaml.safe_load(open(path + files['state_file']))
+            pointer = FileEventStoragePointer(path, data_files.file_exist(current_position['read_file'])
+                                              or sorted(files['data_files'])[0], current_position['read_line'])
+            print(files)
+            print(pointer.get_file(), pointer.get_line())
+        except TypeError as e:
+            print('33')
+            log.warning(" Couldn't open state file")
+
+
+

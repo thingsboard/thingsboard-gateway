@@ -91,6 +91,10 @@ class FileEventStorageFiles:
             yaml.dump(state, f)
         return filename
 
+    def file_exist(self, filename):
+        full_name = self.data_folder_path + filename
+        return filename if os.path.exists(full_name) else False
+
     def delete_file(self, data_folder_path, file_list: list, file):
         full_name = data_folder_path + file
         try:
