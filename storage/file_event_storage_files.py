@@ -61,6 +61,20 @@ class FileEventStorageFiles:
             log.error("Failed to create a new file!", e)
             pass
 
+    def read_data_files(self, data_folder_path):
+        data_dir = data_folder_path
+        files = {'state_file': None, 'data_files': []}
+        if os.path.isdir(data_dir):
+            for file in os.listdir(data_dir):
+                if file.startswith('data_'):
+                    files['data_files'].append(file)
+                elif file.startswith('state_'):
+                    files['state_file'] = file
+            return files
+        else:
+            log.error("{} The specified path is not referred to the directory!".format(data_folder_path))
+            pass
+
     def change_state_line(self, data_folder_path, state_file , line):
         with open(data_folder_path + state_file) as f:
             state = yaml.safe_load(f)

@@ -3,6 +3,7 @@ from tb_utility.tb_utility import TBUtility
 from storage.file_event_storage_files import FileEventStorageFiles, FileEventStoragePointer
 import yaml
 import queue
+import time
 
 
 class FileEventStorage(EventStorage):
@@ -45,10 +46,11 @@ class FileEventStorage(EventStorage):
                 for event in events:
                     if pointer.get_line() <= self.__records_per_file and (
                             not pointer.file_is_full(path, pointer.get_file(), self.__records_per_file)):
-                        with open(path + pointer.get_file(), 'a') as f:
-                            f.write(str(event) + '\n')
-                            pointer.next_line()
-                            data_files.change_state_line(path, files['state_file'], pointer.get_line())
+                        f = open(path + pointer.get_file(), 'a')
+                        f.write(str(event) + '\n')
+                        f.close()
+                        pointer.next_line()
+                        data_files.change_state_line(path, files['state_file'], pointer.get_line())
                     else:
                         if pointer.file_is_full(path, files['data_files'][-1], self.__records_per_file):
                             new_data_file = data_files.create_new_datafile(path)
@@ -58,6 +60,15 @@ class FileEventStorage(EventStorage):
                         pointer.set_file(files['data_files'][-1])
                         data_files.change_state_file(path, files['state_file'], pointer.get_file())
                         pointer.set_line(data_files.change_state_line(path, files['state_file'], 1))
-                        with open(path + pointer.get_file(), 'a') as f:
-                            f.write(str(event) + '\n')
+                        f2 = open(path + pointer.get_file(), 'a')
+                        f2.write(str(event) + '\n')
+                        f2.close()
             self.event_pack_processing_done()
+
+
+    def read_from_storage(self, config):
+        data_files = FileEventStorageFiles(config)
+        path = data_files.data_folder_path
+        files = data_files.init_data_files(path)
+        current_position = yaml.safe_load(open(path + files['state_file']))
+        pointer = FileEventStoragePointer(path, current_position['read_file'], current_position['read_line'])
