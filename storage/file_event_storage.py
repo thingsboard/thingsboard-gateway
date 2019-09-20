@@ -5,6 +5,7 @@ import yaml
 import queue
 import time
 import logging
+import threading
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class FileEventStorage(EventStorage):
         self.__no_records_sleep_interval = TBUtility.get_parameter(config, "no_records_sleep_interval", 60)
         self.__events_queue = queue.Queue(self.__queue_len)
         self.__event_pack = []
+        self.__reader_event_pack = []
 
     def put(self, event):
         if not self.__events_queue.full():
@@ -34,6 +36,14 @@ class FileEventStorage(EventStorage):
                 self.__event_pack.append(self.__events_queue.get())
         return self.__event_pack
 
+    def get_reader_pack(self, file, current_position):
+        current_file = open(file, 'r')
+        for i, line in enumerate(current_file, 1):
+            if i > current_position:
+                while line:
+                    self.__reader_event_pack.append(line)
+        return self.__reader_event_pack
+
     def event_pack_processing_done(self):
         self.__event_pack = []
 
@@ -49,9 +59,8 @@ class FileEventStorage(EventStorage):
                 for event in events:
                     if pointer.get_line() <= self.__records_per_file and (
                             not pointer.file_is_full(path, pointer.get_file(), self.__records_per_file)):
-                        f = open(path + pointer.get_file(), 'a')
-                        f.write(str(event) + '\n')
-                        f.close()
+                        with open(path + pointer.get_file(), 'a') as f:
+                            f.write(str(event) + '\n')
                         pointer.next_line()
                         data_files.change_state_line(path, files['state_file'], pointer.get_line())
                     else:
@@ -63,9 +72,8 @@ class FileEventStorage(EventStorage):
                         pointer.set_file(files['data_files'][-1])
                         data_files.change_state_file(path, files['state_file'], pointer.get_file())
                         pointer.set_line(data_files.change_state_line(path, files['state_file'], 1))
-                        f2 = open(path + pointer.get_file(), 'a')
-                        f2.write(str(event) + '\n')
-                        f2.close()
+                        with open(path + pointer.get_file(), 'a') as f2:
+                            f2.write(str(event) + '\n')
             self.event_pack_processing_done()
 
     def read_from_storage(self, config):
@@ -81,6 +89,13 @@ class FileEventStorage(EventStorage):
         except TypeError as e:
             print('33')
             log.warning(" Couldn't open state file")
+
+        while True:
+            events = self.get_reader_pack()
+            if events:
+                for event in events:
+                    pass
+
 
 
 

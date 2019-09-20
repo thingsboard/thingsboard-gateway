@@ -135,10 +135,16 @@ class FileEventStoragePointer:
     def file_is_full(self, path, file, max_lines):
         lines = 0
         with open(path + file) as f:
-            for lines, l in enumerate(f):
+            for lines, l in enumerate(f, 1):
                 pass
-        lines += 1
         return False if lines < max_lines else True
+
+    def last_line(self, path, file, current_line):
+        lines = 0
+        with open(path + file) as f:
+            for lines, l in enumerate(f, 1):
+                pass
+        return False if current_line < lines else True
 
 
     def next_line(self):
