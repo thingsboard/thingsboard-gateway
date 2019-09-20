@@ -70,11 +70,11 @@ class TestStorage(unittest.TestCase):
 
     def test_file_storage(self):
         storage_test_config = {
-             "data_folder_path": "./data",
-             "max_file_count:" 5,
+             "data_folder_path": "data",
+             "max_file_count": 5,
              "max_read_records_count": 10,
              "max_records_between_fsync": 1,
-             "max_records_per_file": 3,
+             "max_records_per_file": 30,
              "no_records_sleep_interval": 5000,
         }
         storage = FileEventStorage(storage_test_config)

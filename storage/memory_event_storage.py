@@ -27,3 +27,5 @@ class MemoryEventStorage(EventStorage):
 
     def event_pack_processing_done(self):
         self.__event_pack = []
+
+
