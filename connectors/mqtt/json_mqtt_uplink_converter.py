@@ -1,6 +1,6 @@
 import logging
 import jsonpath_rw_ext as jp
-from json import dumps
+from json import dumps, loads
 from re import search
 from connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
 
@@ -45,6 +45,8 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
     @staticmethod
     def __get_value(expression, body, value_type="string"):
+        if isinstance(body,str):
+            body = loads(body)
         if not expression:
             return ''
         p1 = search(r'\${', expression)
@@ -66,7 +68,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
         except TypeError:
             if value is None:
-                log.error('Value is None - Cannot find the pattern: %s in %s', expression, dumps(body))
+                log.error('Value is None - Cannot find the pattern: %s in %s', target_str, dumps(body))
             return None
         except Exception as e:
             log.error(e)
