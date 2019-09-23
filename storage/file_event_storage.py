@@ -94,7 +94,7 @@ class FileEventStorage(EventStorage):
         if not self.__file_done:
             events = self.get_reader_pack(path, pointer)
             data_files.change_state_line(path, files['state_file'], pointer.get_line(), operation='read')
-            return events if events else 'test'
+            return events if events else None
 
         elif self.__file_done:
             data_files.delete_file(path, files['data_files'], current_position['read_file'])
