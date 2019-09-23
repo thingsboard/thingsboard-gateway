@@ -75,18 +75,25 @@ class FileEventStorageFiles:
             log.error("{} The specified path is not referred to the directory!".format(data_folder_path))
             pass
 
-    def change_state_line(self, data_folder_path, state_file , line):
+    def change_state_line(self, data_folder_path, state_file, line, operation='write'):
         with open(data_folder_path + state_file) as f:
             state = yaml.safe_load(f)
-            state['write_line'] = line
+            if operation == 'write':
+                state['write_line'] = line
+            elif operation == 'read':
+                state['read_line'] = line
         with open(data_folder_path + state_file, 'w') as f:
             yaml.dump(state, f)
         return line
 
-    def change_state_file(self, data_folder_path, state_file, filename):
+    def change_state_file(self, data_folder_path, state_file, filename, operation='write'):
         with open(data_folder_path + state_file) as f:
             state = yaml.safe_load(f)
             state['write_file'] = filename
+            if operation == 'write':
+                state['write_file'] = filename
+            elif operation == 'read':
+                state['read_file'] = filename
         with open(data_folder_path + state_file, 'w') as f:
             yaml.dump(state, f)
         return filename
@@ -126,11 +133,6 @@ class FileEventStoragePointer:
 
     def set_line(self, line):
         self.line = line
-
-    def get_write_position(self, path, files):
-        #position = yaml.safe_load(open(path + files['state_file']))
-        #return position['write_file'], position['write_line']
-        pass
 
     def file_is_full(self, path, file, max_lines):
         lines = 0

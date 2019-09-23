@@ -19,6 +19,8 @@ class FileEventStorage(EventStorage):
         self.__events_queue = queue.Queue(self.__queue_len)
         self.__event_pack = []
         self.__reader_event_pack = []
+        self.__sent = False
+        self.__file_done = False
 
     def put(self, event):
         if not self.__events_queue.full():
@@ -36,16 +38,22 @@ class FileEventStorage(EventStorage):
                 self.__event_pack.append(self.__events_queue.get())
         return self.__event_pack
 
-    def get_reader_pack(self, file, current_position):
-        current_file = open(file, 'r')
-        for i, line in enumerate(current_file, 1):
-            if i > current_position:
-                while line:
-                    self.__reader_event_pack.append(line)
+    def get_reader_pack(self, path, pointer):
+        current_file = open(path + pointer.get_file(), 'r')
+        line_handle = current_file.readlines()
+        while len(self.__reader_event_pack) < self.__events_per_time and not self.__file_done:
+            try:
+                self.__reader_event_pack.append(line_handle[pointer.get_line() - 1])
+                pointer.next_line()
+            except IndexError as e:
+                self.__file_done = True
         return self.__reader_event_pack
 
     def event_pack_processing_done(self):
         self.__event_pack = []
+
+    def reader_pack_processing_done(self):
+        self.__reader_event_pack = []
 
     def write_to_storage(self, config):
         data_files = FileEventStorageFiles(config)
@@ -80,21 +88,22 @@ class FileEventStorage(EventStorage):
         data_files = FileEventStorageFiles(config)
         path = data_files.data_folder_path
         files = data_files.read_data_files(path)
-        try:
-            current_position = yaml.safe_load(open(path + files['state_file']))
-            pointer = FileEventStoragePointer(path, data_files.file_exist(current_position['read_file'])
-                                              or sorted(files['data_files'])[0], current_position['read_line'])
-            print(files)
-            print(pointer.get_file(), pointer.get_line())
-        except TypeError as e:
-            print('33')
-            log.warning(" Couldn't open state file")
+        current_position = yaml.safe_load(open(path + files['state_file']))
+        pointer = FileEventStoragePointer(path, data_files.file_exist(current_position['read_file'])
+                                          or sorted(files['data_files'])[0], current_position['read_line'])
+        if not self.__file_done:
+            events = self.get_reader_pack(path, pointer)
+            data_files.change_state_line(path, files['state_file'], pointer.get_line(), operation='read')
+            return events if events else 'test'
 
-        while True:
-            events = self.get_reader_pack()
-            if events:
-                for event in events:
-                    pass
+        elif self.__file_done:
+            data_files.delete_file(path, files['data_files'], current_position['read_file'])
+            data_files.change_state_file(path, files['state_file'], sorted(files['data_files'])[0],
+                                         operation='read')
+            data_files.change_state_line(path, files['state_file'], 1, operation='read')
+            self.__file_done = False
+
+
 
 
 
