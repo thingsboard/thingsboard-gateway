@@ -14,3 +14,8 @@ class Connector(ABC):
     @abstractmethod
     def get_name(self):
         pass
+
+    @abstractmethod
+    # TODO: add params
+    def on_attributes_update(self):
+        pass

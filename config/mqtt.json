@@ -58,5 +58,33 @@
         "extension": "CustomMqttSensorExtension"
       }
     }
+  ],
+  "connectRequests": [
+    {
+      "topicFilter": "sensors/connect",
+      "deviceNameJsonExpression": "${$.serialNumber}"
+    },
+    {
+      "topicFilter": "sensor/+/connect",
+      "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/connect)"
+    }
+  ],
+  "disconnectRequests": [
+    {
+      "topicFilter": "sensors/disconnect",
+      "deviceNameJsonExpression": "${$.serialNumber}"
+    },
+    {
+      "topicFilter": "sensor/+/disconnect",
+      "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/connect)"
+    }
+  ],
+  "attributeUpdates": [
+    {
+      "deviceNameFilter": "SmartMeter.*",
+      "attributeFilter": "uploadFrequency",
+      "topicExpression": "sensor/${deviceName}/${attributeKey}",
+      "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
+    }
   ]
 }
