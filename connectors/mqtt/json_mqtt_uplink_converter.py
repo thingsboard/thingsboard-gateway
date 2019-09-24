@@ -21,7 +21,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                 "telemetry": []
             }
         except Exception as e:
-            log.error('Error in converter, for config: %s', dumps(self.__config))
+            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
             log.exception(e)
         try:
             if self.__config.get("attributes"):
@@ -30,7 +30,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                                                                                               body,
                                                                                               attribute["type"])})
         except Exception as e:
-            log.error('Error in converter, for config: %s', dumps(self.__config))
+            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
             log.exception(e)
         try:
             if self.__config.get("timeseries"):
@@ -39,7 +39,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                                                                                              body,
                                                                                              timeseria["type"])})
         except Exception as e:
-            log.error('Error in converter, for config: %s', dumps(self.__config))
+            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
             log.exception(e)
         return self.dict_result
 
