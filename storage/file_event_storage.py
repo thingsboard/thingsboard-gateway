@@ -65,8 +65,9 @@ class FileEventStorage(EventStorage):
             events = self.get_event_pack()
             if events:
                 for event in events:
-                    if pointer.get_line() <= self.__records_per_file and (
-                            not pointer.file_is_full(path, pointer.get_file(), self.__records_per_file)):
+                    if pointer.get_line() <= self.__records_per_file \
+                            and data_files.file_exist(current_position['write_file']) \
+                            and not pointer.file_is_full(path, pointer.get_file(), self.__records_per_file):
                         with open(path + pointer.get_file(), 'a') as f:
                             f.write(str(event) + '\n')
                         pointer.next_line()
