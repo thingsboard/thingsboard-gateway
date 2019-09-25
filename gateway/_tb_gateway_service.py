@@ -12,7 +12,7 @@ from storage.file_event_storage import FileEventStorage
 
 
 log = logging.getLogger('__main__')
-# log.setLevel(logging.DEBUG)
+log.setLevel(logging.DEBUG)
 
 class TBGatewayService:
     def __init__(self, config_file):
@@ -88,7 +88,7 @@ class TBGatewayService:
                         current_event = loads(event)
                         if current_event["deviceName"] not in self.__connected_devices:
                             self.tb_client._client.gw_connect_device(current_event["deviceName"]).wait_for_publish()
-                        self.__connected_devices[current_event["deviceName"]] = current_event["deviceName"]
+                        self.__connected_devices[current_event["deviceName"]]["current_event"] = current_event["deviceName"]
                         if current_event.get("telemetry"):
                             data_to_send = loads('{"ts": %i,"values": %s}'%(time.time(), ','.join(dumps(param) for param in current_event["telemetry"])))
                             self.__published_events.append(self.tb_client._client.gw_send_telemetry(current_event["deviceName"], data_to_send))
@@ -96,7 +96,7 @@ class TBGatewayService:
                             data_to_send = loads('%s'%( ','.join(dumps(param) for param in current_event["attributes"])))
                             self.__published_events.append(self.tb_client._client.gw_send_attributes(current_event["deviceName"], data_to_send))
                     success = True
-                    for event in self.__published_events:
+                    for event in range(len(self.__published_events)):
                         result = self.__published_events[event].get()
                         success = result == self.__published_events[event].TB_ERR_SUCCESS
 

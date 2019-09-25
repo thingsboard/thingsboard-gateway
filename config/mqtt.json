@@ -22,7 +22,7 @@
           {
             "type": "string",
             "key": "test_key",
-            "value": "${$.value}"
+            "value": "${SerialNumber}"
           }
         ]
       }

@@ -34,6 +34,7 @@ class MqttConnector(Connector, Thread):
         self._client.on_message = self._on_message
         self._client.on_subscribe = self._on_subscribe
         self._client.on_disconnect = self._on_disconnect
+        self._client.on_log = self._on_log
         self._connected = False
         self.__stopped = False
         self.daemon = True
@@ -111,6 +112,9 @@ class MqttConnector(Connector, Thread):
     def _on_disconnect(self):
         log.debug('"%s" was disconnected.', self.get_name())
 
+    def _on_log(self,*args):
+        log.error(args)
+
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         if granted_qos[0] == 128:
             log.error('"%s" subscription failed.', self.get_name())
@@ -122,14 +126,12 @@ class MqttConnector(Connector, Thread):
         regex_topic = [regex for regex in self.__sub_topics if re.fullmatch(regex, message.topic)]
         for regex in regex_topic:
             if self.__sub_topics.get(regex):
-                for converter in self.__sub_topics.get(regex):
-                    converted_content = {}
-                    if converter:
-                        for conv in converter:
-                            converted_content = conv.convert(content)
+                for converter_value in range(len(self.__sub_topics.get(regex))):
+                    if self.__sub_topics.get(regex)[converter_value]:
+                        for converter in self.__sub_topics.get(regex)[converter_value]:
+                            converted_content = converter.convert(content)
                             if converted_content and TBUtility.validate_converted_data(converted_content):
-                                log.debug(self.__sub_topics.get(regex))
-                                self.__sub_topics[converter][conv]
+                                self.__sub_topics.get(regex)[converter_value][converter] = converted_content
                                 self.__gateway._send_to_storage(self.get_name(), converted_content)
                             else:
                                 continue
