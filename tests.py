@@ -72,7 +72,8 @@ class TestStorage(unittest.TestCase):
         storage_test_config = {
              "data_folder_path": "storage/data",
              "max_file_count": 5,
-             "max_read_records_count": 10,
+             "max_records_count": 20,
+             "read_records_count": 10,
              "max_records_between_fsync": 1,
              "max_records_per_file": 30,
              "no_records_sleep_interval": 5000,

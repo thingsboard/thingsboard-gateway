@@ -11,8 +11,8 @@ from storage.memory_event_storage import MemoryEventStorage
 from storage.file_event_storage import FileEventStorage
 
 
-log = logging.getLogger(__name__)
-
+log = logging.getLogger('__main__')
+# log.setLevel(logging.DEBUG)
 
 class TBGatewayService:
     def __init__(self, config_file):
@@ -37,7 +37,7 @@ class TBGatewayService:
             self.__send_thread.start()
 
             while True:
-                time.sleep(.5)
+                time.sleep(.1)
 
     def __load_connectors(self, config):
         self._connectors_configs = {}
