@@ -4,6 +4,7 @@ from json import dumps,loads
 from re import search
 
 log = getLogger(__name__)
+log.setLevel(10)
 
 
 class TBUtility:
@@ -20,9 +21,9 @@ class TBUtility:
         if not data.get("deviceName") or data.get("deviceName") is None:
             log.error('deviceName is empty in data %s', json_data)
             return False
-        if not data.get("deviceType") or data.get("deviceType") is None:
-            log.error('deviceType is empty in data: %s', json_data)
-            return False
+        # if not data.get("deviceType") or data.get("deviceType") is None:
+        #     log.error('deviceType is empty in data: %s', json_data)
+        #     return False
         if not data["attributes"] and not data["telemetry"]:
             log.error('No telemetry and attributes in data: %s', json_data)
             return False
@@ -38,8 +39,8 @@ class TBUtility:
 
     @staticmethod
     def get_value(expression, body, value_type="string"):
-        if not isinstance(body,str):
-            body = dumps(body)
+        if isinstance(body,str):
+            body = loads(body)
         if not expression:
             return ''
         p1 = search(r'\${', expression)
@@ -54,10 +55,14 @@ class TBUtility:
         value = True
         try:
             if value_type == "string":
-                value = jp.match1(target_str.split()[0], body)
-                full_value = expression[0: min(abs(p1-2), 0)] + value + expression[p2+1:len(expression)]
+                x = target_str.split()[0]
+                value = jp.match1(target_str.split()[0], dumps(body))
+                if value is None and body.get(target_str):
+                    full_value = expression[0: min(abs(p1-2), 0)] + body[target_str] + expression[p2+1:len(expression)]
+                else:
+                    full_value = expression[0: min(abs(p1-2), 0)] + value + expression[p2+1:len(expression)]
             else:
-                full_value = jp.match1(target_str.split()[0], body)
+                full_value = jp.match1(target_str.split()[0], dumps(body))
 
         except TypeError:
             if value is None:

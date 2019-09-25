@@ -15,8 +15,8 @@
       "converter": {
         "type": "json",
         "filterExpression": "",
-        "deviceNameJsonExpression": "${serialNumber}",
-        "deviceTypeJsonExpression": "${sensorType}",
+        "deviceNameJsonExpression": "${SerialNumber}",
+        "deviceTypeJsonExpression": "${SensorType}",
         "timeout": 60000,
         "attributes": [
           {

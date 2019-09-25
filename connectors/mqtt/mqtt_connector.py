@@ -128,13 +128,13 @@ class MqttConnector(Connector, Thread):
                         for conv in converter:
                             converted_content = conv.convert(content)
                             if converted_content and TBUtility.validate_converted_data(converted_content):
-                                self.__sub_topics.get(regex)[conv] = converted_content
+                                log.debug(self.__sub_topics.get(regex))
+                                self.__sub_topics[converter][conv]
+                                self.__gateway._send_to_storage(self.get_name(), converted_content)
                             else:
                                 continue
                     else:
                         log.error('Cannot find converter for topic:"%s"!', message.topic)
-                    if converted_content:
-                        self.__gateway._send_to_storage(self.get_name(), converted_content)
 
     def on_attributes_update(self):
         pass
