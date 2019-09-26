@@ -30,6 +30,7 @@ class TBGatewayService:
             self.__events = []
             self.tb_client = TBClient(config["thingsboard-client"])
             self.tb_client.connect()
+            self._devices_connectors = {}
             # TODO:
             # self.tb_client._client.subscribe_to_all_attributes(self.__attribute_update_callback)
             self.__load_connectors(config)

@@ -21,6 +21,8 @@ class MqttConnector(Connector, Thread):
         self.__gateway = gateway
         self.__broker = config.get('broker')
         self.__mapping = config.get('mapping')
+        self.__service_config = {"connectRequests": None, "disconnectRequests": None, "attributeUpdates": None}
+        self.__get_service_config(config)
         self.__sub_topics = {}
         client_id = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
         self._client = Client(client_id)
@@ -113,7 +115,7 @@ class MqttConnector(Connector, Thread):
         log.debug('"%s" was disconnected.', self.get_name())
 
     def _on_log(self,*args):
-        log.error(args)
+        log.debug(args)
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         if granted_qos[0] == 128:
@@ -121,17 +123,25 @@ class MqttConnector(Connector, Thread):
         else:
             log.error('"%s" subscription success.', self.get_name())
 
+    def __get_service_config(self, config):
+        for service_config in self.__service_config:
+            if config.get(service_config):
+                self.__service_config[service_config] = config[service_config]
+
     def _on_message(self, client, userdata, message):
         content = self._decode(message)
         regex_topic = [regex for regex in self.__sub_topics if re.fullmatch(regex, message.topic)]
         for regex in regex_topic:
             if self.__sub_topics.get(regex):
                 for converter_value in range(len(self.__sub_topics.get(regex))):
-                    if self.__sub_topics.get(regex)[converter_value]:
+                    if self.__sub_topics[regex][converter_value]:
                         for converter in self.__sub_topics.get(regex)[converter_value]:
                             converted_content = converter.convert(content)
                             if converted_content and TBUtility.validate_converted_data(converted_content):
-                                self.__sub_topics.get(regex)[converter_value][converter] = converted_content
+                                self.__sub_topics[regex][converter_value][converter] = converted_content
+                                if not self.__gateway._TBGatewayService__connected_devices.get(converted_content["deviceName"]):
+                                    self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]] = {"connector":None}
+                                self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]]["connector"] = self
                                 self.__gateway._send_to_storage(self.get_name(), converted_content)
                             else:
                                 continue
