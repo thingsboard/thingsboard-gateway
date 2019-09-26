@@ -56,13 +56,16 @@ class TBUtility:
         try:
             if value_type == "string":
                 x = target_str.split()[0]
+                t_body = dumps(body)
                 value = jp.match1(target_str.split()[0], dumps(body))
                 if value is None and body.get(target_str):
                     full_value = expression[0: min(abs(p1-2), 0)] + body[target_str] + expression[p2+1:len(expression)]
+                elif value is None:
+                    full_value = expression[0: min(abs(p1-2), 0)] + jp.match1(target_str.split()[0], loads(body) if type(body)==str else body) + expression[p2+1:len(expression)]
                 else:
                     full_value = expression[0: min(abs(p1-2), 0)] + value + expression[p2+1:len(expression)]
             else:
-                full_value = jp.match1(target_str.split()[0], dumps(body))
+                full_value = jp.match1(target_str.split()[0], loads(body) if type(body)==str else body)
 
         except TypeError:
             if value is None:

@@ -111,7 +111,7 @@ class MqttConnector(Connector, Thread):
             else:
                 log.error("%s connection FAIL with unknown error!", self.get_name())
 
-    def _on_disconnect(self):
+    def _on_disconnect(self,*args):
         log.debug('"%s" was disconnected.', self.get_name())
 
     def _on_log(self,*args):
@@ -141,21 +141,8 @@ class MqttConnector(Connector, Thread):
                                 self.__sub_topics[regex][converter_value][converter] = converted_content
                                 if not self.__gateway._TBGatewayService__connected_devices.get(converted_content["deviceName"]):
                                     self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]] = {"connector":None}
-                                    # TODO Connect requests
                                     if self.__service_config.get("connectRequests"):
-                                        for connect_request in self.__service_config["connectRequests"]:
-                                            data_to_send = None
-                                            if connect_request.get("deviceNameJsonExpression"):
-                                                data_to_send = TBUtility.get_value(connect_request["deviceNameJsonExpression"],
-                                                                                   content)
-                                            elif connect_request.get("deviceNameTopicExpression"):
-                                                pass
-                                                # data_to_send = TBUtility.get_value(connect_request["deviceNameTopicExpression"],
-                                                #                                    content)
-                                                # TODO Convert to python regex or use it
-                                            log.debug(connect_request)
-                                            result = self._client.publish(connect_request["topicFilter"], data_to_send).wait_for_publish()
-                                            log.debug("Publish when device \"%s\" is connected finished with result: %i",result)
+                                        self.__send_service_request("connectRequests", content, message)
 
                                 self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]]["connector"] = self
                                 self.__gateway._send_to_storage(self.get_name(), converted_content)
@@ -163,6 +150,22 @@ class MqttConnector(Connector, Thread):
                                 continue
                     else:
                         log.error('Cannot find converter for topic:"%s"!', message.topic)
+            else:
+                self.__send_service_request("disconnectRequests", content, message)
+
+    def __send_service_request(self, request_type, content, message):
+        for request in self.__service_config.get(request_type):
+            if request.get("deviceNameJsonExpression"):
+                founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"],
+                                                          content)
+                result = self._client.publish(request["topicFilter"], founded_device_name)
+            elif request.get("deviceNameTopicExpression"):
+                device_name_expression = request["deviceNameTopicExpression"]
+                founded_device_name = re.search(device_name_expression, message.topic)
+                if founded_device_name is not None:
+                    topic = founded_device_name.join(request["topicFilter"].split('+'))
+                    result = self._client.publish(topic, "")
+            log.debug("Send %s request to topic \"%s\".",request_type.replace("Requests",""),message.topic)
 
     def on_attributes_update(self):
         pass
