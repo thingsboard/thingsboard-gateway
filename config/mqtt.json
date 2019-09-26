@@ -79,7 +79,7 @@
   "connectRequests": [
     {
       "topicFilter": "sensors/connect",
-      "deviceNameJsonExpression": "${$.serialNumber}"
+      "deviceNameJsonExpression": "${$.SerialNumber}"
     },
     {
       "topicFilter": "sensor/+/connect",
@@ -89,11 +89,11 @@
   "disconnectRequests": [
     {
       "topicFilter": "sensors/disconnect",
-      "deviceNameJsonExpression": "${$.serialNumber}"
+      "deviceNameJsonExpression": "${$.SerialNumber}"
     },
     {
       "topicFilter": "sensor/+/disconnect",
-      "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/connect)"
+      "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/disconnect)"
     }
   ],
   "attributeUpdates": [

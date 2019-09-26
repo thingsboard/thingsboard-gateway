@@ -141,6 +141,22 @@ class MqttConnector(Connector, Thread):
                                 self.__sub_topics[regex][converter_value][converter] = converted_content
                                 if not self.__gateway._TBGatewayService__connected_devices.get(converted_content["deviceName"]):
                                     self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]] = {"connector":None}
+                                    # TODO Connect requests
+                                    if self.__service_config.get("connectRequests"):
+                                        for connect_request in self.__service_config["connectRequests"]:
+                                            data_to_send = None
+                                            if connect_request.get("deviceNameJsonExpression"):
+                                                data_to_send = TBUtility.get_value(connect_request["deviceNameJsonExpression"],
+                                                                                   content)
+                                            elif connect_request.get("deviceNameTopicExpression"):
+                                                pass
+                                                # data_to_send = TBUtility.get_value(connect_request["deviceNameTopicExpression"],
+                                                #                                    content)
+                                                # TODO Convert to python regex or use it
+                                            log.debug(connect_request)
+                                            result = self._client.publish(connect_request["topicFilter"], data_to_send).wait_for_publish()
+                                            log.debug("Publish when device \"%s\" is connected finished with result: %i",result)
+
                                 self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]]["connector"] = self
                                 self.__gateway._send_to_storage(self.get_name(), converted_content)
                             else:
