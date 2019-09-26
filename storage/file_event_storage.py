@@ -3,18 +3,16 @@ from tb_utility.tb_utility import TBUtility
 from storage.file_event_storage_files import FileEventStorageFiles, FileEventStoragePointer
 import yaml
 import queue
-import time
 import logging
-import threading
 
 log = logging.getLogger(__name__)
 
 
 class FileEventStorage(EventStorage):
     def __init__(self, config):
-        self.__queue_len = TBUtility.get_parameter(config, "max_records_count", 10)
-        self.__events_per_time = TBUtility.get_parameter(config, "read_records_count", 2)
-        self.__records_per_file = TBUtility.get_parameter(config, "records_per_file", 5)
+        self.__queue_len = TBUtility.get_parameter(config, "max_records_count", 18)
+        self.__events_per_time = TBUtility.get_parameter(config, "read_records_count", 6)
+        self.__records_per_file = TBUtility.get_parameter(config, "records_per_file", 4)
         self.__no_records_sleep_interval = TBUtility.get_parameter(config, "no_records_sleep_interval", 60)
         self.__events_queue = queue.Queue(self.__queue_len)
         self.__event_pack = []
@@ -61,7 +59,7 @@ class FileEventStorage(EventStorage):
         files = data_files.init_data_files(path)
         current_position = yaml.safe_load(open(path + files['state_file']))
         pointer = FileEventStoragePointer(path, current_position['write_file'], current_position['write_line'])
-        while True:
+        while self.__events_queue.qsize():
             events = self.get_event_pack()
             if events:
                 for event in events:
