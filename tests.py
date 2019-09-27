@@ -72,25 +72,22 @@ class TestStorage(unittest.TestCase):
 
     def test_file_storage(self):
         storage_test_config = {
-             "data_folder_path": "storage/data",
-             "max_file_count": 5,
+             "data_folder_path": "storage/data/",
              "max_records_count": 20,
              "read_records_count": 10,
-             "max_records_between_fsync": 1,
-             "max_records_per_file": 30,
-             "no_records_sleep_interval": 5000,
+             "records_per_file": 30
         }
         storage = FileEventStorage(storage_test_config)
 
         for test_value in range(20):
-            storage.put(test_value)
+            storage.put(str(test_value))
 
         result = []
         for _ in range(2):
             result.append(storage.get_event_pack())
             storage.event_pack_processing_done()
 
-        correct_result = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]]
+        correct_result = [["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"], ["10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]]
 
         self.assertListEqual(result, correct_result)
 
