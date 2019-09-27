@@ -5,6 +5,7 @@ from tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 from tb_utility.tb_utility import TBUtility
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
 
 class TBClient:
@@ -17,7 +18,7 @@ class TBClient:
         self._client = TBGatewayMqttClient(self.__host, self.__port, token, self)
         # Adding callbacks
         self._client._client._on_connect = self._on_connect
-        self._client._client._on_message = self._on_message
+        # self._client._client._on_message = self._on_message
         self._client._client._on_disconnect = self._on_disconnect
 
     def is_connected(self):
@@ -29,15 +30,6 @@ class TBClient:
 
     def _on_disconnect(self, client, userdata, rc):
         log.info('Gateway was disconnected trying to reconnect')
-
-    def _on_message(self, client, userdata, message):
-        content = self._client._decode(message)
-        self._on_decoded_message(content, message)
-
-    def _on_decoded_message(self, content, message):
-        log.debug('Received message from ThingsBoard:')
-        log.debug(content)
-        self._client._on_decoded_message(content, message)
 
     def disconnect(self):
         self._client.disconnect()

@@ -11,6 +11,7 @@ GATEWAY_MAIN_TOPIC = "v1/gateway/"
 GATEWAY_RPC_TOPIC = "v1/gateway/rpc"
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
 
 class TBGatewayAPI:
@@ -54,18 +55,18 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                 # callbacks for everything
                 if self.__sub_dict.get("*|*"):
                     for x in self.__sub_dict["*|*"]:
-                        self.__sub_dict["*|*"][x](content["data"])
+                        self.__sub_dict["*|*"][x](content)
                 # callbacks for device. in this case callback executes for all attributes in message
                 target = content["device"] + "|*"
                 if self.__sub_dict.get(target):
                     for x in self.__sub_dict[target]:
-                        self.__sub_dict[target][x](content["data"])
+                        self.__sub_dict[target][x](content)
                 # callback for atr. in this case callback executes for all attributes in message
                 targets = [content["device"] + "|" + x for x in content["data"]]
                 for target in targets:
                     if self.__sub_dict.get(target):
                         for sub_id in self.__sub_dict[target]:
-                            self.__sub_dict[target][sub_id](content["data"])
+                            self.__sub_dict[target][sub_id](content)
         elif message.topic == GATEWAY_RPC_TOPIC:
             if self.devices_server_side_rpc_request_handler:
                 self.devices_server_side_rpc_request_handler(self, content)

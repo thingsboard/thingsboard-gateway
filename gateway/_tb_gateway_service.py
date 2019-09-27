@@ -19,7 +19,6 @@ class TBGatewayService:
         with open(config_file) as config:
             config = yaml.safe_load(config)
             self.available_connectors = {}
-            # TODO: Store connector that created this device.
             self.__connected_devices = {}
             self.__connector_incoming_messages = {}
             self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True)
@@ -31,10 +30,9 @@ class TBGatewayService:
             self.tb_client = TBClient(config["thingsboard-client"])
             self.tb_client.connect()
             self._devices_connectors = {}
-            # TODO:
-            # self.tb_client._client.subscribe_to_all_attributes(self.__attribute_update_callback)
             self.__load_connectors(config)
             self.__connect_with_connectors()
+            self.tb_client._client.gw_subscribe_to_all_attributes(self.__attribute_update_callback)
             self.__send_thread.start()
 
             while True:
@@ -68,6 +66,9 @@ class TBGatewayService:
         if not TBUtility.validate_converted_data(data):
             log.error("Data from %s connector is invalid.", connector_name)
             return
+        if data["deviceName"] not in self.__connected_devices:
+            self.__connected_devices[data["deviceName"]]["connector"] = self.available_connectors[connector_name]
+            self.tb_client._client.gw_connect_device(data["deviceName"]).wait_for_publish()
         if not self.__connector_incoming_messages.get(connector_name):
             self.__connector_incoming_messages[connector_name] = 0
         else:
@@ -94,13 +95,12 @@ class TBGatewayService:
                             data_to_send = loads('{"ts": %i,"values": %s}'%(time.time(), ','.join(dumps(param) for param in current_event["telemetry"])))
                             self.__published_events.append(self.tb_client._client.gw_send_telemetry(current_event["deviceName"], data_to_send))
                         if current_event.get("attributes"):
-                            data_to_send = loads('%s'%( ','.join(dumps(param) for param in current_event["attributes"])))
+                            data_to_send = loads('%s' % (','.join(dumps(param) for param in current_event["attributes"])))
                             self.__published_events.append(self.tb_client._client.gw_send_attributes(current_event["deviceName"], data_to_send))
                     success = True
                     for event in range(len(self.__published_events)):
                         result = self.__published_events[event].get()
                         success = result == self.__published_events[event].TB_ERR_SUCCESS
-
                     if success:
                         self.__event_storage.event_pack_processing_done()
                 else:
@@ -109,3 +109,5 @@ class TBGatewayService:
                 log.error(e)
                 time.sleep(10)
 
+    def __attribute_update_callback(self, content):
+        self.__connected_devices[content["device"]]["connector"].on_attributes_update(content)

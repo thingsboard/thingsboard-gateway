@@ -12,25 +12,27 @@ logging.basicConfig(level=logging.DEBUG,
 class MqttConnectorTest(unittest.TestCase):
     def test_getting_attributes(self):
         test_config = {
-                        "type": "json",
-                        "deviceNameJsonExpression": "${$.sensorName}",
-                        "deviceTypeJsonExpression": "${$.sensorType}",
-                        "filterExpression": "",
-                        "timeout": 60000,
-                        "attributes": [
-                            {
-                                "key": "model",
-                                "type": "string",
-                                "value": "${$.model}"
+                        "converter": {
+                            "type": "json",
+                            "deviceNameJsonExpression": "${$.sensorName}",
+                            "deviceTypeJsonExpression": "${$.sensorType}",
+                            "filterExpression": "",
+                            "timeout": 60000,
+                            "attributes": [
+                                {
+                                    "key": "model",
+                                    "type": "string",
+                                    "value": "${$.model}"
+                                }
+                            ],
+                            "timeseries": [
+                                {
+                                    "key": "temperature",
+                                    "type": "double",
+                                    "value": "${$.t}"
+                                }
+                            ]
                             }
-                        ],
-                        "timeseries": [
-                            {
-                                "key": "temperature",
-                                "type": "double",
-                                "value": "${$.t}"
-                            }
-                        ]
                         }
         test_body_to_convert = {
                "sensorName": "SensorA",
