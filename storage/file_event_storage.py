@@ -66,7 +66,7 @@ class FileEventStorage(EventStorage):
     def write_to_storage(self):
         data_files = FileEventStorageFiles(self.__config)
         path = data_files.data_folder_path
-        files = data_files.init_data_files(path)
+        files = data_files.init_data_files()
         current_position = None
         with open(path + files['state_file']) as f:
             current_position = yaml.safe_load(f)
@@ -78,20 +78,20 @@ class FileEventStorage(EventStorage):
                     for event in events:
                         if pointer.get_line() <= self.__records_per_file \
                                 and data_files.file_exist(current_position['write_file']) \
-                                and not pointer.file_is_full(path, pointer.get_file(), self.__records_per_file):
+                                and not pointer.file_is_full(pointer.get_file(), self.__records_per_file):
                             with open(path + pointer.get_file(), 'a') as f:
                                 f.write(str(event) + '\n')
                             pointer.next_line()
-                            data_files.change_state_line(path, files['state_file'], pointer.get_line())
+                            data_files.change_state_line(files['state_file'], pointer.get_line())
                         else:
-                            if pointer.file_is_full(path, files['data_files'][-1], self.__records_per_file):
-                                new_data_file = data_files.create_new_datafile(path)
+                            if pointer.file_is_full(files['data_files'][-1], self.__records_per_file):
+                                new_data_file = data_files.create_new_datafile()
                                 pointer.set_file(new_data_file)
                                 files['data_files'].append(pointer.get_file())
-                                data_files.change_state_file(path,files['state_file'], pointer.get_file())
+                                data_files.change_state_file(files['state_file'], pointer.get_file(), operation='write')
                             pointer.set_file(files['data_files'][-1])
-                            data_files.change_state_file(path, files['state_file'], pointer.get_file())
-                            pointer.set_line(data_files.change_state_line(path, files['state_file'], 1))
+                            data_files.change_state_file(files['state_file'], pointer.get_file(), operation='write')
+                            pointer.set_line(data_files.change_state_line(files['state_file'], 1, operation='write'))
                             with open(path + pointer.get_file(), 'a') as f2:
                                 f2.write(str(event) + '\n')
                 self.__event_pack_processing_done()
@@ -99,23 +99,23 @@ class FileEventStorage(EventStorage):
     def read_from_storage(self):
         data_files = FileEventStorageFiles(self.__config)
         path = data_files.data_folder_path
-        files = data_files.read_data_files(path)
+        files = data_files.read_data_files()
         current_position = None
         with open(path + files['state_file']) as f:
             current_position = yaml.safe_load(f)
         if current_position is not None:
             pointer = FileEventStoragePointer(path, data_files.file_exist(current_position['read_file'])
-                                              or sorted(files['data_files'])[0], current_position['read_line'])
+                                              or sorted(files['data_files'])[0], 1)
             if not self.__file_done:
                 events = self.get_reader_pack(path, pointer)
-                data_files.change_state_line(path, files['state_file'], pointer.get_line(), operation='read')
+                data_files.change_state_line(files['state_file'], pointer.get_line(), operation='read')
                 return events if events else None
 
             elif self.__file_done:
-                data_files.delete_file(path, files['data_files'], current_position['read_file'])
-                data_files.change_state_file(path, files['state_file'], sorted(files['data_files'])[0],
+                data_files.delete_file(files['data_files'], current_position['read_file'])
+                data_files.change_state_file(files['state_file'], sorted(files['data_files'])[0],
                                              operation='read')
-                data_files.change_state_line(path, files['state_file'], 1, operation='read')
+                data_files.change_state_line(files['state_file'], 1, operation='read')
                 self.__file_done = False
 
 

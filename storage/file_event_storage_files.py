@@ -11,48 +11,46 @@ class FileEventStorageFiles:
     def __init__(self, config):
         self.data_folder_path = TBUtility.get_parameter(config, "data_folder_path", './storage/data/')
 
-    def init_data_folder_if_not_exist(self, data_folder_path):
-        path = data_folder_path
-        if not os.path.exists(path):
+    def init_data_folder_if_not_exist(self):
+        if not os.path.exists(self.data_folder_path):
             try:
-                os.makedirs(path)
+                os.makedirs(self.data_folder_path)
             except OSError as e:
                 log.error("Failed to create data folder!", e)
                 pass
 
-    def init_data_files(self, data_folder_path):
-        self.init_data_folder_if_not_exist(data_folder_path)
+    def init_data_files(self):
+        self.init_data_folder_if_not_exist()
         data_files_size = 0
-        data_dir = data_folder_path
         files = {'state_file': None, 'data_files': []}
-        if os.path.isdir(data_dir):
-            for file in os.listdir(data_dir):
+        if os.path.isdir(self.data_folder_path):
+            for file in os.listdir(self.data_folder_path):
                 if file.startswith('data_'):
                     files['data_files'].append(file)
-                    data_files_size += os.path.getsize(data_dir + file)
+                    data_files_size += os.path.getsize(self.data_folder_path + file)
                 elif file.startswith('state_'):
                     files['state_file'] = file
             if data_files_size == 0:
-                new_data_file = self.create_new_datafile(data_folder_path)
+                new_data_file = self.create_new_datafile()
                 files['data_files'].append(new_data_file)
             if not files['state_file']:
-                new_state_file = self.create_file(data_folder_path, 'state_', 'file.yaml')
+                new_state_file = self.create_file('state_', 'file.yaml')
                 state_data = {"read_file": new_data_file, "read_line": 1,
                               "write_file": new_data_file, "write_line": 1
                               }
-                with open(data_folder_path + new_state_file, 'w') as f:
+                with open(self.data_folder_path + new_state_file, 'w') as f:
                     yaml.dump(state_data, f, default_flow_style=False)
                 files['state_file'] = new_state_file
             return files
         else:
-            log.error("{} The specified path is not referred to the directory!".format(data_folder_path))
+            log.error("{} The specified path is not referred to the directory!".format(self.data_folder_path))
             pass
 
-    def create_new_datafile(self, data_folder_path):
-        return self.create_file(data_folder_path, 'data_', (str(round(time.time() * 1000))) + '.txt')
+    def create_new_datafile(self):
+        return self.create_file('data_', (str(round(time.time() * 1000))) + '.txt')
 
-    def create_file(self, data_folder_path, prefix, filename):
-        file_path = data_folder_path + prefix + filename
+    def create_file(self, prefix, filename):
+        file_path = self.data_folder_path + prefix + filename
         try:
             file = open(file_path, 'w')
             file.close()
@@ -61,40 +59,39 @@ class FileEventStorageFiles:
             log.error("Failed to create a new file!", e)
             pass
 
-    def read_data_files(self, data_folder_path):
-        data_dir = data_folder_path
+    def read_data_files(self):
         files = {'state_file': None, 'data_files': []}
-        if os.path.isdir(data_dir):
-            for file in os.listdir(data_dir):
+        if os.path.isdir(self.data_folder_path):
+            for file in os.listdir(self.data_folder_path):
                 if file.startswith('data_'):
                     files['data_files'].append(file)
                 elif file.startswith('state_'):
                     files['state_file'] = file
             return files
         else:
-            log.error("{} The specified path is not referred to the directory!".format(data_folder_path))
+            log.error("{} The specified path is not referred to the directory!".format(self.data_folder_path))
             pass
 
-    def change_state_line(self, data_folder_path, state_file, line, operation='write'):
-        with open(data_folder_path + state_file) as f:
+    def change_state_line(self, state_file, line, operation='write'):
+        with open(self.data_folder_path + state_file) as f:
             state = yaml.safe_load(f)
             if operation == 'write':
                 state['write_line'] = line
             elif operation == 'read':
                 state['read_line'] = line
-        with open(data_folder_path + state_file, 'w') as f:
+        with open(self.data_folder_path + state_file, 'w') as f:
             yaml.dump(state, f)
         return line
 
-    def change_state_file(self, data_folder_path, state_file, filename, operation='write'):
-        with open(data_folder_path + state_file) as f:
+    def change_state_file(self, state_file, filename, operation='write'):
+        with open(self.data_folder_path + state_file) as f:
             state = yaml.safe_load(f)
             state['write_file'] = filename
             if operation == 'write':
                 state['write_file'] = filename
             elif operation == 'read':
                 state['read_file'] = filename
-        with open(data_folder_path + state_file, 'w') as f:
+        with open(self.data_folder_path + state_file, 'w') as f:
             yaml.dump(state, f)
         return filename
 
@@ -102,8 +99,8 @@ class FileEventStorageFiles:
         full_name = self.data_folder_path + filename
         return filename if os.path.exists(full_name) else False
 
-    def delete_file(self, data_folder_path, file_list: list, file):
-        full_name = data_folder_path + file
+    def delete_file(self, file_list: list, file):
+        full_name = self.data_folder_path + file
         try:
             file_list.remove(file)
             os.remove(full_name)
@@ -134,20 +131,19 @@ class FileEventStoragePointer:
     def set_line(self, line):
         self.line = line
 
-    def file_is_full(self, path, file, max_lines):
+    def file_is_full(self, file, max_lines):
         lines = 0
-        with open(path + file) as f:
+        with open(self.path + file) as f:
             for lines, l in enumerate(f, 1):
                 pass
         return False if lines < max_lines else True
 
-    def last_line(self, path, file, current_line):
+    def last_line(self, current_line):
         lines = 0
-        with open(path + file) as f:
+        with open(self.path + self.file) as f:
             for lines, l in enumerate(f, 1):
                 pass
         return False if current_line < lines else True
-
 
     def next_line(self):
         self.line += 1
