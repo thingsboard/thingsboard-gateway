@@ -99,7 +99,10 @@ class MqttConnector(Connector, Thread):
                         converter = JsonMqttUplinkConverter(mapping)
                     self.__sub_topics[regex_topic].append({converter: None})
                     self._client.subscribe(TBUtility.regex_to_topic(regex_topic))
-                    # if self.
+                    if self.__service_config.get("disconnectRequests"):
+                        for request in self.__service_config["disconnectRequests"]:
+                            self._client.subscribe(request["topicFilter"])
+
                     log.info('Connector "%s" subscribe to %s', self.get_name(), TBUtility.regex_to_topic(regex_topic))
                 except Exception as e:
                     log.exception(e)
@@ -140,9 +143,20 @@ class MqttConnector(Connector, Thread):
                             if converted_content and TBUtility.validate_converted_data(converted_content):
                                 self.__sub_topics[regex][converter_value][converter] = converted_content
                                 if not self.__gateway._TBGatewayService__connected_devices.get(converted_content["deviceName"]):
-                                    self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]] = {"connector":None}
+                                    self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]] = {"connector": None}
                                     if self.__service_config.get("connectRequests"):
-                                        self.__send_service_request("connectRequests", content, message)
+                                        for request in self.__service_config.get("connectRequests"):
+                                            if request.get("deviceNameJsonExpression"):
+                                                founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"],
+                                                                                          content)
+                                                result = self._client.publish(request["topicFilter"], founded_device_name)
+                                            elif request.get("deviceNameTopicExpression"):
+                                                device_name_expression = request["deviceNameTopicExpression"]
+                                                founded_device_name = re.search(device_name_expression, message.topic)
+                                                if founded_device_name is not None:
+                                                    topic = founded_device_name.join(request["topicFilter"].split('+'))
+                                                    result = self._client.publish(topic, "")
+                                            log.debug("Send Connect request to topic \"%s\".", message.topic)
 
                                 self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]]["connector"] = self
                                 self.__gateway._send_to_storage(self.get_name(), converted_content)
@@ -151,21 +165,17 @@ class MqttConnector(Connector, Thread):
                     else:
                         log.error('Cannot find converter for topic:"%s"!', message.topic)
             else:
-                self.__send_service_request("disconnectRequests", content, message)
+                for request in self.__service_config.get("disconnectRequests"):
+                    if request.get("deviceNameJsonExpression"):
+                        founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"],
+                                                                  content)
+                    if request.get("deviceNameTopicExpression"):
+                        device_name_expression = request["deviceNameTopicExpression"]
+                        founded_device_name = re.search(device_name_expression, message.topic)
+                    if founded_device_name is not None and message.topic == request["topicFilter"] and founded_device_name in self.__gateway._TBGatewayService__connected_devices:
+                        del self.__gateway._TBGatewayService__connected_devices[founded_device_name]
+                        self.__gateway.tb_client._client.gw_disconnect_device(founded_device_name)
 
-    def __send_service_request(self, request_type, content, message):
-        for request in self.__service_config.get(request_type):
-            if request.get("deviceNameJsonExpression"):
-                founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"],
-                                                          content)
-                result = self._client.publish(request["topicFilter"], founded_device_name)
-            elif request.get("deviceNameTopicExpression"):
-                device_name_expression = request["deviceNameTopicExpression"]
-                founded_device_name = re.search(device_name_expression, message.topic)
-                if founded_device_name is not None:
-                    topic = founded_device_name.join(request["topicFilter"].split('+'))
-                    result = self._client.publish(topic, "")
-            log.debug("Send %s request to topic \"%s\".",request_type.replace("Requests",""),message.topic)
 
     def on_attributes_update(self):
         pass
