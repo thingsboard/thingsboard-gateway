@@ -104,19 +104,21 @@ class FileEventStorage(EventStorage):
         with open(path + files['state_file']) as f:
             current_position = yaml.safe_load(f)
         if current_position is not None:
-            pointer = FileEventStoragePointer(path, data_files.file_exist(current_position['read_file'])
-                                              or sorted(files['data_files'])[0], 1)
-            if not self.__file_done:
-                events = self.get_reader_pack(path, pointer)
-                data_files.change_state_line(files['state_file'], pointer.get_line(), operation='read')
-                return events if events else None
+            pointer = FileEventStoragePointer(path, data_files.file_exist(current_position['read_file']),
+                                              current_position['read_line'])
+        else:
+            pointer = FileEventStoragePointer(path, sorted(files['data_files'])[0], 1)
+        if not self.__file_done:
+            events = self.get_reader_pack(path, pointer)
+            data_files.change_state_line(files['state_file'], pointer.get_line(), operation='read')
+            return events if events else None
 
-            elif self.__file_done:
-                data_files.delete_file(files['data_files'], current_position['read_file'])
-                data_files.change_state_file(files['state_file'], sorted(files['data_files'])[0],
-                                             operation='read')
-                data_files.change_state_line(files['state_file'], 1, operation='read')
-                self.__file_done = False
+        elif self.__file_done:
+            data_files.delete_file(files['data_files'], current_position['read_file'])
+            data_files.change_state_file(files['state_file'], sorted(files['data_files'])[0],
+                                         operation='read')
+            data_files.change_state_line(files['state_file'], 1, operation='read')
+            self.__file_done = False
 
 
 
