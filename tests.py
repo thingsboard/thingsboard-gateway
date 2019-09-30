@@ -44,52 +44,61 @@ class MqttConnectorTest(unittest.TestCase):
                "deviceName": "SensorA",
                "deviceType": "temperature-sensor",
                "attributes": [{"model":"T1000"}],
-               "telemetry": [{"temperature":42.0}]
+               "telemetry": [{"temperature": 42.0}]
         }
         result = JsonMqttUplinkConverter(test_config).convert(test_body_to_convert)
         self.assertDictEqual(result,test_result)
 
 class TestStorage(unittest.TestCase):
     def test_memory_storage(self):
+
+        test_size = 4
+
         storage_test_config = {
             "type": "memory",
             "read_records_count": 10,
-            "max_records_count": 20
+            "max_records_count": test_size*10
         }
         storage = MemoryEventStorage(storage_test_config)
 
-        for test_value in range(20):
+        for test_value in range(test_size*10):
             storage.put(test_value)
 
         result = []
-        for _ in range(2):
+        for _ in range(test_size):
             result.append(storage.get_event_pack())
             storage.event_pack_processing_done()
 
-        correct_result = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]]
+        correct_result = [[x for x in range(y*10,(y+1)*10)] for y in range(test_size)]
 
         self.assertListEqual(result, correct_result)
 
     def test_file_storage(self):
+
+        test_size = 4
+
         storage_test_config = {
              "data_folder_path": "storage/data/",
-             "max_records_count": 20,
+             "max_records_count": test_size*10,
              "read_records_count": 10,
-             "records_per_file": 30
+             "records_per_file": 40
         }
         storage = FileEventStorage(storage_test_config)
 
-        for test_value in range(20):
+        for test_value in range(test_size*10):
             storage.put(str(test_value))
 
         result = []
-        for _ in range(2):
+        for _ in range(test_size):
             result.append(storage.get_event_pack())
             storage.event_pack_processing_done()
 
-        correct_result = [["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"], ["10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]]
+        print(result)
+
+        correct_result = [[str(x) for x in range(y*10,(y+1)*10)] for y in range(test_size)]
 
         self.assertListEqual(result, correct_result)
+
 
 if __name__ == '__main__':
     unittest.main()
