@@ -2,6 +2,7 @@ import unittest
 from connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
 from storage.memory_event_storage import MemoryEventStorage
 from storage.file_event_storage import FileEventStorage
+from random import randint
 import logging
 
 logging.basicConfig(level=logging.DEBUG,
@@ -52,7 +53,7 @@ class MqttConnectorTest(unittest.TestCase):
 class TestStorage(unittest.TestCase):
     def test_memory_storage(self):
 
-        test_size = 4
+        test_size = randint(0, 100)
 
         storage_test_config = {
             "type": "memory",
@@ -75,7 +76,7 @@ class TestStorage(unittest.TestCase):
 
     def test_file_storage(self):
 
-        test_size = 4
+        test_size = randint(0, 100)
 
         storage_test_config = {
              "data_folder_path": "storage/data/",
@@ -92,8 +93,6 @@ class TestStorage(unittest.TestCase):
         for _ in range(test_size):
             result.append(storage.get_event_pack())
             storage.event_pack_processing_done()
-
-        print(result)
 
         correct_result = [[str(x) for x in range(y*10,(y+1)*10)] for y in range(test_size)]
 

@@ -102,13 +102,13 @@ class MqttConnector(Connector, Thread):
                     log.info('Connector "%s" subscribe to %s', self.get_name(), TBUtility.regex_to_topic(regex_topic))
                 except Exception as e:
                     log.exception(e)
-            if self.__service_config.get("disconnectRequests"):
-                for request in self.__service_config["disconnectRequests"]:
-                    self._client.subscribe(request["topicFilter"])
-            if self.__service_config.get("attributeUpdates"):
-                for request in self.__service_config["attributeUpdates"]:
-                    self._client.subscribe(request["topicFilter"])
-            log.debug(self.__sub_topics)
+            try:
+                for request in self.__service_config:
+                    if self.__service_config.get(request) is not None:
+                        for request_config in request:
+                            self._client.subscribe(request[request_config]["topicFilter"])
+            except Exception as e:
+                log.error(e)
 
         else:
             if rc in result_codes:
@@ -116,7 +116,7 @@ class MqttConnector(Connector, Thread):
             else:
                 log.error("%s connection FAIL with unknown error!", self.get_name())
 
-    def _on_disconnect(self,*args):
+    def _on_disconnect(self, *args):
         log.debug('"%s" was disconnected.', self.get_name())
 
     def _on_log(self,*args):
@@ -147,26 +147,29 @@ class MqttConnector(Connector, Thread):
                                     self.__sub_topics[regex][converter_value][converter] = converted_content
                                     if not self.__gateway._TBGatewayService__connected_devices.get(converted_content["deviceName"]):
                                         self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]] = {"connector": None}
-                                        if self.__service_config.get("connectRequests"):
-                                            for request in self.__service_config.get("connectRequests"):
-                                                if request.get("deviceNameJsonExpression"):
-                                                    founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"],
-                                                                                              content)
-                                                    result = self._client.publish(request["topicFilter"], founded_device_name)
-                                                elif request.get("deviceNameTopicExpression"):
-                                                    device_name_expression = request["deviceNameTopicExpression"]
-                                                    founded_device_name = re.search(device_name_expression, message.topic)
-                                                    if founded_device_name is not None:
-                                                        topic = founded_device_name.join(request["topicFilter"].split('+'))
-                                                        result = self._client.publish(topic, "")
-                                                log.debug("Send Connect request to topic \"%s\".", request.get("topicFilter"))
                                     self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]]["connector"] = self
                                     self.__gateway._send_to_storage(self.get_name(), converted_content)
                                 else:
                                     continue
                         else:
                             log.error('Cannot find converter for topic:"%s"!', message.topic)
-        else:
+            if self.__service_config.get("connectRequests"):
+                for connect_requests in self.__service_config.get("connectRequests"):
+                    if connect_requests:
+                        for request in connect_requests:
+                            if message.topic in request.get("topicFilter") or\
+                                    (request.get("deviceNameTopicExpression") is not None and re.search(request.get("deviceNameTopicExpression"), message.topic)):
+                                founded_device_name = None
+                                if request.get("deviceNameJsonExpression"):
+                                    founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"], content)
+                                if request.get("deviceNameTopicExpression"):
+                                    device_name_expression = request["deviceNameTopicExpression"]
+                                    founded_device_name = re.search(device_name_expression, message.topic)
+                                if founded_device_name is not None and founded_device_name not in self.__gateway._TBGatewayService__connected_devices:
+                                    self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]] = {"connector": self}
+                                    self.__gateway.tb_client._client.gw_connect_device(founded_device_name)
+
+        elif self.__service_config.get("disconnectRequests") is not None:
             disconnect_requests = [disconnect_request for disconnect_request in  self.__service_config.get("disconnectRequests")]
             if disconnect_requests:
                 for request in disconnect_requests:
@@ -183,7 +186,7 @@ class MqttConnector(Connector, Thread):
                             self.__gateway.tb_client._client.gw_disconnect_device(founded_device_name)
 
     def on_attributes_update(self, content):
-        attribute_updates_config = [disconnect_request for disconnect_request in self.__service_config.get("attributeUpdates")]
+        attribute_updates_config = [update for update in self.__service_config.get("attributeUpdates")]
         if attribute_updates_config:
             for attribute_update in attribute_updates_config:
                 if re.match(attribute_update["deviceNameFilter"], content["device"]) and content["data"].get(attribute_update["attributeFilter"]):
