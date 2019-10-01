@@ -1,0 +1,10 @@
+{
+  "deviceName": "ExampleDevice",
+  "deviceType": "thermostat",
+  "deviceNameTopicExpression": "(?<=/custom-sensor/)(.*?$)",
+  "telemetryKeys": [
+    "temperature",
+    "humidity",
+    "battery_level"
+  ]
+}
