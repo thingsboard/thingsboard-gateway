@@ -236,30 +236,44 @@ class MqttConnector(Connector, Thread):
             log.error("Attribute updates config not found.")
 
     def server_side_rpc_handler(self, content):
-        self.__rpc_requests[content["data"]["id"]] = content
+        self.__rpc_requests[content["data"]["id"]] = [content]
         for rpc_config in self.__server_side_rpc:
             if re.search(rpc_config["deviceNameFilter"], content["device"]):
                 if re.search(rpc_config["methodFilter"], content["data"]["method"]) is not None:
                     if rpc_config.get("responseTopicExpression"):
-                        pass #TODO Add rpc handler with waiting for response
+                        topic_for_subscribe = rpc_config["responseTopicExpression"] \
+                            .replace("${deviceName}", content["device"]) \
+                            .replace("${methodName}", content["data"]["method"]) \
+                            .replace("${requestId}", content["data"]["id"]) \
+                            .replace("${params}", content["data"]["params"])
+
+                        self._client.subscribe(topic_for_subscribe)
+                        self.__rpc_requests[content["data"]["id"]].append(time.time())
+                        self.__rpc_requests[content["data"]["id"]].append(rpc_config.get("responseTimeout"))
+                        self.__rpc_requests[content["data"]["id"]].append(topic_for_subscribe)
+                        self.__rpc_requests[content["data"]["id"]].append(rpc_config.get("responseTopicExpression"))
+
+                        # TODO Add rpc handler with waiting for response
+                        # TODO Add listener for response
                     else:
-                        topic = rpc_config.get("requestTopicExpression")\
-                            .replace("${deviceName}", content["device"])\
-                            .replace("${methodName}", content["data"]["method"])\
-                            .replace("${requestId}", content["data"]["id"])\
-                            .replace("${params}", content["data"]["params"])
-                        data_to_send = rpc_config.get("valueExpression")\
-                            .replace("${deviceName}", content["device"])\
-                            .replace("${methodName}", content["data"]["method"])\
-                            .replace("${requestId}", content["data"]["id"])\
-                            .replace("${params}", content["data"]["params"])
-                        try:
-                            self._client.publish(topic, data_to_send)
-                            log.debug("Send RPC with no response request to topic: %s with data %s",
-                                      topic,
-                                      data_to_send)
-                        except Exception as e:
-                            log.error(e)
+                        del self.__rpc_requests[content["data"]["id"]]
+                    topic = rpc_config.get("requestTopicExpression")\
+                        .replace("${deviceName}", content["device"])\
+                        .replace("${methodName}", content["data"]["method"])\
+                        .replace("${requestId}", content["data"]["id"])\
+                        .replace("${params}", content["data"]["params"])
+                    data_to_send = rpc_config.get("valueExpression")\
+                        .replace("${deviceName}", content["device"])\
+                        .replace("${methodName}", content["data"]["method"])\
+                        .replace("${requestId}", content["data"]["id"])\
+                        .replace("${params}", content["data"]["params"])
+                    try:
+                        self._client.publish(topic, data_to_send)
+                        log.debug("Send RPC with no response request to topic: %s with data %s",
+                                  topic,
+                                  data_to_send)
+                    except Exception as e:
+                        log.error(e)
 
     @staticmethod
     def _decode(message):
