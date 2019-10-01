@@ -7,6 +7,7 @@ from importlib import import_module
 from paho.mqtt.client import Client
 from connectors.connector import Connector
 from connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
+from connectors.mqtt.custom_mqtt_uplink_converter import CustomMqttUplinkConverter
 from threading import Thread
 from tb_utility.tb_utility import TBUtility
 from json import loads, dumps
@@ -93,8 +94,7 @@ class MqttConnector(Connector, Thread):
                     if not self.__sub_topics.get(regex_topic):
                         self.__sub_topics[regex_topic] = []
                     if mapping["converter"]["type"] == "custom":
-                        converter = 1
-                        # TODO Custom converter
+                        converter = CustomMqttUplinkConverter(mapping)
                     else:
                         converter = JsonMqttUplinkConverter(mapping)
                     self.__sub_topics[regex_topic].append({converter: None})
@@ -153,37 +153,56 @@ class MqttConnector(Connector, Thread):
                                     continue
                         else:
                             log.error('Cannot find converter for topic:"%s"!', message.topic)
-            if self.__service_config.get("connectRequests"):
-                for connect_requests in self.__service_config.get("connectRequests"):
-                    if connect_requests:
-                        for request in connect_requests:
-                            if message.topic in request.get("topicFilter") or\
-                                    (request.get("deviceNameTopicExpression") is not None and re.search(request.get("deviceNameTopicExpression"), message.topic)):
-                                founded_device_name = None
-                                if request.get("deviceNameJsonExpression"):
-                                    founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"], content)
-                                if request.get("deviceNameTopicExpression"):
-                                    device_name_expression = request["deviceNameTopicExpression"]
-                                    founded_device_name = re.search(device_name_expression, message.topic)
-                                if founded_device_name is not None and founded_device_name not in self.__gateway._TBGatewayService__connected_devices:
-                                    self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]] = {"connector": self}
-                                    self.__gateway.tb_client._client.gw_connect_device(founded_device_name)
+        elif self.__service_config.get("connectRequests"):
+            connect_requests = [connect_request for connect_request in self.__service_config.get("connectRequests")]
+            if connect_requests:
+                for request in connect_requests:
+                    if request.get("topicFilter"):
+                        if message.topic in request.get("topicFilter") or\
+                                (request.get("deviceNameTopicExpression") is not None and re.search(request.get("deviceNameTopicExpression"), message.topic)):
+                            founded_device_name = None
+                            if request.get("deviceNameJsonExpression"):
+                                founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"], content)
+                            if request.get("deviceNameTopicExpression"):
+                                device_name_expression = request["deviceNameTopicExpression"]
+                                founded_device_name = re.search(device_name_expression, message.topic)
+                            if founded_device_name is not None and founded_device_name not in self.__gateway._TBGatewayService__connected_devices:
+                                self.__gateway._TBGatewayService__connected_devices[founded_device_name] = {"connector": self}
+                                self.__gateway.tb_client._client.gw_connect_device(founded_device_name)
+                        else:
+                            log.error("Cannot find connect request for device from message from topic: %s and with data: %s",
+                                      message.topic,
+                                      content)
+                    else:
+                        log.error("\"topicFilter\" in connect requests config not found.")
+            else:
+                log.error("Connection requests in config not found.")
 
         elif self.__service_config.get("disconnectRequests") is not None:
             disconnect_requests = [disconnect_request for disconnect_request in  self.__service_config.get("disconnectRequests")]
             if disconnect_requests:
                 for request in disconnect_requests:
-                    if message.topic in request.get("topicFilter") or\
-                            (request.get("deviceNameTopicExpression") is not None and re.search(request.get("deviceNameTopicExpression"), message.topic)):
-                        founded_device_name = None
-                        if request.get("deviceNameJsonExpression"):
-                            founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"], content)
-                        if request.get("deviceNameTopicExpression"):
-                            device_name_expression = request["deviceNameTopicExpression"]
-                            founded_device_name = re.search(device_name_expression, message.topic)
-                        if founded_device_name is not None and founded_device_name in self.__gateway._TBGatewayService__connected_devices:
-                            del self.__gateway._TBGatewayService__connected_devices[founded_device_name]
-                            self.__gateway.tb_client._client.gw_disconnect_device(founded_device_name)
+                    if request.get("topicFilter") is not None:
+                        if message.topic in request.get("topicFilter") or\
+                                (request.get("deviceNameTopicExpression") is not None and re.search(request.get("deviceNameTopicExpression"), message.topic)):
+                            founded_device_name = None
+                            if request.get("deviceNameJsonExpression"):
+                                founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"], content)
+                            if request.get("deviceNameTopicExpression"):
+                                device_name_expression = request["deviceNameTopicExpression"]
+                                founded_device_name = re.search(device_name_expression, message.topic)
+                            if founded_device_name is not None and founded_device_name in self.__gateway._TBGatewayService__connected_devices:
+                                del self.__gateway._TBGatewayService__connected_devices[founded_device_name]
+                                self.__gateway.tb_client._client.gw_disconnect_device(founded_device_name)
+                        else:
+                            log.error("Cannot find connect request for device from message from topic: %s and with data: %s",
+                                      message.topic,
+                                      content)
+                    else:
+                        log.error("\"topicFilter\" in connect requests config not found.")
+            else:
+                log.error("Disconnection requests in config not found.")
+
 
     def on_attributes_update(self, content):
         attribute_updates_config = [update for update in self.__service_config.get("attributeUpdates")]
@@ -205,6 +224,12 @@ class MqttConnector(Connector, Thread):
                               data,
                               content["device"],
                               topic)
+                else:
+                    log.error("Not found deviceName by filter in message or attributeFilter in message with data: %s",
+                              content)
+        else:
+            log.error("Attribute updates config not found.")
+
 
     @staticmethod
     def _decode(message):
