@@ -1,7 +1,6 @@
 from storage.event_storage import EventStorage
 from storage.event_storage_files import EventStorageFiles
 from storage.file_event_storage_settings import FileEventStorageSettings
-from tb_utility.tb_utility import TBUtility
 import os
 import time
 import logging
@@ -51,7 +50,7 @@ class FileEventStorage(EventStorage):
             if not state_file:
                 state_file = self.create_file('state_', 'file')
             return EventStorageFiles(state_file, data_files)
-        
+
     def create_new_datafile(self):
         return self.create_file('data_', str(round(time.time() * 1000)))
 
