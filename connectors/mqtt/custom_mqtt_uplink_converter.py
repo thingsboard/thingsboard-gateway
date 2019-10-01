@@ -12,7 +12,7 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
         self.__config = config.get('converter')
         self.dict_result = {}
 
-        extension_file_path = "extensions/mqtt/" + self.__config.get('extension')
+        extension_file_path = "./extensions/mqtt/" + self.__config.get('extension')+".json"
         if path.exists(extension_file_path):
             try:
                 with open(extension_file_path) as extension_file:
