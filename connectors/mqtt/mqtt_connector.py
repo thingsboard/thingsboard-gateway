@@ -22,6 +22,7 @@ class MqttConnector(Connector, Thread):
         self.__gateway = gateway
         self.__broker = config.get('broker')
         self.__mapping = config.get('mapping')
+        self.__server_side_rpc = config.get('serverSideRpc')
         self.__service_config = {"connectRequests": None, "disconnectRequests": None}
         self.__attribute_updates = []
         self.__get_service_config(config)
@@ -39,6 +40,7 @@ class MqttConnector(Connector, Thread):
         self._client.on_subscribe = self._on_subscribe
         self._client.on_disconnect = self._on_disconnect
         self._client.on_log = self._on_log
+        self.__rpc_requests = {}
         self._connected = False
         self.__stopped = False
         self.daemon = True
@@ -233,6 +235,28 @@ class MqttConnector(Connector, Thread):
         else:
             log.error("Attribute updates config not found.")
 
+    def server_side_rpc_handler(self, content):
+        self.__rpc_requests[content["data"]["id"]] = content
+        for rpc_config in self.__server_side_rpc:
+            if re.search(rpc_config["deviceNameFilter"], content["device"]):
+                if re.search(rpc_config["methodFilter"], content["data"]["method"]) is not None:
+                    if rpc_config.get("responseTopicExpression"):
+                        pass #TODO Add rpc handler with waiting for response
+                    else:
+                        topic = rpc_config.get("requestTopicExpression")\
+                            .replace("${deviceName}", content["device"])\
+                            .replace("${methodName}", content["data"]["method"])\
+                            .replace("${requestId}", content["data"]["id"])\
+                            .replace("${params}", content["data"]["params"])
+                        data_to_send = rpc_config.get("valueExpression")\
+                            .replace("${deviceName}", content["device"])\
+                            .replace("${methodName}", content["data"]["method"])\
+                            .replace("${requestId}", content["data"]["id"])\
+                            .replace("${params}", content["data"]["params"])
+                        try:
+                            self._client.publish(topic, data_to_send)
+                        except Exception as e:
+                            log.error(e)
 
     @staticmethod
     def _decode(message):

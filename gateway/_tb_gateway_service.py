@@ -110,9 +110,9 @@ class TBGatewayService:
                 log.error(e)
                 time.sleep(10)
 
-    def rpc_request_handler(self, *args):
-        print("rpc")
-        log.debug(args)
+    def rpc_request_handler(self, client, content):
+
+        self.tb_client._client.gw_send_rpc_reply(content["device"], content["data"].get("id"), content["data"].get("method")+" response")
 
     def __attribute_update_callback(self, content):
         self.__connected_devices[content["device"]]["connector"].on_attributes_update(content)

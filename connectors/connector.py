@@ -16,6 +16,9 @@ class Connector(ABC):
         pass
 
     @abstractmethod
-    # TODO: add params
     def on_attributes_update(self):
+        pass
+
+    @abstractmethod
+    def server_side_rpc_handler(self):
         pass
