@@ -28,6 +28,7 @@ class TBGatewayService:
                 self.__event_storage = FileEventStorage(config["storage"])
             self.__events = []
             self.tb_client = TBClient(config["thingsboard-client"])
+            self.tb_client._client.gw_set_server_side_rpc_request_handler(self.rpc_request_handler)
             self.tb_client.connect()
             self._devices_connectors = {}
             self.__load_connectors(config)
@@ -108,6 +109,10 @@ class TBGatewayService:
             except Exception as e:
                 log.error(e)
                 time.sleep(10)
+
+    def rpc_request_handler(self, *args):
+        print("rpc")
+        log.debug(args)
 
     def __attribute_update_callback(self, content):
         self.__connected_devices[content["device"]]["connector"].on_attributes_update(content)

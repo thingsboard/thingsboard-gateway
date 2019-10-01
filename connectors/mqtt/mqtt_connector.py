@@ -22,7 +22,8 @@ class MqttConnector(Connector, Thread):
         self.__gateway = gateway
         self.__broker = config.get('broker')
         self.__mapping = config.get('mapping')
-        self.__service_config = {"connectRequests": None, "disconnectRequests": None, "attributeUpdates": None}
+        self.__service_config = {"connectRequests": None, "disconnectRequests": None}
+        self.__attribute_updates = []
         self.__get_service_config(config)
         self.__sub_topics = {}
         client_id = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
@@ -105,8 +106,8 @@ class MqttConnector(Connector, Thread):
             try:
                 for request in self.__service_config:
                     if self.__service_config.get(request) is not None:
-                        for request_config in request:
-                            self._client.subscribe(request[request_config]["topicFilter"])
+                        for request_config in self.__service_config.get(request):
+                            self._client.subscribe(request_config["topicFilter"])
             except Exception as e:
                 log.error(e)
 
@@ -130,8 +131,10 @@ class MqttConnector(Connector, Thread):
 
     def __get_service_config(self, config):
         for service_config in self.__service_config:
-            if config.get(service_config):
+            if service_config != "attributeUpdates" and config.get(service_config):
                 self.__service_config[service_config] = config[service_config]
+            else:
+                self.__attribute_updates = config[service_config]
 
     def _on_message(self, client, userdata, message):
         content = self._decode(message)
@@ -203,12 +206,12 @@ class MqttConnector(Connector, Thread):
             else:
                 log.error("Disconnection requests in config not found.")
 
-
     def on_attributes_update(self, content):
-        attribute_updates_config = [update for update in self.__service_config.get("attributeUpdates")]
+        attribute_updates_config = [update for update in self.__attribute_updates]
         if attribute_updates_config:
             for attribute_update in attribute_updates_config:
-                if re.match(attribute_update["deviceNameFilter"], content["device"]) and content["data"].get(attribute_update["attributeFilter"]):
+                if re.match(attribute_update["deviceNameFilter"], content["device"]) and \
+                        content["data"].get(attribute_update["attributeFilter"]):
                     topic = attribute_update["topicExpression"]\
                             .replace("${deviceName}", content["device"])\
                             .replace("${attributeKey}", attribute_update["attributeFilter"])\

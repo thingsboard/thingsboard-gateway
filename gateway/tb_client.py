@@ -44,4 +44,3 @@ class TBClient:
                 log.error(e)
             log.debug("connecting to ThingsBoard...")
             time.sleep(1)
-
