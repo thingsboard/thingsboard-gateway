@@ -255,6 +255,9 @@ class MqttConnector(Connector, Thread):
                             .replace("${params}", content["data"]["params"])
                         try:
                             self._client.publish(topic, data_to_send)
+                            log.debug("Send RPC with no response request to topic: %s with data %s",
+                                      topic,
+                                      data_to_send)
                         except Exception as e:
                             log.error(e)
 
