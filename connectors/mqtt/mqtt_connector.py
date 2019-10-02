@@ -3,10 +3,12 @@ import logging
 import string
 import random
 import re
+import pkgutil
+import extensions
 from paho.mqtt.client import Client
 from connectors.connector import Connector
 from connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
-from extensions.mqtt.custom_mqtt_uplink_converter import CustomMqttUplinkConverter
+# from extensions.mqtt.custom_mqtt_uplink_converter import CustomMqttUplinkConverter
 from threading import Thread
 from tb_utility.tb_utility import TBUtility
 from json import loads
@@ -95,7 +97,15 @@ class MqttConnector(Connector, Thread):
                     if not self.__sub_topics.get(regex_topic):
                         self.__sub_topics[regex_topic] = []
                     if mapping["converter"]["type"] == "custom":
-                        converter = CustomMqttUplinkConverter(mapping)
+                        try:
+                            mod_dir = "extensions/mqtt"
+                            mod_name = "CustomMqttUplinkConverter"
+                            module_list = []
+                            for importer, mod_name, ispkg in pkgutil.iter_modules(extensions.__path__):
+                                module_list.append()
+                            converter = CustomMqttUplinkConverter(mapping)
+                        except Exception as e:
+                            log.exception(e)
                     else:
                         converter = JsonMqttUplinkConverter(mapping)
                     self.__sub_topics[regex_topic].append({converter: None})

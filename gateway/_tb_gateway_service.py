@@ -60,7 +60,7 @@ class TBGatewayService:
     def __connect_with_connectors(self):
         for connector_type in self._connectors_configs:
             if connector_type == "mqtt":
-                for connector_config in self._connectors_configs[type]:
+                for connector_config in self._connectors_configs[connector_type]:
                     for config_file in connector_config:
                         try:
                             connector = MqttConnector(self, connector_config[config_file])
@@ -116,7 +116,7 @@ class TBGatewayService:
                 log.error(e)
                 time.sleep(10)
 
-    def __rpc_request_handler(self, client, content):
+    def __rpc_request_handler(self, _, content):
         device = content.get("device")
         if device is not None:
             connector = self.__connected_devices[device].get("connector")
