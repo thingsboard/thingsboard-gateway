@@ -9,8 +9,8 @@ log = logging.getLogger(__name__)
 
 
 class FileEventStorage(EventStorage):
-    def __init__(self):
-        self.settings = FileEventStorageSettings()
+    def __init__(self, config):
+        self.settings = FileEventStorageSettings(config)
         self.init_data_folder_if_not_exist()
         self.event_storage_files = self.init_data_files()
         self.data_files = self.event_storage_files.get_data_files()
