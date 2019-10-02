@@ -20,6 +20,7 @@ class TBGatewayService:
         with open(config_file) as config:
             config = yaml.safe_load(config)
             self.available_connectors = {}
+            # TODO: add persistance of the __connected_devices dictionary
             self.__connected_devices = {}
             self.__connector_incoming_messages = {}
             self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True)
@@ -39,8 +40,8 @@ class TBGatewayService:
 
             while True:
                 for rpc_in_progress in self.__rpc_requests_in_progress:
-                    if time.time() >= self.__rpc_requests_in_progress[rpc_in_progress[1]]:
-                        connector = self.__connected_devices[self.__rpc_requests_in_progress[rpc_in_progress]["device"]]["connector"]
+                    if time.time() >= self.__rpc_requests_in_progress[rpc_in_progress][1]:
+                        connector = self.__connected_devices[self.__rpc_requests_in_progress[rpc_in_progress][0]["device"]]["connector"]
                         connector.unsubscribe(rpc_in_progress)
                         del self.__rpc_requests_in_progress[rpc_in_progress]
                 time.sleep(.1)
@@ -133,6 +134,8 @@ class TBGatewayService:
         req_id = self.__rpc_requests_in_progress[topic][0]["data"]["id"]
         device = self.__rpc_requests_in_progress[topic][0]["device"]
         self.tb_client._client.gw_send_rpc_reply(device, req_id, content)
+        del self.__rpc_requests_in_progress[topic]
 
     def __attribute_update_callback(self, content):
         self.__connected_devices[content["device"]]["connector"].on_attributes_update(content)
+

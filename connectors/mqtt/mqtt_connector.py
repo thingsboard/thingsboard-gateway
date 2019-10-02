@@ -211,7 +211,6 @@ class MqttConnector(Connector, Thread):
                 log.error("Disconnection requests in config not found.")
         elif message.topic in self.__gateway.rpc_requests_in_progress:
             self.__gateway.rpc_with_reply_processing(message.topic, content)
-            del self.__gateway.__rpc_requests_in_progress[message.topic]
         else:
             log.debug("Received message to topic \"%s\" with unknown interpreter data: \n\n\"%s\"",
                       message.topic,
@@ -246,40 +245,43 @@ class MqttConnector(Connector, Thread):
 
     def server_side_rpc_handler(self, content):
         for rpc_config in self.__server_side_rpc:
-            if re.search(rpc_config["deviceNameFilter"], content["device"]):
-                if re.search(rpc_config["methodFilter"], content["data"]["method"]) is not None:
-                    # Subscribe to RPC response topic
-                    if rpc_config.get("responseTopicExpression"):
-                        topic_for_subscribe = rpc_config["responseTopicExpression"] \
-                            .replace("${deviceName}", content["device"]) \
-                            .replace("${methodName}", content["data"]["method"]) \
-                            .replace("${requestId}", content["data"]["id"]) \
-                            .replace("${params}", content["data"]["params"])
-                        if rpc_config.get("responseTimeout"):
-                            self.__gateway.rpc_requests_in_progress[topic_for_subscribe] = (content, time.time()+rpc_config.get("responseTimeout"))
-                            self._client.subscribe(topic_for_subscribe)
-                        else:
-                            log.error("Not found RPC response timeout in config, sending without waiting for response")
-                    # Publish RPC request
-                    if rpc_config.get("requestTopicExpression") is not None\
-                            and rpc_config.get("valueExpression"):
-                        topic = rpc_config.get("requestTopicExpression")\
-                            .replace("${deviceName}", content["device"])\
-                            .replace("${methodName}", content["data"]["method"])\
-                            .replace("${requestId}", content["data"]["id"])\
-                            .replace("${params}", content["data"]["params"])
-                        data_to_send = rpc_config.get("valueExpression")\
-                            .replace("${deviceName}", content["device"])\
-                            .replace("${methodName}", content["data"]["method"])\
-                            .replace("${requestId}", content["data"]["id"])\
-                            .replace("${params}", content["data"]["params"])
-                        try:
-                            self._client.publish(topic, data_to_send)
-                            log.debug("Send RPC with no response request to topic: %s with data %s",
-                                      topic,
-                                      data_to_send)
-                        except Exception as e:
-                            log.error(e)
+            if re.search(rpc_config["deviceNameFilter"], content["device"]) \
+                    and re.search(rpc_config["methodFilter"], content["data"]["method"]) is not None:
+                # Subscribe to RPC response topic
+                if rpc_config.get("responseTopicExpression"):
+                    topic_for_subscribe = rpc_config["responseTopicExpression"] \
+                        .replace("${deviceName}", content["device"]) \
+                        .replace("${methodName}", content["data"]["method"]) \
+                        .replace("${requestId}", content["data"]["id"]) \
+                        .replace("${params}", content["data"]["params"])
+                    if rpc_config.get("responseTimeout"):
+                        self.__gateway.register_rpc_request_timeout(unique_request_id, timeout, self._client.unsubscribe(unique_request_id))
+
+                        self.__gateway.rpc_requests_in_progress[topic_for_subscribe] = (content, time.time()+rpc_config.get("responseTimeout"))
+                        # Maybe we need to wait for the command to execute successfully before publishing the request.
+                        self._client.subscribe(topic_for_subscribe)
+                    else:
+                        log.error("Not found RPC response timeout in config, sending without waiting for response")
+                # Publish RPC request
+                if rpc_config.get("requestTopicExpression") is not None\
+                        and rpc_config.get("valueExpression"):
+                    topic = rpc_config.get("requestTopicExpression")\
+                        .replace("${deviceName}", content["device"])\
+                        .replace("${methodName}", content["data"]["method"])\
+                        .replace("${requestId}", content["data"]["id"])\
+                        .replace("${params}", content["data"]["params"])
+                    data_to_send = rpc_config.get("valueExpression")\
+                        .replace("${deviceName}", content["device"])\
+                        .replace("${methodName}", content["data"]["method"])\
+                        .replace("${requestId}", content["data"]["id"])\
+                        .replace("${params}", content["data"]["params"])
+                    try:
+                        self._client.publish(topic, data_to_send)
+                        log.debug("Send RPC with no response request to topic: %s with data %s",
+                                  topic,
+                                  data_to_send)
+                    except Exception as e:
+                        log.error(e)
 
     @staticmethod
     def _decode(message):
