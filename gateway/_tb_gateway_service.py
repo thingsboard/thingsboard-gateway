@@ -41,8 +41,7 @@ class TBGatewayService:
             while True:
                 for rpc_in_progress in self.__rpc_requests_in_progress:
                     if time.time() >= self.__rpc_requests_in_progress[rpc_in_progress][1]:
-                        connector = self.__connected_devices[self.__rpc_requests_in_progress[rpc_in_progress][0]["device"]]["connector"]
-                        connector.unsubscribe(rpc_in_progress)
+                        self.__rpc_requests_in_progress[rpc_in_progress][2](rpc_in_progress)
                         del self.__rpc_requests_in_progress[rpc_in_progress]
                 time.sleep(.1)
 
@@ -59,8 +58,8 @@ class TBGatewayService:
                 log.error(e)
 
     def __connect_with_connectors(self):
-        for type in self._connectors_configs:
-            if type == "mqtt":
+        for connector_type in self._connectors_configs:
+            if connector_type == "mqtt":
                 for connector_config in self._connectors_configs[type]:
                     for config_file in connector_config:
                         try:
@@ -134,7 +133,13 @@ class TBGatewayService:
         req_id = self.__rpc_requests_in_progress[topic][0]["data"]["id"]
         device = self.__rpc_requests_in_progress[topic][0]["device"]
         self.tb_client._client.gw_send_rpc_reply(device, req_id, content)
-        del self.__rpc_requests_in_progress[topic]
+        self.cancel_rpc_request(topic)
+
+    def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
+        self.__rpc_requests_in_progress[topic] = (content, timeout, cancel_method)
+
+    def cancel_rpc_request(self, rpc_request):
+        del self.__rpc_requests_in_progress[rpc_request]
 
     def __attribute_update_callback(self, content):
         self.__connected_devices[content["device"]]["connector"].on_attributes_update(content)
