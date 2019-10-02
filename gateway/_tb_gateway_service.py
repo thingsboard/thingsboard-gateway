@@ -14,6 +14,7 @@ from storage.file_event_storage import FileEventStorage
 log = logging.getLogger('__main__')
 log.setLevel(logging.DEBUG)
 
+
 class TBGatewayService:
     def __init__(self, config_file):
         with open(config_file) as config:
@@ -28,22 +29,27 @@ class TBGatewayService:
                 self.__event_storage = FileEventStorage(config["storage"])
             self.__events = []
             self.tb_client = TBClient(config["thingsboard-client"])
-            self.tb_client._client.gw_set_server_side_rpc_request_handler(self.rpc_request_handler)
+            self.tb_client._client.gw_set_server_side_rpc_request_handler(self.__rpc_request_handler)
             self.tb_client.connect()
-            self._devices_connectors = {}
+            self.__rpc_requests_in_progress = {}
             self.__load_connectors(config)
             self.__connect_with_connectors()
             self.tb_client._client.gw_subscribe_to_all_attributes(self.__attribute_update_callback)
             self.__send_thread.start()
 
             while True:
+                for rpc_in_progress in self.__rpc_requests_in_progress:
+                    if time.time() >= self.__rpc_requests_in_progress[rpc_in_progress[1]]:
+                        connector = self.__connected_devices[self.__rpc_requests_in_progress[rpc_in_progress]["device"]]["connector"]
+                        connector.unsubscribe(rpc_in_progress)
+                        del self.__rpc_requests_in_progress[rpc_in_progress]
                 time.sleep(.1)
 
     def __load_connectors(self, config):
         self._connectors_configs = {}
         for connector in config['connectors']:
             try:
-                with open('config/'+connector['configuration'],'r') as conf_file:
+                with open('config/'+connector['configuration'], 'r') as conf_file:
                     connector_conf = load(conf_file)
                     if not self._connectors_configs.get(connector['type']):
                         self._connectors_configs[connector['type']] = []
@@ -110,9 +116,23 @@ class TBGatewayService:
                 log.error(e)
                 time.sleep(10)
 
-    def rpc_request_handler(self, client, content):
+    def __rpc_request_handler(self, client, content):
+        device = content.get("device")
+        if device is not None:
+            connector = self.__connected_devices[device].get("connector")
+            if connector is not None:
+                connector.server_side_rpc_handler(content)
+            else:
+                log.error("Received RPC request but connector for device %s not found. Request data: \n %s",
+                          content["device"],
+                          dumps(content))
+        else:
+            log.debug("RPC request with no device param.")
 
-        self.tb_client._client.gw_send_rpc_reply(content["device"], content["data"].get("id"), content["data"].get("method")+" response")
+    def rpc_with_reply_processing(self, topic, content):
+        req_id = self.__rpc_requests_in_progress[topic][0]["data"]["id"]
+        device = self.__rpc_requests_in_progress[topic][0]["device"]
+        self.tb_client._client.gw_send_rpc_reply(device, req_id, content)
 
     def __attribute_update_callback(self, content):
         self.__connected_devices[content["device"]]["connector"].on_attributes_update(content)
