@@ -1,6 +1,7 @@
 from storage.event_storage_files import EventStorageFiles
 from storage.file_event_storage_settings import FileEventStorageSettings
 import logging
+import time
 
 log = logging.getLogger(__name__)
 
@@ -21,9 +22,18 @@ class EventStorageWriter:
     def get_or_init_buffered_writer(self):
         pass
 
-    # TODO same to from file_event_storage?
-    def create_data_file(self):
-        pass
+    def create_new_datafile(self):
+        return self.create_file('data_', str(round(time.time() * 1000)))
+
+    def create_file(self, prefix, filename):
+        file_path = self.settings.get_data_folder_path() + prefix + filename + '.txt'
+        try:
+            file = open(file_path, 'w')
+            file.close()
+            return prefix + filename + '.txt'
+        except IOError as e:
+            log.error("Failed to create a new file!", e)
+            pass
 
     def get_number_of_records_in_file(self, file):
         if self.current_files_records_count == 0:
