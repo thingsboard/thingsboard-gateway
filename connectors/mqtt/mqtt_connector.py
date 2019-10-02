@@ -78,9 +78,6 @@ class MqttConnector(Connector, Thread):
     def get_name(self):
         return self.name
 
-    def unsubscribe(self, topic):
-        self._client.unsubscribe(topic)
-
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         result_codes = {
             1: "incorrect protocol version",
@@ -254,9 +251,11 @@ class MqttConnector(Connector, Thread):
                         .replace("${requestId}", content["data"]["id"]) \
                         .replace("${params}", content["data"]["params"])
                     if rpc_config.get("responseTimeout"):
-                        self.__gateway.register_rpc_request_timeout(unique_request_id, timeout, self._client.unsubscribe(unique_request_id))
-
-                        self.__gateway.rpc_requests_in_progress[topic_for_subscribe] = (content, time.time()+rpc_config.get("responseTimeout"))
+                        timeout = time.time()+rpc_config.get("responseTimeout")
+                        self.__gateway.register_rpc_request_timeout(content,
+                                                                    timeout,
+                                                                    topic_for_subscribe,
+                                                                    self._client.rpc_cancel_processing)
                         # Maybe we need to wait for the command to execute successfully before publishing the request.
                         self._client.subscribe(topic_for_subscribe)
                     else:
@@ -281,6 +280,10 @@ class MqttConnector(Connector, Thread):
                                   data_to_send)
                     except Exception as e:
                         log.error(e)
+
+    def rpc_cancel_processing(self, topic):
+        self._client.unsubscribe(topic)
+
 
     @staticmethod
     def _decode(message):
