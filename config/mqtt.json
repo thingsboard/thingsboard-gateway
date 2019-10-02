@@ -72,7 +72,12 @@
       "topicFilter": "/custom-sensors/+",
       "converter": {
         "type": "custom",
-        "extension": "CustomMqttSensorExtension"
+        "extension": "CustomMqttUplinkConverter",
+        "extension-config": {
+            "temperatureBytes" : 2,
+            "humidityBytes" :  2,
+            "batteryLevel" : 1
+        }
       }
     }
   ],

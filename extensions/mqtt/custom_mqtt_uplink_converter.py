@@ -29,10 +29,11 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
             log.error("Path for custom converter to the extension file: %s - not found.",
                       extension_file_path)
 
-    def convert(self, body):
+    def convert(self, topic, body):
         try:
-            self.dict_result["deviceName"] = self.__extension["deviceName"]
-            self.dict_result["deviceType"] = self.__extension["deviceType"]
+            self.dict_result["deviceName"] = self.__extension["deviceName"] # replace with last token in topic;
+            self.dict_result["deviceType"] = self.__extension["deviceType"] # just hardcode this
+            # replace this genious code with simple code sample where we parse byte by byte;
             converted = [int(current_byte) for current_byte in bytearray.fromhex(body.replace("0x", ""))]
             self.dict_result["telemetry"] = dict(zip(self.__extension["telemetryKeys"], converted))
         except Exception as e:

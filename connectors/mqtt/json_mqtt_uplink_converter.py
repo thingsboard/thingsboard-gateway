@@ -14,8 +14,9 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         self.__config = config.get('converter')
         self.dict_result = {}
 
-    def convert(self, body):
+    def convert(self, topic, body):
         try:
+            # TODO: handle topic expressions: deviceNameTopicExpression and deviceTypeTopicExpression
             self.dict_result = {
                 "deviceName": TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), body),
                 "deviceType": TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), body),

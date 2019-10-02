@@ -20,5 +20,5 @@ class MqttUplinkConverter(ABC):
     #     }
     # }
     @abstractmethod
-    def convert(self, body):
+    def convert(self, topic, body):
         pass

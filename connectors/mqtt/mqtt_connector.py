@@ -3,14 +3,13 @@ import logging
 import string
 import random
 import re
-from importlib import import_module
 from paho.mqtt.client import Client
 from connectors.connector import Connector
 from connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
-from connectors.mqtt.custom_mqtt_uplink_converter import CustomMqttUplinkConverter
+from extensions.mqtt.custom_mqtt_uplink_converter import CustomMqttUplinkConverter
 from threading import Thread
 from tb_utility.tb_utility import TBUtility
-from json import loads, dumps
+from json import loads
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -149,7 +148,7 @@ class MqttConnector(Connector, Thread):
                     for converter_value in range(len(self.__sub_topics.get(regex))):
                         if self.__sub_topics[regex][converter_value]:
                             for converter in self.__sub_topics.get(regex)[converter_value]:
-                                converted_content = converter.convert(content)
+                                converted_content = converter.convert(message.topic, content)
                                 if converted_content and TBUtility.validate_converted_data(converted_content):
                                     self.__sub_topics[regex][converter_value][converter] = converted_content
                                     if not self.__gateway._TBGatewayService__connected_devices.get(converted_content["deviceName"]):
