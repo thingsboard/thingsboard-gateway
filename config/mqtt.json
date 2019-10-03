@@ -76,7 +76,7 @@
         "extension-config": {
             "temperatureBytes" : 2,
             "humidityBytes" :  2,
-            "batteryLevel" : 1
+            "batteryLevelBytes" : 1
         }
       }
     }
