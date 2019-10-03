@@ -1,3 +1,7 @@
+import os
+import inspect
+import importlib
+import importlib.util
 import jsonpath_rw_ext as jp
 from logging import getLogger
 from json import dumps,loads
@@ -36,6 +40,26 @@ class TBUtility:
     @staticmethod
     def regex_to_topic(regex):
         return regex.replace("[^/]+", "+").replace(".+", "#")
+
+    @staticmethod
+    def check_and_import(extension_type, module_name):
+        for file in os.listdir('./extensions/'+extension_type):
+            if not file.startswith('__') and file.endswith('.py'):
+                mod = 'extensions.'+extension_type+'.'+file.replace('.py','')
+                try:
+                    module_spec = importlib.util.find_spec(mod)
+                    if module_spec is None:
+                        log.error('Module: {} not found'.format(module_name))
+                        return None
+                    else:
+                        module = importlib.util.module_from_spec(module_spec)
+                        module_spec.loader.exec_module(module)
+                        for converter_class in inspect.getmembers(module, inspect.isclass):
+                            if module_name in converter_class:
+                                return converter_class[1]
+                except ImportError:
+                    continue
+
 
     @staticmethod
     def get_value(expression, body, value_type="string"):
