@@ -43,9 +43,9 @@ class TBUtility:
 
     @staticmethod
     def check_and_import(extension_type, module_name):
-        for file in os.listdir('./extensions/'+extension_type):
+        for file in os.listdir('./extensions/'+extension_type.lower()):
             if not file.startswith('__') and file.endswith('.py'):
-                mod = 'extensions.'+extension_type+'.'+file.replace('.py','')
+                mod = 'extensions.'+extension_type.lower()+'.'+file.replace('.py', '')
                 try:
                     module_spec = importlib.util.find_spec(mod)
                     if module_spec is None:

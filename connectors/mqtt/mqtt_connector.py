@@ -93,24 +93,29 @@ class MqttConnector(Connector, Thread):
             log.info('%s connected to %s:%s - successfully.', self.get_name(), self.__broker["host"], TBUtility.get_parameter(self.__broker, "port", "1883"))
             for mapping in self.__mapping:
                 try:
-                    regex_topic = TBUtility.topic_to_regex(mapping.get("topicFilter"))
-                    if not self.__sub_topics.get(regex_topic):
-                        self.__sub_topics[regex_topic] = []
+                    converter = None
                     if mapping["converter"]["type"] == "custom":
                         try:
-                            mod_dir = "extensions/mqtt"
-                            mod_name = "CustomMqttUplinkConverter"
-                            module_list = []
-                            for importer, mod_name, ispkg in pkgutil.iter_modules(extensions.__path__):
-                                module_list.append()
-                            converter = CustomMqttUplinkConverter(mapping)
+                            module = TBUtility.check_and_import('mqtt', mapping["converter"]["extension"])
+                            if module is not None:
+                                log.debug('Custom converter for topic %s - found!', mapping["topicFilter"])
+                                converter = module(mapping)
+                            else:
+                                log.error("\n\nCannot find extension module for %s topic.\nPlease check your configuration.\n", mapping["topicFilter"])
                         except Exception as e:
                             log.exception(e)
                     else:
                         converter = JsonMqttUplinkConverter(mapping)
-                    self.__sub_topics[regex_topic].append({converter: None})
-                    self._client.subscribe(TBUtility.regex_to_topic(regex_topic))
-                    log.info('Connector "%s" subscribe to %s', self.get_name(), TBUtility.regex_to_topic(regex_topic))
+                    if converter is not None:
+                        regex_topic = TBUtility.topic_to_regex(mapping.get("topicFilter"))
+                        if not self.__sub_topics.get(regex_topic):
+                            self.__sub_topics[regex_topic] = []
+
+                        self.__sub_topics[regex_topic].append({converter: None})
+                        self._client.subscribe(TBUtility.regex_to_topic(regex_topic))
+                        log.info('Connector "%s" subscribe to %s', self.get_name(), TBUtility.regex_to_topic(regex_topic))
+                    else:
+                        log.error("Cannot find converter for %s topic", mapping["topicFilter"])
                 except Exception as e:
                     log.exception(e)
             try:

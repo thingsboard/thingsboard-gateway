@@ -1,5 +1,5 @@
 import logging
-from os import path
+import re
 from json import load, loads, dumps
 from connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
 
@@ -12,26 +12,9 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
         self.__config = config.get('converter')
         self.dict_result = {}
 
-        extension_file_path = "./extensions/mqtt/" + self.__config.get('extension')+".json"
-        if path.exists(extension_file_path):
-            try:
-                with open(extension_file_path) as extension_file:
-                    self.__extension = load(extension_file)
-            except Exception as e:
-                log.error("When opening extension file, got the following error: %s", e)
-            if not self.__extension:
-                log.error("Extension file is empty. You need to create the extension file to parse data from device.")
-            if self.__extension.get("deviceNameTopicExpression") is None:
-                log.error("deviceNameTopicExpression in extension\n%s\n not found with config: \n\n%s",
-                          loads(self.__extension),
-                          loads(self.config))
-        else:
-            log.error("Path for custom converter to the extension file: %s - not found.",
-                      extension_file_path)
-
     def convert(self, topic, body):
         try:
-            self.dict_result["deviceName"] = "ExampleDevice"  # replace with last token in topic;
+            self.dict_result["deviceName"] = topic.split("/")[-1]
             self.dict_result["deviceType"] = "Thermostat"  # just hardcode this
             self.dict_result["telemetry"] = []
             bytes_to_read = body.replace("0x", "")
@@ -45,6 +28,7 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
                     self.dict_result["telemetry"].append(telemetry_to_send)
             else:
                 self.dict_result["telemetry"] = {"data": int(body, 0)}
+            return self.dict_result
 
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
