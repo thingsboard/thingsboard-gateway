@@ -79,8 +79,6 @@ class TBUtility:
         value = True
         try:
             if value_type == "string":
-                x = target_str.split()[0]
-                t_body = dumps(body)
                 value = jp.match1(target_str.split()[0], dumps(body))
                 if value is None and body.get(target_str):
                     full_value = expression[0: min(abs(p1-2), 0)] + body[target_str] + expression[p2+1:len(expression)]

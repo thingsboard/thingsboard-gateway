@@ -3,12 +3,10 @@ import logging
 import string
 import random
 import re
-import pkgutil
-import extensions
+import ssl
 from paho.mqtt.client import Client
 from connectors.connector import Connector
 from connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
-# from extensions.mqtt.custom_mqtt_uplink_converter import CustomMqttUplinkConverter
 from threading import Thread
 from tb_utility.tb_utility import TBUtility
 from json import loads
@@ -34,11 +32,32 @@ class MqttConnector(Connector, Thread):
                                              "name",
                                              'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5))))
         if self.__broker["credentials"]["type"] == "basic":
-            self._client.username_pw_set(self.__broker["credentials"]["username"], self.__broker["credentials"]["password"])
-
+            self._client.username_pw_set(self.__broker["credentials"]["username"],
+                                         self.__broker["credentials"]["password"])
+        elif self.__broker["credentials"]["type"] == "cert.PEM":
+            ca_cert = self.__broker["credentials"].get("caCert")
+            private_key = self.__broker["credentials"].get("privateKey")
+            cert = self.__broker["credentials"].get("cert")
+            if ca_cert is None or cert is None:
+                log.error("caCert and cert parameters must be in config if you need to use the SSL. Please add it and try again.")
+            else:
+                try:
+                    self._client.tls_set(ca_certs=ca_cert,
+                                         certfile=cert,
+                                         keyfile=private_key,
+                                         cert_reqs=ssl.CERT_REQUIRED,
+                                         tls_version=ssl.PROTOCOL_TLSv1,
+                                         ciphers=None)
+                except Exception as e:
+                    log.error("Cannot setup connection to broker %s using SSL. Please check your configuration.\n\
+                              Error cathed: %s",
+                              self.get_name(),
+                              e)
+                self._client.tls_insecure_set(False)
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
         self._client.on_subscribe = self._on_subscribe
+        self.__sended_subscribes = {}  # For logging the subscriptions
         self._client.on_disconnect = self._on_disconnect
         self._client.on_log = self._on_log
         self._connected = False
@@ -80,6 +99,10 @@ class MqttConnector(Connector, Thread):
     def get_name(self):
         return self.name
 
+    def __subscribe(self, topic):
+        message = self._client.subscribe(topic)
+        self.__sended_subscribes[message[1]] = topic
+
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         result_codes = {
             1: "incorrect protocol version",
@@ -90,7 +113,10 @@ class MqttConnector(Connector, Thread):
         }
         if rc == 0:
             self._connected = True
-            log.info('%s connected to %s:%s - successfully.', self.get_name(), self.__broker["host"], TBUtility.get_parameter(self.__broker, "port", "1883"))
+            log.info('%s connected to %s:%s - successfully.',
+                     self.get_name(),
+                     self.__broker["host"],
+                    TBUtility.get_parameter(self.__broker, "port", "1883"))
             for mapping in self.__mapping:
                 try:
                     converter = None
@@ -101,7 +127,8 @@ class MqttConnector(Connector, Thread):
                                 log.debug('Custom converter for topic %s - found!', mapping["topicFilter"])
                                 converter = module(mapping)
                             else:
-                                log.error("\n\nCannot find extension module for %s topic.\nPlease check your configuration.\n", mapping["topicFilter"])
+                                log.error("\n\nCannot find extension module for %s topic.\n\
+                                           Please check your configuration.\n", mapping["topicFilter"])
                         except Exception as e:
                             log.exception(e)
                     else:
@@ -112,8 +139,11 @@ class MqttConnector(Connector, Thread):
                             self.__sub_topics[regex_topic] = []
 
                         self.__sub_topics[regex_topic].append({converter: None})
-                        self._client.subscribe(TBUtility.regex_to_topic(regex_topic))
-                        log.info('Connector "%s" subscribe to %s', self.get_name(), TBUtility.regex_to_topic(regex_topic))
+                        # self._client.subscribe(TBUtility.regex_to_topic(regex_topic))
+                        self.__subscribe(TBUtility.regex_to_topic(regex_topic))
+                        log.info('Connector "%s" subscribe to %s',
+                                 self.get_name(),
+                                 TBUtility.regex_to_topic(regex_topic))
                     else:
                         log.error("Cannot find converter for %s topic", mapping["topicFilter"])
                 except Exception as e:
@@ -140,9 +170,10 @@ class MqttConnector(Connector, Thread):
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         if granted_qos[0] == 128:
-            log.error('"%s" subscription failed.', self.get_name())
+            log.error('"%s" subscription failed to topic %s', self.get_name(), self.__sended_subscribes[mid])
         else:
-            log.error('"%s" subscription success.', self.get_name())
+            log.error('"%s" subscription success to topic %s', self.get_name(), self.__sended_subscribes[mid])
+        del self.__sended_subscribes[mid]
 
     def __get_service_config(self, config):
         for service_config in self.__service_config:

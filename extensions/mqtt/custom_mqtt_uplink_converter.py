@@ -1,6 +1,5 @@
 import logging
-import re
-from json import load, loads, dumps
+from json import dumps
 from connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
 
 log = logging.getLogger(__name__)
