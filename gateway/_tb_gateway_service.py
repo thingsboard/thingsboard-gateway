@@ -2,7 +2,7 @@ import logging
 import time
 import yaml
 from json import load, loads, dumps
-
+from os import listdir
 from gateway.tb_client import TBClient
 from tb_utility.tb_utility import TBUtility
 from threading import Thread
@@ -21,7 +21,7 @@ class TBGatewayService:
             config = yaml.safe_load(config)
             self.available_connectors = {}
             # TODO: add persistance of the __connected_devices dictionary
-            self.__connected_devices = {}
+            self.__connected_devices = self.__load_persistent_devices()
             self.__connector_incoming_messages = {}
             self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True)
             if config["storage"]["type"] == "memory":
@@ -73,9 +73,8 @@ class TBGatewayService:
         if not TBUtility.validate_converted_data(data):
             log.error("Data from %s connector is invalid.", connector_name)
             return
-        if data["deviceName"] not in self.__connected_devices:
-            self.__connected_devices[data["deviceName"]]["connector"] = self.available_connectors[connector_name]
-            self.tb_client._client.gw_connect_device(data["deviceName"]).wait_for_publish()
+        if data["deviceName"] not in self.get_devices():
+            self.add_device(data["deviceName"], {"connector": self.available_connectors[connector_name]}, wait_for_publish=True)
         if not self.__connector_incoming_messages.get(connector_name):
             self.__connector_incoming_messages[connector_name] = 0
         else:
@@ -95,9 +94,10 @@ class TBGatewayService:
                 if events:
                     for event in events:
                         current_event = loads(event)
-                        if current_event["deviceName"] not in self.__connected_devices:
-                            self.tb_client._client.gw_connect_device(current_event["deviceName"]).wait_for_publish()
-                        self.__connected_devices[current_event["deviceName"]]["current_event"] = current_event["deviceName"]
+                        if current_event["deviceName"] not in self.get_devices():
+                            self.add_device(current_event["deviceName"], {"current_event": current_event["deviceName"]}, wait_for_publish=True)
+                        else:
+                            self.update_device(current_event["deviceName"], "current_event", current_event["deviceName"])
                         if current_event.get("telemetry"):
                             data_to_send = loads('{"ts": %i,"values": %s}'%(time.time(), ','.join(dumps(param) for param in current_event["telemetry"])))
                             self.__published_events.append(self.tb_client._client.gw_send_telemetry(current_event["deviceName"], data_to_send))
@@ -119,7 +119,7 @@ class TBGatewayService:
     def __rpc_request_handler(self, _, content):
         device = content.get("device")
         if device is not None:
-            connector = self.__connected_devices[device].get("connector")
+            connector = self.get_devices()[device].get("connector")
             if connector is not None:
                 connector.server_side_rpc_handler(content)
             else:
@@ -143,4 +143,38 @@ class TBGatewayService:
 
     def __attribute_update_callback(self, content):
         self.__connected_devices[content["device"]]["connector"].on_attributes_update(content)
+
+    def add_device(self, device_name, content, wait_for_publish = False):
+        self.__connected_devices[device_name] = content
+        if wait_for_publish:
+            self.tb_client._client.gw_connect_device(device_name).wait_for_publish()
+        else:
+            self.tb_client._client.gw_connect_device(device_name)
+
+    def update_device(self, device_name, event, content):
+        self.__connected_devices[device_name][event] = content
+
+    def del_device(self, device_name):
+        del self.__connected_devices[device_name]
+        self.tb_client._client.gw_disconnect_device(device_name)
+
+    def get_devices(self):
+        return self.__connected_devices
+
+    def __load_persistent_devices(self):
+        config_dir = './config/'
+        connected_devices_filename = 'connected_devices.json'
+        if connected_devices_filename in listdir(config_dir):
+            try:
+                with open(config_dir+connected_devices_filename) as devices_file:
+                    devices = load(devices_file)
+                    log.debug('Devices from connected devices file: \n%s', devices)
+                    if devices is None or devices == '':
+                        return {}
+            except Exception as e:
+                log.error(e)
+        else:
+            connected_devices_file = open(config_dir + connected_devices_filename, 'w')
+            connected_devices_file.close()
+            return {}
 

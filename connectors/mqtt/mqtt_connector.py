@@ -194,9 +194,9 @@ class MqttConnector(Connector, Thread):
                                 converted_content = converter.convert(message.topic, content)
                                 if converted_content and TBUtility.validate_converted_data(converted_content):
                                     self.__sub_topics[regex][converter_value][converter] = converted_content
-                                    if not self.__gateway._TBGatewayService__connected_devices.get(converted_content["deviceName"]):
-                                        self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]] = {"connector": None}
-                                    self.__gateway._TBGatewayService__connected_devices[converted_content["deviceName"]]["connector"] = self
+                                    if not self.__gateway.get_devices().get(converted_content["deviceName"]):
+                                        self.__gateway.add_device(converted_content["deviceName"], {"connector": None})
+                                    self.__gateway.update_device(converted_content["deviceName"], "connector", self)
                                     self.__gateway._send_to_storage(self.get_name(), converted_content)
                                 else:
                                     continue
@@ -215,9 +215,8 @@ class MqttConnector(Connector, Thread):
                             if request.get("deviceNameTopicExpression"):
                                 device_name_expression = request["deviceNameTopicExpression"]
                                 founded_device_name = re.search(device_name_expression, message.topic)
-                            if founded_device_name is not None and founded_device_name not in self.__gateway._TBGatewayService__connected_devices:
-                                self.__gateway._TBGatewayService__connected_devices[founded_device_name] = {"connector": self}
-                                self.__gateway.tb_client._client.gw_connect_device(founded_device_name)
+                            if founded_device_name is not None and founded_device_name not in self.__gateway.get_devices():
+                                self.__gateway.add_device(founded_device_name, {"connector": self})
                         else:
                             log.error("Cannot find connect request for device from message from topic: %s and with data: %s",
                                       message.topic,
@@ -240,9 +239,8 @@ class MqttConnector(Connector, Thread):
                             if request.get("deviceNameTopicExpression"):
                                 device_name_expression = request["deviceNameTopicExpression"]
                                 founded_device_name = re.search(device_name_expression, message.topic)
-                            if founded_device_name is not None and founded_device_name in self.__gateway._TBGatewayService__connected_devices:
-                                del self.__gateway._TBGatewayService__connected_devices[founded_device_name]
-                                self.__gateway.tb_client._client.gw_disconnect_device(founded_device_name)
+                            if founded_device_name is not None and founded_device_name in self.__gateway.get_devices():
+                                self.__gateway.del_device(founded_device_name)
                         else:
                             log.error("Cannot find connect request for device from message from topic: %s and with data: %s",
                                       message.topic,
