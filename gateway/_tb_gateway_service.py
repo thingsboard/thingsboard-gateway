@@ -2,7 +2,7 @@ import logging
 import time
 import yaml
 from json import load, loads, dumps
-from os import listdir
+from os import listdir, path
 from gateway.tb_client import TBClient
 from tb_utility.tb_utility import TBUtility
 from threading import Thread
@@ -20,8 +20,12 @@ class TBGatewayService:
         with open(config_file) as config:
             config = yaml.safe_load(config)
             self.available_connectors = {}
+            self.__load_connectors(config)
+            self.__connect_with_connectors()
             # TODO: add persistance of the __connected_devices dictionary
-            self.__connected_devices = self.__load_persistent_devices()
+            self.__connected_devices_file = "connected_devices.json"
+            self.__connected_devices = {}
+            self.__load_persistent_devices()
             self.__connector_incoming_messages = {}
             self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True)
             if config["storage"]["type"] == "memory":
@@ -33,8 +37,6 @@ class TBGatewayService:
             self.tb_client._client.gw_set_server_side_rpc_request_handler(self.__rpc_request_handler)
             self.tb_client.connect()
             self.__rpc_requests_in_progress = {}
-            self.__load_connectors(config)
-            self.__connect_with_connectors()
             self.tb_client._client.gw_subscribe_to_all_attributes(self.__attribute_update_callback)
             self.__send_thread.start()
 
@@ -84,7 +86,7 @@ class TBGatewayService:
         if save_result:
             log.debug('Connector "%s" - Saved information - %s', connector_name, json_data)
         else:
-            log.error('Data from connector "%s" cannot be saved.')
+            log.error('Data from device "%s" cannot be saved, connector name is %s.', data["deviceName"], connector_name)
 
     def __read_data_from_storage(self):
         while True:
@@ -150,31 +152,53 @@ class TBGatewayService:
             self.tb_client._client.gw_connect_device(device_name).wait_for_publish()
         else:
             self.tb_client._client.gw_connect_device(device_name)
+        self.__save_persistent_devices()
 
     def update_device(self, device_name, event, content):
         self.__connected_devices[device_name][event] = content
+        if event == 'connector':
+            self.__save_persistent_devices()
 
     def del_device(self, device_name):
         del self.__connected_devices[device_name]
         self.tb_client._client.gw_disconnect_device(device_name)
+        self.__save_persistent_devices()
 
     def get_devices(self):
         return self.__connected_devices
 
     def __load_persistent_devices(self):
+        devices = {}
         config_dir = './config/'
-        connected_devices_filename = 'connected_devices.json'
-        if connected_devices_filename in listdir(config_dir):
+        if self.__connected_devices_file in listdir(config_dir) and path.getsize(config_dir+self.__connected_devices_file) > 0:
             try:
-                with open(config_dir+connected_devices_filename) as devices_file:
+                with open(config_dir+self.__connected_devices_file) as devices_file:
                     devices = load(devices_file)
-                    log.debug('Devices from connected devices file: \n%s', devices)
-                    if devices is None or devices == '':
-                        return {}
             except Exception as e:
-                log.error(e)
+                log.exception(e)
         else:
-            connected_devices_file = open(config_dir + connected_devices_filename, 'w')
+            connected_devices_file = open(config_dir + self.__connected_devices_file, 'w')
             connected_devices_file.close()
-            return {}
+
+        if devices is not None:
+            log.debug("Loaded devices:\n %s", devices)
+            for device_name in devices:
+                self.__connected_devices[device_name] = {"connector": self.available_connectors[devices[device_name]]}
+        else:
+            log.debug("No device found in connected device file.")
+            self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices
+
+    def __save_persistent_devices(self):
+        config_dir = './config/'
+        with open(config_dir+self.__connected_devices_file, 'w') as config_file:
+            try:
+                data_to_save = {}
+                for device in self.__connected_devices:
+                    if self.__connected_devices[device]["connector"] is not None:
+                        data_to_save[device] = self.__connected_devices[device]["connector"].get_name()
+                config_file.write(dumps(data_to_save, indent=2, sort_keys=True))
+            except Exception as e:
+                log.exception(e)
+        log.debug("Saved connected devices.")
+
 

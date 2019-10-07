@@ -172,7 +172,7 @@ class MqttConnector(Connector, Thread):
         if granted_qos[0] == 128:
             log.error('"%s" subscription failed to topic %s', self.get_name(), self.__sended_subscribes[mid])
         else:
-            log.error('"%s" subscription success to topic %s', self.get_name(), self.__sended_subscribes[mid])
+            log.info('"%s" subscription success to topic %s', self.get_name(), self.__sended_subscribes[mid])
         del self.__sended_subscribes[mid]
 
     def __get_service_config(self, config):
@@ -193,7 +193,10 @@ class MqttConnector(Connector, Thread):
                             for converter in self.__sub_topics.get(regex)[converter_value]:
                                 converted_content = converter.convert(message.topic, content)
                                 if converted_content and TBUtility.validate_converted_data(converted_content):
-                                    self.__sub_topics[regex][converter_value][converter] = converted_content
+                                    try:
+                                        self.__sub_topics[regex][converter_value][converter] = converted_content
+                                    except Exception as e:
+                                        log.exception(e)
                                     if not self.__gateway.get_devices().get(converted_content["deviceName"]):
                                         self.__gateway.add_device(converted_content["deviceName"], {"connector": None})
                                     self.__gateway.update_device(converted_content["deviceName"], "connector", self)
