@@ -1,5 +1,4 @@
 import logging
-import jsonpath_rw_ext as jp
 from json import dumps, loads
 from re import search
 from connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
@@ -16,13 +15,20 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
     def convert(self, topic, body):
         try:
-            # TODO: handle topic expressions: deviceNameTopicExpression and deviceTypeTopicExpression
-            self.dict_result = {
-                "deviceName": TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), body),
-                "deviceType": TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), body),
-                "attributes": [],
-                "telemetry": []
-            }
+            if self.__config.get("deviceNameJsonExpression") is not None:
+                self.dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), body)
+            elif self.__config.get("deviceNameTopicExpression") is not None:
+                self.dict_result["deviceName"] = search(self.__config["deviceNameTopicExpression"], topic)
+            else:
+                log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
+            if self.__config.get("deviceTypeJsonExpression") is not None:
+                self.dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), body)
+            elif self.__config.get("deviceTypeTopicExpression") is not None:
+                self.dict_result["deviceType"] = search(self.__config["deviceTypeTopicExpression"], topic)
+            else:
+                log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
+            self.dict_result["attributes"] = []
+            self.dict_result["telemetry"] = []
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
             log.exception(e)

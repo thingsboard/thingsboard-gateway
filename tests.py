@@ -41,13 +41,14 @@ class MqttConnectorTest(unittest.TestCase):
                "model": "T1000",
                "t": 42.0
                }
+        test_topic = "sensor/temperature/SensorA"
         test_result = {
                "deviceName": "SensorA",
                "deviceType": "temperature-sensor",
                "attributes": [{"model":"T1000"}],
                "telemetry": [{"temperature": 42.0}]
         }
-        result = JsonMqttUplinkConverter(test_config).convert(test_body_to_convert)
+        result = JsonMqttUplinkConverter(test_config).convert(test_topic, test_body_to_convert)
         self.assertDictEqual(result,test_result)
 
 class TestStorage(unittest.TestCase):

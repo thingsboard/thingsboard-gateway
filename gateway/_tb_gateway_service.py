@@ -22,7 +22,6 @@ class TBGatewayService:
             self.available_connectors = {}
             self.__load_connectors(config)
             self.__connect_with_connectors()
-            # TODO: add persistance of the __connected_devices dictionary
             self.__connected_devices_file = "connected_devices.json"
             self.__connected_devices = {}
             self.__load_persistent_devices()
