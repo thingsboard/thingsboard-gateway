@@ -20,22 +20,22 @@ class TBGatewayService:
         with open(config_file) as config:
             config = yaml.safe_load(config)
             self.available_connectors = {}
+            self.__connector_incoming_messages = {}
+            self.__connected_devices = {}
+            self.__events = []
+            self.__rpc_requests_in_progress = {}
+            self.__connected_devices_file = "connected_devices.json"
             self.__load_connectors(config)
             self.__connect_with_connectors()
-            self.__connected_devices_file = "connected_devices.json"
-            self.__connected_devices = {}
             self.__load_persistent_devices()
-            self.__connector_incoming_messages = {}
             self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True)
             if config["storage"]["type"] == "memory":
                 self.__event_storage = MemoryEventStorage(config["storage"])
             else:
                 self.__event_storage = FileEventStorage(config["storage"])
-            self.__events = []
             self.tb_client = TBClient(config["thingsboard-client"])
             self.tb_client._client.gw_set_server_side_rpc_request_handler(self.__rpc_request_handler)
             self.tb_client.connect()
-            self.__rpc_requests_in_progress = {}
             self.tb_client._client.gw_subscribe_to_all_attributes(self.__attribute_update_callback)
             self.__send_thread.start()
 

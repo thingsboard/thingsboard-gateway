@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.DEBUG,
                     datefmt='%Y-%m-%d %H:%M:%S')
 
 
-class MqttConnectorTest(unittest.TestCase):
+class MqttConverterTest(unittest.TestCase):
     def test_getting_attributes(self):
         test_config = {
                         "converter": {
