@@ -116,7 +116,7 @@ class MqttConnector(Connector, Thread):
             log.info('%s connected to %s:%s - successfully.',
                      self.get_name(),
                      self.__broker["host"],
-                    TBUtility.get_parameter(self.__broker, "port", "1883"))
+                     TBUtility.get_parameter(self.__broker, "port", "1883"))
             for mapping in self.__mapping:
                 try:
                     converter = None

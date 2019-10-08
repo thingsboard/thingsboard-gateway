@@ -7,6 +7,7 @@ from gateway.tb_client import TBClient
 from tb_utility.tb_utility import TBUtility
 from threading import Thread
 from connectors.mqtt.mqtt_connector import MqttConnector
+from connectors.modbus.modbus_connector import ModbusConnector
 from storage.memory_event_storage import MemoryEventStorage
 from storage.file_event_storage import FileEventStorage
 
@@ -65,6 +66,15 @@ class TBGatewayService:
                     for config_file in connector_config:
                         try:
                             connector = MqttConnector(self, connector_config[config_file])
+                            self.available_connectors[connector.getName()] = connector
+                            connector.open()
+                        except Exception as e:
+                            log.error(e)
+            elif connector_type == "modbus":
+                for connector_config in self._connectors_configs[connector_type]:
+                    for config_file in connector_config:
+                        try:
+                            connector = ModbusConnector(self, connector_config[config_file])
                             self.available_connectors[connector.getName()] = connector
                             connector.open()
                         except Exception as e:
