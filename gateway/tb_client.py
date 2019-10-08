@@ -14,8 +14,19 @@ class TBClient:
         self.__host = config["host"]
         self.__port = TBUtility.get_parameter(config, "port", 1883)
         credentials = config["security"]
-        token = str(credentials["accessToken"])
-        self._client = TBGatewayMqttClient(self.__host, self.__port, token, self)
+        self.__tls = False
+        self.__ca_cert = None
+        self.__private_key = None
+        self.__cert = None
+        self.__token = None
+        if credentials.get("accessToken") is not None:
+            self.__token = str(credentials["accessToken"])
+        else:
+            self.__tls = True
+            self.__ca_cert = credentials.get("caCert")
+            self.__private_key = credentials.get("privateKey")
+            self.__cert = credentials.get("cert")
+        self._client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self)
         # Adding callbacks
         self._client._client._on_connect = self._on_connect
         # self._client._client._on_message = self._on_message
@@ -39,7 +50,11 @@ class TBClient:
 
         while not self._client.is_connected():
             try:
-                self._client.connect(keepalive=keep_alive)
+                self._client.connect(tls=self.__tls,
+                                     ca_certs=self.__ca_cert,
+                                     cert_file=self.__cert,
+                                     key_file=self.__private_key,
+                                     keepalive=keep_alive)
             except Exception as e:
                 log.error(e)
             log.debug("connecting to ThingsBoard...")
