@@ -2,13 +2,13 @@
   "server": {
     "name": "Modbus Default Server",
     "type": "tcp",
-    "host": "192.168.56.101",
-    "port": 502,
+    "host": "127.0.0.1",
+    "port": 5020,
     "timeout": 35,
     "rtuOverTcp": false,
     "devices": [
       {
-        "deviceId": 1,
+        "unitId": 1,
         "deviceName": "Temp Sensor",
         "attributesPollPeriod": 5000,
         "timeseriesPollPeriod": 5000,

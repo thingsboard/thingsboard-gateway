@@ -26,6 +26,8 @@ class TBGatewayService:
             self.__events = []
             self.__rpc_requests_in_progress = {}
             self.__connected_devices_file = "connected_devices.json"
+            self.tb_client = TBClient(config["thingsboard-client"])
+            self.tb_client._client.gw_set_server_side_rpc_request_handler(self.__rpc_request_handler)
             self.__load_connectors(config)
             self.__connect_with_connectors()
             self.__load_persistent_devices()
@@ -34,8 +36,6 @@ class TBGatewayService:
                 self.__event_storage = MemoryEventStorage(config["storage"])
             else:
                 self.__event_storage = FileEventStorage(config["storage"])
-            self.tb_client = TBClient(config["thingsboard-client"])
-            self.tb_client._client.gw_set_server_side_rpc_request_handler(self.__rpc_request_handler)
             self.tb_client.connect()
             self.tb_client._client.gw_subscribe_to_all_attributes(self.__attribute_update_callback)
             self.__send_thread.start()

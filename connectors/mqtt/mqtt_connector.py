@@ -67,6 +67,8 @@ class MqttConnector(Connector, Thread):
     def open(self):
         self.__stopped = False
         self.start()
+
+    def run(self):
         try:
             while not self._connected:
                 try:
@@ -83,8 +85,6 @@ class MqttConnector(Connector, Thread):
                 self.close()
             except Exception as e:
                 log.debug(e)
-
-    def run(self):
         while True:
             time.sleep(.1)
             if self.__stopped:
