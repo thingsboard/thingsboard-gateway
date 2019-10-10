@@ -17,7 +17,8 @@ log = logging.getLogger(__name__)
 
 class ModbusConnector(Connector, threading.Thread):
     def __init__(self, gateway, config):
-        super().__init__()
+        super(Connector, self).__init__()
+        super(threading.Thread, self).__init__()
         self.__gateway = gateway
         self.__master = None
         self.__server_conf = config.get("server")
@@ -64,7 +65,8 @@ class ModbusConnector(Connector, threading.Thread):
                                                             "converter": converter,
                                                             "next_attributes_check": 0,
                                                             "next_timeseries_check": 0,
-                                                            "last_data_sended": {},
+                                                            "telemetry": {},
+                                                            "attributes": {},
                                                             }
         except Exception as e:
             log.exception(e)
@@ -78,11 +80,11 @@ class ModbusConnector(Connector, threading.Thread):
         return self.name
 
     def __process_devices(self):
-        device_responses = {"timeseries": {},
-                            "attributes": {},
-                            }
         for device in self.__devices:
             current_time = time.time()
+            device_responses = {"timeseries": {},
+                                "attributes": {},
+                                }
             try:
                 for config_data in device_responses:
                     if self.__devices[device]["config"][config_data]:
@@ -91,14 +93,27 @@ class ModbusConnector(Connector, threading.Thread):
                             #  Reading data from device
                             for interested_data in range(len(self.__devices[device]["config"][config_data])):
                                 current_data = self.__devices[device]["config"][config_data][interested_data]
+                                input_data = self.__function_to_device(current_data, unit_id)
+                                if input_data.isError():
+                                    log.exception(input_data)
+                                    continue
                                 device_responses[config_data][current_data["tag"]] = {"sended_data": current_data,
-                                                                                      "input_data": self.__function_to_device(current_data, unit_id)}
+                                                                                      "input_data": input_data}
 
                             log.debug("Checking %s for device %s", config_data, device)
                             self.__devices[device]["next_"+config_data+"_check"] = current_time + self.__devices[device]["config"][config_data+"PollPeriod"]/1000
                             converted_data = self.__devices[device]["converter"].convert(device_responses)
-                            #  TODO Add sending to storage
-                            self.__devices[device]["last_data_sended"] = converted_data
+
+                            if converted_data["telemetry"] != self.__devices[device]["telemetry"] or\
+                               converted_data["attributes"] != self.__devices[device]["attributes"]:
+                                to_send={"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
+                                if converted_data["telemetry"] != self.__devices[device]["telemetry"]:
+                                    self.__devices[device]["last_telemetry"] = converted_data["telemetry"]
+                                    to_send["telemetry"] = converted_data["telemetry"]
+                                if converted_data["attributes"] != self.__devices[device]["attributes"]:
+                                    self.__devices[device]["last_telemetry"] = converted_data["attributes"]
+                                    to_send["attributes"] = converted_data["attributes"]
+                                self.__gateway._send_to_storage(self.get_name(), to_send)
             except ConnectionException:
                 log.error("Connection lost! Trying to reconnect...")
             except Exception as e:
@@ -154,3 +169,5 @@ class ModbusConnector(Connector, threading.Thread):
 
         return result
 
+    def server_side_rpc_handler(self, content):
+        pass

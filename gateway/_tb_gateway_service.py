@@ -45,7 +45,7 @@ class TBGatewayService:
                 for rpc_in_progress in self.__rpc_requests_in_progress:
                     if time.time() >= self.__rpc_requests_in_progress[rpc_in_progress][1]:
                         self.__rpc_requests_in_progress[rpc_in_progress][2](rpc_in_progress)
-                        del self.__rpc_requests_in_progress[rpc_in_progress]
+                        self.cancel_rpc_request(rpc_in_progress)
                 time.sleep(.1)
 
     def __load_connectors(self, config):
@@ -117,12 +117,14 @@ class TBGatewayService:
                                                "current_event",
                                                current_event["deviceName"])
                         if current_event.get("telemetry"):
-                            data_to_send = loads('{"ts": %i,"values": %s}' % (time.time(),
+                            data_to_send = loads('{"ts": %f,"values": %s}' % (time.time()*1000,
                                                                               ','.join(dumps(param) for param in current_event["telemetry"])))
                             self.__published_events.append(self.tb_client.client.gw_send_telemetry(current_event["deviceName"],
                                                                                                    data_to_send))
                         if current_event.get("attributes"):
+                            log.debug(current_event["attributes"])
                             data_to_send = loads('%s' % (','.join(dumps(param) for param in current_event["attributes"])))
+                            log.debug(dumps(data_to_send))
                             self.__published_events.append(self.tb_client.client.gw_send_attributes(current_event["deviceName"],
                                                                                                     data_to_send))
                     success = True
@@ -134,7 +136,7 @@ class TBGatewayService:
                 else:
                     time.sleep(1)
             except Exception as e:
-                log.error(e)
+                log.exception(e)
                 time.sleep(10)
 
     def __rpc_request_handler(self, _, content):

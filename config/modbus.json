@@ -13,7 +13,16 @@
         "attributesPollPeriod": 5000,
         "timeseriesPollPeriod": 5000,
         "sendDataOnlyOnChange": true,
-        "attributes": [],
+        "attributes": [
+          {
+            "byteOrder": "BIG",
+            "tag": "test",
+            "type": "long",
+            "functionCode": 4,
+            "registerCount": 1,
+            "address": 0
+          }
+        ],
         "timeseries": [
           {
             "byteOrder": "BIG",
@@ -43,9 +52,7 @@
             "unitId": 1,
             "byteOrder": "BIG",
             "registerCount": 1
-          },
-          "rpcHandlerFunction": "ModbusHandler",
-          "rpcHandlerFunction2": "ModbusHandler"
+          }
         }
       }
     ]

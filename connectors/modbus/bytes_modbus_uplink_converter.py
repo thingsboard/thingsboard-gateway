@@ -12,11 +12,12 @@ log.setLevel(logging.DEBUG)
 class BytesModbusUplinkConverter(ModbusUplinkConverter):
     def __init__(self, config):
         log.debug(config)
-        self.__result = {}
-        self.__result["deviceName"] = config.get("deviceName", "ModbusDevice %s" % (config["unitId"]))
-        self.__result["deviceType"] = config.get("deviceType", "ModbusDevice")
+        self.__result = {"deviceName": config.get("deviceName", "ModbusDevice %s" % (config["unitId"])),
+                         "deviceType": config.get("deviceType", "ModbusDevice")}
 
     def convert(self, device_responses):
+        self.__result["telemetry"] = []
+        self.__result["attributes"] = []
         for config_data in device_responses:
             if self.__result.get(config_data) is None:
                 self.__result[config_data] = []
@@ -83,8 +84,7 @@ class BytesModbusUplinkConverter(ModbusUplinkConverter):
                         result = "0000000000000000" + str(bin(result)[2:])
                         # get length of 16, then get bit, then cast it to int(0||1 from "0"||"1", then cast to boolean)
                         result = bool(int((result[len(result) - 16:])[15 - position]))
-                self.__result[config_data].append({tag: result})
+                self.__result[config_data].append({tag: int(result)})
         self.__result["telemetry"] = self.__result.pop("timeseries")
         log.debug(self.__result)
         return self.__result
-
