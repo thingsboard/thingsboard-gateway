@@ -17,7 +17,7 @@
         "timeseries": [
           {
             "byteOrder": "BIG",
-            "telemetryTag": "test",
+            "tag": "test",
             "type": "long",
             "functionCode": 4,
             "registerCount": 1,

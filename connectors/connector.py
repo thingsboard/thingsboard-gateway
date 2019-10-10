@@ -16,7 +16,7 @@ class Connector(ABC):
         pass
 
     @abstractmethod
-    def on_attributes_update(self):
+    def on_attributes_update(self, content):
         pass
 
     @abstractmethod

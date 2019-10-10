@@ -23,9 +23,8 @@ class ModbusConnector(Connector, threading.Thread):
         self.__server_conf = config.get("server")
         self.__configure_master()
         self.__devices = {}
-        self.setName(TBUtility.get_parameter(self.__server_conf,
-                                             "name",
-                                             'Modbus Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.setName(self.__server_conf.get("name",
+                                            'Modbus Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__load_converters()
         self.__connected = False
         self.__stopped = False
@@ -38,7 +37,7 @@ class ModbusConnector(Connector, threading.Thread):
 
     def run(self):
         if self.__server_conf.get("rtuOverTcp") or self.__server_conf.get("rtuOverUdp"):
-            pass  #TODO rtuOverTcp or rtuOverUdp
+            pass  # TODO rtuOverTcp or rtuOverUdp
         else:
             while not self.__master.connect():
                 time.sleep(5)
@@ -55,21 +54,18 @@ class ModbusConnector(Connector, threading.Thread):
     def __load_converters(self):
         try:
             for device in self.__server_conf["devices"]:
-                if self.__server_conf.get("converter") is not None and self.__server_conf.get("converter") == "Custom":
-                    pass  # TODO Add custom converter
+                if self.__server_conf.get("converter") is not None:
+                    converter = TBUtility.check_and_import('modbus', self.__server_conf["converter"])(device)
                 else:
-                    if device.get('deviceName') not in self.__gateway.get_devices():
-                        self.__gateway.add_device(device.get('deviceName'), {"connector": self})
-                        if device.get('converter') is None:
-                            self.__devices[device["deviceName"]] = {"config": device,
-                                                                    "converter": BytesModbusUplinkConverter(device),
-                                                                    "next_attributes_check": 0,
-                                                                    "next_timeseries_check": 0,
-                                                                    "last_timeseries": {},
-                                                                    "last_attributes": {},
-                                                                    }
-                        else:
-                            pass  #TODO Add custom converter
+                    converter = BytesModbusUplinkConverter(device)
+                if device.get('deviceName') not in self.__gateway.get_devices():
+                    self.__gateway.add_device(device.get('deviceName'), {"connector": self})
+                    self.__devices[device["deviceName"]] = {"config": device,
+                                                            "converter": converter,
+                                                            "next_attributes_check": 0,
+                                                            "next_timeseries_check": 0,
+                                                            "last_data_sended": {},
+                                                            }
         except Exception as e:
             log.exception(e)
 
@@ -82,41 +78,42 @@ class ModbusConnector(Connector, threading.Thread):
         return self.name
 
     def __process_devices(self):
+        device_responses = {"timeseries": {},
+                            "attributes": {},
+                            }
         for device in self.__devices:
             current_time = time.time()
             try:
-                if self.__devices[device]["attributes"] or self.__devices[device]["timeseries"]:
-                    if self.__devices[device]["next_attributes_check"] < current_time:
-                        #  Reading attributes
-                        log.debug("Checking attribute for device %s", device)
-                        self.__devices[device]["next_attributes_check"] = current_time + self.__devices[device]["config"]["attributesPollPeriod"]/1000
+                for config_data in device_responses:
+                    if self.__devices[device]["config"][config_data]:
+                        unit_id = self.__devices[device]["config"]["unitId"]
+                        if self.__devices[device]["next_"+config_data+"_check"] < current_time:
+                            #  Reading data from device
+                            for interested_data in range(len(self.__devices[device]["config"][config_data])):
+                                current_data = self.__devices[device]["config"][config_data][interested_data]
+                                device_responses[config_data][current_data["tag"]] = {"sended_data": current_data,
+                                                                                      "input_data": self.__function_to_device(current_data, unit_id)}
 
-                    if self.__devices[device]["next_timeseries_check"] < current_time:
-                        #  Reading timeseries
-                        log.debug("Checking timeseries for device %s", device)
-                        self.__devices[device]["next_timeseries_check"] = current_time + self.__devices[device]["config"]["timeseriesPollPeriod"]/1000
-
-                        for ts in range(len(self.__devices[device]["config"]["timeseries"])):
-                            device_response = self.__function_to_device(self.__devices[device]["config"]["timeseries"][ts],
-                                                                        self.__devices[device]["config"]["unitId"])
-                            log.debug(device_response)
-                else:
-                    log.debug("No timeseries and attributes in config.")
+                            log.debug("Checking %s for device %s", config_data, device)
+                            self.__devices[device]["next_"+config_data+"_check"] = current_time + self.__devices[device]["config"][config_data+"PollPeriod"]/1000
+                            converted_data = self.__devices[device]["converter"].convert(device_responses)
+                            #  TODO Add sending to storage
+                            self.__devices[device]["last_data_sended"] = converted_data
             except ConnectionException:
                 log.error("Connection lost! Trying to reconnect...")
             except Exception as e:
                 log.exception(e)
 
-    def on_attributes_update(self):
+    def on_attributes_update(self, content):
         pass
 
     def server_side_rpc_handler(self, content):
         pass
 
     def __configure_master(self):
-        host = TBUtility.get_parameter(self.__server_conf, "host", "localhost")
-        port = TBUtility.get_parameter(self.__server_conf, "port", "502")
-        timeout = TBUtility.get_parameter(self.__server_conf, "timeout", 35)
+        host = self.__server_conf.get("host", "localhost")
+        port = self.__server_conf.get("port", 502)
+        timeout = self.__server_conf.get("timeout", 35)
         rtu = ModbusRtuFramer if self.__server_conf.get("rtuOverTcp") or self.__server_conf.get("rtuOverUdp") else False
         if self.__server_conf.get('type') == 'tcp':
             client = ModbusTcpClient
@@ -131,9 +128,9 @@ class ModbusConnector(Connector, threading.Thread):
             self.__master = client(host, port, timeout=timeout)
         self.__available_functions = {
             1: self.__master.read_coils,
-            2: self.__master.read_coils,
-            3: self.__master.read_coils,
-            4: self.__master.read_coils,
+            2: self.__master.read_discrete_inputs,
+            3: self.__master.read_input_registers,
+            4: self.__master.read_holding_registers,
             5: self.__master.write_coils,
             6: self.__master.write_registers,
             15: self.__master.write_coils,
@@ -146,7 +143,7 @@ class ModbusConnector(Connector, threading.Thread):
         result = None
         if function_code in (1, 2, 3, 4):
             result = self.__available_functions[function_code](config["address"],
-                                                               TBUtility.get_parameter(config, "registerCount", 1),
+                                                               config.get("registerCount", 1),
                                                                unit=unit_id)
         elif function_code in (5, 6, 15, 16):
             result = self.__available_functions[function_code](config["address"],

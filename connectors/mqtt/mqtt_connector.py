@@ -28,9 +28,8 @@ class MqttConnector(Connector, Thread):
         self.__sub_topics = {}
         client_id = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
         self._client = Client(client_id)
-        self.setName(TBUtility.get_parameter(self.__broker,
-                                             "name",
-                                             'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5))))
+        self.setName(self.__broker.get("name",
+                                       'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5))))
         if self.__broker["credentials"]["type"] == "basic":
             self._client.username_pw_set(self.__broker["credentials"]["username"],
                                          self.__broker["credentials"]["password"])
@@ -73,7 +72,7 @@ class MqttConnector(Connector, Thread):
             while not self._connected:
                 try:
                     self._client.connect(self.__broker['host'],
-                                         TBUtility.get_parameter(self.__broker, 'port', 1883))
+                                         self.__broker.get('port', 1883))
                     self._client.loop_start()
                 except Exception as e:
                     log.error(e)
@@ -116,7 +115,7 @@ class MqttConnector(Connector, Thread):
             log.info('%s connected to %s:%s - successfully.',
                      self.get_name(),
                      self.__broker["host"],
-                     TBUtility.get_parameter(self.__broker, "port", "1883"))
+                     self.__broker.get("port", "1883"))
             for mapping in self.__mapping:
                 try:
                     converter = None
@@ -140,7 +139,7 @@ class MqttConnector(Connector, Thread):
 
                         self.__sub_topics[regex_topic].append({converter: None})
                         # self._client.subscribe(TBUtility.regex_to_topic(regex_topic))
-                        self.__subscribe(TBUtility.regex_to_topic(regex_topic))
+                        self.__subscribe(mapping["topicFilter"])
                         log.info('Connector "%s" subscribe to %s',
                                  self.get_name(),
                                  TBUtility.regex_to_topic(regex_topic))
@@ -165,7 +164,7 @@ class MqttConnector(Connector, Thread):
     def _on_disconnect(self, *args):
         log.debug('"%s" was disconnected.', self.get_name())
 
-    def _on_log(self,*args):
+    def _on_log(self, *args):
         log.debug(args)
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
@@ -230,7 +229,7 @@ class MqttConnector(Connector, Thread):
                 log.error("Connection requests in config not found.")
 
         elif self.__service_config.get("disconnectRequests") is not None:
-            disconnect_requests = [disconnect_request for disconnect_request in  self.__service_config.get("disconnectRequests")]
+            disconnect_requests = [disconnect_request for disconnect_request in self.__service_config.get("disconnectRequests")]
             if disconnect_requests:
                 for request in disconnect_requests:
                     if request.get("topicFilter") is not None:
@@ -269,6 +268,7 @@ class MqttConnector(Connector, Thread):
                             .replace("${deviceName}", content["device"])\
                             .replace("${attributeKey}", attribute_update["attributeFilter"])\
                             .replace("${attributeValue}", content["data"][attribute_update["attributeFilter"]])
+                    data = ''
                     try:
                         data = attribute_update["valueExpression"]\
                                 .replace("${attributeKey}", attribute_update["attributeFilter"])\
@@ -302,7 +302,7 @@ class MqttConnector(Connector, Thread):
                         self.__gateway.register_rpc_request_timeout(content,
                                                                     timeout,
                                                                     topic_for_subscribe,
-                                                                    self._client.rpc_cancel_processing)
+                                                                    self.rpc_cancel_processing)
                         # Maybe we need to wait for the command to execute successfully before publishing the request.
                         self._client.subscribe(topic_for_subscribe)
                     else:
@@ -330,7 +330,6 @@ class MqttConnector(Connector, Thread):
 
     def rpc_cancel_processing(self, topic):
         self._client.unsubscribe(topic)
-
 
     @staticmethod
     def _decode(message):

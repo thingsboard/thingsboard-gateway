@@ -12,12 +12,6 @@ log.setLevel(10)
 
 
 class TBUtility:
-    @staticmethod
-    def get_parameter(data, param, default_value):
-        if param not in data:
-            return default_value
-        else:
-            return data[param]
 
     @staticmethod
     def validate_converted_data(data):

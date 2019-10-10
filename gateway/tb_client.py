@@ -1,6 +1,5 @@
 import logging
 import time
-
 from tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 from tb_utility.tb_utility import TBUtility
 
@@ -12,7 +11,7 @@ class TBClient:
     def __init__(self, config):
         self.__config = config
         self.__host = config["host"]
-        self.__port = TBUtility.get_parameter(config, "port", 1883)
+        self.__port = config.get("port", 1883)
         credentials = config["security"]
         self.__tls = False
         self.__ca_cert = None
@@ -26,35 +25,35 @@ class TBClient:
             self.__ca_cert = credentials.get("caCert")
             self.__private_key = credentials.get("privateKey")
             self.__cert = credentials.get("cert")
-        self._client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self)
+        self.client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self)
         # Adding callbacks
-        self._client._client._on_connect = self._on_connect
+        self.client._client._on_connect = self._on_connect
         # self._client._client._on_message = self._on_message
-        self._client._client._on_disconnect = self._on_disconnect
+        self.client._client._on_disconnect = self._on_disconnect
 
     def is_connected(self):
-        return self._client.is_connected
+        return self.client.is_connected
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         log.debug('Gateway connected to ThingsBoard')
-        self._client._on_connect(client, userdata, flags, rc, *extra_params)
+        self.client._on_connect(client, userdata, flags, rc, *extra_params)
 
     def _on_disconnect(self, client, userdata, rc):
         log.info('Gateway was disconnected trying to reconnect')
 
     def disconnect(self):
-        self._client.disconnect()
+        self.client.disconnect()
 
     def connect(self):
-        keep_alive = TBUtility.get_parameter(self.__config, "keep_alive", 60)
+        keep_alive = self.__config.get("keep_alive", 60)
 
-        while not self._client.is_connected():
+        while not self.client.is_connected():
             try:
-                self._client.connect(tls=self.__tls,
-                                     ca_certs=self.__ca_cert,
-                                     cert_file=self.__cert,
-                                     key_file=self.__private_key,
-                                     keepalive=keep_alive)
+                self.client.connect(tls=self.__tls,
+                                    ca_certs=self.__ca_cert,
+                                    cert_file=self.__cert,
+                                    key_file=self.__private_key,
+                                    keepalive=keep_alive)
             except Exception as e:
                 log.error(e)
             log.debug("connecting to ThingsBoard...")

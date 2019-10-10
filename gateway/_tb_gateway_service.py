@@ -25,9 +25,10 @@ class TBGatewayService:
             self.__connected_devices = {}
             self.__events = []
             self.__rpc_requests_in_progress = {}
+            #  TODO Add saving of converter
             self.__connected_devices_file = "connected_devices.json"
             self.tb_client = TBClient(config["thingsboard-client"])
-            self.tb_client._client.gw_set_server_side_rpc_request_handler(self.__rpc_request_handler)
+            self.tb_client.client.gw_set_server_side_rpc_request_handler(self.__rpc_request_handler)
             self.__load_connectors(config)
             self.__connect_with_connectors()
             self.__load_persistent_devices()
@@ -37,7 +38,7 @@ class TBGatewayService:
             else:
                 self.__event_storage = FileEventStorage(config["storage"])
             self.tb_client.connect()
-            self.tb_client._client.gw_subscribe_to_all_attributes(self.__attribute_update_callback)
+            self.tb_client.client.gw_subscribe_to_all_attributes(self.__attribute_update_callback)
             self.__send_thread.start()
 
             while True:
@@ -85,7 +86,8 @@ class TBGatewayService:
             log.error("Data from %s connector is invalid.", connector_name)
             return
         if data["deviceName"] not in self.get_devices():
-            self.add_device(data["deviceName"], {"connector": self.available_connectors[connector_name]}, wait_for_publish=True)
+            self.add_device(data["deviceName"],
+                            {"connector": self.available_connectors[connector_name]}, wait_for_publish=True)
         if not self.__connector_incoming_messages.get(connector_name):
             self.__connector_incoming_messages[connector_name] = 0
         else:
@@ -95,7 +97,9 @@ class TBGatewayService:
         if save_result:
             log.debug('Connector "%s" - Saved information - %s', connector_name, json_data)
         else:
-            log.error('Data from device "%s" cannot be saved, connector name is %s.', data["deviceName"], connector_name)
+            log.error('Data from device "%s" cannot be saved, connector name is %s.',
+                      data["deviceName"],
+                      connector_name)
 
     def __read_data_from_storage(self):
         while True:
@@ -106,15 +110,21 @@ class TBGatewayService:
                     for event in events:
                         current_event = loads(event)
                         if current_event["deviceName"] not in self.get_devices():
-                            self.add_device(current_event["deviceName"], {"current_event": current_event["deviceName"]}, wait_for_publish=True)
+                            self.add_device(current_event["deviceName"],
+                                            {"current_event": current_event["deviceName"]}, wait_for_publish=True)
                         else:
-                            self.update_device(current_event["deviceName"], "current_event", current_event["deviceName"])
+                            self.update_device(current_event["deviceName"],
+                                               "current_event",
+                                               current_event["deviceName"])
                         if current_event.get("telemetry"):
-                            data_to_send = loads('{"ts": %i,"values": %s}'%(time.time(), ','.join(dumps(param) for param in current_event["telemetry"])))
-                            self.__published_events.append(self.tb_client._client.gw_send_telemetry(current_event["deviceName"], data_to_send))
+                            data_to_send = loads('{"ts": %i,"values": %s}' % (time.time(),
+                                                                              ','.join(dumps(param) for param in current_event["telemetry"])))
+                            self.__published_events.append(self.tb_client.client.gw_send_telemetry(current_event["deviceName"],
+                                                                                                   data_to_send))
                         if current_event.get("attributes"):
                             data_to_send = loads('%s' % (','.join(dumps(param) for param in current_event["attributes"])))
-                            self.__published_events.append(self.tb_client._client.gw_send_attributes(current_event["deviceName"], data_to_send))
+                            self.__published_events.append(self.tb_client.client.gw_send_attributes(current_event["deviceName"],
+                                                                                                    data_to_send))
                     success = True
                     for event in range(len(self.__published_events)):
                         result = self.__published_events[event].get()
@@ -143,7 +153,7 @@ class TBGatewayService:
     def rpc_with_reply_processing(self, topic, content):
         req_id = self.__rpc_requests_in_progress[topic][0]["data"]["id"]
         device = self.__rpc_requests_in_progress[topic][0]["device"]
-        self.tb_client._client.gw_send_rpc_reply(device, req_id, content)
+        self.tb_client.client.gw_send_rpc_reply(device, req_id, content)
         self.cancel_rpc_request(topic)
 
     def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
@@ -155,12 +165,12 @@ class TBGatewayService:
     def __attribute_update_callback(self, content):
         self.__connected_devices[content["device"]]["connector"].on_attributes_update(content)
 
-    def add_device(self, device_name, content, wait_for_publish = False):
+    def add_device(self, device_name, content, wait_for_publish=False):
         self.__connected_devices[device_name] = content
         if wait_for_publish:
-            self.tb_client._client.gw_connect_device(device_name).wait_for_publish()
+            self.tb_client.client.gw_connect_device(device_name).wait_for_publish()
         else:
-            self.tb_client._client.gw_connect_device(device_name)
+            self.tb_client.client.gw_connect_device(device_name)
         self.__save_persistent_devices()
 
     def update_device(self, device_name, event, content):
@@ -170,7 +180,7 @@ class TBGatewayService:
 
     def del_device(self, device_name):
         del self.__connected_devices[device_name]
-        self.tb_client._client.gw_disconnect_device(device_name)
+        self.tb_client.client.gw_disconnect_device(device_name)
         self.__save_persistent_devices()
 
     def get_devices(self):
@@ -179,7 +189,8 @@ class TBGatewayService:
     def __load_persistent_devices(self):
         devices = {}
         config_dir = './config/'
-        if self.__connected_devices_file in listdir(config_dir) and path.getsize(config_dir+self.__connected_devices_file) > 0:
+        if self.__connected_devices_file in listdir(config_dir) and \
+                path.getsize(config_dir+self.__connected_devices_file) > 0:
             try:
                 with open(config_dir+self.__connected_devices_file) as devices_file:
                     devices = load(devices_file)
