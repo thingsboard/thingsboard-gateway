@@ -2,3 +2,4 @@ venv/
 /for_tests.py
 /f_test.py
 /develop_tests/
+logs/*

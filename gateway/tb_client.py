@@ -1,10 +1,8 @@
 import logging
 import time
 from tb_client.tb_gateway_mqtt import TBGatewayMqttClient
-from tb_utility.tb_utility import TBUtility
 
-log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+log = logging.getLogger("tb_connection")
 
 
 class TBClient:

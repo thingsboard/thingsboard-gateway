@@ -1,4 +1,7 @@
+import logging
 from abc import ABC, abstractmethod
+
+log = logging.getLogger("extension")
 
 
 class MqttUplinkConverter(ABC):

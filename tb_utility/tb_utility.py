@@ -7,8 +7,7 @@ from logging import getLogger
 from json import dumps,loads
 from re import search
 
-log = getLogger(__name__)
-log.setLevel(10)
+log = getLogger("service")
 
 
 class TBUtility:

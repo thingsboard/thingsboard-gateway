@@ -1,4 +1,4 @@
-import logging
+import logging.config
 import time
 import yaml
 from json import load, loads, dumps
@@ -11,9 +11,8 @@ from connectors.modbus.modbus_connector import ModbusConnector
 from storage.memory_event_storage import MemoryEventStorage
 from storage.file_event_storage import FileEventStorage
 
-
-log = logging.getLogger('__main__')
-log.setLevel(logging.DEBUG)
+logging.config.fileConfig('config/logs.conf')
+log = logging.getLogger('service')
 
 
 class TBGatewayService:
@@ -25,7 +24,6 @@ class TBGatewayService:
             self.__connected_devices = {}
             self.__events = []
             self.__rpc_requests_in_progress = {}
-            #  TODO Add saving of converter
             self.__connected_devices_file = "connected_devices.json"
             self.tb_client = TBClient(config["thingsboard-client"])
             self.tb_client.client.gw_set_server_side_rpc_request_handler(self.__rpc_request_handler)

@@ -1,10 +1,6 @@
-import logging
 from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.constants import Endian
-from connectors.modbus.modbus_converter import ModbusConverter
-
-log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+from connectors.modbus.modbus_converter import ModbusConverter, log
 
 
 class BytesModbusUplinkConverter(ModbusConverter):

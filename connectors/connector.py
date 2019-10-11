@@ -1,4 +1,7 @@
+import logging
 from abc import ABC, abstractmethod
+
+log = logging.getLogger("connector")
 
 
 class Connector(ABC):

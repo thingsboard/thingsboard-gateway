@@ -2,10 +2,8 @@ import logging
 from pymodbus.payload import BinaryPayloadBuilder
 from re import findall
 from pymodbus.constants import Endian
-from connectors.modbus.modbus_converter import ModbusConverter
+from connectors.modbus.modbus_converter import ModbusConverter, log
 
-log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class BytesModbusDownlinkConverter(ModbusConverter):

@@ -1,11 +1,7 @@
-import logging
 from json import dumps, loads
 from re import search
-from connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
+from connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
 from tb_utility.tb_utility import TBUtility
-
-log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 class JsonMqttUplinkConverter(MqttUplinkConverter):

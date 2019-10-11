@@ -10,8 +10,7 @@ GATEWAY_ATTRIBUTES_RESPONSE_TOPIC = "v1/gateway/attributes/response"
 GATEWAY_MAIN_TOPIC = "v1/gateway/"
 GATEWAY_RPC_TOPIC = "v1/gateway/rpc"
 
-log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+log = logging.getLogger("tb_connection")
 
 
 class TBGatewayAPI:

@@ -18,10 +18,10 @@ storage:
 #  no_records_sleep_interval: 5000
 connectors:
 
-#  -
-#    name: MQTT Broker Connector Example
-#    type: mqtt
-#    configuration: mqtt.json
+  -
+    name: MQTT Broker Connector Example
+    type: mqtt
+    configuration: mqtt.json
 
   -
     name: Modbus Connector Example

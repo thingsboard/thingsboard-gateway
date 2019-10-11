@@ -1,9 +1,5 @@
-import logging
 from json import dumps
-from connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
-
-log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+from connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
 
 
 class CustomMqttUplinkConverter(MqttUplinkConverter):
@@ -14,7 +10,7 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
     def convert(self, topic, body):
         try:
             '''  getting device name from topic, next line will get all data after last '/' symbol 
-             in this case: if topic = 'devices/themperature/sensor1' device name will be 'sensor1'.'''
+             in this case: if topic = 'devices/temperature/sensor1' device name will be 'sensor1'.'''
             self.dict_result["deviceName"] = topic.split("/")[-1]
             self.dict_result["deviceType"] = "Thermostat"  # just hardcode this
             self.dict_result["telemetry"] = []  # template for telemetry array

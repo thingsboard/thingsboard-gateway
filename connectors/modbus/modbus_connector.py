@@ -1,19 +1,15 @@
 import time
-import logging
 import threading
-from json import dumps
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusRtuFramer
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
 from random import choice
 from string import ascii_lowercase
 from tb_utility.tb_utility import TBUtility
-from connectors.connector import Connector
+from connectors.connector import Connector, log
 from pymodbus.exceptions import ConnectionException
 from connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
 from connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
-
-log = logging.getLogger(__name__)
 
 
 class ModbusConnector(Connector, threading.Thread):
@@ -177,7 +173,7 @@ class ModbusConnector(Connector, threading.Thread):
             rpc_command_config["unitId"] = self.__devices[content["device"]]["config"]["unitId"]
 
         if rpc_command_config is not None:
-            rpc_command_config["payload"] = self.__devices[content["device"]]["downlink_converter"].convert(content,rpc_command_config)
+            rpc_command_config["payload"] = self.__devices[content["device"]]["downlink_converter"].convert(content, rpc_command_config)
             response = None
             try:
                 response = self.__function_to_device(rpc_command_config, rpc_command_config["unitId"])
