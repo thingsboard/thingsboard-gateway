@@ -19,11 +19,15 @@ storage:
 connectors:
 
   -
-    name: MQTT Broker Connector Example
+    name: MQTT Broker Connector
     type: mqtt
     configuration: mqtt.json
 
   -
-    name: Modbus Connector Example
+    name: Modbus Connector
     type: modbus
     configuration: modbus.json
+  -
+    name: OPC-UA Connector
+    type: opcua
+    configuration: opc.json
