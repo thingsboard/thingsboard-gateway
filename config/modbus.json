@@ -45,7 +45,7 @@
             "value": false
           },
           "getCPULoad": {
-            "telemetryTag": "WriteInteger",
+            "tag": "Integer",
             "value": 42,
             "functionCode": 16,
             "address": 0,

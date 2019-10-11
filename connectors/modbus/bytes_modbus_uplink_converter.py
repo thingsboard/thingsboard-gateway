@@ -1,29 +1,26 @@
 import logging
-from json import dumps
-from tb_utility.tb_utility import TBUtility
 from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.constants import Endian
-from connectors.modbus.modbus_uplink_converter import ModbusUplinkConverter
+from connectors.modbus.modbus_converter import ModbusConverter
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
-class BytesModbusUplinkConverter(ModbusUplinkConverter):
+class BytesModbusUplinkConverter(ModbusConverter):
     def __init__(self, config):
-        log.debug(config)
         self.__result = {"deviceName": config.get("deviceName", "ModbusDevice %s" % (config["unitId"])),
                          "deviceType": config.get("deviceType", "ModbusDevice")}
 
-    def convert(self, device_responses):
+    def convert(self, data, config):
         self.__result["telemetry"] = []
         self.__result["attributes"] = []
-        for config_data in device_responses:
+        for config_data in data:
             if self.__result.get(config_data) is None:
                 self.__result[config_data] = []
-            for tag in device_responses[config_data]:
-                sended_data = device_responses[config_data][tag]["sended_data"]
-                input_data = device_responses[config_data][tag]["input_data"]
+            for tag in data[config_data]:
+                sended_data = data[config_data][tag]["sended_data"]
+                input_data = data[config_data][tag]["input_data"]
                 log.debug("Called convert function from %s with args", self.__class__.__name__)
                 log.debug(sended_data)
                 log.debug(input_data)

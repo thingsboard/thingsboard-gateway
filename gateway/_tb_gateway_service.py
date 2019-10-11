@@ -117,14 +117,12 @@ class TBGatewayService:
                                                "current_event",
                                                current_event["deviceName"])
                         if current_event.get("telemetry"):
-                            data_to_send = loads('{"ts": %f,"values": %s}' % (time.time()*1000,
+                            data_to_send = loads('{"ts": %f,"values": %s}' % (int(time.time()*1000),
                                                                               ','.join(dumps(param) for param in current_event["telemetry"])))
                             self.__published_events.append(self.tb_client.client.gw_send_telemetry(current_event["deviceName"],
                                                                                                    data_to_send))
                         if current_event.get("attributes"):
-                            log.debug(current_event["attributes"])
                             data_to_send = loads('%s' % (','.join(dumps(param) for param in current_event["attributes"])))
-                            log.debug(dumps(data_to_send))
                             self.__published_events.append(self.tb_client.client.gw_send_attributes(current_event["deviceName"],
                                                                                                     data_to_send))
                     success = True
@@ -140,23 +138,29 @@ class TBGatewayService:
                 time.sleep(10)
 
     def __rpc_request_handler(self, _, content):
-        device = content.get("device")
-        if device is not None:
-            connector = self.get_devices()[device].get("connector")
-            if connector is not None:
-                connector.server_side_rpc_handler(content)
+        try:
+            device = content.get("device")
+            if device is not None:
+                connector = self.get_devices()[device].get("connector")
+                if connector is not None:
+                    connector.server_side_rpc_handler(content)
+                else:
+                    log.error("Received RPC request but connector for device %s not found. Request data: \n %s",
+                              content["device"],
+                              dumps(content))
             else:
-                log.error("Received RPC request but connector for device %s not found. Request data: \n %s",
-                          content["device"],
-                          dumps(content))
-        else:
-            log.debug("RPC request with no device param.")
+                log.debug("RPC request with no device param.")
+        except Exception as e:
+            log.exception(e)
 
     def rpc_with_reply_processing(self, topic, content):
         req_id = self.__rpc_requests_in_progress[topic][0]["data"]["id"]
         device = self.__rpc_requests_in_progress[topic][0]["device"]
-        self.tb_client.client.gw_send_rpc_reply(device, req_id, content)
+        self.send_rpc_reply(device, req_id, content)
         self.cancel_rpc_request(topic)
+
+    def send_rpc_reply(self, device, req_id, content):
+        self.tb_client.client.gw_send_rpc_reply(device, req_id, content)
 
     def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
         self.__rpc_requests_in_progress[topic] = (content, timeout, cancel_method)

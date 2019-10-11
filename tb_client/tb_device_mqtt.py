@@ -36,8 +36,7 @@ TS_KV_SCHEMA = {
     "type": "object",
     "properties": {
         "ts": {
-            "type": ["integer",
-                     "number"]
+            "type": ["integer"]
         },
         "values": KV_SCHEMA
     },
