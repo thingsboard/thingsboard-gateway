@@ -38,14 +38,11 @@ class ModbusConnector(Connector, threading.Thread):
         log.info("Starting Modbus connector...")
 
     def run(self):
-        if self.__server_conf.get("rtuOverTcp") or self.__server_conf.get("rtuOverUdp"):
-            pass  # TODO rtuOverTcp or rtuOverUdp
-        else:
-            while not self.__master.connect():
-                time.sleep(5)
-                log.warning("Modbus trying reconnect to %s", self.__server_conf.get("name"))
-            log.info("Modbus connected.")
-            self.__connected = True
+        while not self.__master.connect():
+            time.sleep(5)
+            log.warning("Modbus trying reconnect to %s", self.__server_conf.get("name"))
+        log.info("Modbus connected.")
+        self.__connected = True
 
         while True:
             time.sleep(1)
