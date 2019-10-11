@@ -42,7 +42,7 @@ class ModbusConnector(Connector, threading.Thread):
 
         while True:
             time.sleep(1)
-            # self.__process_devices()
+            self.__process_devices()
             if self.__stopped:
                 break
 
@@ -92,6 +92,7 @@ class ModbusConnector(Connector, threading.Thread):
                             #  Reading data from device
                             for interested_data in range(len(self.__devices[device]["config"][config_data])):
                                 current_data = self.__devices[device]["config"][config_data][interested_data]
+                                current_data["deviceName"] = device
                                 input_data = self.__function_to_device(current_data, unit_id)
                                 if input_data.isError():
                                     log.exception(input_data)
@@ -149,7 +150,6 @@ class ModbusConnector(Connector, threading.Thread):
         }
 
     def __function_to_device(self, config, unit_id):
-        log.debug(config)
         function_code = config.get('functionCode')
         result = None
         if function_code in (1, 2, 3, 4):
@@ -162,6 +162,8 @@ class ModbusConnector(Connector, threading.Thread):
                                                                unit=unit_id)
         else:
             log.error("Unknown Modbus function with code: %i", function_code)
+        log.debug("Sended to modbus device %s, \n%s", config["deviceName"], config)
+        log.debug("With result %s", result)
 
         return result
 

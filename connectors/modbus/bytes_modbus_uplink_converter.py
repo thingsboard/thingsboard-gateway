@@ -8,7 +8,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
         self.__result = {"deviceName": config.get("deviceName", "ModbusDevice %s" % (config["unitId"])),
                          "deviceType": config.get("deviceType", "ModbusDevice")}
 
-    def convert(self, data, config):
+    def convert(self, data, config=None):
         self.__result["telemetry"] = []
         self.__result["attributes"] = []
         for config_data in data:

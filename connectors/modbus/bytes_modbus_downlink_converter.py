@@ -11,7 +11,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
     def __init__(self, config):
         self.__config = config
 
-    def convert(self, data, config):
+    def convert(self, data, config=None):
         byte_order = config["byteOrder"] if config.get("byteOrder") else "LITTLE"
         if byte_order == "LITTLE":
             builder = BinaryPayloadBuilder(byteorder=Endian.Little)

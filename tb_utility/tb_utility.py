@@ -18,9 +18,9 @@ class TBUtility:
         if not data.get("deviceName") or data.get("deviceName") is None:
             log.error('deviceName is empty in data %s', json_data)
             return False
-        # if not data.get("deviceType") or data.get("deviceType") is None:
-        #     log.error('deviceType is empty in data: %s', json_data)
-        #     return False
+        if not data.get("deviceType") or data.get("deviceType") is None:
+            log.error('deviceType is empty in data: %s', json_data)
+            return False
         if not data["attributes"] and not data["telemetry"]:
             log.error('No telemetry and attributes in data: %s', json_data)
             return False
