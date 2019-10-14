@@ -35,7 +35,7 @@ class EventStorageWriter:
                     pass
             if len(self.files.get_data_files()) == self.settings.get_max_files_count():
                 first_file = self.files.get_data_files()[0]
-                if os.remove(self.settings.get_data_folder_path() + first_file):
+                if os.remove(os.path.abspath(first_file)):
                     self.files.get_data_files().pop(0)
                 log.info("Cleanup old data file: {}!".format(first_file))
             self.files.get_data_files().append(self.current_file)
