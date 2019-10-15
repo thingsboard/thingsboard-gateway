@@ -6,6 +6,7 @@ from storage.file_event_storage_settings import FileEventStorageSettings
 import os
 import time
 import logging
+import json
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +54,8 @@ class FileEventStorage(EventStorage):
                 data_files.append(self.create_new_datafile())
             if not state_file:
                 state_file = self.create_file('state_', 'file')
-                # TODO Add Position value and file to read in state file on init
+                with open(state_file, 'w') as f:
+                    json.dump({"position": 0, "file": sorted(data_files[0])}, f)
             return EventStorageFiles(state_file, data_files)
 
     def create_new_datafile(self):
