@@ -19,7 +19,7 @@ class EventStorageWriter:
         self.current_files_records_count = 0
         self.get_number_of_records_in_file(self.current_file)
 
-    def write(self, msg: str, callback=None):
+    def write(self, msg, callback=None):
         self.new_record_after_flush = True
         if self.is_file_full(self.current_files_records_count):
             if log.getEffectiveLevel() == 10:
@@ -53,14 +53,14 @@ class EventStorageWriter:
             self.buffered_writer = None
         encoded = base64.b64encode(msg.encode("utf-8"))
         try:
-            writer = self.get_or_init_buffered_writer(self.current_file)
-            writer.write(encoded)
-            writer.write(os.linesep.encode('utf-8'))
+            self.buffered_writer = self.get_or_init_buffered_writer(self.current_file)
+            self.buffered_writer.write(encoded)
+            self.buffered_writer.write(os.linesep.encode('utf-8'))
             log.debug("Record written to: [{}:{}]".format(self.current_file, self.current_files_records_count))
             self.current_files_records_count += 1
             if self.current_files_records_count % self.settings.get_max_records_between_fsync() == 0:
                 log.debug("Executing flush of the full pack!")
-                writer.flush()
+                self.buffered_writer.flush()
                 self.new_record_after_flush = False
         except IOError as e:
             log.warning("Failed to update data file![{}]".format(self.current_file), e)
@@ -84,8 +84,8 @@ class EventStorageWriter:
     def get_or_init_buffered_writer(self, file):
         try:
             if self.buffered_writer is None:
-                self.buffered_writer = io.BufferedWriter(io.FileIO(file, 'a'))
-                return self.buffered_writer
+                buffered_writer = io.BufferedWriter(io.FileIO(self.settings.get_data_folder_path() + file, 'a'))
+                return buffered_writer
         except IOError as e:
             log.error("Failed to initialize buffered writer!", e)
             raise RuntimeError("Failed to initialize buffered writer!", e)

@@ -81,9 +81,11 @@ class TestStorage(unittest.TestCase):
 
         storage_test_config = {
              "data_folder_path": "storage/data/",
-             "max_records_count": test_size*10,
-             "read_records_count": 10,
-             "records_per_file": 40
+             "max_files_count": 5,
+             "max_records_per_file": 12,
+             "max_records_between_fsync": 3,
+             "max_read_records_count": 10,
+             "no_records_sleep_interval": 5000
         }
         storage = FileEventStorage(storage_test_config)
 
@@ -96,6 +98,7 @@ class TestStorage(unittest.TestCase):
             storage.event_pack_processing_done()
 
         correct_result = [[str(x) for x in range(y*10,(y+1)*10)] for y in range(test_size)]
+        print(correct_result)
 
         self.assertListEqual(result, correct_result)
 

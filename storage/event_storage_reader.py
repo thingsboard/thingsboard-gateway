@@ -122,7 +122,8 @@ class EventStorageReader:
         if reader_file is None:
             reader_file = self.files.get_data_files()[0]
             reader_pos = 0
-        log.info("Initializing from state file: [{}:{}]".format(os.path.abspath(reader_file), reader_pos))
+        log.info("Initializing from state file: [{}:{}]".format(
+            self.settings.get_data_folder_path() + reader_file, reader_pos))
         return EventStorageReaderPointer(reader_file, reader_pos)
 
     def write_info_to_state_file(self, pointer: EventStorageReaderPointer):

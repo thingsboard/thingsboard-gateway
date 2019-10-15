@@ -54,8 +54,8 @@ class FileEventStorage(EventStorage):
                 data_files.append(self.create_new_datafile())
             if not state_file:
                 state_file = self.create_file('state_', 'file')
-                with open(state_file, 'w') as f:
-                    json.dump({"position": 0, "file": sorted(data_files[0])}, f)
+                with open(self.settings.get_data_folder_path() + state_file, 'w') as f:
+                    json.dump({"position": 0, "file": sorted(data_files)[0]}, f)
             return EventStorageFiles(state_file, data_files)
 
     def create_new_datafile(self):
