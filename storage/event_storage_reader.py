@@ -1,12 +1,13 @@
-from storage.event_storage_files import EventStorageFiles
-from storage.file_event_storage_settings import FileEventStorageSettings
-from storage.event_storage_reader_pointer import EventStorageReaderPointer
 import copy
 import logging
 import io
 import os
 import base64
 import json
+from json.decoder import JSONDecodeError
+from storage.event_storage_files import EventStorageFiles
+from storage.file_event_storage_settings import FileEventStorageSettings
+from storage.event_storage_reader_pointer import EventStorageReaderPointer
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ class EventStorageReader:
                 while line is not None:
                     line = reader.readline()
                     try:
-                        self.current_batch.append(base64.b64encode(line.decode("utf-8")))
+                        self.current_batch.append(base64.b64encode(line).decode("utf-8"))
                         records_to_read -= 1
                     except IOError as e:
                         log.warning("Could not parse line [{}] to uplink message!".format(line), e)
@@ -101,9 +102,13 @@ class EventStorageReader:
     def read_state_file(self):
         state_data_node = {}
         try:
-            br = io.BufferedReader(io.FileIO(os.path.abspath(self.files.get_state_file()), 'r'))
-            state_data_node = json.load(br)
 
+            br = io.BufferedReader(io.FileIO(self.settings.get_data_folder_path() + self.files.get_state_file(), 'r'))
+
+            state_data_node = json.load(br)
+        except JSONDecodeError:
+            log.error("Failed to decode JSON from state file")
+            state_data_node = 0
         except IOError as e:
             log.warning("Failed to fetch info from state file!", e)
         reader_file = None

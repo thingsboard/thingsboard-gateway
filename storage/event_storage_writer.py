@@ -16,9 +16,10 @@ class EventStorageWriter:
         self.buffered_writer = None
         self.new_record_after_flush = None
         self.current_file = sorted(files.get_data_files())[-1]
-        self.current_files_records_count = self.get_number_of_records_in_file(self.current_file)
+        self.current_files_records_count = 0
+        self.get_number_of_records_in_file(self.current_file)
 
-    def write(self, msg: str, callback):
+    def write(self, msg: str, callback=None):
         self.new_record_after_flush = True
         if self.is_file_full(self.current_files_records_count):
             if log.getEffectiveLevel() == 10:
@@ -100,19 +101,15 @@ class EventStorageWriter:
             return prefix + filename + '.txt'
         except IOError as e:
             log.error("Failed to create a new file!", e)
-            pass
 
     def get_number_of_records_in_file(self, file):
         if self.current_files_records_count == 0:
             try:
-                with open(file) as f:
+                with open(self.settings.get_data_folder_path() + file) as f:
                     for i, l in enumerate(f):
-                        pass
-                self.current_files_records_count = i + 1
+                        self.current_files_records_count = i + 1
             except IOError as e:
-                log.warning("Could not get the records count from the file![{}]".format(file), e)
-            finally:
-                return self.current_files_records_count
+                log.warning("Could not get the records count from the file![%s] with error: %s", file, e)
 
     def is_file_full(self, current_file_size):
         return current_file_size >= self.settings.get_max_records_per_file()

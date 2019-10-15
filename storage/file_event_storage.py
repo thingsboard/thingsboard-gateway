@@ -1,5 +1,7 @@
 from storage.event_storage import EventStorage
 from storage.event_storage_files import EventStorageFiles
+from storage.event_storage_writer import EventStorageWriter
+from storage.event_storage_reader import EventStorageReader
 from storage.file_event_storage_settings import FileEventStorageSettings
 import os
 import time
@@ -15,15 +17,17 @@ class FileEventStorage(EventStorage):
         self.event_storage_files = self.init_data_files()
         self.data_files = self.event_storage_files.get_data_files()
         self.state_file = self.event_storage_files.get_state_file()
+        self.__writer = EventStorageWriter(self.event_storage_files, self.settings)
+        self.__reader = EventStorageReader(self.event_storage_files, self.settings)
 
     def put(self, event):
-        pass
+        self.__writer.write(event)
 
     def get_event_pack(self):
-        pass
+        return self.__reader.read()
 
     def event_pack_processing_done(self):
-        pass
+        self.__reader.current_batch = None
 
     def init_data_folder_if_not_exist(self):
         path = self.settings.get_data_folder_path()
@@ -49,6 +53,7 @@ class FileEventStorage(EventStorage):
                 data_files.append(self.create_new_datafile())
             if not state_file:
                 state_file = self.create_file('state_', 'file')
+                # TODO Add Position value and file to read in state file on init
             return EventStorageFiles(state_file, data_files)
 
     def create_new_datafile(self):
