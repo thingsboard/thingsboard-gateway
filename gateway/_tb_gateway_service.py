@@ -46,11 +46,24 @@ class TBGatewayService:
             self.__send_thread.start()
 
             while True:
-                for rpc_in_progress in self.__rpc_requests_in_progress:
-                    if time.time() >= self.__rpc_requests_in_progress[rpc_in_progress][1]:
-                        self.__rpc_requests_in_progress[rpc_in_progress][2](rpc_in_progress)
-                        self.cancel_rpc_request(rpc_in_progress)
-                time.sleep(.1)
+                try:
+                    for rpc_in_progress in self.__rpc_requests_in_progress:
+                        if time.time() >= self.__rpc_requests_in_progress[rpc_in_progress][1]:
+                            self.__rpc_requests_in_progress[rpc_in_progress][2](rpc_in_progress)
+                            self.cancel_rpc_request(rpc_in_progress)
+                    time.sleep(.1)
+                except Exception as e:
+                    log.exception(e)
+                finally:
+                    for device in self.__connected_devices:
+                        log.debug("Close connection for device %s", device)
+                        try:
+                            current_connector = self.__connected_devices[device].get("connector")
+                            if current_connector is not None:
+                                current_connector.close()
+                                log.debug("Connector %s closed connection.", current_connector.get_name())
+                        except Exception as e:
+                            log.error(e)
 
     def __load_connectors(self, config):
         self._connectors_configs = {}
@@ -70,10 +83,10 @@ class TBGatewayService:
                 for config_file in connector_config:
                     try:
                         connector = self.__implemented_connectors[connector_type](self, connector_config[config_file])
-                        self.available_connectors[connector.getName()] = connector
+                        self.available_connectors[connector.get_name()] = connector
                         connector.open()
                     except Exception as e:
-                        log.error(e)
+                        log.exception(e)
 
     def _send_to_storage(self, connector_name, data):
         if not TBUtility.validate_converted_data(data):
@@ -203,7 +216,14 @@ class TBGatewayService:
         if devices is not None:
             log.debug("Loaded devices:\n %s", devices)
             for device_name in devices:
-                self.__connected_devices[device_name] = {"connector": self.available_connectors[devices[device_name]]}
+                try:
+                    if self.available_connectors.get(devices[device_name]):
+                        self.__connected_devices[device_name] = {"connector": self.available_connectors[devices[device_name]]}
+                    else:
+                        log.warning("Device %s connector not found, maybe it had been disabled.", device_name)
+                except Exception as e:
+                    log.exception(e)
+                    continue
         else:
             log.debug("No device found in connected device file.")
             self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices
