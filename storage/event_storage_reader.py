@@ -56,10 +56,10 @@ class EventStorageReader:
                         self.new_pos = EventStorageReaderPointer(next_file, 0)
                     else:
                         # No more records to read for now
-                        break
+                        pass
                 else:
                     # No more records to read for now
-                    break
+                    pass
             except IOError as e:
                 log.warning("[{}] Failed to read file!".format(self.new_pos.get_file(), e))
                 break
