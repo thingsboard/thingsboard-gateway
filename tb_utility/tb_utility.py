@@ -55,7 +55,7 @@ class TBUtility:
 
 
     @staticmethod
-    def get_value(expression, body, value_type="string"):
+    def get_value(expression, body={}, value_type="string", get_tag=False):
         if isinstance(body,str):
             body = loads(body)
         if not expression:
@@ -69,6 +69,8 @@ class TBUtility:
             p1 = 0
             p2 = len(expression)
         target_str = str(expression[p1:p2])
+        if get_tag:
+            return target_str
         value = True
         try:
             if value_type == "string":
