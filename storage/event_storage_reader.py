@@ -37,7 +37,7 @@ class EventStorageReader:
                 while line is not None:
                     line = reader.readline()
                     try:
-                        self.current_batch.append(base64.b64encode(line).decode("utf-8"))
+                        self.current_batch.append(base64.b64decode(line).decode("utf-8"))
                         records_to_read -= 1
                     except IOError as e:
                         log.warning("Could not parse line [{}] to uplink message!".format(line), e)
@@ -103,10 +103,9 @@ class EventStorageReader:
     def read_state_file(self):
         state_data_node = {}
         try:
-
-            br = io.BufferedReader(io.FileIO(self.settings.get_data_folder_path() + self.files.get_state_file(), 'r'))
-
-            state_data_node = json.load(br)
+            with io.BufferedReader(io.FileIO(self.settings.get_data_folder_path() +
+                                             self.files.get_state_file(), 'r')) as br:
+                state_data_node = json.load(br)
         except JSONDecodeError:
             log.error("Failed to decode JSON from state file")
             state_data_node = 0
@@ -116,12 +115,12 @@ class EventStorageReader:
         reader_pos = 0
         if state_data_node:
             reader_pos = state_data_node['position']
-            for file in self.files.get_data_files():
+            for file in sorted(self.files.get_data_files()):
                 if file == state_data_node['file']:
                     reader_file = file
                     break
         if reader_file is None:
-            reader_file = self.files.get_data_files()[0]
+            reader_file = sorted(self.files.get_data_files())[0]
             reader_pos = 0
         log.info("Initializing from state file: [{}:{}]".format(
             self.settings.get_data_folder_path() + reader_file, reader_pos))
