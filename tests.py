@@ -99,7 +99,7 @@ class TestStorage(unittest.TestCase):
 
         correct_result = [[str(x) for x in range(y*10,(y+1)*10)] for y in range(test_size)]
         print(correct_result)
-
+        print(result)
         self.assertListEqual(result, correct_result)
 
 

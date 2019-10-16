@@ -9,6 +9,7 @@ from opcua import Client, ua
 from tb_utility.tb_utility import TBUtility
 from opcua.ua.uaerrors._auto import BadWaitingForInitialData
 from connectors.connector import Connector, log
+from connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
 
 
 class OpcUaConnector(Connector, threading.Thread):
@@ -116,8 +117,21 @@ class OpcUaConnector(Connector, threading.Thread):
                                             if ch.get_display_name().Text == target:
                                                 sub.subscribe_data_change(ch)
                                                 if not self.subscribed.get(ch):
-                                                    self.subscribed[ch] = []
-                                                self.subscribed[ch].append(current_var_path)
+                                                    if not interest_node[int_node].get('converter'):
+                                                        converter = OpcUaUplinkConverter(interest_node[int_node])
+                                                    else:
+                                                        converter = TBUtility.check_and_import('opcua', interest_node[int_node]['converter'])
+                                                    self.subscribed[ch] = {"converter": converter,
+                                                                           "subscriptions": [], }
+                                                    log.debug(current_var_path)
+                                                    name_pattern = TBUtility.get_value(interest_node[int_node]["deviceNamePattern"], get_tag=True)
+                                                    device_name_node = re.search(name_pattern, current_var_path)
+                                                    if device_name_node is not None:
+                                                        device_name = self.client.get_node(ua.NodeId("ns=4;s=%s" % device_name_node))
+                                                        log.error(device_name.get_display_name().Text)
+                                                    log.debug(re.search(name_pattern, current_var_path).group(0))
+                                                current_subscription = (current_var_path, int_node)
+                                                self.subscribed[ch]["subscriptions"].append(current_subscription)
                         except BadWaitingForInitialData:
                             pass
                     elif not self.__interest_nodes:
@@ -138,7 +152,8 @@ class SubHandler(object):
         try:
             log.debug("Python: New data change event on node %s, with val: %s", node, val)
             curr_path = self.connector.subscribed[node]
-            log.debug(curr_path)
+            # log.debug(curr_path)
+            # log.debug(data)#.subscription_id)
         except Exception as e:
             log.exception(e)
 

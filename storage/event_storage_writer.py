@@ -34,7 +34,8 @@ class EventStorageWriter:
                 if callback is not None:
                     # callback.onError(e)
                     pass
-            if len(self.files.get_data_files()) == self.settings.get_max_files_count():
+            while len(self.files.get_data_files()) > self.settings.get_max_files_count():
+                self.files.get_data_files().sort()
                 first_file = self.files.get_data_files()[0]
                 if os.remove(self.settings.get_data_folder_path() + first_file):
                     self.files.get_data_files().pop(0)

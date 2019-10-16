@@ -41,6 +41,8 @@ class EventStorageReader:
                         records_to_read -= 1
                     except IOError as e:
                         log.warning("Could not parse line [{}] to uplink message!".format(line), e)
+                    except Exception as e:
+                        log.exception(e)
                     finally:
                         current_line_in_file += 1
                     self.new_pos.set_line(current_line_in_file)
@@ -101,30 +103,34 @@ class EventStorageReader:
             raise RuntimeError("Failed to initialize buffered reader!", e)
 
     def read_state_file(self):
-        state_data_node = {}
         try:
+            state_data_node = {}
+            try:
 
-            br = io.BufferedReader(io.FileIO(self.settings.get_data_folder_path() + self.files.get_state_file(), 'r'))
-
-            state_data_node = json.load(br)
-        except JSONDecodeError:
-            log.error("Failed to decode JSON from state file")
-            state_data_node = 0
-        except IOError as e:
-            log.warning("Failed to fetch info from state file!", e)
-        reader_file = None
-        reader_pos = 0
-        if state_data_node:
-            reader_pos = state_data_node['position']
-            for file in self.files.get_data_files():
-                if file == state_data_node['file']:
-                    reader_file = file
-                    break
-        if reader_file is None:
-            reader_file = self.files.get_data_files()[0]
+                # br = \
+                with io.BufferedReader(io.FileIO(self.settings.get_data_folder_path() + self.files.get_state_file(), 'r')) as br:
+                    state_data_node = json.load(br)
+                # br.close()
+            except JSONDecodeError:
+                log.error("Failed to decode JSON from state file")
+                state_data_node = 0
+            except IOError as e:
+                log.warning("Failed to fetch info from state file!", e)
+            reader_file = None
             reader_pos = 0
-        log.info("Initializing from state file: [{}:{}]".format(
-            self.settings.get_data_folder_path() + reader_file, reader_pos))
+            if state_data_node:
+                reader_pos = state_data_node['position']
+                for file in self.files.get_data_files():
+                    if file == state_data_node['file']:
+                        reader_file = file
+                        break
+            if reader_file is None:
+                reader_file = self.files.get_data_files()[0]
+                reader_pos = 0
+            log.info("Initializing from state file: [{}:{}]".format(
+                self.settings.get_data_folder_path() + reader_file, reader_pos))
+        except Exception as e:
+            log.exception(e)
         return EventStorageReaderPointer(reader_file, reader_pos)
 
     def write_info_to_state_file(self, pointer: EventStorageReaderPointer):

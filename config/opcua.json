@@ -20,7 +20,7 @@
     "mapping": [
       {
         "deviceNodePattern": "MyObject\\d+",
-        "deviceNamePattern": "Device ${_System._DeviceId}",
+        "deviceNamePattern": "Device ${MyObject\\d+\\.MyVariable1}",
         "attributes": [
           {
             "key": "Tag1",
