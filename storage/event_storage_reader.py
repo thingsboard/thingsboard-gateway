@@ -85,8 +85,9 @@ class EventStorageReader:
     def get_or_init_buffered_reader(self, pointer):
         try:
             if self.buffered_reader is None:
-                self.buffered_reader = io.BufferedReader(io.FileIO(os.path.abspath(pointer.get_file), 'r'))
-            lines_to_skip = pointer.get_line
+                self.buffered_reader = io.BufferedReader(io.FileIO(
+                    self.settings.get_data_folder_path() + pointer.get_file(), 'r'))
+            lines_to_skip = pointer.get_line()
             if lines_to_skip > 0:
                 while self.buffered_reader.readline() is not None:
                     if lines_to_skip != 0:

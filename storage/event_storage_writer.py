@@ -36,7 +36,7 @@ class EventStorageWriter:
                     pass
             if len(self.files.get_data_files()) == self.settings.get_max_files_count():
                 first_file = self.files.get_data_files()[0]
-                if os.remove(os.path.abspath(first_file)):
+                if os.remove(self.settings.get_data_folder_path() + first_file):
                     self.files.get_data_files().pop(0)
                 log.info("Cleanup old data file: {}!".format(first_file))
             self.files.get_data_files().append(self.current_file)
@@ -86,6 +86,8 @@ class EventStorageWriter:
             if self.buffered_writer is None:
                 buffered_writer = io.BufferedWriter(io.FileIO(self.settings.get_data_folder_path() + file, 'a'))
                 return buffered_writer
+            else:
+                return self.buffered_writer
         except IOError as e:
             log.error("Failed to initialize buffered writer!", e)
             raise RuntimeError("Failed to initialize buffered writer!", e)

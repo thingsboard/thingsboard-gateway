@@ -80,7 +80,7 @@ class TestStorage(unittest.TestCase):
         test_size = randint(0, 100)
 
         storage_test_config = {
-             "data_folder_path": "storage/data/",
+             "data_folder_path": "./storage/data/",
              "max_files_count": 5,
              "max_records_per_file": 12,
              "max_records_between_fsync": 3,
