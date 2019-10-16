@@ -26,8 +26,8 @@ class EventStorageWriter:
                 log.debug("File [{}] is full with [{}] records".format(self.current_file,
                                                                        self.current_files_records_count))
             try:
-                log.debug("Created new data file: {}".format(self.current_file))
                 self.current_file = self.create_datafile()
+                log.debug("Created new data file: {}".format(self.current_file))
             except IOError as e:
                 log.error("Failed to create a new file!", e)
                 # TODO implement callback
