@@ -23,17 +23,17 @@
         "attributes": [
           {
             "key": "Tag1",
-            "value": "${Tag1}"
+            "path": "${MyVariable1}"
           }
         ],
         "timeseries": [
           {
             "key": "Tag3",
-            "value": "${MyVariable1}"
+            "path": "${Tag3}"
           },
           {
             "key": "Tag2",
-            "value": "${MyVariable3}"
+            "path": "${MyVariable3}"
           }
         ]
       }

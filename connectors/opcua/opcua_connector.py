@@ -59,9 +59,10 @@ class OpcUaConnector(Thread, Connector):
                 log.info("OPC-UA connector %s connected to server %s", self.get_name(), self.__server_conf.get("url"))
         self.__opcua_nodes["root"] = self.client.get_root_node()
         self.__opcua_nodes["objects"] = self.client.get_objects_node()
-        sub = self.client.create_subscription(500, self.__sub_handler)
-        self.__recursive_search(self.__opcua_nodes["objects"], 2, search_name=True) # TODO Change logic for looking device name
-        self.__recursive_search(self.__opcua_nodes["objects"], 2, sub)
+        sub = self.client.create_subscription(self.__server_conf.get("scanPeriodInMillis", 500), self.__sub_handler)
+        self.__search_name(self.__opcua_nodes["objects"], 2)
+        self.__search_tags(self.__opcua_nodes["objects"], 2, sub)
+        log.debug(self.subscribed)
         while True:
             try:
                 time.sleep(1)
@@ -79,6 +80,7 @@ class OpcUaConnector(Thread, Connector):
     def close(self):
         self.__stopped = True
         self.client.disconnect()
+        self.__connected = False
         log.info('%s has been stopped.', self.get_name())
 
     def get_name(self):
@@ -90,7 +92,7 @@ class OpcUaConnector(Thread, Connector):
     def server_side_rpc_handler(self, content):
         pass
 
-    def __recursive_search(self, node, recursion_level, sub=None, search_name=False):
+    def __search_name(self, node, recursion_level):
         try:
             for childId in node.get_children():
                 ch = self.client.get_node(childId)
@@ -100,41 +102,65 @@ class OpcUaConnector(Thread, Connector):
                         for interest_node in self.__interest_nodes:
                             for int_node in interest_node:
                                 if re.search(int_node.split('\\.')[recursion_level-2], ch.get_display_name().Text):
-                                    self.__recursive_search(ch, recursion_level+1, sub)
+                                    self.__search_name(ch, recursion_level+1)
                     elif ch.get_node_class() == ua.NodeClass.Variable:
                         try:
                             for interest_node in self.__interest_nodes:
                                 for int_node in interest_node:
-                                    if re.search(int_node.replace('$', ''), current_var_path) and not search_name:
+                                    if interest_node[int_node].get("deviceName") is None:
+                                        name_pattern = TBUtility.get_value(interest_node[int_node]["deviceNamePattern"],
+                                                                           get_tag=True)
+                                        device_name_node = re.search(name_pattern.split('.')[-1], current_var_path)
+                                        if device_name_node is not None:
+                                            device_name = ch.get_value()
+                                            full_device_name = interest_node[int_node]["deviceNamePattern"].replace("${"+name_pattern+"}",
+                                                                                                                    device_name)
+                                            interest_node[int_node]["deviceName"] = full_device_name
+                                            if not self.__gateway.get_devices().get(full_device_name):
+                                                self.__gateway.add_device(full_device_name, {"connector": None})
+                                            self.__gateway.update_device(full_device_name, "connector", self)
+                        except BadWaitingForInitialData:
+                            pass
+                    elif not self.__interest_nodes:
+                        log.error("Nodes in mapping not found, check your settings.")
+        except Exception as e:
+            log.exception(e)
+
+    def __search_tags(self, node, recursion_level, sub=None):
+        try:
+            for childId in node.get_children():
+                ch = self.client.get_node(childId)
+                current_var_path = '.'.join(x.split(":")[1] for x in ch.get_path(20000, True))
+                if self.__interest_nodes:
+                    if ch.get_node_class() == ua.NodeClass.Object:
+                        for interest_node in self.__interest_nodes:
+                            for int_node in interest_node:
+                                if re.search(int_node.split('\\.')[recursion_level-2], ch.get_display_name().Text):
+                                    self.__search_tags(ch, recursion_level+1, sub)
+                    elif ch.get_node_class() == ua.NodeClass.Variable:
+                        try:
+                            for interest_node in self.__interest_nodes:
+                                for int_node in interest_node:
+                                    if re.search(int_node.replace('$', ''), current_var_path):
                                         tags = []
                                         if interest_node[int_node].get("attributes"):
                                             tags.extend(interest_node[int_node]["attributes"])
                                         if interest_node[int_node].get("timeseries"):
                                             tags.extend(interest_node[int_node]["timeseries"])
                                         for tag in tags:
-                                            target = TBUtility.get_value(tag["value"], get_tag=True)
+                                            target = TBUtility.get_value(tag["path"], get_tag=True)
                                             if ch.get_display_name().Text == target:
-                                                if sub is not None:
-                                                    sub.subscribe_data_change(ch)
-                                                    if not interest_node[int_node].get('converter'):
+                                                sub.subscribe_data_change(ch)
+                                                if interest_node[int_node].get("uplink_converter") is None:
+                                                    if interest_node[int_node].get('converter') is None:
                                                         converter = OpcUaUplinkConverter(interest_node[int_node])
                                                     else:
-                                                        converter = TBUtility.check_and_import('opcua', interest_node[int_node])
-                                                    self.subscribed[ch] = {"converter": converter,
-                                                                           "path": current_var_path}
-                                    if interest_node[int_node].get("deviceName") is None or search_name:
-                                        name_pattern = TBUtility.get_value(interest_node[int_node]["deviceNamePattern"],
-                                                                           get_tag=True)
-                                        device_name_node = re.search(name_pattern.split('.')[-1], current_var_path)
-                                        if device_name_node is not None:
-                                            device_name = ch.get_value()
-                                            interest_node[int_node]["deviceName"] = device_name
-                                            full_device_name = interest_node[int_node]["deviceNamePattern"].replace("${"+name_pattern+"}",
-                                                                                                                    device_name)
-                                            if not self.__gateway.get_devices().get(full_device_name):
-                                                self.__gateway.add_device(full_device_name, {"connector": None})
-                                            self.__gateway.update_device(full_device_name, "connector", self)
-                                            log.debug(full_device_name)
+                                                        converter = TBUtility.check_and_import('opcua', interest_node[int_node]['converter'])
+                                                    interest_node[int_node]["uplink_converter"] = converter
+                                                else:
+                                                    converter = interest_node[int_node]["uplink_converter"]
+                                                self.subscribed[ch] = {"converter": converter,
+                                                                       "path": current_var_path}
                         except BadWaitingForInitialData:
                             pass
                     elif not self.__interest_nodes:
