@@ -33,14 +33,15 @@ class TBGatewayService:
                 "modbus": ModbusConnector,
                 "opcua": OpcUaConnector,
             }
+            self.__event_storage_types = {
+                "memory": MemoryEventStorage,
+                "file": FileEventStorage,
+            }
             self.__load_connectors(config)
             self.__connect_with_connectors()
             self.__load_persistent_devices()
             self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True)
-            if config["storage"]["type"] == "memory":
-                self.__event_storage = MemoryEventStorage(config["storage"])
-            else:
-                self.__event_storage = FileEventStorage(config["storage"])
+            self.__event_storage = self.__event_storage_types[config["storage"]["type"]](config["storage"])
             self.tb_client.connect()
             self.tb_client.client.gw_subscribe_to_all_attributes(self.__attribute_update_callback)
             self.__send_thread.start()
