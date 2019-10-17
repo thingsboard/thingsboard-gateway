@@ -28,8 +28,7 @@ class OpcUaConnector(Thread, Connector):
         else:
             opcua_url = self.__server_conf.get("url")
         self.client = Client(opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
-        self.setName(self.__server_conf.get("name",
-                                            'OPC-UA Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.setName(self.__server_conf.get("name", 'OPC-UA Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))) + " Connector")
         self.__opcua_nodes = {}
         self._subscribed = {}
         self.data_to_send = []
@@ -130,10 +129,12 @@ class OpcUaConnector(Thread, Connector):
                                         if device_name_node is not None:
                                             device_name = ch.get_value()
                                             interest_node[int_node]["deviceName"] = device_name
-                                            if not self.__gateway.get_devices().get(device_name):
-                                                self.__gateway.add_device(device_name, {"connector": None})
-                                            self.__gateway.update_device(device_name, "connector", self)
-                                            log.debug(device_name)
+                                            full_device_name = interest_node[int_node]["deviceNamePattern"].replace("${"+name_pattern+"}",
+                                                                                                                    device_name)
+                                            if not self.__gateway.get_devices().get(full_device_name):
+                                                self.__gateway.add_device(full_device_name, {"connector": None})
+                                            self.__gateway.update_device(full_device_name, "connector", self)
+                                            log.debug(full_device_name)
                         except BadWaitingForInitialData:
                             pass
                     elif not self.__interest_nodes:
