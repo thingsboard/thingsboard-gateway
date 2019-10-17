@@ -8,14 +8,6 @@
     "identity": {
       "type": "anonymous"
     },
-    "keystore": {
-      "type": "PKCS12",
-      "location": "example.pfx",
-      "fileContent": "",
-      "password": "secret",
-      "alias": "gateway",
-      "keyPassword": "secret"
-    },
     "mapping": [
       {
         "deviceNodePattern": "MyObject\\d+",

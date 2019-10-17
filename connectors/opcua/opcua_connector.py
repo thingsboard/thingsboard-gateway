@@ -28,6 +28,13 @@ class OpcUaConnector(Thread, Connector):
         else:
             opcua_url = self.__server_conf.get("url")
         self.client = Client(opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
+        if self.__server_conf["indentity"]["type"] != "anonymous":
+            try:
+                self.client.set_security_string("%s,Sign, %s, %s" % (self.__server_conf["security"],
+                                                                     self.__server_conf["security"]["cert"],
+                                                                     self.__server_conf["security"]["key"]))  # TODO What types should be?
+            except Exception as e:
+                log.exception(e)
         self.setName(self.__server_conf.get("name", 'OPC-UA Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))) + " Connector")
         self.__opcua_nodes = {}
         self._subscribed = {}
