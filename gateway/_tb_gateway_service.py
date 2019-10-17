@@ -45,25 +45,25 @@ class TBGatewayService:
             self.tb_client.client.gw_subscribe_to_all_attributes(self.__attribute_update_callback)
             self.__send_thread.start()
 
-            while True:
-                try:
+            try:
+                while True:
                     for rpc_in_progress in self.__rpc_requests_in_progress:
                         if time.time() >= self.__rpc_requests_in_progress[rpc_in_progress][1]:
                             self.__rpc_requests_in_progress[rpc_in_progress][2](rpc_in_progress)
                             self.cancel_rpc_request(rpc_in_progress)
                     time.sleep(.1)
-                except Exception as e:
-                    log.exception(e)
-                finally:
-                    for device in self.__connected_devices:
-                        log.debug("Close connection for device %s", device)
-                        try:
-                            current_connector = self.__connected_devices[device].get("connector")
-                            if current_connector is not None:
-                                current_connector.close()
-                                log.debug("Connector %s closed connection.", current_connector.get_name())
-                        except Exception as e:
-                            log.error(e)
+            except Exception as e:
+                log.exception(e)
+            finally:
+                for device in self.__connected_devices:
+                    log.debug("Close connection for device %s", device)
+                    try:
+                        current_connector = self.__connected_devices[device].get("connector")
+                        if current_connector is not None:
+                            current_connector.close()
+                            log.debug("Connector %s closed connection.", current_connector.get_name())
+                    except Exception as e:
+                        log.error(e)
 
     def __load_connectors(self, config):
         self._connectors_configs = {}

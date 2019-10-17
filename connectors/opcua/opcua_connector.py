@@ -1,8 +1,7 @@
 import re
-import sys
 from json import dumps
 import time
-import threading
+from threading import Thread
 from random import choice
 from string import ascii_lowercase
 from opcua import Client, ua
@@ -12,10 +11,10 @@ from connectors.connector import Connector, log
 from connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
 
 
-class OpcUaConnector(Connector, threading.Thread):
+class OpcUaConnector(Thread, Connector):
     def __init__(self, gateway, config):
-        super(Connector, self).__init__()
-        super(threading.Thread, self).__init__()
+        Thread.__init__(self)
+        self.__gateway = gateway
         self.__server_conf = config.get("server")
         self.__interest_nodes = []
         for mapping in self.__server_conf["mapping"]:
@@ -33,6 +32,7 @@ class OpcUaConnector(Connector, threading.Thread):
                                             'OPC-UA Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__opcua_nodes = {}
         self._subscribed = {}
+        self.data_to_send = []
         self.__sub_handler = SubHandler(self)
         self.__stopped = False
         self.__connected = False
@@ -61,10 +61,13 @@ class OpcUaConnector(Connector, threading.Thread):
         self.__opcua_nodes["root"] = self.client.get_root_node()
         self.__opcua_nodes["objects"] = self.client.get_objects_node()
         sub = self.client.create_subscription(500, self.__sub_handler)
+        self.__recursive_search(self.__opcua_nodes["objects"], 2, search_name=True) # TODO Change logic for looking device name
         self.__recursive_search(self.__opcua_nodes["objects"], 2, sub)
         while True:
             try:
-                time.sleep(.1)
+                time.sleep(1)
+                if self.data_to_send:
+                    self.__gateway._send_to_storage(self.get_name(), self.data_to_send.pop())
                 if self.__stopped:
                     break
             except (KeyboardInterrupt, SystemExit):
@@ -73,9 +76,6 @@ class OpcUaConnector(Connector, threading.Thread):
             except Exception as e:
                 self.close()
                 log.exception(e)
-
-    def __on_change(self, *data):
-        log.debug(data)
 
     def close(self):
         self.__stopped = True
@@ -91,10 +91,11 @@ class OpcUaConnector(Connector, threading.Thread):
     def server_side_rpc_handler(self, content):
         pass
 
-    def __recursive_search(self, node, recursion_level, sub):
+    def __recursive_search(self, node, recursion_level, sub=None, search_name=False):
         try:
             for childId in node.get_children():
                 ch = self.client.get_node(childId)
+                current_var_path = '.'.join(x.split(":")[1] for x in ch.get_path(20000, True))
                 if self.__interest_nodes:
                     if ch.get_node_class() == ua.NodeClass.Object:
                         for interest_node in self.__interest_nodes:
@@ -103,10 +104,9 @@ class OpcUaConnector(Connector, threading.Thread):
                                     self.__recursive_search(ch, recursion_level+1, sub)
                     elif ch.get_node_class() == ua.NodeClass.Variable:
                         try:
-                            current_var_path = '.'.join(x.split(":")[1] for x in ch.get_path(20000, True))
                             for interest_node in self.__interest_nodes:
                                 for int_node in interest_node:
-                                    if re.search(int_node.replace('$', ''), current_var_path):
+                                    if re.search(int_node.replace('$', ''), current_var_path) and not search_name:
                                         tags = []
                                         if interest_node[int_node].get("attributes"):
                                             tags.extend(interest_node[int_node]["attributes"])
@@ -115,23 +115,25 @@ class OpcUaConnector(Connector, threading.Thread):
                                         for tag in tags:
                                             target = TBUtility.get_value(tag["value"], get_tag=True)
                                             if ch.get_display_name().Text == target:
-                                                sub.subscribe_data_change(ch)
-                                                if not self.subscribed.get(ch):
+                                                if sub is not None:
+                                                    sub.subscribe_data_change(ch)
                                                     if not interest_node[int_node].get('converter'):
                                                         converter = OpcUaUplinkConverter(interest_node[int_node])
                                                     else:
-                                                        converter = TBUtility.check_and_import('opcua', interest_node[int_node]['converter'])
+                                                        converter = TBUtility.check_and_import('opcua', interest_node[int_node])
                                                     self.subscribed[ch] = {"converter": converter,
-                                                                           "subscriptions": [], }
-                                                    log.debug(current_var_path)
-                                                    name_pattern = TBUtility.get_value(interest_node[int_node]["deviceNamePattern"], get_tag=True)
-                                                    device_name_node = re.search(name_pattern, current_var_path)
-                                                    if device_name_node is not None:
-                                                        device_name = self.client.get_node(ua.NodeId("ns=4;s=%s" % device_name_node))
-                                                        log.error(device_name.get_display_name().Text)
-                                                    log.debug(re.search(name_pattern, current_var_path).group(0))
-                                                current_subscription = (current_var_path, int_node)
-                                                self.subscribed[ch]["subscriptions"].append(current_subscription)
+                                                                           "path": current_var_path}
+                                    if interest_node[int_node].get("deviceName") is None or search_name:
+                                        name_pattern = TBUtility.get_value(interest_node[int_node]["deviceNamePattern"],
+                                                                           get_tag=True)
+                                        device_name_node = re.search(name_pattern.split('.')[-1], current_var_path)
+                                        if device_name_node is not None:
+                                            device_name = ch.get_value()
+                                            interest_node[int_node]["deviceName"] = device_name
+                                            if not self.__gateway.get_devices().get(device_name):
+                                                self.__gateway.add_device(device_name, {"connector": None})
+                                            self.__gateway.update_device(device_name, "connector", self)
+                                            log.debug(device_name)
                         except BadWaitingForInitialData:
                             pass
                     elif not self.__interest_nodes:
@@ -151,9 +153,10 @@ class SubHandler(object):
     def datachange_notification(self, node, val, data):
         try:
             log.debug("Python: New data change event on node %s, with val: %s", node, val)
-            curr_path = self.connector.subscribed[node]
-            # log.debug(curr_path)
-            # log.debug(data)#.subscription_id)
+            subscription = self.connector.subscribed[node]
+            converted_data = subscription["converter"].convert(subscription["path"], val)
+            self.connector.data_to_send.append(converted_data)
+            log.debug(converted_data)
         except Exception as e:
             log.exception(e)
 

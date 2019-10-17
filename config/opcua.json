@@ -1,7 +1,6 @@
 {
   "server": {
     "name": "OPC-UA Default Server",
-    "uri": "",
     "url": "localhost:4840/freeopcua/server/",
     "scanPeriodInMillis": 10000,
     "timeoutInMillis": 5000,
@@ -20,19 +19,21 @@
     "mapping": [
       {
         "deviceNodePattern": "MyObject\\d+",
-        "deviceNamePattern": "Device ${MyObject\\d+\\.MyVariable1}",
+        "deviceNamePattern": "Device ${MyVariable22}",
         "attributes": [
           {
             "key": "Tag1",
-            "type": "string",
             "value": "${Tag1}"
           }
         ],
         "timeseries": [
           {
-            "key": "Tag2",
-            "type": "long",
+            "key": "Tag3",
             "value": "${MyVariable1}"
+          },
+          {
+            "key": "Tag2",
+            "value": "${MyVariable3}"
           }
         ]
       }
