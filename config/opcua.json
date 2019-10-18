@@ -33,6 +33,12 @@
             "method": "multiply",
             "arguments": [2, 4]
           }
+        ],
+        "attributes_updates": [
+          {
+            "attributeOnThingsBoard": "t",
+            "attributeOnDevice": "MyVariable1"
+          }
         ]
       }
     ]

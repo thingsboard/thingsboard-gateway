@@ -17,7 +17,7 @@ class OpcUaConnector(Thread, Connector):
         self.__gateway = gateway
         self.__server_conf = config.get("server")
         self.__interest_nodes = []
-        self.__available_methods = {}
+        self.__available_object_resources = {}
         for mapping in self.__server_conf["mapping"]:
             if mapping.get("deviceNodePattern") is not None:
                 self.__interest_nodes.append({mapping["deviceNodePattern"]: mapping})
@@ -86,7 +86,7 @@ class OpcUaConnector(Thread, Connector):
         self.__search_name(self.__opcua_nodes["objects"], 2)
         self.__search_tags(self.__opcua_nodes["objects"], 2, sub)
         log.debug('Subscriptions: %s', self.subscribed)
-        log.debug("Available methods: %s", self.__available_methods)
+        log.debug("Available methods: %s", self.__available_object_resources)
         while True:
             try:
                 time.sleep(1)
@@ -111,11 +111,19 @@ class OpcUaConnector(Thread, Connector):
         return self.name
 
     def on_attributes_update(self, content):
-        pass
+        log.debug(content)
+        try:
+            for server_variables in self.__available_object_resources[content["device"]]['variables']:
+                for attribute in content["data"]:
+                    for variable in server_variables:
+                        if attribute == variable:
+                            server_variables[variable].set_value(content["data"][variable])
+        except Exception as e:
+            log.exception(e)
 
     def server_side_rpc_handler(self, content):
         try:
-            for method in self.__available_methods[content["device"]]:
+            for method in self.__available_object_resources['methods'][content["device"]]:
                 rpc_method = content["data"].get("method")
                 if rpc_method is not None and method.get(rpc_method) is not None:
                     arguments = content["data"].get("params")
@@ -133,10 +141,6 @@ class OpcUaConnector(Thread, Connector):
                     log.debug("method %s result is: %s", method[rpc_method], result)
         except Exception as e:
             log.exception(e)
-
-
-
-
     def __search_name(self, node, recursion_level):
         try:
             for childId in node.get_children():
@@ -161,7 +165,9 @@ class OpcUaConnector(Thread, Connector):
                                             full_device_name = interest_node[int_node]["deviceNamePattern"].replace("${"+name_pattern+"}",
                                                                                                                     device_name)
                                             interest_node[int_node]["deviceName"] = full_device_name
-                                            self.__available_methods[full_device_name] = []
+                                            if self.__available_object_resources.get(full_device_name) is None:
+                                                self.__available_object_resources[full_device_name] = {'methods': [],
+                                                                                                       'variables': []}
                                             if not self.__gateway.get_devices().get(full_device_name):
                                                 self.__gateway.add_device(full_device_name, {"connector": None})
                                             self.__gateway.update_device(full_device_name, "connector", self)
@@ -185,8 +191,8 @@ class OpcUaConnector(Thread, Connector):
                                     try:
                                         methods = ch.get_methods()
                                         for method in methods:
-                                            self.__available_methods[interest_node[int_node]["deviceName"]].append({method.get_display_name().Text: method,
-                                                                                                                    "node": ch})
+                                            self.__available_object_resources[interest_node[int_node]["deviceName"]]["methods"].append({method.get_display_name().Text: method,
+                                                                                                                                       "node": ch})
                                     except Exception as e:
                                         log.exception(e)
                                     self.__search_tags(ch, recursion_level+1, sub)
@@ -194,6 +200,13 @@ class OpcUaConnector(Thread, Connector):
                         try:
                             for interest_node in self.__interest_nodes:
                                 for int_node in interest_node:
+                                    if interest_node[int_node].get("attributes_updates"):
+                                        try:
+                                            for attribute_update in interest_node[int_node]["attributes_updates"]:
+                                                if attribute_update["attributeOnDevice"] == ch.get_display_name().Text:
+                                                    self.__available_object_resources[interest_node[int_node]["deviceName"]]['variables'].append({attribute_update["attributeOnThingsBoard"]: ch,})
+                                        except Exception as e:
+                                            log.exception(e)
                                     if re.search(int_node.replace('$', ''), current_var_path):
                                         tags = []
                                         if interest_node[int_node].get("attributes"):
