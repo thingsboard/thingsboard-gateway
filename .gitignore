@@ -3,3 +3,4 @@ venv/
 /f_test.py
 /develop_tests/
 logs/*
+/config/connected_devices.json

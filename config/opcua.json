@@ -27,9 +27,14 @@
             "key": "Tag2",
             "path": "${MyVariable3}"
           }
+        ],
+        "rpc_methods": [
+          {
+            "method": "multiply",
+            "arguments": [2, 4]
+          }
         ]
       }
     ]
   }
-
 }
