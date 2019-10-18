@@ -28,12 +28,12 @@ class OpcUaConnector(Thread, Connector):
         else:
             opcua_url = self.__server_conf.get("url")
         self.client = Client(opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
-        if self.__server_conf["indentity"]["type"] != "anonymous":
+        if self.__server_conf["identity"]["type"] == "cert.PEM":
             try:
-                ca_cert = self.__server_conf["indentity"].get("caCert")
-                private_key = self.__server_conf["indentity"].get("privateKey")
-                cert = self.__server_conf["indentity"].get("cert")
-                security_mode = self.__server_conf["indentity"].get("mode", "SignAndEncrypt")
+                ca_cert = self.__server_conf["identity"].get("caCert")
+                private_key = self.__server_conf["identity"].get("privateKey")
+                cert = self.__server_conf["identity"].get("cert")
+                security_mode = self.__server_conf["identity"].get("mode", "SignAndEncrypt")
                 policy = self.__server_conf["security"]
                 if cert is None or private_key is None:
                     log.exception("Error in ssl configuration - cert or privateKey parameter not found")
@@ -45,6 +45,11 @@ class OpcUaConnector(Thread, Connector):
 
             except Exception as e:
                 log.exception(e)
+        if self.__server_conf["identity"].get("username"):
+            self.client.set_user(self.__server_conf["identity"].get("username"))
+            if self.__server_conf["identity"].get("password"):
+                self.client.set_password(self.__server_conf["identity"].get("password"))
+
         self.setName(self.__server_conf.get("name", 'OPC-UA Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))) + " Connector")
         self.__opcua_nodes = {}
         self._subscribed = {}
