@@ -41,7 +41,7 @@ class MqttConnector(Connector, Thread):
                                          certfile=cert,
                                          keyfile=private_key,
                                          cert_reqs=ssl.CERT_REQUIRED,
-                                         tls_version=ssl.PROTOCOL_TLSv1,
+                                         tls_version=ssl.PROTOCOL_TLSv1_2,
                                          ciphers=None)
                 except Exception as e:
                     log.error("Cannot setup connection to broker %s using SSL. Please check your configuration.\n\

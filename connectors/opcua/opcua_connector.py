@@ -30,9 +30,19 @@ class OpcUaConnector(Thread, Connector):
         self.client = Client(opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
         if self.__server_conf["indentity"]["type"] != "anonymous":
             try:
-                self.client.set_security_string("%s,Sign, %s, %s" % (self.__server_conf["security"],
-                                                                     self.__server_conf["security"]["cert"],
-                                                                     self.__server_conf["security"]["key"]))  # TODO What types should be?
+                ca_cert = self.__server_conf["indentity"].get("caCert")
+                private_key = self.__server_conf["indentity"].get("privateKey")
+                cert = self.__server_conf["indentity"].get("cert")
+                security_mode = self.__server_conf["indentity"].get("mode", "SignAndEncrypt")
+                policy = self.__server_conf["security"]
+                if cert is None or private_key is None:
+                    log.exception("Error in ssl configuration - cert or privateKey parameter not found")
+                    raise
+                security_string = policy+','+security_mode+','+cert+','+private_key
+                if ca_cert is not None:
+                    security_string = security_string + ',' + ca_cert
+                self.client.set_security_string(security_string)
+
             except Exception as e:
                 log.exception(e)
         self.setName(self.__server_conf.get("name", 'OPC-UA Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))) + " Connector")
