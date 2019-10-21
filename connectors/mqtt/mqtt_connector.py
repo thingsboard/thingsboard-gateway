@@ -70,9 +70,10 @@ class MqttConnector(Connector, Thread):
                     self._client.connect(self.__broker['host'],
                                          self.__broker.get('port', 1883))
                     self._client.loop_start()
+                    if not self._connected:
+                        time.sleep(10)
                 except Exception as e:
                     log.error(e)
-                time.sleep(1)
 
         except Exception as e:
             log.error(e)

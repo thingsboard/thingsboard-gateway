@@ -1,4 +1,5 @@
 import logging.config
+import logging.handlers
 import time
 import yaml
 from json import load, loads, dumps
@@ -12,14 +13,25 @@ from connectors.modbus.modbus_connector import ModbusConnector
 from storage.memory_event_storage import MemoryEventStorage
 from storage.file_event_storage import FileEventStorage
 
-logging.config.fileConfig('config/logs.conf')
-log = logging.getLogger('service')
+log = logging.getLogger(__name__)
 
 
 class TBGatewayService:
     def __init__(self, config_file):
         with open(config_file) as config:
             config = yaml.safe_load(config)
+            logs_conf = config.get("logs")
+            if logs_conf is not None:
+                if logs_conf.get("config"):
+                    logs_config_file_path = logs_conf["config"]
+                else:
+                    logs_config_file_path = "config/logs.conf"
+            else:
+                logs_config_file_path = "config/logs.conf"
+            TBUtility.check_logs_directory(logs_config_file_path)
+            logging.config.fileConfig(logs_config_file_path)
+            global log
+            log = logging.getLogger('service')
             self.available_connectors = {}
             self.__connector_incoming_messages = {}
             self.__connected_devices = {}
@@ -68,6 +80,8 @@ class TBGatewayService:
 
     def __load_connectors(self, config):
         self._connectors_configs = {}
+        if not config.get("connectors"):
+            raise Exception("Configuration for connectors not found, check your config file.")
         for connector in config['connectors']:
             try:
                 with open('config/'+connector['configuration'], 'r') as conf_file:
@@ -244,5 +258,3 @@ class TBGatewayService:
             except Exception as e:
                 log.exception(e)
         log.debug("Saved connected devices.")
-
-

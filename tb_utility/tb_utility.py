@@ -1,4 +1,5 @@
 import os
+import re
 import inspect
 import importlib
 import importlib.util
@@ -93,5 +94,22 @@ class TBUtility:
         return full_value
 
     @staticmethod
-    def ger_or_create_logger():
-        pass
+    def check_logs_directory(conf_file_path):
+        with open(conf_file_path) as conf_file:
+            logs_directories = set()
+            for line in conf_file.readlines():
+                target = re.search(r"[\"|\'](.+[/])(.+\.log)\"|\'", line)
+                if target:
+                    if target.group(1) is not None:
+                        logs_directories.add(target.group(1))
+        for logs_dir in logs_directories:
+            print(logs_dir)
+            if not os.path.exists(logs_dir):
+                print("Logs directory not exists.")
+                try:
+                    print("Trying to create logs directory.")
+                    os.mkdir(logs_dir)
+                    print("Logs directory created.")
+                except Exception as e:
+                    print("Error when creating logs directory: %s" % logs_dir)
+                    print(e)

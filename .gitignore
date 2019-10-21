@@ -4,3 +4,4 @@ venv/
 /develop_tests/
 logs/*
 /config/connected_devices.json
+/storage/data/

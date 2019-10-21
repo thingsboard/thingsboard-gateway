@@ -26,7 +26,6 @@ class TBClient:
         self.client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self)
         # Adding callbacks
         self.client._client._on_connect = self._on_connect
-        # self._client._client._on_message = self._on_message
         self.client._client._on_disconnect = self._on_disconnect
 
     def is_connected(self):
@@ -42,7 +41,7 @@ class TBClient:
     def disconnect(self):
         self.client.disconnect()
 
-    def connect(self):
+    def connect(self, min_reconnect_delay=10):
         keep_alive = self.__config.get("keep_alive", 60)
 
         while not self.client.is_connected():
@@ -51,7 +50,8 @@ class TBClient:
                                     ca_certs=self.__ca_cert,
                                     cert_file=self.__cert,
                                     key_file=self.__private_key,
-                                    keepalive=keep_alive)
+                                    keepalive=keep_alive,
+                                    min_reconnect_delay=min_reconnect_delay)
             except Exception as e:
                 log.error(e)
             log.debug("connecting to ThingsBoard...")
