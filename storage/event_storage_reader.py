@@ -1,7 +1,6 @@
 import copy
 import logging
 import io
-import os
 import base64
 import json
 from json.decoder import JSONDecodeError
@@ -63,7 +62,7 @@ class EventStorageReader:
             except IOError as e:
                 log.warning("[{}] Failed to read file!".format(self.new_pos.get_file(), e))
                 break
-        log.debug("Got {} mesages from storage".format(len(self.current_batch)))
+        log.debug("Got {} messages from storage".format(len(self.current_batch)))
         return self.current_batch
 
     def discard_batch(self):

@@ -79,7 +79,6 @@ class TBQoSException(Exception):
     pass
 
 
-
 class TBPublishInfo:
 
     TB_ERR_AGAIN = -1
@@ -100,18 +99,18 @@ class TBPublishInfo:
     TB_ERR_ERRNO = 14
     TB_ERR_QUEUE_SIZE = 15
 
-    def __init__(self, messageInfo):
-        self.messageInfo = messageInfo
+    def __init__(self, message_info):
+        self.message_info = message_info
 
     def rc(self):
-        return self.messageInfo.rc
+        return self.message_info.rc
 
     def mid(self):
-        return self.messageInfo.mid
+        return self.message_info.mid
 
     def get(self):
-        self.messageInfo.wait_for_publish()
-        return self.messageInfo.rc
+        self.message_info.wait_for_publish()
+        return self.message_info.rc
 
 
 class TBDeviceMqttClient:
@@ -145,7 +144,6 @@ class TBDeviceMqttClient:
 
     def _on_log(self, client, userdata, level, buf):
         log.debug(buf)
-
 
     def _on_publish(self, client, userdata, result):
         log.debug("Data published to ThingsBoard!")

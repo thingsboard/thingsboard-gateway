@@ -1,9 +1,9 @@
 from storage.event_storage import EventStorage
-from tb_utility.tb_utility import TBUtility
 import queue
 from logging import getLogger
 
-log = getLogger(__name__)
+log = getLogger("storage")
+
 
 class MemoryEventStorage(EventStorage):
     def __init__(self, config):

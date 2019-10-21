@@ -97,7 +97,7 @@ class ModbusConnector(Connector, threading.Thread):
                                 if input_data.isError():
                                     log.exception(input_data)
                                     continue
-                                device_responses[config_data][current_data["tag"]] = {"sended_data": current_data,
+                                device_responses[config_data][current_data["tag"]] = {"data_sent": current_data,
                                                                                       "input_data": input_data}
 
                             log.debug("Checking %s for device %s", config_data, device)
@@ -113,7 +113,7 @@ class ModbusConnector(Connector, threading.Thread):
                                 if converted_data["attributes"] != self.__devices[device]["attributes"]:
                                     self.__devices[device]["last_telemetry"] = converted_data["attributes"]
                                     to_send["attributes"] = converted_data["attributes"]
-                                self.__gateway._send_to_storage(self.get_name(), to_send)
+                                self.__gateway.send_to_storage(self.get_name(), to_send)
             except ConnectionException:
                 log.error("Connection lost! Trying to reconnect...")
             except Exception as e:
@@ -162,7 +162,7 @@ class ModbusConnector(Connector, threading.Thread):
                                                                unit=unit_id)
         else:
             log.error("Unknown Modbus function with code: %i", function_code)
-        log.debug("Sended to modbus device %s, \n%s", config["deviceName"], config)
+        log.debug("To modbus device %s, \n%s", config["deviceName"], config)
         log.debug("With result %s", result)
 
         return result

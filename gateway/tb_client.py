@@ -37,7 +37,7 @@ class TBClient:
         self.client._on_connect(client, userdata, flags, rc, *extra_params)
 
     def _on_disconnect(self, client, userdata, rc):
-        log.info('Gateway was disconnected trying to reconnect')
+        log.info('Gateway disconnected.')
 
     def disconnect(self):
         self.client.disconnect()

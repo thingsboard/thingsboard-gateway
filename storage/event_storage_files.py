@@ -1,4 +1,4 @@
-class EventStorageFiles():
+class EventStorageFiles:
     def __init__(self, state_file, data_files):
         self.state_file = state_file
         self.data_files = data_files

@@ -1,4 +1,4 @@
-from json import dumps, loads
+from json import dumps
 from re import search
 from connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
 from tb_utility.tb_utility import TBUtility
@@ -39,10 +39,10 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
             log.exception(e)
         try:
             if self.__config.get("timeseries"):
-                for timeseria in self.__config.get("timeseries"):
-                    self.dict_result["telemetry"].append({timeseria["key"]: TBUtility.get_value(timeseria["value"],
-                                                                                                body,
-                                                                                                timeseria["type"])})
+                for ts in self.__config.get("timeseries"):
+                    self.dict_result["telemetry"].append({ts["key"]: TBUtility.get_value(ts["value"],
+                                                                                         body,
+                                                                                         ts["type"])})
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
             log.exception(e)

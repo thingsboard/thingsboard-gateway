@@ -15,24 +15,24 @@ class BytesModbusUplinkConverter(ModbusConverter):
             if self.__result.get(config_data) is None:
                 self.__result[config_data] = []
             for tag in data[config_data]:
-                sended_data = data[config_data][tag]["sended_data"]
+                data_sent = data[config_data][tag]["data_sent"]
                 input_data = data[config_data][tag]["input_data"]
                 log.debug("Called convert function from %s with args", self.__class__.__name__)
-                log.debug(sended_data)
+                log.debug(data_sent)
                 log.debug(input_data)
                 result = None
-                if sended_data.get("functionCode") == 1 or sended_data.get("functionCode") == 2:
+                if data_sent.get("functionCode") == 1 or data_sent.get("functionCode") == 2:
                     result = input_data.bits
                     log.debug(result)
-                    if "registerCount" in sended_data:
-                        result = result[:sended_data["registerCount"]]
+                    if "registerCount" in data_sent:
+                        result = result[:data_sent["registerCount"]]
                     else:
                         result = result[0]
-                elif sended_data.get("functionCode") == 3 or sended_data.get("functionCode") == 4:
+                elif data_sent.get("functionCode") == 3 or data_sent.get("functionCode") == 4:
                     result = input_data.registers
-                    byte_order = sended_data.get("byteOrder", "LITTLE")
-                    reg_count = sended_data.get("registerCount", 1)
-                    type_of_data = sended_data["type"]
+                    byte_order = data_sent.get("byteOrder", "LITTLE")
+                    reg_count = data_sent.get("registerCount", 1)
+                    type_of_data = data_sent["type"]
                     if byte_order == "LITTLE":
                         decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Little)
                     elif byte_order == "BIG":
@@ -51,7 +51,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             result = decoder.decode_64bit_int()
                         else:
                             log.warning("unsupported register count for long data type in response for tag %s",
-                                        sended_data["tag"])
+                                        data_sent["tag"])
                             continue
                     elif type_of_data == "double":
                         if reg_count == 2:
@@ -60,19 +60,19 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             result = decoder.decode_64bit_float()
                         else:
                             log.warning("unsupported register count for double data type in response for tag %s",
-                                        sended_data["tag"])
+                                        data_sent["tag"])
                             continue
                     else:
                         log.warning("unknown data type, not string, long or double in response for tag %s",
-                                    sended_data["tag"])
+                                    data_sent["tag"])
                         continue
-                    if "bit" in sended_data:
+                    if "bit" in data_sent:
                         if len(result) > 1:
                             log.warning("with bit parameter only one register is expected, got more then one in response for tag %s",
-                                        sended_data["tag"])
+                                        data_sent["tag"])
                             continue
                         result = result[0]
-                        position = 15 - sended_data["bit"]  # reverse order
+                        position = 15 - data_sent["bit"]  # reverse order
                         # transform result to string representation of a bit sequence, add "0" to make it longer >16
                         result = "0000000000000000" + str(bin(result)[2:])
                         # get length of 16, then get bit, then cast it to int(0||1 from "0"||"1", then cast to boolean)

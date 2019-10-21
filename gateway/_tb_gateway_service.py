@@ -89,6 +89,9 @@ class TBGatewayService:
                     except Exception as e:
                         log.exception(e)
 
+    def send_to_storage(self, connector_name, data):
+        self._send_to_storage(connector_name, data)
+
     def _send_to_storage(self, connector_name, data):
         if not TBUtility.validate_converted_data(data):
             log.error("Data from %s connector is invalid.", connector_name)

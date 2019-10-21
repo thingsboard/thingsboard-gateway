@@ -14,7 +14,7 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
             self.dict_result["deviceName"] = topic.split("/")[-1]
             self.dict_result["deviceType"] = "Thermostat"  # just hardcode this
             self.dict_result["telemetry"] = []  # template for telemetry array
-            bytes_to_read = body.replace("0x", "")  # Replacing the 0x (if '0x' in body), needs for converting to bytrearray
+            bytes_to_read = body.replace("0x", "")  # Replacing the 0x (if '0x' in body), needs for converting to bytearray
             converted_bytes = bytearray.fromhex(bytes_to_read)  # Converting incoming data to bytearray
             if self.__config.get("extension-config") is not None:
                 for telemetry_key in self.__config["extension-config"]:  # Processing every telemetry key in config for extension

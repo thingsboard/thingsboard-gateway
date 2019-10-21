@@ -91,7 +91,7 @@ class OpcUaConnector(Thread, Connector):
             try:
                 time.sleep(1)
                 if self.data_to_send:
-                    self.__gateway._send_to_storage(self.get_name(), self.data_to_send.pop())
+                    self.__gateway.send_to_storage(self.get_name(), self.data_to_send.pop())
                 if self.__stopped:
                     break
             except (KeyboardInterrupt, SystemExit):
@@ -141,6 +141,7 @@ class OpcUaConnector(Thread, Connector):
                     log.debug("method %s result is: %s", method[rpc_method], result)
         except Exception as e:
             log.exception(e)
+
     def __search_name(self, node, recursion_level):
         try:
             for childId in node.get_children():
@@ -204,7 +205,7 @@ class OpcUaConnector(Thread, Connector):
                                         try:
                                             for attribute_update in interest_node[int_node]["attributes_updates"]:
                                                 if attribute_update["attributeOnDevice"] == ch.get_display_name().Text:
-                                                    self.__available_object_resources[interest_node[int_node]["deviceName"]]['variables'].append({attribute_update["attributeOnThingsBoard"]: ch,})
+                                                    self.__available_object_resources[interest_node[int_node]["deviceName"]]['variables'].append({attribute_update["attributeOnThingsBoard"]: ch, })
                                         except Exception as e:
                                             log.exception(e)
                                     if re.search(int_node.replace('$', ''), current_var_path):
@@ -249,7 +250,7 @@ class SubHandler(object):
             subscription = self.connector.subscribed[node]
             converted_data = subscription["converter"].convert(subscription["path"], val)
             self.connector.data_to_send.append(converted_data)
-            log.debug(converted_data)
+            log.debug("Data to ThingsBoard: %s", converted_data)
         except Exception as e:
             log.exception(e)
 
@@ -258,4 +259,3 @@ class SubHandler(object):
             log.debug("Python: New event %s", event)
         except Exception as e:
             log.exception(e)
-

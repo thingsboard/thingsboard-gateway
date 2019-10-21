@@ -4,7 +4,7 @@ import importlib
 import importlib.util
 import jsonpath_rw_ext as jp
 from logging import getLogger
-from json import dumps,loads
+from json import dumps, loads
 from re import search
 
 log = getLogger("service")
@@ -53,10 +53,9 @@ class TBUtility:
                 except ImportError:
                     continue
 
-
     @staticmethod
     def get_value(expression, body={}, value_type="string", get_tag=False):
-        if isinstance(body,str):
+        if isinstance(body, str):
             body = loads(body)
         if not expression:
             return ''
@@ -78,11 +77,11 @@ class TBUtility:
                 if value is None and body.get(target_str):
                     full_value = expression[0: min(abs(p1-2), 0)] + body[target_str] + expression[p2+1:len(expression)]
                 elif value is None:
-                    full_value = expression[0: min(abs(p1-2), 0)] + jp.match1(target_str.split()[0], loads(body) if type(body)==str else body) + expression[p2+1:len(expression)]
+                    full_value = expression[0: min(abs(p1-2), 0)] + jp.match1(target_str.split()[0], loads(body) if type(body) == str else body) + expression[p2+1:len(expression)]
                 else:
                     full_value = expression[0: min(abs(p1-2), 0)] + value + expression[p2+1:len(expression)]
             else:
-                full_value = jp.match1(target_str.split()[0], loads(body) if type(body)==str else body)
+                full_value = jp.match1(target_str.split()[0], loads(body) if type(body) == str else body)
 
         except TypeError:
             if value is None:
@@ -92,3 +91,7 @@ class TBUtility:
             log.error(e)
             return None
         return full_value
+
+    @staticmethod
+    def ger_or_create_logger():
+        pass

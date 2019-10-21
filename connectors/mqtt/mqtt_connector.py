@@ -45,14 +45,14 @@ class MqttConnector(Connector, Thread):
                                          ciphers=None)
                 except Exception as e:
                     log.error("Cannot setup connection to broker %s using SSL. Please check your configuration.\n\
-                              Error cathed: %s",
+                              Error: %s",
                               self.get_name(),
                               e)
                 self._client.tls_insecure_set(False)
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
         self._client.on_subscribe = self._on_subscribe
-        self.__sended_subscribes = {}  # For logging the subscriptions
+        self.__subscribes_sent = {}  # For logging the subscriptions
         self._client.on_disconnect = self._on_disconnect
         self._client.on_log = self._on_log
         self._connected = False
@@ -96,7 +96,7 @@ class MqttConnector(Connector, Thread):
 
     def __subscribe(self, topic):
         message = self._client.subscribe(topic)
-        self.__sended_subscribes[message[1]] = topic
+        self.__subscribes_sent[message[1]] = topic
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         result_codes = {
@@ -165,10 +165,10 @@ class MqttConnector(Connector, Thread):
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         if granted_qos[0] == 128:
-            log.error('"%s" subscription failed to topic %s', self.get_name(), self.__sended_subscribes[mid])
+            log.error('"%s" subscription failed to topic %s', self.get_name(), self.__subscribes_sent[mid])
         else:
-            log.info('"%s" subscription success to topic %s', self.get_name(), self.__sended_subscribes[mid])
-        del self.__sended_subscribes[mid]
+            log.info('"%s" subscription success to topic %s', self.get_name(), self.__subscribes_sent[mid])
+        del self.__subscribes_sent[mid]
 
     def __get_service_config(self, config):
         for service_config in self.__service_config:
@@ -195,7 +195,7 @@ class MqttConnector(Connector, Thread):
                                     if not self.__gateway.get_devices().get(converted_content["deviceName"]):
                                         self.__gateway.add_device(converted_content["deviceName"], {"connector": None})
                                     self.__gateway.update_device(converted_content["deviceName"], "connector", self)
-                                    self.__gateway._send_to_storage(self.get_name(), converted_content)
+                                    self.__gateway.send_to_storage(self.get_name(), converted_content)
                                 else:
                                     continue
                         else:
