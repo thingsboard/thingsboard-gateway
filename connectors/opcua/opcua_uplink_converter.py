@@ -1,5 +1,5 @@
-from connectors.opcua.opcua_converter import OpcUaConverter, log
-from tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter, log
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class OpcUaUplinkConverter(OpcUaConverter):

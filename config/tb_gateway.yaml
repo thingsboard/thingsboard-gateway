@@ -3,8 +3,6 @@ thingsboard-client:
   port: 1883
   security:
     accessToken: FUH2Fonov6eajSHi0Zyw
-logs:
-  config: ./config/logs.conf
 storage:
   ## properties for memory storage
   type: memory

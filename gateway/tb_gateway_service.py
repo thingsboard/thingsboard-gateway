@@ -4,14 +4,15 @@ import time
 import yaml
 from json import load, loads, dumps
 from os import listdir, path
-from gateway.tb_client import TBClient
-from tb_utility.tb_utility import TBUtility
 from threading import Thread
-from connectors.mqtt.mqtt_connector import MqttConnector
-from connectors.opcua.opcua_connector import OpcUaConnector
-from connectors.modbus.modbus_connector import ModbusConnector
-from storage.memory_event_storage import MemoryEventStorage
-from storage.file_event_storage import FileEventStorage
+from thingsboard_gateway.gateway.tb_client import TBClient
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.connectors.mqtt.mqtt_connector import MqttConnector
+from thingsboard_gateway.connectors.opcua.opcua_connector import OpcUaConnector
+from thingsboard_gateway.connectors.modbus.modbus_connector import ModbusConnector
+from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
+from thingsboard_gateway.storage.file_event_storage import FileEventStorage
+
 
 log = logging.getLogger(__name__)
 
@@ -20,17 +21,9 @@ class TBGatewayService:
     def __init__(self, config_file):
         with open(config_file) as config:
             config = yaml.safe_load(config)
-            self.__config_dir = config.get("config_dir", "./config/")
-            logs_conf = config.get("logs")
-            if logs_conf is not None:
-                if logs_conf.get("config"):
-                    logs_config_file_path = logs_conf["config"]
-                else:
-                    logs_config_file_path = self.__config_dir+"logs.conf"
-            else:
-                logs_config_file_path = self.__config_dir+"logs.conf"
-            TBUtility.check_logs_directory(logs_config_file_path)
-            logging.config.fileConfig(logs_config_file_path)
+            self.__config_dir = path.dirname(path.abspath(config_file))+'/'
+            TBUtility.check_logs_directory(self.__config_dir+"logs.conf")
+            logging.config.fileConfig(self.__config_dir+"logs.conf")
             global log
             log = logging.getLogger('service')
             self.available_connectors = {}

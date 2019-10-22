@@ -1,6 +1,6 @@
 import logging
 import time
-from tb_client.tb_gateway_mqtt import TBGatewayMqttClient
+from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 
 log = logging.getLogger("tb_connection")
 

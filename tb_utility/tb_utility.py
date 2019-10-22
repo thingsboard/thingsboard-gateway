@@ -95,6 +95,10 @@ class TBUtility:
 
     @staticmethod
     def check_logs_directory(conf_file_path):
+        try:
+            log = getLogger(__name__)
+        except Exception:
+            pass
         with open(conf_file_path) as conf_file:
             logs_directories = set()
             for line in conf_file.readlines():
@@ -103,13 +107,9 @@ class TBUtility:
                     if target.group(1) is not None:
                         logs_directories.add(target.group(1))
         for logs_dir in logs_directories:
-            print(logs_dir)
             if not os.path.exists(logs_dir):
-                print("Logs directory not exists.")
+                log.error("Logs directory not exists.")
                 try:
-                    print("Trying to create logs directory.")
                     os.mkdir(logs_dir)
-                    print("Logs directory created.")
                 except Exception as e:
-                    print("Error when creating logs directory: %s" % logs_dir)
-                    print(e)
+                    log.exception(e)
