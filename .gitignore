@@ -5,3 +5,4 @@ venv/
 logs/*
 /config/connected_devices.json
 /storage/data/
+/.idea/
