@@ -32,9 +32,7 @@ class EventStorageReader:
                 current_line_in_file = self.new_pos.get_line()
                 reader = self.get_or_init_buffered_reader(self.new_pos)
                 line = reader.readline()
-                # TODO Better way to assign line
-                while line is not None:
-                    line = reader.readline()
+                while line != b'':
                     try:
                         self.current_batch.append(base64.b64decode(line).decode("utf-8"))
                         records_to_read -= 1
@@ -42,6 +40,7 @@ class EventStorageReader:
                         log.warning("Could not parse line [{}] to uplink message!".format(line), e)
                     finally:
                         current_line_in_file += 1
+                        line = reader.readline()
                     self.new_pos.set_line(current_line_in_file)
                     if records_to_read == 0:
                         break
@@ -86,13 +85,13 @@ class EventStorageReader:
             if self.buffered_reader is None:
                 self.buffered_reader = io.BufferedReader(io.FileIO(
                     self.settings.get_data_folder_path() + pointer.get_file(), 'r'))
-            lines_to_skip = pointer.get_line()
-            if lines_to_skip > 0:
-                while self.buffered_reader.readline() is not None:
-                    if lines_to_skip != 0:
-                        lines_to_skip -= 1
-                    else:
-                        break
+                lines_to_skip = pointer.get_line()
+                if lines_to_skip > 0:
+                    while self.buffered_reader.readline() is not None:
+                        if lines_to_skip != 0:
+                            lines_to_skip -= 1
+                        else:
+                            break
             return self.buffered_reader
 
         except IOError as e:
