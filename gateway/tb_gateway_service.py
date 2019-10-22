@@ -20,14 +20,15 @@ class TBGatewayService:
     def __init__(self, config_file):
         with open(config_file) as config:
             config = yaml.safe_load(config)
+            self.__config_dir = config.get("config_dir", "./config/")
             logs_conf = config.get("logs")
             if logs_conf is not None:
                 if logs_conf.get("config"):
                     logs_config_file_path = logs_conf["config"]
                 else:
-                    logs_config_file_path = "config/logs.conf"
+                    logs_config_file_path = self.__config_dir+"logs.conf"
             else:
-                logs_config_file_path = "config/logs.conf"
+                logs_config_file_path = self.__config_dir+"logs.conf"
             TBUtility.check_logs_directory(logs_config_file_path)
             logging.config.fileConfig(logs_config_file_path)
             global log
@@ -84,7 +85,7 @@ class TBGatewayService:
             raise Exception("Configuration for connectors not found, check your config file.")
         for connector in config['connectors']:
             try:
-                with open('config/'+connector['configuration'], 'r') as conf_file:
+                with open(self.__config_dir+connector['configuration'], 'r') as conf_file:
                     connector_conf = load(conf_file)
                     if not self._connectors_configs.get(connector['type']):
                         self._connectors_configs[connector['type']] = []
@@ -219,16 +220,15 @@ class TBGatewayService:
 
     def __load_persistent_devices(self):
         devices = {}
-        config_dir = './config/'
-        if self.__connected_devices_file in listdir(config_dir) and \
-                path.getsize(config_dir+self.__connected_devices_file) > 0:
+        if self.__connected_devices_file in listdir(self.__config_dir) and \
+                path.getsize(self.__config_dir+self.__connected_devices_file) > 0:
             try:
-                with open(config_dir+self.__connected_devices_file) as devices_file:
+                with open(self.__config_dir+self.__connected_devices_file) as devices_file:
                     devices = load(devices_file)
             except Exception as e:
                 log.exception(e)
         else:
-            connected_devices_file = open(config_dir + self.__connected_devices_file, 'w')
+            connected_devices_file = open(self.__config_dir + self.__connected_devices_file, 'w')
             connected_devices_file.close()
 
         if devices is not None:
@@ -247,8 +247,7 @@ class TBGatewayService:
             self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices
 
     def __save_persistent_devices(self):
-        config_dir = './config/'
-        with open(config_dir+self.__connected_devices_file, 'w') as config_file:
+        with open(self.__config_dir+self.__connected_devices_file, 'w') as config_file:
             try:
                 data_to_save = {}
                 for device in self.__connected_devices:
