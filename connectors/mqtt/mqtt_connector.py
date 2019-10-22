@@ -4,10 +4,10 @@ import random
 import re
 import ssl
 from paho.mqtt.client import Client
-from connectors.connector import Connector, log
-from connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
+from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
 from threading import Thread
-from tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from json import loads
 
 

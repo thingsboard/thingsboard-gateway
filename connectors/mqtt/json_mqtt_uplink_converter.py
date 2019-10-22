@@ -1,7 +1,7 @@
 from json import dumps
 from re import search
-from connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
-from tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class JsonMqttUplinkConverter(MqttUplinkConverter):

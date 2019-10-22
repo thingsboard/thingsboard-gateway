@@ -1,7 +1,7 @@
 import unittest
-from connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
-from storage.memory_event_storage import MemoryEventStorage
-from storage.file_event_storage import FileEventStorage
+from thingsboard_gateway.connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
+from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
+from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 from random import randint
 import logging
 
@@ -98,8 +98,6 @@ class TestStorage(unittest.TestCase):
             storage.event_pack_processing_done()
 
         correct_result = [[str(x) for x in range(y*10,(y+1)*10)] for y in range(test_size)]
-        print(correct_result)
-        print(result)
         self.assertListEqual(result, correct_result)
 
 

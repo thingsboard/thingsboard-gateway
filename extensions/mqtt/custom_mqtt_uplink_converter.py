@@ -1,5 +1,5 @@
 from json import dumps
-from connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
+from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
 
 
 class CustomMqttUplinkConverter(MqttUplinkConverter):

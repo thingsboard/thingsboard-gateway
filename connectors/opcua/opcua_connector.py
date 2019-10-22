@@ -5,10 +5,10 @@ from threading import Thread
 from random import choice
 from string import ascii_lowercase
 from opcua import Client, ua
-from tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from opcua.ua.uaerrors._auto import BadWaitingForInitialData
-from connectors.connector import Connector, log
-from connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
+from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
 
 
 class OpcUaConnector(Thread, Connector):

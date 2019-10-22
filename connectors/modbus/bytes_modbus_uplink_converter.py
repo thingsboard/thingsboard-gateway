@@ -1,6 +1,6 @@
 from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.constants import Endian
-from connectors.modbus.modbus_converter import ModbusConverter, log
+from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
 
 
 class BytesModbusUplinkConverter(ModbusConverter):

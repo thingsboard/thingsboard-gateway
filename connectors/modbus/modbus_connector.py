@@ -1,15 +1,15 @@
 import time
 import threading
+from random import choice
+from string import ascii_lowercase
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusRtuFramer
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
-from random import choice
-from string import ascii_lowercase
-from tb_utility.tb_utility import TBUtility
-from connectors.connector import Connector, log
 from pymodbus.exceptions import ConnectionException
-from connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
-from connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
+from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
+from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 
 
 class ModbusConnector(Connector, threading.Thread):
