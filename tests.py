@@ -1,6 +1,6 @@
 import unittest
-#from connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
-#from storage.memory_event_storage import MemoryEventStorage
+from connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
+from storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 from random import randint
 import logging
