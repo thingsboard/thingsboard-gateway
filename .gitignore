@@ -1,8 +1,8 @@
-venv/
-/for_tests.py
-/f_test.py
-/develop_tests/
-logs/*
-/config/connected_devices.json
-/storage/data/
-/.idea/
+thingsboard_gateway/venv/
+thingsboard_gateway/for_tests.py
+thingsboard_gateway/f_test.py
+thingsboard_gateway/develop_tests/
+thingsboard_gateway/logs/*
+thingsboard_gateway/config/connected_devices.json
+thingsboard_gateway/storage/data/
+.idea/
