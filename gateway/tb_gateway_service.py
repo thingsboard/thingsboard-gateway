@@ -61,7 +61,6 @@ class TBGatewayService:
                     time.sleep(.1)
             except Exception as e:
                 log.exception(e)
-            finally:
                 for device in self.__connected_devices:
                     log.debug("Close connection for device %s", device)
                     try:
@@ -71,6 +70,9 @@ class TBGatewayService:
                             log.debug("Connector %s closed connection.", current_connector.get_name())
                     except Exception as e:
                         log.error(e)
+
+    def get_config_path(self):
+        return self.__config_dir
 
     def __load_connectors(self, config):
         self._connectors_configs = {}
@@ -250,3 +252,8 @@ class TBGatewayService:
             except Exception as e:
                 log.exception(e)
         log.debug("Saved connected devices.")
+
+
+if __name__ == '__main__':
+    print(path.join(path.abspath(__file__), '..', '..'))
+    TBGatewayService(path.dirname(path.dirname(path.abspath(__file__))) + '/config/tb_gateway.yaml')

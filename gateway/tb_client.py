@@ -54,5 +54,5 @@ class TBClient:
                                     min_reconnect_delay=min_reconnect_delay)
             except Exception as e:
                 log.error(e)
-            log.debug("connecting to ThingsBoard...")
+            log.debug("connecting to ThingsBoard")
             time.sleep(1)

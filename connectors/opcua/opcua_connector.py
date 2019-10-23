@@ -63,7 +63,7 @@ class OpcUaConnector(Thread, Connector):
     def open(self):
         self.__stopped = False
         self.start()
-        log.info("Starting OPC-UA Connector...")
+        log.info("Starting OPC-UA Connector")
 
     def run(self):
         while not self.__connected:

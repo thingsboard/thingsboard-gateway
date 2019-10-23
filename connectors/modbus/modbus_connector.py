@@ -31,7 +31,7 @@ class ModbusConnector(Connector, threading.Thread):
     def open(self):
         self.__stopped = False
         self.start()
-        log.info("Starting Modbus connector...")
+        log.info("Starting Modbus connector")
 
     def run(self):
         while not self.__master.connect():
@@ -115,7 +115,7 @@ class ModbusConnector(Connector, threading.Thread):
                                     to_send["attributes"] = converted_data["attributes"]
                                 self.__gateway.send_to_storage(self.get_name(), to_send)
             except ConnectionException:
-                log.error("Connection lost! Trying to reconnect...")
+                log.error("Connection lost! Trying to reconnect")
             except Exception as e:
                 log.exception(e)
 

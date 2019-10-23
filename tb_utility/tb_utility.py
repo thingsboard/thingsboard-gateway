@@ -37,22 +37,38 @@ class TBUtility:
 
     @staticmethod
     def check_and_import(extension_type, module_name):
-        for file in os.listdir('./extensions/'+extension_type.lower()):
-            if not file.startswith('__') and file.endswith('.py'):
-                mod = 'extensions.'+extension_type.lower()+'.'+file.replace('.py', '')
-                try:
-                    module_spec = importlib.util.find_spec(mod)
-                    if module_spec is None:
-                        log.error('Module: {} not found'.format(module_name))
-                        return None
-                    else:
-                        module = importlib.util.module_from_spec(module_spec)
-                        module_spec.loader.exec_module(module)
-                        for converter_class in inspect.getmembers(module, inspect.isclass):
-                            if module_name in converter_class:
-                                return converter_class[1]
-                except ImportError:
-                    continue
+        try:
+            if os.path.exists('/var/lib/thingsboard_gateway/extensions/'+extension_type.lower()):
+                custom_converter_path = '/var/lib/thingsboard_gateway/extensions/' + extension_type.lower()
+                log.info('Connector %s - configuration for custom converter found in %s', extension_type, custom_converter_path)
+            else:
+                custom_converter_path = os.path.abspath(os.path.abspath(__file__).parent() + '/extensions' + extension_type.lower())
+                log.info('Connector %s - configuration for custom converter found in %s', extension_type, custom_converter_path)
+            for file in os.listdir(custom_converter_path):
+                if not file.startswith('__') and file.endswith('.py'):
+                    # mod = 'extensions.'+extension_type.lower()+'.'+file.replace('.py', '')
+                    try:
+                        module_spec = importlib.util.spec_from_file_location(module_name, custom_converter_path + '/' + file)
+                        log.debug(module_spec)
+                        if module_spec is None:
+                            log.error('Module: {} not found'.format(module_name))
+                            return None
+                        else:
+                            module = importlib.util.module_from_spec(module_spec)
+                            log.debug(module)
+                            try:
+                                module_spec.loader.exec_module(module)
+                            except Exception as e:
+                                log.exception(e)
+                            for converter_class in inspect.getmembers(module, inspect.isclass):
+                                if module_name in converter_class:
+                                    return converter_class[1]
+                    except ImportError:
+                        continue
+                    except Exception as e:
+                        log.exception(e)
+        except Exception as e:
+            log.exception(e)
 
     @staticmethod
     def get_value(expression, body={}, value_type="string", get_tag=False):
