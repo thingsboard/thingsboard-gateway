@@ -1,3 +1,17 @@
+#     Copyright 2019. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 import logging
 import time
 from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
@@ -43,16 +57,17 @@ class TBClient:
 
     def connect(self, min_reconnect_delay=10):
         keep_alive = self.__config.get("keep_alive", 60)
-
-        while not self.client.is_connected():
-            try:
+        try:
+            while not self.client.is_connected():
+                log.debug("connecting to ThingsBoard")
                 self.client.connect(tls=self.__tls,
                                     ca_certs=self.__ca_cert,
                                     cert_file=self.__cert,
                                     key_file=self.__private_key,
                                     keepalive=keep_alive,
                                     min_reconnect_delay=min_reconnect_delay)
-            except Exception as e:
-                log.error(e)
-            log.debug("connecting to ThingsBoard")
-            time.sleep(1)
+                time.sleep(1)
+        except Exception as e:
+            log.exception(e)
+            time.sleep(10)
+

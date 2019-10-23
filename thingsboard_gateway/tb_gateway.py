@@ -12,3 +12,17 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from os import path
+from thingsboard_gateway import TBGatewayService
+
+
+def main():
+    TBGatewayService(path.dirname(path.abspath(__file__)) + '/config/tb_gateway.yaml')
+
+
+def daemon():
+    TBGatewayService("/etc/thingsboard-gateway/config/tb_gateway.yaml")
+
+
+if __name__ == '__main__':
+    main()

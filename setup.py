@@ -7,7 +7,7 @@ setup(
               'thingsboard_gateway.tb_client', 'thingsboard_gateway.connectors', 'thingsboard_gateway.connectors.ble',
               'thingsboard_gateway.connectors.mqtt', 'thingsboard_gateway.connectors.opcua',
               'thingsboard_gateway.connectors.modbus', 'thingsboard_gateway.tb_utility'],
-    url='https://thingsboard.io',
+    url='https://github.com/thingsboard/thingsboard-gateway',
     license='Apache Software License (Apache Software License 2.0)',
     author='ThingsBoard',
     author_email='info@thingsboard.io',
@@ -15,9 +15,7 @@ setup(
     include_package_data=True,
     package_data={'thingsboard_gateway': ['config/*']},
     install_requires=[
-        'attrs>=19.2.0',
         'cffi>=1.0.0',
-        'cryptography>=2.4',
         'jsonpath-rw>=1.3.0',
         'jsonpath-rw-ext>=1.1.2',
         'jsonschema==3.1.1',
@@ -32,7 +30,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'thingsboard-gateway = thingsboard_gateway.thingsboard_gateway:daemon'
+            'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'
         ]
     }
 )

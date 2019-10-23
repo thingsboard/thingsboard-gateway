@@ -1,3 +1,17 @@
+#     Copyright 2019. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 import time
 import string
 import random
@@ -166,9 +180,9 @@ class MqttConnector(Connector, Thread):
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         if granted_qos[0] == 128:
-            log.error('"%s" subscription failed to topic %s', self.get_name(), self.__subscribes_sent[mid])
+            log.error('"%s" subscription failed to topic %s subscription message id = %i', self.get_name(), self.__subscribes_sent[mid], mid)
         else:
-            log.info('"%s" subscription success to topic %s', self.get_name(), self.__subscribes_sent[mid])
+            log.info('"%s" subscription success to topic %s, subscription message id = %i', self.get_name(), self.__subscribes_sent[mid], mid)
         del self.__subscribes_sent[mid]
 
     def __get_service_config(self, config):
