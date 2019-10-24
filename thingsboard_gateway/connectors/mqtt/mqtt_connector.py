@@ -111,7 +111,10 @@ class MqttConnector(Connector, Thread):
 
     def __subscribe(self, topic):
         message = self._client.subscribe(topic)
-        self.__subscribes_sent[message[1]] = topic
+        try:
+            self.__subscribes_sent[message[1]] = topic
+        except Exception as e:
+            log.exception(e)
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         result_codes = {
@@ -179,11 +182,14 @@ class MqttConnector(Connector, Thread):
         log.debug(args)
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
-        if granted_qos[0] == 128:
-            log.error('"%s" subscription failed to topic %s subscription message id = %i', self.get_name(), self.__subscribes_sent[mid], mid)
-        else:
-            log.info('"%s" subscription success to topic %s, subscription message id = %i', self.get_name(), self.__subscribes_sent[mid], mid)
-        del self.__subscribes_sent[mid]
+        try:
+            if granted_qos[0] == 128:
+                log.error('"%s" subscription failed to topic %s subscription message id = %i', self.get_name(), self.__subscribes_sent[mid], mid)
+            else:
+                log.info('"%s" subscription success to topic %s, subscription message id = %i', self.get_name(), self.__subscribes_sent[mid], mid)
+            del self.__subscribes_sent[mid]
+        except Exception as e:
+            log.exception(e)
 
     def __get_service_config(self, config):
         for service_config in self.__service_config:

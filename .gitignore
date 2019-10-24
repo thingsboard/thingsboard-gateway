@@ -6,3 +6,6 @@ thingsboard_gateway/logs/*
 thingsboard_gateway/config/connected_devices.json
 thingsboard_gateway/storage/data/
 .idea/
+/build/
+/deb_dist/
+/dist/
