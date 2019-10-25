@@ -18,9 +18,9 @@ import io
 import base64
 import json
 from json.decoder import JSONDecodeError
-from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
-from thingsboard_gateway.storage.event_storage_reader_pointer import EventStorageReaderPointer
+from storage.event_storage_files import EventStorageFiles
+from storage.file_event_storage_settings import FileEventStorageSettings
+from storage.event_storage_reader_pointer import EventStorageReaderPointer
 
 log = logging.getLogger(__name__)
 
@@ -41,6 +41,7 @@ class EventStorageReader:
             return self.current_batch
         self.current_batch = []
         records_to_read = self.settings.get_max_read_records_count()
+        line = None
         while records_to_read > 0:
             try:
                 current_line_in_file = self.new_pos.get_line()
@@ -54,7 +55,8 @@ class EventStorageReader:
                         log.warning("Could not parse line [{}] to uplink message!".format(line), e)
                     finally:
                         current_line_in_file += 1
-                        line = reader.readline()
+                        if records_to_read > 0:
+                            line = reader.readline()
                     self.new_pos.set_line(current_line_in_file)
                     if records_to_read == 0:
                         break
@@ -69,6 +71,10 @@ class EventStorageReader:
                     else:
                         # No more records to read for now
                         continue
+                        ###################
+                if line == b'':
+                    break
+                    #######################
                 else:
                     # No more records to read for now
                     continue
