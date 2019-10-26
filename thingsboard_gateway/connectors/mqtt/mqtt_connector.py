@@ -165,7 +165,7 @@ class MqttConnector(Connector, Thread):
                 for request in self.__service_config:
                     if self.__service_config.get(request) is not None:
                         for request_config in self.__service_config.get(request):
-                            self._client.subscribe(request_config["topicFilter"])
+                            self.__subscribe(request_config["topicFilter"])
             except Exception as e:
                 log.error(e)
 
@@ -184,10 +184,11 @@ class MqttConnector(Connector, Thread):
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         try:
             if granted_qos[0] == 128:
-                log.error('"%s" subscription failed to topic %s subscription message id = %i', self.get_name(), self.__subscribes_sent[mid], mid)
+                log.error('"%s" subscription failed to topic %s subscription message id = %i', self.get_name(), self.__subscribes_sent.get(mid), mid)
             else:
-                log.info('"%s" subscription success to topic %s, subscription message id = %i', self.get_name(), self.__subscribes_sent[mid], mid)
-            del self.__subscribes_sent[mid]
+                log.info('"%s" subscription success to topic %s, subscription message id = %i', self.get_name(), self.__subscribes_sent.get(mid), mid)
+                if self.__subscribes_sent.get is not None:
+                    del self.__subscribes_sent[mid]
         except Exception as e:
             log.exception(e)
 

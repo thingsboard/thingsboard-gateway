@@ -13,7 +13,7 @@
 #     limitations under the License.
 
 from os import path
-from thingsboard_gateway import TBGatewayService
+from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
 
 def main():

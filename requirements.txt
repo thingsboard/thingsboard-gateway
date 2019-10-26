@@ -1,0 +1,9 @@
+python3-pip
+python3-cryptography
+python3-jsonpath-rw
+python3-jsonpath-rw-ext
+python3-opcua
+python3-paho-mqtt
+python3-pymodbus
+python3-pyserial
+python3-PyYAML

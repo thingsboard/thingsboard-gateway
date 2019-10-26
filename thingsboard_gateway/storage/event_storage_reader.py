@@ -18,9 +18,9 @@ import io
 import base64
 import json
 from json.decoder import JSONDecodeError
-from storage.event_storage_files import EventStorageFiles
-from storage.file_event_storage_settings import FileEventStorageSettings
-from storage.event_storage_reader_pointer import EventStorageReaderPointer
+from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
+from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
+from thingsboard_gateway.storage.event_storage_reader_pointer import EventStorageReaderPointer
 
 log = logging.getLogger(__name__)
 

@@ -12,8 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from storage.event_storage_files import EventStorageFiles
-from storage.file_event_storage_settings import FileEventStorageSettings
+from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
+from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
 import logging
 import time
 import io
