@@ -180,6 +180,16 @@ public class ModbusUtils {
         }else if (format.equalsIgnoreCase(ModbusExtensionConstants.BIG_ENDIAN_BYTE_SWAP)) {
             Integer ing =data[0].getValue()+data[1].getValue()*65536;
             return toBytes(ing,data.length);
+        }else if (format.equalsIgnoreCase(ModbusExtensionConstants.COMPLEMENT_ENDIAN_BYTE_ORDER)) {
+            for (int i = outputBuf.length - 1; i >= 0; --i) {
+                outputBuf[outputBuf.length - i - 1] = data[i / 2].toBytes()[i % 2];
+            }
+            return outputBuf;
+        } else if (format.equalsIgnoreCase(ModbusExtensionConstants.IEEE32_ENDIAN_BYTE_ORDER)) {
+            for (int i = outputBuf.length - 1; i >= 0; --i) {
+                outputBuf[outputBuf.length - i - 1] = data[i / 2].toBytes()[i % 2];
+            }
+            return outputBuf;
         }
 
         int length = format.length();
@@ -207,6 +217,17 @@ public class ModbusUtils {
 
         return outputBuf;
     }
+    private static String transIntToHex(int inputInt){
+        StringBuffer strBuff = new StringBuffer();
+        String reHex;
+        char []b = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+        while(inputInt != 0){
+            strBuff = strBuff.append(b[inputInt%16]);
+            inputInt = inputInt/16;
+        }
+        reHex = strBuff.reverse().toString();
+        return reHex;
+    }
 
     public static KvEntry convertToDataEntry(PollingTagMapping mapping, InputRegister[] data) {
         KvEntry entry = null;
@@ -228,6 +249,17 @@ public class ModbusUtils {
                 break;
             case DOUBLE:
                 double doubleNumber = mapping.getRegisterCount() <= 2 ? byteBuffer.getFloat() : byteBuffer.getDouble();
+                if (mapping.getByteOrder().equalsIgnoreCase(ModbusExtensionConstants.COMPLEMENT_ENDIAN_BYTE_ORDER)&&(double) data[0].getValue()>1000){
+                    int i, M= data[0].getValue();
+                    for (i=1 ; i<= data[0].getValue() ; i<<=1){
+                        M = M^i;
+                    }
+                    doubleNumber=-( data[0].getValue()==0 ? 1 : (M+1)/10) ;
+                } else if(mapping.getByteOrder().equalsIgnoreCase(ModbusExtensionConstants.IEEE32_ENDIAN_BYTE_ORDER)){
+                    String hexStr=(transIntToHex(data[0].getValue())+transIntToHex(data[1].getValue())).equals("")?"0":transIntToHex(data[0].getValue())+transIntToHex(data[1].getValue());
+                    float a = Float.intBitsToFloat(Integer.valueOf(hexStr, 16));
+                    doubleNumber=Double.parseDouble(String.format("%.4f", a));
+                }
                 entry = new DoubleDataEntry(mapping.getTag(), doubleNumber);
                 break;
             case LONG:
