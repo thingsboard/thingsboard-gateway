@@ -44,6 +44,9 @@ class FileEventStorage(EventStorage):
     def event_pack_processing_done(self):
         self.__reader.current_batch = None
 
+    def flush_writer(self):
+        self.__writer.flush_if_needed()
+
     def init_data_folder_if_not_exist(self):
         path = self.settings.get_data_folder_path()
         if not os.path.exists(path):

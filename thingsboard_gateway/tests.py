@@ -96,8 +96,8 @@ class TestStorage(unittest.TestCase):
         test_size = 3
 
         storage_test_config = {
-             "data_folder_path": "./storage/data/",
-             "max_files_count": 12,
+             "data_folder_path": "./thingsboard_gateway/storage/data/",
+             "max_files_count": 40,
              "max_records_per_file": 10,
              "max_records_between_fsync": 3,
              "max_read_records_count": 10,
@@ -105,9 +105,10 @@ class TestStorage(unittest.TestCase):
         }
         storage = FileEventStorage(storage_test_config)
 
-
         for test_value in range(test_size*10):
             storage.put(str(test_value))
+
+        storage.flush_writer()
 
         result = []
         for _ in range(3):

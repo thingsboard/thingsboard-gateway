@@ -92,6 +92,7 @@ class EventStorageWriter:
                 try:
                     log.debug("Executing flush of the temporary pack!")
                     self.buffered_writer.flush()
+                    self.buffered_writer.close()
                     self.new_record_after_flush = False
                 except IOError as e:
                     log.warning("Failed to update data file! [{}]".format(self.current_file), e)
