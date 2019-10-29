@@ -1,0 +1,27 @@
+#!/bin/sh
+set -e
+
+# Automatically added by dh_python3:
+if which py3compile >/dev/null 2>&1; then
+	py3compile -p python3-thingsboard-gateway 
+fi
+if which pypy3compile >/dev/null 2>&1; then
+	pypy3compile -p python3-thingsboard-gateway  || true
+fi
+
+# End automatically added section
+echo "Installing jsonschema"
+sudo rm -rf /usr/lib/python3/dist-packages/jsonschema
+CURRENT_USER=$USER
+sudo pip3 install --upgrade jsonschema==3.1.1
+sudo cp -a -r /etc/thingsboard-gateway/extensions /var/lib/thingsboard_gateway/
+sudo rm -r /etc/thingsboard-gateway/extensions
+sudo usermod -a -G thingsboard_gateway $CURRENT_USER
+sudo chown thingsboard_gateway:thingsboard_gateway /var/log/thingsboard-gateway/ -R
+sudo chown thingsboard_gateway:thingsboard_gateway /etc/thingsboard-gateway/ -R
+echo "Installation completed"
+echo "Enabling daemon..."
+sudo systemctl enable thingsboard-gateway
+#echo "Daemon starting..."
+sudo systemctl start thingsboard-gateway
+echo "Thingsboard Gateway has been installed. Have a nice day :)"

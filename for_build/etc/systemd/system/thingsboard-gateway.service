@@ -1,0 +1,15 @@
+[Unit]
+Description=ThingsBoard Gateway
+After=multi-user.target
+
+[Service]
+Type=simple
+User=thingsboard-gateway
+Group=thingsboard-gateway
+
+ExecStart=python3 -c "from thingsboard_gateway.tb_gateway import daemon; daemon()"
+
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
