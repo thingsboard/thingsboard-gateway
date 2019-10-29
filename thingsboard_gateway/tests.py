@@ -108,7 +108,7 @@ class TestStorage(unittest.TestCase):
         for test_value in range(test_size*10):
             storage.put(str(test_value))
 
-        storage.flush_writer()
+        # storage.flush_writer()
 
         result = []
         for _ in range(3):
