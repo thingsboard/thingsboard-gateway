@@ -42,12 +42,9 @@ class FileEventStorage(EventStorage):
         return self.__reader.read()
 
     def event_pack_processing_done(self):
-        #TODO Add writing position of pointer and deleting of old files
         self.__writer.flush_if_needed()
-        self.__reader.current_batch = None
-
-    # def flush_writer(self):
-    #     self.__writer.flush_if_needed()
+        self.__reader.discard_batch()
+        self.__reader.delete_read_file(self.event_storage_files.get_data_files()[0])
 
     def init_data_folder_if_not_exist(self):
         path = self.settings.get_data_folder_path()

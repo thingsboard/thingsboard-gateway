@@ -15,6 +15,7 @@
 import copy
 import logging
 import io
+import os
 import base64
 import json
 from json.decoder import JSONDecodeError
@@ -30,7 +31,7 @@ class EventStorageReader:
         self.files = files
         self.settings = settings
         self.current_batch = None
-        self.buffered_reader: io.BufferedReader = None
+        self.buffered_reader = None
         self.current_pos = self.read_state_file()
         self.new_pos = copy.deepcopy(self.current_pos)
 
@@ -87,6 +88,11 @@ class EventStorageReader:
     def discard_batch(self):
         self.current_pos = copy.deepcopy(self.new_pos)
         self.write_info_to_state_file(self.current_pos)
+        self.current_batch = None
+        # TODO add logging of flushing reader with try expression
+        if self.buffered_reader is not None:
+            self.buffered_reader.flush()
+            self.buffered_reader.close()
 
     def get_next_file(self, files: EventStorageFiles, new_pos: EventStorageReaderPointer):
         found = False
@@ -147,10 +153,16 @@ class EventStorageReader:
     def write_info_to_state_file(self, pointer: EventStorageReaderPointer):
         try:
             state_file_node = {'file': pointer.get_file(), 'position': pointer.get_line()}
-            with open(self.files.get_state_file(), 'w') as outfile:
+            with open(self.settings.get_data_folder_path() + self.files.get_state_file(), 'w') as outfile:
                 json.dump(state_file_node, outfile)
         except IOError as e:
             log.warning("Failed to update state file!", e)
+
+    def delete_read_file(self, current_file):
+        if os.path.exists(self.settings.get_data_folder_path() + current_file):
+            os.remove(self.settings.get_data_folder_path() + current_file)
+            self.files.get_data_files().pop(0)
+            log.info("Cleanup old data file: {}!".format(current_file))
 
     def destroy(self):
         if self.buffered_reader is not None:
