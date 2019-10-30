@@ -3,6 +3,7 @@ thingsboard-client:
   port: 1883
   security:
     accessToken: FUH2Fonov6eajSHi0Zyw
+config_dir: /etc/thingsboard-gateway/config/
 storage:
   ## properties for memory storage
   type: memory
