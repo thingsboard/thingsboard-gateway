@@ -96,11 +96,11 @@ class TestStorage(unittest.TestCase):
         test_size = 3
 
         storage_test_config = {
-             "data_folder_path": "./thingsboard_gateway/storage/data/",
+             "data_folder_path": "./storage/data/",
              "max_files_count": 40,
              "max_records_per_file": 10,
              "max_records_between_fsync": 3,
-             "max_read_records_count": 10,
+             "max_read_records_count": 12,
              "no_records_sleep_interval": 5000
         }
         storage = FileEventStorage(storage_test_config)

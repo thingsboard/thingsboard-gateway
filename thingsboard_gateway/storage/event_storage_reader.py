@@ -71,7 +71,8 @@ class EventStorageReader:
                         self.new_pos = EventStorageReaderPointer(next_file, 0)
                     else:
                         # No more records to read for now
-                        continue
+                        break
+                        #continue
                         ###################
                 if line == b'':
                     break
