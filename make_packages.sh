@@ -28,6 +28,7 @@ if [ "$1" != "only_clean" ] ; then
   # Bulding Deb package
   dpkg-deb -b deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway/
   cp deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway.deb .
+  cp python3-thingsboard-gateway.deb docker/
   # Create sources for RPM Package
   echo 'Building sources RPM package'
   python3 setup.py bdist_rpm

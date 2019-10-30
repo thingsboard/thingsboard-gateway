@@ -21,7 +21,7 @@ sudo chown thingsboard_gateway:thingsboard_gateway /var/log/thingsboard-gateway/
 sudo chown thingsboard_gateway:thingsboard_gateway /etc/thingsboard-gateway/ -R
 echo "Installation completed"
 echo "Enabling daemon..."
-sudo systemctl enable thingsboard-gateway
+sudo pidof systemd && sudo systemctl enable thingsboard-gateway || echo "Systemctl not found"
 #echo "Daemon starting..."
-sudo systemctl start thingsboard-gateway
+sudo pidof systemd && sudo systemctl start thingsboard-gateway || echo
 echo "Thingsboard Gateway has been installed. Have a nice day :)"
