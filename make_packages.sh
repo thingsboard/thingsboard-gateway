@@ -15,6 +15,7 @@ fi
 CURRENT_USER=$USER
 
 if [ "$1" != "only_clean" ] ; then
+  echo "Building DEB package"
   # Create sources for DEB package
   python3 setup.py --command-packages=stdeb.command bdist_deb
   # Adding the files, scripts and permissions
@@ -30,7 +31,7 @@ if [ "$1" != "only_clean" ] ; then
   cp deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway.deb .
   cp python3-thingsboard-gateway.deb docker/
   # Create sources for RPM Package
-  echo 'Building sources RPM package'
+  echo 'Building RPM package'
   python3 setup.py bdist_rpm
   cp build/bdist.linux-x86_64/rpm/* /home/$CURRENT_USER/rpmbuild/ -r
   # Adding the file, scripts and permissions
@@ -44,4 +45,11 @@ if [ "$1" != "only_clean" ] ; then
   rpmbuild -ba thingsboard-gateway.spec
   cp /home/$CURRENT_USER/rpmbuild/RPMS/noarch/*.rpm .
 #  sudo apt install ./deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway.deb -y
+  echo "Building Docker image, container and run it"
+  cp -r for_build/etc/thingsboard-gateway/config docker/
+  cp -r for_build/etc/thingsboard-gateway/extensions docker/
+  cd docker
+  sudo docker build -t thingsboard_gateway .
+  sudo docker run -d -it --mount type=bind,source="$(pwd)""/logs",target=/var/log/thingsboard-gateway -v config:/etc/thingsboard-gateway/config -v extensions:/var/lib/thingsboard_gateway/extensions --name tb_gateway thingsboard_gateway
+  sudo docker ps -a | grep tb_gateway
 fi
