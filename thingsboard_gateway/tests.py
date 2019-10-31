@@ -94,13 +94,13 @@ class TestStorage(unittest.TestCase):
 
     def test_file_storage(self):
 
-        test_size = 1
+        test_size = 37
 
         storage_test_config = {
              "data_folder_path": "thingsboard_gateway/storage/data/",
              "max_files_count": 40,
              "max_records_per_file": 10,
-             "max_read_records_count": 12,
+             "max_read_records_count": 10,
              "no_records_sleep_interval": 5000
         }
         storage = FileEventStorage(storage_test_config)
@@ -109,7 +109,7 @@ class TestStorage(unittest.TestCase):
             "data_folder_path": "thingsboard_gateway/storage/data_out/",
             "max_files_count": 40,
             "max_records_per_file": 10,
-            "max_read_records_count": 12,
+            "max_read_records_count": 10,
             "no_records_sleep_interval": 5000
         }
         storage_out = FileEventStorage(storage_out_test_config)
