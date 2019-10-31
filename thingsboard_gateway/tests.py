@@ -94,23 +94,21 @@ class TestStorage(unittest.TestCase):
 
     def test_file_storage(self):
 
-        test_size = 3
+        test_size = 1
 
         storage_test_config = {
-             "data_folder_path": "./storage/data/",
+             "data_folder_path": "thingsboard_gateway/storage/data/",
              "max_files_count": 40,
              "max_records_per_file": 10,
-             "max_records_between_fsync": 3,
              "max_read_records_count": 12,
              "no_records_sleep_interval": 5000
         }
         storage = FileEventStorage(storage_test_config)
 
         storage_out_test_config = {
-            "data_folder_path": "./storage/data_out/",
+            "data_folder_path": "thingsboard_gateway/storage/data_out/",
             "max_files_count": 40,
             "max_records_per_file": 10,
-            "max_records_between_fsync": 3,
             "max_read_records_count": 12,
             "no_records_sleep_interval": 5000
         }
@@ -140,7 +138,7 @@ class TestStorage(unittest.TestCase):
         '''
 
         result = []
-        for _ in range(3):
+        for _ in range(test_size):
             batch = storage.get_event_pack()
             result.append(batch)
             for msg in batch:

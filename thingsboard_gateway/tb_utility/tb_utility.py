@@ -54,10 +54,10 @@ class TBUtility:
         try:
             if os.path.exists('/var/lib/thingsboard_gateway/extensions/'+extension_type.lower()):
                 custom_converter_path = '/var/lib/thingsboard_gateway/extensions/' + extension_type.lower()
-                log.info('Connector %s - configuration for custom converter found in %s', extension_type, custom_converter_path)
+                log.info('Connector %s - configuration for custom converter looking in %s', extension_type, custom_converter_path)
             else:
-                custom_converter_path = os.path.abspath(os.path.abspath(__file__).parent() + '/extensions' + extension_type.lower())
-                log.info('Connector %s - configuration for custom converter found in %s', extension_type, custom_converter_path)
+                custom_converter_path = os.path.abspath(os.path.dirname(os.path.dirname(__file__)) + '/extensions/' + extension_type.lower())
+                log.info('Connector %s - configuration for custom converter looking in %s', extension_type, custom_converter_path)
             for file in os.listdir(custom_converter_path):
                 if not file.startswith('__') and file.endswith('.py'):
                     # mod = 'extensions.'+extension_type.lower()+'.'+file.replace('.py', '')

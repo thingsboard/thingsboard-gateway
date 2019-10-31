@@ -13,7 +13,6 @@ storage:
 #  data_folder_path: ./data/
 #  max_file_count: 5
 #  max_read_records_count: 6
-#  max_records_between_fsync: 2
 #  max_records_per_file: 14
 #  no_records_sleep_interval: 5000
 connectors:
