@@ -40,13 +40,13 @@ class MqttConnector(Connector, Thread):
         self._client = Client(client_id)
         self.setName(self.__broker.get("name",
                                        'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5))))
-        if self.__broker["credentials"]["type"] == "basic":
-            self._client.username_pw_set(self.__broker["credentials"]["username"],
-                                         self.__broker["credentials"]["password"])
-        elif self.__broker["credentials"]["type"] == "cert.PEM":
-            ca_cert = self.__broker["credentials"].get("caCert")
-            private_key = self.__broker["credentials"].get("privateKey")
-            cert = self.__broker["credentials"].get("cert")
+        if self.__broker["security"]["type"] == "basic":
+            self._client.username_pw_set(self.__broker["security"]["username"],
+                                         self.__broker["security"]["password"])
+        elif self.__broker["security"]["type"] == "cert.PEM":
+            ca_cert = self.__broker["security"].get("caCert")
+            private_key = self.__broker["security"].get("privateKey")
+            cert = self.__broker["security"].get("cert")
             if ca_cert is None or cert is None:
                 log.error("caCert and cert parameters must be in config if you need to use the SSL. Please add it and try again.")
             else:

@@ -3,7 +3,7 @@
     "name":"Default Broker",
     "host":"demo.thingsboard.io",
     "port":1883,
-    "credentials": {
+    "security": {
       "type": "basic",
       "username": "ND73wnfiU5Gfs2aPWytN",
       "password": ""
