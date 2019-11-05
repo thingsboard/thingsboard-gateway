@@ -103,7 +103,7 @@ class TestStorage(unittest.TestCase):
              "max_read_records_count": 10,
              "no_records_sleep_interval": 5000
         }
-        storage = FileEventStorage(storage_test_config)
+        storage = FileEventStorage('storage', storage_test_config)
 
         storage_out_test_config = {
             "data_folder_path": "thingsboard_gateway/storage/data_out/",
@@ -112,7 +112,7 @@ class TestStorage(unittest.TestCase):
             "max_read_records_count": 10,
             "no_records_sleep_interval": 5000
         }
-        storage_out = FileEventStorage(storage_out_test_config)
+        storage_out = FileEventStorage('storage_out', storage_out_test_config)
 
         for test_value in range(test_size * 10):
             storage.put(str(test_value))
@@ -141,9 +141,9 @@ class TestStorage(unittest.TestCase):
         for _ in range(test_size):
             batch = storage.get_event_pack()
             result.append(batch)
+            storage.event_pack_processing_done()
             for msg in batch:
                 storage_out.put(msg)
-            storage.event_pack_processing_done()
             storage_out.flush_writer()
 
         correct_result = [[str(x) for x in range(y*10, (y+1)*10)] for y in range(test_size)]

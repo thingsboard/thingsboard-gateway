@@ -26,14 +26,14 @@ log = logging.getLogger(__name__)
 
 
 class FileEventStorage(EventStorage):
-    def __init__(self, config):
+    def __init__(self, name, config):
         self.settings = FileEventStorageSettings(config)
         self.init_data_folder_if_not_exist()
         self.event_storage_files = self.init_data_files()
         self.data_files = self.event_storage_files.get_data_files()
         self.state_file = self.event_storage_files.get_state_file()
-        self.__writer = EventStorageWriter(self.event_storage_files, self.settings)
-        self.__reader = EventStorageReader(self.event_storage_files, self.settings)
+        self.__writer = EventStorageWriter(name, self.event_storage_files, self.settings)
+        self.__reader = EventStorageReader(name, self.event_storage_files, self.settings)
 
     def put(self, event):
         self.__writer.write(event)

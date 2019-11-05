@@ -27,7 +27,8 @@ log = logging.getLogger(__name__)
 
 
 class EventStorageReader:
-    def __init__(self, files: EventStorageFiles, settings: FileEventStorageSettings):
+    def __init__(self, name, files: EventStorageFiles, settings: FileEventStorageSettings):
+        self.name = name
         self.files = files
         self.settings = settings
         self.current_batch = None
@@ -36,7 +37,7 @@ class EventStorageReader:
         self.new_pos = copy.deepcopy(self.current_pos)
 
     def read(self):
-        log.debug("[{}:{}] Check for new messages in storage".format(self.new_pos.get_file(), self.new_pos.get_line()))
+        log.debug("{} -- [{}:{}] Check for new messages in storage".format(str(self.name) + '_reader', self.new_pos.get_file(), self.new_pos.get_line()))
         if self.current_batch is not None and self.current_pos != self.new_pos:
             log.debug("The previous batch was not discarded!")
             return self.current_batch
@@ -83,7 +84,7 @@ class EventStorageReader:
             except IOError as e:
                 log.warning("[{}] Failed to read file!".format(self.new_pos.get_file(), e))
                 break
-        log.debug("Got {} messages from storage".format(len(self.current_batch)))
+        log.debug("{} -- Got {} messages from storage".format(str(self.name) + '_reader', len(self.current_batch)))
         return self.current_batch
 
     def discard_batch(self):
@@ -147,7 +148,7 @@ class EventStorageReader:
         if reader_file is None:
             reader_file = sorted(self.files.get_data_files())[0]
             reader_pos = 0
-        log.info("Initializing from state file: [{}:{}]".format(
+        log.info("{} -- Initializing from state file: [{}:{}]".format(str(self.name) + '_reader',
             self.settings.get_data_folder_path() + reader_file, reader_pos))
         return EventStorageReaderPointer(reader_file, reader_pos)
 
@@ -163,7 +164,7 @@ class EventStorageReader:
         if os.path.exists(self.settings.get_data_folder_path() + current_file):
             os.remove(self.settings.get_data_folder_path() + current_file)
             self.files.get_data_files().pop(0)
-            log.info("Cleanup old data file: {}!".format(current_file))
+            log.info("{} -- Cleanup old data file: {}!".format(str(self.name) + '_reader', current_file))
 
     def destroy(self):
         if self.buffered_reader is not None:

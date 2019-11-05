@@ -24,7 +24,8 @@ log = logging.getLogger(__name__)
 
 
 class EventStorageWriter:
-    def __init__(self, files: EventStorageFiles, settings: FileEventStorageSettings):
+    def __init__(self, name, files: EventStorageFiles, settings: FileEventStorageSettings):
+        self.name = name
         self.files = files
         self.settings = settings
         self.buffered_writer = None
@@ -37,11 +38,11 @@ class EventStorageWriter:
         self.new_record_after_flush = True
         if self.is_file_full(self.current_file_records_count):
             if log.getEffectiveLevel() == 10:
-                log.debug("File [{}] is full with [{}] records".format(self.current_file,
+                log.debug("{} -- File [{}] is full with [{}] records".format(str(self.name) + '_writer', self.current_file,
                                                                        self.current_file_records_count))
             try:
                 self.current_file = self.create_datafile()
-                log.debug("Created new data file: {}".format(self.current_file))
+                log.debug("{} -- Created new data file: {}".format(str(self.name) + '_writer', self.current_file))
             except IOError as e:
                 log.error("Failed to create a new file!", e)
                 # TODO implement callback
@@ -71,10 +72,10 @@ class EventStorageWriter:
             self.buffered_writer = self.get_or_init_buffered_writer(self.current_file)
             self.buffered_writer.write(encoded)
             self.buffered_writer.write(os.linesep.encode('utf-8'))
-            log.debug("Record written to: [{}:{}]".format(self.current_file, self.current_file_records_count))
+            log.debug("{} -- Record written to: [{}:{}]".format(str(self.name) + '_writer', self.current_file, self.current_file_records_count))
             self.current_file_records_count += 1
             if self.current_file_records_count % self.settings.get_max_records_between_fsync() == 0:
-                log.debug("Executing flush of the full pack!")
+                log.debug("{} -- Executing flush of the full pack!".format(str(self.name) + '_writer'))
                 self.buffered_writer.flush()
                 #self.new_record_after_flush = False
         except IOError as e:
@@ -90,7 +91,7 @@ class EventStorageWriter:
         if self.new_record_after_flush:
             if self.buffered_writer is not None:
                 try:
-                    log.debug("Executing flush of the temporary pack!")
+                    log.debug("{} -- Executing flush of the temporary pack!".format(str(self.name) + '_writer'))
                     self.buffered_writer.flush()
                     self.buffered_writer.close()
                     self.new_record_after_flush = False
