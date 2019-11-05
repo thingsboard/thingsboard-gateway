@@ -37,7 +37,7 @@ class EventStorageReader:
         self.new_pos = copy.deepcopy(self.current_pos)
 
     def read(self):
-        log.debug("{} -- [{}:{}] Check for new messages in storage".format(str(self.name) + '_reader', self.new_pos.get_file(), self.new_pos.get_line()))
+        log.debug("{} -- [{}:{}] Check for new messages in storage".format(str(self.name) + '_reader', self.settings.get_data_folder_path() + self.new_pos.get_file(), self.new_pos.get_line()))
         if self.current_batch is not None and self.current_pos != self.new_pos:
             log.debug("The previous batch was not discarded!")
             return self.current_batch
@@ -164,7 +164,7 @@ class EventStorageReader:
         if os.path.exists(self.settings.get_data_folder_path() + current_file):
             os.remove(self.settings.get_data_folder_path() + current_file)
             self.files.get_data_files().pop(0)
-            log.info("{} -- Cleanup old data file: {}!".format(str(self.name) + '_reader', current_file))
+            log.info("{} -- Cleanup old data file: {}!".format(str(self.name) + '_reader', self.settings.get_data_folder_path() + current_file))
 
     def destroy(self):
         if self.buffered_reader is not None:
