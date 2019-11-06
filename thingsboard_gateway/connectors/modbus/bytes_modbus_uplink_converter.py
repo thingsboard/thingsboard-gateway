@@ -28,7 +28,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
         for config_data in data:
             if self.__result.get(config_data) is None:
                 self.__result[config_data] = []
-            for tag in data[config_data]:
+            for tag_indx, tag in enumerate(data[config_data]):
                 data_sent = data[config_data][tag]["data_sent"]
                 input_data = data[config_data][tag]["input_data"]
                 log.debug("Called convert function from %s with args", self.__class__.__name__)
@@ -48,9 +48,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
                     reg_count = data_sent.get("registerCount", 1)
                     type_of_data = data_sent["type"]
                     if byte_order == "LITTLE":
-                        decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Little)
+                        decoder = BinaryPayloadDecoder.fromRegisters([result[tag_indx]], byteorder=Endian.Little)
                     elif byte_order == "BIG":
-                        decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Big)
+                        decoder = BinaryPayloadDecoder.fromRegisters([result[tag_indx]], byteorder=Endian.Big)
                     else:
                         log.warning("byte order is not BIG or LITTLE")
                         continue

@@ -154,8 +154,12 @@ class TBGatewayService:
                                                "current_event",
                                                current_event["deviceName"])
                         if current_event.get("telemetry"):
-                            data_to_send = loads('{"ts": %f,"values": %s}' % (int(time.time()*1000),
-                                                                              ','.join(dumps(param) for param in current_event["telemetry"])))
+                            items = []
+                            for param in current_event["telemetry"]:
+                                for key in param:
+                                    items.append("\"" + str(key) + "\"" + ":" + str(param[key]))
+                            telemetry = "{" + ' , '.join(items) + "}"
+                            data_to_send = loads('{"ts": %f,"values": %s}' % (int(time.time()*1000), telemetry))
                             self.__published_events.append(self.tb_client.client.gw_send_telemetry(current_event["deviceName"],
                                                                                                    data_to_send))
                         if current_event.get("attributes"):
