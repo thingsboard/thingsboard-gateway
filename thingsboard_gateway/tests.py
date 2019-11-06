@@ -94,22 +94,22 @@ class TestStorage(unittest.TestCase):
 
     def test_file_storage(self):
 
-        test_size = 37
+        test_size = 13
 
         storage_test_config = {
              "data_folder_path": "thingsboard_gateway/storage/data/",
-             "max_files_count": 40,
-             "max_records_per_file": 10,
-             "max_read_records_count": 10,
+             "max_files_count": 2000,
+             "max_records_per_file": 50,
+             "max_read_records_count": 12,
              "no_records_sleep_interval": 5000
         }
         storage = FileEventStorage('storage', storage_test_config)
 
         storage_out_test_config = {
             "data_folder_path": "thingsboard_gateway/storage/data_out/",
-            "max_files_count": 40,
-            "max_records_per_file": 10,
-            "max_read_records_count": 10,
+            "max_files_count": 2000,
+            "max_records_per_file": 50,
+            "max_read_records_count": 12,
             "no_records_sleep_interval": 5000
         }
         storage_out = FileEventStorage('storage_out', storage_out_test_config)
@@ -141,12 +141,15 @@ class TestStorage(unittest.TestCase):
         for _ in range(test_size):
             batch = storage.get_event_pack()
             result.append(batch)
-            storage.event_pack_processing_done()
             for msg in batch:
                 storage_out.put(msg)
-            storage_out.flush_writer()
+            if storage_out.file_full():
+                storage_out.flush_writer()
+            storage.event_pack_processing_done()
+
 
         correct_result = [[str(x) for x in range(y*10, (y+1)*10)] for y in range(test_size)]
+
         print(result)
         print(correct_result)
         self.assertListEqual(result, correct_result)

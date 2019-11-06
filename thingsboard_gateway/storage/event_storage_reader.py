@@ -88,13 +88,17 @@ class EventStorageReader:
         return self.current_batch
 
     def discard_batch(self):
+        if (self.current_pos.get_line() + self.settings.get_max_read_records_count()) >= self.settings.get_max_records_per_file():
+        #if self.current_pos.get_file() != self.new_pos.get_file():
+            if self.buffered_reader is not None:
+                self.buffered_reader.flush()
+                self.buffered_reader.close()
+            self.delete_read_file(self.current_pos.get_file())
         self.current_pos = copy.deepcopy(self.new_pos)
         self.write_info_to_state_file(self.current_pos)
         self.current_batch = None
         # TODO add logging of flushing reader with try expression
-        if self.buffered_reader is not None:
-            self.buffered_reader.flush()
-            self.buffered_reader.close()
+
 
     def get_next_file(self, files: EventStorageFiles, new_pos: EventStorageReaderPointer):
         found = False
