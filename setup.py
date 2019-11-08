@@ -34,7 +34,7 @@ setup(
         'PyYAML',
         'six'
     ],
-    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.1rc-python.tar.gz',
+    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/rc2.0.2-python.tar.gz',
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'

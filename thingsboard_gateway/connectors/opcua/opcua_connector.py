@@ -27,6 +27,8 @@ from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUpl
 
 class OpcUaConnector(Thread, Connector):
     def __init__(self, gateway, config):
+        self.statistics = {'MessagesReceived': 0,
+                           'MessagesSent': 0}
         Thread.__init__(self)
         self.__gateway = gateway
         self.__server_conf = config.get("server")
@@ -73,6 +75,9 @@ class OpcUaConnector(Thread, Connector):
         self.__stopped = False
         self.__connected = False
         self.daemon = True
+
+    def is_connected(self):
+        return self.__connected
 
     def open(self):
         self.__stopped = False
@@ -263,7 +268,9 @@ class SubHandler(object):
             log.debug("Python: New data change event on node %s, with val: %s", node, val)
             subscription = self.connector.subscribed[node]
             converted_data = subscription["converter"].convert(subscription["path"], val)
+            self.connector.statistics['MessagesReceived'] += 1
             self.connector.data_to_send.append(converted_data)
+            self.connector.statistics['MessagesSent'] += 1
             log.debug("Data to ThingsBoard: %s", converted_data)
         except Exception as e:
             log.exception(e)

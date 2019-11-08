@@ -69,11 +69,26 @@ class TBGatewayService:
             self.__send_thread.start()
 
             try:
+                gateway_statistic_send = 0
                 while True:
                     for rpc_in_progress in self.__rpc_requests_in_progress:
                         if time.time() >= self.__rpc_requests_in_progress[rpc_in_progress][1]:
                             self.__rpc_requests_in_progress[rpc_in_progress][2](rpc_in_progress)
                             self.cancel_rpc_request(rpc_in_progress)
+
+                    if time.time() - gateway_statistic_send >= 60000:
+                        summary_messages = {"SummaryReceived": 0, "SummarySent": 0}
+                        telemetry = {}
+                        for connector in self.available_connectors:
+                            # if self.available_connectors[connector].is_connected():
+                            telemetry[(connector+' MessagesReceived').replace(' ', '')] = self.available_connectors[connector].statistics['MessagesReceived']
+                            telemetry[(connector+' MessagesSent').replace(' ', '')] = self.available_connectors[connector].statistics['MessagesSent']
+                            self.tb_client.client.send_telemetry(telemetry)
+                            summary_messages['SummaryReceived'] += telemetry[(connector+' MessagesReceived').replace(' ', '')]
+                            summary_messages['SummarySent'] += telemetry[(connector+' MessagesSent').replace(' ', '')]
+                        self.tb_client.client.send_telemetry(summary_messages)
+                        gateway_statistic_send = time.time()
+
                     time.sleep(.1)
             except Exception as e:
                 log.exception(e)
@@ -114,6 +129,9 @@ class TBGatewayService:
                         connector.open()
                     except Exception as e:
                         log.exception(e)
+
+    def __send_statistic(self):
+        self.tb_client.client.gw_send_telemetry()
 
     def send_to_storage(self, connector_name, data):
         self._send_to_storage(connector_name, data)

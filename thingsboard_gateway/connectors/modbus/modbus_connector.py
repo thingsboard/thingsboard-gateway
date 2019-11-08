@@ -28,6 +28,8 @@ from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter impor
 
 class ModbusConnector(Connector, threading.Thread):
     def __init__(self, gateway, config):
+        self.statistics = {'MessagesReceived': 0,
+                           'MessagesSent': 0}
         super(Connector, self).__init__()
         super(threading.Thread, self).__init__()
         self.__gateway = gateway
@@ -41,6 +43,9 @@ class ModbusConnector(Connector, threading.Thread):
         self.__connected = False
         self.__stopped = False
         self.daemon = True
+
+    def is_connected(self):
+        return self.__connected
 
     def open(self):
         self.__stopped = False
@@ -119,7 +124,9 @@ class ModbusConnector(Connector, threading.Thread):
                             converted_data = self.__devices[device]["converter"].convert(device_responses)
 
                             if converted_data["telemetry"] != self.__devices[device]["telemetry"] or\
-                               converted_data["attributes"] != self.__devices[device]["attributes"]:
+                               converted_data["attributes"] != self.__devices[device]["attributes"] and\
+                               self.__server_conf.get("sendDataOnlyOnChange") == True:
+                                self.statistics['MessagesReceived'] += 1
                                 to_send = {"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
                                 if converted_data["telemetry"] != self.__devices[device]["telemetry"]:
                                     self.__devices[device]["last_telemetry"] = converted_data["telemetry"]
@@ -128,6 +135,18 @@ class ModbusConnector(Connector, threading.Thread):
                                     self.__devices[device]["last_telemetry"] = converted_data["attributes"]
                                     to_send["attributes"] = converted_data["attributes"]
                                 self.__gateway.send_to_storage(self.get_name(), to_send)
+                                self.statistics['MessagesSent'] += 1
+                            elif self.__server_conf.get("sendDataOnlyOnChange") == False:
+                                self.statistics['MessagesReceived'] += 1
+                                to_send = {"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
+                                if converted_data["telemetry"] != self.__devices[device]["telemetry"]:
+                                    self.__devices[device]["last_telemetry"] = converted_data["telemetry"]
+                                    to_send["telemetry"] = converted_data["telemetry"]
+                                if converted_data["attributes"] != self.__devices[device]["attributes"]:
+                                    self.__devices[device]["last_telemetry"] = converted_data["attributes"]
+                                    to_send["attributes"] = converted_data["attributes"]
+                                self.__gateway.send_to_storage(self.get_name(), to_send)
+                                self.statistics['MessagesSent'] += 1
             except ConnectionException:
                 log.error("Connection lost! Trying to reconnect")
             except Exception as e:

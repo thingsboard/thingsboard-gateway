@@ -28,6 +28,8 @@ from json import loads
 class MqttConnector(Connector, Thread):
     def __init__(self, gateway, config):
         super().__init__()
+        self.statistics = {'MessagesReceived': 0,
+                           'MessagesSent': 0}
         self.__gateway = gateway
         self.__broker = config.get('broker')
         self.__mapping = config.get('mapping')
@@ -58,8 +60,7 @@ class MqttConnector(Connector, Thread):
                                          tls_version=ssl.PROTOCOL_TLSv1_2,
                                          ciphers=None)
                 except Exception as e:
-                    log.error("Cannot setup connection to broker %s using SSL. Please check your configuration.\n\
-                              Error: %s",
+                    log.error("Cannot setup connection to broker %s using SSL. Please check your configuration.\nError: %s",
                               self.get_name(),
                               e)
                 self._client.tls_insecure_set(False)
@@ -72,6 +73,9 @@ class MqttConnector(Connector, Thread):
         self._connected = False
         self.__stopped = False
         self.daemon = True
+
+    def is_connected(self):
+        return self._connected
 
     def open(self):
         self.__stopped = False
@@ -140,8 +144,7 @@ class MqttConnector(Connector, Thread):
                                 log.debug('Custom converter for topic %s - found!', mapping["topicFilter"])
                                 converter = module(mapping)
                             else:
-                                log.error("\n\nCannot find extension module for %s topic.\n\
-                                           Please check your configuration.\n", mapping["topicFilter"])
+                                log.error("\n\nCannot find extension module for %s topic.\n\Please check your configuration.\n", mapping["topicFilter"])
                         except Exception as e:
                             log.exception(e)
                     else:
@@ -200,6 +203,7 @@ class MqttConnector(Connector, Thread):
                 self.__attribute_updates = config[service_config]
 
     def _on_message(self, client, userdata, message):
+        self.statistics['MessagesReceived'] += 1
         content = self._decode(message)
         regex_topic = [regex for regex in self.__sub_topics if re.fullmatch(regex, message.topic)]
         if regex_topic:
@@ -218,6 +222,7 @@ class MqttConnector(Connector, Thread):
                                         self.__gateway.add_device(converted_content["deviceName"], {"connector": None})
                                     self.__gateway.update_device(converted_content["deviceName"], "connector", self)
                                     self.__gateway.send_to_storage(self.get_name(), converted_content)
+                                    self.statistics['MessagesSent'] += 1
                                 else:
                                     continue
                         else:
