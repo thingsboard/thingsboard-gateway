@@ -94,57 +94,25 @@ class TestStorage(unittest.TestCase):
 
     def test_file_storage(self):
 
-        test_size = 5
+        test_size = randint(0, 100)
 
         storage_test_config = {
              "data_folder_path": "thingsboard_gateway/storage/data/",
-             "max_files_count": 2000,
+             "max_files_count": 100,
              "max_records_per_file": 10,
              "max_read_records_count": 10,
              "no_records_sleep_interval": 5000
         }
         storage = FileEventStorage('storage', storage_test_config)
 
-        storage_out_test_config = {
-            "data_folder_path": "thingsboard_gateway/storage/data_out/",
-            "max_files_count": 2000,
-            "max_records_per_file": 10,
-            "max_read_records_count": 10,
-            "no_records_sleep_interval": 5000
-        }
-        storage_out = FileEventStorage('storage_out', storage_out_test_config)
-
         for test_value in range(test_size * 10):
             storage.put(str(test_value))
 
-        '''
-                def writer():
-            for test_value in range(test_size * 10):
-                storage.put(str(test_value))
-
-        def reader():
-            global result
-            result = []
-            for _ in range(3):
-                result.append(storage.get_event_pack())
-                storage.event_pack_processing_done()
-            return result
-
-        write_thread = threading.Thread(name='write thread', target=writer)
-        read_thread = threading.Thread(name='read thread', target=reader)
-
-        write_thread.start()
-        read_thread.start()
-        '''
 
         result = []
         for _ in range(test_size):
             batch = storage.get_event_pack()
             result.append(batch)
-            for msg in batch:
-                storage_out.put(msg)
-            if storage_out.file_full():
-                storage_out.flush_writer()
             storage.event_pack_processing_done()
 
 
