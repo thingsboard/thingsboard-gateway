@@ -116,13 +116,14 @@ class EventStorageWriter:
         file_path = self.settings.get_data_folder_path() + prefix + filename + '.txt'
         try:
             file = open(file_path, 'w')
+            time.sleep(.01)
             file.close()
             return prefix + filename + '.txt'
         except IOError as e:
             log.error("Failed to create a new file!", e)
 
     def get_number_of_records_in_file(self, file):
-        if self.current_file_records_count == 0:
+        if self.current_file_records_count <= 0:
             try:
                 with open(self.settings.get_data_folder_path() + file) as f:
                     for i, l in enumerate(f):

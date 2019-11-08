@@ -9,3 +9,5 @@ thingsboard_gateway/storage/data/
 /build/
 /deb_dist/
 /dist/
+/.mypy_cache/
+/thingsboard_gateway/storage/data_out/

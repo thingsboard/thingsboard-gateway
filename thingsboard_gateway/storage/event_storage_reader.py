@@ -63,7 +63,7 @@ class EventStorageReader:
                     if records_to_read == 0:
                         break
 
-                if current_line_in_file == self.settings.get_max_records_per_file():
+                if current_line_in_file >= self.settings.get_max_records_per_file():
                     next_file = self.get_next_file(self.files, self.new_pos)
                     if next_file is not None:
                         if self.buffered_reader is not None:
