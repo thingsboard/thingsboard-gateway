@@ -15,9 +15,12 @@
  */
 package org.thingsboard.gateway.util;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tomcat.util.codec.binary.Base64;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.*;
@@ -31,19 +34,32 @@ public class ConfigurationTools {
 
     private static final ObjectMapper mapper = new ObjectMapper();
 
-    public static <T> T readConfiguration(String configurationFile, Class<T> clazz) throws IOException {
+    public static <T> T readConfiguration(JsonNode configurationNode, Class<T> clazz) throws IOException {
         try {
-            return mapper.readValue(getResourceAsStream(configurationFile), clazz);
+            return mapper.treeToValue(configurationNode, clazz);
+        } catch (IOException e) {
+            log.error("Failed to load {} configuration from {}", clazz, configurationNode);
+            throw e;
+        }
+    }
+
+    public static <T> T readFileConfiguration(String configurationFile, Class<T> clazz) throws IOException {
+        try {
+            return mapper.readValue(getFileAsStream(configurationFile), clazz);
         } catch (IOException e) {
             log.error("Failed to load {} configuration from {}", clazz, configurationFile);
             throw e;
         }
     }
 
-    public static CertificateInfo loadCertificate(KeystoreConfiguration configuration) throws GeneralSecurityException, IOException {
+    public static CertificateInfo loadCertificate(KeystoreConfiguration configuration, Boolean isRemote) throws GeneralSecurityException, IOException {
         try {
             KeyStore keyStore = KeyStore.getInstance(configuration.getType());
-            keyStore.load(getResourceAsStream(configuration.getLocation()), configuration.getPassword().toCharArray());
+            if (isRemote) {
+                keyStore.load(getResourceAsStream(configuration.getFileContent()), configuration.getPassword().toCharArray());
+            } else {
+                keyStore.load(getFileAsStream(configuration.getLocation()), configuration.getPassword().toCharArray());
+            }
 
             Key key = keyStore.getKey(configuration.getAlias(), configuration.getKeyPassword().toCharArray());
             if (key instanceof PrivateKey) {
@@ -60,7 +76,12 @@ public class ConfigurationTools {
         }
     }
 
-    private static InputStream getResourceAsStream(String configurationFile) {
+    private static InputStream getResourceAsStream(String fileContent) {
+        byte[] decoded = Base64.decodeBase64(fileContent);
+        return new ByteArrayInputStream(decoded);
+    }
+
+    private static InputStream getFileAsStream(String configurationFile) {
         return ConfigurationTools.class.getClassLoader().getResourceAsStream(configurationFile);
     }
 }

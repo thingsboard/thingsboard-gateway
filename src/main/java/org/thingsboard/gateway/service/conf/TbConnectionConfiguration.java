@@ -16,22 +16,21 @@
 package org.thingsboard.gateway.service.conf;
 
 import lombok.Data;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
-import org.thingsboard.gateway.service.MqttGatewaySecurityConfiguration;
+import org.thingsboard.gateway.service.gateway.MqttGatewaySecurityConfiguration;
 
 /**
  * Created by ashvayka on 18.01.17.
  */
-@Configuration
-@ConfigurationProperties(prefix = "gateway.connection")
 @Data
 public class TbConnectionConfiguration {
 
     private String host;
     private int port;
     private long retryInterval;
+    private long connectionTimeout;
     private int maxInFlight;
+    private int maxQueueSize;
+    private int incomingQueueWarningThreshold;
     private MqttGatewaySecurityConfiguration security;
 
 }

@@ -20,9 +20,6 @@ import lombok.ToString;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.springframework.util.StringUtils;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 /**
  * Created by ashvayka on 16.01.17.
  */

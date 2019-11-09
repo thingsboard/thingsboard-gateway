@@ -47,7 +47,7 @@ public class MqttDeviceStateChangeMessageListener extends AbstractJsonConverter 
     @Override
     public void messageArrived(String topic, MqttMessage msg) throws Exception {
         try {
-            String deviceName = null;
+            String deviceName;
             String deviceType = null;
             if (!StringUtils.isEmpty(mapping.getDeviceNameTopicExpression())) {
                 deviceName = eval(topic);
@@ -57,12 +57,12 @@ public class MqttDeviceStateChangeMessageListener extends AbstractJsonConverter 
                 deviceName = eval(document, mapping.getDeviceNameJsonExpression());
             }
 
-            if (!StringUtils.isEmpty(mapping.getDeviceTypeJsonExpression())) {
+            if (!StringUtils.isEmpty(mapping.getDeviceTypeTopicExpression())) {
                 deviceType = eval(topic);
-            } else if (!StringUtils.isEmpty(mapping.getDeviceTypeTopicExpression())) {
+            } else if (!StringUtils.isEmpty(mapping.getDeviceTypeJsonExpression())) {
                 String data = new String(msg.getPayload(), StandardCharsets.UTF_8);
                 DocumentContext document = JsonPath.parse(data);
-                deviceType = eval(document, mapping.getDeviceTypeTopicExpression());
+                deviceType = eval(document, mapping.getDeviceTypeJsonExpression());
             }
 
             if (deviceName != null) {

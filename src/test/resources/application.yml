@@ -1,5 +1,5 @@
 #
-# Copyright © ${project.inceptionYear}-2017 The Thingsboard Authors
+# Copyright © 2017 The Thingsboard Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,16 +14,49 @@
 # limitations under the License.
 #
 
-thingsboard:
-  connection:
-    host: localhost
-    port: 8883
-    retryInterval: 3000
-    maxInFlight: 1000
-    security:
-      type: token
-      accessToken: gateway
+server:
+  # Server bind address
+  address: "0.0.0.0"
+  # Server bind port
+  port: "9090"
 
-opc:
-  enabled: false
-  configuration: opc-config.json
+# Check new version updates parameters
+updates:
+  # Enable/disable updates checking.
+  enabled: "${UPDATES_ENABLED:true}"
+
+gateways:
+  tenants:
+    -
+      label: "Tenant"
+      reporting:
+        interval: 60000
+      persistence:
+        type: file
+        path: storage
+        bufferSize: 1000
+      connection:
+        host: "${GATEWAY_HOST:localhost}"
+        port: 7884
+        retryInterval: 3000
+        maxInFlight: 1000
+        security:
+          accessToken: "${GATEWAY_ACCESS_TOKEN:YOUR_TOKEN}"
+      remoteConfiguration: false
+      extensions:
+        -
+          id: "mqtt"
+          type: "MQTT"
+          extensionConfiguration: "${MQTT_CONFIG:mqtt-config.json}"
+
+test:
+  host: localhost
+mqtt:
+  broker:
+    external:
+      port: 7883
+      allowAnonymous: true
+    tb:
+      port: 7884
+      allowAnonymous: true
+  timeout: 10000

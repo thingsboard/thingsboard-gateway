@@ -16,18 +16,17 @@
 package org.thingsboard.gateway.extensions.mqtt.client.conf.mapping;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.Option;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.springframework.util.StringUtils;
-import org.thingsboard.gateway.util.converter.AbstractJsonConverter;
-import org.thingsboard.gateway.extensions.opc.conf.mapping.AttributesMapping;
-import org.thingsboard.gateway.extensions.common.conf.mapping.KVMapping;
-import org.thingsboard.gateway.extensions.opc.conf.mapping.TimeseriesMapping;
 import org.thingsboard.gateway.service.data.DeviceData;
+import org.thingsboard.gateway.util.converter.BasicJsonConverter;
 import org.thingsboard.server.common.data.kv.*;
 
 import java.nio.charset.StandardCharsets;
@@ -36,25 +35,22 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import java.text.ParseException;
+
 /**
  * Created by ashvayka on 23.01.17.
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Slf4j
-public class MqttJsonConverter extends AbstractJsonConverter implements MqttDataConverter {
+public class MqttJsonConverter extends BasicJsonConverter implements MqttDataConverter {
 
-    private String filterExpression;
-    private String deviceNameJsonExpression;
     private String deviceNameTopicExpression;
     private Pattern deviceNameTopicPattern;
 
-    private String deviceTypeJsonExpression;
     private String deviceTypeTopicExpression;
     private Pattern deviceTypeTopicPattern;
     private int timeout;
-    private final List<AttributesMapping> attributes;
-    private final List<TimeseriesMapping> timeseries;
 
     @Override
     public List<DeviceData> convert(String topic, MqttMessage msg) throws Exception {
@@ -88,10 +84,13 @@ public class MqttJsonConverter extends AbstractJsonConverter implements MqttData
         return parse(topic, srcList);
     }
 
-    private List<DeviceData> parse(String topic, List<String> srcList) {
+    private List<DeviceData> parse(String topic, List<String> srcList) throws ParseException{
         List<DeviceData> result = new ArrayList<>(srcList.size());
         for (String src : srcList) {
-            DocumentContext document = JsonPath.parse(src);
+            Configuration conf = Configuration.builder()
+                    .options(Option.SUPPRESS_EXCEPTIONS).build();
+
+            DocumentContext document = JsonPath.using(conf).parse(src);
             long ts = System.currentTimeMillis();
             String deviceName;
             String deviceType = null;
@@ -108,35 +107,8 @@ public class MqttJsonConverter extends AbstractJsonConverter implements MqttData
 
             if (!StringUtils.isEmpty(deviceName)) {
                 List<KvEntry> attrData = getKvEntries(document, attributes);
-                List<TsKvEntry> tsData = getKvEntries(document, timeseries).stream()
-                        .map(kv -> new BasicTsKvEntry(ts, kv))
-                        .collect(Collectors.toList());
+                List<TsKvEntry> tsData = getTsKvEntries(document, timeseries, ts);
                 result.add(new DeviceData(deviceName, deviceType, attrData, tsData, timeout));
-            }
-        }
-        return result;
-    }
-
-    private List<KvEntry> getKvEntries(DocumentContext document, List<? extends KVMapping> mappings) {
-        List<KvEntry> result = new ArrayList<>();
-        if (mappings != null) {
-            for (KVMapping mapping : mappings) {
-                String key = eval(document, mapping.getKey());
-                String strVal = eval(document, mapping.getValue());
-                switch (mapping.getType().getDataType()) {
-                    case STRING:
-                        result.add(new StringDataEntry(key, strVal));
-                        break;
-                    case BOOLEAN:
-                        result.add(new BooleanDataEntry(key, Boolean.valueOf(strVal)));
-                        break;
-                    case DOUBLE:
-                        result.add(new DoubleDataEntry(key, Double.valueOf(strVal)));
-                        break;
-                    case LONG:
-                        result.add(new LongDataEntry(key, Long.valueOf(strVal)));
-                        break;
-                }
             }
         }
         return result;
@@ -155,7 +127,7 @@ public class MqttJsonConverter extends AbstractJsonConverter implements MqttData
 
     private String evalDeviceType(String topic) {
         if (deviceTypeTopicPattern == null) {
-            deviceTypeTopicPattern = Pattern.compile(deviceTypeJsonExpression);
+            deviceTypeTopicPattern = Pattern.compile(deviceTypeTopicExpression);
         }
         Matcher matcher = deviceTypeTopicPattern.matcher(topic);
         while (matcher.find()) {

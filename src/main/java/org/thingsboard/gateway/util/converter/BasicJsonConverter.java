@@ -71,12 +71,17 @@ public class BasicJsonConverter extends AbstractJsonConverter {
         }
     }
 
-    private List<TsKvEntry> getTsKvEntries(DocumentContext document, List<? extends TimeseriesMapping> mappings, long defaultTs) throws ParseException {
+    protected List<TsKvEntry> getTsKvEntries(DocumentContext document, List<? extends TimeseriesMapping> mappings, long defaultTs) throws ParseException {
         List<TsKvEntry> result = new ArrayList<>();
         if (mappings != null) {
             for (TransformerKVMapping mapping : mappings) {
                 String key = eval(document, mapping.getKey());
                 String strVal = eval(document, mapping.getValue());
+                if(mapping.getValue().equals(strVal)){
+                    //if no value is taken, mapping is returned.
+                    //it solves the problem of updating data by passing only one telemetry data.
+                    continue;
+                }
                 long ts = defaultTs;
                 if (!StringUtils.isEmpty(mapping.getTs())) {
                     String tsVal = eval(document, mapping.getTs());
@@ -104,11 +109,19 @@ public class BasicJsonConverter extends AbstractJsonConverter {
             for (TransformerKVMapping mapping : mappings) {
                 String key = eval(document, mapping.getKey());
                 String strVal = eval(document, mapping.getValue());
+                if(mapping.getValue().equals(strVal)){
+                    //if no value is taken, mapping is returned.
+                    //it solves the problem of updating data by passing only one telemetry data.
+                    continue;
+                }
                 DataValueTransformer transformer = mapping.getTransformer();
                 if (transformer != null && transformer.isApplicable(strVal)) {
                     result.add(getKvEntry(mapping, key, strVal, transformer));
                 } else if (transformer == null) {
-                    result.add(getKvEntry(mapping, key, strVal));
+                    KvEntry kvEntry = getKvEntry(mapping, key, strVal);
+                    if (kvEntry != null) {
+                        result.add(getKvEntry(mapping, key, strVal));
+                    }
                 }
             }
         }
@@ -137,6 +150,9 @@ public class BasicJsonConverter extends AbstractJsonConverter {
     }
 
     private BasicKvEntry getKvEntry(TransformerKVMapping mapping, String key, String strVal) {
+        if (strVal == null) {
+            return null;
+        }
         switch (mapping.getType().getDataType()) {
             case STRING:
                 return new StringDataEntry(key, strVal);

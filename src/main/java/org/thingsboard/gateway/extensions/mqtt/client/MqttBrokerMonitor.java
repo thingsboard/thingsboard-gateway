@@ -29,7 +29,7 @@ import org.thingsboard.gateway.extensions.mqtt.client.listener.MqttTelemetryMess
 import org.thingsboard.gateway.service.AttributesUpdateListener;
 import org.thingsboard.gateway.service.RpcCommandListener;
 import org.thingsboard.gateway.service.data.*;
-import org.thingsboard.gateway.service.GatewayService;
+import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.server.common.data.kv.KvEntry;
 
 import java.nio.charset.StandardCharsets;
@@ -106,6 +106,12 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
 
     public void disconnect() {
         devices.forEach(gateway::onDeviceDisconnect);
+        try {
+            client.disconnect();
+            log.info("[{}:{}] MQTT client closed!", configuration.getHost(), configuration.getPort());
+        } catch (MqttException e) {
+            log.warn("[{}:{}] MQTT client disconnection faied! {}", configuration.getHost(), configuration.getPort(), e.getMessage(), e);
+        }
         scheduler.shutdownNow();
     }
 
@@ -123,6 +129,7 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
 
                             @Override
                             public void onFailure(IMqttToken iMqttToken, Throwable e) {
+                                log.warn("[{}:{}] MQTT broker connection faied! {}", configuration.getHost(), configuration.getPort(), e.getMessage(), e);
                             }
                         }).waitForCompletion();
                         subscribeToTopics();
@@ -350,7 +357,6 @@ public class MqttBrokerMonitor implements MqttCallback, AttributesUpdateListener
 
     @Override
     public void messageArrived(String topic, MqttMessage message) throws Exception {
-
     }
 
     @Override

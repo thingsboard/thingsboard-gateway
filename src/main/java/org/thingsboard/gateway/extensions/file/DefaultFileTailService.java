@@ -16,56 +16,63 @@
 package org.thingsboard.gateway.extensions.file;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
+import org.thingsboard.gateway.extensions.ExtensionUpdate;
 import org.thingsboard.gateway.extensions.file.conf.FileTailConfiguration;
-import org.thingsboard.gateway.service.GatewayService;
+import org.thingsboard.gateway.service.conf.TbExtensionConfiguration;
+import org.thingsboard.gateway.service.gateway.GatewayService;
 import org.thingsboard.gateway.util.ConfigurationTools;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * Created by ashvayka on 15.05.17.
  */
-@Service
-@ConditionalOnProperty(prefix = "file", value = "enabled", havingValue = "true", matchIfMissing = false)
 @Slf4j
-public class DefaultFileTailService {
-    @Autowired
-    private GatewayService service;
+public class DefaultFileTailService extends ExtensionUpdate {
 
-    @Value("${file.configuration}")
-    private String configurationFile;
-
+    private final GatewayService gateway;
+    private TbExtensionConfiguration currentConfiguration;
     private List<FileMonitor> brokers;
 
-    @PostConstruct
-    public void init() throws Exception {
-        log.info("Initializing File Tail service!");
+    public DefaultFileTailService(GatewayService gateway) {
+        this.gateway = gateway;
+    }
+
+    @Override
+    public TbExtensionConfiguration getCurrentConfiguration() {
+        return currentConfiguration;
+    }
+
+    @Override
+    public void init(TbExtensionConfiguration configurationNode, Boolean isRemote) throws Exception {
+        currentConfiguration = configurationNode;
+        log.info("[{}] Initializing File Tail service!", gateway.getTenantLabel());
         FileTailConfiguration configuration;
         try {
-            configuration = ConfigurationTools.readConfiguration(configurationFile, FileTailConfiguration.class);
+            if(isRemote) {
+                configuration = ConfigurationTools.readConfiguration(configurationNode.getConfiguration(), FileTailConfiguration.class);
+            } else {
+                configuration = ConfigurationTools.readFileConfiguration(configurationNode.getExtensionConfiguration(), FileTailConfiguration.class);
+            }
         } catch (Exception e) {
-            log.error("File Tail service configuration failed!", e);
+            log.error("[{}] File Tail service configuration failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
 
         try {
-            brokers = configuration.getFileMonitorConfigurations().stream().map(c -> new FileMonitor(service, c)).collect(Collectors.toList());
+            brokers = configuration.getFileMonitorConfigurations().stream().map(c -> new FileMonitor(gateway, c)).collect(Collectors.toList());
             brokers.forEach(FileMonitor::init);
         } catch (Exception e) {
-            log.error("File Tail service initialization failed!", e);
+            log.error("[{}] File Tail service initialization failed!", gateway.getTenantLabel(), e);
+            gateway.onConfigurationError(e, currentConfiguration);
             throw e;
         }
     }
 
-    @PreDestroy
-    public void preDestroy() {
+    @Override
+    public void destroy() {
         if (brokers != null) {
             brokers.forEach(FileMonitor::stop);
         }
