@@ -57,7 +57,10 @@ public class MqttJsonConverter extends BasicJsonConverter implements MqttDataCon
         String data = new String(msg.getPayload(), StandardCharsets.UTF_8);
         log.trace("Parsing json message: {}", data);
 
-        if (!filterExpression.isEmpty()) {
+        // Check presence of filter expression to avoid crash if there is no filter expression
+        // in mqtt extension. This issue is often seen through mqtt extension update from platform
+        if ((filterExpression != null) && !filterExpression.isEmpty()) {
+
             try {
                 log.debug("Data before filtering {}", data);
                 DocumentContext document = JsonPath.parse(data);
