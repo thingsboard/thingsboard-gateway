@@ -95,8 +95,11 @@ class EventStorageReader:
                 self.buffered_reader.flush()
                 self.buffered_reader.close()
             self.delete_read_file(self.current_pos.get_file())
-        self.current_pos = copy.deepcopy(self.new_pos)
-        self.write_info_to_state_file(self.current_pos)
+            if len(self.files.get_data_files()) == 0:
+                os.remove(self.settings.get_data_folder_path() + self.files.get_state_file())
+            else:
+                self.current_pos = copy.deepcopy(self.new_pos)
+                self.write_info_to_state_file(self.current_pos)
         self.current_batch = None
         # TODO add logging of flushing reader with try expression
 
