@@ -20,6 +20,7 @@ from json import load, loads, dumps
 from os import listdir, path
 from threading import Thread
 from thingsboard_gateway.gateway.tb_client import TBClient
+from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.mqtt.mqtt_connector import MqttConnector
 from thingsboard_gateway.connectors.opcua.opcua_connector import OpcUaConnector
@@ -49,7 +50,9 @@ class TBGatewayService:
             self.__rpc_requests_in_progress = {}
             self.__connected_devices_file = "connected_devices.json"
             self.tb_client = TBClient(config["thingsboard"])
-            self.tb_client.client.gw_set_server_side_rpc_request_handler(self.__rpc_request_handler)
+            self.main_handler = logging.handlers.MemoryHandler(1000)
+            self.remote_handler = TBLoggerHandler(self)
+            self.main_handler.setTarget(self.remote_handler)
             self.__implemented_connectors = {
                 "mqtt": MqttConnector,
                 "modbus": ModbusConnector,
@@ -65,6 +68,9 @@ class TBGatewayService:
             self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True)
             self.__event_storage = self.__event_storage_types[config["storage"]["type"]](config["storage"])
             self.tb_client.connect()
+            self.tb_client.client.gw_set_server_side_rpc_request_handler(self.__rpc_request_handler)
+            self.tb_client.client.set_server_side_rpc_request_handler(self.__rpc_request_handler)
+            self.tb_client.client.subscribe_to_all_attributes(self.__attribute_update_callback)
             self.tb_client.client.gw_subscribe_to_all_attributes(self.__attribute_update_callback)
             self.__send_thread.start()
 
@@ -76,18 +82,18 @@ class TBGatewayService:
                             self.__rpc_requests_in_progress[rpc_in_progress][2](rpc_in_progress)
                             self.cancel_rpc_request(rpc_in_progress)
 
-                    if time.time() - gateway_statistic_send >= 60000:
+                    if int(time.time()*1000) - gateway_statistic_send >= 60000:
                         summary_messages = {"SummaryReceived": 0, "SummarySent": 0}
                         telemetry = {}
                         for connector in self.available_connectors:
-                            # if self.available_connectors[connector].is_connected():
-                            telemetry[(connector+' MessagesReceived').replace(' ', '')] = self.available_connectors[connector].statistics['MessagesReceived']
-                            telemetry[(connector+' MessagesSent').replace(' ', '')] = self.available_connectors[connector].statistics['MessagesSent']
-                            self.tb_client.client.send_telemetry(telemetry)
-                            summary_messages['SummaryReceived'] += telemetry[(connector+' MessagesReceived').replace(' ', '')]
-                            summary_messages['SummarySent'] += telemetry[(connector+' MessagesSent').replace(' ', '')]
+                            if self.available_connectors[connector].is_connected():
+                                telemetry[(connector+' MessagesReceived').replace(' ', '')] = self.available_connectors[connector].statistics['MessagesReceived']
+                                telemetry[(connector+' MessagesSent').replace(' ', '')] = self.available_connectors[connector].statistics['MessagesSent']
+                                self.tb_client.client.send_telemetry(telemetry)
+                                summary_messages['SummaryReceived'] += telemetry[(connector+' MessagesReceived').replace(' ', '')]
+                                summary_messages['SummarySent'] += telemetry[(connector+' MessagesSent').replace(' ', '')]
                         self.tb_client.client.send_telemetry(summary_messages)
-                        gateway_statistic_send = time.time()
+                        gateway_statistic_send = int(time.time()*1000)
 
                     time.sleep(.1)
             except Exception as e:
@@ -205,6 +211,7 @@ class TBGatewayService:
                               dumps(content))
             else:
                 log.debug("RPC request with no device param.")
+                log.debug(content)
         except Exception as e:
             log.exception(e)
 
@@ -223,8 +230,23 @@ class TBGatewayService:
     def cancel_rpc_request(self, rpc_request):
         del self.__rpc_requests_in_progress[rpc_request]
 
-    def __attribute_update_callback(self, content):
-        self.__connected_devices[content["device"]]["connector"].on_attributes_update(content)
+    def __attribute_update_callback(self, content, *args):
+        if content.get('device') is not None:
+            try:
+                self.__connected_devices[content["device"]]["connector"].on_attributes_update(content)
+            except Exception as e:
+                log.error(e)
+        else:
+            if content.get('RemoteLoggingLevel') == 'NONE':
+                self.remote_handler.deactivate()
+                log.info('Remote logging has being deactivated.')
+            elif content.get('RemoteLoggingLevel') is not None:
+                self.remote_handler.activate(content.get('RemoteLoggingLevel'))
+                log.info('Remote logging has being activated.')
+            else:
+                log.debug('Attributes on the gateway has being updated!')
+                log.debug(args)
+                log.debug(content)
 
     def add_device(self, device_name, content, wait_for_publish=False):
         self.__connected_devices[device_name] = content

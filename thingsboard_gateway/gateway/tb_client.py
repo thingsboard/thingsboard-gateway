@@ -41,6 +41,10 @@ class TBClient:
         # Adding callbacks
         self.client._client._on_connect = self._on_connect
         self.client._client._on_disconnect = self._on_disconnect
+        self.client._client._on_log = self._on_log
+
+    def _on_log(self, *args):
+        log.info(args)
 
     def is_connected(self):
         return self.client.is_connected
