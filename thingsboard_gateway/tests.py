@@ -68,6 +68,7 @@ class MqttConverterTest(unittest.TestCase):
         result = JsonMqttUplinkConverter(test_config).convert(test_topic, test_body_to_convert)
         self.assertDictEqual(result,test_result)
 
+
 class TestStorage(unittest.TestCase):
     def test_memory_storage(self):
 
@@ -97,7 +98,7 @@ class TestStorage(unittest.TestCase):
         test_size = randint(0, 100)
 
         storage_test_config = {
-             "data_folder_path": "thingsboard_gateway/storage/data/",
+             "data_folder_path": "storage/data/",
              "max_files_count": 100,
              "max_records_per_file": 10,
              "max_read_records_count": 10,
@@ -108,13 +109,11 @@ class TestStorage(unittest.TestCase):
         for test_value in range(test_size * 10):
             storage.put(str(test_value))
 
-
         result = []
         for _ in range(test_size):
             batch = storage.get_event_pack()
             result.append(batch)
             storage.event_pack_processing_done()
-
 
         correct_result = [[str(x) for x in range(y*10, (y+1)*10)] for y in range(test_size)]
 

@@ -44,7 +44,8 @@ class FileEventStorage(EventStorage):
     def event_pack_processing_done(self):
         self.__writer.flush_if_needed()
         self.__reader.discard_batch()
-        #self.__reader.delete_read_file(self.event_storage_files.get_data_files()[0])
+        if len(self.event_storage_files.get_data_files()) == 0:
+            os.remove(self.settings.get_data_folder_path() + self.state_file)
 
     def file_full(self):
         return self.__writer.is_file_full(self.__writer.current_file_records_count)
