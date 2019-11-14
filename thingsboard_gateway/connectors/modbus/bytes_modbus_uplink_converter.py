@@ -28,7 +28,8 @@ class BytesModbusUplinkConverter(ModbusConverter):
         for config_data in data:
             if self.__result.get(config_data) is None:
                 self.__result[config_data] = []
-            for tag_index, tag in enumerate(data[config_data]):
+            for tag in data[config_data]:
+                log.debug(tag)
                 data_sent = data[config_data][tag]["data_sent"]
                 input_data = data[config_data][tag]["input_data"]
                 log.debug("Called convert function from %s with args", self.__class__.__name__)
@@ -37,7 +38,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
                 result = None
                 if data_sent.get("functionCode") == 1 or data_sent.get("functionCode") == 2:
                     result = input_data.bits
-                    log.debug(result)
+                    log.error(result)
                     if "registerCount" in data_sent:
                         result = result[:data_sent["registerCount"]]
                     else:
@@ -47,13 +48,16 @@ class BytesModbusUplinkConverter(ModbusConverter):
                     byte_order = data_sent.get("byteOrder", "LITTLE")
                     reg_count = data_sent.get("registerCount", 1)
                     type_of_data = data_sent["type"]
-                    if byte_order == "LITTLE":
-                        decoder = BinaryPayloadDecoder.fromRegisters([result[tag_index]], byteorder=Endian.Little)
-                    elif byte_order == "BIG":
-                        decoder = BinaryPayloadDecoder.fromRegisters([result[tag_index]], byteorder=Endian.Big)
-                    else:
-                        log.warning("byte order is not BIG or LITTLE")
-                        continue
+                    try:
+                        if byte_order == "LITTLE":
+                            decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Little)
+                        elif byte_order == "BIG":
+                            decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Big)
+                        else:
+                            log.warning("byte order is not BIG or LITTLE")
+                            continue
+                    except Exception as e:
+                        log.error(e)
                     if type_of_data == "string":
                         result = decoder.decode_string(2 * reg_count)
                     elif type_of_data == "long":
@@ -91,11 +95,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
                         result = "0000000000000000" + str(bin(result)[2:])
                         # get length of 16, then get bit, then cast it to int(0||1 from "0"||"1", then cast to boolean)
                         result = bool(int((result[len(result) - 16:])[15 - position]))
-                if type(tag) == list:
-                    for ts in result:
-                        self.__result[config_data].append({tag: int(ts)})
-                else:
-                    self.__result[config_data].append({tag: int(result)})
+                self.__result[config_data].append({tag: int(result)})
         self.__result["telemetry"] = self.__result.pop("timeseries")
         log.debug(self.__result)
         return self.__result

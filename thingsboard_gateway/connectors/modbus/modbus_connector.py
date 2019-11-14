@@ -121,6 +121,7 @@ class ModbusConnector(Connector, threading.Thread):
 
                             log.debug("Checking %s for device %s", config_data, device)
                             self.__devices[device]["next_"+config_data+"_check"] = current_time + self.__devices[device]["config"][config_data+"PollPeriod"]/1000
+                            log.debug(device_responses)
                             converted_data = self.__devices[device]["converter"].convert(device_responses)
 
                             if converted_data["telemetry"] != self.__devices[device]["telemetry"] or\

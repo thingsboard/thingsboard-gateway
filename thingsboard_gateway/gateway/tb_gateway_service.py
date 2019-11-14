@@ -178,12 +178,31 @@ class TBGatewayService:
                                                "current_event",
                                                current_event["deviceName"])
                         if current_event.get("telemetry"):
-                            data_to_send = loads('{"ts": %f,"values": %s}' % (int(time.time()*1000),
-                                                                              ','.join(dumps(param) for param in current_event["telemetry"])))
+                            log.debug(current_event)
+                            telemetry = {}
+                            if type(current_event["telemetry"]) == list:
+                                for item in current_event["telemetry"]:
+                                    for key in item:
+                                        telemetry[key] = item[key]
+                            else:
+                                telemetry = current_event["telemetry"]
+                            log.debug(telemetry)
+                            data_to_send = loads('{"ts": %f,"values": %s}' % (int(time.time()*1000), dumps(telemetry)))
+                            # data_to_send = loads('{"ts": %f,"values": {%s}}' % (int(time.time()*1000),
+                            #                                                   ','.join(dumps(param) for param in current_event["telemetry"])))
                             self.__published_events.append(self.tb_client.client.gw_send_telemetry(current_event["deviceName"],
                                                                                                    data_to_send))
                         if current_event.get("attributes"):
-                            data_to_send = loads('%s' % (','.join(dumps(param) for param in current_event["attributes"])))
+                            log.debug(current_event)
+                            attributes = {}
+                            if type(current_event["attributes"]) == list:
+                                for item in current_event["attributes"]:
+                                    for key in item:
+                                        attributes[key] = item[key]
+                            else:
+                                attributes = current_event["attributes"]
+                            log.debug(attributes)
+                            data_to_send = loads('%s' % dumps(attributes))
                             self.__published_events.append(self.tb_client.client.gw_send_attributes(current_event["deviceName"],
                                                                                                     data_to_send))
                     success = True

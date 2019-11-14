@@ -35,7 +35,7 @@ setup(
         'simplejson',
         'cryptography',
     ],
-    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.6rc-python.tar.gz',
+    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.8rc-python.tar.gz',
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'
