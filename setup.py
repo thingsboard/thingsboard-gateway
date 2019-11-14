@@ -32,7 +32,8 @@ setup(
         'pyserial',
         'pytz',
         'PyYAML',
-        'six',
+        'simplejson',
+        'cryptography',
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.6rc-python.tar.gz',
     entry_points={
