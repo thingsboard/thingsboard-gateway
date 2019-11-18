@@ -18,7 +18,7 @@ if [ "$1" = "clean" ] || [ "$1" = "only_clean" ] ; then
   sudo rm -rf dist/
   sudo rm -rf thingsboard-gateway.egg-info/
   sudo rm -rf /etc/thingsboard-gateway/
-  sudo rm -rf thingsboard-gateway-2.0.0.tar.gz
+  sudo rm -rf thingsboard-gateway-2.0.*.tar.gz
   sudo rm -rf /home/zenx/rpmbuild/BUILDROOT/*
   sudo rm -rf build/
   sudo apt remove python3-thingsboard-gateway -y
@@ -31,16 +31,16 @@ if [ "$1" != "only_clean" ] ; then
   # Create sources for DEB package
   python3 setup.py --command-packages=stdeb.command bdist_deb
   # Adding the files, scripts and permissions
-  sudo cp -r for_build/etc deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway
-  sudo cp -r for_build/var deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway
-  sudo cp -r -a for_build/DEBIAN deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway
-  sudo chown root:root deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway/ -R
-  sudo chown root:root deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway/var/ -R
-  sudo chmod 775 deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway/DEBIAN/preinst
-  sudo chown root:root deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway/DEBIAN/preinst
+  sudo cp -r for_build/etc deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway
+  sudo cp -r for_build/var deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway
+  sudo cp -r -a for_build/DEBIAN deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway
+  sudo chown root:root deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/ -R
+  sudo chown root:root deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/var/ -R
+  sudo chmod 775 deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/DEBIAN/preinst
+  sudo chown root:root deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/DEBIAN/preinst
   # Bulding Deb package
-  dpkg-deb -b deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway/
-  cp deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway.deb .
+  dpkg-deb -b deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/
+  cp deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway.deb .
   cp python3-thingsboard-gateway.deb docker/
   # Create sources for RPM Package
   echo 'Building RPM package'
@@ -62,6 +62,6 @@ if [ "$1" != "only_clean" ] ; then
   cp -r for_build/etc/thingsboard-gateway/extensions docker/
   cd docker
   sudo docker build -t thingsboard_gateway .
-  sudo docker run -d -it --mount type=bind,source="$(pwd)""/logs",target=/var/log/thingsboard-gateway -v config:/etc/thingsboard-gateway/config -v extensions:/var/lib/thingsboard_gateway/extensions --name tb_gateway thingsboard_gateway
-  sudo docker ps -a | grep tb_gateway
+#  sudo docker run -d -it --mount type=bind,source="$(pwd)""/logs",target=/var/log/thingsboard-gateway -v config:/etc/thingsboard-gateway/config -v extensions:/var/lib/thingsboard_gateway/extensions --name tb_gateway thingsboard_gateway
+#  sudo docker ps -a | grep tb_gateway
 fi

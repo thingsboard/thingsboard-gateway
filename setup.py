@@ -33,7 +33,6 @@ setup(
         'pytz',
         'PyYAML',
         'simplejson',
-        'cryptography',
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.8rc-python.tar.gz',
     entry_points={
