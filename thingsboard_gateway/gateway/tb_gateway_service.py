@@ -25,6 +25,7 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.mqtt.mqtt_connector import MqttConnector
 from thingsboard_gateway.connectors.opcua.opcua_connector import OpcUaConnector
 from thingsboard_gateway.connectors.modbus.modbus_connector import ModbusConnector
+from thingsboard_gateway.connectors.ble.ble_connector import BLEConnector
 from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 
@@ -57,6 +58,7 @@ class TBGatewayService:
                 "mqtt": MqttConnector,
                 "modbus": ModbusConnector,
                 "opcua": OpcUaConnector,
+                "ble": BLEConnector,
             }
             self.__event_storage_types = {
                 "memory": MemoryEventStorage,
@@ -135,6 +137,7 @@ class TBGatewayService:
                         connector.open()
                     except Exception as e:
                         log.exception(e)
+                        connector.close()
 
     def __send_statistic(self):
         self.tb_client.client.gw_send_telemetry()

@@ -1,0 +1,28 @@
+{
+        "name": "BLE Connector",
+        "rescanIntervalSeconds": 10,
+        "scanTimeSeconds": 5,
+        "passiveScanMode": true,
+        "devices": [
+            {
+                "name": "Temperature and humidity sensor",
+                "readStandardInformation": true,
+                "MACAddress": "4C:65:A8:DF:85:C0",
+                "checkIntervalSeconds": 10,
+                "telemetry": [
+                    {
+                        "key": "temperature",
+                        "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB",
+                        "fromByte": 0,
+                        "toByte": -1
+                    }
+                ],
+                "attributes": [
+                    {
+                        "key": "batteryLevel",
+                        "handle": 9
+                    }
+                ]
+            }
+        ]
+    }
