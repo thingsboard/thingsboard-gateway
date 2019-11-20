@@ -3,16 +3,22 @@
         "rescanIntervalSeconds": 10,
         "scanTimeSeconds": 5,
         "passiveScanMode": true,
+        "buildDevicesMap": false,
         "devices": [
             {
                 "name": "Temperature and humidity sensor",
-                "readStandardInformation": true,
                 "MACAddress": "4C:65:A8:DF:85:C0",
                 "checkIntervalSeconds": 10,
                 "telemetry": [
                     {
                         "key": "temperature",
+                        "method": "notify",
+                        "characteristicUUID": "226CAA55-6476-4566-7562-66734470666D"
+                    },
+                    {
+                        "key": "name",
                         "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB",
+                        "method": "read",
                         "fromByte": 0,
                         "toByte": -1
                     }

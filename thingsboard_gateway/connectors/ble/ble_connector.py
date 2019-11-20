@@ -14,7 +14,7 @@
 
 from bluepy import __path__ as bluepy_path
 from pprint import pformat
-from bluepy.btle import DefaultDelegate, Peripheral, Scanner
+from bluepy.btle import DefaultDelegate, Peripheral, Scanner, UUID, capitaliseName
 from bluepy.btle import BTLEDisconnectError, BTLEManagementError, BTLEGattError
 from random import choice
 from string import ascii_lowercase
@@ -26,7 +26,6 @@ from thingsboard_gateway.connectors.connector import Connector, log
 class BLEConnector(Connector, Thread):
     def __init__(self, gateway, config):
         super().__init__()
-        self.__default_service_end = '-0000-1000-8000-00805F9B34FB'
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.__gateway = gateway
@@ -90,24 +89,19 @@ class BLEConnector(Connector, Thread):
 
     def device_add(self, device):
         for interested_device in self.__devices_around:
-            if device.addr.upper() == interested_device:
+            if device.addr.upper() == interested_device and self.__devices_around[interested_device].get('scanned_device') is None:
                 self.__devices_around[interested_device]['scanned_device'] = device
-                log.debug('Device with address: %s - found.', device.addr.upper())
-            else:
-                log.debug('Unknown device with address: %s - found.', device.addr.upper())
+                self.__devices_around[interested_device]['is_new_device'] = True
+            log.debug('Device with address: %s - found.', device.addr.upper())
 
     def __get_services_and_chars(self):
         for device in self.__devices_around:
             try:
-                if self.__devices_around.get(device) is not None and self.__devices_around[device].get(
-                        'scanned_device') is not None:
-                    log.debug('Connecting to device with address: %s',
-                              self.__devices_around[device]['scanned_device'].addr.upper())
-                    new_device = False
+                if self.__devices_around.get(device) is not None and self.__devices_around[device].get('scanned_device') is not None:
+                    log.debug('Connecting to device with address: %s', self.__devices_around[device]['scanned_device'].addr.upper())
                     if self.__devices_around[device].get('peripheral') is None:
                         peripheral = Peripheral(self.__devices_around[device]['scanned_device'])
                         self.__devices_around[device]['peripheral'] = peripheral
-                        new_device = True
                     else:
                         peripheral = self.__devices_around[device]['peripheral']
                         peripheral.connect(self.__devices_around[device]['scanned_device'])
@@ -119,31 +113,56 @@ class BLEConnector(Connector, Thread):
                         service_uuid = str(service.uuid).upper()
                         if self.__devices_around[device]['services'].get(service_uuid) is None:
                             self.__devices_around[device]['services'][service_uuid] = {}
-                            for characteristic in service.getCharacteristics():
-                                descriptors = []
-                                try:
-                                    self.__check_and_reconnect(device)
+
+                            try:
+                                characteristics = service.getCharacteristics()
+                            except BTLEDisconnectError:
+                                self.__check_and_reconnect(device)
+                                characteristics = service.getCharacteristics()
+
+                            if self.__config.get('buildDevicesMap', False):
+                                for characteristic in characteristics:
+                                    descriptors = []
                                     try:
-                                        descriptors = characteristic.getDescriptors()
+                                        self.__check_and_reconnect(device)
+                                        try:
+                                            descriptors = characteristic.getDescriptors()
+                                        except BTLEDisconnectError:
+                                            self.__check_and_reconnect(device)
+                                            descriptors = characteristic.getDescriptors()
+                                        except BTLEGattError as e:
+                                            log.debug(e)
+                                        except Exception as e:
+                                            log.exception(e)
+                                        characteristic_uuid = str(characteristic.uuid).upper()
+                                        if self.__devices_around[device]['services'][service_uuid].get(characteristic_uuid) is None:
+                                            self.__devices_around[device]['services'][service_uuid][characteristic_uuid] = {
+                                                'characteristic': characteristic,
+                                                'handle': characteristic.handle,
+                                                'descriptors': {}}
+                                        for descriptor in descriptors:
+                                            log.debug(descriptor.handle)
+                                            log.debug(str(descriptor.uuid))
+                                            log.debug(str(descriptor))
+                                            self.__devices_around[device]['services'][service_uuid][characteristic_uuid]['descriptors'][descriptor.handle] = descriptor
                                     except BTLEDisconnectError:
                                         self.__check_and_reconnect(device)
-                                        descriptors = characteristic.getDescriptors()
-                                    except BTLEGattError:
-                                        log.debug('Device %s - services, characteristics and descriptors found.', device)
-                                    except Exception as e:
-                                        log.exception(e)
+                            else:
+                                for characteristic in characteristics:
                                     characteristic_uuid = str(characteristic.uuid).upper()
                                     self.__devices_around[device]['services'][service_uuid][characteristic_uuid] = {
                                         'characteristic': characteristic,
-                                        'descriptors': {}}
-                                    for descriptor in descriptors:
-                                        self.__devices_around[device]['services'][service_uuid][characteristic_uuid][
-                                            'descriptors'] = {str(descriptor.uuid).upper(): descriptor}
-                                except BTLEDisconnectError:
-                                    self.__check_and_reconnect(device)
-                    if new_device:
+                                        'handle': characteristic.handle}
+
+                    if self.__devices_around[device]['is_new_device']:
+                        log.debug('New device %s - processing.', device)
+                        self.__devices_around[device]['is_new_device'] = False
                         self.__new_device_processing(device)
-                    self.__service_processing(device)
+                    # for interest_char in self.__devices_around['interest_uuid']:
+                    #     config = self.__devices_around[device]['interest_uuid'][interest_char]['section_config']
+                    #     data = self.__service_processing(device, config)
+                    #     log.debug(data)
+
 
             except BTLEDisconnectError:
                 log.debug('Cannot connect to device.')
@@ -153,8 +172,31 @@ class BLEConnector(Connector, Thread):
             self.__previous_scan_time = time.time()
 
     def __new_device_processing(self, device):
-        if self.__config.get('readStandardInformation', False):
-            log.debug(pformat(self.__devices_around[device]))
+        device_default_attributes = {}
+        default_services = [x for x in range(0x1800, 0x183A)]
+        default_services_on_device = [service for service in self.__devices_around[device]['services'].keys() if int(service.split('-')[0], 16) in default_services]
+        log.debug('Default services found on device %s :%s', device, default_services_on_device)
+        for service in default_services_on_device:
+            characteristics = [char for char in self.__devices_around[device]['services'][service].keys() if self.__devices_around[device]['services'][service][char]['characteristic'].supportsRead()]
+            for char in characteristics:
+                read_config = {'characteristicUUID': char,
+                               'method': 'READ',
+                               }
+                try:
+                    self.__check_and_reconnect(device)
+                    data = self.__service_processing(device, read_config)
+                    attribute = capitaliseName(UUID(char).getCommonName())
+                    try:
+                        data = data.decode('UTF-8')
+                    except Exception as e:
+                        log.debug(e)
+                    device_default_attributes[attribute] = data
+                except Exception as e:
+                    log.debug('Cannot process %s', e)
+                    continue
+        log.debug(pformat(device_default_attributes))
+        if self.__config.get('readDefaultAttributes', False):
+            pass
             # TODO READ STANDARD INFORMATION
 
     def __check_and_reconnect(self, device):
@@ -172,7 +214,7 @@ class BLEConnector(Connector, Thread):
             def handleNotification(self, handle, data):
                 self.incoming_data = data
                 self.data = data
-                log.debug('Notification received handle, data:')
+                log.debug('Notification received from device %s handle, data:', self.device)
                 log.debug(handle)
                 log.debug(data)
 
@@ -184,67 +226,48 @@ class BLEConnector(Connector, Thread):
             log.debug("Data received: %s", delegate.data)
         return delegate
 
-    def __service_processing(self, device):
-        for uuid in self.__devices_around[device]['interest_uuid']:
-            for service in self.__devices_around[device]['services']:
-                if uuid in self.__devices_around[device]['services'][service]:
-                    characteristic = self.__devices_around[device]['services'][service][uuid]['characteristic']
-
-                    log.debug('Characteristic with name: "%s" and uuid: %s - processing.', characteristic.uuid.getCommonName(), uuid)
+    def __service_processing(self, device, characteristic_processing_conf=None):
+        for service in self.__devices_around[device]['services']:
+            characteristic_uuid_from_config = characteristic_processing_conf.get('characteristicUUID')
+            if characteristic_uuid_from_config is None:
+                log.error('Characteristic not found in config: %s', pformat(characteristic_processing_conf))
+                return
+            if self.__devices_around[device]['services'][service].get(characteristic_uuid_from_config) is None:
+                continue
+            characteristic = self.__devices_around[device]['services'][service][characteristic_uuid_from_config]['characteristic']
+            self.__check_and_reconnect(device)
+            data = None
+            if characteristic_processing_conf.get('method', '_').upper().split()[0] == "READ":
+                if characteristic.supportsRead():
                     self.__check_and_reconnect(device)
-                    characteristic_processing_conf = self.__devices_around[device]['interest_uuid'][uuid]['section_config']
-                    if 'READ' in characteristic.propertiesToString():
-                        self.__check_and_reconnect(device)
-                        data = characteristic.read()
-                        log.debug(data)
-            # for desc in self.__devices_around[device]['peripheral'].getDescriptors():
-            #     try:
-            #         if self.__devices_around[device]['peripheral']._helper is None:
-            #             self.__devices_around[device]['peripheral'].connect(self.__devices_around[device]['scanned_device'])
-            #         if desc.uuid.getCommonName() == 'Service Changed':
-            #
-            #             log.debug(desc)
-            #             # log.debug(desc.read())
-            #             log.debug(desc.uuid)
-            #             log.debug(desc.handle)
-            #             self.__notify_delegators[str(desc.uuid).upper()] = self.__notify_handler(self.__devices_around[device],
-            #                                                                                                int.from_bytes(bytes.fromhex(str(desc.handle)), "big"),
-            #                                                                                                self.__notify_delegators.get(str(desc.uuid).upper()))
-            #     except Exception as e:
-            #         log.error(e)
-            # for characteristic in self.__devices_around[device]['services'][service_uuid]['characteristic']:
-            #     self.__check_and_reconnect(device)
-            #     log.debug(characteristic)
-            #     log.debug(characteristic.propertiesToString())
-            #     characteristic_properties = characteristic.propertiesToString()
-            #     if 'NOTIFY' in characteristic.propertiesToString() or 'READ' in characteristic.propertiesToString():
-            #         descriptors = characteristic.getDescriptors()
-            #         for descriptor in descriptors:
-            #             try:
-            #                 if 'READ' in characteristic_properties:
-            #                     log.debug(descriptor.handle)
-            #                     if descriptor.handle != 17 and descriptor.handle != 26 and descriptor.handle != 43 and descriptor.handle != 47:
-            #                         self.__check_and_reconnect(device)
-            #                         log.debug(descriptor.read())
-            #                 elif 'NOTIFY' in characteristic_properties:
-            #                     log.debug(characteristic.handle)
-            #                     if descriptor.handle != 17 and descriptor.handle != 26 and descriptor.handle != 43:
-            #                         if self.__devices_around[device]['peripheral']._helper is None:
-            #                             self.__devices_around[device]['peripheral'].connect(
-            #                                 self.__devices_around[device]['scanned_device'])
-            #                         self.__notify_delegators[str(descriptor.uuid).upper()] = self.__notify_handler(
-            #                             self.__devices_around[device],
-            #                             descriptor.handle + 1,
-            #                             self.__notify_delegators.get(str(descriptor.uuid).upper()))
-            #                         self.__notify_delegators[descriptor.handler] = {'function': self.__notify_handler,
-            #                                                                         'args': (
-            #                                                                         self.__devices_around[device],
-            #                                                                         descriptor.handle + 1,
-            #                                                                         self.__notify_delegators.get(
-            #                                                                             str(descriptor.uuid).upper()))
-            #                                                                         }
-            #             except Exception as e:
-            #                 log.exception(e)
+                    data = characteristic.read()
+                    log.debug(data)
+                else:
+                    log.error('This characteristic doesn\'t support "READ" method.')
+            if characteristic_processing_conf.get('method', '_').upper().split()[0] == "NOTIFY":
+                self.__check_and_reconnect(device)
+                descriptor = characteristic.getDescriptors(forUUID=0x2902)[0]
+                handle = descriptor.handle
+                if self.__notify_delegators.get(device) is None:
+                    self.__notify_delegators[device] = {}
+                if self.__notify_delegators[device].get(handle) is None:
+                    self.__notify_delegators[device][handle] = {'function': self.__notify_handler,
+                                                                'args': (
+                                                                 self.__devices_around[device],
+                                                                 handle,
+                                                                 self.__notify_delegators[device].get(handle)),
+                                                                'delegate': None,
+                                                                }
+                    self.__notify_delegators[device][handle]['delegate'] = self.__notify_delegators[device][handle]['function'](*self.__notify_delegators[device][handle]['args'])
+                else:
+                    self.__notify_delegators[device][handle]['args'] = (self.__devices_around[device], handle, self.__notify_delegators[device][handle]['delegate'])
+                    self.__notify_delegators[device][handle]['delegate'] = self.__notify_delegators[device][handle]['function'](*self.__notify_delegators[device][handle]['args'])
+                data = b'FROM_NOTIFY'
+            if data is None:
+                log.error('Cannot process characteristic: %s with config:\n%s', str(characteristic.uuid).upper(), pformat(characteristic_processing_conf))
+            else:
+                log.debug('data: %s', data)
+            return data
 
     def __scan_ble(self):
         log.debug("Scanning for devices...")
@@ -273,6 +296,11 @@ class BLEConnector(Connector, Thread):
                         if type_section.get("characteristicUUID") is not None:
                             interest_uuid[type_section["characteristicUUID"].upper()] = {'section_config': type_section,
                                                                                          'type': key_type}
+                        elif type_section.get("handle") is not None:
+                            interest_uuid[type_section["handle"]] = {'section_config': type_section,
+                                                                     'type': key_type}
+                        else:
+                            log.error("No characteristicUUID or handle found in configuration section for %s:\n%s\n", key_type, pformat(type_section))
                 if self.__devices_around.get(interest_device['MACAddress'].upper()) is None:
                     self.__devices_around[interest_device['MACAddress'].upper()] = {}
                 self.__devices_around[interest_device['MACAddress'].upper()]['interest_uuid'] = interest_uuid
