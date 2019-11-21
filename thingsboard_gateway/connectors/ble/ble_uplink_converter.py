@@ -18,8 +18,8 @@ from abc import ABC, abstractmethod
 log = logging.getLogger("converter")
 
 
-class MqttUplinkConverter(ABC):
+class BLEUplinkConverter(ABC):
 
     @abstractmethod
-    def convert(self, topic, body):
+    def convert(self, section_config, data):
         pass

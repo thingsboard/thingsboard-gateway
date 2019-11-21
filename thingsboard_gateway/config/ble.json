@@ -1,6 +1,7 @@
 {
         "name": "BLE Connector",
-        "rescanIntervalSeconds": 10,
+        "rescanIntervalSeconds": 100,
+        "checkIntervalSeconds": 100,
         "scanTimeSeconds": 5,
         "passiveScanMode": true,
         "buildDevicesMap": false,
@@ -8,25 +9,35 @@
             {
                 "name": "Temperature and humidity sensor",
                 "MACAddress": "4C:65:A8:DF:85:C0",
-                "checkIntervalSeconds": 10,
                 "telemetry": [
                     {
                         "key": "temperature",
                         "method": "notify",
-                        "characteristicUUID": "226CAA55-6476-4566-7562-66734470666D"
+                        "characteristicUUID": "226CAA55-6476-4566-7562-66734470666D",
+                        "byteFrom": 2,
+                        "byteTo": 6
                     },
                     {
-                        "key": "name",
-                        "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB",
-                        "method": "read",
-                        "fromByte": 0,
-                        "toByte": -1
+                        "key": "humidity",
+                        "method": "notify",
+                        "characteristicUUID": "226CAA55-6476-4566-7562-66734470666D",
+                        "byteFrom": 9,
+                        "byteTo": 13
                     }
                 ],
                 "attributes": [
                     {
-                        "key": "batteryLevel",
-                        "handle": 9
+                        "key": "name",
+                        "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB",
+                        "method": "read",
+                        "byteFrom": 0,
+                        "byteTo": -1
+                    }
+                ],
+                "attributeUpdates": [
+                    {
+                        "attributeOnThingsBoard": "sharedName",
+                        "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB"
                     }
                 ]
             }

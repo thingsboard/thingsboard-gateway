@@ -17,7 +17,7 @@ import threading
 from random import choice
 from string import ascii_lowercase
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusRtuFramer
+from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient, ModbusRtuFramer
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
 from pymodbus.exceptions import ConnectionException

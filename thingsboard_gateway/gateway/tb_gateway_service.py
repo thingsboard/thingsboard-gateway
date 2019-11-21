@@ -30,7 +30,7 @@ from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('service')
 
 
 class TBGatewayService:

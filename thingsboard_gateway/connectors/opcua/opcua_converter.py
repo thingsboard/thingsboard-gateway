@@ -15,7 +15,7 @@
 import logging
 from abc import ABC, abstractmethod
 
-log = logging.getLogger("extension")
+log = logging.getLogger("converter")
 
 
 class OpcUaConverter(ABC):
