@@ -104,16 +104,35 @@ class BLEConnector(Connector, Thread):
                                               device,
                                               content,
                                               self.__devices_around[device]['device_config']["attributeUpdates"])
-            # for server_variables in self.__available_object_resources[content["device"]]['variables']:
-            #     for attribute in content["data"]:
-            #         for variable in server_variables:
-            #             if attribute == variable:
-            #                 server_variables[variable].set_value(content["data"][variable])
         except Exception as e:
             log.exception(e)
 
     def server_side_rpc_handler(self, content):
-        pass
+        log.debug(content)
+        try:
+            for device in self.__devices_around:
+                if self.__devices_around[device]['device_config'].get('name') == content['device']:
+                    for requests in self.__devices_around[device]['device_config']["serverSideRpc"]:
+                        for service in self.__devices_around[device]['services']:
+                            if requests['characteristicUUID'] in self.__devices_around[device]['services'][service]:
+                                characteristic = self.__devices_around[device]['services'][service][requests['characteristicUUID']]['characteristic']
+                                if requests.get('method') and requests['method'].upper() in characteristic.propertiesToString():
+                                    if content['data'].get(requests['serverSideRpc']) is not None:
+                                        try:
+                                            self.__check_and_reconnect(device)
+                                            characteristic.write(content['data'][requests['serverSideRpc']].encode('UTF-8'))
+                                        except BTLEDisconnectError:
+                                            self.__check_and_reconnect(device)
+                                            characteristic.write(content['data'][requests['serverSideRpc']].encode('UTF-8'))
+                                        except Exception as e:
+                                            log.exception(e)
+                                else:
+                                    log.error('Cannot process rpc request for device: %s with data: %s and config: %s',
+                                              device,
+                                              content,
+                                              self.__devices_around[device]['device_config']["serverSideRpc"])
+        except Exception as e:
+            log.exception(e)
 
     def is_connected(self):
         return self._connected
