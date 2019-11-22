@@ -24,8 +24,6 @@ from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.ble.bytes_ble_uplink_converter import BytesBLEUplinkConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
-import datetime
-
 
 class BLEConnector(Connector, Thread):
     def __init__(self, gateway, config):

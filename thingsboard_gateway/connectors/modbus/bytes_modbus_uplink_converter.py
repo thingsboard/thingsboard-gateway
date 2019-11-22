@@ -38,7 +38,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
                 result = None
                 if data_sent.get("functionCode") == 1 or data_sent.get("functionCode") == 2:
                     result = input_data.bits
-                    log.error(result)
+                    log.debug(result)
                     if "registerCount" in data_sent:
                         result = result[:data_sent["registerCount"]]
                     else:
@@ -95,7 +95,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
                         result = "0000000000000000" + str(bin(result)[2:])
                         # get length of 16, then get bit, then cast it to int(0||1 from "0"||"1", then cast to boolean)
                         result = bool(int((result[len(result) - 16:])[15 - position]))
-                self.__result[config_data].append({tag: int(result)})
+                try:
+                    self.__result[config_data].append({tag: int(result)})
+                except ValueError:
+                    self.__result[config_data].append({tag: int(result, 16)})
         self.__result["telemetry"] = self.__result.pop("timeseries")
         log.debug(self.__result)
         return self.__result

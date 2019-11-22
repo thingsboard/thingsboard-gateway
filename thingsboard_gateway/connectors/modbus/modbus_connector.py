@@ -105,7 +105,7 @@ class ModbusConnector(Connector, threading.Thread):
                                 }
             try:
                 for config_data in device_responses:
-                    if self.__devices[device]["config"][config_data]:
+                    if self.__devices[device]["config"].get(config_data) is not None:
                         unit_id = self.__devices[device]["config"]["unitId"]
                         if self.__devices[device]["next_"+config_data+"_check"] < current_time:
                             #  Reading data from device
@@ -159,16 +159,22 @@ class ModbusConnector(Connector, threading.Thread):
     def __configure_master(self):
         host = self.__server_conf.get("host", "localhost")
         port = self.__server_conf.get("port", 502)
+        serial_method = self.__server_conf.get('method', 'rtu')
+        baudrate = self.__server_conf.get('baudrate', 19200)
         timeout = self.__server_conf.get("timeout", 35)
         rtu = ModbusRtuFramer if self.__server_conf.get("rtuOverTcp") or self.__server_conf.get("rtuOverUdp") else False
         if self.__server_conf.get('type') == 'tcp':
             client = ModbusTcpClient
         elif self.__server_conf.get('type') == 'udp':
             client = ModbusUdpClient
+        elif self.__server_conf.get('type') == 'serial':
+            client = ModbusSerialClient
         else:
             raise Exception("Invalid Modbus transport type.")
 
-        if rtu:
+        if self.__server_conf.get('type') == 'serial':
+            self.__master = client(method=serial_method, port=port, timeout=timeout, baudrate=baudrate)
+        elif rtu:
             self.__master = client(host, port, rtu, timeout=timeout)
         else:
             self.__master = client(host, port, timeout=timeout)
