@@ -4,7 +4,6 @@
         "checkIntervalSeconds": 100,
         "scanTimeSeconds": 5,
         "passiveScanMode": true,
-        "buildDevicesMap": false,
         "devices": [
             {
                 "name": "Temperature and humidity sensor",
@@ -38,6 +37,14 @@
                     {
                         "attributeOnThingsBoard": "sharedName",
                         "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB"
+                    }
+                ],
+                "serverSideRpc": [
+                    {
+                        "methodRPC": "sharedName",
+                        "withResponse": true,
+                        "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB",
+                        "methodProcessing": "read"
                     }
                 ]
             }

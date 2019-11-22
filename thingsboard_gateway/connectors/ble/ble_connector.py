@@ -116,18 +116,48 @@ class BLEConnector(Connector, Thread):
                         for service in self.__devices_around[device]['services']:
                             if requests['characteristicUUID'] in self.__devices_around[device]['services'][service]:
                                 characteristic = self.__devices_around[device]['services'][service][requests['characteristicUUID']]['characteristic']
-                                if requests.get('method') and requests['method'].upper() in characteristic.propertiesToString():
-                                    if content['data'].get(requests['serverSideRpc']) is not None:
-                                        try:
-                                            self.__check_and_reconnect(device)
-                                            characteristic.write(content['data'][requests['serverSideRpc']].encode('UTF-8'))
-                                        except BTLEDisconnectError:
-                                            self.__check_and_reconnect(device)
-                                            characteristic.write(content['data'][requests['serverSideRpc']].encode('UTF-8'))
-                                        except Exception as e:
-                                            log.exception(e)
+                                if requests.get('methodProcessing') and requests['methodProcessing'].upper() in characteristic.propertiesToString():
+                                    if content['data']['method'] == requests['methodRPC']:
+                                        response = None
+                                        if requests['methodProcessing'].upper() == 'WRITE':
+                                            try:
+                                                self.__check_and_reconnect(device)
+                                                response = characteristic.write(content['data'].get('params', '').encode('UTF-8'), requests.get('withResponse', False))
+                                            except BTLEDisconnectError:
+                                                self.__check_and_reconnect(device)
+                                                response = characteristic.write(content['data'].get('params', '').encode('UTF-8'), requests.get('withResponse', False))
+                                            except Exception as e:
+                                                log.exception(e)
+                                        elif requests['methodProcessing'].upper() == 'READ':
+                                            try:
+                                                self.__check_and_reconnect(device)
+                                                response = characteristic.read()
+                                            except BTLEDisconnectError:
+                                                self.__check_and_reconnect(device)
+                                                response = characteristic.read()
+                                            except Exception as e:
+                                                log.exception(e)
+                                        elif requests['methodProcessing'].upper() == 'NOTIFY':
+                                            try:
+                                                self.__check_and_reconnect(device)
+                                                delegate = self.__notify_handler(self.__devices_around[device], characteristic.handle)
+                                                response = delegate.data
+                                            except BTLEDisconnectError:
+                                                self.__check_and_reconnect(device)
+                                                delegate = self.__notify_handler(self.__devices_around[device], characteristic.handle)
+                                                response = delegate.data
+                                            except Exception as e:
+                                                log.exception(e)
+                                        if response is not None:
+                                            log.debug('Response from device: %s', response)
+                                            if requests['withResponse']:
+                                                response = 'success'
+                                            self.__gateway.send_rpc_reply(content['device'], content['data']['id'], str(response))
+
+
+
                                 else:
-                                    log.error('Cannot process rpc request for device: %s with data: %s and config: %s',
+                                    log.error('Method for rpc request - not supported by characteristic or not found in the config.\nDevice: %s with data: %s and config: %s',
                                               device,
                                               content,
                                               self.__devices_around[device]['device_config']["serverSideRpc"])
