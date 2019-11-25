@@ -25,5 +25,26 @@ class CustomSerialUplinkConverter(Converter):
             'telemetry': []
         }
 
-    def convert(self, config, data):
+    def convert(self, config, data: bytes):
         keys = ['attributes', 'telemetry']
+        for key in keys:
+            self.result_dict[key] = []
+            if self.__config.get(key) is not None:
+                for config_object in self.__config.get(key):
+                    data_to_convert = data
+                    if config_object.get('untilDelimiter') is not None:
+                        data_to_convert = data.split(config_object.get('untilDelimiter').encode('UTF-8'))[0]
+                    if config_object.get('fromDelimiter') is not None:
+                        data_to_convert = data.split(config_object.get('fromDelimiter').encode('UTF-8'))[1]
+                    if config_object.get('toByte') is not None:
+                        to_byte = config_object.get('toByte')
+                        if to_byte == -1:
+                            to_byte = len(data) - 1
+                        data_to_convert = data_to_convert[:to_byte]
+                    if config_object.get('fromByte') is not None:
+                        from_byte = config_object.get('fromByte')
+                        data_to_convert = data_to_convert[from_byte:]
+                    converted_data = {config_object['key']: data_to_convert.decode('UTF-8')}
+                    self.result_dict[key].append(converted_data)
+        return self.result_dict
+

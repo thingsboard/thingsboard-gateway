@@ -9,9 +9,8 @@
       "telemetry": [
         {
           "type": "byte",
-          "key": "temperature",
-          "fromByte": 2,
-          "toByte": 4
+          "key": "humidity",
+          "untilDelimiter": "\r"
         }
       ],
       "attributes":[
@@ -19,7 +18,13 @@
           "key": "SerialNumber",
           "type": "string",
           "fromByte": 4,
-          "toByte": 8
+          "toByte": -1
+        }
+      ],
+      "attributeUpdates": [
+        {
+          "attributeOnThingsBoard": "attr1",
+          "stringToDevice": "value = ${attr1}\n"
         }
       ]
     }
