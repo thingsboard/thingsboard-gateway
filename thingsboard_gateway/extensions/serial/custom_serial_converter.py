@@ -12,11 +12,18 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.converter import Converter, ABC, log, abstractmethod
+from thingsboard_gateway.connectors.converter import Converter, log
 
 
-class BLEUplinkConverter(ABC):
+class CustomSerialUplinkConverter(Converter):
+    def __init__(self, config):
+        self.__config = config
+        self.result_dict = {
+            'deviceName': config.get('name', 'CustomSerialDevice'),
+            'deviceType': config.get('deviceType', 'default'),
+            'attributes': [],
+            'telemetry': []
+        }
 
-    @abstractmethod
     def convert(self, config, data):
-        pass
+        keys = ['attributes', 'telemetry']

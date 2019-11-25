@@ -26,8 +26,9 @@ from json import loads
 
 
 class MqttConnector(Connector, Thread):
-    def __init__(self, gateway, config):
-        super().__init__()
+    def __init__(self, gateway, config, connector_type):
+        super(Thread, self).__init__()
+        self.__connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.__gateway = gateway
@@ -139,7 +140,7 @@ class MqttConnector(Connector, Thread):
                     converter = None
                     if mapping["converter"]["type"] == "custom":
                         try:
-                            module = TBUtility.check_and_import('mqtt', mapping["converter"]["extension"])
+                            module = TBUtility.check_and_import(self.__connector_type, mapping["converter"]["extension"])
                             if module is not None:
                                 log.debug('Custom converter for topic %s - found!', mapping["topicFilter"])
                                 converter = module(mapping)

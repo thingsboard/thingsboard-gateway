@@ -14,11 +14,10 @@
 
 import logging
 from abc import ABC, abstractmethod
-
-log = logging.getLogger("converter")
+from thingsboard_gateway.connectors.converter import Converter, ABC, abstractmethod, log
 
 
 class OpcUaConverter(ABC):
     @abstractmethod
-    def convert(self, path, data):
+    def convert(self, config, data):
         pass

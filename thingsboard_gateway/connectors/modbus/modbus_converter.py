@@ -12,13 +12,10 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
-from abc import ABC, abstractmethod
-
-log = logging.getLogger('converter')
+from thingsboard_gateway.connectors.converter import Converter, ABC, abstractmethod, log
 
 
 class ModbusConverter(ABC):
     @abstractmethod
-    def convert(self, data, config):
+    def convert(self, config, data):
         pass

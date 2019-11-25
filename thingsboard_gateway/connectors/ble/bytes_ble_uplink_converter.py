@@ -40,14 +40,14 @@ class BytesBLEUplinkConverter(BLEUplinkConverter):
                             "attributes": []
                             }
 
-    def convert(self, section_config, data):
+    def convert(self, config, data):
         try:
-            if section_config.get('clean', True):
+            if config.get('clean', True):
                 self.dict_result["telemetry"] = []
                 self.dict_result["attributes"] = []
             try:
-                byte_from = section_config['section_config'].get('byteFrom')
-                byte_to = section_config['section_config'].get('byteTo')
+                byte_from = config['section_config'].get('byteFrom')
+                byte_to = config['section_config'].get('byteTo')
                 try:
                     byte_to = byte_to if byte_to != -1 else len(data)
                     converted_data = data[byte_from: byte_to]
@@ -55,12 +55,12 @@ class BytesBLEUplinkConverter(BLEUplinkConverter):
                         converted_data = converted_data.replace(b"\x00", b'').decode('UTF-8')
                     except UnicodeDecodeError:
                         converted_data = str(converted_data)
-                    if section_config['section_config'].get('key') is not None:
-                        self.dict_result[section_config['type']].append({section_config['section_config'].get('key'): converted_data})
+                    if config['section_config'].get('key') is not None:
+                        self.dict_result[config['type']].append({config['section_config'].get('key'): converted_data})
                     else:
-                        log.error('Key for %s not found in config: %s', section_config['type'], section_config['section_config'])
+                        log.error('Key for %s not found in config: %s', config['type'], config['section_config'])
                 except Exception as e:
-                    log.error('\nException catched when processing data for %s\n\n', pformat(section_config))
+                    log.error('\nException catched when processing data for %s\n\n', pformat(config))
                     log.exception(e)
             except Exception as e:
                 log.exception(e)

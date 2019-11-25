@@ -119,6 +119,13 @@ class TBGatewayService:
             raise Exception("Configuration for connectors not found, check your config file.")
         for connector in config['connectors']:
             try:
+                if connector.get('class') is not None:
+                    try:
+                        connector_class = TBUtility.check_and_import(connector['type'], connector['class'])
+                        self.__implemented_connectors[connector['type']] = connector_class
+                    except Exception as e:
+                        log.error("Exception when loading the custom connector:")
+                        log.exception(e)
                 with open(self.__config_dir+connector['configuration'], 'r') as conf_file:
                     connector_conf = load(conf_file)
                     if not self._connectors_configs.get(connector['type']):
@@ -131,13 +138,15 @@ class TBGatewayService:
         for connector_type in self._connectors_configs:
             for connector_config in self._connectors_configs[connector_type]:
                 for config_file in connector_config:
+                    connector = None
                     try:
-                        connector = self.__implemented_connectors[connector_type](self, connector_config[config_file])
+                        connector = self.__implemented_connectors[connector_type](self, connector_config[config_file], connector_type)
                         self.available_connectors[connector.get_name()] = connector
                         connector.open()
                     except Exception as e:
                         log.exception(e)
-                        connector.close()
+                        if connector is not None:
+                            connector.close()
 
     def __send_statistic(self):
         self.tb_client.client.gw_send_telemetry()

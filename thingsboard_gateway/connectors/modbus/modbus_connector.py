@@ -27,18 +27,19 @@ from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter impor
 
 
 class ModbusConnector(Connector, threading.Thread):
-    def __init__(self, gateway, config):
+    def __init__(self, gateway, config, connector_type):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         super(Connector, self).__init__()
         super(threading.Thread, self).__init__()
         self.__gateway = gateway
+        self.__connector_type = connector_type
         self.__master = None
-        self.__server_conf = config.get("server")
+        self.__config = config.get("server")
         self.__configure_master()
         self.__devices = {}
-        self.setName(self.__server_conf.get("name",
-                                            'Modbus Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.setName(self.__config.get("name",
+                                       'Modbus Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__load_converters()
         self.__connected = False
         self.__stopped = False
@@ -55,7 +56,7 @@ class ModbusConnector(Connector, threading.Thread):
     def run(self):
         while not self.__master.connect():
             time.sleep(5)
-            log.warning("Modbus trying reconnect to %s", self.__server_conf.get("name"))
+            log.warning("Modbus trying reconnect to %s", self.__config.get("name"))
         log.info("Modbus connected.")
         self.__connected = True
 
@@ -67,13 +68,13 @@ class ModbusConnector(Connector, threading.Thread):
 
     def __load_converters(self):
         try:
-            for device in self.__server_conf["devices"]:
-                if self.__server_conf.get("converter") is not None:
-                    converter = TBUtility.check_and_import('modbus', self.__server_conf["converter"])(device)
+            for device in self.__config["devices"]:
+                if self.__config.get("converter") is not None:
+                    converter = TBUtility.check_and_import(self.__connector_type, self.__config["converter"])(device)
                 else:
                     converter = BytesModbusUplinkConverter(device)
-                if self.__server_conf.get("downlink_converter") is not None:
-                    downlink_converter = TBUtility.check_and_import('modbus', self.__server_conf["downlink_converter"])(device)
+                if self.__config.get("downlink_converter") is not None:
+                    downlink_converter = TBUtility.check_and_import(self.__connector_type, self.__config["downlink_converter"])(device)
                 else:
                     downlink_converter = BytesModbusDownlinkConverter(device)
                 if device.get('deviceName') not in self.__gateway.get_devices():
@@ -122,11 +123,11 @@ class ModbusConnector(Connector, threading.Thread):
                             log.debug("Checking %s for device %s", config_data, device)
                             self.__devices[device]["next_"+config_data+"_check"] = current_time + self.__devices[device]["config"][config_data+"PollPeriod"]/1000
                             log.debug(device_responses)
-                            converted_data = self.__devices[device]["converter"].convert(device_responses)
+                            converted_data = self.__devices[device]["converter"].convert(config=None, data=device_responses)
 
                             if converted_data["telemetry"] != self.__devices[device]["telemetry"] or\
                                converted_data["attributes"] != self.__devices[device]["attributes"] and\
-                               self.__server_conf.get("sendDataOnlyOnChange") == True:
+                               self.__config.get("sendDataOnlyOnChange") == True:
                                 self.statistics['MessagesReceived'] += 1
                                 to_send = {"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
                                 if converted_data["telemetry"] != self.__devices[device]["telemetry"]:
@@ -137,7 +138,7 @@ class ModbusConnector(Connector, threading.Thread):
                                     to_send["attributes"] = converted_data["attributes"]
                                 self.__gateway.send_to_storage(self.get_name(), to_send)
                                 self.statistics['MessagesSent'] += 1
-                            elif self.__server_conf.get("sendDataOnlyOnChange") == False:
+                            elif self.__config.get("sendDataOnlyOnChange") == False:
                                 self.statistics['MessagesReceived'] += 1
                                 to_send = {"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
                                 if converted_data["telemetry"] != self.__devices[device]["telemetry"]:
@@ -157,22 +158,22 @@ class ModbusConnector(Connector, threading.Thread):
         pass
 
     def __configure_master(self):
-        host = self.__server_conf.get("host", "localhost")
-        port = self.__server_conf.get("port", 502)
-        serial_method = self.__server_conf.get('method', 'rtu')
-        baudrate = self.__server_conf.get('baudrate', 19200)
-        timeout = self.__server_conf.get("timeout", 35)
-        rtu = ModbusRtuFramer if self.__server_conf.get("rtuOverTcp") or self.__server_conf.get("rtuOverUdp") else False
-        if self.__server_conf.get('type') == 'tcp':
+        host = self.__config.get("host", "localhost")
+        port = self.__config.get("port", 502)
+        serial_method = self.__config.get('method', 'rtu')
+        baudrate = self.__config.get('baudrate', 19200)
+        timeout = self.__config.get("timeout", 35)
+        rtu = ModbusRtuFramer if self.__config.get("rtuOverTcp") or self.__config.get("rtuOverUdp") else False
+        if self.__config.get('type') == 'tcp':
             client = ModbusTcpClient
-        elif self.__server_conf.get('type') == 'udp':
+        elif self.__config.get('type') == 'udp':
             client = ModbusUdpClient
-        elif self.__server_conf.get('type') == 'serial':
+        elif self.__config.get('type') == 'serial':
             client = ModbusSerialClient
         else:
             raise Exception("Invalid Modbus transport type.")
 
-        if self.__server_conf.get('type') == 'serial':
+        if self.__config.get('type') == 'serial':
             self.__master = client(method=serial_method, port=port, timeout=timeout, baudrate=baudrate)
         elif rtu:
             self.__master = client(host, port, rtu, timeout=timeout)
@@ -215,7 +216,7 @@ class ModbusConnector(Connector, threading.Thread):
             rpc_command_config["unitId"] = self.__devices[content["device"]]["config"]["unitId"]
 
         if rpc_command_config is not None:
-            rpc_command_config["payload"] = self.__devices[content["device"]]["downlink_converter"].convert(content, rpc_command_config)
+            rpc_command_config["payload"] = self.__devices[content["device"]]["downlink_converter"].convert(rpc_command_config, content)
             response = None
             try:
                 response = self.__function_to_device(rpc_command_config, rpc_command_config["unitId"])

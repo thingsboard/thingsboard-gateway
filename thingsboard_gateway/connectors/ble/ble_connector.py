@@ -26,8 +26,9 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class BLEConnector(Connector, Thread):
-    def __init__(self, gateway, config):
+    def __init__(self, gateway, config, connector_type):
         super().__init__()
+        self.__connector_type = connector_type
         self.__default_services = [x for x in range(0x1800, 0x183A)]
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
@@ -388,7 +389,7 @@ class BLEConnector(Connector, Thread):
                             converter = None
                             if type_section.get('converter') is not None:
                                 try:
-                                    module = TBUtility.check_and_import('ble', type_section['converter'])
+                                    module = TBUtility.check_and_import(self.__connector_type, type_section['converter'])
                                     if module is not None:
                                         log.debug('Custom converter for device %s - found!', interest_device['MACAddress'])
                                         converter = module(interest_device)

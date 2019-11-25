@@ -12,11 +12,29 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.converter import Converter, ABC, log, abstractmethod
+from threading import Thread
+from thingsboard_gateway.connectors.custom_connector import CustomConnector, log
 
 
-class BLEUplinkConverter(ABC):
+class CustomSerialConnector(CustomConnector):
+    def __init__(self, gateway,  config, connector_type):
+        super().__init__(gateway, config, connector_type)
+        log.debug('Custom converter initialization success')
 
-    @abstractmethod
-    def convert(self, config, data):
+    def open(self):
+        pass
+
+    def close(self):
+        pass
+
+    def get_name(self):
+        pass
+
+    def is_connected(self):
+        pass
+
+    def on_attributes_update(self, content):
+        pass
+
+    def server_side_rpc_handler(self, content):
         pass

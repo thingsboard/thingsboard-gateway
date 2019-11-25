@@ -52,17 +52,16 @@ class TBUtility:
     @staticmethod
     def check_and_import(extension_type, module_name):
         try:
-            if os.path.exists('/var/lib/thingsboard_gateway/extensions/'+extension_type.lower()):
-                custom_converter_path = '/var/lib/thingsboard_gateway/extensions/' + extension_type.lower()
-                log.info('Connector %s - configuration for custom converter looking in %s', extension_type, custom_converter_path)
+            if os.path.exists('/var/lib/thingsboard_gateway/'+extension_type.lower()):
+                custom_extension_path = '/var/lib/thingsboard_gateway/' + extension_type.lower()
+                log.info('Extension %s - looking for class in %s', extension_type, custom_extension_path)
             else:
-                custom_converter_path = os.path.abspath(os.path.dirname(os.path.dirname(__file__)) + '/extensions/' + extension_type.lower())
-                log.info('Connector %s - configuration for custom converter looking in %s', extension_type, custom_converter_path)
-            for file in os.listdir(custom_converter_path):
+                custom_extension_path = os.path.abspath(os.path.dirname(os.path.dirname(__file__)) + '/extensions/' + extension_type.lower())
+                log.info('Extension %s - looking for class in %s', extension_type, custom_extension_path)
+            for file in os.listdir(custom_extension_path):
                 if not file.startswith('__') and file.endswith('.py'):
-                    # mod = 'extensions.'+extension_type.lower()+'.'+file.replace('.py', '')
                     try:
-                        module_spec = importlib.util.spec_from_file_location(module_name, custom_converter_path + '/' + file)
+                        module_spec = importlib.util.spec_from_file_location(module_name, custom_extension_path + '/' + file)
                         log.debug(module_spec)
                         if module_spec is None:
                             log.error('Module: {} not found'.format(module_name))
@@ -74,9 +73,9 @@ class TBUtility:
                                 module_spec.loader.exec_module(module)
                             except Exception as e:
                                 log.exception(e)
-                            for converter_class in inspect.getmembers(module, inspect.isclass):
-                                if module_name in converter_class:
-                                    return converter_class[1]
+                            for extension_class in inspect.getmembers(module, inspect.isclass):
+                                if module_name in extension_class:
+                                    return extension_class[1]
                     except ImportError:
                         continue
                     except Exception as e:
@@ -125,10 +124,11 @@ class TBUtility:
 
     @staticmethod
     def check_logs_directory(conf_file_path):
+        log = None
         try:
             log = getLogger(__name__)
         except Exception:
-            pass
+            log = getLogger('service')
         with open(conf_file_path) as conf_file:
             logs_directories = set()
             for line in conf_file.readlines():
@@ -138,8 +138,14 @@ class TBUtility:
                         logs_directories.add(target.group(1))
         for logs_dir in logs_directories:
             if not os.path.exists(logs_dir):
-                log.error("Logs directory not exists.")
+                if log is not None:
+                    log.error("Logs directory not exists.")
+                else:
+                    print("ERROR - Logs directory not exists.")
                 try:
                     os.mkdir(logs_dir)
                 except Exception as e:
-                    log.exception(e)
+                    if log is not None:
+                        log.exception(e)
+                    else:
+                        print(e)

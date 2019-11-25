@@ -23,41 +23,41 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         self.__config = config.get('converter')
         self.dict_result = {}
 
-    def convert(self, topic, body):
+    def convert(self, config, data):
         try:
             if self.__config.get("deviceNameJsonExpression") is not None:
-                self.dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), body)
+                self.dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data)
             elif self.__config.get("deviceNameTopicExpression") is not None:
-                self.dict_result["deviceName"] = search(self.__config["deviceNameTopicExpression"], topic)
+                self.dict_result["deviceName"] = search(self.__config["deviceNameTopicExpression"], config)
             else:
                 log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
             if self.__config.get("deviceTypeJsonExpression") is not None:
-                self.dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), body)
+                self.dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data)
             elif self.__config.get("deviceTypeTopicExpression") is not None:
-                self.dict_result["deviceType"] = search(self.__config["deviceTypeTopicExpression"], topic)
+                self.dict_result["deviceType"] = search(self.__config["deviceTypeTopicExpression"], config)
             else:
                 log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
             self.dict_result["attributes"] = []
             self.dict_result["telemetry"] = []
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
+            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
         try:
             if self.__config.get("attributes"):
                 for attribute in self.__config.get("attributes"):
                     self.dict_result["attributes"].append({attribute["key"]: TBUtility.get_value(attribute["value"],
-                                                                                                 body,
+                                                                                                 data,
                                                                                                  attribute["type"])})
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
+            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
         try:
             if self.__config.get("timeseries"):
                 for ts in self.__config.get("timeseries"):
                     self.dict_result["telemetry"].append({ts["key"]: TBUtility.get_value(ts["value"],
-                                                                                         body,
+                                                                                         data,
                                                                                          ts["type"])})
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
+            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
         return self.dict_result

@@ -26,10 +26,11 @@ from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUpl
 
 
 class OpcUaConnector(Thread, Connector):
-    def __init__(self, gateway, config):
+    def __init__(self, gateway, config, connector_type):
+        self.__connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
-        Thread.__init__(self)
+        super(Thread, self).__init__()
         self.__gateway = gateway
         self.__server_conf = config.get("server")
         self.__interest_nodes = []
@@ -241,7 +242,7 @@ class OpcUaConnector(Thread, Connector):
                                                     if interest_node[int_node].get('converter') is None:
                                                         converter = OpcUaUplinkConverter(interest_node[int_node])
                                                     else:
-                                                        converter = TBUtility.check_and_import('opcua', interest_node[int_node]['converter'])
+                                                        converter = TBUtility.check_and_import(self.__connector_type, interest_node[int_node]['converter'])
                                                     interest_node[int_node]["uplink_converter"] = converter
                                                 else:
                                                     converter = interest_node[int_node]["uplink_converter"]

@@ -12,10 +12,13 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.converter import Converter, ABC, log, abstractmethod
+import logging
+from abc import ABC, abstractmethod
+
+log = logging.getLogger("converter")
 
 
-class BLEUplinkConverter(ABC):
+class Converter(ABC):
 
     @abstractmethod
     def convert(self, config, data):
