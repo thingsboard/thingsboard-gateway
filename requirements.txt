@@ -15,3 +15,5 @@ python3-paho-mqtt
 python3-pymodbus
 python3-pyserial
 python3-PyYAML
+python3-pyrsistent
+python3-importlib
