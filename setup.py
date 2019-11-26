@@ -34,9 +34,24 @@ setup(
         'PyYAML',
         'simplejson',
     ],
-    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.8rc-python.tar.gz',
+    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.9.1rc-python.tar.gz',
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'
         ]
     })
+
+from shutil import copytree, copyfile
+from thingsboard_gateway import __path__ as lib_path
+from os.path import abspath, exists
+from os.path import expanduser
+home = expanduser("~")
+
+current_path = abspath(home)+'//thingsboard-gateway'
+if exists(current_path) is False:
+    config_path = lib_path[0]+'//config'
+    entry_file_point = '//tb_gateway.py'
+    copytree(config_path, current_path + '//config')
+    copyfile(lib_path[0] + entry_file_point, current_path + entry_file_point)
+
+
