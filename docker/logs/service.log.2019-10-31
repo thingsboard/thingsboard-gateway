@@ -1,0 +1,5 @@
+''2019-10-31 11:46:27' - DEBUG - tb_gateway_service - 246 - Loaded devices:
+ {}'
+''2019-10-31 11:46:27' - INFO - tb_utility - 57 - Connector mqtt - configuration for custom converter found in /var/lib/thingsboard_gateway/extensions/mqtt'
+''2019-10-31 11:46:27' - DEBUG - tb_utility - 66 - ModuleSpec(name='CustomMqttUplinkConverter', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fd0b1071a20>, origin='/var/lib/thingsboard_gateway/extensions/mqtt/custom_mqtt_uplink_converter.py')'
+''2019-10-31 11:46:27' - DEBUG - tb_utility - 72 - <module 'CustomMqttUplinkConverter' from '/var/lib/thingsboard_gateway/extensions/mqtt/custom_mqtt_uplink_converter.py'>'

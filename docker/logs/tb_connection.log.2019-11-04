@@ -1,0 +1,17 @@
+''2019-11-04 06:39:03' - DEBUG - tb_client - 62 - connecting to ThingsBoard'
+''2019-11-04 06:39:03' - ERROR - tb_client - 71 - [Errno 111] Connection refused'
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.6/dist-packages/thingsboard_gateway/gateway/tb_client.py", line 68, in connect
+    min_reconnect_delay=min_reconnect_delay)
+  File "/usr/local/lib/python3.6/dist-packages/thingsboard_gateway/tb_client/tb_device_mqtt.py", line 202, in connect
+    self._client.connect(self.__host, self.__port, keepalive=keepalive)
+  File "/usr/local/lib/python3.6/dist-packages/paho/mqtt/client.py", line 839, in connect
+    return self.reconnect()
+  File "/usr/local/lib/python3.6/dist-packages/paho/mqtt/client.py", line 962, in reconnect
+    sock = socket.create_connection((self._host, self._port), source_address=(self._bind_address, 0))
+  File "/usr/lib/python3.6/socket.py", line 724, in create_connection
+    raise err
+  File "/usr/lib/python3.6/socket.py", line 713, in create_connection
+    sock.connect(sa)
+ConnectionRefusedError: [Errno 111] Connection refused
+''2019-11-04 06:39:13' - DEBUG - tb_gateway_mqtt - 155 - Subscribed to *|* with id 1'

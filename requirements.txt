@@ -1,4 +1,5 @@
 libffi-dev
+libglib2.0-dev
 libxml2-dev
 libxslt-dev
 libssl-dev

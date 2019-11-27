@@ -31,6 +31,14 @@
             "functionCode": 4,
             "registerCount": 1,
             "address": 0
+          },
+          {
+            "byteOrder": "BIG",
+            "tag": "test2",
+            "type": "long",
+            "functionCode": 4,
+            "registerCount": 1,
+            "address": 2
           }
         ],
         "rpc": {

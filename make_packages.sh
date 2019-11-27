@@ -58,11 +58,11 @@ if [ "$1" != "only_clean" ] ; then
 #  cp thingsboard-gateway.spec /home/$CURRENT_USER/rpmbuild/SPECS/
   rpmbuild -ba thingsboard-gateway.spec
   cp /home/$CURRENT_USER/rpmbuild/RPMS/noarch/*.rpm .
-#  sudo apt install ./deb_dist/thingsboard-gateway-2.0.0/debian/python3-thingsboard-gateway.deb -y
+#  sudo apt install ./deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway.deb -y
   echo "Building Docker image, container and run it"
   cp -r for_build/etc/thingsboard-gateway/config docker/
   cp -r for_build/etc/thingsboard-gateway/extensions docker/
-  cd docker
+  cd docker || exit
   sudo docker build -t thingsboard_gateway .
 #  sudo docker run -d -it --mount type=bind,source="$(pwd)""/logs",target=/var/log/thingsboard-gateway -v config:/etc/thingsboard-gateway/config -v extensions:/var/lib/thingsboard_gateway/extensions --name tb_gateway thingsboard_gateway
 #  sudo docker ps -a | grep tb_gateway
