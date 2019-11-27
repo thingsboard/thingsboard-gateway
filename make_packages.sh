@@ -24,6 +24,8 @@ if [ "$1" = "clean" ] || [ "$1" = "only_clean" ] ; then
   sudo apt remove python3-thingsboard-gateway -y
 fi
 
+CURRENT_VERSION=$( grep -Po 'version = \K(.*)$' setup.cfg )
+
 CURRENT_USER=$USER
 
 if [ "$1" != "only_clean" ] ; then
@@ -31,16 +33,16 @@ if [ "$1" != "only_clean" ] ; then
   # Create sources for DEB package
   python3 setup.py --command-packages=stdeb.command bdist_deb
   # Adding the files, scripts and permissions
-  sudo cp -r for_build/etc deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway
-  sudo cp -r for_build/var deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway
-  sudo cp -r -a for_build/DEBIAN deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway
-  sudo chown root:root deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/ -R
-  sudo chown root:root deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/var/ -R
-  sudo chmod 775 deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/DEBIAN/preinst
-  sudo chown root:root deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/DEBIAN/preinst
+  sudo cp -r for_build/etc deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
+  sudo cp -r for_build/var deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
+  sudo cp -r -a for_build/DEBIAN deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
+  sudo chown root:root deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/ -R
+  sudo chown root:root deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/var/ -R
+  sudo chmod 775 deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/DEBIAN/preinst
+  sudo chown root:root deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/DEBIAN/preinst
   # Bulding Deb package
-  dpkg-deb -b deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/
-  cp deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway.deb .
+  dpkg-deb -b deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/
+  cp deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway.deb .
   cp python3-thingsboard-gateway.deb docker/
   # Create sources for RPM Package
   echo 'Building RPM package'

@@ -4,10 +4,12 @@ After=multi-user.target
 
 [Service]
 Type=simple
-User=thingsboard-gateway
-Group=thingsboard-gateway
+User=thingsboard_gateway
+Group=thingsboard_gateway
 
-ExecStart=python3 -c "from thingsboard_gateway.tb_gateway import daemon; daemon()"
+ExecStart=/usr/bin/python3 -c "from thingsboard_gateway.tb_gateway import daemon; daemon()"
+ExecStop=/bin/kill -INT $MAINPID
+ExecReload=/bin/kill -TERM $MAINPID
 
 Restart=on-failure
 
