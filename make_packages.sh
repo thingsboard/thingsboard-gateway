@@ -12,19 +12,19 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+CURRENT_VERSION=$( grep -Po 'version = \K(.*)$' setup.cfg )
 if [ "$1" = "clean" ] || [ "$1" = "only_clean" ] ; then
   sudo rm -rf /var/log/thingsboard-gateway/
   sudo rm -rf deb_dist/
   sudo rm -rf dist/
   sudo rm -rf thingsboard-gateway.egg-info/
   sudo rm -rf /etc/thingsboard-gateway/
-  sudo rm -rf thingsboard-gateway-2.0.*.tar.gz
+  sudo rm -rf thingsboard-gateway-2.*.tar.gz
   sudo rm -rf /home/zenx/rpmbuild/BUILDROOT/*
   sudo rm -rf build/
   sudo apt remove python3-thingsboard-gateway -y
 fi
 
-CURRENT_VERSION=$( grep -Po 'version = \K(.*)$' setup.cfg )
 
 CURRENT_USER=$USER
 
@@ -51,7 +51,10 @@ if [ "$1" != "only_clean" ] ; then
   # Adding the file, scripts and permissions
   cp for_build/etc/systemd/system/thingsboard-gateway.service /home/$CURRENT_USER/rpmbuild/SOURCES/
   cd for_build/etc/thingsboard-gateway/
-  tar -zcvf configs.tar.gz .*
+  cd thingsboard_gateway
+  tar -zcvf configs.tar.gz config/*
+  mv configs.tar.gz ../
+  cd ../
   cp configs.tar.gz /home/$CURRENT_USER/rpmbuild/SOURCES/
   cd ../../../
   # Bulding RPM Package
