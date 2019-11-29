@@ -15,16 +15,21 @@
 import logging
 import time
 from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
+import threading
 
 log = logging.getLogger("tb_connection")
 
 
-class TBClient:
+class TBClient(threading.Thread):
     def __init__(self, config):
+        super().__init__()
+        self.setName('Connection thread.')
+        self.daemon = True
         self.__config = config
         self.__host = config["host"]
         self.__port = config.get("port", 1883)
         credentials = config["security"]
+        self.__min_reconnect_delay = 10
         self.__tls = False
         self.__ca_cert = None
         self.__private_key = None
@@ -60,6 +65,10 @@ class TBClient:
         self.client.disconnect()
 
     def connect(self, min_reconnect_delay=10):
+        self.__min_reconnect_delay = min_reconnect_delay
+        self.start()
+
+    def run(self):
         keep_alive = self.__config.get("keep_alive", 60)
         try:
             while not self.client.is_connected():
@@ -69,9 +78,25 @@ class TBClient:
                                     cert_file=self.__cert,
                                     key_file=self.__private_key,
                                     keepalive=keep_alive,
-                                    min_reconnect_delay=min_reconnect_delay)
+                                    min_reconnect_delay=self.__min_reconnect_delay)
                 time.sleep(1)
         except Exception as e:
-            log.exception(e)
+            log.error("On connection to ThingsBoard: %s", str(e))
             time.sleep(10)
+
+        while True:
+            if not self.client.is_connected():
+                try:
+                    self.client.connect(tls=self.__tls,
+                                        ca_certs=self.__ca_cert,
+                                        cert_file=self.__cert,
+                                        key_file=self.__private_key,
+                                        keepalive=keep_alive,
+                                        min_reconnect_delay=self.__min_reconnect_delay)
+                except Exception as e:
+                    log.error("On connection to ThingsBoard: %s", str(e))
+                    time.sleep(self.__min_reconnect_delay)
+                time.sleep(.1)
+            else:
+                time.sleep(.1)
 
