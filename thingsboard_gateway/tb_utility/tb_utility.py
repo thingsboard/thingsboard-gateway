@@ -101,6 +101,7 @@ class TBUtility:
         if get_tag:
             return target_str
         value = True
+        full_value = None
         try:
             if value_type == "string":
                 value = jp.match1(target_str.split()[0], dumps(body))
@@ -115,8 +116,8 @@ class TBUtility:
 
         except TypeError:
             if value is None:
-                log.error('Value is None - Cannot find the pattern: %s in %s', target_str, dumps(body))
-            return None
+                log.error('Value is None - Cannot find the pattern: %s in %s. Expression will be interpreted as value.', target_str, dumps(body))
+                full_value = expression
         except Exception as e:
             log.error(e)
             return None
