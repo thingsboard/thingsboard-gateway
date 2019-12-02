@@ -22,6 +22,8 @@ if [ "$1" = "clean" ] || [ "$1" = "only_clean" ] ; then
   sudo rm -rf thingsboard-gateway-2.*.tar.gz
   sudo rm -rf /home/zenx/rpmbuild/BUILDROOT/*
   sudo rm -rf build/
+  sudo rm -rf docker/config || echo ''
+  sudo rm -rf docker/extensions || echo ''
   sudo apt remove python3-thingsboard-gateway -y
 fi
 
@@ -50,9 +52,10 @@ if [ "$1" != "only_clean" ] ; then
   cp build/bdist.linux-x86_64/rpm/* /home/$CURRENT_USER/rpmbuild/ -r
   # Adding the file, scripts and permissions
   cp for_build/etc/systemd/system/thingsboard-gateway.service /home/$CURRENT_USER/rpmbuild/SOURCES/
-  cd for_build/etc/thingsboard-gateway/
+#  cd for_build/etc/thingsboard-gateway/
   cd thingsboard_gateway
   tar -zcvf configs.tar.gz config/*
+  cp -r extensions for_build/DEBIAN/etc/thingsboard-gateway/
   mv configs.tar.gz ../
   cd ../
   cp configs.tar.gz /home/$CURRENT_USER/rpmbuild/SOURCES/

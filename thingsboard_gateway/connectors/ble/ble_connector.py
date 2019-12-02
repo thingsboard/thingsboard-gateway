@@ -27,7 +27,7 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 class BLEConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
-        super().__init__()
+        super(Thread, self).__init__()
         self.__connector_type = connector_type
         self.__default_services = [x for x in range(0x1800, 0x183A)]
         self.statistics = {'MessagesReceived': 0,

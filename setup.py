@@ -37,7 +37,7 @@ setup(
         'bluepy',
         'importlib'
     ],
-    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.12rc-python.tar.gz',
+    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.13rc-python.tar.gz',
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'
