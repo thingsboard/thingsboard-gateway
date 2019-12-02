@@ -30,8 +30,7 @@ class ModbusConnector(Connector, threading.Thread):
     def __init__(self, gateway, config, connector_type):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
-        super(Connector, self).__init__()
-        super(threading.Thread, self).__init__()
+        super().__init__()
         self.__gateway = gateway
         self.__connector_type = connector_type
         self.__master = None

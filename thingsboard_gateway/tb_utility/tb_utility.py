@@ -122,31 +122,3 @@ class TBUtility:
             log.error(e)
             return None
         return full_value
-
-    @staticmethod
-    def check_logs_directory(conf_file_path):
-        log = None
-        try:
-            log = getLogger(__name__)
-        except Exception:
-            log = getLogger('service')
-        with open(conf_file_path) as conf_file:
-            logs_directories = set()
-            for line in conf_file.readlines():
-                target = re.search(r"[\"|\'](.+[/])(.+\.log)\"|\'", line)
-                if target:
-                    if target.group(1) is not None:
-                        logs_directories.add(target.group(1))
-        for logs_dir in logs_directories:
-            if not os.path.exists(logs_dir):
-                if log is not None:
-                    log.error("Logs directory not exists.")
-                else:
-                    print("ERROR - Logs directory not exists.")
-                try:
-                    os.mkdir(logs_dir)
-                except Exception as e:
-                    if log is not None:
-                        log.exception(e)
-                    else:
-                        print(e)

@@ -12,13 +12,14 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+CURRENT_VERSION=$( grep -Po 'version = \K(.*)$' setup.cfg )
 if [ "$1" = "clean" ] || [ "$1" = "only_clean" ] ; then
   sudo rm -rf /var/log/thingsboard-gateway/
   sudo rm -rf deb_dist/
   sudo rm -rf dist/
   sudo rm -rf thingsboard-gateway.egg-info/
   sudo rm -rf /etc/thingsboard-gateway/
-  sudo rm -rf thingsboard-gateway-2.0.*.tar.gz
+  sudo rm -rf thingsboard-gateway-$CURRENT_VERSION.tar.gz
   sudo apt remove python3-thingsboard-gateway -y
 fi
 
@@ -29,14 +30,15 @@ if [ "$1" != "only_clean" ] ; then
   echo "Creating sources for DEB package..."
   python3 setup.py --command-packages=stdeb.command bdist_deb
   echo "Adding the files, scripts and permissions in the package"
-  sudo cp -r for_build/etc deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway
-  sudo cp -r for_build/var deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway
-  sudo cp -r -a for_build/DEBIAN deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway
-  sudo chown root:root deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/ -R
-  sudo chown root:root deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/var/ -R
-  sudo chmod 775 deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/DEBIAN/preinst
-  sudo chown root:root deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/DEBIAN/preinst
+  sudo cp -r for_build/etc deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
+  sudo cp -r for_build/var deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
+  sudo cp -r -a for_build/DEBIAN deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
+  sudo chown root:root deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/ -R
+  sudo chown root:root deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/var/ -R
+  sudo chmod 775 deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/DEBIAN/preinst
+  sudo chown root:root deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/DEBIAN/preinst
+  sudo sed -i '/^Depends: .*/ s/$/, libffi-dev, libglib2.0-dev, libxml2-dev, libxslt-dev, libssl-dev, zlib1g-dev/' deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/DEBIAN/control >> deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/DEBIAN/control
   # Bulding Deb package
-  dpkg-deb -b deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway/
-  cp deb_dist/thingsboard-gateway-2.0.*/debian/python3-thingsboard-gateway.deb .
+  dpkg-deb -b deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/
+  cp deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway.deb .
 fi

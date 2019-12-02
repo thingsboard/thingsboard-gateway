@@ -30,7 +30,7 @@ class OpcUaConnector(Thread, Connector):
         self.__connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
-        super(Thread, self).__init__()
+        super().__init__()
         self.__gateway = gateway
         self.__server_conf = config.get("server")
         self.__interest_nodes = []

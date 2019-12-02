@@ -22,6 +22,7 @@ setup(
               'thingsboard_gateway.extensions.mqtt', 'thingsboard_gateway.extensions.modbus', 'thingsboard_gateway.extensions.opcua'],
     install_requires=[
         'cffi',
+        'pip',
         'jsonpath-rw',
         'jsonpath-rw-ext',
         'jsonschema==3.1.1',
@@ -37,7 +38,7 @@ setup(
         'bluepy',
         'importlib'
     ],
-    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.13rc-python.tar.gz',
+    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.14rc-python.tar.gz',
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'

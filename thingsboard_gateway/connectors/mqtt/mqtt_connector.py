@@ -27,7 +27,7 @@ from json import loads
 
 class MqttConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
-        super(Thread, self).__init__()
+        super().__init__()
         self.__connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}

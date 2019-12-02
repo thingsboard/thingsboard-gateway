@@ -40,7 +40,6 @@ class TBGatewayService:
         with open(config_file) as config:
             config = yaml.safe_load(config)
             self.__config_dir = path.dirname(path.abspath(config_file))+'/'
-            TBUtility.check_logs_directory(self.__config_dir+"logs.conf")
             logging.config.fileConfig(self.__config_dir+"logs.conf")
             global log
             log = logging.getLogger('service')
