@@ -16,17 +16,17 @@ from thingsboard_gateway.storage.event_storage import EventStorage
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
 from thingsboard_gateway.storage.event_storage_writer import EventStorageWriter
 from thingsboard_gateway.storage.event_storage_reader import EventStorageReader
-from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
+from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings, log
+from random import choice
+from string import ascii_lowercase
 import os
 import time
-import logging
 import json
-
-log = logging.getLogger(__name__)
 
 
 class FileEventStorage(EventStorage):
-    def __init__(self, name, config):
+    def __init__(self, config, name=None):
+        name = name if name is not None else ''.join(choice(ascii_lowercase) for _ in range(10))
         self.settings = FileEventStorageSettings(config)
         self.init_data_folder_if_not_exist()
         self.event_storage_files = self.init_data_files()
@@ -36,7 +36,12 @@ class FileEventStorage(EventStorage):
         self.__reader = EventStorageReader(name, self.event_storage_files, self.settings)
 
     def put(self, event):
-        self.__writer.write(event)
+        try:
+            self.__writer.write(event)
+            return True
+        except Exception as e:
+            log.exception(e)
+            return False
 
     def get_event_pack(self):
         return self.__reader.read()

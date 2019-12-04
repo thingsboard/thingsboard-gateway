@@ -13,14 +13,11 @@
 #     limitations under the License.
 
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
-import logging
+from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings, log
 import time
 import io
 import os
 import base64
-
-log = logging.getLogger(__name__)
 
 
 class EventStorageWriter:
@@ -100,7 +97,7 @@ class EventStorageWriter:
 
     def get_or_init_buffered_writer(self, file):
         try:
-            if self.buffered_writer is None:
+            if self.buffered_writer is None or self.buffered_writer.closed:
                 buffered_writer = io.BufferedWriter(io.FileIO(self.settings.get_data_folder_path() + file, 'a'))
                 return buffered_writer
             else:

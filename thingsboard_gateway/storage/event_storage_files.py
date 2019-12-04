@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+
 class EventStorageFiles:
     def __init__(self, state_file, data_files):
         self.state_file = state_file

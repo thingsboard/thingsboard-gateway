@@ -93,6 +93,7 @@ class MqttConnector(Connector, Thread):
                         time.sleep(10)
                 except Exception as e:
                     log.error(e)
+                    time.sleep(10)
 
         except Exception as e:
             log.error(e)

@@ -13,20 +13,18 @@
 #     limitations under the License.
 
 import copy
-import logging
 import io
 import os
 import base64
 import json
+from time import sleep
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
     from simplejson import JSONDecodeError
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
+from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings, log
 from thingsboard_gateway.storage.event_storage_reader_pointer import EventStorageReaderPointer
-
-log = logging.getLogger(__name__)
 
 
 class EventStorageReader:
@@ -94,15 +92,15 @@ class EventStorageReader:
     def discard_batch(self):
         if (self.current_pos.get_line() + self.settings.get_max_read_records_count()) >= \
                 self.settings.get_max_records_per_file():
-            if self.buffered_reader is not None:
+            if self.buffered_reader is not None and not self.buffered_reader.closed:
                 self.buffered_reader.flush()
                 self.buffered_reader.close()
             self.delete_read_file(self.current_pos.get_file())
-            if len(self.files.get_data_files()) == 0:
-                os.remove(self.settings.get_data_folder_path() + self.files.get_state_file())
-            else:
-                self.current_pos = copy.deepcopy(self.new_pos)
-                self.write_info_to_state_file(self.current_pos)
+        if len(self.files.get_data_files()) == 0:
+            os.remove(self.settings.get_data_folder_path() + self.files.get_state_file())
+        else:
+            self.write_info_to_state_file(self.current_pos)
+        self.current_pos = copy.deepcopy(self.new_pos)
         self.current_batch = None
         # TODO add logging of flushing reader with try expression
 
@@ -120,9 +118,11 @@ class EventStorageReader:
 
     def get_or_init_buffered_reader(self, pointer):
         try:
-            if self.buffered_reader is None:
-                self.buffered_reader = io.BufferedReader(io.FileIO(
-                    self.settings.get_data_folder_path() + pointer.get_file(), 'r'))
+            if self.buffered_reader is None or self.buffered_reader.closed:
+                new_file_to_read_path = self.settings.get_data_folder_path() + pointer.get_file()
+                while not os.path.exists(new_file_to_read_path):
+                    sleep(.1)
+                self.buffered_reader = io.BufferedReader(io.FileIO(new_file_to_read_path, 'r'))
                 lines_to_skip = pointer.get_line()
                 if lines_to_skip > 0:
                     while self.buffered_reader.readline() is not None:
@@ -137,30 +137,33 @@ class EventStorageReader:
             raise RuntimeError("Failed to initialize buffered reader!", e)
 
     def read_state_file(self):
-        state_data_node = {}
         try:
-            with io.BufferedReader(io.FileIO(self.settings.get_data_folder_path() +
-                                             self.files.get_state_file(), 'r')) as br:
-                state_data_node = json.load(br)
-        except JSONDecodeError:
-            log.error("Failed to decode JSON from state file")
-            state_data_node = 0
-        except IOError as e:
-            log.warning("Failed to fetch info from state file!", e)
-        reader_file = None
-        reader_pos = 0
-        if state_data_node:
-            reader_pos = state_data_node['position']
-            for file in sorted(self.files.get_data_files()):
-                if file == state_data_node['file']:
-                    reader_file = file
-                    break
-        if reader_file is None:
-            reader_file = sorted(self.files.get_data_files())[0]
+            state_data_node = {}
+            try:
+                with io.BufferedReader(io.FileIO(self.settings.get_data_folder_path() +
+                                                 self.files.get_state_file(), 'r')) as br:
+                    state_data_node = json.load(br)
+            except JSONDecodeError:
+                log.error("Failed to decode JSON from state file")
+                state_data_node = 0
+            except IOError as e:
+                log.warning("Failed to fetch info from state file!", e)
+            reader_file = None
             reader_pos = 0
-        log.info("{} -- Initializing from state file: [{}:{}]".format(str(self.name) + '_reader',
-            self.settings.get_data_folder_path() + reader_file, reader_pos))
-        return EventStorageReaderPointer(reader_file, reader_pos)
+            if state_data_node:
+                reader_pos = state_data_node['position']
+                for file in sorted(self.files.get_data_files()):
+                    if file == state_data_node['file']:
+                        reader_file = file
+                        break
+            if reader_file is None:
+                reader_file = sorted(self.files.get_data_files())[0]
+                reader_pos = 0
+            log.info("{} -- Initializing from state file: [{}:{}]".format(str(self.name) + '_reader',
+                     self.settings.get_data_folder_path() + reader_file, reader_pos))
+            return EventStorageReaderPointer(reader_file, reader_pos)
+        except Exception as e:
+            log.exception(e)
 
     def write_info_to_state_file(self, pointer: EventStorageReaderPointer):
         try:
@@ -169,6 +172,8 @@ class EventStorageReader:
                 json.dump(state_file_node, outfile)
         except IOError as e:
             log.warning("Failed to update state file!", e)
+        except Exception as e:
+            log.exception(e)
 
     def delete_read_file(self, current_file):
         if os.path.exists(self.settings.get_data_folder_path() + current_file):

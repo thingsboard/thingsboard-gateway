@@ -66,7 +66,7 @@ class TBGatewayService:
             self.__load_connectors(config)
             self.__connect_with_connectors()
             self.__load_persistent_devices()
-            self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True)
+            self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True, name="Send data to Thingsboard Thread")
             self.__event_storage = self.__event_storage_types[config["storage"]["type"]](config["storage"])
             self.tb_client.connect()
             self.tb_client.client.gw_set_server_side_rpc_request_handler(self.__rpc_request_handler)
@@ -197,12 +197,17 @@ class TBGatewayService:
                                         telemetry[key] = item[key]
                             else:
                                 telemetry = current_event["telemetry"]
+                            filtered_telemetry = {}
+                            for telemetry_key in telemetry:
+                                if telemetry[telemetry_key] is not None:
+                                    filtered_telemetry[telemetry_key] = telemetry[telemetry_key]
                             log.debug(telemetry)
                             data_to_send = loads('{"ts": %f,"values": %s}' % (int(time.time()*1000), dumps(telemetry)))
                             # data_to_send = loads('{"ts": %f,"values": {%s}}' % (int(time.time()*1000),
                             #                                                   ','.join(dumps(param) for param in current_event["telemetry"])))
-                            self.__published_events.append(self.tb_client.client.gw_send_telemetry(current_event["deviceName"],
-                                                                                                   data_to_send))
+                            if filtered_telemetry != {}:
+                                self.__published_events.append(self.tb_client.client.gw_send_telemetry(current_event["deviceName"],
+                                                                                                       data_to_send))
                         if current_event.get("attributes"):
                             log.debug(current_event)
                             attributes = {}
@@ -212,16 +217,22 @@ class TBGatewayService:
                                         attributes[key] = item[key]
                             else:
                                 attributes = current_event["attributes"]
+                            filtered_attributes = {}
+                            for attribute_key in attributes:
+                                if attributes[attribute_key] is not None:
+                                    filtered_attributes[attribute_key] = attributes[attribute_key]
                             log.debug(attributes)
                             data_to_send = loads('%s' % dumps(attributes))
-                            self.__published_events.append(self.tb_client.client.gw_send_attributes(current_event["deviceName"],
-                                                                                                    data_to_send))
+                            if filtered_attributes != {}:
+                                self.__published_events.append(self.tb_client.client.gw_send_attributes(current_event["deviceName"],
+                                                                                                        data_to_send))
                     success = True
                     for event in range(len(self.__published_events)):
                         result = self.__published_events[event].get()
                         success = result == self.__published_events[event].TB_ERR_SUCCESS
                     if success:
                         self.__event_storage.event_pack_processing_done()
+                        log.debug("Run event pack processing done")
                 else:
                     time.sleep(1)
             except Exception as e:
