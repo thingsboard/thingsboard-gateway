@@ -90,16 +90,14 @@ class EventStorageReader:
         return self.current_batch
 
     def discard_batch(self):
-        if (self.current_pos.get_line() + self.settings.get_max_read_records_count()) >= \
-                self.settings.get_max_records_per_file():
+        if self.current_pos.get_line() == self.settings.get_max_records_per_file()-1:
             if self.buffered_reader is not None and not self.buffered_reader.closed:
                 self.buffered_reader.flush()
                 self.buffered_reader.close()
             self.delete_read_file(self.current_pos.get_file())
         if len(self.files.get_data_files()) == 0:
             os.remove(self.settings.get_data_folder_path() + self.files.get_state_file())
-        else:
-            self.write_info_to_state_file(self.current_pos)
+        self.write_info_to_state_file(self.current_pos)
         self.current_pos = copy.deepcopy(self.new_pos)
         self.current_batch = None
         # TODO add logging of flushing reader with try expression
@@ -178,7 +176,10 @@ class EventStorageReader:
     def delete_read_file(self, current_file):
         if os.path.exists(self.settings.get_data_folder_path() + current_file):
             os.remove(self.settings.get_data_folder_path() + current_file)
-            self.files.get_data_files().pop(0)
+            try:
+                self.files.get_data_files().pop(0)
+            except Exception as e:
+                log.exception(e)
             log.info("{} -- Cleanup old data file: {}!".format(str(self.name) + '_reader', self.settings.get_data_folder_path() + current_file))
 
     def destroy(self):

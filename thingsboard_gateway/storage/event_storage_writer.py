@@ -55,7 +55,7 @@ class EventStorageWriter:
             self.files.get_data_files().append(self.current_file)
             self.current_file_records_count = 0
             try:
-                if self.buffered_writer is not None:
+                if self.buffered_writer is not None or self.buffered_writer.closed is False:
                     self.buffered_writer.close()
             except IOError as e:
                 log.warning("Failed to close buffered writer!", e)
@@ -127,6 +127,8 @@ class EventStorageWriter:
                         self.current_file_records_count = i + 1
             except IOError as e:
                 log.warning("Could not get the records count from the file![%s] with error: %s", file, e)
+            except Exception as e:
+                log.exception(e)
         return self.current_file_records_count
 
     def is_file_full(self, current_file_size):
