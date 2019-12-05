@@ -55,7 +55,7 @@ class EventStorageWriter:
             self.files.get_data_files().append(self.current_file)
             self.current_file_records_count = 0
             try:
-                if self.buffered_writer is not None or self.buffered_writer.closed is False:
+                if self.buffered_writer is not None and self.buffered_writer.closed is False:
                     self.buffered_writer.close()
             except IOError as e:
                 log.warning("Failed to close buffered writer!", e)
@@ -107,7 +107,11 @@ class EventStorageWriter:
             raise RuntimeError("Failed to initialize buffered writer!", e)
 
     def create_datafile(self):
-        return self.create_file('data_', str(round(time.time() * 1000)))
+        prefix = 'data_'
+        datafile_name = str(round(time.time() * 1000))
+
+        self.files.data_files.append(prefix + datafile_name + '.txt')
+        return self.create_file(prefix, datafile_name)
 
     def create_file(self, prefix, filename):
         file_path = self.settings.get_data_folder_path() + prefix + filename + '.txt'

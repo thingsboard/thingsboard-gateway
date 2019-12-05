@@ -39,8 +39,8 @@ class EventStorageReader:
 
     def read(self):
         log.debug("{} -- [{}:{}] Check for new messages in storage".format(str(self.name) +
-                    '_reader', self.settings.get_data_folder_path() + self.new_pos.get_file(), self.new_pos.get_line()))
-        if self.current_batch is not None and self.current_pos != self.new_pos:
+                    '_reader', self.settings.get_data_folder_path() + self.current_pos.get_file(), self.current_pos.get_line()))
+        if self.current_batch is not None and self.current_batch:
             log.debug("The previous batch was not discarded!")
             return self.current_batch
         self.current_batch = []
@@ -49,29 +49,30 @@ class EventStorageReader:
         while records_to_read > 0:
             try:
                 current_line_in_file = self.new_pos.get_line()
-                reader = self.get_or_init_buffered_reader(self.new_pos)
-                line = reader.readline()
+                self.buffered_reader = self.get_or_init_buffered_reader(self.new_pos)
+                line = self.buffered_reader.readline()
                 while line != b'':
                     try:
                         self.current_batch.append(base64.b64decode(line).decode("utf-8"))
                         records_to_read -= 1
                     except IOError as e:
-                        log.warning("Could not parse line [{}] to uplink message!".format(line), e)
+                        log.warning("Could not parse line [%s] to uplink message! %s", line, e)
                     finally:
                         current_line_in_file += 1
                         if records_to_read > 0:
-                            line = reader.readline()
+                            line = self.buffered_reader.readline()
                     self.new_pos.set_line(current_line_in_file)
                     if records_to_read == 0:
                         break
 
-                if current_line_in_file >= self.settings.get_max_records_per_file():
+                if current_line_in_file >= self.settings.get_max_records_per_file()-1:
                     next_file = self.get_next_file(self.files, self.new_pos)
                     if next_file is not None:
                         if self.buffered_reader is not None:
                             self.buffered_reader.close()
                         self.buffered_reader = None
                         self.new_pos = EventStorageReaderPointer(next_file, 0)
+                        self.write_info_to_state_file(self.new_pos)
                     else:
                         # No more records to read for now
                         break
@@ -86,33 +87,39 @@ class EventStorageReader:
             except IOError as e:
                 log.warning("[{}] Failed to read file!".format(self.new_pos.get_file(), e))
                 break
-        log.debug("{} -- Got {} messages from storage".format(str(self.name) + '_reader', len(self.current_batch)))
+            except Exception as e:
+                log.exception(e)
+        # log.debug("{} -- Got {} messages from storage".format(str(self.name) + '_reader', len(self.current_batch)))
         return self.current_batch
 
     def discard_batch(self):
-        if self.current_pos.get_line() == self.settings.get_max_records_per_file()-1:
-            if self.buffered_reader is not None and not self.buffered_reader.closed:
-                self.buffered_reader.flush()
-                self.buffered_reader.close()
+        try:
+            # if self.current_pos.get_line() == self.settings.get_max_records_per_file():
+            if self.current_pos.get_line() >= self.settings.get_max_records_per_file():
+                if self.buffered_reader is not None and not self.buffered_reader.closed:
+                    self.buffered_reader.close()
             self.delete_read_file(self.current_pos.get_file())
-        if len(self.files.get_data_files()) == 0:
-            os.remove(self.settings.get_data_folder_path() + self.files.get_state_file())
-        self.write_info_to_state_file(self.current_pos)
-        self.current_pos = copy.deepcopy(self.new_pos)
-        self.current_batch = None
+            if len(self.files.get_data_files()) == 0:
+                os.remove(self.settings.get_data_folder_path() + self.files.get_state_file())
+            # self.write_info_to_state_file(self.current_pos)
+            self.current_pos = copy.deepcopy(self.new_pos)
+            self.current_batch = None
+        except Exception as e:
+            log.exception(e)
         # TODO add logging of flushing reader with try expression
 
     def get_next_file(self, files: EventStorageFiles, new_pos: EventStorageReaderPointer):
         found = False
-        for file in files.get_data_files():
+        data_files = files.get_data_files()
+        target_file = None
+        for file_index in range(len(data_files)):
             if found:
-                return file
-            if file == new_pos.get_file():
+                target_file = data_files[file_index]
+                break
+            if data_files[file_index] == new_pos.get_file():
                 found = True
-        if found:
-            return None
-        else:
-            return files.get_data_files()[0]
+        return target_file
+
 
     def get_or_init_buffered_reader(self, pointer):
         try:
@@ -167,20 +174,23 @@ class EventStorageReader:
         try:
             state_file_node = {'file': pointer.get_file(), 'position': pointer.get_line()}
             with open(self.settings.get_data_folder_path() + self.files.get_state_file(), 'w') as outfile:
-                json.dump(state_file_node, outfile)
+                outfile.write(json.dumps(state_file_node))
         except IOError as e:
             log.warning("Failed to update state file!", e)
         except Exception as e:
             log.exception(e)
 
     def delete_read_file(self, current_file):
-        if os.path.exists(self.settings.get_data_folder_path() + current_file):
-            os.remove(self.settings.get_data_folder_path() + current_file)
-            try:
-                self.files.get_data_files().pop(0)
-            except Exception as e:
-                log.exception(e)
-            log.info("{} -- Cleanup old data file: {}!".format(str(self.name) + '_reader', self.settings.get_data_folder_path() + current_file))
+        data_files = self.files.get_data_files()
+        if len(data_files) > 2:
+            for current_file in data_files[:-2]:
+                if os.path.exists(self.settings.get_data_folder_path() + current_file):
+                    os.remove(self.settings.get_data_folder_path() + current_file)
+                    try:
+                        data_files.pop(0)
+                    except Exception as e:
+                        log.exception(e)
+                    log.info("{} -- Cleanup old data file: {}!".format(str(self.name) + '_reader', self.settings.get_data_folder_path() + current_file))
 
     def destroy(self):
         if self.buffered_reader is not None:

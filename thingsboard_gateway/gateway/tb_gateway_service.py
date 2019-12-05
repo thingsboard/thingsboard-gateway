@@ -181,15 +181,8 @@ class TBGatewayService:
                 if events:
                     for event in events:
                         current_event = loads(event)
-                        if current_event["deviceName"] not in self.get_devices():
-                            self.add_device(current_event["deviceName"],
-                                            {"current_event": current_event["deviceName"]}, wait_for_publish=True)
-                        else:
-                            self.update_device(current_event["deviceName"],
-                                               "current_event",
-                                               current_event["deviceName"])
                         if current_event.get("telemetry"):
-                            log.debug(current_event)
+                            # log.debug(current_event)
                             telemetry = {}
                             if type(current_event["telemetry"]) == list:
                                 for item in current_event["telemetry"]:
@@ -201,15 +194,15 @@ class TBGatewayService:
                             for telemetry_key in telemetry:
                                 if telemetry[telemetry_key] is not None:
                                     filtered_telemetry[telemetry_key] = telemetry[telemetry_key]
-                            log.debug(telemetry)
-                            data_to_send = loads('{"ts": %f,"values": %s}' % (int(time.time()*1000), dumps(telemetry)))
+                            # log.debug(telemetry)
+                            data_to_send = loads('{"ts": %f,"values": %s}' % (int(time.time()*1000), dumps(filtered_telemetry)))
                             # data_to_send = loads('{"ts": %f,"values": {%s}}' % (int(time.time()*1000),
                             #                                                   ','.join(dumps(param) for param in current_event["telemetry"])))
                             if filtered_telemetry != {}:
                                 self.__published_events.append(self.tb_client.client.gw_send_telemetry(current_event["deviceName"],
                                                                                                        data_to_send))
                         if current_event.get("attributes"):
-                            log.debug(current_event)
+                            # log.debug(current_event)
                             attributes = {}
                             if type(current_event["attributes"]) == list:
                                 for item in current_event["attributes"]:
@@ -221,8 +214,8 @@ class TBGatewayService:
                             for attribute_key in attributes:
                                 if attributes[attribute_key] is not None:
                                     filtered_attributes[attribute_key] = attributes[attribute_key]
-                            log.debug(attributes)
-                            data_to_send = loads('%s' % dumps(attributes))
+                            # log.debug(attributes)
+                            data_to_send = loads('%s' % dumps(filtered_attributes))
                             if filtered_attributes != {}:
                                 self.__published_events.append(self.tb_client.client.gw_send_attributes(current_event["deviceName"],
                                                                                                         data_to_send))
@@ -290,17 +283,18 @@ class TBGatewayService:
                 log.debug(content)
 
     def add_device(self, device_name, content, wait_for_publish=False):
-        self.__connected_devices[device_name] = content
-        if wait_for_publish:
-            self.tb_client.client.gw_connect_device(device_name).wait_for_publish()
-        else:
-            self.tb_client.client.gw_connect_device(device_name)
-        self.__save_persistent_devices()
+        if device_name not in self.__connected_devices:
+            self.__connected_devices[device_name] = content
+            if wait_for_publish:
+                self.tb_client.client.gw_connect_device(device_name).wait_for_publish()
+            else:
+                self.tb_client.client.gw_connect_device(device_name)
+            self.__save_persistent_devices()
 
     def update_device(self, device_name, event, content):
-        self.__connected_devices[device_name][event] = content
-        if event == 'connector':
+        if event == 'connector' and self.__connected_devices[device_name].get(event) != content:
             self.__save_persistent_devices()
+        self.__connected_devices[device_name][event] = content
 
     def del_device(self, device_name):
         del self.__connected_devices[device_name]

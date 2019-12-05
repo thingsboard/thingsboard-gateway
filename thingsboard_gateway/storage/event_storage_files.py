@@ -22,5 +22,5 @@ class EventStorageFiles:
         return self.state_file
 
     def get_data_files(self):
-        return self.data_files
+        return sorted(self.data_files)
 
