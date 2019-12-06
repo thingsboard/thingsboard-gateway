@@ -12,15 +12,15 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import os
-import re
-import inspect
-import importlib
-import importlib.util
+from os import path, listdir
+from inspect import getmembers, isclass
+from importlib import util
 import jsonpath_rw_ext as jp
 from logging import getLogger
 from json import dumps, loads
 from re import search
+from time import time
+
 
 log = getLogger("service")
 
@@ -52,28 +52,28 @@ class TBUtility:
     @staticmethod
     def check_and_import(extension_type, module_name):
         try:
-            if os.path.exists('/var/lib/thingsboard_gateway/'+extension_type.lower()):
+            if path.exists('/var/lib/thingsboard_gateway/'+extension_type.lower()):
                 custom_extension_path = '/var/lib/thingsboard_gateway/' + extension_type.lower()
                 log.info('Extension %s - looking for class in %s', extension_type, custom_extension_path)
             else:
-                custom_extension_path = os.path.abspath(os.path.dirname(os.path.dirname(__file__)) + '/extensions/' + extension_type.lower())
+                custom_extension_path = path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/' + extension_type.lower())
                 log.info('Extension %s - looking for class in %s', extension_type, custom_extension_path)
-            for file in os.listdir(custom_extension_path):
+            for file in listdir(custom_extension_path):
                 if not file.startswith('__') and file.endswith('.py'):
                     try:
-                        module_spec = importlib.util.spec_from_file_location(module_name, custom_extension_path + '/' + file)
+                        module_spec = util.spec_from_file_location(module_name, custom_extension_path + '/' + file)
                         log.debug(module_spec)
                         if module_spec is None:
                             log.error('Module: {} not found'.format(module_name))
                             return None
                         else:
-                            module = importlib.util.module_from_spec(module_spec)
+                            module = util.module_from_spec(module_spec)
                             log.debug(module)
                             try:
                                 module_spec.loader.exec_module(module)
                             except Exception as e:
                                 log.exception(e)
-                            for extension_class in inspect.getmembers(module, inspect.isclass):
+                            for extension_class in getmembers(module, isclass):
                                 if module_name in extension_class:
                                     return extension_class[1]
                     except ImportError:
@@ -85,6 +85,7 @@ class TBUtility:
 
     @staticmethod
     def get_value(expression, body={}, value_type="string", get_tag=False):
+        T0 = time()*1000
         if isinstance(body, str):
             body = loads(body)
         if not expression:
@@ -100,22 +101,25 @@ class TBUtility:
         target_str = str(expression[p1:p2])
         if get_tag:
             return target_str
-        value = True
         full_value = None
         try:
             if value_type == "string":
-                value = jp.match1(target_str.split()[0], dumps(body))
-                if value is None and body.get(target_str):
-                    full_value = expression[0: min(abs(p1-2), 0)] + body[target_str] + expression[p2+1:len(expression)]
-                elif value is None:
-                    full_value = expression[0: min(abs(p1-2), 0)] + jp.match1(target_str.split()[0], loads(body) if type(body) == str else body) + expression[p2+1:len(expression)]
-                else:
-                    full_value = expression[0: min(abs(p1-2), 0)] + value + expression[p2+1:len(expression)]
+                # tg_sp = target_str.split()[0]
+                # log.warning(time() * 1000 - T0)
+                # value = jp.match1(tg_sp, body)
+                # full_value = expression[0: min(abs(p1 - 2), 0)] + jp.match1(target_str.split()[0], body) + expression[p2 + 1:len(expression)]
+                full_value = expression[0: min(abs(p1 - 2), 0)] + body[target_str.split()[0]] + expression[p2 + 1:len(expression)]
+                # log.warning(time() * 1000 - T0)
+                # if full_value is None:
+                #     if body.get(target_str):
+                #         full_value = expression[0: min(abs(p1-2), 0)] + body[target_str] + expression[p2+1:len(expression)]
+                #     else:
+                #         full_value = expression[0: min(abs(p1-2), 0)] + jp.match1(target_str.split()[0], dumps(body)) + expression[p2+1:len(expression)]
             else:
-                full_value = jp.match1(target_str.split()[0], loads(body) if type(body) == str else body)
-
+                # full_value = jp.match1(target_str.split()[0], loads(body) if type(body) == str else body)
+                full_value = body[target_str.split()[0]]
         except TypeError:
-            if value is None:
+            if full_value is None:
                 log.error('Value is None - Cannot find the pattern: %s in %s. Expression will be interpreted as value.', target_str, dumps(body))
                 full_value = expression
         except Exception as e:

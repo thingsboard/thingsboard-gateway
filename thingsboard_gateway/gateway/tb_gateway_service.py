@@ -46,6 +46,7 @@ class TBGatewayService:
             self.available_connectors = {}
             self.__connector_incoming_messages = {}
             self.__connected_devices = {}
+            self.__saved_devices = {}
             self.__events = []
             self.__rpc_requests_in_progress = {}
             self.__connected_devices_file = "connected_devices.json"
@@ -95,8 +96,7 @@ class TBGatewayService:
                                 summary_messages['SummarySent'] += telemetry[(connector+' MessagesSent').replace(' ', '')]
                         self.tb_client.client.send_telemetry(summary_messages)
                         gateway_statistic_send = int(time.time()*1000)
-
-                    time.sleep(.1)
+                        time.sleep(.1)
             except Exception as e:
                 log.exception(e)
                 for device in self.__connected_devices:
@@ -201,6 +201,7 @@ class TBGatewayService:
                             if filtered_telemetry != {}:
                                 self.__published_events.append(self.tb_client.client.gw_send_telemetry(current_event["deviceName"],
                                                                                                        data_to_send))
+                                time.sleep(.001)
                         if current_event.get("attributes"):
                             # log.debug(current_event)
                             attributes = {}
@@ -219,6 +220,7 @@ class TBGatewayService:
                             if filtered_attributes != {}:
                                 self.__published_events.append(self.tb_client.client.gw_send_attributes(current_event["deviceName"],
                                                                                                         data_to_send))
+                                time.sleep(.001)
                     success = True
                     for event in range(len(self.__published_events)):
                         result = self.__published_events[event].get()
@@ -283,8 +285,9 @@ class TBGatewayService:
                 log.debug(content)
 
     def add_device(self, device_name, content, wait_for_publish=False):
-        if device_name not in self.__connected_devices:
+        if device_name not in self.__saved_devices:
             self.__connected_devices[device_name] = content
+            self.__saved_devices[device_name] = content
             if wait_for_publish:
                 self.tb_client.client.gw_connect_device(device_name).wait_for_publish()
             else:
