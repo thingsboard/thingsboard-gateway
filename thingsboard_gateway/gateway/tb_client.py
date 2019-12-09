@@ -49,7 +49,8 @@ class TBClient(threading.Thread):
         self.client._client._on_log = self._on_log
 
     def _on_log(self, *args):
-        log.info(args)
+        # log.debug(args)
+        pass
 
     def is_connected(self):
         return self.client.is_connected

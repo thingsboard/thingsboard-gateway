@@ -23,31 +23,31 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 class JsonMqttUplinkConverter(MqttUplinkConverter):
     def __init__(self, config):
         self.__config = config.get('converter')
-        self.dict_result = {}
 
     def convert(self, config, data):
+        dict_result = {"deviceName": None, "deviceType": None,"attributes": [], "telemetry": []}
         try:
             if self.__config.get("deviceNameJsonExpression") is not None:
-                self.dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data)
+                dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data)
             elif self.__config.get("deviceNameTopicExpression") is not None:
-                self.dict_result["deviceName"] = search(self.__config["deviceNameTopicExpression"], config)
+                dict_result["deviceName"] = search(self.__config["deviceNameTopicExpression"], config)
             else:
                 log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
             if self.__config.get("deviceTypeJsonExpression") is not None:
-                self.dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data)
+                dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data)
             elif self.__config.get("deviceTypeTopicExpression") is not None:
-                self.dict_result["deviceType"] = search(self.__config["deviceTypeTopicExpression"], config)
+                dict_result["deviceType"] = search(self.__config["deviceTypeTopicExpression"], config)
             else:
                 log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
-            self.dict_result["attributes"] = []
-            self.dict_result["telemetry"] = []
+            dict_result["attributes"] = []
+            dict_result["telemetry"] = []
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
         try:
             if self.__config.get("attributes"):
                 for attribute in self.__config.get("attributes"):
-                    self.dict_result["attributes"].append({attribute["key"]: TBUtility.get_value(attribute["value"],
+                    dict_result["attributes"].append({attribute["key"]: TBUtility.get_value(attribute["value"],
                                                                                                  data,
                                                                                                  attribute["type"])})
         except Exception as e:
@@ -56,10 +56,10 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         try:
             if self.__config.get("timeseries"):
                 for ts in self.__config.get("timeseries"):
-                    self.dict_result["telemetry"].append({ts["key"]: TBUtility.get_value(ts["value"],
+                    dict_result["telemetry"].append({ts["key"]: TBUtility.get_value(ts["value"],
                                                                                          data,
                                                                                          ts["type"])})
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
-        return self.dict_result
+        return dict_result

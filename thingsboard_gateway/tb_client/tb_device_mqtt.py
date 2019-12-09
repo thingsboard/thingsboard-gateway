@@ -160,7 +160,7 @@ class TBDeviceMqttClient:
         log.debug(buf)
 
     def _on_publish(self, client, userdata, result):
-        log.debug("Data published to ThingsBoard!")
+        # log.debug("Data published to ThingsBoard!")
         pass
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
@@ -392,7 +392,7 @@ class TBDeviceMqttClient:
                         if current_ts_in_millis > item["ts"]:
                             break
                         else:
-                            time.sleep(0.1)
+                            time.sleep(0.001)
                     with self._lock:
                         callback = None
                         if item.get("attribute_request_id"):
@@ -404,6 +404,6 @@ class TBDeviceMqttClient:
                     if callback is not None:
                         callback(None, TBTimeoutException("Timeout while waiting for reply from ThingsBoard!"))
                 else:
-                    time.sleep(0.1)
+                    time.sleep(0.001)
             except Exception as e:
                 log.warning(e)

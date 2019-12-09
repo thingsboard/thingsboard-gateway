@@ -13,7 +13,6 @@
 #     limitations under the License.
 
 import time
-import timeit
 import string
 import random
 from re import match, fullmatch, search
@@ -92,7 +91,7 @@ class MqttConnector(Connector, Thread):
                                          self.__broker.get('port', 1883))
                     self._client.loop_start()
                     if not self._connected:
-                        time.sleep(10)
+                        time.sleep(1)
                 except Exception as e:
                     self.__log.error(e)
                     time.sleep(10)
@@ -185,7 +184,8 @@ class MqttConnector(Connector, Thread):
         self.__log.debug('"%s" was disconnected.', self.get_name())
 
     def _on_log(self, *args):
-        self.__log.debug(args)
+        # self.__log.debug(args)
+        pass
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         try:
@@ -207,7 +207,6 @@ class MqttConnector(Connector, Thread):
 
     def _on_message(self, client, userdata, message):
         self.statistics['MessagesReceived'] += 1
-        self.__log.error(self.statistics)
         content = self._decode(message)
         regex_topic = [regex for regex in self.__sub_topics if fullmatch(regex, message.topic)]
         if regex_topic:
@@ -218,15 +217,12 @@ class MqttConnector(Connector, Thread):
                             if self.__sub_topics[regex][converter_value]:
                                 for converter in self.__sub_topics.get(regex)[converter_value]:
                                     converted_content = converter.convert(message.topic, content)
-                                    if converted_content: # and TBUtility.validate_converted_data(converted_content):
+                                    if converted_content:
                                         try:
                                             self.__sub_topics[regex][converter_value][converter] = converted_content
                                         except Exception as e:
                                             self.__log.exception(e)
-                                        if not self.__gateway.get_devices().get(converted_content["deviceName"]):
-                                            self.__gateway.add_device(converted_content["deviceName"], {"connector": None})
-                                            self.__gateway.update_device(converted_content["deviceName"], "connector", self)
-                                        self.__gateway.send_to_storage(self.get_name(), converted_content)
+                                        self.__gateway.send_to_storage(self.name, converted_content)
                                         self.statistics['MessagesSent'] += 1
                                     else:
                                         continue
