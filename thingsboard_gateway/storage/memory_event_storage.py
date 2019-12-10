@@ -15,7 +15,6 @@
 from thingsboard_gateway.storage.event_storage import EventStorage
 import queue
 from logging import getLogger
-from time import time
 
 log = getLogger("storage")
 
@@ -23,7 +22,7 @@ log = getLogger("storage")
 class MemoryEventStorage(EventStorage):
     def __init__(self, config):
         self.__queue_len = config.get("max_records_count", 10000)
-        self.__events_per_time = config.get("read_records_count", 10)
+        self.__events_per_time = config.get("read_records_count", 1000)
         self.__events_queue = queue.Queue(self.__queue_len)
         self.__event_pack = []
 
@@ -38,8 +37,7 @@ class MemoryEventStorage(EventStorage):
         if self.__event_pack:
             return self.__event_pack
         elif not self.__events_queue.empty():
-            for x in range(min(self.__events_per_time, self.__events_queue.qsize())):
-                self.__event_pack.append(self.__events_queue.get(False))
+            self.__event_pack = [self.__events_queue.get(False) for _ in range(min(self.__events_per_time, self.__events_queue.qsize()))]
             return self.__event_pack
 
     def event_pack_processing_done(self):

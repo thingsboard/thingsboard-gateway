@@ -178,13 +178,11 @@ class TBGatewayService:
                 if events:
                     for event in events:
                         current_event = loads(event)
-                        # time.sleep(.001)
                         if current_event.get("telemetry"):
                             telemetry = {}
                             if type(current_event["telemetry"]) == list:
                                 for item in current_event["telemetry"]:
-                                    for key in item:
-                                        telemetry[key] = item[key]
+                                    telemetry.update(item.items())
                             else:
                                 telemetry = current_event["telemetry"]
                             filtered_telemetry = {}
@@ -199,21 +197,19 @@ class TBGatewayService:
                             attributes = {}
                             if type(current_event["attributes"]) == list:
                                 for item in current_event["attributes"]:
-                                    for key in item:
-                                        attributes[key] = item[key]
+                                    attributes.update(item.items())
                             else:
                                 attributes = current_event["attributes"]
                             filtered_attributes = {}
                             for attribute_key in attributes:
                                 if attributes[attribute_key] is not None:
                                     filtered_attributes[attribute_key] = attributes[attribute_key]
-                            if filtered_attributes != {}:
+                            if filtered_attributes:
                                 self.__published_events.append(self.tb_client.client.gw_send_attributes(current_event["deviceName"],
                                                                                                         filtered_attributes))
                     success = True
                     for event in range(len(self.__published_events)):
-                        result = self.__published_events[event].get()
-                        success = result == self.__published_events[event].TB_ERR_SUCCESS
+                        success = self.__published_events[event].get() == self.__published_events[event].TB_ERR_SUCCESS
                     if success:
                         self.__event_storage.event_pack_processing_done()
             except Exception as e:

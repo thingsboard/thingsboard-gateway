@@ -80,21 +80,26 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             log.warning("unsupported register count for double data type in response for tag %s",
                                         data_sent["tag"])
                             continue
+                    elif type_of_data == "bit":
+                        if "bit" in data_sent:
+                            if type(result) == list:
+                                if len(result) > 1:
+                                    log.warning("with bit parameter only one register is expected, got more then one in response for tag %s",
+                                                data_sent["tag"])
+                                    continue
+                                result = result[0]
+                            position = 15 - data_sent["bit"]  # reverse order
+                            # transform result to string representation of a bit sequence, add "0" to make it longer >16
+                            result = "0000000000000000" + str(bin(result)[2:])
+                            # get length of 16, then get bit, then cast it to int(0||1 from "0"||"1", then cast to boolean)
+                            result = bool(int((result[len(result) - 16:])[15 - position]))
+                        else:
+                            log.error("Bit address not found in config for modbus connector for tag: %s", data_sent["tag"])
+
                     else:
                         log.warning("unknown data type, not string, long or double in response for tag %s",
                                     data_sent["tag"])
                         continue
-                    if "bit" in data_sent:
-                        if len(result) > 1:
-                            log.warning("with bit parameter only one register is expected, got more then one in response for tag %s",
-                                        data_sent["tag"])
-                            continue
-                        result = result[0]
-                        position = 15 - data_sent["bit"]  # reverse order
-                        # transform result to string representation of a bit sequence, add "0" to make it longer >16
-                        result = "0000000000000000" + str(bin(result)[2:])
-                        # get length of 16, then get bit, then cast it to int(0||1 from "0"||"1", then cast to boolean)
-                        result = bool(int((result[len(result) - 16:])[15 - position]))
                 try:
                     self.__result[config_data].append({tag: int(result)})
                 except ValueError:

@@ -13,7 +13,7 @@
 #     limitations under the License.
 
 import re
-from json import dumps
+from simplejson import dumps
 import time
 from threading import Thread
 from random import choice

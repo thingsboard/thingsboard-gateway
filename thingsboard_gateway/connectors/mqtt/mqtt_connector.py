@@ -22,7 +22,7 @@ from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
 from threading import Thread
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from json import loads
+from simplejson import loads
 
 
 class MqttConnector(Connector, Thread):

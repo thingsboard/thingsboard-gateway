@@ -17,7 +17,7 @@ from inspect import getmembers, isclass
 from importlib import util
 import jsonpath_rw_ext as jp
 from logging import getLogger
-from json import dumps, loads
+from simplejson import dumps, loads
 from re import search
 from time import time
 

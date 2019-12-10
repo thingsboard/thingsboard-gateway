@@ -16,7 +16,7 @@ import logging
 import queue
 import ssl
 import time
-from json import loads, dumps
+from simplejson import loads, dumps
 from threading import RLock
 from threading import Thread
 

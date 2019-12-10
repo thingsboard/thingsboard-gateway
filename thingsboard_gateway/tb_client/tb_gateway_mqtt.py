@@ -14,7 +14,7 @@
 
 import logging
 import time
-from json import dumps
+from simplejson import dumps
 
 from thingsboard_gateway.tb_client.tb_device_mqtt import TBDeviceMqttClient, DEVICE_TS_KV_VALIDATOR, KV_VALIDATOR
 
