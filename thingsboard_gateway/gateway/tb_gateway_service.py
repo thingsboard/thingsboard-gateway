@@ -16,7 +16,7 @@ import logging.config
 import logging.handlers
 import time
 import yaml
-from json import load, loads, dumps
+from simplejson import load, loads, dumps
 from os import listdir, path
 from threading import Thread
 from thingsboard_gateway.gateway.tb_client import TBClient
@@ -85,7 +85,7 @@ class TBGatewayService:
                             self.__rpc_requests_in_progress[rpc_in_progress][2](rpc_in_progress)
                             self.cancel_rpc_request(rpc_in_progress)
 
-                    if int(time.time()*1000) - gateway_statistic_send >= 60000:
+                    if time.time()*1000 - gateway_statistic_send > 60000.0:
                         summary_messages = {"SummaryReceived": 0, "SummarySent": 0}
                         telemetry = {}
                         for connector in self.available_connectors:
@@ -96,7 +96,7 @@ class TBGatewayService:
                                 summary_messages['SummaryReceived'] += telemetry[(connector+' MessagesReceived').replace(' ', '')]
                                 summary_messages['SummarySent'] += telemetry[(connector+' MessagesSent').replace(' ', '')]
                         self.tb_client.client.send_telemetry(summary_messages)
-                        gateway_statistic_send = int(time.time()*1000)
+                        gateway_statistic_send = time.time()*1000
             except Exception as e:
                 log.exception(e)
                 for device in self.__connected_devices:
@@ -178,7 +178,7 @@ class TBGatewayService:
                 if events:
                     for event in events:
                         current_event = loads(event)
-                        time.sleep(.001)
+                        # time.sleep(.001)
                         if current_event.get("telemetry"):
                             telemetry = {}
                             if type(current_event["telemetry"]) == list:
