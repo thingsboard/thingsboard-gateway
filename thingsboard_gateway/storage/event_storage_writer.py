@@ -14,91 +14,50 @@
 
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
 from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings, log
-import time
-import io
-import os
-import base64
+from time import time
+from io import BufferedWriter, FileIO
+from os import linesep, open as os_open, O_CREAT, O_EXCL
+from base64 import b64encode
 
 
 class EventStorageWriter:
-    def __init__(self, name, files: EventStorageFiles, settings: FileEventStorageSettings):
-        self.name = name
+    def __init__(self, files: EventStorageFiles, settings: FileEventStorageSettings):
         self.files = files
         self.settings = settings
         self.buffered_writer = None
-        self.new_record_after_flush = None
         self.current_file = sorted(files.get_data_files())[-1]
         self.current_file_records_count = 0
         self.get_number_of_records_in_file(self.current_file)
 
-    def write(self, msg, callback=None):
-        self.new_record_after_flush = True
-        if self.is_file_full(self.current_file_records_count):
-            if log.getEffectiveLevel() == 10:
-                log.debug("{} -- File [{}] is full with [{}] records".format(str(self.name) + '_writer', self.settings.get_data_folder_path() + self.current_file,
-                                                                       self.current_file_records_count))
+    def write(self, msg):
+        if self.current_file_records_count >= self.settings.get_max_records_per_file():
             try:
                 self.current_file = self.create_datafile()
-                log.debug("{} -- Created new data file: {}".format(str(self.name) + '_writer', self.current_file))
+                log.debug("FileStorage_writer -- Created new data file: %s", self.current_file)
             except IOError as e:
-                log.error("Failed to create a new file!", e)
-                # TODO implement callback
-                if callback is not None:
-                    # callback.onError(e)
-                    pass
-            # while len(self.files.get_data_files()) > self.settings.get_max_files_count():
-            #     self.files.get_data_files().sort()
-            #     first_file = self.files.get_data_files()[0]
-            #     if os.remove(self.settings.get_data_folder_path() + first_file):
-            #         self.files.get_data_files().pop(0)
-            #     log.info("Cleanup old data file: {}!".format(first_file))
+                log.error("Failed to create a new file! %s", e)
             self.files.get_data_files().append(self.current_file)
             self.current_file_records_count = 0
             try:
                 if self.buffered_writer is not None and self.buffered_writer.closed is False:
                     self.buffered_writer.close()
             except IOError as e:
-                log.warning("Failed to close buffered writer!", e)
-                # TODO implement callback
-                if callback is not None:
-                    # callback.onError(e)
-                    pass
+                log.warning("Failed to close buffered writer! %s", e)
             self.buffered_writer = None
-        encoded = base64.b64encode(msg.encode("utf-8"))
         try:
+            encoded = b64encode(msg.encode("utf-8"))
             self.buffered_writer = self.get_or_init_buffered_writer(self.current_file)
             self.buffered_writer.write(encoded)
-            self.buffered_writer.write(os.linesep.encode('utf-8'))
-            log.debug("{} -- Record written to: [{}:{}]".format(str(self.name) + '_writer', self.settings.get_data_folder_path() + self.current_file, self.current_file_records_count))
+            self.buffered_writer.write(linesep.encode('utf-8'))
             self.current_file_records_count += 1
-            if self.current_file_records_count % self.settings.get_max_records_between_fsync() == 0:
-                log.debug("{} -- Executing flush of the full pack!".format(str(self.name) + '_writer'))
-                self.buffered_writer.flush()
-                #self.new_record_after_flush = False
+            self.buffered_writer.flush()
         except IOError as e:
-            log.warning("Failed to update data file![{}]".format(self.current_file), e)
-            if callback is not None:
-                # callback.onError(e)
-                pass
-        if callback is not None:
-            # callback.onSuccess(e)
-            pass
-
-    def flush_if_needed(self):
-        if self.new_record_after_flush:
-            if self.buffered_writer is not None:
-                try:
-                    log.debug("{} -- Executing flush of the temporary pack!".format(str(self.name) + '_writer'))
-                    self.buffered_writer.flush()
-                    self.buffered_writer.close()
-                    self.new_record_after_flush = False
-                except IOError as e:
-                    log.warning("Failed to update data file! [{}]".format(self.current_file), e)
+            log.warning("Failed to update data file![%s]\n%s", self.current_file, e)
 
     def get_or_init_buffered_writer(self, file):
         try:
             if self.buffered_writer is None or self.buffered_writer.closed:
-                buffered_writer = io.BufferedWriter(io.FileIO(self.settings.get_data_folder_path() + file, 'a'))
+                buffered_writer = BufferedWriter(FileIO(self.settings.get_data_folder_path() + file, 'a'))
                 return buffered_writer
             else:
                 return self.buffered_writer
@@ -108,18 +67,16 @@ class EventStorageWriter:
 
     def create_datafile(self):
         prefix = 'data_'
-        datafile_name = str(round(time.time() * 1000))
-
-        self.files.data_files.append(prefix + datafile_name + '.txt')
+        datafile_name = str(int(time() * 1000))
+        self.files.data_files.append("%s%s.txt" % (prefix, datafile_name))
         return self.create_file(prefix, datafile_name)
 
     def create_file(self, prefix, filename):
-        file_path = self.settings.get_data_folder_path() + prefix + filename + '.txt'
+        full_file_name = "%s%s.txt" % (prefix, filename)
+        file_path = "%s%s" % (self.settings.get_data_folder_path(), full_file_name)
         try:
-            file = open(file_path, 'w')
-            time.sleep(.01)
-            file.close()
-            return prefix + filename + '.txt'
+            os_open(file_path, O_CREAT | O_EXCL)
+            return full_file_name
         except IOError as e:
             log.error("Failed to create a new file!", e)
 
@@ -127,13 +84,10 @@ class EventStorageWriter:
         if self.current_file_records_count <= 0:
             try:
                 with open(self.settings.get_data_folder_path() + file) as f:
-                    for i, l in enumerate(f):
+                    for i, _ in enumerate(f):
                         self.current_file_records_count = i + 1
             except IOError as e:
                 log.warning("Could not get the records count from the file![%s] with error: %s", file, e)
             except Exception as e:
                 log.exception(e)
         return self.current_file_records_count
-
-    def is_file_full(self, current_file_size):
-        return current_file_size >= self.settings.get_max_records_per_file()

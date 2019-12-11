@@ -25,15 +25,14 @@ import json
 
 
 class FileEventStorage(EventStorage):
-    def __init__(self, config, name=None):
-        name = name if name is not None else ''.join(choice(ascii_lowercase) for _ in range(10))
+    def __init__(self, config):
         self.settings = FileEventStorageSettings(config)
         self.init_data_folder_if_not_exist()
         self.event_storage_files = self.init_data_files()
         self.data_files = self.event_storage_files.get_data_files()
         self.state_file = self.event_storage_files.get_state_file()
-        self.__writer = EventStorageWriter(name, self.event_storage_files, self.settings)
-        self.__reader = EventStorageReader(name, self.event_storage_files, self.settings)
+        self.__writer = EventStorageWriter(self.event_storage_files, self.settings)
+        self.__reader = EventStorageReader(self.event_storage_files, self.settings)
 
     def put(self, event):
         try:
@@ -47,14 +46,7 @@ class FileEventStorage(EventStorage):
         return self.__reader.read()
 
     def event_pack_processing_done(self):
-        self.__writer.flush_if_needed()
         self.__reader.discard_batch()
-
-    def file_full(self):
-        return self.__writer.is_file_full(self.__writer.current_file_records_count)
-
-    def flush_writer(self):
-        self.__writer.flush_if_needed()
 
     def init_data_folder_if_not_exist(self):
         path = self.settings.get_data_folder_path()

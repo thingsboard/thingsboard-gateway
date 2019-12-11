@@ -23,8 +23,7 @@ class FileEventStorageSettings:
         self.max_files_count = config.get("max_files_count", 5)
         self.max_records_per_file = config.get("max_records_per_file", 3)
         self.max_records_between_fsync = config.get("max_records_between_fsync", 1)
-        self.max_read_records_count = config.get("max_read_records_count", 12)
-        self.no_records_sleep_interval = config.get("no_records_sleep_interval", 5000)
+        self.max_read_records_count = config.get("max_read_records_count", 1000)
 
     def get_data_folder_path(self):
         return self.data_folder_path
@@ -41,5 +40,3 @@ class FileEventStorageSettings:
     def get_max_read_records_count(self):
         return self.max_read_records_count
 
-    def get_no_records_sleep_interval(self):
-        return self.no_records_sleep_interval
