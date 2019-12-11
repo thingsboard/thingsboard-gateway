@@ -48,6 +48,12 @@ class EventStorageReader:
                         records_to_read -= 1
                     except IOError as e:
                         log.warning("Could not parse line [%s] to uplink message! %s", line, e)
+                    except Exception as e:
+                        log.exception(e)
+                        current_line_in_file += 1
+                        self.new_pos.set_line(current_line_in_file)
+                        self.write_info_to_state_file(self.new_pos)
+                        break
                     finally:
                         current_line_in_file += 1
                         if records_to_read > 0:
@@ -66,6 +72,7 @@ class EventStorageReader:
                         self.delete_read_file(previous_file)
                         self.new_pos = EventStorageReaderPointer(next_file, 0)
                         self.write_info_to_state_file(self.new_pos)
+                        continue
                     else:
                         # No more records to read for now
                         break
@@ -86,7 +93,7 @@ class EventStorageReader:
 
     def discard_batch(self):
         try:
-            if self.current_pos.get_line() >= self.settings.get_max_records_per_file():
+            if self.current_pos.get_line() >= self.settings.get_max_records_per_file()-1:
                 if self.buffered_reader is not None and not self.buffered_reader.closed:
                     self.buffered_reader.close()
             self.write_info_to_state_file(self.new_pos)
@@ -106,7 +113,6 @@ class EventStorageReader:
             if data_files[file_index] == new_pos.get_file():
                 found = True
         return target_file
-
 
     def get_or_init_buffered_reader(self, pointer):
         try:

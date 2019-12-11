@@ -208,8 +208,8 @@ class TBGatewayService:
                                 self.__published_events.append(self.tb_client.client.gw_send_attributes(current_event["deviceName"],
                                                                                                         filtered_attributes))
                     success = True
-                    for event in range(len(self.__published_events)):
-                        success = self.__published_events[event].get() == self.__published_events[event].TB_ERR_SUCCESS
+                    for event in self.__published_events:
+                        success = event.get() == event.TB_ERR_SUCCESS
                     if success:
                         self.__event_storage.event_pack_processing_done()
             except Exception as e:
