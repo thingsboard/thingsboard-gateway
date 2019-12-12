@@ -26,18 +26,19 @@ class EventStorageWriter:
         self.settings = settings
         self.buffered_writer = None
         self.current_file = sorted(files.get_data_files())[-1]
-        self.current_file_records_count = 0
+        self.current_file_records_count = [0]
+        self.previous_file_records_count = [0]
         self.get_number_of_records_in_file(self.current_file)
 
     def write(self, msg):
-        if self.current_file_records_count >= self.settings.get_max_records_per_file():
+        if self.current_file_records_count[0] >= self.settings.get_max_records_per_file():
             try:
                 self.current_file = self.create_datafile()
                 log.debug("FileStorage_writer -- Created new data file: %s", self.current_file)
             except IOError as e:
                 log.error("Failed to create a new file! %s", e)
             self.files.get_data_files().append(self.current_file)
-            self.current_file_records_count = 0
+            self.current_file_records_count[0] = 0
             try:
                 if self.buffered_writer is not None and self.buffered_writer.closed is False:
                     self.buffered_writer.close()
@@ -47,10 +48,12 @@ class EventStorageWriter:
         try:
             encoded = b64encode(msg.encode("utf-8"))
             self.buffered_writer = self.get_or_init_buffered_writer(self.current_file)
-            self.buffered_writer.write(encoded)
-            self.buffered_writer.write(linesep.encode('utf-8'))
-            self.current_file_records_count += 1
-            self.buffered_writer.flush()
+            self.buffered_writer.write(encoded + linesep.encode('utf-8'))
+            # self.buffered_writer.write(linesep.encode('utf-8'))
+            self.current_file_records_count[0] += 1
+            if self.current_file_records_count[0] - self.previous_file_records_count[0] >= self.settings.get_max_records_between_fsync():
+                self.previous_file_records_count = self.current_file_records_count[:]
+                self.buffered_writer.flush()
         except IOError as e:
             log.warning("Failed to update data file![%s]\n%s", self.current_file, e)
 
@@ -81,11 +84,11 @@ class EventStorageWriter:
             log.error("Failed to create a new file!", e)
 
     def get_number_of_records_in_file(self, file):
-        if self.current_file_records_count <= 0:
+        if self.current_file_records_count[0] <= 0:
             try:
                 with open(self.settings.get_data_folder_path() + file) as f:
                     for i, _ in enumerate(f):
-                        self.current_file_records_count = i + 1
+                        self.current_file_records_count[0] = i + 1
             except IOError as e:
                 log.warning("Could not get the records count from the file![%s] with error: %s", file, e)
             except Exception as e:

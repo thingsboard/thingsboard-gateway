@@ -105,6 +105,8 @@ class MqttConnector(Connector, Thread):
         while True:
             if self.__stopped:
                 break
+            else:
+                time.sleep(1)
 
     def close(self):
         self._client.loop_stop()

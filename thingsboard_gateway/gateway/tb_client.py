@@ -99,5 +99,5 @@ class TBClient(threading.Thread):
                     time.sleep(self.__min_reconnect_delay)
                 time.sleep(.1)
             else:
-                time.sleep(.1)
+                time.sleep(1)
 

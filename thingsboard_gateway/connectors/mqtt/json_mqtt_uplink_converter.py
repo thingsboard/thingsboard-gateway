@@ -14,8 +14,6 @@
 
 from simplejson import dumps
 from re import search
-from time import time
-from pprint import pformat
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
