@@ -155,6 +155,7 @@ class TBDeviceMqttClient:
         self._client.on_log = self._on_log
         self._client.on_publish = self._on_publish
         self._client.on_message = self._on_message
+        self._client.on_disconnect = self._on_disconnect
 
     def _on_log(self, client, userdata, level, buf):
         log.debug(buf)
@@ -162,6 +163,9 @@ class TBDeviceMqttClient:
     def _on_publish(self, client, userdata, result):
         # log.debug("Data published to ThingsBoard!")
         pass
+
+    def _on_disconnect(self, client, userdata, rc):
+        self.__is_connected = False
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         result_codes = {
@@ -200,9 +204,9 @@ class TBDeviceMqttClient:
                                  ciphers=None)
             self._client.tls_insecure_set(False)
         self._client.connect(self.__host, self.__port, keepalive=keepalive)
+        self.reconnect_delay_set(min_reconnect_delay, timeout)
         self._client.loop_start()
         self.__connect_callback = callback
-        self.reconnect_delay_set(min_reconnect_delay, timeout)
 
     def disconnect(self):
         self._client.disconnect()
@@ -211,6 +215,7 @@ class TBDeviceMqttClient:
     def _on_message(self, client, userdata, message):
         content = self._decode(message)
         self._on_decoded_message(content, message)
+
 
     @staticmethod
     def _decode(message):
@@ -315,11 +320,11 @@ class TBDeviceMqttClient:
     def send_telemetry(self, telemetry, quality_of_service=1):
         if type(telemetry) is not list:
             telemetry = [telemetry]
-        self.validate(DEVICE_TS_OR_KV_VALIDATOR, telemetry)
+        # self.validate(DEVICE_TS_OR_KV_VALIDATOR, telemetry)
         return self.publish_data(telemetry, TELEMETRY_TOPIC, quality_of_service)
 
     def send_attributes(self, attributes, quality_of_service=1):
-        self.validate(KV_VALIDATOR, attributes)
+        # self.validate(KV_VALIDATOR, attributes)
         return self.publish_data(attributes, ATTRIBUTES_TOPIC, quality_of_service)
 
     def unsubscribe_from_attribute(self, subscription_id):

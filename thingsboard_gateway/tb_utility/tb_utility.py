@@ -15,11 +15,9 @@
 from os import path, listdir
 from inspect import getmembers, isclass
 from importlib import util
-import jsonpath_rw_ext as jp
 from logging import getLogger
 from simplejson import dumps, loads
-from re import search
-from time import time
+from re import search, match, compile
 
 
 log = getLogger("service")
@@ -85,19 +83,25 @@ class TBUtility:
 
     @staticmethod
     def get_value(expression, body={}, value_type="string", get_tag=False):
-        T0 = time()*1000
         if isinstance(body, str):
             body = loads(body)
         if not expression:
             return ''
-        p1 = search(r'\${', expression)
-        p2 = search(r'}', expression)
-        if p1 is not None and p2 is not None:
-            p1 = p1.end()
-            p2 = p2.start()
+        positions = match(r'\$\{(?:(.*))\}', expression)
+        if positions is not None:
+            p1 = positions.regs[-1][0]
+            p2 = positions.regs[-1][1]
         else:
             p1 = 0
             p2 = len(expression)
+        # p1 = search(r'\${', expression)
+        # p2 = search(r'}', expression)
+        # if p1 is not None and p2 is not None:
+        #     p1 = p1.end()
+        #     p2 = p2.start()
+        # else:
+        #     p1 = 0
+        #     p2 = len(expression)
         target_str = str(expression[p1:p2])
         if get_tag:
             return target_str

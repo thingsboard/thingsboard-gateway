@@ -109,13 +109,13 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         return self.__request_attributes(device_name, keys, callback, True)
 
     def gw_send_attributes(self, device, attributes, quality_of_service=1):
-        self.validate(KV_VALIDATOR, attributes)
+        # self.validate(KV_VALIDATOR, attributes)
         return self.publish_data({device: attributes}, GATEWAY_MAIN_TOPIC + "attributes", quality_of_service)
 
     def gw_send_telemetry(self, device, telemetry, quality_of_service=1):
         if type(telemetry) is not list:
             telemetry = [telemetry]
-        self.validate(DEVICE_TS_KV_VALIDATOR, telemetry)
+        # self.validate(DEVICE_TS_KV_VALIDATOR, telemetry)
         return self.publish_data({device: telemetry}, GATEWAY_MAIN_TOPIC + "telemetry", quality_of_service, )
 
     def gw_connect_device(self, device_name):
