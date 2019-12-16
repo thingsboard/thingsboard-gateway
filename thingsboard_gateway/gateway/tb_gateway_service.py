@@ -191,10 +191,10 @@ class TBGatewayService:
 
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
-        size = getsizeof(devices_data_in_event_pack)
         while True:
             try:
                 if self.tb_client.is_connected():
+                    size = getsizeof(devices_data_in_event_pack)
                     events = self.__event_storage.get_event_pack()
                     if events:
                         for event in events:
@@ -211,7 +211,7 @@ class TBGatewayService:
                                 if type(current_event["telemetry"]) == list:
                                     for item in current_event["telemetry"]:
                                         size += getsizeof(item)
-                                        if size >= 6000:
+                                        if size >= 48000:
                                             if not self.tb_client.is_connected(): break
                                             self.__send_data(devices_data_in_event_pack)
                                             size = 0
@@ -219,7 +219,7 @@ class TBGatewayService:
                                 else:
                                     if not self.tb_client.is_connected(): break
                                     size += getsizeof(current_event["telemetry"])
-                                    if size >= 6000:
+                                    if size >= 48000:
                                         self.__send_data(devices_data_in_event_pack)
                                         size = 0
                                     devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(current_event["telemetry"])
@@ -228,7 +228,7 @@ class TBGatewayService:
                                     for item in current_event["attributes"]:
                                         if not self.tb_client.is_connected(): break
                                         size += getsizeof(item)
-                                        if size >= 6000:
+                                        if size >= 48000:
                                             self.__send_data(devices_data_in_event_pack)
                                             size = 0
                                         devices_data_in_event_pack[current_event["deviceName"]][
@@ -237,7 +237,7 @@ class TBGatewayService:
                                 else:
                                     if not self.tb_client.is_connected(): break
                                     size += getsizeof(current_event["attributes"].items())
-                                    if size >= 6000:
+                                    if size >= 48000:
                                         self.__send_data(devices_data_in_event_pack)
                                         size = 0
                                     devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(
@@ -257,10 +257,12 @@ class TBGatewayService:
                                     success = False
                             if success:
                                 self.__event_storage.event_pack_processing_done()
+                                del devices_data_in_event_pack
+                                devices_data_in_event_pack = {}
                         else:
                             break
                 else:
-                    time.sleep(.1)
+                    time.sleep(.001)
             except Exception as e:
                 log.exception(e)
                 time.sleep(1)
