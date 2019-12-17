@@ -262,7 +262,7 @@ class TBGatewayService:
                         else:
                             break
                 else:
-                    time.sleep(.001)
+                    time.sleep(.01)
             except Exception as e:
                 log.exception(e)
                 time.sleep(1)

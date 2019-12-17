@@ -17,7 +17,7 @@ from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
 
 def main():
-    TBGatewayService(path.dirname(path.abspath(__file__)) + '/config/tb_gateway.yaml')
+    TBGatewayService(path.dirname(path.abspath(__file__)) + '//config//tb_gateway.yaml')
 
 
 def daemon():

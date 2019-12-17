@@ -1,7 +1,7 @@
 %define name thingsboard-gateway
-%define version 2.0.0
-%define unmangled_version 2.0.0
-%define unmangled_version 2.0.0
+%define version 2.0.16
+%define unmangled_version 2.0.16
+%define unmangled_version 2.0.16
 %define release 1
 
 Summary: Thingsboard Gateway for IoT devices.
@@ -28,7 +28,7 @@ The Thingsboard IoT Gateway is an open-source solution that allows you to integr
 %pre
 /usr/bin/mkdir -p $RPM_BUILD_ROOT/var/lib/thingsboard_gateway/extensions
 /usr/bin/getent passwd thingsboard-gateway || /usr/sbin/useradd -c "ThingsBoard-Gateway Service" -r -U -d /var/lib/thingsboard_gateway thingsboard-gateway && passwd -d thingsboard-gateway
-/usr/bin/pip3 install thingsboard_gateway
+/usr/bin/pip3 install thingsboard-gateway
 
 %build
 sudo mkdir -p $RPM_BUILD_ROOT/etc/thingsboard-gateway || echo "ThingsBoard config folder already exists"
@@ -60,6 +60,9 @@ sudo rm -rf $RPM_BUILD_ROOT
 /etc/thingsboard-gateway/
 /var/log/thingsboard-gateway
 %defattr(-,thingsboard-gateway,thingsboard-gateway)
+
+%install
+exit 0
 
 %postun
 systemctl stop thingsboard-gateway
