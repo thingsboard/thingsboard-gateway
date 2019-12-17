@@ -28,4 +28,4 @@ echo "Enabling daemon..."
 sudo pidof systemd && sudo systemctl enable thingsboard-gateway || echo "Systemctl not found"
 #echo "Daemon starting..."
 sudo pidof systemd && sudo systemctl start thingsboard-gateway || echo
-echo "Thingsboard Gateway has been installed. Have a nice day :)"
+echo -e "\e[96mThingsboard Gateway \e[92mhas been installed. Have a nice day \e[93m\e[5m:)\e[25m\e[39m"

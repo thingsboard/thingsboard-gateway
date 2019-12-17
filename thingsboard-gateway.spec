@@ -18,7 +18,10 @@ Prefix: %{_prefix}
 BuildArch: noarch
 Vendor: ThingsBoard <info@thingsboard.io>
 Url: https://github.com/thingsboard/thingsboard-gateway
-Requires(pre): /usr/sbin/useradd, /usr/bin/getent, /usr/bin/pip3, /usr/bin/mkdir
+BuildRequires:  glibc-devel
+BuildRequires:  glibc-static-devel
+BuildRequires:  zlib-devel
+Requires(pre): /usr/sbin/useradd, /usr/bin/getent, /usr/bin/pip3, /usr/bin/mkdir,
 Requires(post): /usr/bin/systemctl, /usr/bin/cp, /usr/bin/rm, /usr/bin/chown
 Requires(postun): /usr/sbin/userdel, /usr/bin/rm, /usr/bin/systemctl
 
@@ -61,8 +64,6 @@ sudo rm -rf $RPM_BUILD_ROOT
 /var/log/thingsboard-gateway
 %defattr(-,thingsboard-gateway,thingsboard-gateway)
 
-%install
-exit 0
 
 %postun
 systemctl stop thingsboard-gateway
