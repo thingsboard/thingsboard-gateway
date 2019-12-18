@@ -92,22 +92,23 @@ class TBGatewayService:
                     else:
                         time.sleep(1)
 
-                    if cur_time * 1000 - gateway_statistic_send > 60000.0 and self.tb_client.is_connected():
-                        summary_messages = {"SummaryReceived": 0, "SummarySent": 0}
+                    if cur_time - gateway_statistic_send > 60.0 and self.tb_client.is_connected():
+                        summary_messages = {"eventsProduced": 0, "eventsSent": 0}
                         telemetry = {}
                         for connector in self.available_connectors:
                             if self.available_connectors[connector].is_connected():
-                                telemetry[(connector + ' MessagesReceived').replace(' ', '')] = \
+                                connector_camel_case = connector[0].lower() + connector[1:].replace(' ', '')
+                                telemetry[(connector_camel_case + ' EventsProduced').replace(' ', '')] = \
                                 self.available_connectors[connector].statistics['MessagesReceived']
-                                telemetry[(connector + ' MessagesSent').replace(' ', '')] = \
+                                telemetry[(connector_camel_case + ' EventsSent').replace(' ', '')] = \
                                 self.available_connectors[connector].statistics['MessagesSent']
                                 self.tb_client.client.send_telemetry(telemetry)
-                                summary_messages['SummaryReceived'] += telemetry[
-                                    (connector + ' MessagesReceived').replace(' ', '')]
-                                summary_messages['SummarySent'] += telemetry[
-                                    (connector + ' MessagesSent').replace(' ', '')]
+                                summary_messages['eventsProduced'] += telemetry[
+                                    str(connector_camel_case + ' EventsProduced').replace(' ', '')]
+                                summary_messages['eventsSent'] += telemetry[
+                                    str(connector_camel_case + ' EventsSent').replace(' ', '')]
                         self.tb_client.client.send_telemetry(summary_messages)
-                        gateway_statistic_send = time.time() * 1000
+                        gateway_statistic_send = time.time()
             except Exception as e:
                 log.exception(e)
                 for device in self.__connected_devices:

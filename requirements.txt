@@ -18,3 +18,4 @@ python3-pyserial
 python3-PyYAML
 python3-pyrsistent
 python3-importlib
+python3-bluepy

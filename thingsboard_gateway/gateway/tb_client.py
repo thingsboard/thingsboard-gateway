@@ -30,7 +30,7 @@ class TBClient(threading.Thread):
         self.__port = config.get("port", 1883)
         credentials = config["security"]
         self.__min_reconnect_delay = 10
-        self.__tls = False
+        self.__tls = True if credentials.get('caCert', False) else False
         self.__ca_cert = None
         self.__private_key = None
         self.__cert = None
@@ -38,8 +38,7 @@ class TBClient(threading.Thread):
         self.__is_connected = False
         if credentials.get("accessToken") is not None:
             self.__token = str(credentials["accessToken"])
-        else:
-            self.__tls = True
+        if self.__tls:
             self.__ca_cert = credentials.get("caCert")
             self.__private_key = credentials.get("privateKey")
             self.__cert = credentials.get("cert")
@@ -50,7 +49,7 @@ class TBClient(threading.Thread):
         self.client._client._on_log = self._on_log
 
     def _on_log(self, *args):
-        # log.debug(args)
+        log.debug(args)
         pass
 
     def is_connected(self):

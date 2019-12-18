@@ -1,19 +1,24 @@
 thingsboard:
-  host: 127.0.0.1
+  host: demo.thingsboard.io
   port: 1883
   security:
-    accessToken: FUH2Fonov6eajSHi0Zyw
+    accessToken: uJifQHMU3S6odcuBtQzC
 storage:
   type: memory
-  read_records_count: 10
-  max_records_count: 1000
+  read_records_count: 100
+  max_records_count: 100000
+#  type: file
+#  data_folder_path: ./data/
+#  max_file_count: 10
+#  max_read_records_count: 10
+#  max_records_per_file: 10000
 connectors:
-#
-#  -
-#    name: MQTT Broker Connector
-#    type: mqtt
-#    configuration: mqtt.json
-#
+
+  -
+    name: MQTT Broker Connector
+    type: mqtt
+    configuration: mqtt.json
+
 #  -
 #    name: Modbus Connector
 #    type: modbus
@@ -25,15 +30,15 @@ connectors:
 #    configuration: modbus_serial.json
 #
 #  -
-#    name: BLE Connector
-#    type: ble
-#    configuration: ble.json
-#
-#  -
 #    name: OPC-UA Connector
 #    type: opcua
 #    configuration: opcua.json
 #
+#  -
+#    name: BLE Connector
+#    type: ble
+#    configuration: ble.json
+
 #  -
 #    name: Custom Serial Connector
 #    type: serial

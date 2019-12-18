@@ -320,11 +320,11 @@ class TBDeviceMqttClient:
     def send_telemetry(self, telemetry, quality_of_service=1):
         if type(telemetry) is not list:
             telemetry = [telemetry]
-        # self.validate(DEVICE_TS_OR_KV_VALIDATOR, telemetry)
+        self.validate(DEVICE_TS_OR_KV_VALIDATOR, telemetry)
         return self.publish_data(telemetry, TELEMETRY_TOPIC, quality_of_service)
 
     def send_attributes(self, attributes, quality_of_service=1):
-        # self.validate(KV_VALIDATOR, attributes)
+        self.validate(KV_VALIDATOR, attributes)
         return self.publish_data(attributes, ATTRIBUTES_TOPIC, quality_of_service)
 
     def unsubscribe_from_attribute(self, subscription_id):

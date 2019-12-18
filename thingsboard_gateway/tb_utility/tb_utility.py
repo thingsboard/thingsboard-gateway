@@ -94,33 +94,19 @@ class TBUtility:
         else:
             p1 = 0
             p2 = len(expression)
-        # p1 = search(r'\${', expression)
-        # p2 = search(r'}', expression)
-        # if p1 is not None and p2 is not None:
-        #     p1 = p1.end()
-        #     p2 = p2.start()
-        # else:
-        #     p1 = 0
-        #     p2 = len(expression)
         target_str = str(expression[p1:p2])
         if get_tag:
             return target_str
         full_value = None
         try:
             if value_type == "string":
-                # tg_sp = target_str.split()[0]
-                # log.warning(time() * 1000 - T0)
-                # value = jp.match1(tg_sp, body)
-                # full_value = expression[0: min(abs(p1 - 2), 0)] + jp.match1(target_str.split()[0], body) + expression[p2 + 1:len(expression)]
                 full_value = expression[0: min(abs(p1 - 2), 0)] + body[target_str.split()[0]] + expression[p2 + 1:len(expression)]
-                # log.warning(time() * 1000 - T0)
-                # if full_value is None:
-                #     if body.get(target_str):
-                #         full_value = expression[0: min(abs(p1-2), 0)] + body[target_str] + expression[p2+1:len(expression)]
-                #     else:
-                #         full_value = expression[0: min(abs(p1-2), 0)] + jp.match1(target_str.split()[0], dumps(body)) + expression[p2+1:len(expression)]
+                if full_value is None:
+                    try:
+                        full_value = search(expression, body).group(0)
+                    except Exception as e:
+                        full_value = None
             else:
-                # full_value = jp.match1(target_str.split()[0], loads(body) if type(body) == str else body)
                 full_value = body[target_str.split()[0]]
         except TypeError:
             if full_value is None:

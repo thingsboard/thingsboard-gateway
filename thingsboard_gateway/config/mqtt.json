@@ -1,12 +1,12 @@
 {
   "broker": {
     "name":"Default Broker",
-    "host":"demo.thingsboard.io",
-    "port":1883,
+    "host":"127.0.0.1",
+    "port":1887,
     "security": {
       "type": "basic",
-      "username": "GIjr0vTtbOLwpouuBxL9",
-      "password": ""
+      "username": "user",
+      "password": "x"
     }
   },
   "mapping": [
@@ -15,10 +15,10 @@
       "converter": {
         "type": "json",
         "filterExpression": "",
-        "deviceNameJsonExpression": "${SerialNumber}",
-        "deviceTypeJsonExpression": "${SensorType}",
+        "deviceNameJsonExpression": "test_device",
+        "deviceTypeJsonExpression": "default",
         "timeout": 60000,
-        "attributes": [
+        "timeseries": [
           {
             "type": "string",
             "key": "test_key",
@@ -32,38 +32,26 @@
       "converter": {
         "type": "json",
         "filterExpression": "",
-        "deviceNameJsonExpression": "${$.serialNumber}",
-        "deviceTypeJsonExpression": "${$.sensorType}",
+        "deviceNameJsonExpression": "${serialNumber}",
+        "deviceTypeJsonExpression": "${sensorType}",
         "timeout": 60000,
         "attributes": [
           {
             "type": "string",
             "key": "model",
-            "value": "${$.model}"
+            "value": "${model}"
           }
         ],
         "timeseries": [
           {
             "type": "double",
             "key": "temperature",
-            "value": "${$.temperature}"
-          }
-        ]
-      }
-    },
-    {
-      "topicFilter": "/temperature-sensors/+",
-      "converter": {
-        "type": "json",
-        "filterExpression": "",
-        "deviceNameJsonExpression": "${$.sensorId}",
-        "deviceTypeJsonExpression": "${$.sensorType}",
-        "timeout": 60000,
-        "timeseries": [
+            "value": "${temperature}"
+          },
           {
             "type": "double",
             "key": "humidity",
-            "value": "${$.humidity}"
+            "value": "${humidity}"
           }
         ]
       }
@@ -84,7 +72,7 @@
   "connectRequests": [
     {
       "topicFilter": "sensors/connect",
-      "deviceNameJsonExpression": "${$.SerialNumber}"
+      "deviceNameJsonExpression": "${SerialNumber}"
     },
     {
       "topicFilter": "sensor/+/connect",
@@ -94,7 +82,7 @@
   "disconnectRequests": [
     {
       "topicFilter": "sensors/disconnect",
-      "deviceNameJsonExpression": "${$.SerialNumber}"
+      "deviceNameJsonExpression": "${SerialNumber}"
     },
     {
       "topicFilter": "sensor/+/disconnect",
