@@ -12,10 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from threading import Thread
 import serial
 import time
-from pprint import pformat
 from thingsboard_gateway.connectors.custom_connector import CustomConnector, log
 
 
@@ -56,14 +54,14 @@ class CustomSerialConnector(CustomConnector):
 
     def run(self):
         try:
-            log.debug(self.serial.isOpen())
             while True:
-                ch = b''
-                data_from_device = b''
-                while ch != b'\n':
-                    ch = self.serial.read(1)
-                    data_from_device = data_from_device + ch
                 for device in self.devices:
+                    serial = self.devices[device]["serial"]
+                    ch = b''
+                    data_from_device = b''
+                    while ch != b'\n':
+                        ch = serial.read(1)
+                        data_from_device = data_from_device + ch
                     try:
                         converted_data = self.devices[device]['converter'].convert(self.devices[device]['device_config'], data_from_device)
                         self.__gateway.send_to_storage(self.get_name(), converted_data)
@@ -79,8 +77,8 @@ class CustomSerialConnector(CustomConnector):
         super().close()
         for device in self.devices:
             self.__gateway.del_device(self.devices[device])
-        if self.serial.isOpen():
-            self.serial.close()
+            if self.devices[device]['serial'].isOpen():
+                self.devices[device]['serial'].close()
 
     def on_attributes_update(self, content):
         log.debug(content)

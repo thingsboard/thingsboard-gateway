@@ -20,6 +20,10 @@ if [ "$1" = "clean" ] || [ "$1" = "only_clean" ] ; then
   sudo rm -rf thingsboard-gateway.egg-info/
   sudo rm -rf /etc/thingsboard-gateway/
   sudo rm -rf thingsboard-gateway-$CURRENT_VERSION.tar.gz
+  sudo rm -rf thingsboard-gateway-$CURRENT_VERSION.deb
+  sudo rm -rf python3-thingsboard-gateway.deb
+  sudo rm -rf python3-thingsboard-gateway.rpm
+  sudo rm -rf thingsboard-gateway-$CURRENT_VERSION.noarch.rpm
   sudo rm -rf /home/zenx/rpmbuild/BUILDROOT/*
   sudo rm -rf build/
   sudo rm -rf docker/config || echo ''
@@ -60,9 +64,11 @@ if [ "$1" != "only_clean" ] ; then
   cp for_build/etc/systemd/system/thingsboard-gateway.service /home/$CURRENT_USER/rpmbuild/SOURCES/
 #  cd for_build/etc/thingsboard-gateway/
   cp -r thingsboard_gateway/extensions for_build/etc/thingsboard-gateway/
-  cd thingsboard_gateway
+  sudo find thingsboard_gateway/ -name "*.pyc" -exec rm -f {} \;
+  cd thingsboard_gateway || echo 0 > /dev/null
   tar -zcvf configs.tar.gz config/*
-  tar -zvcf extensions.tar.gz extensions/*
+#  cp -r extensions /home/$CURRENT_USER/rpmbuild/SOURCES/
+  tar -zcvf extensions.tar.gz extensions/*
   mv configs.tar.gz ../
   mv extensions.tar.gz /home/$CURRENT_USER/rpmbuild/SOURCES/extensions.tar.gz
   cd ../
@@ -72,7 +78,7 @@ if [ "$1" != "only_clean" ] ; then
   cp thingsboard-gateway.spec /home/$CURRENT_USER/rpmbuild/SPECS/
   rpmbuild -ba thingsboard-gateway.spec
   sudo cp /home/$CURRENT_USER/rpmbuild/RPMS/noarch/*.rpm .
-  sudo mv ./*.rpm python3-thingsboard-gateway.rpm
+  sudo mv thingsboard-gateway-$CURRENT_VERSION-1.noarch.rpm python3-thingsboard-gateway.rpm
   sudo chown $CURRENT_USER. *.rpm
 #  sudo apt install ./deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway.deb -y
   echo "Building Docker image and container"

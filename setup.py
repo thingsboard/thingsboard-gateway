@@ -19,7 +19,9 @@ setup(
               'thingsboard_gateway.tb_client', 'thingsboard_gateway.connectors', 'thingsboard_gateway.connectors.ble',
               'thingsboard_gateway.connectors.mqtt', 'thingsboard_gateway.connectors.opcua',
               'thingsboard_gateway.connectors.modbus', 'thingsboard_gateway.tb_utility', 'thingsboard_gateway.extensions',
-              'thingsboard_gateway.extensions.mqtt', 'thingsboard_gateway.extensions.modbus', 'thingsboard_gateway.extensions.opcua'],
+              'thingsboard_gateway.extensions.mqtt', 'thingsboard_gateway.extensions.modbus', 'thingsboard_gateway.extensions.opcua',
+              'thingsboard_gateway.extensions.ble', 'thingsboard_gateway.extensions.serial'
+              ],
     install_requires=[
         'cffi',
         'pip',
