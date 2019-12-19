@@ -23,8 +23,6 @@ setup(
     install_requires=[
         'cffi',
         'pip',
-        'jsonpath-rw',
-        'jsonpath-rw-ext',
         'jsonschema==3.1.1',
         'lxml',
         'opcua',
@@ -34,10 +32,9 @@ setup(
         'pytz',
         'PyYAML',
         'simplejson',
-        'pyrsistent',
-        'bluepy'
+        'pyrsistent'
     ],
-    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.17rc-python.tar.gz',
+    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.18rc-python.tar.gz',
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'

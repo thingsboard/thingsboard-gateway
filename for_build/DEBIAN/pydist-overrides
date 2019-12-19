@@ -1,8 +1,6 @@
 pip python3-pip; PEP386
 lxml python3-lxml; PEP386
 cryptography python3-cryptography; PEP386
-jsonpath-rw python3-jsonpath-rw; PEP386
-jsonpath-rw-ext python3-jsonpath-rw-ext; PEP386
 opcua python3-opcua; PEP386
 paho-mqtt python3-paho-mqtt; PEP386
 pymodbus python3-pymodbus; PEP386

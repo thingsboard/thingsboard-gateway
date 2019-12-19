@@ -17,7 +17,7 @@ Prefix: %{_prefix}
 BuildArch: noarch
 Vendor: ThingsBoard <info@thingsboard.io>
 Url: https://github.com/thingsboard/thingsboard-gateway
-Requires:  glib2-devel
+# Requires:  glib2-devel
 # BuildRequires:  make
 Requires(pre): /usr/sbin/useradd, /usr/bin/getent, /usr/bin/pip3, /usr/bin/mkdir, /usr/bin/make, /usr/bin/cp
 Requires(post): /usr/bin/systemctl, /usr/bin/cp, /usr/bin/rm, /usr/bin/chown, /usr/bin/sed
@@ -38,7 +38,6 @@ sudo mkdir -p $RPM_BUILD_ROOT/var/lib/thingsboard_gateway || echo "ThingsBoard u
 sudo mkdir -p $RPM_BUILD_ROOT/var/lib/thingsboard_gateway/extensions || echo "ThingsBoard user home directory already exists"
 sudo mkdir -p $RPM_BUILD_ROOT/var/log/thingsboard-gateway || echo "ThingsBoard log directory already exists"
 sudo chown -R thingsboard-gateway:thingsboard-gateway $RPM_BUILD_ROOT/var/log/thingsboard-gateway
-sudo pip3 install bluepy
 sudo pip3 install thingsboard_gateway
 sudo install -p -D -m 644 %{SOURCE0} $RPM_BUILD_ROOT/etc/systemd/system/thingsboard-gateway.service
 sudo install -p -D -m 755 %{SOURCE1} $RPM_BUILD_ROOT/etc/thingsboard-gateway/
@@ -64,7 +63,7 @@ sudo rm -rf $RPM_BUILD_ROOT
 /etc/systemd/system/thingsboard-gateway.service
 /etc/thingsboard-gateway/
 /var/log/thingsboard-gateway
-%defattr(-,thingsboard-gateway,thingsboard-gateway)
+%defattr(-,thingsboard_gateway,thingsboard_gateway)
 
 
 %postun

@@ -36,6 +36,7 @@ class TBClient(threading.Thread):
         self.__cert = None
         self.__token = None
         self.__is_connected = False
+        self.__stopped = False
         if credentials.get("accessToken") is not None:
             self.__token = str(credentials["accessToken"])
         if self.__tls:
@@ -104,7 +105,10 @@ class TBClient(threading.Thread):
             #     time.sleep(.1)
             # else:
             try:
-                time.sleep(1)
+                if not self.__stopped:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                self.__stopped = True
             except Exception as e:
                 log.exception(e)
 
