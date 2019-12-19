@@ -60,7 +60,6 @@ if [ "$1" != "only_clean" ] ; then
   cp for_build/etc/systemd/system/thingsboard-gateway.service /home/$CURRENT_USER/rpmbuild/SOURCES/
 #  cd for_build/etc/thingsboard-gateway/
   cp -r thingsboard_gateway/extensions for_build/etc/thingsboard-gateway/
-  cp -r thingsboard_gateway/extensions /home/$CURRENT_USER/rpmbuild/SOURCES
   cd thingsboard_gateway
   tar -zcvf configs.tar.gz config/*
   tar -zvcf extensions.tar.gz extensions/*

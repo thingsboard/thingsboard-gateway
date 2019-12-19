@@ -1,6 +1,6 @@
 %define name thingsboard-gateway
-%define version 2.0.17
-%define unmangled_version 2.0.17
+%define version 2.0.18
+%define unmangled_version 2.0.18
 %define release 1
 
 Summary: Thingsboard Gateway for IoT devices.
@@ -9,7 +9,7 @@ Version: %{version}
 Release: %{release}
 Source0: %{name}.service
 Source1: configs.tar.gz
-Source2: extensions
+Source2: extensions.tar.gz
 License: Apache Software License (Apache Software License 2.0)
 Group: Development/Libraries
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
@@ -19,7 +19,7 @@ Vendor: ThingsBoard <info@thingsboard.io>
 Url: https://github.com/thingsboard/thingsboard-gateway
 # Requires:  glib2-devel
 # BuildRequires:  make
-Requires(pre): /usr/sbin/useradd, /usr/bin/getent, /usr/bin/pip3, /usr/bin/mkdir, /usr/bin/make, /usr/bin/cp
+Requires(pre): /usr/sbin/useradd, /usr/bin/getent, /usr/bin/pip3, /usr/bin/mkdir, /usr/bin/cp
 Requires(post): /usr/bin/systemctl, /usr/bin/cp, /usr/bin/rm, /usr/bin/chown, /usr/bin/sed
 Requires(postun): /usr/sbin/userdel, /usr/bin/rm, /usr/bin/systemctl
 
@@ -42,6 +42,7 @@ sudo pip3 install thingsboard_gateway
 sudo install -p -D -m 644 %{SOURCE0} $RPM_BUILD_ROOT/etc/systemd/system/thingsboard-gateway.service
 sudo install -p -D -m 755 %{SOURCE1} $RPM_BUILD_ROOT/etc/thingsboard-gateway/
 sudo tar -xvf %{SOURCE1} -C $RPM_BUILD_ROOT/etc/thingsboard-gateway/
+sudo tar -xvf %{SOURCE2} -C $RPM_BUILD_ROOT/etc/thingsboard-gateway/
 
 %post
 /usr/bin/sed -i 's/\.\/logs/\/var\/log\/thingsboard-gateway/g' /etc/thingsboard-gateway/config/logs.conf >> /etc/thingsboard-gateway/config/logs.conf
