@@ -15,7 +15,8 @@
 import logging.config
 import logging.handlers
 import time
-import yaml
+# import yaml
+from yaml import safe_dump, safe_load
 from simplejson import load, loads, dumps
 from os import listdir, path
 from sys import getsizeof
@@ -24,10 +25,6 @@ from queue import Queue
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.connectors.mqtt.mqtt_connector import MqttConnector
-from thingsboard_gateway.connectors.opcua.opcua_connector import OpcUaConnector
-from thingsboard_gateway.connectors.modbus.modbus_connector import ModbusConnector
-from thingsboard_gateway.connectors.ble.ble_connector import BLEConnector
 from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 
@@ -39,7 +36,7 @@ class TBGatewayService:
         if config_file is None:
             config_file = path.dirname(path.dirname(path.abspath(__file__))) + '/config/tb_gateway.yaml'
         with open(config_file) as config:
-            config = yaml.safe_load(config)
+            config = safe_load(config)
             self.__config_dir = path.dirname(path.abspath(config_file)) + '/'
             logging.config.fileConfig(self.__config_dir + "logs.conf")
             global log
@@ -55,12 +52,13 @@ class TBGatewayService:
             self.main_handler = logging.handlers.MemoryHandler(1000)
             self.remote_handler = TBLoggerHandler(self)
             self.main_handler.setTarget(self.remote_handler)
-            self.__implemented_connectors = {
-                "mqtt": MqttConnector,
-                "modbus": ModbusConnector,
-                "opcua": OpcUaConnector,
-                "ble": BLEConnector,
+            self.__default_connectors = {
+                "mqtt": "MqttConnector",
+                "modbus": "ModbusConnector",
+                "opcua": "OpcUaConnector",
+                "ble": "BLEConnector",
             }
+            self.__implemented_connectors = {}
             self.__event_storage_types = {
                 "memory": MemoryEventStorage,
                 "file": FileEventStorage,
@@ -137,6 +135,16 @@ class TBGatewayService:
                     except Exception as e:
                         log.error("Exception when loading the custom connector:")
                         log.exception(e)
+                elif connector.get("type") is not None and connector["type"] in self.__default_connectors:
+                    try:
+                        connector_class = TBUtility.check_and_import(connector["type"], self.__default_connectors[connector["type"]], default=True)
+                        self.__implemented_connectors[connector["type"]] = connector_class
+                    except Exception as e:
+                        log.error("Error on loading default connector:")
+                        log.exception(e)
+                else:
+                    log.error("Connector with config %s - not found", safe_dump(connector))
+
                 with open(self.__config_dir + connector['configuration'], 'r') as conf_file:
                     connector_conf = load(conf_file)
                     if not self._connectors_configs.get(connector['type']):

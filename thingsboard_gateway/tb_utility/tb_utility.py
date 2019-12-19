@@ -48,18 +48,21 @@ class TBUtility:
         return regex.replace("[^/]+", "+").replace(".+", "#")
 
     @staticmethod
-    def check_and_import(extension_type, module_name):
+    def check_and_import(extension_type, module_name, default=False):
         try:
-            if path.exists('/var/lib/thingsboard_gateway/'+extension_type.lower()):
-                custom_extension_path = '/var/lib/thingsboard_gateway/' + extension_type.lower()
-                log.info('Extension %s - looking for class in %s', extension_type, custom_extension_path)
-            else:
-                custom_extension_path = path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/' + extension_type.lower())
-                log.info('Extension %s - looking for class in %s', extension_type, custom_extension_path)
-            for file in listdir(custom_extension_path):
+            if not default and path.exists('/var/lib/thingsboard_gateway/'+extension_type.lower()):
+                extension_path = '/var/lib/thingsboard_gateway/' + extension_type.lower()
+                log.info('Extension %s - looking for class in %s', extension_type, extension_path)
+            elif not default:
+                extension_path = path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/' + extension_type.lower())
+                log.info('Extension %s - looking for class in %s', extension_type, extension_path)
+            elif default:
+                extension_path = path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/' + extension_type.lower())
+                log.debug('Load connector for %s class name - %s from %s', extension_type, module_name, extension_path)
+            for file in listdir(extension_path):
                 if not file.startswith('__') and file.endswith('.py'):
                     try:
-                        module_spec = util.spec_from_file_location(module_name, custom_extension_path + '/' + file)
+                        module_spec = util.spec_from_file_location(module_name, extension_path + '/' + file)
                         log.debug(module_spec)
                         if module_spec is None:
                             log.error('Module: {} not found'.format(module_name))
