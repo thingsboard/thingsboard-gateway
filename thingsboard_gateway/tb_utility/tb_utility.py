@@ -90,7 +90,7 @@ class TBUtility:
             body = loads(body)
         if not expression:
             return ''
-        positions = match(r'\$\{(?:(.*))\}', expression)
+        positions = search(r'\$\{(?:(.*))\}', expression)
         if positions is not None:
             p1 = positions.regs[-1][0]
             p2 = positions.regs[-1][1]
