@@ -7,6 +7,8 @@ RUN apt-get install -y tzdata
 
 COPY python3-thingsboard-gateway.deb /
 COPY start-gateway.sh /usr/bin/
+COPY config/ /default-config/config/
+COPY extensions/ /default-config/extensions/
 
 RUN chmod +x /usr/bin/start-gateway.sh
 RUN sudo apt-get install -y /python3-thingsboard-gateway.deb
