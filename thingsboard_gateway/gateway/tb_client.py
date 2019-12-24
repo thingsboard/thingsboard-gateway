@@ -48,6 +48,7 @@ class TBClient(threading.Thread):
         self.client._client._on_connect = self._on_connect
         self.client._client._on_disconnect = self._on_disconnect
         self.client._client._on_log = self._on_log
+        self.start()
 
     def _on_log(self, *args):
         log.debug(args)
@@ -69,7 +70,6 @@ class TBClient(threading.Thread):
 
     def connect(self, min_reconnect_delay=10):
         self.__min_reconnect_delay = min_reconnect_delay
-        self.start()
 
     def run(self):
         keep_alive = self.__config.get("keep_alive", 60)

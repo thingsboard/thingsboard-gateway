@@ -178,20 +178,23 @@ class OpcUaConnector(Thread, Connector):
                             for interest_node in self.__interest_nodes:
                                 for int_node in interest_node:
                                     if interest_node[int_node].get("deviceName") is None:
-                                        name_pattern = TBUtility.get_value(interest_node[int_node]["deviceNamePattern"],
-                                                                           get_tag=True)
-                                        device_name_node = re.search(name_pattern.split('.')[-1], current_var_path)
-                                        if device_name_node is not None:
-                                            device_name = ch.get_value()
-                                            full_device_name = interest_node[int_node]["deviceNamePattern"].replace("${"+name_pattern+"}",
-                                                                                                                    device_name)
-                                            interest_node[int_node]["deviceName"] = full_device_name
-                                            if self.__available_object_resources.get(full_device_name) is None:
-                                                self.__available_object_resources[full_device_name] = {'methods': [],
-                                                                                                       'variables': []}
-                                            if not self.__gateway.get_devices().get(full_device_name):
-                                                self.__gateway.add_device(full_device_name, {"connector": None})
-                                            self.__gateway.update_device(full_device_name, "connector", self)
+                                        try:
+                                            name_pattern = TBUtility.get_value(interest_node[int_node]["deviceNamePattern"],
+                                                                               get_tag=True)
+                                            device_name_node = re.search(name_pattern.split('.')[-1], current_var_path)
+                                            if device_name_node is not None:
+                                                device_name = ch.get_value()
+                                                full_device_name = interest_node[int_node]["deviceNamePattern"].replace("${"+name_pattern+"}",
+                                                                                                                        device_name)
+                                                interest_node[int_node]["deviceName"] = full_device_name
+                                                if self.__available_object_resources.get(full_device_name) is None:
+                                                    self.__available_object_resources[full_device_name] = {'methods': [],
+                                                                                                           'variables': []}
+                                                if not self.__gateway.get_devices().get(full_device_name):
+                                                    self.__gateway.add_device(full_device_name, {"connector": None})
+                                                self.__gateway.update_device(full_device_name, "connector", self)
+                                        except Exception as e:
+                                            log.exception(e)
                         except BadWaitingForInitialData:
                             pass
                 elif not self.__interest_nodes:
