@@ -17,7 +17,7 @@ import threading
 from random import choice
 from string import ascii_lowercase
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient, ModbusRtuFramer
+from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient, ModbusRtuFramer, ModbusSocketFramer
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
 from pymodbus.exceptions import ConnectionException
@@ -159,25 +159,18 @@ class ModbusConnector(Connector, threading.Thread):
     def __configure_master(self):
         host = self.__config.get("host", "localhost")
         port = self.__config.get("port", 502)
-        serial_method = self.__config.get('method', 'rtu')
         baudrate = self.__config.get('baudrate', 19200)
         timeout = self.__config.get("timeout", 35)
-        rtu = ModbusRtuFramer if self.__config.get("rtuOverTcp") or self.__config.get("rtuOverUdp") else False
+        method = self.__config.get('method', 'rtu')
+        rtu = ModbusRtuFramer if self.__config.get("method") == "rtu" else ModbusSocketFramer
         if self.__config.get('type') == 'tcp':
-            client = ModbusTcpClient
+            self.__master = ModbusTcpClient(host, port, rtu, timeout=timeout)
         elif self.__config.get('type') == 'udp':
-            client = ModbusUdpClient
+            self.__master = ModbusUdpClient(host, port, rtu, timeout=timeout)
         elif self.__config.get('type') == 'serial':
-            client = ModbusSerialClient
+            self.__master = ModbusSerialClient(method=method, port=port, timeout=timeout, baudrate=baudrate)
         else:
             raise Exception("Invalid Modbus transport type.")
-
-        if self.__config.get('type') == 'serial':
-            self.__master = client(method=serial_method, port=port, timeout=timeout, baudrate=baudrate)
-        elif rtu:
-            self.__master = client(host, port, rtu, timeout=timeout)
-        else:
-            self.__master = client(host, port, timeout=timeout)
         self.__available_functions = {
             1: self.__master.read_coils,
             2: self.__master.read_discrete_inputs,
