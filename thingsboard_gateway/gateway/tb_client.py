@@ -91,19 +91,6 @@ class TBClient(threading.Thread):
             time.sleep(10)
 
         while True:
-            # if not self.client.is_connected():
-            #     try:
-            #         self.client.connect(tls=self.__tls,
-            #                             ca_certs=self.__ca_cert,
-            #                             cert_file=self.__cert,
-            #                             key_file=self.__private_key,
-            #                             keepalive=keep_alive,
-            #                             min_reconnect_delay=self.__min_reconnect_delay)
-            #     except Exception as e:
-            #         log.error("On connection to ThingsBoard: %s", str(e))
-            #         time.sleep(self.__min_reconnect_delay)
-            #     time.sleep(.1)
-            # else:
             try:
                 if not self.__stopped:
                     time.sleep(1)

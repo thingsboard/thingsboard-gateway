@@ -11,3 +11,4 @@ thingsboard_gateway/storage/data/
 /dist/
 /.mypy_cache/
 /thingsboard_gateway/storage/data_out/
+*.gz
