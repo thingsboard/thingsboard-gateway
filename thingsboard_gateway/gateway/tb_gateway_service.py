@@ -270,8 +270,10 @@ class TBGatewayService:
                                 devices_data_in_event_pack = {}
                         else:
                             break
+                    else:
+                        time.sleep(.01)
                 else:
-                    time.sleep(.01)
+                    time.sleep(.1)
             except Exception as e:
                 log.exception(e)
                 time.sleep(1)
