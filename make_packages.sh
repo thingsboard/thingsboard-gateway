@@ -65,11 +65,11 @@ if [ "$1" != "only_clean" ] ; then
 #  cd for_build/etc/thingsboard-gateway/
   cp -r thingsboard_gateway/extensions for_build/etc/thingsboard-gateway/
   sudo find thingsboard_gateway/ -name "*.pyc" -exec rm -f {} \;
-  cd thingsboard_gateway || echo 0 > /dev/null
+  cd for_build/etc/thingsboard-gateway || echo 0 > /dev/null
   tar -zcvf configs.tar.gz config/*
 #  cp -r extensions /home/$CURRENT_USER/rpmbuild/SOURCES/
   tar -zcvf extensions.tar.gz extensions/*
-  mv configs.tar.gz ../
+  mv configs.tar.gz ../../../
   mv extensions.tar.gz /home/$CURRENT_USER/rpmbuild/SOURCES/extensions.tar.gz
   cd ../
   rm /home/$CURRENT_USER/rpmbuild/SOURCES/configs.tar.gz
@@ -81,10 +81,10 @@ if [ "$1" != "only_clean" ] ; then
   sudo mv thingsboard-gateway-$CURRENT_VERSION-1.noarch.rpm python3-thingsboard-gateway.rpm
   sudo chown $CURRENT_USER. *.rpm
 #  sudo apt install ./deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway.deb -y
-  echo "Building Docker image and container"
-  cp -r for_build/etc/thingsboard-gateway/config docker/
-  cp -r for_build/etc/thingsboard-gateway/extensions docker/
-  cd docker || exit
+#  echo "Building Docker image and container"
+#  cp -r for_build/etc/thingsboard-gateway/config docker/
+#  cp -r for_build/etc/thingsboard-gateway/extensions docker/
+#  cd docker || exit
 #  sudo docker build -t thingsboard_gateway .
 #  sudo docker run -d -it --mount type=bind,source="$(pwd)""/logs",target=/var/log/thingsboard-gateway -v config:/etc/thingsboard-gateway/config -v extensions:/var/lib/thingsboard_gateway/extensions --name tb_gateway thingsboard_gateway
 #  sudo docker ps -a | grep tb_gateway
