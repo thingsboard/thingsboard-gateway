@@ -1,0 +1,31 @@
+#!/bin/sh
+set -e
+
+# Automatically added by dh_python3:
+if which py3compile >/dev/null 2>&1; then
+	py3compile -p python3-thingsboard-gateway 
+fi
+if which pypy3compile >/dev/null 2>&1; then
+	pypy3compile -p python3-thingsboard-gateway  || true
+fi
+
+# End automatically added section
+echo "Installing jsonschema"
+sudo rm -rf /usr/lib/python3/dist-packages/jsonschema
+CURRENT_USER=$USER
+sudo pip3 install --upgrade jsonschema==3.1.1
+#sudo pip3 install --upgrade bluepy
+sudo pip3 install --upgrade importlib
+sudo pip3 install --upgrade importlib-metadata
+sudo cp -a -r /etc/thingsboard-gateway/extensions /var/lib/thingsboard_gateway/
+sudo rm -r /etc/thingsboard-gateway/extensions
+sudo usermod -a -G thingsboard_gateway $CURRENT_USER
+sudo chown thingsboard_gateway:thingsboard_gateway /var/log/thingsboard-gateway/ -R
+sudo chown thingsboard_gateway:thingsboard_gateway /etc/thingsboard-gateway/ -R
+sudo sed -i 's/\.\/logs/\/var\/log\/thingsboard-gateway/g' /etc/thingsboard-gateway/config/logs.conf >> /etc/thingsboard-gateway/config/logs.conf
+echo "Installation completed"
+echo "Enabling daemon..."
+sudo pidof systemd && sudo systemctl enable thingsboard-gateway || echo "Systemctl not found"
+#echo "Daemon starting..."
+sudo pidof systemd && sudo systemctl start thingsboard-gateway || echo
+echo -e "\e[96mThingsboard Gateway \e[92mhas been installed. Have a nice day \e[93m\e[5m:)\e[25m\e[39m"
