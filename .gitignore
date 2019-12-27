@@ -12,3 +12,9 @@ thingsboard_gateway/storage/data/
 /.mypy_cache/
 /thingsboard_gateway/storage/data_out/
 *.gz
+/logs/
+/python3-thingsboard-gateway.deb
+/python3-thingsboard-gateway.rpm
+/thingsboard_gateway.egg-info/
+/docker/python3-thingsboard-gateway.deb
+/data/

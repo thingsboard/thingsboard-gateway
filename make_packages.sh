@@ -71,7 +71,7 @@ if [ "$1" != "only_clean" ] ; then
   tar -zcvf extensions.tar.gz extensions/*
   mv configs.tar.gz ../../../
   mv extensions.tar.gz /home/$CURRENT_USER/rpmbuild/SOURCES/extensions.tar.gz
-  cd ../
+  cd ../../../
   rm /home/$CURRENT_USER/rpmbuild/SOURCES/configs.tar.gz
   cp configs.tar.gz /home/$CURRENT_USER/rpmbuild/SOURCES/
   # Bulding RPM Package

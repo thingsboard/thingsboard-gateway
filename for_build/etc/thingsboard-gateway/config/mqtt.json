@@ -1,75 +1,73 @@
 {
   "broker": {
-    "name":"Default Broker",
-    "host":"demo.thingsboard.io",
+    "name":"Default Local Broker",
+    "host":"127.0.0.1",
     "port":1883,
     "security": {
       "type": "basic",
-      "username": "GIjr0vTtbOLwpouuBxL9",
-      "password": ""
+      "username": "user",
+      "password": "password"
     }
   },
   "mapping": [
     {
-      "topicFilter": "v1/devices/me/attributes",
+      "topicFilter": "/sensor/data",
       "converter": {
         "type": "json",
-        "filterExpression": "",
-        "deviceNameJsonExpression": "${SerialNumber}",
-        "deviceTypeJsonExpression": "${SensorType}",
-        "timeout": 60000,
-        "attributes": [
-          {
-            "type": "string",
-            "key": "test_key",
-            "value": "${SerialNumber}"
-          }
-        ]
-      }
-    },
-    {
-      "topicFilter": "/temperature-sensors/+",
-      "converter": {
-        "type": "json",
-        "filterExpression": "",
-        "deviceNameJsonExpression": "${$.serialNumber}",
-        "deviceTypeJsonExpression": "${$.sensorType}",
+        "deviceNameJsonExpression": "${serialNumber}",
+        "deviceTypeJsonExpression": "${sensorType}",
         "timeout": 60000,
         "attributes": [
           {
             "type": "string",
             "key": "model",
-            "value": "${$.model}"
+            "value": "${sensorModel}"
           }
         ],
         "timeseries": [
           {
             "type": "double",
             "key": "temperature",
-            "value": "${$.temperature}"
-          }
-        ]
-      }
-    },
-    {
-      "topicFilter": "/temperature-sensors/+",
-      "converter": {
-        "type": "json",
-        "filterExpression": "",
-        "deviceNameJsonExpression": "${$.sensorId}",
-        "deviceTypeJsonExpression": "${$.sensorType}",
-        "timeout": 60000,
-        "timeseries": [
+            "value": "${temp}"
+          },
           {
             "type": "double",
             "key": "humidity",
-            "value": "${$.humidity}"
+            "value": "${hum}"
           }
         ]
       }
     },
     {
-      "topicFilter": "/custom-sensors/+",
+      "topicFilter": "/sensor/+/data",
+      "converter": {
+        "type": "json",
+        "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/data)",
+        "deviceTypeTopicExpression": "Thermometer",
+        "timeout": 60000,
+        "attributes": [
+          {
+            "type": "string",
+            "key": "model",
+            "value": "${sensorModel}"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "double",
+            "key": "temperature",
+            "value": "${temp}"
+          },
+          {
+            "type": "double",
+            "key": "humidity",
+            "value": "${hum}"
+          }
+        ]
+      }
+    },
+    {
+      "topicFilter": "/custom/sensors/+",
       "converter": {
         "type": "custom",
         "extension": "CustomMqttUplinkConverter",
@@ -83,8 +81,8 @@
   ],
   "connectRequests": [
     {
-      "topicFilter": "sensors/connect",
-      "deviceNameJsonExpression": "${$.SerialNumber}"
+      "topicFilter": "sensor/connect",
+      "deviceNameJsonExpression": "${SerialNumber}"
     },
     {
       "topicFilter": "sensor/+/connect",
@@ -93,8 +91,8 @@
   ],
   "disconnectRequests": [
     {
-      "topicFilter": "sensors/disconnect",
-      "deviceNameJsonExpression": "${$.SerialNumber}"
+      "topicFilter": "sensor/disconnect",
+      "deviceNameJsonExpression": "${SerialNumber}"
     },
     {
       "topicFilter": "sensor/+/disconnect",
