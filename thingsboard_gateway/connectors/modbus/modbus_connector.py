@@ -20,6 +20,7 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient, ModbusRtuFramer, ModbusSocketFramer
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
+from pymodbus.register_read_message import ReadRegistersResponseBase
 from pymodbus.exceptions import ConnectionException
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
@@ -113,7 +114,7 @@ class ModbusConnector(Connector, threading.Thread):
                                 current_data = self.__devices[device]["config"][config_data][interested_data]
                                 current_data["deviceName"] = device
                                 input_data = self.__function_to_device(current_data, unit_id)
-                                if input_data.isError():
+                                if not isinstance(input_data, ReadRegistersResponseBase) and input_data.isError():
                                     log.exception(input_data)
                                     continue
                                 device_responses[config_data][current_data["tag"]] = {"data_sent": current_data,
@@ -174,8 +175,8 @@ class ModbusConnector(Connector, threading.Thread):
         self.__available_functions = {
             1: self.__master.read_coils,
             2: self.__master.read_discrete_inputs,
-            3: self.__master.read_input_registers,
-            4: self.__master.read_holding_registers,
+            3: self.__master.read_holding_registers,
+            4: self.__master.read_input_registers,
             5: self.__master.write_coils,
             6: self.__master.write_registers,
             15: self.__master.write_coils,

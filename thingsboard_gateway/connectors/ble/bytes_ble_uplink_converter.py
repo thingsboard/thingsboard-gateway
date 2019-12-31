@@ -49,6 +49,8 @@ class BytesBLEUplinkConverter(BLEUplinkConverter):
                 byte_from = config['section_config'].get('byteFrom')
                 byte_to = config['section_config'].get('byteTo')
                 try:
+                    if data is None:
+                        return {}
                     byte_to = byte_to if byte_to != -1 else len(data)
                     converted_data = data[byte_from: byte_to]
                     try:

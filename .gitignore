@@ -18,3 +18,5 @@ thingsboard_gateway/storage/data/
 /thingsboard_gateway.egg-info/
 /docker/python3-thingsboard-gateway.deb
 /data/
+/logs/
+__pycache__

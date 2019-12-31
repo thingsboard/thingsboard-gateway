@@ -92,10 +92,10 @@ class BLEConnector(Connector, Thread):
                                     if content['data'].get(requests['attributeOnThingsBoard']) is not None:
                                         try:
                                             self.__check_and_reconnect(device)
-                                            characteristic.write(content['data'][requests['attributeOnThingsBoard']].encode('UTF-8'))
+                                            resp = characteristic.write(content['data'][requests['attributeOnThingsBoard']].encode('UTF-8'), True)
                                         except BTLEDisconnectError:
                                             self.__check_and_reconnect(device)
-                                            characteristic.write(content['data'][requests['attributeOnThingsBoard']].encode('UTF-8'))
+                                            resp = characteristic.write(content['data'][requests['attributeOnThingsBoard']].encode('UTF-8'), True)
                                         except Exception as e:
                                             log.exception(e)
                                 else:
@@ -187,7 +187,10 @@ class BLEConnector(Connector, Thread):
                         self.__devices_around[device]['peripheral'] = peripheral
                     else:
                         peripheral = self.__devices_around[device]['peripheral']
-                        peripheral.connect(self.__devices_around[device]['scanned_device'])
+                        try:
+                            peripheral.connect(self.__devices_around[device]['scanned_device'])
+                        except Exception as e:
+                            log.exception(e)
                     services = peripheral.getServices()
                     for service in services:
                         if self.__devices_around[device].get('services') is None:
