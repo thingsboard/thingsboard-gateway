@@ -186,8 +186,8 @@ class MqttConnector(Connector, Thread):
         self.__log.debug('"%s" was disconnected.', self.get_name())
 
     def _on_log(self, *args):
-        # self.__log.debug(args)
-        pass
+        self.__log.debug(args)
+        # pass
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         try:
