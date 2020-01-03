@@ -1,6 +1,6 @@
 %define name thingsboard-gateway
-%define version 2.0
-%define unmangled_version 2.0
+%define version 2.0.0.1
+%define unmangled_version 2.0.0.1
 %define release 1
 
 Summary: Thingsboard Gateway for IoT devices.
@@ -25,7 +25,8 @@ The Thingsboard IoT Gateway is an open-source solution that allows you to integr
 
 %pre
 /usr/bin/getent passwd thingsboard_gateway || /usr/sbin/useradd -c "ThingsBoard-Gateway Service" -r -U -d /var/lib/thingsboard_gateway thingsboard_gateway && passwd -d thingsboard_gateway
-/usr/bin/pip3 install thingsboard-gateway
+/usr/bin/pip3 install thingsboard-gateway==%{version}
+sudo find $(python3 -c "from thingsboard_gateway import __path__; print(str(__path__[0])+'/extensions')") -name "*.pyc" -exec rm -f {} \;
 
 %build
 sudo mkdir -p $RPM_BUILD_ROOT/etc/thingsboard-gateway || echo "ThingsBoard config folder already exists"
@@ -33,13 +34,14 @@ sudo mkdir -p $RPM_BUILD_ROOT/var/lib/thingsboard_gateway || echo "ThingsBoard u
 sudo mkdir -p $RPM_BUILD_ROOT/var/lib/thingsboard_gateway/extensions || echo 0 > /dev/null
 sudo mkdir -p $RPM_BUILD_ROOT/var/log/thingsboard-gateway || echo "ThingsBoard log directory already exists"
 sudo chown -R thingsboard_gateway:thingsboard_gateway $RPM_BUILD_ROOT/var/log/thingsboard-gateway
-# sudo pip3 install thingsboard_gateway
 sudo install -p -D -m 644 %{SOURCE0} $RPM_BUILD_ROOT/etc/systemd/system/thingsboard-gateway.service
 sudo install -p -D -m 755 %{SOURCE1} $RPM_BUILD_ROOT/etc/thingsboard-gateway/
 sudo tar -xvf %{SOURCE1} -C $RPM_BUILD_ROOT/etc/thingsboard-gateway/
-sudo find $(python3 -c "from thingsboard_gateway import __path__; print(str(__path__[0])+'/extensions')") -name "*.pyc" -exec rm -f {} \;
-# sudo find $(python3 -c "from thingsboard_gateway import __path__; print(str(__path__[0])+'/extensions')") -name '*' -exec cp {} $RPM_BUILD_ROOT/var/lib/thingsboard_gateway/extensions \;
-sudo cp -r $(python3 -c "from thingsboard_gateway import __path__; print(str(__path__[0])+'/extensions')") $RPM_BUILD_ROOT/var/lib/thingsboard_gateway/
+# sudo find $(python3 -c "from thingsboard_gateway import __path__; print(str(__path__[0])+'/extensions')") \( -iname '*' ! -iname "*.pyc" \) -exec cp {} $RPM_BUILD_ROOT/var/lib/thingsboard_gateway/extensions \;
+# sudo cp -r $(python3 -c "from thingsboard_gateway import __path__; print(str(__path__[0])+'/extensions')") $RPM_BUILD_ROOT/var/lib/thingsboard_gateway/
+
+%install
+find %{buildroot} -name ".pyc" -delete
 
 %post
 /usr/bin/sed -i 's/\.\/logs/\/var\/log\/thingsboard-gateway/g' /etc/thingsboard-gateway/config/logs.conf >> /etc/thingsboard-gateway/config/logs.conf
@@ -59,6 +61,8 @@ sudo rm -rf $RPM_BUILD_ROOT
 /etc/thingsboard-gateway/
 /var/log/thingsboard-gateway/
 /var/lib/thingsboard_gateway/
+%exclude /usr/local/lib/python3.7
+%exclude /usr/local/bin/thingsboard-gateway
 %defattr(-,thingsboard_gateway,thingsboard_gateway)
 
 

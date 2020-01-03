@@ -34,6 +34,7 @@ fi
 
 
 CURRENT_USER=$USER
+export PYTHONDONTWRITEBYTECODE=1
 
 if [ "$1" != "only_clean" ] ; then
   echo "Building DEB package"
@@ -63,14 +64,14 @@ if [ "$1" != "only_clean" ] ; then
   # Adding the file, scripts and permissions
   cp for_build/etc/systemd/system/thingsboard-gateway.service /home/$CURRENT_USER/rpmbuild/SOURCES/
 #  cd for_build/etc/thingsboard-gateway/
-  cp -r thingsboard_gateway/extensions for_build/etc/thingsboard-gateway/
   sudo find thingsboard_gateway/ -name "*.pyc" -exec rm -f {} \;
+  cp -r thingsboard_gateway/extensions for_build/etc/thingsboard-gateway/
   cd for_build/etc/thingsboard-gateway || echo 0 > /dev/null
   tar -zcvf configs.tar.gz config/*
 #  cp -r extensions /home/$CURRENT_USER/rpmbuild/SOURCES/
   tar -zcvf extensions.tar.gz extensions/*
   mv configs.tar.gz ../../../
-  mv extensions.tar.gz /home/$CURRENT_USER/rpmbuild/SOURCES/extensions.tar.gz
+#  mv extensions.tar.gz /home/$CURRENT_USER/rpmbuild/SOURCES/extensions.tar.gz
   cd ../../../
   rm /home/$CURRENT_USER/rpmbuild/SOURCES/configs.tar.gz
   cp configs.tar.gz /home/$CURRENT_USER/rpmbuild/SOURCES/
