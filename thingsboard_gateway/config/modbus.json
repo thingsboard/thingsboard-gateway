@@ -5,7 +5,7 @@
     "host": "127.0.0.1",
     "port": 5020,
     "timeout": 35,
-    "rtuOverTcp": false,
+    "method": "socket",
     "devices": [
       {
         "unitId": 1,
