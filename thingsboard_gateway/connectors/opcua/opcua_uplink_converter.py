@@ -26,14 +26,16 @@ class OpcUaUplinkConverter(OpcUaConverter):
                   "deviceType": self.__config.get("deviceType", "OPC-UA Device"),
                   "attributes": [],
                   "telemetry": [], }
-        current_variable = config.split('.')[-1]
+        current_variable = config.split('.')
         try:
             for attr in self.__config["attributes"]:
-                if TBUtility.get_value(attr["path"], get_tag=True) == current_variable:
-                    result["attributes"].append({attr["key"]: attr["path"].replace("${"+current_variable+"}", str(data))})
+                path = TBUtility.get_value(attr["path"], get_tag=True)
+                if path == '.'.join(current_variable[-len(path.split('.')):]):
+                    result["attributes"].append({attr["key"]: attr["path"].replace("${"+path+"}", str(data))})
             for ts in self.__config["timeseries"]:
-                if TBUtility.get_value(ts["path"], get_tag=True) == current_variable:
-                    result["telemetry"].append({ts["key"]: ts["path"].replace("${"+current_variable+"}", str(data))})
+                path = TBUtility.get_value(ts["path"], get_tag=True)
+                if path == '.'.join(current_variable[-len(path.split('.')):]):
+                    result["telemetry"].append({ts["key"]: ts["path"].replace("${"+path+"}", str(data))})
             return result
         except Exception as e:
             log.exception(e)
