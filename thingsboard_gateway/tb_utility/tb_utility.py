@@ -26,6 +26,11 @@ log = getLogger("service")
 class TBUtility:
 
     @staticmethod
+    def decode(message):
+        content = loads(message.payload.decode("utf-8"))
+        return content
+
+    @staticmethod
     def validate_converted_data(data):
         json_data = dumps(data)
         if not data.get("deviceName") or data.get("deviceName") is None:

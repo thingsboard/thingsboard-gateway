@@ -17,6 +17,7 @@ import time
 from simplejson import dumps
 
 from thingsboard_gateway.tb_client.tb_device_mqtt import TBDeviceMqttClient, DEVICE_TS_KV_VALIDATOR, KV_VALIDATOR
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 GATEWAY_ATTRIBUTES_TOPIC = "v1/gateway/attributes"
 GATEWAY_ATTRIBUTES_REQUEST_TOPIC = "v1/gateway/attributes/request"
@@ -50,7 +51,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
             self._client.subscribe(GATEWAY_RPC_TOPIC + "/+")
 
     def _on_message(self, client, userdata, message):
-        content = self._decode(message)
+        content = TBUtility.decode(message)
         super()._on_decoded_message(content, message)
         self._on_decoded_message(content, message)
 

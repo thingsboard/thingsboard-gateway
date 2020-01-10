@@ -19,6 +19,7 @@ import time
 from simplejson import loads, dumps
 from threading import RLock
 from threading import Thread
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 import paho.mqtt.client as paho
 from jsonschema import Draft7Validator
@@ -158,7 +159,7 @@ class TBDeviceMqttClient:
         self._client.on_disconnect = self._on_disconnect
 
     def _on_log(self, client, userdata, level, buf):
-        log.debug(buf)
+        log.exception(buf)
 
     def _on_publish(self, client, userdata, result):
         # log.debug("Data published to ThingsBoard!")
@@ -213,16 +214,8 @@ class TBDeviceMqttClient:
         log.info("Disconnected from ThingsBoard!")
 
     def _on_message(self, client, userdata, message):
-        content = self._decode(message)
+        content = TBUtility.decode(message)
         self._on_decoded_message(content, message)
-
-
-    @staticmethod
-    def _decode(message):
-        content = loads(message.payload.decode("utf-8"))
-        log.debug(content)
-        log.debug(message.topic)
-        return content
 
     @staticmethod
     def validate(validator, data):
@@ -350,9 +343,6 @@ class TBDeviceMqttClient:
             return self.__device_max_sub_id
 
     def request_attributes(self, client_keys=None, shared_keys=None, callback=None):
-        if client_keys is None and shared_keys is None:
-            log.error("There are no keys to request")
-            return False
         msg = {}
         if client_keys:
             tmp = ""

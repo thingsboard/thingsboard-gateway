@@ -52,7 +52,6 @@ class TBClient(threading.Thread):
 
     def _on_log(self, *args):
         log.debug(args)
-        pass
 
     def is_connected(self):
         return self.client.is_connected()
@@ -74,7 +73,7 @@ class TBClient(threading.Thread):
     def run(self):
         keep_alive = self.__config.get("keep_alive", 60)
         try:
-            while not self.client.is_connected():
+            while not self.client.is_connected() and not self.__stopped:
                 log.debug("connecting to ThingsBoard")
                 try:
                     self.client.connect(tls=self.__tls,

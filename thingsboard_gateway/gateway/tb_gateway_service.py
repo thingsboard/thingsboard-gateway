@@ -27,6 +27,7 @@ from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
+from thingsboard_gateway.gateway.tb_gateway_remote_configurator import RemoteConfigurator
 
 log = logging.getLogger('service')
 
@@ -37,8 +38,8 @@ class TBGatewayService:
             config_file = path.dirname(path.dirname(path.abspath(__file__))) + '/config/tb_gateway.yaml'
         with open(config_file) as config:
             config = safe_load(config)
-            self.__config_dir = path.dirname(path.abspath(config_file)) + '/'
-            logging.config.fileConfig(self.__config_dir + "logs.conf")
+            self._config_dir = path.dirname(path.abspath(config_file)) + '/'
+            logging.config.fileConfig(self._config_dir + "logs.conf")
             global log
             log = logging.getLogger('service')
             self.available_connectors = {}
@@ -64,7 +65,15 @@ class TBGatewayService:
                 "file": FileEventStorage,
             }
             self.__load_connectors(config)
-            self.__connect_with_connectors()
+            self._connect_with_connectors()
+            if config["thingsboard"].get("remoteConfiguration"):
+                try:
+                    self.__remote_configurator = RemoteConfigurator(self, config)
+                    self.__check_shared_attributes()
+                except Exception as e:
+                    self.__load_connectors(config)
+                    self._connect_with_connectors()
+                    log.exception(e)
             self.__load_persistent_devices()
             self.__published_events = Queue(0)
             self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
@@ -97,9 +106,9 @@ class TBGatewayService:
                             if self.available_connectors[connector].is_connected():
                                 connector_camel_case = connector[0].lower() + connector[1:].replace(' ', '')
                                 telemetry[(connector_camel_case + ' EventsProduced').replace(' ', '')] = \
-                                self.available_connectors[connector].statistics['MessagesReceived']
+                                    self.available_connectors[connector].statistics['MessagesReceived']
                                 telemetry[(connector_camel_case + ' EventsSent').replace(' ', '')] = \
-                                self.available_connectors[connector].statistics['MessagesSent']
+                                    self.available_connectors[connector].statistics['MessagesSent']
                                 self.tb_client.client.send_telemetry(telemetry)
                                 summary_messages['eventsProduced'] += telemetry[
                                     str(connector_camel_case + ' EventsProduced').replace(' ', '')]
@@ -119,8 +128,22 @@ class TBGatewayService:
                     except Exception as e:
                         log.error(e)
 
+    def __attributes_parse(self, content, *args):
+        shared_attributes = content.get("shared")
+        client_attributes = content.get("client")
+        if shared_attributes is None and client_attributes is None:
+            self.__remote_configurator.process_configuration(content.get("configuration"))
+        elif shared_attributes is not None:
+            if shared_attributes.get("configuration"):
+                self.__remote_configurator.process_configuration(shared_attributes.get("configuration"))
+        elif client_attributes is not None:
+            log.debug("Client attributes received")
+
     def get_config_path(self):
-        return self.__config_dir
+        return self._config_dir
+
+    def __check_shared_attributes(self):
+        self.tb_client.client.request_attributes(callback=self.__attributes_parse)
 
     def __load_connectors(self, config):
         self._connectors_configs = {}
@@ -145,7 +168,7 @@ class TBGatewayService:
                 else:
                     log.error("Connector with config %s - not found", safe_dump(connector))
 
-                with open(self.__config_dir + connector['configuration'], 'r') as conf_file:
+                with open(self._config_dir + connector['configuration'], 'r') as conf_file:
                     connector_conf = load(conf_file)
                     if not self._connectors_configs.get(connector['type']):
                         self._connectors_configs[connector['type']] = []
@@ -153,7 +176,7 @@ class TBGatewayService:
             except Exception as e:
                 log.error(e)
 
-    def __connect_with_connectors(self):
+    def _connect_with_connectors(self):
         for connector_type in self._connectors_configs:
             for connector_config in self._connectors_configs[connector_type]:
                 for config_file in connector_config:
@@ -336,9 +359,7 @@ class TBGatewayService:
                 self.remote_handler.activate(content.get('RemoteLoggingLevel'))
                 log.info('Remote logging has being activated.')
             else:
-                log.debug('Attributes on the gateway has being updated!')
-                log.debug(args)
-                log.debug(content)
+                self.__attributes_parse(content)
 
     def add_device(self, device_name, content, wait_for_publish=False):
         if device_name not in self.__saved_devices:
@@ -365,15 +386,15 @@ class TBGatewayService:
 
     def __load_persistent_devices(self):
         devices = {}
-        if self.__connected_devices_file in listdir(self.__config_dir) and \
-                path.getsize(self.__config_dir + self.__connected_devices_file) > 0:
+        if self.__connected_devices_file in listdir(self._config_dir) and \
+                path.getsize(self._config_dir + self.__connected_devices_file) > 0:
             try:
-                with open(self.__config_dir + self.__connected_devices_file) as devices_file:
+                with open(self._config_dir + self.__connected_devices_file) as devices_file:
                     devices = load(devices_file)
             except Exception as e:
                 log.exception(e)
         else:
-            connected_devices_file = open(self.__config_dir + self.__connected_devices_file, 'w')
+            connected_devices_file = open(self._config_dir + self.__connected_devices_file, 'w')
             connected_devices_file.close()
 
         if devices is not None:
@@ -393,7 +414,7 @@ class TBGatewayService:
             self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices
 
     def __save_persistent_devices(self):
-        with open(self.__config_dir + self.__connected_devices_file, 'w') as config_file:
+        with open(self._config_dir + self.__connected_devices_file, 'w') as config_file:
             try:
                 data_to_save = {}
                 for device in self.__connected_devices:

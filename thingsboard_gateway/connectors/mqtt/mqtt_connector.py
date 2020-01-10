@@ -85,7 +85,7 @@ class MqttConnector(Connector, Thread):
 
     def run(self):
         try:
-            while not self._connected:
+            while not self._connected and not self.__stopped:
                 try:
                     self._client.connect(self.__broker['host'],
                                          self.__broker.get('port', 1883))
@@ -93,15 +93,15 @@ class MqttConnector(Connector, Thread):
                     if not self._connected:
                         time.sleep(1)
                 except Exception as e:
-                    self.__log.error(e)
+                    self.__log.exception(e)
                     time.sleep(10)
 
         except Exception as e:
-            self.__log.error(e)
+            self.__log.exception(e)
             try:
                 self.close()
             except Exception as e:
-                self.__log.debug(e)
+                self.__log.exception(e)
         while True:
             if self.__stopped:
                 break
@@ -109,8 +109,11 @@ class MqttConnector(Connector, Thread):
                 time.sleep(1)
 
     def close(self):
+        try:
+            self._client.disconnect()
+        except:
+            pass
         self._client.loop_stop()
-        self._client.disconnect()
         self.__stopped = True
         self.__log.info('%s has been stopped.', self.get_name())
 
@@ -209,7 +212,7 @@ class MqttConnector(Connector, Thread):
 
     def _on_message(self, client, userdata, message):
         self.statistics['MessagesReceived'] += 1
-        content = self._decode(message)
+        content = TBUtility.decode(message)
         regex_topic = [regex for regex in self.__sub_topics if fullmatch(regex, message.topic)]
         if regex_topic:
             try:
@@ -361,7 +364,3 @@ class MqttConnector(Connector, Thread):
     def rpc_cancel_processing(self, topic):
         self._client.unsubscribe(topic)
 
-    @staticmethod
-    def _decode(message):
-        content = loads(message.payload.decode("utf-8"))
-        return content
