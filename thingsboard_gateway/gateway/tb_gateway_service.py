@@ -53,19 +53,20 @@ class TBGatewayService:
             self.main_handler = logging.handlers.MemoryHandler(1000)
             self.remote_handler = TBLoggerHandler(self)
             self.main_handler.setTarget(self.remote_handler)
-            self.__default_connectors = {
+            self._default_connectors = {
                 "mqtt": "MqttConnector",
                 "modbus": "ModbusConnector",
                 "opcua": "OpcUaConnector",
                 "ble": "BLEConnector",
             }
-            self.__implemented_connectors = {}
+            self._implemented_connectors = {}
             self.__event_storage_types = {
                 "memory": MemoryEventStorage,
                 "file": FileEventStorage,
             }
             self.__load_connectors(config)
             self._connect_with_connectors()
+            self.__remote_configurator = None
             if config["thingsboard"].get("remoteConfiguration"):
                 try:
                     self.__remote_configurator = RemoteConfigurator(self, config)
@@ -129,15 +130,18 @@ class TBGatewayService:
                         log.error(e)
 
     def __attributes_parse(self, content, *args):
-        shared_attributes = content.get("shared")
-        client_attributes = content.get("client")
-        if shared_attributes is None and client_attributes is None:
-            self.__remote_configurator.process_configuration(content.get("configuration"))
-        elif shared_attributes is not None:
-            if shared_attributes.get("configuration"):
-                self.__remote_configurator.process_configuration(shared_attributes.get("configuration"))
-        elif client_attributes is not None:
-            log.debug("Client attributes received")
+        try:
+            shared_attributes = content.get("shared")
+            client_attributes = content.get("client")
+            if self.__remote_configurator is not None:
+                self.__remote_configurator.send_current_configuration()
+            if shared_attributes is not None:
+                if self.__remote_configurator is not None and shared_attributes.get("configuration"):
+                    self.__remote_configurator.process_configuration(shared_attributes.get("configuration"))
+            elif client_attributes is not None:
+                log.debug("Client attributes received")
+        except Exception as e:
+            log.exception(e)
 
     def get_config_path(self):
         return self._config_dir
@@ -154,14 +158,14 @@ class TBGatewayService:
                 if connector.get('class') is not None:
                     try:
                         connector_class = TBUtility.check_and_import(connector['type'], connector['class'])
-                        self.__implemented_connectors[connector['type']] = connector_class
+                        self._implemented_connectors[connector['type']] = connector_class
                     except Exception as e:
                         log.error("Exception when loading the custom connector:")
                         log.exception(e)
-                elif connector.get("type") is not None and connector["type"] in self.__default_connectors:
+                elif connector.get("type") is not None and connector["type"] in self._default_connectors:
                     try:
-                        connector_class = TBUtility.check_and_import(connector["type"], self.__default_connectors[connector["type"]], default=True)
-                        self.__implemented_connectors[connector["type"]] = connector_class
+                        connector_class = TBUtility.check_and_import(connector["type"], self._default_connectors[connector["type"]], default=True)
+                        self._implemented_connectors[connector["type"]] = connector_class
                     except Exception as e:
                         log.error("Error on loading default connector:")
                         log.exception(e)
@@ -182,8 +186,8 @@ class TBGatewayService:
                 for config_file in connector_config:
                     connector = None
                     try:
-                        connector = self.__implemented_connectors[connector_type](self, connector_config[config_file],
-                                                                                  connector_type)
+                        connector = self._implemented_connectors[connector_type](self, connector_config[config_file],
+                                                                                 connector_type)
                         self.available_connectors[connector.get_name()] = connector
                         connector.open()
                     except Exception as e:

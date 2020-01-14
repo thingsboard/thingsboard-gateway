@@ -37,6 +37,7 @@ class TBClient(threading.Thread):
         self.__token = None
         self.__is_connected = False
         self.__stopped = False
+        self.__paused = False
         if credentials.get("accessToken") is not None:
             self.__token = str(credentials["accessToken"])
         if self.__tls:
@@ -53,21 +54,34 @@ class TBClient(threading.Thread):
     def _on_log(self, *args):
         log.debug(args)
 
+    def pause(self):
+        self.__paused = True
+
+    def unpause(self):
+        self.__paused = False
+
     def is_connected(self):
         return self.client.is_connected()
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
-        log.debug('Gateway connected to ThingsBoard')
+        log.debug('TB client %s connected to ThingsBoard', str(client))
         self.client._on_connect(client, userdata, flags, rc, *extra_params)
 
     def _on_disconnect(self, client, userdata, rc):
-        log.info('Gateway disconnected.')
+        log.info("TB client %s has been disconnected.", str(client))
         self.client._on_disconnect(client, userdata, rc)
 
+    def stop(self):
+        self.disconnect()
+        self.__stopped = True
+
     def disconnect(self):
+        self.__paused = True
         self.client.disconnect()
 
     def connect(self, min_reconnect_delay=10):
+        self.__paused = False
+        self.__stopped = False
         self.__min_reconnect_delay = min_reconnect_delay
 
     def run(self):
@@ -75,15 +89,16 @@ class TBClient(threading.Thread):
         try:
             while not self.client.is_connected() and not self.__stopped:
                 log.debug("connecting to ThingsBoard")
-                try:
-                    self.client.connect(tls=self.__tls,
-                                        ca_certs=self.__ca_cert,
-                                        cert_file=self.__cert,
-                                        key_file=self.__private_key,
-                                        keepalive=keep_alive,
-                                        min_reconnect_delay=self.__min_reconnect_delay)
-                except ConnectionRefusedError:
-                    pass
+                if not self.__paused:
+                    try:
+                        self.client.connect(tls=self.__tls,
+                                            ca_certs=self.__ca_cert,
+                                            cert_file=self.__cert,
+                                            key_file=self.__private_key,
+                                            keepalive=keep_alive,
+                                            min_reconnect_delay=self.__min_reconnect_delay)
+                    except ConnectionRefusedError:
+                        pass
                 time.sleep(1)
         except Exception as e:
             log.exception(e)
@@ -93,6 +108,8 @@ class TBClient(threading.Thread):
             try:
                 if not self.__stopped:
                     time.sleep(1)
+                else:
+                    break
             except KeyboardInterrupt:
                 self.__stopped = True
             except Exception as e:
