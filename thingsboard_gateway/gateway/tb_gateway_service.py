@@ -50,6 +50,11 @@ class TBGatewayService:
             self.__rpc_requests_in_progress = {}
             self.__connected_devices_file = "connected_devices.json"
             self.tb_client = TBClient(config["thingsboard"])
+            self.tb_client.connect()
+            self.tb_client.client.gw_set_server_side_rpc_request_handler(self._rpc_request_handler)
+            self.tb_client.client.set_server_side_rpc_request_handler(self._rpc_request_handler)
+            self.tb_client.client.subscribe_to_all_attributes(self._attribute_update_callback)
+            self.tb_client.client.gw_subscribe_to_all_attributes(self._attribute_update_callback)
             self.main_handler = logging.handlers.MemoryHandler(1000)
             self.remote_handler = TBLoggerHandler(self)
             self.main_handler.setTarget(self.remote_handler)
@@ -60,10 +65,11 @@ class TBGatewayService:
                 "ble": "BLEConnector",
             }
             self._implemented_connectors = {}
-            self.__event_storage_types = {
+            self._event_storage_types = {
                 "memory": MemoryEventStorage,
                 "file": FileEventStorage,
             }
+            self._event_storage = self._event_storage_types[config["storage"]["type"]](config["storage"])
             self.__load_connectors(config)
             self._connect_with_connectors()
             self.__remote_configurator = None
@@ -75,16 +81,12 @@ class TBGatewayService:
                     self.__load_connectors(config)
                     self._connect_with_connectors()
                     log.exception(e)
+            if self.__remote_configurator is not None:
+                self.__remote_configurator.send_current_configuration()
             self.__load_persistent_devices()
             self.__published_events = Queue(0)
             self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                         name="Send data to Thingsboard Thread")
-            self.__event_storage = self.__event_storage_types[config["storage"]["type"]](config["storage"])
-            self.tb_client.connect()
-            self.tb_client.client.gw_set_server_side_rpc_request_handler(self.__rpc_request_handler)
-            self.tb_client.client.set_server_side_rpc_request_handler(self.__rpc_request_handler)
-            self.tb_client.client.subscribe_to_all_attributes(self.__attribute_update_callback)
-            self.tb_client.client.gw_subscribe_to_all_attributes(self.__attribute_update_callback)
             self.__send_thread.start()
 
             try:
@@ -133,13 +135,19 @@ class TBGatewayService:
         try:
             shared_attributes = content.get("shared")
             client_attributes = content.get("client")
-            if self.__remote_configurator is not None:
-                self.__remote_configurator.send_current_configuration()
             if shared_attributes is not None:
                 if self.__remote_configurator is not None and shared_attributes.get("configuration"):
-                    self.__remote_configurator.process_configuration(shared_attributes.get("configuration"))
+                    try:
+                        self.__remote_configurator.process_configuration(shared_attributes.get("configuration"))
+                    except Exception as e:
+                        log.exception(e)
             elif client_attributes is not None:
                 log.debug("Client attributes received")
+            if self.__remote_configurator is not None and content.get("configuration"):
+                try:
+                    self.__remote_configurator.process_configuration(content.get("configuration"))
+                except Exception as e:
+                    log.exception(e)
         except Exception as e:
             log.exception(e)
 
@@ -219,7 +227,7 @@ class TBGatewayService:
         data["telemetry"] = {"ts": int(time.time() * 1000), "values": telemetry}
 
         json_data = dumps(data)
-        save_result = self.__event_storage.put(json_data)
+        save_result = self._event_storage.put(json_data)
         if not save_result:
             log.error('Data from device "%s" cannot be saved, connector name is %s.',
                       data["deviceName"],
@@ -231,7 +239,7 @@ class TBGatewayService:
             try:
                 if self.tb_client.is_connected():
                     size = getsizeof(devices_data_in_event_pack)
-                    events = self.__event_storage.get_event_pack()
+                    events = self._event_storage.get_event_pack()
                     if events:
                         for event in events:
                             try:
@@ -242,7 +250,6 @@ class TBGatewayService:
                             if not devices_data_in_event_pack.get(current_event["deviceName"]):
                                 devices_data_in_event_pack[current_event["deviceName"]] = {"telemetry": [],
                                                                                            "attributes": {}}
-
                             if current_event.get("telemetry"):
                                 if type(current_event["telemetry"]) == list:
                                     for item in current_event["telemetry"]:
@@ -292,7 +299,7 @@ class TBGatewayService:
                                     log.exception(e)
                                     success = False
                             if success:
-                                self.__event_storage.event_pack_processing_done()
+                                self._event_storage.event_pack_processing_done()
                                 del devices_data_in_event_pack
                                 devices_data_in_event_pack = {}
                         else:
@@ -317,7 +324,7 @@ class TBGatewayService:
                                                                                     "telemetry"]))
             devices_data_in_event_pack[device] = {"telemetry": [], "attributes": {}}
 
-    def __rpc_request_handler(self, _, content):
+    def _rpc_request_handler(self, _, content):
         try:
             device = content.get("device")
             if device is not None:
@@ -349,12 +356,13 @@ class TBGatewayService:
     def cancel_rpc_request(self, rpc_request):
         del self.__rpc_requests_in_progress[rpc_request]
 
-    def __attribute_update_callback(self, content, *args):
+    def _attribute_update_callback(self, content, *args):
+        log.debug("Attribute request received with content: \"%s\"", content)
         if content.get('device') is not None:
             try:
                 self.__connected_devices[content["device"]]["connector"].on_attributes_update(content)
             except Exception as e:
-                log.error(e)
+                log.exception(e)
         else:
             if content.get('RemoteLoggingLevel') == 'NONE':
                 self.remote_handler.deactivate()
