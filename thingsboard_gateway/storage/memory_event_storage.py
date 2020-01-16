@@ -12,11 +12,9 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.storage.event_storage import EventStorage
+from thingsboard_gateway.storage.event_storage import EventStorage, log
 import queue
 from logging import getLogger
-
-log = getLogger("storage")
 
 
 class MemoryEventStorage(EventStorage):

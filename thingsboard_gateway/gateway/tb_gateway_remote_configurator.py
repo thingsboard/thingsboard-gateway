@@ -19,8 +19,9 @@ from time import time, sleep
 from logging import getLogger
 from os import remove
 from thingsboard_gateway.gateway.tb_client import TBClient
+from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
 
-log = getLogger("service")
+log = getLogger("tb_gateway.service")
 
 
 class RemoteConfigurator:
@@ -56,7 +57,7 @@ class RemoteConfigurator:
                     current_configuration[connector].append(config_file[config])
         current_configuration["thingsboard"] = self.__old_general_configuration_file
         encoded_current_configuration = b64encode(dumps(current_configuration).encode())
-        self.__gateway.tb_client.client.send_attributes({"current_configuration": encoded_current_configuration.decode("UTF-8")}).get()
+        self.__gateway.tb_client.client.send_attributes({"current_configuration": encoded_current_configuration.decode("UTF-8")})
 
     def __process_connectors_configuration(self):
         log.debug("Processing remote connectors configuration...")
@@ -101,13 +102,6 @@ class RemoteConfigurator:
     def __write_new_configuration_files(self):
         try:
             general_edited = True
-            # general_edited = False
-            # if self.__new_general_configuration_file and self.__new_general_configuration_file != self.__old_general_configuration_file:
-            #     general_edited = False
-            #     if self.__new_general_configuration_file["thingsboard"] != self.__old_general_configuration_file["thingsboard"]:
-            #         general_edited = True
-            #     if self.__new_general_configuration_file["storage"] != self.__old_general_configuration_file["storage"]:
-            #         general_edited = True
             self.__new_general_configuration_file = self.__new_general_configuration_file if general_edited else self.__old_general_configuration_file
             self.__new_connectors_configs = self.__new_connectors_configs if self.__new_connectors_configs else self.__new_connectors_configs
             self.__new_general_configuration_file["connectors"] = []
@@ -162,7 +156,7 @@ class RemoteConfigurator:
             log.exception(e)
             self.__revert_configuration()
             return False
-        connection_state = False
+        # connection_state = False
         try:
             tb_client = TBClient(self.__new_general_configuration_file["thingsboard"])
             tb_client.connect()

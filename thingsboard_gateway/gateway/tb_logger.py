@@ -20,7 +20,7 @@ from time import time
 
 class TBLoggerHandler(logging.Handler):
     def __init__(self, gateway):
-        super().__init__(logging.ERROR)
+        super().__init__(logging.DEBUG)
         self.__gateway = gateway
         self.activated = False
         self.log_levels = {
@@ -43,7 +43,7 @@ class TBLoggerHandler(logging.Handler):
         for logger in self.loggers:
             log = logging.getLogger(logger)
             log.addHandler(self.__gateway.main_handler)
-        self.__current_log_level = 'ERROR'
+        self.__current_log_level = 'DEBUG'
 
     def emit(self, record):
         pass
@@ -53,11 +53,12 @@ class TBLoggerHandler(logging.Handler):
             for logger in self.loggers:
                 if log_level is not None and self.log_levels.get(log_level) is not None:
                     log = logging.getLogger(logger)
+                    # log.addHandler(self)
                     self.__current_log_level = log_level
                     log.setLevel(self.log_levels[log_level])
         except Exception as e:
-            log = logging.getLogger('service')
-            log.error(e)
+            log = logging.getLogger('tb_gateway.service')
+            log.exception(e)
         self.activated = True
 
     def handle(self, record):

@@ -109,12 +109,12 @@ class MqttConnector(Connector, Thread):
                 time.sleep(1)
 
     def close(self):
+        self.__stopped = True
         try:
             self._client.disconnect()
-        except:
-            pass
+        except Exception as e:
+            log.exception(e)
         self._client.loop_stop()
-        self.__stopped = True
         self.__log.info('%s has been stopped.', self.get_name())
 
     def get_name(self):

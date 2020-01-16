@@ -29,7 +29,7 @@ from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 from thingsboard_gateway.gateway.tb_gateway_remote_configurator import RemoteConfigurator
 
-log = logging.getLogger('service')
+log = logging.getLogger('tb_gateway.service')
 
 
 class TBGatewayService:
@@ -41,7 +41,7 @@ class TBGatewayService:
             self._config_dir = path.dirname(path.abspath(config_file)) + '/'
             logging.config.fileConfig(self._config_dir + "logs.conf")
             global log
-            log = logging.getLogger('service')
+            log = logging.getLogger('tb_gateway.service')
             self.available_connectors = {}
             self.__connector_incoming_messages = {}
             self.__connected_devices = {}
@@ -70,16 +70,26 @@ class TBGatewayService:
                 "file": FileEventStorage,
             }
             self._event_storage = self._event_storage_types[config["storage"]["type"]](config["storage"])
-            self.__load_connectors(config)
+            self._connectors_configs = {}
+            self._load_connectors(config)
             self._connect_with_connectors()
             self.__remote_configurator = None
             if config["thingsboard"].get("remoteConfiguration"):
                 try:
                     self.__remote_configurator = RemoteConfigurator(self, config)
-                    self.__check_shared_attributes()
+
+                    def check_attribute_after_connection(gateway:TBGatewayService):
+                        while not gateway.tb_client.is_connected():
+                            time.sleep(1)
+                        log.debug("Request for shared attribute has been sent.")
+                        info = gateway.tb_client.client.request_attributes(callback=gateway._attributes_parse)
+
+                    self.__checking_thread = Thread(target=check_attribute_after_connection,
+                                                    args=(self,),
+                                                    name="Check shared attributes on connect",
+                                                    daemon=True).start()
+
                 except Exception as e:
-                    self.__load_connectors(config)
-                    self._connect_with_connectors()
                     log.exception(e)
             if self.__remote_configurator is not None:
                 self.__remote_configurator.send_current_configuration()
@@ -100,7 +110,11 @@ class TBGatewayService:
                                 self.cancel_rpc_request(rpc_in_progress)
                         time.sleep(0.1)
                     else:
-                        time.sleep(1)
+                        try:
+                            time.sleep(1)
+                        except Exception as e:
+                            log.exception(e)
+                            break
 
                     if cur_time - gateway_statistic_send > 60.0 and self.tb_client.is_connected():
                         summary_messages = {"eventsProduced": 0, "eventsSent": 0}
@@ -119,35 +133,51 @@ class TBGatewayService:
                                     str(connector_camel_case + ' EventsSent').replace(' ', '')]
                         self.tb_client.client.send_telemetry(summary_messages)
                         gateway_statistic_send = time.time()
+            except KeyboardInterrupt as e:
+                log.info("Stopping...")
+                self.__close_connectors()
+                log.info("The gateway has been stopped.")
+                self.tb_client.stop()
             except Exception as e:
                 log.exception(e)
-                for device in self.__connected_devices:
-                    log.debug("Close connection for device %s", device)
-                    try:
-                        current_connector = self.__connected_devices[device].get("connector")
-                        if current_connector is not None:
-                            current_connector.close()
-                            log.debug("Connector %s closed connection.", current_connector.get_name())
-                    except Exception as e:
-                        log.error(e)
+                self.__close_connectors()
+                log.info("The gateway has been stopped.")
+                self.tb_client.stop()
 
-    def __attributes_parse(self, content, *args):
+    def __close_connectors(self):
+        for current_connector in self.available_connectors:
+            try:
+                self.available_connectors[current_connector].close()
+                log.debug("Connector %s closed connection.", current_connector)
+                log.debug(current_connector)
+            except Exception as e:
+                log.error(e)
+
+    def _attributes_parse(self, content, *args):
         try:
-            shared_attributes = content.get("shared")
-            client_attributes = content.get("client")
-            if shared_attributes is not None:
-                if self.__remote_configurator is not None and shared_attributes.get("configuration"):
+            log.debug("Received data: %s", content)
+            if content is not None:
+                shared_attributes = content.get("shared")
+                client_attributes = content.get("client")
+                if shared_attributes is not None:
+                    if self.__remote_configurator is not None and shared_attributes.get("configuration"):
+                        try:
+                            self.__remote_configurator.process_configuration(shared_attributes.get("configuration"))
+                        except Exception as e:
+                            log.exception(e)
+                if client_attributes is not None:
+                    log.debug("Client attributes received (%s).", ", ".join([attr for attr in client_attributes.keys()]))
+                if self.__remote_configurator is not None and content.get("configuration"):
                     try:
-                        self.__remote_configurator.process_configuration(shared_attributes.get("configuration"))
+                        self.__remote_configurator.process_configuration(content.get("configuration"))
                     except Exception as e:
                         log.exception(e)
-            elif client_attributes is not None:
-                log.debug("Client attributes received")
-            if self.__remote_configurator is not None and content.get("configuration"):
-                try:
-                    self.__remote_configurator.process_configuration(content.get("configuration"))
-                except Exception as e:
-                    log.exception(e)
+                if (shared_attributes is not None and shared_attributes.get('RemoteLoggingLevel') == 'NONE') or content.get("RemoteLoggingLevel") == 'NONE':
+                    self.remote_handler.deactivate()
+                    log.info('Remote logging has being deactivated.')
+                elif (shared_attributes is not None and shared_attributes.get('RemoteLoggingLevel') is not None) or content.get("RemoteLoggingLevel") is not None:
+                    self.remote_handler.activate(content.get('RemoteLoggingLevel'))
+                    log.info('Remote logging has being activated.')
         except Exception as e:
             log.exception(e)
 
@@ -155,9 +185,9 @@ class TBGatewayService:
         return self._config_dir
 
     def __check_shared_attributes(self):
-        self.tb_client.client.request_attributes(callback=self.__attributes_parse)
+        self.tb_client.client.request_attributes(callback=self._attributes_parse).wait_for_publish()
 
-    def __load_connectors(self, config):
+    def _load_connectors(self, config):
         self._connectors_configs = {}
         if not config.get("connectors"):
             raise Exception("Configuration for connectors not found, check your config file.")
@@ -235,7 +265,7 @@ class TBGatewayService:
 
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
-        while True:
+        while not True:
             try:
                 if self.tb_client.is_connected():
                     size = getsizeof(devices_data_in_event_pack)
@@ -303,7 +333,7 @@ class TBGatewayService:
                                 del devices_data_in_event_pack
                                 devices_data_in_event_pack = {}
                         else:
-                            break
+                            continue
                     else:
                         time.sleep(.01)
                 else:
@@ -364,14 +394,7 @@ class TBGatewayService:
             except Exception as e:
                 log.exception(e)
         else:
-            if content.get('RemoteLoggingLevel') == 'NONE':
-                self.remote_handler.deactivate()
-                log.info('Remote logging has being deactivated.')
-            elif content.get('RemoteLoggingLevel') is not None:
-                self.remote_handler.activate(content.get('RemoteLoggingLevel'))
-                log.info('Remote logging has being activated.')
-            else:
-                self.__attributes_parse(content)
+            self._attributes_parse(content)
 
     def add_device(self, device_name, content, wait_for_publish=False):
         if device_name not in self.__saved_devices:

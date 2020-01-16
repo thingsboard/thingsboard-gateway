@@ -12,8 +12,9 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from thingsboard_gateway.storage.file_event_storage import log
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings, log
+from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
 from time import time
 from io import BufferedWriter, FileIO
 from os import linesep, open as os_open, O_CREAT, O_EXCL

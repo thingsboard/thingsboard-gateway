@@ -12,11 +12,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.storage.event_storage import EventStorage
+from thingsboard_gateway.storage.event_storage import EventStorage, log
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
 from thingsboard_gateway.storage.event_storage_writer import EventStorageWriter
 from thingsboard_gateway.storage.event_storage_reader import EventStorageReader
-from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings, log
+from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
 from random import choice
 from string import ascii_lowercase
 import os

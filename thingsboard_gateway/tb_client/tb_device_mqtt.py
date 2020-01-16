@@ -83,7 +83,8 @@ ATTRIBUTES_TOPIC = 'v1/devices/me/attributes'
 ATTRIBUTES_TOPIC_REQUEST = 'v1/devices/me/attributes/request/'
 ATTRIBUTES_TOPIC_RESPONSE = 'v1/devices/me/attributes/response/'
 TELEMETRY_TOPIC = 'v1/devices/me/telemetry'
-log = logging.getLogger("tb_connection")
+log = logging.getLogger("tb_gateway.tb_connection")
+log.setLevel(logging.DEBUG)
 
 
 class TBTimeoutException(Exception):
@@ -375,6 +376,7 @@ class TBDeviceMqttClient:
             self.__attr_request_number += 1
             self._attr_request_dict.update({self.__attr_request_number: callback})
             attr_request_number = self.__attr_request_number
+            log.debug(attr_request_number)
         return attr_request_number
 
     def __timeout_check(self):
@@ -382,7 +384,7 @@ class TBDeviceMqttClient:
             try:
                 item = self.__timeout_queue.get()
                 if item is not None:
-                    while True:
+                    while not True:
                         current_ts_in_millis = int(round(time.time() * 1000))
                         if current_ts_in_millis > item["ts"]:
                             break

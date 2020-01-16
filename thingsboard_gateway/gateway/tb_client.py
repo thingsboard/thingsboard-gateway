@@ -17,7 +17,7 @@ import time
 from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 import threading
 
-log = logging.getLogger("tb_connection")
+log = logging.getLogger("tb_gateway.tb_connection")
 
 
 class TBClient(threading.Thread):
@@ -52,7 +52,10 @@ class TBClient(threading.Thread):
         self.start()
 
     def _on_log(self, *args):
-        log.debug(args)
+        if "exception" in args[-1]:
+            log.exception(args[-1])
+        else:
+            log.debug(args)
 
     def pause(self):
         self.__paused = True
@@ -66,6 +69,10 @@ class TBClient(threading.Thread):
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         log.debug('TB client %s connected to ThingsBoard', str(client))
         self.client._on_connect(client, userdata, flags, rc, *extra_params)
+
+    def _on_subscribe(self, client, userdata, flags, rc, *extra_params):
+        log.debug('TB client %s connected to ThingsBoard', str(client))
+        self.client(client, userdata, flags, rc, *extra_params)
 
     def _on_disconnect(self, client, userdata, rc):
         log.info("TB client %s has been disconnected.", str(client))
@@ -104,7 +111,7 @@ class TBClient(threading.Thread):
             log.exception(e)
             time.sleep(10)
 
-        while True:
+        while not self.__stopped:
             try:
                 if not self.__stopped:
                     time.sleep(1)

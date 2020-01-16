@@ -17,8 +17,9 @@ from os import remove
 from os.path import exists
 from base64 import b64decode
 from simplejson import load, dumps, JSONDecodeError
+from thingsboard_gateway.storage.file_event_storage import log
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings, log
+from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
 from thingsboard_gateway.storage.event_storage_reader_pointer import EventStorageReaderPointer
 
 

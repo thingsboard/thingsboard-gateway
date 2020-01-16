@@ -15,7 +15,7 @@
 import logging
 from abc import ABC, abstractmethod
 
-log = logging.getLogger("converter")
+log = logging.getLogger("tb_gateway.converter")
 
 
 class Converter(ABC):
