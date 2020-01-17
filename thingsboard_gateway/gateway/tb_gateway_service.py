@@ -76,19 +76,8 @@ class TBGatewayService:
             self.__remote_configurator = None
             if config["thingsboard"].get("remoteConfiguration"):
                 try:
+                    self.__request_config_after_connect = False
                     self.__remote_configurator = RemoteConfigurator(self, config)
-
-                    def check_attribute_after_connection(gateway:TBGatewayService):
-                        while not gateway.tb_client.is_connected():
-                            time.sleep(1)
-                        log.debug("Request for shared attribute has been sent.")
-                        info = gateway.tb_client.client.request_attributes(callback=gateway._attributes_parse)
-
-                    self.__checking_thread = Thread(target=check_attribute_after_connection,
-                                                    args=(self,),
-                                                    name="Check shared attributes on connect",
-                                                    daemon=True).start()
-
                 except Exception as e:
                     log.exception(e)
             if self.__remote_configurator is not None:
@@ -115,6 +104,11 @@ class TBGatewayService:
                         except Exception as e:
                             log.exception(e)
                             break
+                    if self.__remote_configurator is not None and not self.__request_config_after_connect and \
+                            self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
+                        self.__check_shared_attributes()
+                        self.__request_config_after_connect = True
+
 
                     if cur_time - gateway_statistic_send > 60.0 and self.tb_client.is_connected():
                         summary_messages = {"eventsProduced": 0, "eventsSent": 0}
@@ -149,7 +143,6 @@ class TBGatewayService:
             try:
                 self.available_connectors[current_connector].close()
                 log.debug("Connector %s closed connection.", current_connector)
-                log.debug(current_connector)
             except Exception as e:
                 log.error(e)
 
@@ -185,7 +178,7 @@ class TBGatewayService:
         return self._config_dir
 
     def __check_shared_attributes(self):
-        self.tb_client.client.request_attributes(callback=self._attributes_parse).wait_for_publish()
+        self.tb_client.client.request_attributes(callback=self._attributes_parse)
 
     def _load_connectors(self, config):
         self._connectors_configs = {}
@@ -337,6 +330,7 @@ class TBGatewayService:
                     else:
                         time.sleep(.01)
                 else:
+                    self.__request_config_after_connect = False
                     time.sleep(.1)
             except Exception as e:
                 log.exception(e)

@@ -53,7 +53,7 @@ class TBClient(threading.Thread):
 
     def _on_log(self, *args):
         if "exception" in args[-1]:
-            log.exception(args[-1])
+            log.exception(args)
         else:
             log.debug(args)
 
@@ -69,10 +69,6 @@ class TBClient(threading.Thread):
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         log.debug('TB client %s connected to ThingsBoard', str(client))
         self.client._on_connect(client, userdata, flags, rc, *extra_params)
-
-    def _on_subscribe(self, client, userdata, flags, rc, *extra_params):
-        log.debug('TB client %s connected to ThingsBoard', str(client))
-        self.client(client, userdata, flags, rc, *extra_params)
 
     def _on_disconnect(self, client, userdata, rc):
         log.info("TB client %s has been disconnected.", str(client))

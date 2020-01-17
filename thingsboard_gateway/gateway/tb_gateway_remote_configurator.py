@@ -63,8 +63,22 @@ class RemoteConfigurator:
         log.debug("Processing remote connectors configuration...")
         self.__prepare_connectors_configuration()
         self.__apply_storage_configuration()
-        if self.__apply_new_configuration():
+        if self.__apply_new_connectors_configuration():
             self.__write_new_configuration_files()
+        if self.__safe_apply_connection_configuration():
+            log.info("Remote configuration has been applied.")
+            with open(self.__gateway._config_dir+"tb_gateway.yaml", "w") as general_configuration_file:
+                safe_dump(self.__new_general_configuration_file, general_configuration_file)
+            self.__old_connectors_configs = {}
+            self.__new_connectors_configs = {}
+            self.__old_general_configuration_file = self.__new_general_configuration_file
+            self.__new_general_configuration_file = {}
+        else:
+            log.error("A remote general configuration applying has been failed.")
+            self.__old_connectors_configs = {}
+            self.__new_connectors_configs = {}
+            self.__new_general_configuration_file = {}
+            return
 
     def __prepare_connectors_configuration(self):
         self.__new_connectors_configs = {}
@@ -82,7 +96,7 @@ class RemoteConfigurator:
         except Exception as e:
             log.exception(e)
 
-    def __apply_new_configuration(self):
+    def __apply_new_connectors_configuration(self):
         try:
             self.__gateway._connectors_configs = self.__new_connectors_configs
             for connector_name in self.__gateway.available_connectors:
@@ -130,20 +144,6 @@ class RemoteConfigurator:
                         if old_connector_file not in new_connectors_files:
                             remove(self.__gateway._config_dir + old_connector_file)
                         log.debug("Remove old configuration file \"%s\" for \"%s\" connector ", old_connector_file, old_connector_type)
-            if self.__safe_apply_connection_configuration():
-                log.info("Remote configuration has been applied.")
-                with open(self.__gateway._config_dir+"tb_gateway.yaml", "w") as general_configuration_file:
-                    safe_dump(self.__new_general_configuration_file, general_configuration_file)
-                self.__old_connectors_configs = {}
-                self.__new_connectors_configs = {}
-                self.__old_general_configuration_file = self.__new_general_configuration_file
-                self.__new_general_configuration_file = {}
-            else:
-                log.error("A remote general configuration applying has been failed.")
-                self.__old_connectors_configs = {}
-                self.__new_connectors_configs = {}
-                self.__new_general_configuration_file = {}
-                return
         except Exception as e:
             log.exception(e)
 
