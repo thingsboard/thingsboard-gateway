@@ -20,42 +20,31 @@ from time import time
 
 class TBLoggerHandler(logging.Handler):
     def __init__(self, gateway):
-        super().__init__(logging.DEBUG)
+        self.__current_log_level = 'DEBUG'
+        super().__init__(logging.getLevelName(self.__current_log_level))
         self.__gateway = gateway
         self.activated = False
-        self.log_levels = {
-            # 'NONE': 0,
-            'DEBUG': 10,
-            'INFO': 20,
-            'WARNING': 30,
-            'ERROR': 40,
-            'FATAL': 50,
-            'CRITICAL': 50,
-            'EXCEPTION': 50
-
-        }
-        self.loggers=['service',
-                      'tb_connection',
-                      'storage',
-                      'extension',
-                      'connector'
-                      ]
+        self.loggers = ['tb_gateway.service',
+                        'tb_gateway.storage',
+                        'tb_gateway.extension',
+                        'tb_gateway.connector'
+                        ]
         for logger in self.loggers:
             log = logging.getLogger(logger)
+            log.setLevel(self.__current_log_level)
             log.addHandler(self.__gateway.main_handler)
-        self.__current_log_level = 'DEBUG'
-
-    def emit(self, record):
-        pass
+            log.debug("Added remote handler to log %s", logger)
+        logging.getLogger("tb_gateway.tb_connection").addHandler(self.__gateway.main_handler)
+        logging.getLogger("tb_gateway.tb_connection").setLevel(logging.INFO)
 
     def activate(self, log_level=None):
         try:
             for logger in self.loggers:
-                if log_level is not None and self.log_levels.get(log_level) is not None:
+                if log_level is not None and logging.getLevelName(log_level) is not None:
                     log = logging.getLogger(logger)
                     # log.addHandler(self)
                     self.__current_log_level = log_level
-                    log.setLevel(self.log_levels[log_level])
+                    log.setLevel(logging.getLevelName(log_level))
         except Exception as e:
             log = logging.getLogger('tb_gateway.service')
             log.exception(e)
@@ -63,15 +52,8 @@ class TBLoggerHandler(logging.Handler):
 
     def handle(self, record):
         if self.activated:
-            self.__form_message(record)
-            self.__gateway.tb_client.client.send_telemetry(self.message, quality_of_service=1)
-
-    def __form_message(self, record):
-        self.message = {'ts': int(time()*1000),
-                        'values': {
-                            'LOGS': str(record.getMessage())
-                            }
-                        }
+            record = logging.Formatter('%(asctime)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s').format(record)
+            self.__gateway.send_to_storage(self.__gateway.name, {"deviceName": self.__gateway.name, "telemetry": [{'LOGS': record}]})
 
     def deactivate(self):
         self.activated = False

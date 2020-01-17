@@ -21,6 +21,8 @@ from simplejson import load, loads, dumps
 from os import listdir, path
 from sys import getsizeof
 from threading import Thread
+from random import choice
+from string import ascii_lowercase
 from queue import Queue
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
@@ -47,6 +49,7 @@ class TBGatewayService:
             self.__connected_devices = {}
             self.__saved_devices = {}
             self.__events = []
+            self.name = ''.join(choice(ascii_lowercase) for _ in range(64))
             self.__rpc_requests_in_progress = {}
             self.__connected_devices_file = "connected_devices.json"
             self.tb_client = TBClient(config["thingsboard"])
@@ -55,7 +58,7 @@ class TBGatewayService:
             self.tb_client.client.set_server_side_rpc_request_handler(self._rpc_request_handler)
             self.tb_client.client.subscribe_to_all_attributes(self._attribute_update_callback)
             self.tb_client.client.gw_subscribe_to_all_attributes(self._attribute_update_callback)
-            self.main_handler = logging.handlers.MemoryHandler(1000)
+            self.main_handler = logging.handlers.MemoryHandler(-1)
             self.remote_handler = TBLoggerHandler(self)
             self.main_handler.setTarget(self.remote_handler)
             self._default_connectors = {
@@ -233,16 +236,17 @@ class TBGatewayService:
         self._send_to_storage(connector_name, data)
 
     def _send_to_storage(self, connector_name, data):
-        if not TBUtility.validate_converted_data(data):
-            log.error("Data from %s connector is invalid.", connector_name)
-            return
-        if data["deviceName"] not in self.get_devices():
-            self.add_device(data["deviceName"],
-                            {"connector": self.available_connectors[connector_name]}, wait_for_publish=True)
-        if not self.__connector_incoming_messages.get(connector_name):
-            self.__connector_incoming_messages[connector_name] = 0
-        else:
-            self.__connector_incoming_messages[connector_name] += 1
+        if not connector_name == self.name:
+            if not TBUtility.validate_converted_data(data):
+                log.error("Data from %s connector is invalid.", connector_name)
+                return
+            if data["deviceName"] not in self.get_devices():
+                self.add_device(data["deviceName"],
+                                {"connector": self.available_connectors[connector_name]}, wait_for_publish=True)
+            if not self.__connector_incoming_messages.get(connector_name):
+                self.__connector_incoming_messages[connector_name] = 0
+            else:
+                self.__connector_incoming_messages[connector_name] += 1
 
         telemetry = {}
         for item in data["telemetry"]:
@@ -258,7 +262,7 @@ class TBGatewayService:
 
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
-        while not True:
+        while True:
             try:
                 if self.tb_client.is_connected():
                     size = getsizeof(devices_data_in_event_pack)
@@ -337,16 +341,27 @@ class TBGatewayService:
                 time.sleep(1)
 
     def __send_data(self, devices_data_in_event_pack):
-        for device in devices_data_in_event_pack:
-            self.__published_events.put(self.tb_client.client.gw_send_attributes(device,
-                                                                                 devices_data_in_event_pack[
-                                                                                     device][
-                                                                                     "attributes"]))
-            self.__published_events.put(self.tb_client.client.gw_send_telemetry(device,
-                                                                                devices_data_in_event_pack[
-                                                                                    device][
-                                                                                    "telemetry"]))
-            devices_data_in_event_pack[device] = {"telemetry": [], "attributes": {}}
+        try:
+            for device in devices_data_in_event_pack:
+                if devices_data_in_event_pack[device].get("attributes"):
+                    if device == self.name:
+                        self.__published_events.put(self.tb_client.client.send_attributes(devices_data_in_event_pack[device]["attributes"]))
+                    else:
+                        self.__published_events.put(self.tb_client.client.gw_send_attributes(device,
+                                                                                             devices_data_in_event_pack[
+                                                                                                 device][
+                                                                                                 "attributes"]))
+                if devices_data_in_event_pack[device].get("telemetry"):
+                    if device == self.name:
+                        self.__published_events.put(self.tb_client.client.send_telemetry(devices_data_in_event_pack[device]["telemetry"]))
+                    else:
+                        self.__published_events.put(self.tb_client.client.gw_send_telemetry(device,
+                                                                                        devices_data_in_event_pack[
+                                                                                            device][
+                                                                                            "telemetry"]))
+                devices_data_in_event_pack[device] = {"telemetry": [], "attributes": {}}
+        except Exception as e:
+            log.exception(e)
 
     def _rpc_request_handler(self, _, content):
         try:
