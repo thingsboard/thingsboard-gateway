@@ -42,14 +42,29 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         self.devices_server_side_rpc_request_handler = None
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
+        self._client.on_subscribe = self._on_subscribe
+        self._gw_subscriptions = {}
         self.gateway = gateway
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         super()._on_connect(client, userdata, flags, rc, *extra_params)
         if rc == 0:
-            self._client.subscribe(GATEWAY_ATTRIBUTES_TOPIC, qos=1)
-            self._client.subscribe(GATEWAY_ATTRIBUTES_RESPONSE_TOPIC + "/+")
-            self._client.subscribe(GATEWAY_RPC_TOPIC + "/+")
+            self._gw_subscriptions[int(self._client.subscribe(GATEWAY_ATTRIBUTES_TOPIC, qos=1)[1])] = GATEWAY_ATTRIBUTES_TOPIC
+            self._gw_subscriptions[int(self._client.subscribe(GATEWAY_ATTRIBUTES_RESPONSE_TOPIC + "/+")[1])] = GATEWAY_ATTRIBUTES_RESPONSE_TOPIC
+            self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_TOPIC + "/+")[1])] = GATEWAY_RPC_TOPIC
+
+    def _on_subscribe(self, client, userdata, mid, granted_qos):
+        subscription = self._gw_subscriptions.get(mid)
+        if subscription is not None:
+            if mid == 128:
+                log.error("Service subscription to topic %s - failed.", subscription)
+                del(self._gw_subscriptions[mid])
+            else:
+                log.debug("Service subscription to topic %s - successfully completed.", subscription)
+                del(self._gw_subscriptions[mid])
+
+    def get_subscriptions_in_progress(self):
+        return True if self._gw_subscriptions else False
 
     def _on_message(self, client, userdata, message):
         content = TBUtility.decode(message)

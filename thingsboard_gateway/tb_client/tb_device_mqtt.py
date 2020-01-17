@@ -376,7 +376,6 @@ class TBDeviceMqttClient:
             self.__attr_request_number += 1
             self._attr_request_dict.update({self.__attr_request_number: callback})
             attr_request_number = self.__attr_request_number
-            log.debug(attr_request_number)
         return attr_request_number
 
     def __timeout_check(self):
@@ -384,7 +383,7 @@ class TBDeviceMqttClient:
             try:
                 item = self.__timeout_queue.get()
                 if item is not None:
-                    while not True:
+                    while True:
                         current_ts_in_millis = int(round(time.time() * 1000))
                         if current_ts_in_millis > item["ts"]:
                             break
