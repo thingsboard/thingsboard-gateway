@@ -38,13 +38,16 @@ class RemoteConfigurator:
         self.__new_event_storage = None
 
     def process_configuration(self, configuration):
-        decoded_configuration = b64decode(configuration)
-        log.info("Remote configuration received: \n %s", dumps(decoded_configuration))
-        self.__new_configuration = loads(decoded_configuration)
-        self.__old_connectors_configs = self.__gateway._connectors_configs
-        self.__new_general_configuration_file = self.__new_configuration.get("thingsboard")
-        self.__process_connectors_configuration()
-        self.send_current_configuration()
+        try:
+            decoded_configuration = b64decode(configuration)
+            log.info("Remote configuration received: \n %s", decoded_configuration)
+            self.__new_configuration = loads(decoded_configuration)
+            self.__old_connectors_configs = self.__gateway._connectors_configs
+            self.__new_general_configuration_file = self.__new_configuration.get("thingsboard")
+            self.__process_connectors_configuration()
+            self.send_current_configuration()
+        except Exception as e:
+            log.exception(e)
 
     def send_current_configuration(self):
         current_configuration = {}
