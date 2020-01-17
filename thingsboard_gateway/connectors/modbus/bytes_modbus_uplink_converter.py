@@ -12,8 +12,9 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.constants import Endian
+from pymodbus.payload import BinaryPayloadDecoder
+
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
 
 
@@ -101,7 +102,8 @@ class BytesModbusUplinkConverter(ModbusConverter):
                                     data_sent["tag"])
                         continue
                 try:
-                    self.__result[config_data].append({tag: int(result)})
+                    if int(result):
+                        self.__result[config_data].append({tag: result})
                 except ValueError:
                     self.__result[config_data].append({tag: int(result, 16)})
         self.__result["telemetry"] = self.__result.pop("timeseries")
