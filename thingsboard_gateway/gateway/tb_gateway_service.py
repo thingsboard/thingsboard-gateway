@@ -32,6 +32,7 @@ from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 from thingsboard_gateway.gateway.tb_gateway_remote_configurator import RemoteConfigurator
 
 log = logging.getLogger('tb_gateway.service')
+main_handler = logging.handlers.MemoryHandler(-1)
 
 
 class TBGatewayService:
@@ -42,8 +43,8 @@ class TBGatewayService:
             config = safe_load(config)
             self._config_dir = path.dirname(path.abspath(config_file)) + '/'
             logging.config.fileConfig(self._config_dir + "logs.conf")
-            global log
-            log = logging.getLogger('tb_gateway.service')
+            # global log
+            # log = logging.getLogger('tb_gateway.service')
             self.available_connectors = {}
             self.__connector_incoming_messages = {}
             self.__connected_devices = {}
@@ -58,7 +59,8 @@ class TBGatewayService:
             self.tb_client.client.set_server_side_rpc_request_handler(self._rpc_request_handler)
             self.tb_client.client.subscribe_to_all_attributes(self._attribute_update_callback)
             self.tb_client.client.gw_subscribe_to_all_attributes(self._attribute_update_callback)
-            self.main_handler = logging.handlers.MemoryHandler(-1)
+            global main_handler
+            self.main_handler = main_handler
             self.remote_handler = TBLoggerHandler(self)
             self.main_handler.setTarget(self.remote_handler)
             self._default_connectors = {

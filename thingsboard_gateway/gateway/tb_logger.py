@@ -31,11 +31,8 @@ class TBLoggerHandler(logging.Handler):
                         ]
         for logger in self.loggers:
             log = logging.getLogger(logger)
-            log.setLevel(self.__current_log_level)
             log.addHandler(self.__gateway.main_handler)
             log.debug("Added remote handler to log %s", logger)
-        logging.getLogger("tb_gateway.tb_connection").addHandler(self.__gateway.main_handler)
-        logging.getLogger("tb_gateway.tb_connection").setLevel(logging.INFO)
 
     def activate(self, log_level=None):
         try:

@@ -29,6 +29,7 @@ class MqttConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
         self.__log = log
+        self.config = config
         self.__connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
@@ -42,17 +43,17 @@ class MqttConnector(Connector, Thread):
         self.__sub_topics = {}
         client_id = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
         self._client = Client(client_id)
-        self.setName(self.__broker.get("name",
-                                       'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5))))
-        if self.__broker["security"]["type"] == "basic":
+        self.setName(config.get("name", self.__broker.get("name",
+                                       'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)))))
+        if "username" in self.__broker["security"]:
             self._client.username_pw_set(self.__broker["security"]["username"],
                                          self.__broker["security"]["password"])
-        elif self.__broker["security"]["type"] == "cert.PEM":
+        if "caCert" in self.__broker["security"]:
             ca_cert = self.__broker["security"].get("caCert")
             private_key = self.__broker["security"].get("privateKey")
             cert = self.__broker["security"].get("cert")
-            if ca_cert is None or cert is None:
-                self.__log.error("caCert and cert parameters must be in config if you need to use the SSL. Please add it and try again.")
+            if ca_cert is None:
+                self.__log.error("caCert parameter must be in config if you need to use the SSL. Please add it and try again.")
             else:
                 try:
                     self._client.tls_set(ca_certs=ca_cert,

@@ -60,7 +60,8 @@ class RemoteConfigurator:
                     current_configuration[connector].append(config_file[config])
         current_configuration["thingsboard"] = self.__old_general_configuration_file
         encoded_current_configuration = b64encode(dumps(current_configuration).encode())
-        self.__gateway.tb_client.client.send_attributes({"current_configuration": encoded_current_configuration.decode("UTF-8")})
+        self.__gateway.tb_client.client.send_attributes(
+            {"current_configuration": encoded_current_configuration.decode("UTF-8")})
 
     def __process_connectors_configuration(self):
         log.debug("Processing remote connectors configuration...")
@@ -70,7 +71,7 @@ class RemoteConfigurator:
             self.__write_new_configuration_files()
         if self.__safe_apply_connection_configuration():
             log.info("Remote configuration has been applied.")
-            with open(self.__gateway._config_dir+"tb_gateway.yaml", "w") as general_configuration_file:
+            with open(self.__gateway._config_dir + "tb_gateway.yaml", "w") as general_configuration_file:
                 safe_dump(self.__new_general_configuration_file, general_configuration_file)
             self.__old_connectors_configs = {}
             self.__new_connectors_configs = {}
@@ -86,13 +87,16 @@ class RemoteConfigurator:
     def __prepare_connectors_configuration(self):
         self.__new_connectors_configs = {}
         try:
-            for connector_type in {connector_type for connector_type in self.__new_configuration if "thingsboard" not in connector_type}:
+            for connector_type in {connector_type for connector_type in self.__new_configuration if
+                                   "thingsboard" not in connector_type}:
                 connector_number = 0
                 for connector in self.__new_configuration[connector_type]:
-                    log.debug("Processing remote configuration for connector with type \"%s\" and config \"%s\".", connector_type, dumps(connector))
+                    log.debug("Processing remote configuration for connector with type \"%s\" and config \"%s\".",
+                              connector_type, dumps(connector))
                     if not self.__new_connectors_configs.get(connector_type):
                         self.__new_connectors_configs[connector_type] = []
-                    self.__new_connectors_configs[connector_type].append({connector_type.lower().replace(" ", "")+str(connector_number)+".json": connector})
+                    self.__new_connectors_configs[connector_type].append(
+                        {connector_type.lower().replace(" ", "") + str(connector_number) + ".json": connector})
                     connector_number += 1
             log.debug("Saved configuration for connectors: %s", ', '.join(con for con in self.__new_connectors_configs))
 
@@ -127,9 +131,9 @@ class RemoteConfigurator:
                 for connector_config_section in self.__new_connectors_configs[connector_type]:
                     for connector_file in connector_config_section:
                         connector_config = connector_config_section[connector_file]
-                        connector_name = connector_config["broker"]["name"] if connector_config.get("broker") else \
-                                         connector_config["server"]["name"] if connector_config.get("server") else \
-                                         connector_config["name"] if connector_config.get("name") else None
+                        connector_name = connector_config["name"] if connector_config.get("name") else \
+                            connector_config["broker"]["name"] if connector_config.get("broker") else \
+                            connector_config["server"]["name"] if connector_config.get("server") else None
                         self.__new_general_configuration_file["connectors"].append(
                             {
                                 "name": connector_name,
@@ -140,18 +144,20 @@ class RemoteConfigurator:
                         with open(self.__gateway._config_dir + connector_file, "w") as config_file:
                             dump(connector_config, config_file, sort_keys=True, indent=2)
                         new_connectors_files.append(connector_file)
-                        log.debug("Saving new configuration for \"%s\" connector to file \"%s\"", connector_type, connector_file)
+                        log.debug("Saving new configuration for \"%s\" connector to file \"%s\"", connector_type,
+                                  connector_file)
             for old_connector_type in self.__old_connectors_configs:
                 for old_connector_config_section in self.__old_connectors_configs[old_connector_type]:
                     for old_connector_file in old_connector_config_section:
                         if old_connector_file not in new_connectors_files:
                             remove(self.__gateway._config_dir + old_connector_file)
-                        log.debug("Remove old configuration file \"%s\" for \"%s\" connector ", old_connector_file, old_connector_type)
+                        log.debug("Remove old configuration file \"%s\" for \"%s\" connector ", old_connector_file,
+                                  old_connector_type)
         except Exception as e:
             log.exception(e)
 
     def __safe_apply_connection_configuration(self):
-        apply_start = time()*1000
+        apply_start = time() * 1000
         self.__old_tb_client = self.__gateway.tb_client
         try:
             self.__old_tb_client.pause()
@@ -170,7 +176,7 @@ class RemoteConfigurator:
         self.__gateway.tb_client = tb_client
         try:
             connection_state = False
-            while time()*1000-apply_start < self.__apply_timeout*1000 and not connection_state:
+            while time() * 1000 - apply_start < self.__apply_timeout * 1000 and not connection_state:
                 connection_state = self.__gateway.tb_client.is_connected()
                 sleep(.1)
             if not connection_state:
@@ -179,10 +185,12 @@ class RemoteConfigurator:
                 return False
             else:
                 self.__old_tb_client.stop()
-                self.__gateway.tb_client.client.gw_set_server_side_rpc_request_handler(self.__gateway._rpc_request_handler)
+                self.__gateway.tb_client.client.gw_set_server_side_rpc_request_handler(
+                    self.__gateway._rpc_request_handler)
                 self.__gateway.tb_client.client.set_server_side_rpc_request_handler(self.__gateway._rpc_request_handler)
                 self.__gateway.tb_client.client.subscribe_to_all_attributes(self.__gateway._attribute_update_callback)
-                self.__gateway.tb_client.client.gw_subscribe_to_all_attributes(self.__gateway._attribute_update_callback)
+                self.__gateway.tb_client.client.gw_subscribe_to_all_attributes(
+                    self.__gateway._attribute_update_callback)
                 return True
         except Exception as e:
             log.exception(e)
@@ -193,12 +201,13 @@ class RemoteConfigurator:
         if self.__old_general_configuration_file["storage"] != self.__new_general_configuration_file["storage"]:
             self.__old_event_storage = self.__gateway._event_storage
             try:
-                self.__gateway._event_storage = self.__gateway._event_storage_types[self.__new_general_configuration_file["storage"]["type"]](self.__new_general_configuration_file["storage"])
+                self.__gateway._event_storage = self.__gateway._event_storage_types[
+                    self.__new_general_configuration_file["storage"]["type"]](
+                    self.__new_general_configuration_file["storage"])
                 self.__old_event_storage = None
             except Exception as e:
                 log.exception(e)
                 self.__gateway._event_storage = self.__old_event_storage
-
 
     def __revert_configuration(self):
         log.info("Remote general configuration will be restored.")
@@ -208,5 +217,3 @@ class RemoteConfigurator:
         self.__gateway.tb_client = self.__old_tb_client
         self.__gateway.tb_client.connect()
         self.__gateway.tb_client.unpause()
-
-
