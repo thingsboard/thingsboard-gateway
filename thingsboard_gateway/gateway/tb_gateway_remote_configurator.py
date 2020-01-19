@@ -125,22 +125,22 @@ class RemoteConfigurator:
             general_edited = True
             self.__new_general_configuration_file = self.__new_general_configuration_file if general_edited else self.__old_general_configuration_file
             self.__new_connectors_configs = self.__new_connectors_configs if self.__new_connectors_configs else self.__new_connectors_configs
-            self.__new_general_configuration_file["connectors"] = []
+            # self.__new_general_configuration_file["connectors"] = []
             new_connectors_files = []
             for connector_type in self.__new_connectors_configs:
                 for connector_config_section in self.__new_connectors_configs[connector_type]:
                     for connector_file in connector_config_section:
                         connector_config = connector_config_section[connector_file]
-                        connector_name = connector_config["name"] if connector_config.get("name") else \
-                            connector_config["broker"]["name"] if connector_config.get("broker") else \
-                            connector_config["server"]["name"] if connector_config.get("server") else None
-                        self.__new_general_configuration_file["connectors"].append(
-                            {
-                                "name": connector_name,
-                                "type": connector_type,
-                                "configuration": connector_file
-                            }
-                        )
+                        # connector_name = connector_config["name"] if connector_config.get("name") else \
+                        #     connector_config["broker"]["name"] if connector_config.get("broker") else \
+                        #     connector_config["server"]["name"] if connector_config.get("server") else None
+                        # self.__new_general_configuration_file["connectors"].append(
+                        #     {
+                        #         "name": connector_name,
+                        #         "type": connector_type,
+                        #         "configuration": connector_file
+                        #     }
+                        # )
                         with open(self.__gateway._config_dir + connector_file, "w") as config_file:
                             dump(connector_config, config_file, sort_keys=True, indent=2)
                         new_connectors_files.append(connector_file)
