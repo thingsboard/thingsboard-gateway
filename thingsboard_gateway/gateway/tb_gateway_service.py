@@ -176,7 +176,7 @@ class TBGatewayService:
                     self.remote_handler.deactivate()
                     log.info('Remote logging has being deactivated.')
                 elif remote_logging_level is not None:
-                    if self.remote_handler.current_log_level != remote_logging_level:
+                    if self.remote_handler.current_log_level != remote_logging_level or not self.remote_handler.activated:
                         self.remote_handler.activate(remote_logging_level)
                         if not self.remote_handler.activated:
                             log.info('Remote logging has being activated.')

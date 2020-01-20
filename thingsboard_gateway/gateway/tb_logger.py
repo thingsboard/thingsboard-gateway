@@ -20,7 +20,7 @@ from time import time
 
 class TBLoggerHandler(logging.Handler):
     def __init__(self, gateway):
-        self.current_log_level = 'NONE'
+        self.current_log_level = 'DEBUG'
         super().__init__(logging.getLevelName(self.current_log_level))
         self.__gateway = gateway
         self.activated = False
