@@ -21,7 +21,7 @@ from time import time
 class TBLoggerHandler(logging.Handler):
     def __init__(self, gateway):
         self.current_log_level = 'NONE'
-        super().__init__(logging.getLevelName(self.__current_log_level))
+        super().__init__(logging.getLevelName(self.current_log_level))
         self.__gateway = gateway
         self.activated = False
         self.loggers = ['service',
@@ -44,7 +44,7 @@ class TBLoggerHandler(logging.Handler):
                         log.setLevel(logging.getLevelName('INFO'))
                     else:
                         log = logging.getLogger(logger)
-                        self.__current_log_level = log_level
+                        self.current_log_level = log_level
                         log.setLevel(logging.getLevelName(log_level))
         except Exception as e:
             log = logging.getLogger('service')
