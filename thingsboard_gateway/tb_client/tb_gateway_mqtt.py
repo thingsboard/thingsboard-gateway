@@ -25,7 +25,7 @@ GATEWAY_ATTRIBUTES_RESPONSE_TOPIC = "v1/gateway/attributes/response"
 GATEWAY_MAIN_TOPIC = "v1/gateway/"
 GATEWAY_RPC_TOPIC = "v1/gateway/rpc"
 
-log = logging.getLogger("tb_gateway.tb_connection")
+log = logging.getLogger("tb_connection")
 log.setLevel(logging.DEBUG)
 
 

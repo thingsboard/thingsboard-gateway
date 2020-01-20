@@ -20,14 +20,15 @@ from time import time
 
 class TBLoggerHandler(logging.Handler):
     def __init__(self, gateway):
-        self.__current_log_level = 'DEBUG'
+        self.current_log_level = 'NONE'
         super().__init__(logging.getLevelName(self.__current_log_level))
         self.__gateway = gateway
         self.activated = False
-        self.loggers = ['tb_gateway.service',
-                        'tb_gateway.storage',
-                        'tb_gateway.extension',
-                        'tb_gateway.connector'
+        self.loggers = ['service',
+                        'storage',
+                        'extension',
+                        'connector',
+                        'tb_connection'
                         ]
         for logger in self.loggers:
             log = logging.getLogger(logger)
@@ -38,12 +39,15 @@ class TBLoggerHandler(logging.Handler):
         try:
             for logger in self.loggers:
                 if log_level is not None and logging.getLevelName(log_level) is not None:
-                    log = logging.getLogger(logger)
-                    # log.addHandler(self)
-                    self.__current_log_level = log_level
-                    log.setLevel(logging.getLevelName(log_level))
+                    if logger == 'tb_connection' and log_level == 'DEBUG':
+                        log = logging.getLogger(logger)
+                        log.setLevel(logging.getLevelName('INFO'))
+                    else:
+                        log = logging.getLogger(logger)
+                        self.__current_log_level = log_level
+                        log.setLevel(logging.getLevelName(log_level))
         except Exception as e:
-            log = logging.getLogger('tb_gateway.service')
+            log = logging.getLogger('service')
             log.exception(e)
         self.activated = True
 

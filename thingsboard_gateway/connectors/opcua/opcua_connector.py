@@ -105,8 +105,11 @@ class OpcUaConnector(Thread, Connector):
         self.__opcua_nodes["root"] = self.client.get_root_node()
         self.__opcua_nodes["objects"] = self.client.get_objects_node()
         sub = self.client.create_subscription(self.__server_conf.get("scanPeriodInMillis", 500), self.__sub_handler)
-        self.__search_name(self.__opcua_nodes["objects"], 2)
-        self.__search_tags(self.__opcua_nodes["objects"], 2, sub)
+        # self.__search_name(self.__opcua_nodes["objects"], 2)
+        # self.__search_tags(self.__opcua_nodes["objects"], 2, sub)
+
+        self.__search_name(self.__opcua_nodes["root"], 0)
+        self.__search_tags(self.__opcua_nodes["root"], 0, sub)
         log.debug('Subscriptions: %s', self.subscribed)
 
         log.debug("Available methods: %s", self.__available_object_resources)

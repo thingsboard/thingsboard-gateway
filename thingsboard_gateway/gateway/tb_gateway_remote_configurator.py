@@ -21,7 +21,7 @@ from os import remove
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
 
-log = getLogger("tb_gateway.service")
+log = getLogger("service")
 
 
 class RemoteConfigurator:

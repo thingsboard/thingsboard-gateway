@@ -17,7 +17,7 @@ import time
 from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 import threading
 
-log = logging.getLogger("tb_gateway.tb_connection")
+log = logging.getLogger("tb_connection")
 
 
 class TBClient(threading.Thread):

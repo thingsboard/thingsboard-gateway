@@ -83,7 +83,7 @@ ATTRIBUTES_TOPIC = 'v1/devices/me/attributes'
 ATTRIBUTES_TOPIC_REQUEST = 'v1/devices/me/attributes/request/'
 ATTRIBUTES_TOPIC_RESPONSE = 'v1/devices/me/attributes/response/'
 TELEMETRY_TOPIC = 'v1/devices/me/telemetry'
-log = logging.getLogger("tb_gateway.tb_connection")
+log = logging.getLogger("tb_connection")
 log.setLevel(logging.DEBUG)
 
 

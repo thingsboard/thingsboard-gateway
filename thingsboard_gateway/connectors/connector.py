@@ -15,7 +15,7 @@
 import logging
 from abc import ABC, abstractmethod
 
-log = logging.getLogger("tb_gateway.connector")
+log = logging.getLogger("connector")
 
 
 class Connector(ABC):

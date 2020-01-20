@@ -31,7 +31,7 @@ from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 from thingsboard_gateway.gateway.tb_gateway_remote_configurator import RemoteConfigurator
 
-log = logging.getLogger('tb_gateway.service')
+log = logging.getLogger('service')
 main_handler = logging.handlers.MemoryHandler(-1)
 
 
@@ -43,8 +43,8 @@ class TBGatewayService:
             config = safe_load(config)
             self._config_dir = path.dirname(path.abspath(config_file)) + '/'
             logging.config.fileConfig(self._config_dir + "logs.conf")
-            # global log
-            # log = logging.getLogger('tb_gateway.service')
+            global log
+            log = logging.getLogger('service')
             self.available_connectors = {}
             self.__connector_incoming_messages = {}
             self.__connected_devices = {}
@@ -132,6 +132,7 @@ class TBGatewayService:
                                     str(connector_camel_case + ' EventsSent').replace(' ', '')]
                         self.tb_client.client.send_telemetry(summary_messages)
                         gateway_statistic_send = time.time()
+                        self.__check_shared_attributes()
             except KeyboardInterrupt as e:
                 log.info("Stopping...")
                 self.__close_connectors()
@@ -170,12 +171,15 @@ class TBGatewayService:
                         self.__remote_configurator.process_configuration(content.get("configuration"))
                     except Exception as e:
                         log.exception(e)
-                if (shared_attributes is not None and shared_attributes.get('RemoteLoggingLevel') == 'NONE') or content.get("RemoteLoggingLevel") == 'NONE':
+                remote_logging_level = shared_attributes.get('RemoteLoggingLevel', content.get("RemoteLoggingLevel"))
+                if remote_logging_level == 'NONE':
                     self.remote_handler.deactivate()
                     log.info('Remote logging has being deactivated.')
-                elif (shared_attributes is not None and shared_attributes.get('RemoteLoggingLevel') is not None) or content.get("RemoteLoggingLevel") is not None:
-                    self.remote_handler.activate(content.get('RemoteLoggingLevel'))
-                    log.info('Remote logging has being activated.')
+                elif remote_logging_level is not None:
+                    if self.remote_handler.current_log_level != remote_logging_level:
+                        self.remote_handler.activate(remote_logging_level)
+                        if not self.remote_handler.activated:
+                            log.info('Remote logging has being activated.')
         except Exception as e:
             log.exception(e)
 

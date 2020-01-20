@@ -15,7 +15,7 @@
 from logging import getLogger
 from abc import ABC, abstractmethod
 
-log = getLogger("tb_gateway.storage")
+log = getLogger("storage")
 
 class EventStorage(ABC):
 
