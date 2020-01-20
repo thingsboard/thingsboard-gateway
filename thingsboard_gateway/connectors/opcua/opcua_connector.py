@@ -198,8 +198,10 @@ class OpcUaConnector(Thread, Connector):
                                                 device_name = ch.get_value()
                                                 if "${" + name_pattern + "}" in interest_node[int_node]["deviceNamePattern"]:
                                                     full_device_name = interest_node[int_node]["deviceNamePattern"].replace("${"+name_pattern+"}", device_name)
+                                                    log.debug("Full device name is: %s", full_device_name)
                                                 elif device_name in interest_node[int_node]["deviceNamePattern"]:
                                                     full_device_name = interest_node[int_node]["deviceNamePattern"].replace(name_pattern, device_name)
+                                                    log.debug("Full device name is: %s", full_device_name)
                                                 else:
                                                     log.error("Name pattern not found.")
                                                     break
