@@ -61,7 +61,7 @@ class RemoteConfigurator:
         current_configuration["thingsboard"] = self.__old_general_configuration_file
         encoded_current_configuration = b64encode(dumps(current_configuration).encode())
         self.__gateway.tb_client.client.send_attributes(
-            {"current_configuration": encoded_current_configuration.decode("UTF-8")})
+            {"current_configuration": encoded_current_configuration.decode("UTF-8")}).get()
 
     def __process_connectors_configuration(self):
         log.debug("Processing remote connectors configuration...")
@@ -87,6 +87,7 @@ class RemoteConfigurator:
     def __prepare_connectors_configuration(self):
         self.__new_connectors_configs = {}
         try:
+            self.__gateway._load_connectors(self.__new_configuration["thingsboard"])
             for connector_type in {connector_type for connector_type in self.__new_configuration if
                                    "thingsboard" not in connector_type}:
                 connector_number = 0
@@ -107,7 +108,10 @@ class RemoteConfigurator:
         try:
             self.__gateway._connectors_configs = self.__new_connectors_configs
             for connector_name in self.__gateway.available_connectors:
-                self.__gateway.available_connectors[connector_name].close()
+                try:
+                    self.__gateway.available_connectors[connector_name].close()
+                except Exception as e:
+                    log.exception(e)
             self.__gateway._connect_with_connectors()
             log.debug("New connectors configuration has been applied")
             self.__old_connectors_configs = {}
@@ -141,11 +145,14 @@ class RemoteConfigurator:
                         #         "configuration": connector_file
                         #     }
                         # )
-                        with open(self.__gateway._config_dir + connector_file, "w") as config_file:
-                            dump(connector_config, config_file, sort_keys=True, indent=2)
-                        new_connectors_files.append(connector_file)
-                        log.debug("Saving new configuration for \"%s\" connector to file \"%s\"", connector_type,
-                                  connector_file)
+                        connector_name = connector_config.get("name")
+                        for conn in self.__new_general_configuration_file["connectors"]:
+
+                            with open(self.__gateway._config_dir + conn.get("configuration"), "w") as config_file:
+                                dump(connector_config, config_file, sort_keys=True, indent=2)
+                            new_connectors_files.append(connector_file)
+                            log.debug("Saving new configuration for \"%s\" connector to file \"%s\"", connector_type,
+                                      connector_file)
             for old_connector_type in self.__old_connectors_configs:
                 for old_connector_config_section in self.__old_connectors_configs[old_connector_type]:
                     for old_connector_file in old_connector_config_section:

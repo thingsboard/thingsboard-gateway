@@ -171,7 +171,7 @@ class TBGatewayService:
                         self.__remote_configurator.process_configuration(content.get("configuration"))
                     except Exception as e:
                         log.exception(e)
-                remote_logging_level = shared_attributes.get('RemoteLoggingLevel', content.get("RemoteLoggingLevel"))
+                remote_logging_level = shared_attributes.get('RemoteLoggingLevel') if shared_attributes is not None else content.get("RemoteLoggingLevel")
                 if remote_logging_level == 'NONE':
                     self.remote_handler.deactivate()
                     log.info('Remote logging has being deactivated.')
@@ -224,16 +224,19 @@ class TBGatewayService:
         for connector_type in self._connectors_configs:
             for connector_config in self._connectors_configs[connector_type]:
                 for config_file in connector_config:
-                    connector = None
                     try:
-                        connector = self._implemented_connectors[connector_type](self, connector_config[config_file],
-                                                                                 connector_type)
-                        self.available_connectors[connector.get_name()] = connector
-                        connector.open()
+                        connector = None
+                        try:
+                            connector = self._implemented_connectors[connector_type](self, connector_config[config_file],
+                                                                                     connector_type)
+                            self.available_connectors[connector.get_name()] = connector
+                            connector.open()
+                        except Exception as e:
+                            log.exception(e)
+                            if connector is not None:
+                                connector.close()
                     except Exception as e:
                         log.exception(e)
-                        if connector is not None:
-                            connector.close()
 
     def __send_statistic(self):
         self.tb_client.client.gw_send_telemetry()
