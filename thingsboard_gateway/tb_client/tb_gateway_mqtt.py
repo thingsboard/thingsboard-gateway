@@ -179,6 +179,8 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                     del self.__sub_dict[x][subscription_id]
                     log.debug("Unsubscribed from {attribute}, subscription id {sub_id}".format(attribute=x,
                                                                                                sub_id=subscription_id))
+            if subscription_id == '*':
+                self.__sub_dict = {}
 
     def gw_set_server_side_rpc_request_handler(self, handler):
         self.devices_server_side_rpc_request_handler = handler

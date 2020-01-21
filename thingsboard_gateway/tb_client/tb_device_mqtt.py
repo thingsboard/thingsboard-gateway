@@ -328,6 +328,8 @@ class TBDeviceMqttClient:
                     del self.__device_sub_dict[x][subscription_id]
                     log.debug("Unsubscribed from {attribute}, subscription id {sub_id}".format(attribute=x,
                                                                                                sub_id=subscription_id))
+            if subscription_id == '*':
+                self.__device_sub_dict = {}
             self.__device_sub_dict = dict((k, v) for k, v in self.__device_sub_dict.items() if v is not {})
 
     def subscribe_to_all_attributes(self, callback):

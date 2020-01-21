@@ -39,110 +39,110 @@ class TBGatewayService:
     def __init__(self, config_file=None):
         if config_file is None:
             config_file = path.dirname(path.dirname(path.abspath(__file__))) + '/config/tb_gateway.yaml'
-        with open(config_file) as config:
-            config = safe_load(config)
-            self._config_dir = path.dirname(path.abspath(config_file)) + '/'
-            logging.config.fileConfig(self._config_dir + "logs.conf")
-            global log
-            log = logging.getLogger('service')
-            self.available_connectors = {}
-            self.__connector_incoming_messages = {}
-            self.__connected_devices = {}
-            self.__saved_devices = {}
-            self.__events = []
-            self.name = ''.join(choice(ascii_lowercase) for _ in range(64))
-            self.__rpc_requests_in_progress = {}
-            self.__connected_devices_file = "connected_devices.json"
-            self.tb_client = TBClient(config["thingsboard"])
-            self.tb_client.connect()
-            self.tb_client.client.gw_set_server_side_rpc_request_handler(self._rpc_request_handler)
-            self.tb_client.client.set_server_side_rpc_request_handler(self._rpc_request_handler)
-            self.tb_client.client.subscribe_to_all_attributes(self._attribute_update_callback)
-            self.tb_client.client.gw_subscribe_to_all_attributes(self._attribute_update_callback)
-            global main_handler
-            self.main_handler = main_handler
-            self.remote_handler = TBLoggerHandler(self)
-            self.main_handler.setTarget(self.remote_handler)
-            self._default_connectors = {
-                "mqtt": "MqttConnector",
-                "modbus": "ModbusConnector",
-                "opcua": "OpcUaConnector",
-                "ble": "BLEConnector",
-            }
-            self._implemented_connectors = {}
-            self._event_storage_types = {
-                "memory": MemoryEventStorage,
-                "file": FileEventStorage,
-            }
-            self._event_storage = self._event_storage_types[config["storage"]["type"]](config["storage"])
-            self._connectors_configs = {}
-            self._load_connectors(config)
-            self._connect_with_connectors()
-            self.__remote_configurator = None
-            if config["thingsboard"].get("remoteConfiguration"):
-                try:
-                    self.__request_config_after_connect = False
-                    self.__remote_configurator = RemoteConfigurator(self, config)
-                except Exception as e:
-                    log.exception(e)
-            if self.__remote_configurator is not None:
-                self.__remote_configurator.send_current_configuration()
-            self.__load_persistent_devices()
-            self.__published_events = Queue(0)
-            self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
-                                        name="Send data to Thingsboard Thread")
-            self.__send_thread.start()
-
+        with open(config_file) as general_config:
+            config = safe_load(general_config)
+        self._config_dir = path.dirname(path.abspath(config_file)) + '/'
+        logging.config.fileConfig(self._config_dir + "logs.conf")
+        global log
+        log = logging.getLogger('service')
+        self.available_connectors = {}
+        self.__connector_incoming_messages = {}
+        self.__connected_devices = {}
+        self.__saved_devices = {}
+        self.__events = []
+        self.name = ''.join(choice(ascii_lowercase) for _ in range(64))
+        self.__rpc_requests_in_progress = {}
+        self.__connected_devices_file = "connected_devices.json"
+        self.tb_client = TBClient(config["thingsboard"])
+        self.tb_client.connect()
+        self.tb_client.client.gw_set_server_side_rpc_request_handler(self._rpc_request_handler)
+        self.tb_client.client.set_server_side_rpc_request_handler(self._rpc_request_handler)
+        self.tb_client.client.subscribe_to_all_attributes(self._attribute_update_callback)
+        self.tb_client.client.gw_subscribe_to_all_attributes(self._attribute_update_callback)
+        global main_handler
+        self.main_handler = main_handler
+        self.remote_handler = TBLoggerHandler(self)
+        self.main_handler.setTarget(self.remote_handler)
+        self._default_connectors = {
+            "mqtt": "MqttConnector",
+            "modbus": "ModbusConnector",
+            "opcua": "OpcUaConnector",
+            "ble": "BLEConnector",
+        }
+        self._implemented_connectors = {}
+        self._event_storage_types = {
+            "memory": MemoryEventStorage,
+            "file": FileEventStorage,
+        }
+        self._event_storage = self._event_storage_types[config["storage"]["type"]](config["storage"])
+        self._connectors_configs = {}
+        self._load_connectors(config)
+        self._connect_with_connectors()
+        self.__remote_configurator = None
+        if config["thingsboard"].get("remoteConfiguration"):
             try:
-                gateway_statistic_send = 0
-                while True:
-                    cur_time = time.time()
-                    if self.__rpc_requests_in_progress and self.tb_client.is_connected():
-                        for rpc_in_progress in self.__rpc_requests_in_progress:
-                            if cur_time >= self.__rpc_requests_in_progress[rpc_in_progress][1]:
-                                self.__rpc_requests_in_progress[rpc_in_progress][2](rpc_in_progress)
-                                self.cancel_rpc_request(rpc_in_progress)
-                        time.sleep(0.1)
-                    else:
-                        try:
-                            time.sleep(1)
-                        except Exception as e:
-                            log.exception(e)
-                            break
-                    if self.__remote_configurator is not None and not self.__request_config_after_connect and \
-                            self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
-                        self.__check_shared_attributes()
-                        self.__request_config_after_connect = True
-
-
-                    if cur_time - gateway_statistic_send > 60.0 and self.tb_client.is_connected():
-                        summary_messages = {"eventsProduced": 0, "eventsSent": 0}
-                        telemetry = {}
-                        for connector in self.available_connectors:
-                            if self.available_connectors[connector].is_connected():
-                                connector_camel_case = connector[0].lower() + connector[1:].replace(' ', '')
-                                telemetry[(connector_camel_case + ' EventsProduced').replace(' ', '')] = \
-                                    self.available_connectors[connector].statistics['MessagesReceived']
-                                telemetry[(connector_camel_case + ' EventsSent').replace(' ', '')] = \
-                                    self.available_connectors[connector].statistics['MessagesSent']
-                                self.tb_client.client.send_telemetry(telemetry)
-                                summary_messages['eventsProduced'] += telemetry[
-                                    str(connector_camel_case + ' EventsProduced').replace(' ', '')]
-                                summary_messages['eventsSent'] += telemetry[
-                                    str(connector_camel_case + ' EventsSent').replace(' ', '')]
-                        self.tb_client.client.send_telemetry(summary_messages)
-                        gateway_statistic_send = time.time()
-                        self.__check_shared_attributes()
-            except KeyboardInterrupt as e:
-                log.info("Stopping...")
-                self.__close_connectors()
-                log.info("The gateway has been stopped.")
-                self.tb_client.stop()
+                self.__request_config_after_connect = False
+                self.__remote_configurator = RemoteConfigurator(self, config)
             except Exception as e:
                 log.exception(e)
-                self.__close_connectors()
-                log.info("The gateway has been stopped.")
-                self.tb_client.stop()
+        if self.__remote_configurator is not None:
+            self.__remote_configurator.send_current_configuration()
+        self.__load_persistent_devices()
+        self.__published_events = Queue(0)
+        self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
+                                    name="Send data to Thingsboard Thread")
+        self.__send_thread.start()
+
+        try:
+            gateway_statistic_send = 0
+            while True:
+                cur_time = time.time()
+                if self.__rpc_requests_in_progress and self.tb_client.is_connected():
+                    for rpc_in_progress in self.__rpc_requests_in_progress:
+                        if cur_time >= self.__rpc_requests_in_progress[rpc_in_progress][1]:
+                            self.__rpc_requests_in_progress[rpc_in_progress][2](rpc_in_progress)
+                            self.cancel_rpc_request(rpc_in_progress)
+                    time.sleep(0.1)
+                else:
+                    try:
+                        time.sleep(1)
+                    except Exception as e:
+                        log.exception(e)
+                        break
+                if self.__remote_configurator is not None and not self.__request_config_after_connect and \
+                        self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
+                    self.__check_shared_attributes()
+                    self.__request_config_after_connect = True
+
+
+                if cur_time - gateway_statistic_send > 60.0 and self.tb_client.is_connected():
+                    summary_messages = {"eventsProduced": 0, "eventsSent": 0}
+                    telemetry = {}
+                    for connector in self.available_connectors:
+                        if self.available_connectors[connector].is_connected():
+                            connector_camel_case = connector[0].lower() + connector[1:].replace(' ', '')
+                            telemetry[(connector_camel_case + ' EventsProduced').replace(' ', '')] = \
+                                self.available_connectors[connector].statistics['MessagesReceived']
+                            telemetry[(connector_camel_case + ' EventsSent').replace(' ', '')] = \
+                                self.available_connectors[connector].statistics['MessagesSent']
+                            self.tb_client.client.send_telemetry(telemetry)
+                            summary_messages['eventsProduced'] += telemetry[
+                                str(connector_camel_case + ' EventsProduced').replace(' ', '')]
+                            summary_messages['eventsSent'] += telemetry[
+                                str(connector_camel_case + ' EventsSent').replace(' ', '')]
+                    self.tb_client.client.send_telemetry(summary_messages)
+                    gateway_statistic_send = time.time()
+                    self.__check_shared_attributes()
+        except KeyboardInterrupt as e:
+            log.info("Stopping...")
+            self.__close_connectors()
+            log.info("The gateway has been stopped.")
+            self.tb_client.stop()
+        except Exception as e:
+            log.exception(e)
+            self.__close_connectors()
+            log.info("The gateway has been stopped.")
+            self.tb_client.stop()
 
     def __close_connectors(self):
         for current_connector in self.available_connectors:
@@ -189,7 +189,7 @@ class TBGatewayService:
     def __check_shared_attributes(self):
         self.tb_client.client.request_attributes(callback=self._attributes_parse)
 
-    def _load_connectors(self, config):
+    def _load_connectors(self, config, from_file=True):
         self._connectors_configs = {}
         if not config.get("connectors"):
             raise Exception("Configuration for connectors not found, check your config file.")
@@ -211,24 +211,30 @@ class TBGatewayService:
                         log.exception(e)
                 else:
                     log.error("Connector with config %s - not found", safe_dump(connector))
+                if from_file:
+                    with open(self._config_dir + connector['configuration'], 'r') as conf_file:
+                        try:
+                            connector_conf = load(conf_file)
+                        except Exception as e:
+                            log.exception(e)
+                            log.error("Cannot read from file: %s", conf_file)
+                        if not self._connectors_configs.get(connector['type']):
+                            self._connectors_configs[connector['type']] = []
+                        self._connectors_configs[connector['type']].append({"name": connector["name"], "config": {connector['configuration']: connector_conf}})
 
-                with open(self._config_dir + connector['configuration'], 'r') as conf_file:
-                    connector_conf = load(conf_file)
-                    if not self._connectors_configs.get(connector['type']):
-                        self._connectors_configs[connector['type']] = []
-                    self._connectors_configs[connector['type']].append({connector['configuration']: connector_conf})
             except Exception as e:
-                log.error(e)
+                log.exception(e)
 
     def _connect_with_connectors(self):
         for connector_type in self._connectors_configs:
             for connector_config in self._connectors_configs[connector_type]:
-                for config_file in connector_config:
+                for config in connector_config["config"]:
                     try:
                         connector = None
                         try:
-                            connector = self._implemented_connectors[connector_type](self, connector_config[config_file],
+                            connector = self._implemented_connectors[connector_type](self, connector_config["config"][config],
                                                                                      connector_type)
+                            connector.setName(connector_config["name"])
                             self.available_connectors[connector.get_name()] = connector
                             connector.open()
                         except Exception as e:

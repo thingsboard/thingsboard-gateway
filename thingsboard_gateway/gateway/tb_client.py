@@ -82,6 +82,10 @@ class TBClient(threading.Thread):
         self.__paused = True
         self.client.disconnect()
 
+    def unsubscribe(self, subsription_id):
+        self.client.gw_unsubscribe(subsription_id)
+        self.client.unsubscribe_from_attribute(subsription_id)
+
     def connect(self, min_reconnect_delay=10):
         self.__paused = False
         self.__stopped = False
