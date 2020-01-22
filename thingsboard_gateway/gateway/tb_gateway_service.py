@@ -111,8 +111,8 @@ class TBGatewayService:
                         break
                 if self.__remote_configurator is not None and not self.__request_config_after_connect and \
                         self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
-                    self.__check_shared_attributes()
                     self.__request_config_after_connect = True
+                    self.__check_shared_attributes()
 
 
                 if cur_time - gateway_statistic_send > 60.0 and self.tb_client.is_connected():
@@ -132,7 +132,7 @@ class TBGatewayService:
                                 str(connector_camel_case + ' EventsSent').replace(' ', '')]
                     self.tb_client.client.send_telemetry(summary_messages)
                     gateway_statistic_send = time.time()
-                    self.__check_shared_attributes()
+                    # self.__check_shared_attributes()
         except KeyboardInterrupt as e:
             log.info("Stopping...")
             self.__close_connectors()
@@ -162,6 +162,10 @@ class TBGatewayService:
                     if self.__remote_configurator is not None and shared_attributes.get("configuration"):
                         try:
                             self.__remote_configurator.process_configuration(shared_attributes.get("configuration"))
+
+                            self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
+                                                        name="Send data to Thingsboard Thread")
+                            self.__send_thread.start()
                         except Exception as e:
                             log.exception(e)
                 if client_attributes is not None:
@@ -169,6 +173,10 @@ class TBGatewayService:
                 if self.__remote_configurator is not None and content.get("configuration"):
                     try:
                         self.__remote_configurator.process_configuration(content.get("configuration"))
+
+                        self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
+                                                    name="Send data to Thingsboard Thread")
+                        self.__send_thread.start()
                     except Exception as e:
                         log.exception(e)
                 remote_logging_level = shared_attributes.get('RemoteLoggingLevel') if shared_attributes is not None else content.get("RemoteLoggingLevel")
@@ -215,12 +223,11 @@ class TBGatewayService:
                     with open(self._config_dir + connector['configuration'], 'r') as conf_file:
                         try:
                             connector_conf = load(conf_file)
+                            if not self._connectors_configs.get(connector['type']):
+                                self._connectors_configs[connector['type']] = []
+                            self._connectors_configs[connector['type']].append({"name": connector["name"], "config": {connector['configuration']: connector_conf}})
                         except Exception as e:
                             log.exception(e)
-                            log.error("Cannot read from file: %s", conf_file)
-                        if not self._connectors_configs.get(connector['type']):
-                            self._connectors_configs[connector['type']] = []
-                        self._connectors_configs[connector['type']].append({"name": connector["name"], "config": {connector['configuration']: connector_conf}})
 
             except Exception as e:
                 log.exception(e)
@@ -349,8 +356,8 @@ class TBGatewayService:
                     else:
                         time.sleep(.01)
                 else:
-                    self.__request_config_after_connect = False
                     time.sleep(.1)
+                    self.__request_config_after_connect = False
             except Exception as e:
                 log.exception(e)
                 time.sleep(1)

@@ -47,7 +47,7 @@ class RemoteConfigurator:
                 self.__new_configuration = loads(decoded_configuration)
                 self.__old_connectors_configs = self.__gateway._connectors_configs
                 self.__new_general_configuration_file = self.__new_configuration.get("thingsboard")
-                if self.__old_configuration != self.__new_configuration:
+                if self.__old_configuration != decoded_configuration:
                     log.info("Remote configuration received: \n %s", decoded_configuration)
                     self.__process_connectors_configuration()
                     self.__old_configuration = self.__new_configuration
@@ -95,7 +95,7 @@ class RemoteConfigurator:
 
     def __apply_new_connectors_configuration(self):
         try:
-            self.__gateway._load_connectors(self.__new_configuration["thingsboard"])
+            self.__gateway._load_connectors(self.__new_configuration["thingsboard"], False)
             for connector_name in self.__gateway.available_connectors:
                 try:
                     self.__gateway.available_connectors[connector_name].close()

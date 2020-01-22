@@ -68,7 +68,7 @@ class OpcUaConnector(Thread, Connector):
             if self.__server_conf["identity"].get("password"):
                 self.client.set_password(self.__server_conf["identity"].get("password"))
 
-        self.setName(self.__server_conf.get("name", 'OPC-UA Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))) + " Connector")
+        # self.setName(self.__server_conf.get("name", 'OPC-UA Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))) + " Connector")
         self.__opcua_nodes = {}
         self._subscribed = {}
         self.data_to_send = []
@@ -173,15 +173,18 @@ class OpcUaConnector(Thread, Connector):
             for childId in node.get_children():
                 ch = self.client.get_node(childId)
                 current_var_path = '.'.join(x.split(":")[1] for x in ch.get_path(20000, True))
+                if self.__server_conf.get("showMap"):
+                    log.info("Looking for name: %s", current_var_path)
                 if self.__interest_nodes:
                     if ch.get_node_class() == ua.NodeClass.Object:
                         for interest_node in self.__interest_nodes:
                             for int_node in interest_node:
                                 subrecursion_level = recursion_level
                                 if subrecursion_level != recursion_level + len(interest_node[int_node]["deviceNamePattern"].split("\\.")):
-                                    if ch.get_display_name().Text in TBUtility.get_value(interest_node[int_node]["deviceNamePattern"], get_tag=True).split('.') or \
-                                            re.search(TBUtility.get_value(interest_node[int_node]["deviceNodePattern"], get_tag=True), ch.get_display_name().Text):
-                                        self.__search_name(ch, subrecursion_level+1)
+                                    if ch.get_display_name().Text in TBUtility.get_value(interest_node[int_node]["deviceNamePattern"], get_tag=True).split('\\.') or \
+                                            re.search(TBUtility.get_value(interest_node[int_node]["deviceNodePattern"].split("\\.")[recursion_level+1], get_tag=True), ch.get_display_name().Text):
+                                        if interest_node[int_node].get("deviceName") is None:
+                                            self.__search_name(ch, subrecursion_level+1)
                                 else:
                                     return
                     elif ch.get_node_class() == ua.NodeClass.Variable:
@@ -212,13 +215,16 @@ class OpcUaConnector(Thread, Connector):
                                                 if not self.__gateway.get_devices().get(full_device_name):
                                                     self.__gateway.add_device(full_device_name, {"connector": None})
                                                 self.__gateway.update_device(full_device_name, "connector", self)
+                                                return
                                             else:
                                                 try:
-                                                    if re.search(int_node.split('\\.')[recursion_level-2], ch.get_display_name().Text):
-                                                        self.__search_name(ch, recursion_level+1)
+                                                    if re.search(int_node.split('\\.')[recursion_level], ch.get_display_name().Text):
+                                                        if interest_node[int_node].get("deviceName") is None:
+                                                            self.__search_name(ch, recursion_level+1)
                                                 except IndexError:
                                                     if re.search(int_node.split('\\.')[-1], ch.get_display_name().Text):
-                                                        self.__search_name(ch, recursion_level+1)
+                                                        if interest_node[int_node].get("deviceName") is None:
+                                                            self.__search_name(ch, recursion_level+1)
 
                                         except Exception as e:
                                             log.exception(e)
@@ -241,12 +247,13 @@ class OpcUaConnector(Thread, Connector):
                         for interest_node in self.__interest_nodes:
                             for int_node in interest_node:
                                 try:
-                                    name_to_check = int_node.split('\\.')[recursion_level-1] if '\\.' in int_node else int_node
-                                    name_to_check = int_node.split('.')[recursion_level-1] if '.' in int_node else name_to_check
+                                    name_to_check = int_node.split('\\.')[recursion_level+1] if '\\.' in int_node else int_node
+                                    # name_to_check = int_node.split('.')[recursion_level] if '.' in int_node else name_to_check
                                 except IndexError:
                                     name_to_check = int_node.split('\\.')[-1] if '\\.' in int_node else int_node
-                                    name_to_check = int_node.split('.')[-1] if '.' in int_node else name_to_check
-                                if re.search(name_to_check, ch.get_display_name().Text):
+                                    # name_to_check = int_node.split('.')[-1] if '.' in int_node else name_to_check
+                                log.debug("%s\t%s", name_to_check, ch.get_display_name().Text)
+                                if re.search(name_to_check.replace("\\", "\\\\"), ch.get_display_name().Text):
                                     try:
                                         methods = ch.get_methods()
                                         for method in methods:
@@ -260,7 +267,7 @@ class OpcUaConnector(Thread, Connector):
                                         self.__search_tags(ch, subrecursion_level+1, sub)
                                     else:
                                         return
-                                self.__search_tags(ch, recursion_level+1, sub)
+                                # self.__search_tags(ch, recursion_level+1, sub)
                     elif ch.get_node_class() == ua.NodeClass.Variable:
                         try:
                             for interest_node in self.__interest_nodes:
@@ -273,8 +280,8 @@ class OpcUaConnector(Thread, Connector):
                                         except Exception as e:
                                             log.exception(e)
                                     name_to_check = int_node.split('\\.')[-1] if '\\.' in int_node else int_node
-                                    name_to_check = int_node.split('.')[-1] if '.' in int_node else name_to_check
-                                    if re.search(name_to_check.replace('$', ''), current_var_path):
+                                    # name_to_check = int_node.split('.')[-1] if '.' in int_node else name_to_check
+                                    if re.search(name_to_check.replace('$', ''), current_var_path.split(".")[-2]):
                                         tags = []
                                         if interest_node[int_node].get("attributes"):
                                             tags.extend(interest_node[int_node]["attributes"])
@@ -283,11 +290,11 @@ class OpcUaConnector(Thread, Connector):
                                         for tag in tags:
                                             target = TBUtility.get_value(tag["path"], get_tag=True)
                                             try:
-                                                tag_name_for_check = target.split('\\.')[recursion_level-1] if '\\.' in target else target
-                                                tag_name_for_check = target.split('.')[recursion_level-1] if '.' in target else tag_name_for_check
+                                                tag_name_for_check = target.split('\\.')[recursion_level] if '\\.' in target else target
+                                                # tag_name_for_check = target.split('.')[recursion_level] if '.' in target else tag_name_for_check
                                             except IndexError:
                                                 tag_name_for_check = target.split('\\.')[-1] if '\\.' in target else target
-                                                tag_name_for_check = target.split('.')[-1] if '.' in target else tag_name_for_check
+                                                # tag_name_for_check = target.split('.')[-1] if '.' in target else tag_name_for_check
                                             current_node_name = ch.get_display_name().Text
                                             if current_node_name == tag_name_for_check:
                                                 sub.subscribe_data_change(ch)

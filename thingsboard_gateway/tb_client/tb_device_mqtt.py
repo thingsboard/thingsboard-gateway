@@ -167,7 +167,8 @@ class TBDeviceMqttClient:
         pass
 
     def _on_disconnect(self, client, userdata, rc):
-        self.__is_connected = False
+        log.debug(client)
+        log.debug("Disconnected")
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         result_codes = {
@@ -182,6 +183,7 @@ class TBDeviceMqttClient:
         if rc == 0:
             self.__is_connected = True
             log.info("connection SUCCESS")
+            log.debug(client)
             self._client.subscribe(ATTRIBUTES_TOPIC, qos=1)
             self._client.subscribe(ATTRIBUTES_TOPIC + "/response/+", 1)
             self._client.subscribe(RPC_REQUEST_TOPIC + '+')
@@ -212,7 +214,9 @@ class TBDeviceMqttClient:
 
     def disconnect(self):
         self._client.disconnect()
-        log.info("Disconnected from ThingsBoard!")
+        log.debug(self._client)
+        log.debug("Disconnecting from ThingsBoard")
+        self.__is_connected = False
 
     def _on_message(self, client, userdata, message):
         content = TBUtility.decode(message)

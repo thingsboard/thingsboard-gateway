@@ -74,7 +74,7 @@ class TBUtility:
                             return None
                         else:
                             module = util.module_from_spec(module_spec)
-                            log.debug(module)
+                            log.debug(str(module))
                             try:
                                 module_spec.loader.exec_module(module)
                             except Exception as e:
