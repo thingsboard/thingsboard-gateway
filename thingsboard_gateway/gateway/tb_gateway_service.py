@@ -79,9 +79,9 @@ class TBGatewayService:
         self._load_connectors(config)
         self._connect_with_connectors()
         self.__remote_configurator = None
+        self.__request_config_after_connect = False
         if config["thingsboard"].get("remoteConfiguration"):
             try:
-                self.__request_config_after_connect = False
                 self.__remote_configurator = RemoteConfigurator(self, config)
             except Exception as e:
                 log.exception(e)
@@ -109,7 +109,7 @@ class TBGatewayService:
                     except Exception as e:
                         log.exception(e)
                         break
-                if self.__remote_configurator is not None and not self.__request_config_after_connect and \
+                if  not self.__request_config_after_connect and \
                         self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
                     self.__request_config_after_connect = True
                     self.__check_shared_attributes()

@@ -86,6 +86,8 @@ class ModbusConnector(Connector, threading.Thread):
                                                             "next_timeseries_check": 0,
                                                             "telemetry": {},
                                                             "attributes": {},
+                                                            "last_telemetry": {},
+                                                            "last_attributes": {}
                                                             }
         except Exception as e:
             log.exception(e)
@@ -125,28 +127,43 @@ class ModbusConnector(Connector, threading.Thread):
                             log.debug(device_responses)
                             converted_data = self.__devices[device]["converter"].convert(config=None, data=device_responses)
 
-                            if (converted_data["telemetry"] != self.__devices[device]["telemetry"] \
-                                    or converted_data["attributes"] != self.__devices[device]["attributes"]) \
-                                    and self.__devices[device]["config"].get("sendDataOnlyOnChange") == True:
+                            if self.__devices[device]["config"].get("sendDataOnlyOnChange"):
                                 self.statistics['MessagesReceived'] += 1
                                 to_send = {"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
-                                if converted_data["telemetry"] != self.__devices[device]["telemetry"]:
-                                    self.__devices[device]["last_telemetry"] = converted_data["telemetry"]
-                                    to_send["telemetry"] = converted_data["telemetry"]
-                                if converted_data["attributes"] != self.__devices[device]["attributes"]:
-                                    self.__devices[device]["last_telemetry"] = converted_data["attributes"]
-                                    to_send["attributes"] = converted_data["attributes"]
-                                self.__gateway.send_to_storage(self.get_name(), to_send)
-                                self.statistics['MessagesSent'] += 1
-                            elif self.__devices[device]["config"].get("sendDataOnlyOnChange") is None or self.__devices[device]["config"].get("sendDataOnlyOnChange") == False:
+                                if to_send.get("telemetry") is None:
+                                    to_send["telemetry"] = []
+                                if to_send.get("attributes") is None:
+                                    to_send["attributes"] = []
+                                for telemetry_dict in converted_data["telemetry"]:
+                                    for key, value in telemetry_dict.items():
+                                        if self.__devices[device]["last_telemetry"].get(key) is None or \
+                                           self.__devices[device]["last_telemetry"][key] != value:
+                                            self.__devices[device]["last_telemetry"][key] = value
+                                            to_send["telemetry"].append({key: value})
+                                for attribute_dict in converted_data["attributes"]:
+                                    for key, value in attribute_dict.items():
+                                        if self.__devices[device]["last_attributes"].get(key) is None or \
+                                           self.__devices[device]["last_attributes"][key] != value:
+                                            self.__devices[device]["last_attributes"][key] = value
+                                            to_send["attributes"].append({key: value})
+                                        # to_send["telemetry"] = converted_data["telemetry"]
+                                # if converted_data["attributes"] != self.__devices[device]["attributes"]:
+                                    # self.__devices[device]["last_attributes"] = converted_data["attributes"]
+                                    # to_send["attributes"] = converted_data["attributes"]
+                                if to_send.get("attributes") is not None or to_send.get("telemetry"):
+                                    self.__gateway.send_to_storage(self.get_name(), to_send)
+                                    self.statistics['MessagesSent'] += 1
+                                else:
+                                    log.debug("Data has not been changed.")
+                            elif self.__devices[device]["config"].get("sendDataOnlyOnChange") is None or not self.__devices[device]["config"].get("sendDataOnlyOnChange"):
                                 self.statistics['MessagesReceived'] += 1
                                 to_send = {"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
-                                if converted_data["telemetry"] != self.__devices[device]["telemetry"]:
-                                    self.__devices[device]["last_telemetry"] = converted_data["telemetry"]
-                                    to_send["telemetry"] = converted_data["telemetry"]
-                                if converted_data["attributes"] != self.__devices[device]["attributes"]:
-                                    self.__devices[device]["last_telemetry"] = converted_data["attributes"]
-                                    to_send["attributes"] = converted_data["attributes"]
+                                # if converted_data["telemetry"] != self.__devices[device]["telemetry"]:
+                                self.__devices[device]["last_telemetry"] = converted_data["telemetry"]
+                                to_send["telemetry"] = converted_data["telemetry"]
+                                # if converted_data["attributes"] != self.__devices[device]["attributes"]:
+                                self.__devices[device]["last_telemetry"] = converted_data["attributes"]
+                                to_send["attributes"] = converted_data["attributes"]
                                 self.__gateway.send_to_storage(self.get_name(), to_send)
                                 self.statistics['MessagesSent'] += 1
             except ConnectionException:
