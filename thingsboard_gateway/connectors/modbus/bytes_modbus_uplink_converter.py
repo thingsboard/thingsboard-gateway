@@ -56,22 +56,25 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Big)
                         else:
                             log.warning("byte order is not BIG or LITTLE")
-                            continue
+                            # continue
                     except Exception as e:
                         log.error(e)
                     if type_of_data == "string":
                         result = decoder.decode_string(2 * reg_count)
                     elif type_of_data == "long":
-                        if reg_count == 1:
-                            result = decoder.decode_16bit_int()
-                        elif reg_count == 2:
-                            result = decoder.decode_32bit_int()
-                        elif reg_count == 4:
-                            result = decoder.decode_64bit_int()
-                        else:
-                            log.warning("unsupported register count for long data type in response for tag %s",
-                                        data_sent["tag"])
-                            continue
+                        try:
+                            if reg_count == 1:
+                                # r = decoder.decode_8bit_int()
+                                result = decoder.decode_16bit_int()
+                            elif reg_count == 2:
+                                result = decoder.decode_32bit_int()
+                            elif reg_count == 4:
+                                result = decoder.decode_64bit_int()
+                            else:
+                                log.warning("unsupported register count for long data type in response for tag %s",
+                                            data_sent["tag"])
+                        except Exception as e:
+                            log.exception(e)
                     elif type_of_data == "double":
                         if reg_count == 2:
                             result = decoder.decode_32bit_float()
@@ -80,7 +83,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
                         else:
                             log.warning("unsupported register count for double data type in response for tag %s",
                                         data_sent["tag"])
-                            continue
+                            # continue
                     elif type_of_data == "bit":
                         if "bit" in data_sent:
                             if type(result) == list:
@@ -102,7 +105,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
                                     data_sent["tag"])
                         continue
                 try:
-                    if int(result):
+                    if result == 0:
+                        self.__result[config_data].append({tag: result})
+                    elif int(result):
                         self.__result[config_data].append({tag: result})
                 except ValueError:
                     self.__result[config_data].append({tag: int(result, 16)})
