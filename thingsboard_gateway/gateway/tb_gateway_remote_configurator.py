@@ -17,6 +17,8 @@ from simplejson import dumps, loads, dump
 from yaml import safe_dump
 from time import time, sleep
 from logging import getLogger
+from logging.config import fileConfig
+from logging.handlers import MemoryHandler
 from os import remove
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
@@ -31,6 +33,8 @@ class RemoteConfigurator:
         self.__old_configuration = None
         self.__apply_timeout = 10
         self.__old_tb_client = None
+        self.__old_logs_configuration = self.__get_current_logs_configuration()
+        self.__new_logs_configuration = None
         self.__old_connectors_configs = {}
         self.__new_connectors_configs = {}
         self.__old_general_configuration_file = config
@@ -47,6 +51,12 @@ class RemoteConfigurator:
                 self.__new_configuration = loads(decoded_configuration)
                 self.__old_connectors_configs = self.__gateway._connectors_configs
                 self.__new_general_configuration_file = self.__new_configuration.get("thingsboard")
+                self.__new_logs_configuration = b64decode(self.__new_general_configuration_file.pop("logs")).decode('UTF-8')
+                # if self.__old_logs_configuration == self.__new_logs_configuration:
+                #     log.debug("Received logs configuration is the same.")
+                # else:
+                #     log.debug("Received logs configuration is not the same. Updating loggers...")
+                self.__update_logs_configuration()
                 if self.__old_configuration != decoded_configuration:
                     log.info("Remote configuration received: \n %s", decoded_configuration)
                     self.__process_connectors_configuration()
@@ -198,3 +208,25 @@ class RemoteConfigurator:
         self.__gateway.tb_client = self.__old_tb_client
         self.__gateway.tb_client.connect()
         self.__gateway.tb_client.unpause()
+
+    def __get_current_logs_configuration(self):
+        try:
+            with open(self.__gateway._config_dir + 'logs.conf', 'r') as logs:
+                current_logs_configuration = logs.read()
+            return current_logs_configuration
+        except Exception as e:
+            log.exception(e)
+
+    def __update_logs_configuration(self):
+        try:
+            logs_conf_file_path = self.__gateway._config_dir + 'logs.conf'
+            with open(logs_conf_file_path, 'w') as logs:
+                logs.write(self.__new_logs_configuration)
+            fileConfig(logs_conf_file_path)
+            self.__gateway.main_handler = MemoryHandler(-1)
+            self.__gateway.remote_handler = TBLoggerHandler(self.__gateway)
+            self.__gateway.main_handler.setTarget(self.__gateway.remote_handler)
+            log.debug("Logs configuration has been updated.")
+        except Exception as e:
+            log.exception(e)
+

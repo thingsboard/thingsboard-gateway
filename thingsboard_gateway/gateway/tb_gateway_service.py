@@ -158,25 +158,14 @@ class TBGatewayService:
             if content is not None:
                 shared_attributes = content.get("shared")
                 client_attributes = content.get("client")
-                if shared_attributes is not None:
-                    if self.__remote_configurator is not None and shared_attributes.get("configuration"):
-                        try:
-                            self.__remote_configurator.process_configuration(shared_attributes.get("configuration"))
-
-                            self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
-                                                        name="Send data to Thingsboard Thread")
-                            self.__send_thread.start()
-                        except Exception as e:
-                            log.exception(e)
-                if client_attributes is not None:
-                    log.debug("Client attributes received (%s).", ", ".join([attr for attr in client_attributes.keys()]))
-                if self.__remote_configurator is not None and content.get("configuration"):
+                new_configuration = shared_attributes.get("configuration") if shared_attributes is not None and shared_attributes.get("configuration") is not None else content.get("configuration")
+                if new_configuration is not None:
                     try:
-                        self.__remote_configurator.process_configuration(content.get("configuration"))
-
+                        self.__remote_configurator.process_configuration(new_configuration)
                         self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                                     name="Send data to Thingsboard Thread")
                         self.__send_thread.start()
+                        self.__remote_configurator.send_current_configuration()
                     except Exception as e:
                         log.exception(e)
                 remote_logging_level = shared_attributes.get('RemoteLoggingLevel') if shared_attributes is not None else content.get("RemoteLoggingLevel")
@@ -186,8 +175,11 @@ class TBGatewayService:
                 elif remote_logging_level is not None:
                     if self.remote_handler.current_log_level != remote_logging_level or not self.remote_handler.activated:
                         self.remote_handler.activate(remote_logging_level)
-                        if not self.remote_handler.activated:
-                            log.info('Remote logging has being activated.')
+                        log.info('Remote logging has being updated. Current logging level is: %s ', remote_logging_level)
+                if shared_attributes is not None:
+                    log.debug("Shared attributes received (%s).", ", ".join([attr for attr in shared_attributes.keys()]))
+                if client_attributes is not None:
+                    log.debug("Client attributes received (%s).", ", ".join([attr for attr in client_attributes.keys()]))
         except Exception as e:
             log.exception(e)
 
@@ -357,7 +349,7 @@ class TBGatewayService:
                         time.sleep(.01)
                 else:
                     time.sleep(.1)
-                    self.__request_config_after_connect = False
+                    # self.__request_config_after_connect = False
             except Exception as e:
                 log.exception(e)
                 time.sleep(1)
