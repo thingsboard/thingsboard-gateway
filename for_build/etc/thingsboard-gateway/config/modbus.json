@@ -1,0 +1,68 @@
+{
+  "server": {
+    "name": "Modbus Default Server",
+    "type": "tcp",
+    "host": "127.0.0.1",
+    "port": 5020,
+    "timeout": 35,
+    "rtuOverTcp": false,
+    "devices": [
+      {
+        "unitId": 1,
+        "deviceName": "Temp Sensor",
+        "attributesPollPeriod": 5000,
+        "timeseriesPollPeriod": 5000,
+        "sendDataOnlyOnChange": true,
+        "attributes": [
+          {
+            "byteOrder": "BIG",
+            "tag": "test",
+            "type": "long",
+            "functionCode": 4,
+            "registerCount": 1,
+            "address": 0
+          }
+        ],
+        "timeseries": [
+          {
+            "byteOrder": "BIG",
+            "tag": "test",
+            "type": "long",
+            "functionCode": 4,
+            "registerCount": 1,
+            "address": 0
+          },
+          {
+            "byteOrder": "BIG",
+            "tag": "test2",
+            "type": "long",
+            "functionCode": 4,
+            "registerCount": 1,
+            "address": 2
+          }
+        ],
+        "rpc": {
+          "turnLightOn": {
+            "address": 4,
+            "bit": 2,
+            "value": true
+          },
+          "turnLightOff": {
+            "address": 4,
+            "bit": 2,
+            "value": false
+          },
+          "getCPULoad": {
+            "tag": "Integer",
+            "value": 42,
+            "functionCode": 16,
+            "address": 0,
+            "unitId": 1,
+            "byteOrder": "BIG",
+            "registerCount": 1
+          }
+        }
+      }
+    ]
+  }
+}

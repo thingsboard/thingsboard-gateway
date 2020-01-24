@@ -1,22 +1,39 @@
-#
-# Copyright © 2017 The Thingsboard Authors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
+FROM ubuntu:18.04
 
-FROM openjdk:8-jre
+RUN apt-get update && apt-get -y install sudo
 
-ADD run-application.sh /run-application.sh
-ADD tb-gateway.deb /tb-gateway.deb
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get install -y tzdata wget
 
-RUN chmod +x /run-application.sh
+#COPY python3-thingsboard-gateway.deb /
+RUN wget https://github.com/thingsboard/thingsboard-gateway/releases/latest/download/python3-thingsboard-gateway.deb
+RUN sudo apt-get install -y /python3-thingsboard-gateway.deb
+
+RUN echo '#Main start script\n\
+CONF_FOLDER="/etc/thingsboard-gateway/config"\n\
+firstlaunch=${CONF_FOLDER}/.firstlaunch\n\
+\n\
+if [ ! -f ${firstlaunch} ]; then\n\
+    cp -r /default-config/config/* /etc/thingsboard-gateway/config/\n\
+    cp -r /default-config/extensions/* /var/lib/thingsboard_gateway/extensions/\n\
+    touch ${firstlaunch}\n\
+    echo "#Remove this file only if you want to recreate default config files! This will overwrite exesting files" > ${firstlaunch}\n\
+fi\n\
+\n\
+/usr/bin/python3 -c "from thingsboard_gateway.tb_gateway import daemon; daemon()"\n'\
+>> start-gateway.sh
+
+RUN cp start-gateway.sh /usr/bin/
+RUN chmod +x /usr/bin/start-gateway.sh
+
+RUN mkdir -p /default-config/config /default-config/extensions/
+RUN cp -r /etc/thingsboard-gateway/config/* /default-config/config/
+RUN cp -r /var/lib/thingsboard_gateway/extensions/* /default-config/extensions/
+
+ENV configs /etc/thingsboard-gateway/config
+ENV extensions /var/lib/thingsboard_gateway/extensions
+ENV logs /var/log/thingsboard-gateway
+
+VOLUME ["${configs}", "${extensions}", "${logs}"]
+
+ENTRYPOINT start-gateway.sh
