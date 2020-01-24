@@ -150,7 +150,7 @@ class ModbusConnector(Connector, threading.Thread):
                                 # if converted_data["attributes"] != self.__devices[device]["attributes"]:
                                     # self.__devices[device]["last_attributes"] = converted_data["attributes"]
                                     # to_send["attributes"] = converted_data["attributes"]
-                                if to_send.get("attributes") is not None or to_send.get("telemetry"):
+                                if to_send.get("attributes") or to_send.get("telemetry"):
                                     self.__gateway.send_to_storage(self.get_name(), to_send)
                                     self.statistics['MessagesSent'] += 1
                                 else:
