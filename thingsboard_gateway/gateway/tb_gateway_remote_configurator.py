@@ -78,6 +78,7 @@ class RemoteConfigurator:
             for config_file in self.__gateway._connectors_configs[connector]:
                 current_configuration[connector].append(config_file)
         current_configuration["thingsboard"] = self.__old_general_configuration_file
+        current_configuration["thingsboard"]["logs"] = b64encode(self.__old_logs_configuration.encode("UTF-8"))
         encoded_current_configuration = b64encode(dumps(current_configuration).encode())
         self.__old_configuration = encoded_current_configuration
         self.__gateway.tb_client.client.send_attributes(
@@ -95,11 +96,14 @@ class RemoteConfigurator:
             self.__old_connectors_configs = {}
             self.__new_connectors_configs = {}
             self.__old_general_configuration_file = self.__new_general_configuration_file
+            self.__old_logs_configuration = self.__new_logs_configuration
+            self.__new_logs_configuration = None
             self.__new_general_configuration_file = {}
         else:
             log.error("A remote general configuration applying has been failed.")
             self.__old_connectors_configs = {}
             self.__new_connectors_configs = {}
+            self.__new_logs_configuration = None
             self.__new_general_configuration_file = {}
             return
 
