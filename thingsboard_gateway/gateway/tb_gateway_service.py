@@ -150,7 +150,7 @@ class TBGatewayService:
                 self.available_connectors[current_connector].close()
                 log.debug("Connector %s closed connection.", current_connector)
             except Exception as e:
-                log.error(e)
+                log.exception(e)
 
     def _attributes_parse(self, content, *args):
         try:
@@ -159,7 +159,7 @@ class TBGatewayService:
                 shared_attributes = content.get("shared")
                 client_attributes = content.get("client")
                 new_configuration = shared_attributes.get("configuration") if shared_attributes is not None and shared_attributes.get("configuration") is not None else content.get("configuration")
-                if new_configuration is not None:
+                if new_configuration is not None and self.__remote_configurator is not None:
                     try:
                         self.__remote_configurator.process_configuration(new_configuration)
                         self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True,

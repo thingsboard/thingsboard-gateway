@@ -21,7 +21,7 @@ def main():
 
 
 def daemon():
-    TBGatewayService("/etc/thingsboard-gateway/config/tb_gateway.yaml")
+    TBGatewayService("//etc//thingsboard-gateway//config//tb_gateway.yaml")
 
 
 if __name__ == '__main__':

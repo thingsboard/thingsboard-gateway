@@ -129,7 +129,8 @@ class OpcUaConnector(Thread, Connector):
 
     def close(self):
         self.__stopped = True
-        self.client.disconnect()
+        if self.__connected:
+            self.client.disconnect()
         self.__connected = False
         log.info('%s has been stopped.', self.get_name())
 

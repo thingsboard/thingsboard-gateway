@@ -51,12 +51,12 @@ class RemoteConfigurator:
                 self.__new_configuration = loads(decoded_configuration)
                 self.__old_connectors_configs = self.__gateway._connectors_configs
                 self.__new_general_configuration_file = self.__new_configuration.get("thingsboard")
-                self.__new_logs_configuration = b64decode(self.__new_general_configuration_file.pop("logs")).decode('UTF-8')
-                # if self.__old_logs_configuration == self.__new_logs_configuration:
-                #     log.debug("Received logs configuration is the same.")
-                # else:
-                #     log.debug("Received logs configuration is not the same. Updating loggers...")
-                self.__update_logs_configuration()
+                self.__new_logs_configuration = b64decode(self.__new_general_configuration_file.pop("logs")).decode('UTF-8').replace('}}', '\n')
+                if self.__old_logs_configuration == self.__new_logs_configuration:
+                    log.debug("Received logs configuration is the same.")
+                else:
+                    log.debug("Received logs configuration is not the same. Updating loggers...")
+                    self.__update_logs_configuration()
                 if self.__old_configuration != decoded_configuration:
                     log.info("Remote configuration received: \n %s", decoded_configuration)
                     self.__process_connectors_configuration()
@@ -78,7 +78,7 @@ class RemoteConfigurator:
             for config_file in self.__gateway._connectors_configs[connector]:
                 current_configuration[connector].append(config_file)
         current_configuration["thingsboard"] = self.__old_general_configuration_file
-        current_configuration["thingsboard"]["logs"] = b64encode(self.__old_logs_configuration.encode("UTF-8"))
+        current_configuration["thingsboard"]["logs"] = b64encode(self.__old_logs_configuration.replace('\n', '}}').encode("UTF-8"))
         encoded_current_configuration = b64encode(dumps(current_configuration).encode())
         self.__old_configuration = encoded_current_configuration
         self.__gateway.tb_client.client.send_attributes(
@@ -225,7 +225,7 @@ class RemoteConfigurator:
         try:
             logs_conf_file_path = self.__gateway._config_dir + 'logs.conf'
             with open(logs_conf_file_path, 'w') as logs:
-                logs.write(self.__new_logs_configuration)
+                logs.write(self.__new_logs_configuration+"\r\n")
             fileConfig(logs_conf_file_path)
             self.__gateway.main_handler = MemoryHandler(-1)
             self.__gateway.remote_handler = TBLoggerHandler(self.__gateway)

@@ -14,8 +14,6 @@
 
 import logging
 import logging.handlers
-from time import time
-# from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
 
 class TBLoggerHandler(logging.Handler):
