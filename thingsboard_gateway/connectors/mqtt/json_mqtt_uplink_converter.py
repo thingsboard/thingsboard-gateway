@@ -28,13 +28,21 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
             if self.__config.get("deviceNameJsonExpression") is not None:
                 dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data)
             elif self.__config.get("deviceNameTopicExpression") is not None:
-                dict_result["deviceName"] = search(self.__config["deviceNameTopicExpression"], config)
+                search_result = search(self.__config["deviceNameTopicExpression"], config)
+                if search_result is not None:
+                    dict_result["deviceName"] = search_result.group(0)
+                else:
+                    log.error("Regular expression result is None, please check the expression.\n Topic: %s\nRegex: %s", self.__config("deviceNameTopicExpression"), config)
             else:
                 log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
             if self.__config.get("deviceTypeJsonExpression") is not None:
                 dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data)
             elif self.__config.get("deviceTypeTopicExpression") is not None:
-                dict_result["deviceType"] = search(self.__config["deviceTypeTopicExpression"], config)
+                search_result = search(self.__config("deviceTypeTopicExpression"), config)
+                if search_result is not None:
+                    dict_result["deviceType"] = search_result.group(0)
+                else:
+                    log.error("Regular expression result is None, please check the expression.\n Topic: %s\nRegex: %s", self.__config("deviceTypeTopicExpression"), config)
             else:
                 log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
             dict_result["attributes"] = []
