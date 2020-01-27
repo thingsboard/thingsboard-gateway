@@ -32,17 +32,19 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                 if search_result is not None:
                     dict_result["deviceName"] = search_result.group(0)
                 else:
-                    log.error("Regular expression result is None, please check the expression.\n Topic: %s\nRegex: %s", self.__config("deviceNameTopicExpression"), config)
+                    log.debug("Regular expression result is None. deviceNameTopicExpression parameter will be interpreted as a deviceName\n Topic: %s\nRegex: %s", config, self.__config.get("deviceNameTopicExpression"))
+                    dict_result["deviceName"] = self.__config.get("deviceNameTopicExpression")
             else:
                 log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
             if self.__config.get("deviceTypeJsonExpression") is not None:
                 dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data)
             elif self.__config.get("deviceTypeTopicExpression") is not None:
-                search_result = search(self.__config("deviceTypeTopicExpression"), config)
+                search_result = search(self.__config["deviceTypeTopicExpression"], config)
                 if search_result is not None:
                     dict_result["deviceType"] = search_result.group(0)
                 else:
-                    log.error("Regular expression result is None, please check the expression.\n Topic: %s\nRegex: %s", self.__config("deviceTypeTopicExpression"), config)
+                    log.debug("Regular expression result is None. deviceTypeTopicExpression will be interpreted as a deviceType\n Topic: %s\nRegex: %s", config, self.__config.get("deviceTypeTopicExpression"))
+                    dict_result["deviceType"] = self.__config.get("deviceTypeTopicExpression")
             else:
                 log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
             dict_result["attributes"] = []
@@ -53,18 +55,22 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         try:
             if self.__config.get("attributes"):
                 for attribute in self.__config.get("attributes"):
-                    dict_result["attributes"].append({attribute["key"]: TBUtility.get_value(attribute["value"],
-                                                                                                 data,
-                                                                                                 attribute["type"])})
+                    attribute_value = TBUtility.get_value(attribute["value"], data, attribute["type"])
+                    if attribute_value is not None:
+                        dict_result["attributes"].append({attribute["key"]: attribute_value})
+                    else:
+                        log.debug("%s key not found in message: %s", attribute["value"].replace("${", '"').replace("}", '"'), data)
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
         try:
             if self.__config.get("timeseries"):
                 for ts in self.__config.get("timeseries"):
-                    dict_result["telemetry"].append({ts["key"]: TBUtility.get_value(ts["value"],
-                                                                                         data,
-                                                                                         ts["type"])})
+                    ts_value = TBUtility.get_value(ts["value"], data, ts["type"])
+                    if ts_value is not None:
+                        dict_result["telemetry"].append({ts["key"]: ts_value})
+                    else:
+                        log.debug("%s key not found in message: %s", ts["value"].replace("${", '"').replace("}", '"'), data)
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
