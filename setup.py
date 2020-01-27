@@ -37,7 +37,7 @@ setup(
         'simplejson',
         'pyrsistent'
     ],
-    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.0.8.tar.gz',
+    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.0.0.9.tar.gz',
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'
