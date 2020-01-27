@@ -70,19 +70,23 @@ class RemoteConfigurator:
             log.exception(e)
 
     def send_current_configuration(self):
-        current_configuration = {}
-        for connector in self.__gateway._connectors_configs:
-            log.debug(connector)
-            if current_configuration.get(connector) is None:
-                current_configuration[connector] = []
-            for config_file in self.__gateway._connectors_configs[connector]:
-                current_configuration[connector].append(config_file)
-        current_configuration["thingsboard"] = self.__old_general_configuration_file
-        current_configuration["thingsboard"]["logs"] = b64encode(self.__old_logs_configuration.replace('\n', '}}').encode("UTF-8"))
-        encoded_current_configuration = b64encode(dumps(current_configuration).encode())
-        self.__old_configuration = encoded_current_configuration
-        self.__gateway.tb_client.client.send_attributes(
-            {"current_configuration": encoded_current_configuration.decode("UTF-8")}).get()
+        try:
+            current_configuration = {}
+            for connector in self.__gateway._connectors_configs:
+                log.debug(connector)
+                if current_configuration.get(connector) is None:
+                    current_configuration[connector] = []
+                for config in self.__gateway._connectors_configs[connector]:
+                    for config_file in config['config']:
+                        current_configuration[connector].append(config['config'][config_file])
+            current_configuration["thingsboard"] = self.__old_general_configuration_file
+            current_configuration["thingsboard"]["logs"] = b64encode(self.__old_logs_configuration.replace('\n', '}}').encode("UTF-8"))
+            encoded_current_configuration = b64encode(dumps(current_configuration).encode())
+            self.__old_configuration = encoded_current_configuration
+            self.__gateway.tb_client.client.send_attributes(
+                {"current_configuration": encoded_current_configuration.decode("UTF-8")}).get()
+        except Exception as e:
+            log.exception(e)
 
     def __process_connectors_configuration(self):
         log.debug("Processing remote connectors configuration...")
@@ -245,8 +249,8 @@ class RemoteConfigurator:
     def __update_logs_configuration(self):
         try:
             logs_conf_file_path = self.__gateway._config_dir + 'logs.conf'
-            # with open(logs_conf_file_path, 'w') as logs:
-            #     logs.write(self.__new_logs_configuration+"\r\n")
+            with open(logs_conf_file_path, 'w') as logs:
+                logs.write(self.__new_logs_configuration+"\r\n")
             fileConfig(logs_conf_file_path)
             self.__gateway.main_handler = MemoryHandler(-1)
             self.__gateway.remote_handler = TBLoggerHandler(self.__gateway)
