@@ -189,11 +189,11 @@ class TBGatewayService:
     def __check_shared_attributes(self):
         self.tb_client.client.request_attributes(callback=self._attributes_parse)
 
-    def _load_connectors(self, config, from_file=True):
+    def _load_connectors(self, main_config):
         self._connectors_configs = {}
-        if not config.get("connectors"):
+        if not main_config.get("connectors"):
             raise Exception("Configuration for connectors not found, check your config file.")
-        for connector in config['connectors']:
+        for connector in main_config['connectors']:
             try:
                 if connector.get('class') is not None:
                     try:
@@ -211,15 +211,14 @@ class TBGatewayService:
                         log.exception(e)
                 else:
                     log.error("Connector with config %s - not found", safe_dump(connector))
-                if from_file:
-                    with open(self._config_dir + connector['configuration'], 'r') as conf_file:
-                        try:
-                            connector_conf = load(conf_file)
-                            if not self._connectors_configs.get(connector['type']):
-                                self._connectors_configs[connector['type']] = []
-                            self._connectors_configs[connector['type']].append({"name": connector["name"], "config": {connector['configuration']: connector_conf}})
-                        except Exception as e:
-                            log.exception(e)
+                with open(self._config_dir + connector['configuration'], 'r') as conf_file:
+                    try:
+                        connector_conf = load(conf_file)
+                        if not self._connectors_configs.get(connector['type']):
+                            self._connectors_configs[connector['type']] = []
+                        self._connectors_configs[connector['type']].append({"name": connector["name"], "config": {connector['configuration']: connector_conf}})
+                    except Exception as e:
+                        log.exception(e)
 
             except Exception as e:
                 log.exception(e)

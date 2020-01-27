@@ -107,9 +107,22 @@ class RemoteConfigurator:
             self.__new_general_configuration_file = {}
             return
 
+    def __prepare_connectors_configuration(self, input_connector_config):
+        try:
+            self.__gateway._connectors_configs = {}
+            for connector in input_connector_config['thingsboard']['connectors']:
+                for input_connector in input_connector_config[connector['type']]:
+                    if input_connector['name'] == connector['name']:
+                        if not self.__gateway._connectors_configs.get(connector['type']):
+                            self.__gateway._connectors_configs[connector['type']] = []
+                        self.__gateway._connectors_configs[connector['type']].append(
+                            {"name": connector["name"], "config": {connector['configuration']: input_connector["config"]}})
+        except Exception as e:
+            log.exception(e)
+
     def __apply_new_connectors_configuration(self):
         try:
-            self.__gateway._load_connectors(self.__new_configuration["thingsboard"], False)
+            self.__prepare_connectors_configuration(self.__new_configuration)
             for connector_name in self.__gateway.available_connectors:
                 try:
                     self.__gateway.available_connectors[connector_name].close()
