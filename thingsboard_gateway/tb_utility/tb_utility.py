@@ -115,12 +115,15 @@ class TBUtility:
                     except Exception as e:
                         full_value = None
             else:
-                full_value = body[target_str.split()[0]]
+                try:
+                    full_value = body.get(target_str.split()[0])
+                except Exception as e:
+                    log.exception(e)
         except TypeError:
             if full_value is None:
                 log.error('Value is None - Cannot find the pattern: %s in %s. Expression will be interpreted as value.', target_str, dumps(body))
                 full_value = expression
         except Exception as e:
-            log.error(e)
+            log.exception(e)
             return None
         return full_value
