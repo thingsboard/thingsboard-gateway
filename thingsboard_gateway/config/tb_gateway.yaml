@@ -14,10 +14,14 @@ storage:
 #  max_records_per_file: 10000
 connectors:
 
+#  -
+#    name: MQTT Broker Connector
+#    type: mqtt
+#    configuration: mqtt.json
   -
-    name: MQTT Broker Connector
-    type: mqtt
-    configuration: mqtt.json
+    name: REST Connector
+    type: rest
+    configuration: rest.json
 
 #  -
 #    name: Modbus Connector
