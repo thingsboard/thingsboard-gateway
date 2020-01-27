@@ -68,14 +68,17 @@ class TBClient(threading.Thread):
 
     def _on_connect(self, client, userdata, flags, rc, *extra_params):
         log.debug('TB client %s connected to ThingsBoard', str(client))
+        self.__is_connected = True
         self.client._on_connect(client, userdata, flags, rc, *extra_params)
 
     def _on_disconnect(self, client, userdata, rc):
         log.info("TB client %s has been disconnected.", str(client))
+        self.unsubscribe('*')
+        self.__is_connected = False
         self.client._on_disconnect(client, userdata, rc)
 
     def stop(self):
-        self.disconnect()
+        # self.disconnect()
         self.__stopped = True
 
     def disconnect(self):
@@ -95,8 +98,10 @@ class TBClient(threading.Thread):
         keep_alive = self.__config.get("keep_alive", 60)
         try:
             while not self.client.is_connected() and not self.__stopped:
-                log.debug("connecting to ThingsBoard")
                 if not self.__paused:
+                    if self.__stopped:
+                        break
+                    log.debug("connecting to ThingsBoard")
                     try:
                         self.client.connect(tls=self.__tls,
                                             ca_certs=self.__ca_cert,

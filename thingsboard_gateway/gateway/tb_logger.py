@@ -18,7 +18,7 @@ import logging.handlers
 
 class TBLoggerHandler(logging.Handler):
     def __init__(self, gateway):
-        self.current_log_level = 'DEBUG'
+        self.current_log_level = 'NOTSET'
         super().__init__(logging.getLevelName(self.current_log_level))
         self.__gateway = gateway
         self.activated = False
@@ -55,4 +55,5 @@ class TBLoggerHandler(logging.Handler):
             self.__gateway.send_to_storage(self.__gateway.name, {"deviceName": self.__gateway.name, "telemetry": [{'LOGS': record}]})
 
     def deactivate(self):
+        self.current_log_level = 'NOTSET'
         self.activated = False

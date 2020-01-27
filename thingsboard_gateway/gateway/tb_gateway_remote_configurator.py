@@ -86,10 +86,10 @@ class RemoteConfigurator:
 
     def __process_connectors_configuration(self):
         log.debug("Processing remote connectors configuration...")
-        self.__apply_storage_configuration()
         if self.__apply_new_connectors_configuration():
             self.__write_new_configuration_files()
         if self.__safe_apply_connection_configuration():
+            self.__apply_storage_configuration()
             log.info("Remote configuration has been applied.")
             with open(self.__gateway._config_dir + "tb_gateway.yaml", "w") as general_configuration_file:
                 safe_dump(self.__new_general_configuration_file, general_configuration_file)
@@ -168,19 +168,20 @@ class RemoteConfigurator:
         apply_start = time() * 1000
         self.__old_tb_client = self.__gateway.tb_client
         try:
-            self.__old_tb_client.pause()
+            self.__old_tb_client.unsubscribe('*')
+            self.__old_tb_client.stop()
+            self.__old_tb_client.disconnect()
         except Exception as e:
             log.exception(e)
             self.__revert_configuration()
             return False
         try:
-            tb_client = TBClient(self.__new_general_configuration_file["thingsboard"])
-            tb_client.connect()
+            self.__gateway.tb_client = TBClient(self.__new_general_configuration_file["thingsboard"])
+            self.__gateway.tb_client.connect()
         except Exception as e:
             log.exception(e)
             self.__revert_configuration()
             return False
-        self.__gateway.tb_client = tb_client
         try:
             connection_state = False
             while time() * 1000 - apply_start < self.__apply_timeout * 1000 and not connection_state:
@@ -191,7 +192,6 @@ class RemoteConfigurator:
                 log.info("The gateway cannot connect to the ThingsBoard server with a new configuration.")
                 return False
             else:
-                self.__old_tb_client.unsubscribe("*")
                 self.__old_tb_client.stop()
                 self.__gateway.tb_client.client.gw_set_server_side_rpc_request_handler(
                     self.__gateway._rpc_request_handler)
@@ -218,13 +218,21 @@ class RemoteConfigurator:
                 self.__gateway._event_storage = self.__old_event_storage
 
     def __revert_configuration(self):
-        log.info("Remote general configuration will be restored.")
-        self.__new_general_configuration_file = self.__old_general_configuration_file
-        self.__gateway.tb_client.disconnect()
-        self.__gateway.tb_client.stop()
-        self.__gateway.tb_client = self.__old_tb_client
-        self.__gateway.tb_client.connect()
-        self.__gateway.tb_client.unpause()
+        try:
+            log.info("Remote general configuration will be restored.")
+            self.__new_general_configuration_file = self.__old_general_configuration_file
+            self.__gateway.tb_client.disconnect()
+            self.__gateway.tb_client.stop()
+            self.__gateway.tb_client = TBClient(self.__old_general_configuration_file["thingsboard"])
+            self.__gateway.tb_client.connect()
+            self.__gateway.tb_client.client.gw_set_server_side_rpc_request_handler(self.__gateway._rpc_request_handler)
+            self.__gateway.tb_client.client.set_server_side_rpc_request_handler(self.__gateway._rpc_request_handler)
+            self.__gateway.tb_client.client.subscribe_to_all_attributes(self.__gateway._attribute_update_callback)
+            self.__gateway.tb_client.client.gw_subscribe_to_all_attributes(self.__gateway._attribute_update_callback)
+            log.debug("%s connection has been restored", str(self.__gateway.tb_client.client._client))
+        except Exception as e:
+            log.exception("Exception on reverting configuration occurred:")
+            log.exception(e)
 
     def __get_current_logs_configuration(self):
         try:
@@ -237,8 +245,8 @@ class RemoteConfigurator:
     def __update_logs_configuration(self):
         try:
             logs_conf_file_path = self.__gateway._config_dir + 'logs.conf'
-            with open(logs_conf_file_path, 'w') as logs:
-                logs.write(self.__new_logs_configuration+"\r\n")
+            # with open(logs_conf_file_path, 'w') as logs:
+            #     logs.write(self.__new_logs_configuration+"\r\n")
             fileConfig(logs_conf_file_path)
             self.__gateway.main_handler = MemoryHandler(-1)
             self.__gateway.remote_handler = TBLoggerHandler(self.__gateway)
