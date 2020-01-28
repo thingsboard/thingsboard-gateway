@@ -262,9 +262,16 @@ class TBGatewayService:
                 self.__connector_incoming_messages[connector_name] += 1
 
         telemetry = {}
+        telemetry_with_ts = []
         for item in data["telemetry"]:
-            telemetry = {**telemetry, **item}
-        data["telemetry"] = {"ts": int(time.time() * 1000), "values": telemetry}
+            if item.get("ts") is None:
+                telemetry = {**telemetry, **item}
+            else:
+                telemetry_with_ts.append({"ts": item["ts"], "values": {**item["values"]}})
+        if telemetry_with_ts:
+            data["telemetry"] = telemetry_with_ts
+        else:
+            data["telemetry"] = {"ts": int(time.time() * 1000), "values": telemetry}
 
         json_data = dumps(data)
         save_result = self._event_storage.put(json_data)

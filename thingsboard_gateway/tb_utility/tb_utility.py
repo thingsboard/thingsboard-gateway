@@ -108,12 +108,17 @@ class TBUtility:
         full_value = None
         try:
             if value_type == "string":
-                full_value = expression[0: min(abs(p1 - 2), 0)] + body[target_str.split()[0]] + expression[p2 + 1:len(expression)]
+                try:
+                    full_value = expression[0: min(abs(p1 - 2), 0)] + body[target_str.split()[0]] + expression[p2 + 1:len(expression)]
+                except KeyError:
+                    pass
                 if full_value is None:
                     try:
                         full_value = search(expression, body).group(0)
                     except Exception as e:
                         full_value = None
+                if full_value is None:
+                    full_value = expression
             else:
                 try:
                     full_value = body.get(target_str.split()[0])
