@@ -59,12 +59,16 @@ class RemoteConfigurator:
                     self.__update_logs_configuration()
                 if self.__old_configuration != decoded_configuration:
                     log.info("Remote configuration received: \n %s", decoded_configuration)
-                    self.__process_connectors_configuration()
-                    self.__old_configuration = self.__new_configuration
-                    # self.send_current_configuration()
-                self.in_process = False
+                    result = self.__process_connectors_configuration()
+                    self.in_process = False
+                    if result:
+                        self.__old_configuration = self.__new_configuration
+                        return True
+                    else:
+                        return False
             else:
                 log.error("Remote configuration is already in processing")
+                return False
         except Exception as e:
             self.in_process = False
             log.exception(e)
@@ -89,7 +93,7 @@ class RemoteConfigurator:
             log.exception(e)
 
     def __process_connectors_configuration(self):
-        log.debug("Processing remote connectors configuration...")
+        log.info("Processing remote connectors configuration...")
         if self.__apply_new_connectors_configuration():
             self.__write_new_configuration_files()
         if self.__safe_apply_connection_configuration():
