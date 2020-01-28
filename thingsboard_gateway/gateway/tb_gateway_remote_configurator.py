@@ -78,7 +78,7 @@ class RemoteConfigurator:
                     current_configuration[connector] = []
                 for config in self.__gateway._connectors_configs[connector]:
                     for config_file in config['config']:
-                        current_configuration[connector].append(config['config'][config_file])
+                        current_configuration[connector].append({'name': config['name'], 'config': config['config'][config_file]})
             current_configuration["thingsboard"] = self.__old_general_configuration_file
             current_configuration["thingsboard"]["logs"] = b64encode(self.__old_logs_configuration.replace('\n', '}}').encode("UTF-8"))
             encoded_current_configuration = b64encode(dumps(current_configuration).encode())
