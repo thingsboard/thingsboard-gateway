@@ -53,39 +53,38 @@ class TBUtility:
         return regex.replace("[^/]+", "+").replace(".+", "#")
 
     @staticmethod
-    def check_and_import(extension_type, module_name, default=False):
+    def check_and_import(extension_type, module_name):
+        extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
+                            '/var/lib/thingsboard_gateway/'.replace('/', path.sep) + extension_type.lower(),
+                            path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
         try:
-            if not default and path.exists('/var/lib/thingsboard_gateway/'+extension_type.lower()):
-                extension_path = '/var/lib/thingsboard_gateway/' + extension_type.lower()
-                log.info('Extension %s - looking for class in %s', extension_type, extension_path)
-            elif not default:
-                extension_path = path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/' + extension_type.lower())
-                log.info('Extension %s - looking for class in %s', extension_type, extension_path)
-            elif default:
-                extension_path = path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/' + extension_type.lower())
-                log.debug('Load connector for %s class name - %s from %s', extension_type, module_name, extension_path)
-            for file in listdir(extension_path):
-                if not file.startswith('__') and file.endswith('.py'):
-                    try:
-                        module_spec = util.spec_from_file_location(module_name, extension_path + '/' + file)
-                        log.debug(module_spec)
-                        if module_spec is None:
-                            log.error('Module: {} not found'.format(module_name))
-                            return None
-                        else:
-                            module = util.module_from_spec(module_spec)
-                            log.debug(str(module))
+            for extension_path in extensions_paths:
+                if path.exists(extension_path):
+                    for file in listdir(extension_path):
+                        if not file.startswith('__') and file.endswith('.py'):
                             try:
-                                module_spec.loader.exec_module(module)
+                                module_spec = util.spec_from_file_location(module_name, extension_path + path.sep + file)
+                                log.debug(module_spec)
+                                if module_spec is None:
+                                    log.error('Module: {} not found'.format(module_name))
+                                    continue
+                                else:
+                                    module = util.module_from_spec(module_spec)
+                                    log.debug(str(module))
+                                    try:
+                                        module_spec.loader.exec_module(module)
+                                    except Exception as e:
+                                        log.exception(e)
+                                    for extension_class in getmembers(module, isclass):
+                                        if module_name in extension_class:
+                                            log.debug("Import %s from %s.", module_name, extension_path)
+                                            return extension_class[1]
+                            except ImportError:
+                                continue
                             except Exception as e:
                                 log.exception(e)
-                            for extension_class in getmembers(module, isclass):
-                                if module_name in extension_class:
-                                    return extension_class[1]
-                    except ImportError:
-                        continue
-                    except Exception as e:
-                        log.exception(e)
+                else:
+                    log.error("Import %s failed, path doesn't exist")
         except Exception as e:
             log.exception(e)
 
