@@ -9,6 +9,8 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class RESTConnector(Connector, Thread):
+    _app = None
+
     def __init__(self, gateway, config, connector_type):
         super().__init__()
         self.__log = log
@@ -22,7 +24,26 @@ class RESTConnector(Connector, Thread):
         self._connected = False
         self.__stopped = False
         self.daemon = True
-        self.__app = Flask(self.get_name())
+        self.endpoints = {'/telemetry': {'function': self.telemetry_handler, 'methods': ['GET']},
+                          '/attributes': {'function': self.attributes_handler, 'methods': ['GET']}}
+        self._app = Flask(self.get_name())
+        self.add_endpoints()
+
+    def add_endpoints(self):
+        try:
+            for endpoint in self.endpoints.keys():
+                self._app.add_url_rule(rule=endpoint, view_func=self.endpoints[endpoint]['function'],
+                                       methods=self.endpoints[endpoint]['methods'])
+        except Exception as e:
+            log.exception(e)
+
+    def telemetry_handler(self):
+        log.debug('Telemetry handler WORKS')
+        return '<h1> Telemetry handler WORKS</h1>'
+
+    def attributes_handler(self):
+        log.debug('Test1 handler WORKS')
+        return '<h1> Test1 handler WORKS</h1>'
 
     def open(self):
         self.__stopped = False
@@ -31,7 +52,7 @@ class RESTConnector(Connector, Thread):
     def run(self):
         #
         try:
-            self.__app.run(host=self.config["host"], port="11325", debug="True")
+            self._app.run(host=self.config["host"], port="8082")
 
             while True:
                 if self.__stopped:
@@ -55,3 +76,5 @@ class RESTConnector(Connector, Thread):
 
     def server_side_rpc_handler(self, content):
         pass
+
+
