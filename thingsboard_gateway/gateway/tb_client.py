@@ -14,6 +14,7 @@
 
 import logging
 import time
+from ssl import SSLContext, PROTOCOL_TLSv1_2
 from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 import threading
 
@@ -30,7 +31,7 @@ class TBClient(threading.Thread):
         self.__port = config.get("port", 1883)
         credentials = config["security"]
         self.__min_reconnect_delay = 10
-        self.__tls = True if credentials.get('caCert', False) else False
+        self.__tls = True if credentials.get('tls', False) else False
         self.__ca_cert = None
         self.__private_key = None
         self.__cert = None
@@ -45,6 +46,8 @@ class TBClient(threading.Thread):
             self.__private_key = credentials.get("privateKey")
             self.__cert = credentials.get("cert")
         self.client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self)
+        if self.__tls and self.__ca_cert is None and self.__private_key is None and self.__cert is None:
+            self.client._client.tls_set_context(SSLContext(PROTOCOL_TLSv1_2))
         # Adding callbacks
         self.client._client._on_connect = self._on_connect
         self.client._client._on_disconnect = self._on_disconnect
