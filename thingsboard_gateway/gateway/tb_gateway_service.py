@@ -55,10 +55,7 @@ class TBGatewayService:
         self.__connected_devices_file = "connected_devices.json"
         self.tb_client = TBClient(config["thingsboard"])
         self.tb_client.connect()
-        self.tb_client.client.gw_set_server_side_rpc_request_handler(self._rpc_request_handler)
-        self.tb_client.client.set_server_side_rpc_request_handler(self._rpc_request_handler)
-        self.tb_client.client.subscribe_to_all_attributes(self._attribute_update_callback)
-        self.tb_client.client.gw_subscribe_to_all_attributes(self._attribute_update_callback)
+        self.subscribe_to_required_topics()
         global main_handler
         self.main_handler = main_handler
         self.remote_handler = TBLoggerHandler(self)
@@ -115,20 +112,7 @@ class TBGatewayService:
                     self.__check_shared_attributes()
 
                 if cur_time - gateway_statistic_send > 60.0 and self.tb_client.is_connected():
-                    summary_messages = {"eventsProduced": 0, "eventsSent": 0}
-                    telemetry = {}
-                    for connector in self.available_connectors:
-                        if self.available_connectors[connector].is_connected():
-                            connector_camel_case = connector[0].lower() + connector[1:].replace(' ', '')
-                            telemetry[(connector_camel_case + ' EventsProduced').replace(' ', '')] = \
-                                self.available_connectors[connector].statistics['MessagesReceived']
-                            telemetry[(connector_camel_case + ' EventsSent').replace(' ', '')] = \
-                                self.available_connectors[connector].statistics['MessagesSent']
-                            self.tb_client.client.send_telemetry(telemetry)
-                            summary_messages['eventsProduced'] += telemetry[
-                                str(connector_camel_case + ' EventsProduced').replace(' ', '')]
-                            summary_messages['eventsSent'] += telemetry[
-                                str(connector_camel_case + ' EventsSent').replace(' ', '')]
+                    summary_messages = self.__form_statistics()
                     self.tb_client.client.send_telemetry(summary_messages)
                     gateway_statistic_send = time.time()
                     # self.__check_shared_attributes()
@@ -150,6 +134,9 @@ class TBGatewayService:
                 log.debug("Connector %s closed connection.", current_connector)
             except Exception as e:
                 log.exception(e)
+
+    def __stop_gateway(self):
+        pass
 
     def _attributes_parse(self, content, *args):
         try:
@@ -186,6 +173,12 @@ class TBGatewayService:
 
     def get_config_path(self):
         return self._config_dir
+
+    def subscribe_to_required_topics(self):
+        self.tb_client.client.gw_set_server_side_rpc_request_handler(self._rpc_request_handler)
+        self.tb_client.client.set_server_side_rpc_request_handler(self._rpc_request_handler)
+        self.tb_client.client.subscribe_to_all_attributes(self._attribute_update_callback)
+        self.tb_client.client.gw_subscribe_to_all_attributes(self._attribute_update_callback)
 
     def __check_shared_attributes(self):
         self.tb_client.client.request_attributes(callback=self._attributes_parse)
@@ -394,6 +387,23 @@ class TBGatewayService:
                 log.exception(e)
         else:
             self._attributes_parse(content)
+
+    def __form_statistics(self):
+        summary_messages = {"eventsProduced": 0, "eventsSent": 0}
+        telemetry = {}
+        for connector in self.available_connectors:
+            if self.available_connectors[connector].is_connected():
+                connector_camel_case = connector[0].lower() + connector[1:].replace(' ', '')
+                telemetry[(connector_camel_case + ' EventsProduced').replace(' ', '')] = \
+                    self.available_connectors[connector].statistics['MessagesReceived']
+                telemetry[(connector_camel_case + ' EventsSent').replace(' ', '')] = \
+                    self.available_connectors[connector].statistics['MessagesSent']
+                self.tb_client.client.send_telemetry(telemetry)
+                summary_messages['eventsProduced'] += telemetry[
+                    str(connector_camel_case + ' EventsProduced').replace(' ', '')]
+                summary_messages['eventsSent'] += telemetry[
+                    str(connector_camel_case + ' EventsSent').replace(' ', '')]
+        return summary_messages
 
     def add_device(self, device_name, content, wait_for_publish=False):
         if device_name not in self.__saved_devices:
