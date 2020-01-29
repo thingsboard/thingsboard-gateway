@@ -82,6 +82,7 @@ class TBClient(threading.Thread):
 
     def stop(self):
         # self.disconnect()
+        self.client.stop()
         self.__stopped = True
 
     def disconnect(self):

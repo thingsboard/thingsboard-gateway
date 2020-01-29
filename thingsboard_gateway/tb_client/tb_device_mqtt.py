@@ -141,6 +141,7 @@ class TBDeviceMqttClient:
         self._lock = RLock()
 
         self._attr_request_dict = {}
+        self.stopped = False
         self.__timeout_queue = queue.Queue()
         self.__timeout_thread = Thread(target=self.__timeout_check)
         self.__timeout_thread.daemon = True
@@ -217,6 +218,10 @@ class TBDeviceMqttClient:
         log.debug(self._client)
         log.debug("Disconnecting from ThingsBoard")
         self.__is_connected = False
+        self._client.loop_stop()
+
+    def stop(self):
+        self.stopped = True
 
     def _on_message(self, client, userdata, message):
         content = TBUtility.decode(message)
@@ -385,27 +390,28 @@ class TBDeviceMqttClient:
         return attr_request_number
 
     def __timeout_check(self):
-        while True:
+        while not self.stopped:
             try:
-                item = self.__timeout_queue.get()
-                if item is not None:
-                    while True:
-                        current_ts_in_millis = int(round(time.time() * 1000))
-                        if current_ts_in_millis > item["ts"]:
-                            break
-                        else:
-                            time.sleep(0.001)
-                    with self._lock:
-                        callback = None
-                        if item.get("attribute_request_id"):
-                            if self._attr_request_dict.get(item["attribute_request_id"]):
-                                callback = self._attr_request_dict.pop(item["attribute_request_id"])
-                        elif item.get("rpc_request_id"):
-                            if self.__device_client_rpc_dict.get(item["rpc_request_id"]):
-                                callback = self.__device_client_rpc_dict.pop(item["rpc_request_id"])
-                    if callback is not None:
-                        callback(None, TBTimeoutException("Timeout while waiting for reply from ThingsBoard!"))
+                if not self.__timeout_queue.empty():
+                    item = self.__timeout_queue.get_nowait()
+                    if item is not None:
+                        while not self.stopped:
+                            current_ts_in_millis = int(round(time.time() * 1000))
+                            if current_ts_in_millis > item["ts"]:
+                                break
+                            else:
+                                time.sleep(0.001)
+                        with self._lock:
+                            callback = None
+                            if item.get("attribute_request_id"):
+                                if self._attr_request_dict.get(item["attribute_request_id"]):
+                                    callback = self._attr_request_dict.pop(item["attribute_request_id"])
+                            elif item.get("rpc_request_id"):
+                                if self.__device_client_rpc_dict.get(item["rpc_request_id"]):
+                                    callback = self.__device_client_rpc_dict.pop(item["rpc_request_id"])
+                        if callback is not None:
+                            callback(None, TBTimeoutException("Timeout while waiting for reply from ThingsBoard!"))
                 else:
-                    time.sleep(0.001)
+                    time.sleep(0.01)
             except Exception as e:
                 log.warning(e)
