@@ -96,11 +96,7 @@ class RemoteConfigurator:
             self.__write_new_configuration_files()
         self.__apply_storage_configuration()
         if self.__safe_apply_connection_configuration():
-            if self.__old_logs_configuration == self.__new_logs_configuration:
-                log.debug("Received logs configuration is the same.")
-            else:
-                log.debug("Received logs configuration is not the same. Updating loggers...")
-                self.__update_logs_configuration()
+            self.__update_logs_configuration()
             log.info("Remote configuration has been applied.")
             with open(self.__gateway._config_dir + "tb_gateway.yaml", "w") as general_configuration_file:
                 safe_dump(self.__new_general_configuration_file, general_configuration_file)
@@ -112,6 +108,10 @@ class RemoteConfigurator:
             self.__new_general_configuration_file = {}
             return True
         else:
+            self.__update_logs_configuration()
+            self.__old_general_configuration_file.pop("logs")
+            with open(self.__gateway._config_dir + "tb_gateway.yaml", "w") as general_configuration_file:
+                safe_dump(self.__old_general_configuration_file, general_configuration_file)
             log.error("A remote general configuration applying has been failed.")
             self.__old_connectors_configs = {}
             self.__new_connectors_configs = {}
@@ -160,12 +160,13 @@ class RemoteConfigurator:
                 for connector_config_section in self.__new_connectors_configs[connector_type]:
                     for connector_file in connector_config_section["config"]:
                         connector_config = connector_config_section["config"][connector_file]
-                        for conn in self.__new_general_configuration_file["connectors"]:
-                            with open(self.__gateway._config_dir + conn.get("configuration"), "w") as config_file:
-                                dump(connector_config, config_file, sort_keys=True, indent=2)
-                            new_connectors_files.append(connector_file)
-                            log.debug("Saving new configuration for \"%s\" connector to file \"%s\"", connector_type,
-                                      connector_file)
+                        with open(self.__gateway._config_dir + connector_file, "w") as config_file:
+                            dump(connector_config, config_file, sort_keys=True, indent=2)
+                        new_connectors_files.append(connector_file)
+                        log.debug("Saving new configuration for \"%s\" connector to file \"%s\"", connector_type,
+                                  connector_file)
+                        break
+            self.__old_general_configuration_file["connectors"] = self.__new_general_configuration_file["connectors"]
             for old_connector_type in self.__old_connectors_configs:
                 for old_connector_config_section in self.__old_connectors_configs[old_connector_type]:
                     for old_connector_file in old_connector_config_section["config"]:
@@ -238,22 +239,23 @@ class RemoteConfigurator:
 
     def __update_logs_configuration(self):
         try:
-            remote_handler_current_state = self.__gateway.remote_handler.activated
-            remote_handler_current_level = self.__gateway.remote_handler.current_log_level
-            logs_conf_file_path = self.__gateway._config_dir + 'logs.conf'
-            with open(logs_conf_file_path, 'w') as logs:
-                logs.write(self.__new_logs_configuration+"\r\n")
-            fileConfig(logs_conf_file_path)
-            self.__gateway.main_handler = MemoryHandler(-1)
-            self.__gateway.remote_handler = TBLoggerHandler(self.__gateway)
-            self.__gateway.main_handler.setTarget(self.__gateway.remote_handler)
-            if remote_handler_current_level != 'NOTSET':
-                self.__gateway.remote_handler.activate(remote_handler_current_level)
-            if not remote_handler_current_state:
-                self.__gateway.remote_handler.deactivate()
-            global log
-            log = getLogger('service')
-            log.debug("Logs configuration has been updated.")
+            if self.__old_logs_configuration == self.__new_logs_configuration:
+                remote_handler_current_state = self.__gateway.remote_handler.activated
+                remote_handler_current_level = self.__gateway.remote_handler.current_log_level
+                logs_conf_file_path = self.__gateway._config_dir + 'logs.conf'
+                with open(logs_conf_file_path, 'w') as logs:
+                    logs.write(self.__new_logs_configuration+"\r\n")
+                fileConfig(logs_conf_file_path)
+                self.__gateway.main_handler = MemoryHandler(-1)
+                self.__gateway.remote_handler = TBLoggerHandler(self.__gateway)
+                self.__gateway.main_handler.setTarget(self.__gateway.remote_handler)
+                if remote_handler_current_level != 'NOTSET':
+                    self.__gateway.remote_handler.activate(remote_handler_current_level)
+                if not remote_handler_current_state:
+                    self.__gateway.remote_handler.deactivate()
+                global log
+                log = getLogger('service')
+                log.debug("Logs configuration has been updated.")
         except Exception as e:
             log.exception(e)
 
