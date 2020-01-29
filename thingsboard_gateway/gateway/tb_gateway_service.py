@@ -93,13 +93,17 @@ class TBGatewayService:
         try:
             gateway_statistic_send = 0
             while True:
-                cur_time = time.time()
+                cur_time = time.time()*1000
                 if self.__rpc_requests_in_progress and self.tb_client.is_connected():
-                    for rpc_in_progress in self.__rpc_requests_in_progress:
-                        if cur_time >= self.__rpc_requests_in_progress[rpc_in_progress][1]:
-                            self.__rpc_requests_in_progress[rpc_in_progress][2](rpc_in_progress)
+                    for rpc_in_progress, data in self.__rpc_requests_in_progress.items():
+                        if cur_time >= data[1]:
+                            data[2](rpc_in_progress)
                             self.cancel_rpc_request(rpc_in_progress)
-                    time.sleep(0.1)
+                            self.__rpc_requests_in_progress[rpc_in_progress] = "del"
+                    new_rpc_request_in_progress = {key:value for key, value in self.__rpc_requests_in_progress.items() if value != 'del'}
+                    self.__rpc_requests_in_progress = new_rpc_request_in_progress
+
+
                 else:
                     try:
                         time.sleep(1)
@@ -111,10 +115,10 @@ class TBGatewayService:
                     self.__request_config_after_connect = True
                     self.__check_shared_attributes()
 
-                if cur_time - gateway_statistic_send > 60.0 and self.tb_client.is_connected():
+                if cur_time - gateway_statistic_send > 60000.0 and self.tb_client.is_connected():
                     summary_messages = self.__form_statistics()
                     self.tb_client.client.send_telemetry(summary_messages)
-                    gateway_statistic_send = time.time()
+                    gateway_statistic_send = time.time()*1000
                     # self.__check_shared_attributes()
         except KeyboardInterrupt:
             log.info("Stopping...")
@@ -204,8 +208,8 @@ class TBGatewayService:
         for connector_type in self.connectors_configs:
             for connector_config in self.connectors_configs[connector_type]:
                 for config in connector_config["config"]:
+                    connector = None
                     try:
-                        connector = None
                         connector = self._implemented_connectors[connector_type](self, connector_config["config"][config],
                                                                                  connector_type)
                         connector.setName(connector_config["name"])
@@ -368,14 +372,21 @@ class TBGatewayService:
         self.send_rpc_reply(device, req_id, content)
         self.cancel_rpc_request(topic)
 
-    def send_rpc_reply(self, device, req_id, content):
-        self.tb_client.client.gw_send_rpc_reply(device, req_id, content)
+    def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None):
+        if success_sent is not None:
+            rpc_response = {"success": False}
+            if success_sent:
+                rpc_response["success"] = True
+            self.tb_client.client.gw_send_rpc_reply(device, req_id, rpc_response)
+        elif device is not None and req_id is not None and content is not None:
+            self.tb_client.client.gw_send_rpc_reply(device, req_id, content)
 
     def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
         self.__rpc_requests_in_progress[topic] = (content, timeout, cancel_method)
 
     def cancel_rpc_request(self, rpc_request):
-        del self.__rpc_requests_in_progress[rpc_request]
+        content = self.__rpc_requests_in_progress[rpc_request][0]
+        self.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=False)
 
     def _attribute_update_callback(self, content, *args):
         log.debug("Attribute request received with content: \"%s\"", content)
