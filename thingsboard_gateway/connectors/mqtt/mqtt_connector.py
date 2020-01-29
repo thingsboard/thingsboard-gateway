@@ -199,7 +199,7 @@ class MqttConnector(Connector, Thread):
                 self.__log.error('"%s" subscription failed to topic %s subscription message id = %i', self.get_name(), self.__subscribes_sent.get(mid), mid)
             else:
                 self.__log.info('"%s" subscription success to topic %s, subscription message id = %i', self.get_name(), self.__subscribes_sent.get(mid), mid)
-                if self.__subscribes_sent.get is not None:
+                if self.__subscribes_sent.get(mid) is not None:
                     del self.__subscribes_sent[mid]
         except Exception as e:
             self.__log.exception(e)
@@ -329,10 +329,10 @@ class MqttConnector(Connector, Thread):
                     topic_for_subscribe = rpc_config["responseTopicExpression"] \
                         .replace("${deviceName}", content["device"]) \
                         .replace("${methodName}", content["data"]["method"]) \
-                        .replace("${requestId}", content["data"]["id"]) \
+                        .replace("${requestId}", str(content["data"]["id"])) \
                         .replace("${params}", content["data"]["params"])
                     if rpc_config.get("responseTimeout"):
-                        timeout = time.time()+rpc_config.get("responseTimeout")
+                        timeout = time.time()*1000+rpc_config.get("responseTimeout")
                         self.__gateway.register_rpc_request_timeout(content,
                                                                     timeout,
                                                                     topic_for_subscribe,
@@ -347,20 +347,22 @@ class MqttConnector(Connector, Thread):
                     topic = rpc_config.get("requestTopicExpression")\
                         .replace("${deviceName}", content["device"])\
                         .replace("${methodName}", content["data"]["method"])\
-                        .replace("${requestId}", content["data"]["id"])\
+                        .replace("${requestId}", str(content["data"]["id"]))\
                         .replace("${params}", content["data"]["params"])
                     data_to_send = rpc_config.get("valueExpression")\
                         .replace("${deviceName}", content["device"])\
                         .replace("${methodName}", content["data"]["method"])\
-                        .replace("${requestId}", content["data"]["id"])\
+                        .replace("${requestId}", str(content["data"]["id"]))\
                         .replace("${params}", content["data"]["params"])
                     try:
                         self._client.publish(topic, data_to_send)
                         self.__log.debug("Send RPC with no response request to topic: %s with data %s",
                                   topic,
                                   data_to_send)
+                        if rpc_config.get("responseTopicExpression") is None:
+                            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=True)
                     except Exception as e:
-                        self.__log.error(e)
+                        self.__log.exception(e)
 
     def rpc_cancel_processing(self, topic):
         self._client.unsubscribe(topic)
