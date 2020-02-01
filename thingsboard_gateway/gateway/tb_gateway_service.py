@@ -65,6 +65,7 @@ class TBGatewayService:
             "modbus": "ModbusConnector",
             "opcua": "OpcUaConnector",
             "ble": "BLEConnector",
+            "request": "RequestConnector",
         }
         self._implemented_connectors = {}
         self._event_storage_types = {
