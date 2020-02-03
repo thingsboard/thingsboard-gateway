@@ -135,6 +135,8 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         # self.validate(DEVICE_TS_KV_VALIDATOR, telemetry)
         return self.publish_data({device: telemetry}, GATEWAY_MAIN_TOPIC + "telemetry", quality_of_service, )
 
+    #TODO ADD "type" to connection request
+
     def gw_connect_device(self, device_name):
         info = self._client.publish(topic=GATEWAY_MAIN_TOPIC + "connect", payload=dumps({"device": device_name}), qos=1)
         self.__connected_devices.add(device_name)
