@@ -199,6 +199,7 @@ class TBGatewayService:
                     connector_conf = load(conf_file)
                     if not self.connectors_configs.get(connector['type']):
                         self.connectors_configs[connector['type']] = []
+                    connector_conf["name"] = connector["name"]
                     self.connectors_configs[connector['type']].append({"name": connector["name"], "config": {connector['configuration']: connector_conf}})
             except Exception as e:
                 log.error("Error on loading connector:")
