@@ -18,6 +18,7 @@ from importlib import util
 from logging import getLogger
 from simplejson import dumps, loads
 from re import search, match, compile
+from jsonpath_rw import jsonpath, parse
 
 
 log = getLogger("service")
@@ -113,8 +114,16 @@ class TBUtility:
                     pass
                 if full_value is None:
                     try:
+                        jsonpath_expression = parse(target_str)
+                        jsonpath_match = jsonpath_expression.find(body)
+                        if jsonpath_match is not None:
+                            full_value = jsonpath_match[0].value
+                    except Exception:
+                        pass
+                if full_value is None:
+                    try:
                         full_value = search(expression, body).group(0)
-                    except Exception as e:
+                    except Exception:
                         full_value = None
                 if full_value is None:
                     full_value = expression
