@@ -78,7 +78,7 @@ class ModbusConnector(Connector, threading.Thread):
                 else:
                     downlink_converter = BytesModbusDownlinkConverter(device)
                 if device.get('deviceName') not in self.__gateway.get_devices():
-                    self.__gateway.add_device(device.get('deviceName'), {"connector": self})
+                    self.__gateway.add_device(device.get('deviceName'), {"connector": self}, device_type=device.get("deviceType"))
                     self.__devices[device["deviceName"]] = {"config": device,
                                                             "converter": converter,
                                                             "downlink_converter": downlink_converter,

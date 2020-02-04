@@ -246,13 +246,19 @@ class MqttConnector(Connector, Thread):
                         if message.topic in request.get("topicFilter") or\
                                 (request.get("deviceNameTopicExpression") is not None and search(request.get("deviceNameTopicExpression"), message.topic)):
                             founded_device_name = None
+                            founded_device_type
                             if request.get("deviceNameJsonExpression"):
                                 founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"], content)
                             if request.get("deviceNameTopicExpression"):
                                 device_name_expression = request["deviceNameTopicExpression"]
                                 founded_device_name = search(device_name_expression, message.topic)
+                            if request.get("deviceTypeJsonExpression"):
+                                founded_device_type = TBUtility.get_value(request["deviceTypeJsonExpression"], content)
+                            if request.get("deviceTypeTopicExpression"):
+                                device_type_expression = request["deviceTypeTopicExpression"]
+                                founded_device_type = search(device_type_expression, message.topic)
                             if founded_device_name is not None and founded_device_name not in self.__gateway.get_devices():
-                                self.__gateway.add_device(founded_device_name, {"connector": self})
+                                self.__gateway.add_device(founded_device_name, {"connector": self}, device_type=founded_device_type)
                         else:
                             self.__log.error("Cannot find connect request for device from message from topic: %s and with data: %s",
                                              message.topic,

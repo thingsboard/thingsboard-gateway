@@ -229,7 +229,7 @@ class TBGatewayService:
                 return
             if data["deviceName"] not in self.get_devices():
                 self.add_device(data["deviceName"],
-                                {"connector": self.available_connectors[connector_name]}, wait_for_publish=True)
+                                {"connector": self.available_connectors[connector_name]}, wait_for_publish=True, device_type=data["deviceType"])
             if not self.__connector_incoming_messages.get(connector_name):
                 self.__connector_incoming_messages[connector_name] = 0
             else:
@@ -418,14 +418,15 @@ class TBGatewayService:
                     str(connector_camel_case + ' EventsSent').replace(' ', '')]
         return summary_messages
 
-    def add_device(self, device_name, content, wait_for_publish=False):
+    def add_device(self, device_name, content, wait_for_publish=False, device_type=None):
         if device_name not in self.__saved_devices:
             self.__connected_devices[device_name] = content
             self.__saved_devices[device_name] = content
+            device_type = device_type if device_type is not None else 'default'
             if wait_for_publish:
-                self.tb_client.client.gw_connect_device(device_name).wait_for_publish()
+                self.tb_client.client.gw_connect_device(device_name, device_type).wait_for_publish()
             else:
-                self.tb_client.client.gw_connect_device(device_name)
+                self.tb_client.client.gw_connect_device(device_name, device_type)
             self.__save_persistent_devices()
 
     def update_device(self, device_name, event, content):

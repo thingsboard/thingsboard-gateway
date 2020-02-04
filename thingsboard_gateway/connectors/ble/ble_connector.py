@@ -289,7 +289,7 @@ class BLEConnector(Connector, Thread):
                     log.debug('Cannot process %s', e)
                     continue
         if converted_data is not None:
-            self.__gateway.add_device(converted_data["deviceName"], {"connector": self})
+            # self.__gateway.add_device(converted_data["deviceName"], {"connector": self})
             self.__gateway.send_to_storage(self.get_name(), converted_data)
 
     def __check_and_reconnect(self, device):
