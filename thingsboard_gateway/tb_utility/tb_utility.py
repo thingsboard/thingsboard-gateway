@@ -85,7 +85,7 @@ class TBUtility:
                             except Exception as e:
                                 log.exception(e)
                 else:
-                    log.error("Import %s failed, path doesn't exist")
+                    log.error("Import %s failed, path %s doesn't exist", module_name, extension_path)
         except Exception as e:
             log.exception(e)
 
