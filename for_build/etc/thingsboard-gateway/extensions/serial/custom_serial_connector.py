@@ -78,7 +78,7 @@ class CustomSerialConnector(Thread, Connector):    # Define a connector class, i
                 log.exception(e)
                 time.sleep(10)
             else:    # if no exception handled - add device and change connection state
-                self.__gateway.add_device(self.devices[device]["device_config"]["name"], {"connector": self})
+                self.__gateway.add_device(self.devices[device]["device_config"]["name"], {"connector": self}, device_type=self.devices[device]["device_config"]["type"])
                 self.connected = True
 
     def open(self):    # Function called by gateway on start

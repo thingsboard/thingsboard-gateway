@@ -3,6 +3,7 @@
   "devices": [
     {
       "name": "CustomSerialDevice1",
+      "type": "default",
       "port": "/dev/ttyUSB0",
       "baudrate": 9600,
       "converter": "CustomSerialUplinkConverter",
