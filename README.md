@@ -15,6 +15,7 @@ Thingsboard IoT Gateway provides following features:
  - **MQTT** connector to collect data that is published to external MQTT brokers. 
  - **Modbus** connector to collect data from Modbus servers and slaves.
  - **BLE** connector to collect data from BLE devices.
+ - **Request** connector to collect data from HTTP API.
  - **Custom** connector to collect data from custom protocols.
  - **Persistence** of collected data to guarantee data delivery in case of network and hardware failures.
  - **Automatic reconnect** to Thingsboard cluster.
