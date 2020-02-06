@@ -1,6 +1,7 @@
 thingsboard:
   host: demo.thingsboard.io
   port: 1883
+  remoteConfiguration: false
   security:
     accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
 storage:
@@ -20,6 +21,11 @@ connectors:
     configuration: mqtt.json
 
 #  -
+#    name: Request Connector
+#    type: request
+#    configuration: request.json
+#
+#  -
 #    name: Modbus Connector
 #    type: modbus
 #    configuration: modbus.json
@@ -38,7 +44,7 @@ connectors:
 #    name: BLE Connector
 #    type: ble
 #    configuration: ble.json
-
+#
 #  -
 #    name: Custom Serial Connector
 #    type: serial
