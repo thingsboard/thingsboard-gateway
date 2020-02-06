@@ -17,12 +17,15 @@ from queue import Queue
 from random import choice
 from string import ascii_lowercase
 from time import sleep, time
+from re import fullmatch
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
+from thingsboard_gateway.connectors.request.json_request_downlink_converter import JsonRequestDownlinkConverter
 
 import requests
 from requests import Timeout
+from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 
@@ -30,10 +33,11 @@ requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 class RequestConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
+        self.__rpc_requests = []
         self.__config = config
         self.__connector_type = connector_type
         self.__gateway = gateway
-        self.__security = self.__config["security"]
+        self.__security = HTTPBasicAuth(self.__config["security"]["username"], self.__config["security"]["password"]) if self.__config["security"]["type"] == "basic" else None
         self.__host = None
         self.__service_headers = {}
         if "http://" in self.__config["host"].lower() or "https://" in self.__config["host"].lower():
@@ -47,8 +51,10 @@ class RequestConnector(Connector, Thread):
         self.__stopped = False
         self.__requests_in_progress = []
         self.__convert_queue = Queue(1000000)
+        self.__attribute_updates = []
+        self.__fill_attribute_updates()
+        self.__fill_rpc_requests()
         self.__fill_requests()
-        log.debug(connector_type)
 
     def run(self):
         while not self.__stopped:
@@ -62,10 +68,52 @@ class RequestConnector(Connector, Thread):
             self.__process_data()
 
     def on_attributes_update(self, content):
-        pass
+        try:
+            for attribute_request in self.__attribute_updates:
+                if fullmatch(attribute_request["deviceNameFilter"], content["device"]) and fullmatch(attribute_request["attributeFilter"], list(content["data"].keys())[0]):
+                    converted_data = attribute_request["converter"].convert(attribute_request, content)
+                    response_queue = Queue(1)
+                    request_dict = {"config": {**attribute_request,
+                                               **converted_data},
+                                    "request": requests.request}
+                    attribute_update_request_thread = Thread(target=self.__send_request,
+                                                             args=(request_dict, response_queue, log),
+                                                             daemon=True,
+                                                             name="Attribute request to %s" % (converted_data["url"]))
+                    attribute_update_request_thread.start()
+                    attribute_update_request_thread.join()
+                    if not response_queue.empty():
+                        response = response_queue.get_nowait()
+                        log.debug(response)
+                    del response_queue
+        except Exception as e:
+            log.exception(e)
 
     def server_side_rpc_handler(self, content):
-        pass
+        try:
+            for rpc_request in self.__rpc_requests:
+                if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and fullmatch(rpc_request["methodFilter"], content["data"]["method"]):
+                    converted_data = rpc_request["converter"].convert(rpc_request, content)
+                    response_queue = Queue(1)
+                    request_dict = {"config": {**rpc_request,
+                                               **converted_data},
+                                    "request": requests.request}
+                    request_dict["config"].get("uplink_converter")
+                    rpc_request_thread = Thread(target=self.__send_request,
+                                                args=(request_dict, response_queue, log),
+                                                daemon=True,
+                                                name="RPC request to %s" % (converted_data["url"]))
+                    rpc_request_thread.start()
+                    rpc_request_thread.join()
+                    if not response_queue.empty():
+                        response = response_queue.get_nowait()
+                        log.debug(response)
+                        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], content=response[2])
+                    self.__gateway.send_rpc_reply(success_sent=True)
+
+                    del response_queue
+        except Exception as e:
+            log.exception(e)
 
     def __fill_requests(self):
         log.debug(self.__config["mapping"])
@@ -89,6 +137,24 @@ class RequestConnector(Connector, Thread):
             except Exception as e:
                 log.exception(e)
 
+    def __fill_attribute_updates(self):
+        for attribute_request in self.__config["attributeUpdates"]:
+            if attribute_request.get("converter") is not None:
+                converter = TBUtility.check_and_import("request", attribute_request["converter"])(attribute_request)
+            else:
+                converter = JsonRequestDownlinkConverter(attribute_request)
+            attribute_request_dict = {**attribute_request, "converter": converter}
+            self.__attribute_updates.append(attribute_request_dict)
+
+    def __fill_rpc_requests(self):
+        for rpc_request in self.__config["serverSideRpc"]:
+            if rpc_request.get("converter") is not None:
+                converter = TBUtility.check_and_import("request", rpc_request["converter"])(rpc_request)
+            else:
+                converter = JsonRequestDownlinkConverter(rpc_request)
+            rpc_request_dict = {**rpc_request, "converter": converter}
+            self.__rpc_requests.append(rpc_request_dict)
+
     def __send_request(self, request, converter_queue, log):
         url = ""
         try:
@@ -103,8 +169,9 @@ class RequestConnector(Connector, Thread):
                 "method": request["config"].get("httpMethod", "GET"),
                 "url": url,
                 "timeout": request_timeout,
-                "allow_redirects": request.get("allowRedirects", False),
+                "allow_redirects": request["config"].get("allowRedirects", False),
                 "verify": self.__ssl_verify,
+                "auth": self.__security
             }
             log.debug(url)
             if request["config"].get("httpHeaders") is not None:
@@ -133,13 +200,16 @@ class RequestConnector(Connector, Thread):
             log.exception(e)
 
     def __process_data(self):
-        if not self.__convert_queue.empty():
-            url, converter, data = self.__convert_queue.get()
-            converted_data = converter.convert(url, data)
-            self.__gateway.send_to_storage(self.get_name(), converted_data)
-            log.debug(converted_data)
-        else:
-            sleep(.01)
+        try:
+            if not self.__convert_queue.empty():
+                url, converter, data = self.__convert_queue.get()
+                converted_data = converter.convert(url, data)
+                self.__gateway.send_to_storage(self.get_name(), converted_data)
+                log.debug(converted_data)
+            else:
+                sleep(.01)
+        except Exception as e:
+            log.exception(e)
 
     def get_name(self):
         return self.name
