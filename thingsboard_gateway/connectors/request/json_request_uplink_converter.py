@@ -27,11 +27,11 @@ class JsonRequestUplinkConverter(RequestConverter):
         dict_result = {"deviceName": None, "deviceType": None,"attributes": [], "telemetry": []}
         try:
             if self.__config.get("deviceNameJsonExpression") is not None:
-                dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data)
+                dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data, expression_instead_none=True)
             else:
                 log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
             if self.__config.get("deviceTypeJsonExpression") is not None:
-                dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data)
+                dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data, expression_instead_none=True)
             else:
                 log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
             dict_result["attributes"] = []

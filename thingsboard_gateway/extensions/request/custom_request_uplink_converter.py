@@ -26,8 +26,8 @@ class CustomRequestUplinkConverter(RequestConverter):
     def convert(self, topic, body):
         try:
             data = body["data"]["value"]
-            self.dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), body)
-            self.dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), body)
+            self.dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), body, expression_instead_none=True)
+            self.dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), body, expression_instead_none=True)
             self.dict_result["attributes"] = []
             self.dict_result["telemetry"] = []
             converted_bytes = bytearray.fromhex(data)

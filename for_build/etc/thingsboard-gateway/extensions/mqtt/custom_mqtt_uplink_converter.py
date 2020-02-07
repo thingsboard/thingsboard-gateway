@@ -42,5 +42,5 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
             return self.dict_result
 
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
+            log.exception('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
             log.error(e)

@@ -90,7 +90,7 @@ class TBUtility:
             log.exception(e)
 
     @staticmethod
-    def get_value(expression, body={}, value_type="string", get_tag=False):
+    def get_value(expression, body={}, value_type="string", get_tag=False, expression_instead_none=False):
         if isinstance(body, str):
             body = loads(body)
         if not expression:
@@ -125,7 +125,7 @@ class TBUtility:
                         full_value = search(expression, body).group(0)
                     except Exception:
                         full_value = None
-                if full_value is None:
+                if full_value is None and expression_instead_none:
                     full_value = expression
             else:
                 try:
