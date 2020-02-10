@@ -172,7 +172,7 @@ class OpcUaConnector(Thread, Connector):
                         try:
                             device_configuration = device_object[current_device]
                             device_info = self.__search_general_info(device_configuration)
-                            if device_info["deviceNode"] is not None:
+                            if device_info.get("deviceNode") is not None:
                                 self.__save_methods(device_info["deviceNode"], device_info)
                                 self.__search_nodes_and_subscribe(device_configuration, device_info)
                                 self.__search_attribute_update_variables(device_configuration, device_info)
