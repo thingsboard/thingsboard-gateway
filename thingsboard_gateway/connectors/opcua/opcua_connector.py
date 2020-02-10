@@ -177,6 +177,8 @@ class OpcUaConnector(Thread, Connector):
                                 self.__search_nodes_and_subscribe(device_configuration, device_info)
                                 self.__search_attribute_update_variables(device_configuration, device_info)
                             else:
+                                log.error("Device node is None, please check your configuration.")
+                                log.debug("Current device node is: %s", str(device_configuration.get("deviceNodePattern")))
                                 break
                         except Exception as e:
                             log.exception(e)
