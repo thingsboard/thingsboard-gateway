@@ -12,3 +12,12 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 
+
+from thingsboard_gateway.connectors.connector import Connector, log
+
+
+class BacknetConnector(Connector):
+    def __init__(self):
+        pass
+
+
