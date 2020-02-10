@@ -226,6 +226,8 @@ class OpcUaConnector(Thread, Connector):
     def __save_methods(self, node, device):
         try:
             for method in node.get_methods():
+                if self.__available_object_resources.get(device["deviceName"]) is None:
+                    self.__available_object_resources[device["deviceName"]] = {}
                 if self.__available_object_resources[device["deviceName"]].get("methods") is None:
                     self.__available_object_resources[device["deviceName"]]["methods"] = []
                 self.__available_object_resources[device["deviceName"]]["methods"].append({method.get_display_name().Text: method, "node": node})
@@ -241,6 +243,8 @@ class OpcUaConnector(Thread, Connector):
                     attribute_path = self.__check_path(attribute_update["attributeOnDevice"], node)
                     attribute_node = self.__search_node(node, attribute_path)
                     if attribute_node is not None:
+                        if self.__available_object_resources.get(device_name) is None:
+                            self.__available_object_resources[device_name] = {}
                         if self.__available_object_resources[device_name].get("variables") is None:
                             self.__available_object_resources[device_name]["variables"] = []
                         self.__available_object_resources[device_name].append({attribute_update["attributeOnThingsBoard"]: attribute_node})
