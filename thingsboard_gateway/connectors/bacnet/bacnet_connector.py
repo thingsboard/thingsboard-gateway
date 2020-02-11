@@ -12,12 +12,39 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 
-
+from random import choice
+from string import ascii_lowercase
 from thingsboard_gateway.connectors.connector import Connector, log
+from threading import Thread
 
 
-class BacknetConnector(Connector):
-    def __init__(self):
+class BacknetConnector(Thread, Connector):
+    def __init__(self, gateway, config, connector_type):
+        self.__connector_type = connector_type
+        self.statistics = {'MessagesReceived': 0,
+                           'MessagesSent': 0}
+        super().__init__()
+        self.__config = config
+        self.setName(config.get('name', 'BACnet ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.__gateway = gateway
+        self.__stopped = False
+        self.__connected = False
+        self.daemon = True
+
+    def open(self):
         pass
 
+    def close(self):
+        pass
 
+    def get_name(self):
+        pass
+
+    def is_connected(self):
+        pass
+
+    def on_attributes_update(self, content):
+        pass
+
+    def server_side_rpc_handler(self, content):
+        pass
