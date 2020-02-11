@@ -71,7 +71,8 @@ class BLEConnector(Connector, Thread):
         self.__stopped = True
         for device in self.__devices_around:
             try:
-                self.__devices_around[device]['peripheral'].disconnect()
+                if self.__devices_around[device].get('peripheral') is not None:
+                    self.__devices_around[device]['peripheral'].disconnect()
             except Exception as e:
                 log.exception(e)
                 raise e
