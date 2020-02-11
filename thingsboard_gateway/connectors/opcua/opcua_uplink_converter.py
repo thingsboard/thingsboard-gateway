@@ -32,7 +32,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
             for information_type in information_types:
                 for information in self.__config[information_type]:
                     path = TBUtility.get_value(information["path"], get_tag=True)
-                    if fullmatch(path, config.replace('\\\\', '\\')):
+                    if path == config.replace('\\\\', '\\') or fullmatch(path, config.replace('\\\\', '\\')):
                         result[information_types[information_type]].append({information["key"]: information["path"].replace("${"+path+"}", str(data))})
             return result
         except Exception as e:
