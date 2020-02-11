@@ -36,7 +36,8 @@ setup(
         'pytz',
         'PyYAML',
         'simplejson',
-        'pyrsistent'
+        'pyrsistent',
+        'bacpypes'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.1.0.2.tar.gz',
     entry_points={
