@@ -35,6 +35,7 @@ class OpcUaConnector(Thread, Connector):
         self.__server_conf = config.get("server")
         self.__interest_nodes = []
         self.__available_object_resources = {}
+        self.__show_map = config.get("showMap", False)
         for mapping in self.__server_conf["mapping"]:
             if mapping.get("deviceNodePattern") is not None:
                 self.__interest_nodes.append({mapping["deviceNodePattern"]: mapping})
@@ -114,6 +115,7 @@ class OpcUaConnector(Thread, Connector):
                 if self.data_to_send:
                     self.__gateway.send_to_storage(self.get_name(), self.data_to_send.pop())
                 if self.__stopped:
+                    self.close()
                     break
             except (KeyboardInterrupt, SystemExit):
                 self.close()
@@ -172,7 +174,7 @@ class OpcUaConnector(Thread, Connector):
                         try:
                             device_configuration = device_object[current_device]
                             device_info = self.__search_general_info(device_configuration)
-                            if device_info.get("deviceNode") is not None:
+                            if device_info is not None and device_info.get("deviceNode") is not None:
                                 self.__save_methods(device_info["deviceNode"], device_info)
                                 self.__search_nodes_and_subscribe(device_configuration, device_info)
                                 self.__search_attribute_update_variables(device_configuration, device_info)
@@ -297,12 +299,15 @@ class OpcUaConnector(Thread, Connector):
                 new_node = self.client.get_node(child_node)
                 new_node_path = '\\\\.'.join(char.split(":")[1] for char in new_node.get_path(200000, True))
                 new_node_class = new_node.get_node_class()
-                regex_fullmatch = re.fullmatch(new_node_path, fullpath.replace('\\\\', '\\'))
+                regex_fullmatch = re.fullmatch(new_node_path.replace('\\\\', '\\'), fullpath) or new_node_path.replace('\\\\', '\\') == fullpath
                 if regex_fullmatch:
-                    log.debug("Found in node: %s", new_node_path)
+                    if self.__show_map:
+                        log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path.replace('\\\\', '\\'))
                     return new_node
                 regex_search = re.search(new_node_path, fullpath.replace('\\\\', '\\'))
                 if regex_search:
+                    if self.__show_map:
+                        log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path)
                     if new_node_class == ua.NodeClass.Object:
                         log.debug("Search in %s", new_node_path)
                         result = self.__search_node(new_node, fullpath)
