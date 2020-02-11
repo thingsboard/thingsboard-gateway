@@ -68,7 +68,7 @@ class OpcUaConnector(Thread, Connector):
             if self.__server_conf["identity"].get("password"):
                 self.client.set_password(self.__server_conf["identity"].get("password"))
 
-        # self.setName(self.__server_conf.get("name", 'OPC-UA Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))) + " Connector")
+        self.setName(self.__server_conf.get("name", 'OPC-UA ' + ''.join(choice(ascii_lowercase) for _ in range(5))) + " Connector")
         self.__opcua_nodes = {}
         self._subscribed = {}
         self.data_to_send = []
