@@ -116,7 +116,7 @@ class TBGatewayService:
                     self.__request_config_after_connect = True
                     self.__check_shared_attributes()
 
-                if cur_time - gateway_statistic_send > 60000.0 and self.tb_client.is_connected():
+                if cur_time - gateway_statistic_send > 5000.0 and self.tb_client.is_connected():
                     summary_messages = self.__form_statistics()
                     self.tb_client.client.send_telemetry(summary_messages)
                     gateway_statistic_send = time.time()*1000
@@ -351,20 +351,41 @@ class TBGatewayService:
         except Exception as e:
             log.exception(e)
 
-    def _rpc_request_handler(self, _, content):
+    def _rpc_request_handler(self, id, content):
         try:
             device = content.get("device")
             if device is not None:
-                connector = self.get_devices()[device].get("connector")
-                if connector is not None:
-                    connector.server_side_rpc_handler(content)
+                connector_name = self.get_devices()[device].get("connector")
+                if connector_name is not None:
+                    connector_name.server_side_rpc_handler(content)
                 else:
                     log.error("Received RPC request but connector for the device %s not found. Request data: \n %s",
                               content["device"],
                               dumps(content))
             else:
-                log.debug("RPC request with no device param.")
-                log.debug(content)
+                try:
+                    method_split = content["method"].split('_')
+                    module = None
+                    if len(method_split) > 0:
+                        module = method_split[0]
+                    if module is not None:
+                        result = None
+                        if self.connectors_configs.get(module):
+                            log.debug("Connector \"%s\" for RPC request \"%s\" found", module, content["method"])
+                            for connector_name in self.available_connectors:
+                                log.debug("Sending command RPC %s to connector %s", content["method"], connector_name)
+                                result = self.available_connectors[connector_name].server_side_rpc_handler(content)
+                        else:
+                            log.error("Connector \"%s\" not found", module)
+                            result = {"error": "%s - connector not found in available connectors." % module, "code": 404}
+                        if result is None:
+                            self.send_rpc_reply(None, id, success_sent=False)
+                        else:
+                            self.send_rpc_reply(None, id, dumps(result))
+                    log.debug(content)
+                except Exception as e:
+                    self.send_rpc_reply(None, id, "{\"error\":\"%s\", \"code\": 500}" % str(e))
+                    log.exception(e)
         except Exception as e:
             log.exception(e)
 
@@ -375,13 +396,22 @@ class TBGatewayService:
         self.cancel_rpc_request(topic)
 
     def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None):
-        if success_sent is not None:
+        try:
             rpc_response = {"success": False}
-            if success_sent:
-                rpc_response["success"] = True
-            self.tb_client.client.gw_send_rpc_reply(device, req_id, rpc_response)
-        elif device is not None and req_id is not None and content is not None:
-            self.tb_client.client.gw_send_rpc_reply(device, req_id, content)
+            if success_sent is not None:
+                if success_sent:
+                    rpc_response["success"] = True
+            if device is not None and success_sent is not None:
+                self.tb_client.client.gw_send_rpc_reply(device, req_id, rpc_response)
+            elif device is not None and req_id is not None and content is not None:
+                self.tb_client.client.gw_send_rpc_reply(device, req_id, content)
+            elif device is None and success_sent is not None:
+                self.tb_client.client.send_rpc_reply(req_id, rpc_response, quality_of_service=1)
+            elif device is None and content is not None:
+                self.tb_client.client.send_rpc_reply(req_id, content, quality_of_service=1)
+        except Exception as e:
+            log.exception(e)
+
 
     def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
         self.__rpc_requests_in_progress[topic] = (content, timeout, cancel_method)
