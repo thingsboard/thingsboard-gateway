@@ -150,19 +150,27 @@ class OpcUaConnector(Thread, Connector):
             for method in self.__available_object_resources[content["device"]]['methods']:
                 rpc_method = content["data"].get("method")
                 if rpc_method is not None and method.get(rpc_method) is not None:
-                    arguments = content["data"].get("params")
-                    if type(arguments) is list:
-                        result = method["node"].call_method(method[rpc_method], *arguments)
-                    elif arguments is not None:
-                        result = method["node"].call_method(method[rpc_method], arguments)
-                    else:
-                        result = method["node"].call_method(method[rpc_method])
+                    arguments_from_config = method["arguments"]
+                    arguments = content["data"].get("params") if content["data"].get("params") is not None else arguments_from_config
+                    try:
+                        if type(arguments) is list:
+                            result = method["node"].call_method(method[rpc_method], *arguments)
+                        elif arguments is not None:
+                            result = method["node"].call_method(method[rpc_method], arguments)
+                        else:
+                            result = method["node"].call_method(method[rpc_method])
 
-                    self.__gateway.send_rpc_reply(content["device"],
-                                                  content["data"]["id"],
-                                                  {content["data"]["method"]: result})
-
-                    log.debug("method %s result is: %s", method[rpc_method], result)
+                        self.__gateway.send_rpc_reply(content["device"],
+                                                      content["data"]["id"],
+                                                      {content["data"]["method"]: result, "code": 200})
+                        log.debug("method %s result is: %s", method[rpc_method], result)
+                    except Exception as e:
+                        log.exception(e)
+                        self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+                                                      {"error": str(e), "code": 500})
+                else:
+                    log.error("Method %s not found for device %s", rpc_method, content["device"])
+                    self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], {"error": "%s - Method not found" % (rpc_method), "code": 404})
         except Exception as e:
             log.exception(e)
 
@@ -175,7 +183,7 @@ class OpcUaConnector(Thread, Connector):
                             device_configuration = device_object[current_device]
                             device_info = self.__search_general_info(device_configuration)
                             if device_info is not None and device_info.get("deviceNode") is not None:
-                                self.__save_methods(device_info["deviceNode"], device_info)
+                                self.__save_methods(device_info, device_configuration)
                                 self.__search_nodes_and_subscribe(device_configuration, device_info)
                                 self.__search_attribute_update_variables(device_configuration, device_info)
                             else:
@@ -227,14 +235,20 @@ class OpcUaConnector(Thread, Connector):
                     log.error("Node for %s \"%s\" with path %s - NOT FOUND!", information_type, information_key, information_path)
         device_configuration.update(**device_info)
 
-    def __save_methods(self, node, device):
+    def __save_methods(self, device, configuration):
         try:
-            for method in node.get_methods():
-                if self.__available_object_resources.get(device["deviceName"]) is None:
-                    self.__available_object_resources[device["deviceName"]] = {}
-                if self.__available_object_resources[device["deviceName"]].get("methods") is None:
-                    self.__available_object_resources[device["deviceName"]]["methods"] = []
-                self.__available_object_resources[device["deviceName"]]["methods"].append({method.get_display_name().Text: method, "node": node})
+            if configuration.get("rpc_methods"):
+                node = device["deviceNode"]
+                for method in node.get_methods():
+                    if self.__available_object_resources.get(device["deviceName"]) is None:
+                        self.__available_object_resources[device["deviceName"]] = {}
+                    if self.__available_object_resources[device["deviceName"]].get("methods") is None:
+                        self.__available_object_resources[device["deviceName"]]["methods"] = []
+                    for method_object in configuration["rpc_methods"]:
+                        node_method_name = method.get_display_name().Text
+                        if method_object["method"] == node_method_name or \
+                                re.fullmatch(method_object["method"], node_method_name):
+                            self.__available_object_resources[device["deviceName"]]["methods"].append({node_method_name: method, "node": node, "arguments": method_object.get("arguments")})
         except Exception as e:
             log.exception(e)
 
