@@ -208,6 +208,7 @@ class OpcUaConnector(Thread, Connector):
                 information_node = self.__search_node(device_info["deviceNode"], information_path)
                 if information_node is not None:
                     information_value = information_node.get_value()
+                    self.__sub.subscribe_data_change(information_node)
                     log.debug("Node for %s \"%s\" with path: %s - FOUND! Current values is: %s",
                               information_type,
                               information_key,
