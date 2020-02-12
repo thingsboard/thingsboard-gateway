@@ -183,8 +183,8 @@ class OpcUaConnector(Thread, Connector):
                             device_configuration = device_object[current_device]
                             device_info = self.__search_general_info(device_configuration)
                             if device_info is not None and device_info.get("deviceNode") is not None:
-                                self.__save_methods(device_info, device_configuration)
                                 self.__search_nodes_and_subscribe(device_configuration, device_info)
+                                self.__save_methods(device_info, device_configuration)
                                 self.__search_attribute_update_variables(device_configuration, device_info)
                             else:
                                 log.error("Device node is None, please check your configuration.")
@@ -207,7 +207,6 @@ class OpcUaConnector(Thread, Connector):
                 information["path"] = '${%s}' % information_path
                 information_node = self.__search_node(device_info["deviceNode"], information_path)
                 if information_node is not None:
-                    self.__save_methods(information_node, device_info)
                     information_value = information_node.get_value()
                     log.debug("Node for %s \"%s\" with path: %s - FOUND! Current values is: %s",
                               information_type,
@@ -237,18 +236,20 @@ class OpcUaConnector(Thread, Connector):
 
     def __save_methods(self, device, configuration):
         try:
+            if self.__available_object_resources.get(device["deviceName"]) is None:
+                self.__available_object_resources[device["deviceName"]] = {}
+            if self.__available_object_resources[device["deviceName"]].get("methods") is None:
+                self.__available_object_resources[device["deviceName"]]["methods"] = []
             if configuration.get("rpc_methods"):
                 node = device["deviceNode"]
-                for method in node.get_methods():
-                    if self.__available_object_resources.get(device["deviceName"]) is None:
-                        self.__available_object_resources[device["deviceName"]] = {}
-                    if self.__available_object_resources[device["deviceName"]].get("methods") is None:
-                        self.__available_object_resources[device["deviceName"]]["methods"] = []
-                    for method_object in configuration["rpc_methods"]:
+                for method_object in configuration["rpc_methods"]:
+                    method_node_path = self.__check_path(method_object["method"], node)
+                    method = self.__search_node(node, method_node_path)
+                    if method is not None:
                         node_method_name = method.get_display_name().Text
-                        if method_object["method"] == node_method_name or \
-                                re.fullmatch(method_object["method"], node_method_name):
-                            self.__available_object_resources[device["deviceName"]]["methods"].append({node_method_name: method, "node": node, "arguments": method_object.get("arguments")})
+                        self.__available_object_resources[device["deviceName"]]["methods"].append({node_method_name: method, "node": node, "arguments": method_object.get("arguments")})
+                    else:
+                        log.error("Node for method with path %s - NOT FOUND!", method_node_path)
         except Exception as e:
             log.exception(e)
 
@@ -257,14 +258,14 @@ class OpcUaConnector(Thread, Connector):
             if device_configuration.get("attributes_updates"):
                 node = device_info["deviceNode"]
                 device_name = device_info["deviceName"]
+                if self.__available_object_resources.get(device_name) is None:
+                    self.__available_object_resources[device_name] = {}
+                if self.__available_object_resources[device_name].get("variables") is None:
+                    self.__available_object_resources[device_name]["variables"] = []
                 for attribute_update in device_configuration["attributes_updates"]:
                     attribute_path = self.__check_path(attribute_update["attributeOnDevice"], node)
                     attribute_node = self.__search_node(node, attribute_path)
                     if attribute_node is not None:
-                        if self.__available_object_resources.get(device_name) is None:
-                            self.__available_object_resources[device_name] = {}
-                        if self.__available_object_resources[device_name].get("variables") is None:
-                            self.__available_object_resources[device_name]["variables"] = []
                         self.__available_object_resources[device_name]["variables"].append({attribute_update["attributeOnThingsBoard"]: attribute_node})
                     else:
                         log.error("Attribute update node with path \"%s\" - NOT FOUND!", attribute_path)
@@ -326,6 +327,9 @@ class OpcUaConnector(Thread, Connector):
                         log.debug("Search in %s", new_node_path)
                         result = self.__search_node(new_node, fullpath)
                     elif new_node_class == ua.NodeClass.Variable:
+                        log.debug("Found in %s", new_node_path)
+                        result = new_node
+                    elif new_node_class == ua.NodeClass.Method:
                         log.debug("Found in %s", new_node_path)
                         result = new_node
             return result
