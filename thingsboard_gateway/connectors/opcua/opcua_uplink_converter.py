@@ -32,7 +32,11 @@ class OpcUaUplinkConverter(OpcUaConverter):
             for information_type in information_types:
                 for information in self.__config[information_type]:
                     path = TBUtility.get_value(information["path"], get_tag=True)
-                    if path == config.replace('\\\\', '\\') or fullmatch(path, config.replace('\\\\', '\\')):
+                    if isinstance(config, tuple):
+                        config = config[0].replace('\\\\', '\\') if path == config[0].replace('\\\\', '\\') or fullmatch(path, config[0].replace('\\\\', '\\')) else config[1].replace('\\\\', '\\')
+                    else:
+                        config = config.replace('\\\\', '\\')
+                    if path == config or fullmatch(path, config):
                         result[information_types[information_type]].append({information["key"]: information["path"].replace("${"+path+"}", str(data))})
             return result
         except Exception as e:

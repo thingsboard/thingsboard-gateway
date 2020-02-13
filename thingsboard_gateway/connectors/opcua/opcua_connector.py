@@ -203,7 +203,7 @@ class OpcUaConnector(Thread, Connector):
             for information in device_configuration[information_type]:
                 information_key = information["key"]
                 config_path = TBUtility.get_value(information["path"], get_tag=True)
-                information_path = self.__check_path(config_path, device_info["deviceNode"])
+                information_path = self._check_path(config_path, device_info["deviceNode"])
                 information["path"] = '${%s}' % information_path
                 information_node = self.__search_node(device_info["deviceNode"], information_path)
                 if information_node is not None:
@@ -223,7 +223,8 @@ class OpcUaConnector(Thread, Connector):
                     else:
                         converter = device_configuration["uplink_converter"]
                     self.subscribed[information_node] = {"converter": converter,
-                                                         "path": information_path}
+                                                         "path": information_path,
+                                                         "config_path": config_path}
                     if not device_info.get(information_types[information_type]):
                         device_info[information_types[information_type]] = []
                     converted_data = converter.convert(information_path, information_value)
@@ -244,7 +245,7 @@ class OpcUaConnector(Thread, Connector):
             if configuration.get("rpc_methods"):
                 node = device["deviceNode"]
                 for method_object in configuration["rpc_methods"]:
-                    method_node_path = self.__check_path(method_object["method"], node)
+                    method_node_path = self._check_path(method_object["method"], node)
                     method = self.__search_node(node, method_node_path)
                     if method is not None:
                         node_method_name = method.get_display_name().Text
@@ -264,7 +265,7 @@ class OpcUaConnector(Thread, Connector):
                 if self.__available_object_resources[device_name].get("variables") is None:
                     self.__available_object_resources[device_name]["variables"] = []
                 for attribute_update in device_configuration["attributes_updates"]:
-                    attribute_path = self.__check_path(attribute_update["attributeOnDevice"], node)
+                    attribute_path = self._check_path(attribute_update["attributeOnDevice"], node)
                     attribute_node = self.__search_node(node, attribute_path)
                     if attribute_node is not None:
                         self.__available_object_resources[device_name]["variables"].append({attribute_update["attributeOnThingsBoard"]: attribute_node})
@@ -337,7 +338,7 @@ class OpcUaConnector(Thread, Connector):
         except Exception as e:
             log.exception(e)
 
-    def __check_path(self, config_path, node):
+    def _check_path(self, config_path, node):
         if re.search("^root", config_path.lower()) is None:
             node_path = '\\\\.'.join(
                 char.split(":")[1] for char in node.get_path(200000, True))
@@ -362,7 +363,7 @@ class SubHandler(object):
         try:
             log.debug("Python: New data change event on node %s, with val: %s", node, val)
             subscription = self.connector.subscribed[node]
-            converted_data = subscription["converter"].convert(subscription["path"], val)
+            converted_data = subscription["converter"].convert((subscription["config_path"], subscription["path"]), val)
             self.connector.statistics['MessagesReceived'] += 1
             self.connector.data_to_send.append(converted_data)
             self.connector.statistics['MessagesSent'] += 1
