@@ -280,32 +280,39 @@ class OpcUaConnector(Thread, Connector):
         if result["deviceNode"] is not None:
             name_pattern_config = device["deviceNamePattern"]
             name_expression = TBUtility.get_value(name_pattern_config, get_tag=True)
-            device_name_node = self.__search_node(self.__opcua_nodes["root"], name_expression)
-            if device_name_node is not None:
-                device_name_from_node = device_name_node.get_value()
-                full_device_name = name_pattern_config.replace("${" + name_expression + "}", device_name_from_node).replace(
-                    name_expression, device_name_from_node)
-                result["deviceName"] = full_device_name
-                log.debug("Device name: %s", full_device_name)
-                if device.get("deviceTypePattern"):
-                    device_type_expression = TBUtility.get_value(device["deviceTypePattern"],
-                                                                 get_tag=True)
+            if "${" in name_pattern_config and "}" in name_pattern_config:
+                device_name_node = self.__search_node(self.__opcua_nodes["root"], name_expression)
+                if device_name_node is not None:
+                    device_name_from_node = device_name_node.get_value()
+                    full_device_name = name_pattern_config.replace("${" + name_expression + "}", device_name_from_node).replace(
+                        name_expression, device_name_from_node)
+                else:
+                    log.error("Device name node not found with expression: %s", name_expression)
+                    return
+            else:
+                full_device_name = name_expression
+            result["deviceName"] = full_device_name
+            log.debug("Device name: %s", full_device_name)
+            if device.get("deviceTypePattern"):
+                device_type_expression = TBUtility.get_value(device["deviceTypePattern"],
+                                                             get_tag=True)
+                if "${" in device_type_expression and "}" in device_type_expression:
                     device_type_node = self.__search_node(self.__opcua_nodes["root"], device_type_expression)
                     if device_type_node is not None:
                         device_type = device_type_node.get_value()
                         full_device_type = device_type_expression.replace("${" + device_type_expression + "}",
                                                                           device_type).replace(device_type_expression,
                                                                                                device_type)
-                        result["deviceType"] = full_device_type
-                        log.debug("Device type: %s", full_device_type)
                     else:
                         log.error("Device type node not found with expression: %s", device_type_expression)
+                        full_device_type = "default"
                 else:
-                    result["deviceType"] = "default"
-                return result
+                    full_device_type = device_type_expression
+                result["deviceType"] = full_device_type
+                log.debug("Device type: %s", full_device_type)
             else:
-                log.error("Device name node not found with expression: %s", name_expression)
-                return
+                result["deviceType"] = "default"
+            return result
         else:
             log.error("Device node not found with expression: %s", TBUtility.get_value(device["deviceNodePattern"], get_tag=True))
 
