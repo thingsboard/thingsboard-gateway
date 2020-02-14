@@ -208,7 +208,6 @@ class OpcUaConnector(Thread, Connector):
                 information_node = self.__search_node(device_info["deviceNode"], information_path)
                 if information_node is not None:
                     information_value = information_node.get_value()
-                    self.__sub.subscribe_data_change(information_node)
                     log.debug("Node for %s \"%s\" with path: %s - FOUND! Current values is: %s",
                               information_type,
                               information_key,
@@ -227,14 +226,15 @@ class OpcUaConnector(Thread, Connector):
                                                          "config_path": config_path}
                     if not device_info.get(information_types[information_type]):
                         device_info[information_types[information_type]] = []
-                    converted_data = converter.convert(information_path, information_value)
+                    converted_data = converter.convert((config_path, information_path), information_value)
                     self.statistics['MessagesReceived'] += 1
                     self.data_to_send.append(converted_data)
                     self.statistics['MessagesSent'] += 1
+                    self.__sub.subscribe_data_change(information_node)
                     log.debug("Data to ThingsBoard: %s", converted_data)
                 else:
                     log.error("Node for %s \"%s\" with path %s - NOT FOUND!", information_type, information_key, information_path)
-        device_configuration.update(**device_info)
+        # device_configuration.update(**device_info)
 
     def __save_methods(self, device, configuration):
         try:
