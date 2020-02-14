@@ -57,8 +57,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
             if self.__config.get("attributes"):
                 for attribute in self.__config.get("attributes"):
                     attribute_value = TBUtility.get_value(attribute["value"], data, attribute["type"])
-                    tag = TBUtility.get_value(attribute["value"], data, attribute["type"], get_tag=True)
-                    if attribute_value is not None and data.get(tag) is not None and attribute_value != attribute["value"]:
+                    if attribute_value is not None and attribute_value != attribute["value"]:
                         dict_result["attributes"].append({attribute["key"]: attribute_value})
                     else:
                         log.debug("%s key not found in message: %s", attribute["value"].replace("${", '"').replace("}", '"'), data)
@@ -69,8 +68,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
             if self.__config.get("timeseries"):
                 for ts in self.__config.get("timeseries"):
                     ts_value = TBUtility.get_value(ts["value"], data, ts["type"])
-                    tag = TBUtility.get_value(ts["value"], data, ts["type"], get_tag=True)
-                    if ts_value is not None and data.get(tag) is not None and ts_value != ts["value"]:
+                    if ts_value is not None and ts_value != ts["value"]:
                         if data.get('ts') is not None or data.get('timestamp') is not None:
                             dict_result["telemetry"].append({"ts": data.get('ts', data.get('timestamp', int(time()))), 'values': {ts['key']: ts_value}})
                         else:
