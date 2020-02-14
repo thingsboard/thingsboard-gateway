@@ -5,6 +5,7 @@
     "scanPeriodInMillis": 10000,
     "timeoutInMillis": 5000,
     "security": "Basic128Rsa15",
+    "showMap": false,
     "identity": {
       "type": "anonymous"
     },
