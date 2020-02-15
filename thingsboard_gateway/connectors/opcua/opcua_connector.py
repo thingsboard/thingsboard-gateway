@@ -90,7 +90,6 @@ class OpcUaConnector(Thread, Connector):
         while not self.__connected:
             try:
                 self.__connected = self.client.connect()
-                self.client.load_type_definitions()
                 log.debug(self.client.get_namespace_array()[-1])
                 log.debug(self.client.get_namespace_index(self.client.get_namespace_array()[-1]))
             except ConnectionRefusedError:
