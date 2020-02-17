@@ -90,6 +90,11 @@ class OpcUaConnector(Thread, Connector):
         while not self.__connected:
             try:
                 self.__connected = self.client.connect()
+                try:
+                    self.client.load_type_definitions()
+                except Exception as e:
+                    log.debug(e)
+                    log.debug("Error on loading type definitions.")
                 log.debug(self.client.get_namespace_array()[-1])
                 log.debug(self.client.get_namespace_index(self.client.get_namespace_array()[-1]))
             except ConnectionRefusedError:
