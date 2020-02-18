@@ -1,0 +1,79 @@
+{
+  "host": "127.0.0.1",
+  "port": "5000",
+  "mapping":[
+    {
+      "endpoint": "/test_device",
+      "HTTPMethod": [
+        "POST"
+      ],
+      "security":
+      {
+        "type": "basic",
+        "username": "user",
+        "password": "passwd"
+      },
+      "converter": {
+        "type": "json",
+        "deviceNameExpression": "Device ${name}",
+        "deviceTypeExpression": "default",
+        "attributes": [
+          {
+            "type": "string",
+            "key": "model",
+            "value": "${sensorModel}"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "double",
+            "key": "temperature",
+            "value": "${temp}"
+          },
+          {
+            "type": "double",
+            "key": "humidity",
+            "value": "${hum}",
+            "converter": "CustomConverter"
+          }
+        ]
+      }
+    },
+    {
+      "endpoint": "/test",
+      "HTTPMethod": [
+        "GET",
+        "POST"
+      ],
+      "security":
+      {
+        "type": "anonymous"
+      },
+      "converter": {
+        "type": "custom",
+        "class": "CustomConverter",
+        "deviceNameExpression": "Device 2",
+        "deviceTypeExpression": "default",
+        "attributes": [
+          {
+            "type": "string",
+            "key": "model",
+            "value": "Model2"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "double",
+            "key": "temperature",
+            "value": "${temp}"
+          },
+          {
+            "type": "double",
+            "key": "humidity",
+            "value": "${hum}"
+          }
+        ]
+      }
+    }
+  ]
+}
