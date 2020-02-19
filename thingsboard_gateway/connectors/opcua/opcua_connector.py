@@ -27,7 +27,7 @@ from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUpl
 
 class OpcUaConnector(Thread, Connector):
     def __init__(self, gateway, config, connector_type):
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         super().__init__()
@@ -35,7 +35,7 @@ class OpcUaConnector(Thread, Connector):
         self.__server_conf = config.get("server")
         self.__interest_nodes = []
         self.__available_object_resources = {}
-        self.__show_map = config.get("showMap", False)
+        self.__show_map = self.__server_conf.get("showMap", False)
         for mapping in self.__server_conf["mapping"]:
             if mapping.get("deviceNodePattern") is not None:
                 self.__interest_nodes.append({mapping["deviceNodePattern"]: mapping})
@@ -221,7 +221,7 @@ class OpcUaConnector(Thread, Connector):
                         if device_configuration.get('converter') is None:
                             converter = OpcUaUplinkConverter(device_configuration)
                         else:
-                            converter = TBUtility.check_and_import(self.__connector_type, device_configuration['converter'])
+                            converter = TBUtility.check_and_import(self._connector_type, device_configuration['converter'])
                         device_configuration["uplink_converter"] = converter
                     else:
                         converter = device_configuration["uplink_converter"]
@@ -250,7 +250,7 @@ class OpcUaConnector(Thread, Connector):
                 node = device["deviceNode"]
                 for method_object in configuration["rpc_methods"]:
                     method_node_path = self._check_path(method_object["method"], node)
-                    method = self.__search_node(node, method_node_path)
+                    method = self.__search_node(node, method_node_path, True)
                     if method is not None:
                         node_method_name = method.get_display_name().Text
                         self.__available_object_resources[device["deviceName"]]["methods"].append({node_method_name: method, "node": node, "arguments": method_object.get("arguments")})
@@ -285,11 +285,12 @@ class OpcUaConnector(Thread, Connector):
             name_pattern_config = device["deviceNamePattern"]
             name_expression = TBUtility.get_value(name_pattern_config, get_tag=True)
             if "${" in name_pattern_config and "}" in name_pattern_config:
+                log.debug("Looking for device name")
                 device_name_node = self.__search_node(self.__opcua_nodes["root"], name_expression)
                 if device_name_node is not None:
                     device_name_from_node = device_name_node.get_value()
-                    full_device_name = name_pattern_config.replace("${" + name_expression + "}", device_name_from_node).replace(
-                        name_expression, device_name_from_node)
+                    full_device_name = name_pattern_config.replace("${" + name_expression + "}", str(device_name_from_node)).replace(
+                        name_expression, str(device_name_from_node))
                 else:
                     log.error("Device name node not found with expression: %s", name_expression)
                     return
@@ -320,32 +321,33 @@ class OpcUaConnector(Thread, Connector):
         else:
             log.error("Device node not found with expression: %s", TBUtility.get_value(device["deviceNodePattern"], get_tag=True))
 
-    def __search_node(self, current_node, fullpath):
+    def __search_node(self, current_node, fullpath, search_method=False):
         try:
-            result = None
             for child_node in current_node.get_children():
                 new_node = self.client.get_node(child_node)
                 new_node_path = '\\\\.'.join(char.split(":")[1] for char in new_node.get_path(200000, True))
+                if self.__show_map:
+                    log.debug("SHOW MAP: Current node path: %s", new_node_path)
                 new_node_class = new_node.get_node_class()
                 regex_fullmatch = re.fullmatch(new_node_path.replace('\\\\', '\\'), fullpath) or new_node_path.replace('\\\\', '\\') == fullpath
+                regex_search = re.search(new_node_path, fullpath.replace('\\\\', '\\'))
                 if regex_fullmatch:
                     if self.__show_map:
                         log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path.replace('\\\\', '\\'))
                     return new_node
-                regex_search = re.search(new_node_path, fullpath.replace('\\\\', '\\'))
-                if regex_search:
+                elif regex_search:
                     if self.__show_map:
                         log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path)
                     if new_node_class == ua.NodeClass.Object:
                         log.debug("Search in %s", new_node_path)
-                        result = self.__search_node(new_node, fullpath)
+                        return self.__search_node(new_node, fullpath)
                     elif new_node_class == ua.NodeClass.Variable:
                         log.debug("Found in %s", new_node_path)
-                        result = new_node
-                    elif new_node_class == ua.NodeClass.Method:
+                        return new_node
+                    elif new_node_class == ua.NodeClass.Method and search_method:
                         log.debug("Found in %s", new_node_path)
-                        result = new_node
-            return result
+                        return new_node
+            return None
         except Exception as e:
             log.exception(e)
 
