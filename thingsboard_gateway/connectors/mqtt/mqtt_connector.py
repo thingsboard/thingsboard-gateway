@@ -30,7 +30,7 @@ class MqttConnector(Connector, Thread):
         super().__init__()
         self.__log = log
         self.config = config
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.__gateway = gateway
@@ -147,7 +147,7 @@ class MqttConnector(Connector, Thread):
                     converter = None
                     if mapping["converter"]["type"] == "custom":
                         try:
-                            module = TBUtility.check_and_import(self.__connector_type, mapping["converter"]["extension"])
+                            module = TBUtility.check_and_import(self._connector_type, mapping["converter"]["extension"])
                             if module is not None:
                                 self.__log.debug('Custom converter for topic %s - found!', mapping["topicFilter"])
                                 converter = module(mapping)
@@ -246,7 +246,7 @@ class MqttConnector(Connector, Thread):
                         if message.topic in request.get("topicFilter") or\
                                 (request.get("deviceNameTopicExpression") is not None and search(request.get("deviceNameTopicExpression"), message.topic)):
                             founded_device_name = None
-                            founded_device_type
+                            founded_device_type = 'default'
                             if request.get("deviceNameJsonExpression"):
                                 founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"], content)
                             if request.get("deviceNameTopicExpression"):

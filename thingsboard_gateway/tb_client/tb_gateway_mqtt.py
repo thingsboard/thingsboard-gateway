@@ -24,6 +24,7 @@ GATEWAY_ATTRIBUTES_REQUEST_TOPIC = "v1/gateway/attributes/request"
 GATEWAY_ATTRIBUTES_RESPONSE_TOPIC = "v1/gateway/attributes/response"
 GATEWAY_MAIN_TOPIC = "v1/gateway/"
 GATEWAY_RPC_TOPIC = "v1/gateway/rpc"
+GATEWAY_RPC_RESPONSE_TOPIC = "v1/gateway/rpc/response"
 
 log = logging.getLogger("tb_connection")
 log.setLevel(logging.DEBUG)
@@ -43,6 +44,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
         self._client.on_subscribe = self._on_subscribe
+        self._client._on_unsubscribe = self._on_unsubscribe
         self._gw_subscriptions = {}
         self.gateway = gateway
 
@@ -52,6 +54,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
             self._gw_subscriptions[int(self._client.subscribe(GATEWAY_ATTRIBUTES_TOPIC, qos=1)[1])] = GATEWAY_ATTRIBUTES_TOPIC
             self._gw_subscriptions[int(self._client.subscribe(GATEWAY_ATTRIBUTES_RESPONSE_TOPIC + "/+")[1])] = GATEWAY_ATTRIBUTES_RESPONSE_TOPIC
             self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_TOPIC + "/+")[1])] = GATEWAY_RPC_TOPIC
+            self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_RESPONSE_TOPIC + "/+")[1])] = GATEWAY_RPC_RESPONSE_TOPIC
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         subscription = self._gw_subscriptions.get(mid)
@@ -62,6 +65,9 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
             else:
                 log.debug("Service subscription to topic %s - successfully completed.", subscription)
                 del(self._gw_subscriptions[mid])
+
+    def _on_unsubscribe(self, *args):
+        log.debug(args)
 
     def get_subscriptions_in_progress(self):
         return True if self._gw_subscriptions else False

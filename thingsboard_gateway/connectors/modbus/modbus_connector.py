@@ -33,7 +33,7 @@ class ModbusConnector(Connector, threading.Thread):
                            'MessagesSent': 0}
         super().__init__()
         self.__gateway = gateway
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.__master = None
         self.__config = config.get("server")
         self.__configure_master()
@@ -70,11 +70,11 @@ class ModbusConnector(Connector, threading.Thread):
         try:
             for device in self.__config["devices"]:
                 if self.__config.get("converter") is not None:
-                    converter = TBUtility.check_and_import(self.__connector_type, self.__config["converter"])(device)
+                    converter = TBUtility.check_and_import(self._connector_type, self.__config["converter"])(device)
                 else:
                     converter = BytesModbusUplinkConverter(device)
                 if self.__config.get("downlink_converter") is not None:
-                    downlink_converter = TBUtility.check_and_import(self.__connector_type, self.__config["downlink_converter"])(device)
+                    downlink_converter = TBUtility.check_and_import(self._connector_type, self.__config["downlink_converter"])(device)
                 else:
                     downlink_converter = BytesModbusDownlinkConverter(device)
                 if device.get('deviceName') not in self.__gateway.get_devices():

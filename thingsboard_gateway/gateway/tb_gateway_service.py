@@ -20,7 +20,7 @@ from yaml import safe_dump, safe_load
 from simplejson import load, loads, dumps
 from os import listdir, path
 from sys import getsizeof
-from threading import Thread
+from threading import Thread, RLock
 from random import choice
 from string import ascii_lowercase
 from queue import Queue
@@ -37,6 +37,7 @@ main_handler = logging.handlers.MemoryHandler(-1)
 
 class TBGatewayService:
     def __init__(self, config_file=None):
+        self.__lock = RLock()
         if config_file is None:
             config_file = path.dirname(path.dirname(path.abspath(__file__))) + '/config/tb_gateway.yaml'.replace('/', path.sep)
         with open(config_file) as general_config:
@@ -87,9 +88,9 @@ class TBGatewayService:
             self.__remote_configurator.send_current_configuration()
         self.__load_persistent_devices()
         self.__published_events = Queue(0)
-        self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
-                                    name="Send data to Thingsboard Thread")
-        self.__send_thread.start()
+        self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
+                                   name="Send data to Thingsboard Thread")
+        self._send_thread.start()
 
         try:
             gateway_statistic_send = 0
@@ -118,7 +119,8 @@ class TBGatewayService:
 
                 if cur_time - gateway_statistic_send > 5000.0 and self.tb_client.is_connected():
                     summary_messages = self.__form_statistics()
-                    self.tb_client.client.send_telemetry(summary_messages)
+                    with self.__lock:
+                        self.tb_client.client.send_telemetry(summary_messages)
                     gateway_statistic_send = time.time()*1000
                     # self.__check_shared_attributes()
         except KeyboardInterrupt:
@@ -154,10 +156,10 @@ class TBGatewayService:
                 if new_configuration is not None and self.__remote_configurator is not None:
                     try:
                         confirmed = self.__remote_configurator.process_configuration(new_configuration)
-                        if confirmed:
-                            self.__send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
-                                                        name="Send data to Thingsboard Thread")
-                            self.__send_thread.start()
+                        # if confirmed:
+                            # self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
+                            #                            name="Send data to Thingsboard Thread")
+                            # self._send_thread.start()
                         self.__remote_configurator.send_current_configuration()
                     except Exception as e:
                         log.exception(e)
@@ -267,7 +269,8 @@ class TBGatewayService:
             try:
                 if self.tb_client.is_connected():
                     size = getsizeof(devices_data_in_event_pack)
-                    events = self._event_storage.get_event_pack()
+                    with self.__lock:
+                        events = self._event_storage.get_event_pack()
                     if events:
                         for event in events:
                             try:
@@ -330,24 +333,25 @@ class TBGatewayService:
 
     def __send_data(self, devices_data_in_event_pack):
         try:
-            for device in devices_data_in_event_pack:
-                if devices_data_in_event_pack[device].get("attributes"):
-                    if device == self.name:
-                        self.__published_events.put(self.tb_client.client.send_attributes(devices_data_in_event_pack[device]["attributes"]))
-                    else:
-                        self.__published_events.put(self.tb_client.client.gw_send_attributes(device,
-                                                                                             devices_data_in_event_pack[
-                                                                                             device][
-                                                                                             "attributes"]))
-                if devices_data_in_event_pack[device].get("telemetry"):
-                    if device == self.name:
-                        self.__published_events.put(self.tb_client.client.send_telemetry(devices_data_in_event_pack[device]["telemetry"]))
-                    else:
-                        self.__published_events.put(self.tb_client.client.gw_send_telemetry(device,
-                                                                                            devices_data_in_event_pack[
-                                                                                            device][
-                                                                                            "telemetry"]))
-                devices_data_in_event_pack[device] = {"telemetry": [], "attributes": {}}
+            with self.__lock:
+                for device in devices_data_in_event_pack:
+                    if devices_data_in_event_pack[device].get("attributes"):
+                        if device == self.name:
+                            self.__published_events.put(self.tb_client.client.send_attributes(devices_data_in_event_pack[device]["attributes"]))
+                        else:
+                            self.__published_events.put(self.tb_client.client.gw_send_attributes(device,
+                                                                                                 devices_data_in_event_pack[
+                                                                                                 device][
+                                                                                                 "attributes"]))
+                    if devices_data_in_event_pack[device].get("telemetry"):
+                        if device == self.name:
+                            self.__published_events.put(self.tb_client.client.send_telemetry(devices_data_in_event_pack[device]["telemetry"]))
+                        else:
+                            self.__published_events.put(self.tb_client.client.gw_send_telemetry(device,
+                                                                                                devices_data_in_event_pack[
+                                                                                                device][
+                                                                                                "telemetry"]))
+                    devices_data_in_event_pack[device] = {"telemetry": [], "attributes": {}}
         except Exception as e:
             log.exception(e)
 
@@ -373,8 +377,9 @@ class TBGatewayService:
                         if self.connectors_configs.get(module):
                             log.debug("Connector \"%s\" for RPC request \"%s\" found", module, content["method"])
                             for connector_name in self.available_connectors:
-                                log.debug("Sending command RPC %s to connector %s", content["method"], connector_name)
-                                result = self.available_connectors[connector_name].server_side_rpc_handler(content)
+                                if self.available_connectors[connector_name]._connector_type == module:
+                                    log.debug("Sending command RPC %s to connector %s", content["method"], connector_name)
+                                    result = self.available_connectors[connector_name].server_side_rpc_handler(content)
                         else:
                             log.error("Connector \"%s\" not found", module)
                             result = {"error": "%s - connector not found in available connectors." % module, "code": 404}
@@ -402,11 +407,11 @@ class TBGatewayService:
                 if success_sent:
                     rpc_response["success"] = True
             if device is not None and success_sent is not None:
-                self.tb_client.client.gw_send_rpc_reply(device, req_id, rpc_response)
+                self.tb_client.client.gw_send_rpc_reply(device, req_id, dumps(rpc_response))
             elif device is not None and req_id is not None and content is not None:
                 self.tb_client.client.gw_send_rpc_reply(device, req_id, content)
             elif device is None and success_sent is not None:
-                self.tb_client.client.send_rpc_reply(req_id, rpc_response, quality_of_service=1)
+                self.tb_client.client.send_rpc_reply(req_id, dumps(rpc_response), quality_of_service=1)
             elif device is None and content is not None:
                 self.tb_client.client.send_rpc_reply(req_id, content, quality_of_service=1)
         except Exception as e:
@@ -441,7 +446,6 @@ class TBGatewayService:
                     self.available_connectors[connector].statistics['MessagesReceived']
                 telemetry[(connector_camel_case + ' EventsSent').replace(' ', '')] = \
                     self.available_connectors[connector].statistics['MessagesSent']
-                self.tb_client.client.send_telemetry(telemetry)
                 summary_messages['eventsProduced'] += telemetry[
                     str(connector_camel_case + ' EventsProduced').replace(' ', '')]
                 summary_messages['eventsSent'] += telemetry[
