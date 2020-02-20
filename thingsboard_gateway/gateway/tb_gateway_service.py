@@ -440,19 +440,18 @@ class TBGatewayService:
         summary_messages = {"eventsProduced": 0, "eventsSent": 0}
         telemetry = {}
         for connector in self.available_connectors:
-            if self.available_connectors[connector].is_connected():
-                connector_camel_case = connector[0].lower() + connector[1:].replace(' ', '')
-                telemetry[(connector_camel_case + ' EventsProduced').replace(' ', '')] = \
-                    self.available_connectors[connector].statistics['MessagesReceived']
-                self.available_connectors[connector].statistics['MessagesReceived'] = 0
-                telemetry[(connector_camel_case + ' EventsSent').replace(' ', '')] = \
-                    self.available_connectors[connector].statistics['MessagesSent']
-                self.available_connectors[connector].statistics['MessagesSent'] = 0
-                summary_messages['eventsProduced'] += telemetry[
-                    str(connector_camel_case + ' EventsProduced').replace(' ', '')]
-                summary_messages['eventsSent'] += telemetry[
-                    str(connector_camel_case + ' EventsSent').replace(' ', '')]
-                summary_messages.update(**telemetry)
+            connector_camel_case = connector[0].lower() + connector[1:].replace(' ', '')
+            telemetry[(connector_camel_case + ' EventsProduced').replace(' ', '')] = \
+                self.available_connectors[connector].statistics['MessagesReceived']
+            self.available_connectors[connector].statistics['MessagesReceived'] = 0
+            telemetry[(connector_camel_case + ' EventsSent').replace(' ', '')] = \
+                self.available_connectors[connector].statistics['MessagesSent']
+            self.available_connectors[connector].statistics['MessagesSent'] = 0
+            summary_messages['eventsProduced'] += telemetry[
+                str(connector_camel_case + ' EventsProduced').replace(' ', '')]
+            summary_messages['eventsSent'] += telemetry[
+                str(connector_camel_case + ' EventsSent').replace(' ', '')]
+            summary_messages.update(**telemetry)
         return summary_messages
 
     def add_device(self, device_name, content, wait_for_publish=False, device_type=None):
