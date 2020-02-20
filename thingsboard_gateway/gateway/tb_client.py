@@ -115,6 +115,8 @@ class TBClient(threading.Thread):
                                             min_reconnect_delay=self.__min_reconnect_delay)
                     except ConnectionRefusedError:
                         pass
+                    except Exception as e:
+                        log.exception(e)
                 time.sleep(1)
         except Exception as e:
             log.exception(e)
