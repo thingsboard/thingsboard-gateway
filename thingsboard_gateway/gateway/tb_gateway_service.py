@@ -440,7 +440,7 @@ class TBGatewayService:
         summary_messages = {"eventsProduced": 0, "eventsSent": 0}
         telemetry = {}
         for connector in self.available_connectors:
-            connector_camel_case = connector[0].lower() + connector[1:].replace(' ', '')
+            connector_camel_case = connector.lower().replace(' ', '')
             telemetry[(connector_camel_case + ' EventsProduced').replace(' ', '')] = \
                 self.available_connectors[connector].statistics['MessagesReceived']
             self.available_connectors[connector].statistics['MessagesReceived'] = 0
