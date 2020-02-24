@@ -21,6 +21,7 @@ from random import choice
 from string import ascii_lowercase
 from opcua import Client, ua
 from copy import deepcopy
+from concurrent.futures import TimeoutError
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
@@ -102,6 +103,9 @@ class OpcUaConnector(Thread, Connector):
             except ConnectionRefusedError:
                 log.error("Connection refused on connection to OPC-UA server with url %s", self.__server_conf.get("url"))
                 time.sleep(10)
+            except OSError:
+                log.error("Connection refused on connection to OPC-UA server with url %s", self.__server_conf.get("url"))
+                time.sleep(10)
             except Exception as e:
                 log.debug("error on connection to OPC-UA server.")
                 log.error(e)
@@ -109,30 +113,65 @@ class OpcUaConnector(Thread, Connector):
             else:
                 self.__connected = True
                 log.info("OPC-UA connector %s connected to server %s", self.get_name(), self.__server_conf.get("url"))
-        self.__opcua_nodes["root"] = self.client.get_root_node()
+        self.__opcua_nodes["root"] = self.client.get_objects_node()
         self.__opcua_nodes["objects"] = self.client.get_objects_node()
         self.__sub = self.client.create_subscription(self.__server_conf.get("scanPeriodInMillis", 500), self.__sub_handler)
         self.__scan_nodes_from_config()
         self.__previous_scan_time = time.time() * 1000
         log.debug('Subscriptions: %s', self.subscribed)
         log.debug("Available methods: %s", self.__available_object_resources)
-        while True:
+        while not self.__stopped:
             try:
-                time.sleep(1)
-                if time.time()*1000 - self.__previous_scan_time > self.__server_conf.get("scanPeriodInMillis", 60000):
-                    self.__scan_nodes_from_config()
-                    self.__previous_scan_time = time.time() * 1000
-                elif self.data_to_send:
-                    self.__gateway.send_to_storage(self.get_name(), self.data_to_send.pop())
+                time.sleep(.1)
+                self.__check_connection()
+                if not self.__connected and not self.__stopped:
+                    self.client.connect()
+                elif not self.__stopped:
+                    if time.time()*1000 - self.__previous_scan_time > self.__server_conf.get("scanPeriodInMillis", 60000):
+                        self.__scan_nodes_from_config()
+                        self.__previous_scan_time = time.time() * 1000
+                    elif self.data_to_send:
+                        self.__gateway.send_to_storage(self.get_name(), self.data_to_send.pop())
                 if self.__stopped:
                     self.close()
                     break
             except (KeyboardInterrupt, SystemExit):
                 self.close()
                 raise
+            except ConnectionRefusedError:
+                log.error("Connection refused on connection to OPC-UA server with url %s", self.__server_conf.get("url"))
+                time.sleep(10)
             except Exception as e:
                 self.close()
                 log.exception(e)
+
+    def __check_connection(self):
+        try:
+            node = self.client.get_root_node()
+            node.get_children()
+            self.__connected = True
+        except ConnectionRefusedError:
+            self.__connected = False
+            self._subscribed = {}
+            self.__sub = None
+        except OSError:
+            self.__connected = False
+            self._subscribed = {}
+            self.__sub = None
+        except TimeoutError:
+            self.__connected = False
+            self._subscribed = {}
+            self.__sub = None
+        except AttributeError:
+            self.__connected = False
+            self._subscribed = {}
+            self.__sub = None
+        except Exception as e:
+            self.__connected = False
+            self._subscribed = {}
+            self.__sub = None
+            log.exception(e)
+
 
     def close(self):
         self.__stopped = True
@@ -245,6 +284,9 @@ class OpcUaConnector(Thread, Connector):
                         self.statistics['MessagesReceived'] += 1
                         self.data_to_send.append(converted_data)
                         self.statistics['MessagesSent'] += 1
+                        if self.__sub is None:
+                            self.__sub = self.client.create_subscription(self.__server_conf.get("scanPeriodInMillis", 500),
+                                                                         self.__sub_handler)
                         self.__sub.subscribe_data_change(information_node)
                         log.debug("Added subscription to node: %s", str(information_node))
                         log.debug("Data to ThingsBoard: %s", converted_data)
