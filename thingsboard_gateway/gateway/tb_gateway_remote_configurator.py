@@ -109,6 +109,7 @@ class RemoteConfigurator:
             self.__new_connectors_configs = {}
             self.__old_general_configuration_file = self.__new_general_configuration_file
             self.__old_logs_configuration = self.__new_logs_configuration
+            self.__update_logs_configuration()
             self.__new_logs_configuration = None
             self.__new_general_configuration_file = {}
             return True
@@ -256,9 +257,10 @@ class RemoteConfigurator:
             new_logging_level = findall(r'level=(.*)', self.__new_logs_configuration.replace("NONE", "NOTSET"))[-1]
             with open(logs_conf_file_path, 'w') as logs:
                 logs.write(self.__new_logs_configuration.replace("NONE", "NOTSET")+"\r\n")
-            fileConfig(logs_conf_file_path)
-            self.__gateway.main_handler = MemoryHandler(-1)
-            self.__gateway.remote_handler = TBLoggerHandler(self.__gateway)
+            # fileConfig(logs_conf_file_path)
+            # self.__gateway.main_handler = MemoryHandler(-1)
+            self.__gateway.main_handler.setLevel(new_logging_level)
+            # self.__gateway.remote_handler = TBLoggerHandler(self.__gateway)
             self.__gateway.main_handler.setTarget(self.__gateway.remote_handler)
             if new_logging_level == "NOTSET":
                 self.__gateway.remote_handler.deactivate()

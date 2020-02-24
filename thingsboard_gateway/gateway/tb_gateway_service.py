@@ -57,6 +57,7 @@ class TBGatewayService:
         self.tb_client = TBClient(config["thingsboard"])
         self.tb_client.connect()
         self.subscribe_to_required_topics()
+        self.counter = 0
         global main_handler
         self.main_handler = main_handler
         self.remote_handler = TBLoggerHandler(self)
@@ -275,6 +276,7 @@ class TBGatewayService:
                         events = self._event_storage.get_event_pack()
                     if events:
                         for event in events:
+                            self.counter += 1
                             try:
                                 current_event = loads(event)
                             except Exception as e:
@@ -315,7 +317,7 @@ class TBGatewayService:
                             while not self._published_events.empty():
                                 if self.__remote_configurator.in_process or not self.tb_client.is_connected() or self._published_events.empty():
                                     break
-                                event = self._published_events.get(True, 10)
+                                event = self._published_events.get(False, 10)
                                 try:
                                     if self.tb_client.is_connected() and (self.__remote_configurator is None or not self.__remote_configurator.in_process):
                                         success = event.get() == event.TB_ERR_SUCCESS
