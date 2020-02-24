@@ -26,6 +26,7 @@ setup(
     install_requires=[
         'cffi',
         'jsonpath-rw',
+        'regex',
         'pip',
         'jsonschema==3.1.1',
         'lxml',
@@ -38,7 +39,7 @@ setup(
         'simplejson',
         'pyrsistent'
     ],
-    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.1.0.7.tar.gz',
+    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.1.0.8.tar.gz',
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'
