@@ -17,6 +17,7 @@ from simplejson import dumps, loads, dump
 from yaml import safe_dump
 from time import time, sleep
 from logging import getLogger
+from re import findall
 from logging.config import fileConfig
 from logging.handlers import MemoryHandler
 from os import remove
@@ -48,6 +49,9 @@ class RemoteConfigurator:
         try:
             if not self.in_process:
                 self.in_process = True
+                # while not self.__gateway._published_events.empty():
+                #     log.debug("Waiting for end of the data processing...")
+                #     sleep(1)
                 decoded_configuration = b64decode(configuration)
                 self.__new_configuration = loads(decoded_configuration)
                 self.__old_connectors_configs = self.__gateway.connectors_configs
@@ -243,23 +247,24 @@ class RemoteConfigurator:
 
     def __update_logs_configuration(self):
         try:
-            if self.__old_logs_configuration == self.__new_logs_configuration:
-                remote_handler_current_state = self.__gateway.remote_handler.activated
-                remote_handler_current_level = self.__gateway.remote_handler.current_log_level
-                logs_conf_file_path = self.__gateway._config_dir + 'logs.conf'
-                with open(logs_conf_file_path, 'w') as logs:
-                    logs.write(self.__new_logs_configuration+"\r\n")
-                fileConfig(logs_conf_file_path)
-                self.__gateway.main_handler = MemoryHandler(-1)
-                self.__gateway.remote_handler = TBLoggerHandler(self.__gateway)
-                self.__gateway.main_handler.setTarget(self.__gateway.remote_handler)
-                if remote_handler_current_level != 'NOTSET':
-                    self.__gateway.remote_handler.activate(remote_handler_current_level)
-                if not remote_handler_current_state:
-                    self.__gateway.remote_handler.deactivate()
-                global log
-                log = getLogger('service')
-                log.debug("Logs configuration has been updated.")
+            # if self.__old_logs_configuration != self.__new_logs_configuration:
+            global log
+            log = getLogger('service')
+            remote_handler_current_state = self.__gateway.remote_handler.activated
+            remote_handler_current_level = self.__gateway.remote_handler.current_log_level
+            logs_conf_file_path = self.__gateway._config_dir + 'logs.conf'
+            new_logging_level = findall(r'level=(.*)', self.__new_logs_configuration.replace("NONE", "NOTSET"))[-1]
+            with open(logs_conf_file_path, 'w') as logs:
+                logs.write(self.__new_logs_configuration.replace("NONE", "NOTSET")+"\r\n")
+            fileConfig(logs_conf_file_path)
+            self.__gateway.main_handler = MemoryHandler(-1)
+            self.__gateway.remote_handler = TBLoggerHandler(self.__gateway)
+            self.__gateway.main_handler.setTarget(self.__gateway.remote_handler)
+            if new_logging_level == "NOTSET":
+                self.__gateway.remote_handler.deactivate()
+            else:
+                self.__gateway.remote_handler.activate(new_logging_level)
+            log.debug("Logs configuration has been updated.")
         except Exception as e:
             log.exception(e)
 

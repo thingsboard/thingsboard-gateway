@@ -87,7 +87,7 @@ class TBGatewayService:
         if self.__remote_configurator is not None:
             self.__remote_configurator.send_current_configuration()
         self.__load_persistent_devices()
-        self.__published_events = Queue(0)
+        self._published_events = Queue(0)
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
         self._send_thread.start()
@@ -119,8 +119,8 @@ class TBGatewayService:
 
                 if cur_time - gateway_statistic_send > 5000.0 and self.tb_client.is_connected():
                     summary_messages = self.__form_statistics()
-                    with self.__lock:
-                        self.tb_client.client.send_telemetry(summary_messages)
+                    # with self.__lock:
+                    self.tb_client.client.send_telemetry(summary_messages)
                     gateway_statistic_send = time.time()*1000
                     # self.__check_shared_attributes()
         except KeyboardInterrupt:
@@ -269,7 +269,9 @@ class TBGatewayService:
             try:
                 if self.tb_client.is_connected():
                     size = getsizeof(devices_data_in_event_pack)
-                    with self.__lock:
+                    # with self.__lock:
+                    events = []
+                    if self.__remote_configurator is None or not self.__remote_configurator.in_process:
                         events = self._event_storage.get_event_pack()
                     if events:
                         for event in events:
@@ -308,12 +310,17 @@ class TBGatewayService:
                         if devices_data_in_event_pack:
                             if not self.tb_client.is_connected(): break
                             self.__send_data(devices_data_in_event_pack)
-                        if self.tb_client.is_connected():
+                        if self.tb_client.is_connected() and (self.__remote_configurator is None or not self.__remote_configurator.in_process):
                             success = True
-                            while not self.__published_events.empty():
-                                event = self.__published_events.get()
+                            while not self._published_events.empty():
+                                if self.__remote_configurator.in_process or not self.tb_client.is_connected() or self._published_events.empty():
+                                    break
+                                event = self._published_events.get(True, 10)
                                 try:
-                                    success = event.get() == event.TB_ERR_SUCCESS
+                                    if self.tb_client.is_connected() and (self.__remote_configurator is None or not self.__remote_configurator.in_process):
+                                        success = event.get() == event.TB_ERR_SUCCESS
+                                    else:
+                                        break
                                 except Exception as e:
                                     log.exception(e)
                                     success = False
@@ -333,25 +340,24 @@ class TBGatewayService:
 
     def __send_data(self, devices_data_in_event_pack):
         try:
-            with self.__lock:
-                for device in devices_data_in_event_pack:
-                    if devices_data_in_event_pack[device].get("attributes"):
-                        if device == self.name:
-                            self.__published_events.put(self.tb_client.client.send_attributes(devices_data_in_event_pack[device]["attributes"]))
-                        else:
-                            self.__published_events.put(self.tb_client.client.gw_send_attributes(device,
-                                                                                                 devices_data_in_event_pack[
-                                                                                                 device][
-                                                                                                 "attributes"]))
-                    if devices_data_in_event_pack[device].get("telemetry"):
-                        if device == self.name:
-                            self.__published_events.put(self.tb_client.client.send_telemetry(devices_data_in_event_pack[device]["telemetry"]))
-                        else:
-                            self.__published_events.put(self.tb_client.client.gw_send_telemetry(device,
-                                                                                                devices_data_in_event_pack[
-                                                                                                device][
-                                                                                                "telemetry"]))
-                    devices_data_in_event_pack[device] = {"telemetry": [], "attributes": {}}
+            for device in devices_data_in_event_pack:
+                if devices_data_in_event_pack[device].get("attributes"):
+                    if device == self.name:
+                        self._published_events.put(self.tb_client.client.send_attributes(devices_data_in_event_pack[device]["attributes"]))
+                    else:
+                        self._published_events.put(self.tb_client.client.gw_send_attributes(device,
+                                                                                            devices_data_in_event_pack[
+                                                                                             device][
+                                                                                             "attributes"]))
+                if devices_data_in_event_pack[device].get("telemetry"):
+                    if device == self.name:
+                        self._published_events.put(self.tb_client.client.send_telemetry(devices_data_in_event_pack[device]["telemetry"]))
+                    else:
+                        self._published_events.put(self.tb_client.client.gw_send_telemetry(device,
+                                                                                           devices_data_in_event_pack[
+                                                                                            device][
+                                                                                            "telemetry"]))
+                devices_data_in_event_pack[device] = {"telemetry": [], "attributes": {}}
         except Exception as e:
             log.exception(e)
 
