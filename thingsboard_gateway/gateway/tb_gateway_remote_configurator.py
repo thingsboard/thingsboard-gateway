@@ -101,7 +101,6 @@ class RemoteConfigurator:
             self.__write_new_configuration_files()
         self.__apply_storage_configuration()
         if self.__safe_apply_connection_configuration():
-            self.__update_logs_configuration()
             log.info("Remote configuration has been applied.")
             with open(self.__gateway._config_dir + "tb_gateway.yaml", "w") as general_configuration_file:
                 safe_dump(self.__new_general_configuration_file, general_configuration_file)
@@ -248,7 +247,6 @@ class RemoteConfigurator:
 
     def __update_logs_configuration(self):
         try:
-            # if self.__old_logs_configuration != self.__new_logs_configuration:
             global log
             log = getLogger('service')
             remote_handler_current_state = self.__gateway.remote_handler.activated

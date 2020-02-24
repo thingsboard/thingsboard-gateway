@@ -88,7 +88,7 @@ class TBGatewayService:
         if self.__remote_configurator is not None:
             self.__remote_configurator.send_current_configuration()
         self.__load_persistent_devices()
-        self._published_events = Queue(0)
+        self._published_events = Queue(-1)
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
         self._send_thread.start()
@@ -317,6 +317,7 @@ class TBGatewayService:
                             success = True
                             while not self._published_events.empty():
                                 if self.__remote_configurator.in_process or not self.tb_client.is_connected() or self._published_events.empty():
+                                    success = False
                                     break
                                 event = self._published_events.get(False, 10)
                                 try:
