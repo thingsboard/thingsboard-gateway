@@ -18,7 +18,7 @@ import logging.handlers
 
 class TBLoggerHandler(logging.Handler):
     def __init__(self, gateway):
-        self.current_log_level = 'NOTSET'
+        self.current_log_level = 'INFO'
         super().__init__(logging.getLevelName(self.current_log_level))
         self.setLevel(logging.getLevelName('DEBUG'))
         self.__gateway = gateway
