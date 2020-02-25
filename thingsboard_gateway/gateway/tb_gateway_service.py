@@ -316,7 +316,7 @@ class TBGatewayService:
                         if self.tb_client.is_connected() and (self.__remote_configurator is None or not self.__remote_configurator.in_process):
                             success = True
                             while not self._published_events.empty():
-                                if self.__remote_configurator.in_process or not self.tb_client.is_connected() or self._published_events.empty():
+                                if (self.__remote_configurator is not None and self.__remote_configurator.in_process) or not self.tb_client.is_connected() or self._published_events.empty():
                                     success = False
                                     break
                                 event = self._published_events.get(False, 10)
