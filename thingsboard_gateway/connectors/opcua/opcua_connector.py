@@ -115,7 +115,10 @@ class OpcUaConnector(Thread, Connector):
                 log.info("OPC-UA connector %s connected to server %s", self.get_name(), self.__server_conf.get("url"))
         self.__opcua_nodes["root"] = self.client.get_objects_node()
         self.__opcua_nodes["objects"] = self.client.get_objects_node()
-        self.__sub = self.client.create_subscription(self.__server_conf.get("scanPeriodInMillis", 500), self.__sub_handler)
+        if not self.__server_conf.get("disableSubscriptions", False):
+            self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
+        else:
+            self.__sub = False
         self.__scan_nodes_from_config()
         self.__previous_scan_time = time.time() * 1000
         log.debug('Subscriptions: %s', self.subscribed)
@@ -127,10 +130,11 @@ class OpcUaConnector(Thread, Connector):
                 if not self.__connected and not self.__stopped:
                     self.client.connect()
                 elif not self.__stopped:
-                    if time.time()*1000 - self.__previous_scan_time > self.__server_conf.get("scanPeriodInMillis", 60000):
+                    if self.__server_conf.get("disableSubscriptions", False) and time.time()*1000 - self.__previous_scan_time > self.__server_conf.get("scanPeriodInMillis", 60000):
                         self.__scan_nodes_from_config()
                         self.__previous_scan_time = time.time() * 1000
-                    elif self.data_to_send:
+
+                    if self.data_to_send:
                         self.__gateway.send_to_storage(self.get_name(), self.data_to_send.pop())
                 if self.__stopped:
                     self.close()
@@ -285,9 +289,9 @@ class OpcUaConnector(Thread, Connector):
                         self.data_to_send.append(converted_data)
                         self.statistics['MessagesSent'] += 1
                         if self.__sub is None:
-                            self.__sub = self.client.create_subscription(self.__server_conf.get("scanPeriodInMillis", 500),
-                                                                         self.__sub_handler)
-                        self.__sub.subscribe_data_change(information_node)
+                            self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
+                        if self.__sub:
+                            self.__sub.subscribe_data_change(information_node)
                         log.debug("Added subscription to node: %s", str(information_node))
                         log.debug("Data to ThingsBoard: %s", converted_data)
                     else:
@@ -412,7 +416,8 @@ class OpcUaConnector(Thread, Connector):
                     if self.__show_map:
                         log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path)
                     if new_node_class == ua.NodeClass.Object:
-                        log.debug("Search in %s", new_node_path)
+                        if self.__show_map:
+                            log.debug("SHOW MAP: Search in %s", new_node_path)
                         self.__search_node(new_node, fullpath, result=result)
                     elif new_node_class == ua.NodeClass.Variable:
                         log.debug("Found in %s", new_node_path)
