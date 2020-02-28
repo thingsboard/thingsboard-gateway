@@ -52,9 +52,9 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         super()._on_connect(client, userdata, flags, rc, *extra_params)
         if rc == 0:
             self._gw_subscriptions[int(self._client.subscribe(GATEWAY_ATTRIBUTES_TOPIC, qos=1)[1])] = GATEWAY_ATTRIBUTES_TOPIC
-            self._gw_subscriptions[int(self._client.subscribe(GATEWAY_ATTRIBUTES_RESPONSE_TOPIC + "/+")[1])] = GATEWAY_ATTRIBUTES_RESPONSE_TOPIC
-            self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_TOPIC + "/+")[1])] = GATEWAY_RPC_TOPIC
-            self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_RESPONSE_TOPIC + "/+")[1])] = GATEWAY_RPC_RESPONSE_TOPIC
+            self._gw_subscriptions[int(self._client.subscribe(GATEWAY_ATTRIBUTES_RESPONSE_TOPIC)[1])] = GATEWAY_ATTRIBUTES_RESPONSE_TOPIC
+            self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_TOPIC)[1])] = GATEWAY_RPC_TOPIC
+            # self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_RESPONSE_TOPIC)[1])] = GATEWAY_RPC_RESPONSE_TOPIC
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
         subscription = self._gw_subscriptions.get(mid)
