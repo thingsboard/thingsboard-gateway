@@ -76,6 +76,8 @@ class TBGatewayService:
         }
         self.__gateway_rpc_methods = {
             "ping": self.__rpc_ping,
+            "stats": self.__form_statistics,
+            "devices": self.__rpc_devices,
         }
         self.__sheduled_rpc_calls = []
         self.__self_rpc_sheduled_methods_functions = {
@@ -108,17 +110,16 @@ class TBGatewayService:
                 cur_time = time.time()*1000
                 if self.__sheduled_rpc_calls:
                     for rpc_call_index in range(len(self.__sheduled_rpc_calls)):
-                        rpc_call = self.__sheduled_rpc_calls.pop(rpc_call_index)
-                        if rpc_call != 'del' and cur_time > rpc_call[0]:
+                        rpc_call = self.__sheduled_rpc_calls[rpc_call_index]
+                        if cur_time > rpc_call[0]:
+                            rpc_call = self.__sheduled_rpc_calls.pop(rpc_call_index)
                             result = None
                             try:
                                 result = rpc_call[1]["function"](*rpc_call[1]["arguments"])
                             except Exception as e:
                                 log.exception(e)
-                            log.info(result)
-                        else:
-                            del rpc_call
-                        rpc_call = "del"
+                            if result == 256:
+                                log.warning("Error on RPC command: 256. Permission denied.")
                 if self.__rpc_requests_in_progress and self.tb_client.is_connected():
                     for rpc_in_progress, data in self.__rpc_requests_in_progress.items():
                         if cur_time >= data[1]:
@@ -445,6 +446,13 @@ class TBGatewayService:
 
     def __rpc_ping(self, *args):
         return {"code": 200, "resp": "pong"}
+
+    def __rpc_devices(self, *args):
+        data_to_send = {}
+        for device in self.__connected_devices:
+            if self.__connected_devices[device]["connector"] is not None:
+                data_to_send[device] = self.__connected_devices[device]["connector"].get_name()
+        return {"code": 200, "resp": data_to_send}
 
     def rpc_with_reply_processing(self, topic, content):
         req_id = self.__rpc_requests_in_progress[topic][0]["data"]["id"]
