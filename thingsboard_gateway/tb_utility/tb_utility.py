@@ -128,10 +128,24 @@ class TBUtility:
                 if full_value is None and expression_instead_none:
                     full_value = expression
             else:
-                try:
-                    full_value = body.get(target_str.split()[0])
-                except Exception as e:
-                    log.exception(e)
+                if full_value is None:
+                    try:
+                        jsonpath_expression = parse(target_str)
+                        jsonpath_match = jsonpath_expression.find(body)
+                        if jsonpath_match is not None:
+                            full_value = jsonpath_match[0].value
+                    except Exception:
+                        full_value = None
+                if full_value is None:
+                    try:
+                        full_value = search(expression, body).group(0)
+                    except Exception:
+                        full_value = None
+                if full_value is None:
+                    try:
+                        full_value = body.get(target_str.split()[0])
+                    except Exception as e:
+                        log.exception(e)
         except TypeError:
             if full_value is None:
                 log.error('Value is None - Cannot find the pattern: %s in %s. Expression will be interpreted as value.', target_str, dumps(body))
