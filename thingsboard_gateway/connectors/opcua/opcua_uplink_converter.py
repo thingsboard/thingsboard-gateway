@@ -36,7 +36,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
                         config_information = config[0].replace('\\\\', '\\') if path == config[0].replace('\\\\', '\\') or fullmatch(path, config[0].replace('\\\\', '\\')) else config[1].replace('\\\\', '\\')
                     else:
                         config_information = config.replace('\\\\', '\\')
-                    if path == config_information or fullmatch(path, config_information):
+                    if path == config_information or fullmatch(path, config_information) or path.replace('\\\\', '\\') == config_information:
                         result[information_types[information_type]].append({information["key"]: information["path"].replace("${"+path+"}", str(data))})
             return result
         except Exception as e:
