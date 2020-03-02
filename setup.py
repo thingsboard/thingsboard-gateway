@@ -37,7 +37,8 @@ setup(
         'pytz',
         'PyYAML',
         'simplejson',
-        'pyrsistent'
+        'pyrsistent',
+        'requests'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.2.tar.gz',
     entry_points={
