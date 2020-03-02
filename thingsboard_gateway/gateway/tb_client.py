@@ -31,7 +31,7 @@ class TBClient(threading.Thread):
         self.__port = config.get("port", 1883)
         credentials = config["security"]
         self.__min_reconnect_delay = 10
-        self.__tls = True if credentials.get('tls', False) else False
+        self.__tls = True if credentials.get('tls', False) or credentials.get('caCert', False) else False
         self.__ca_cert = None
         self.__private_key = None
         self.__cert = None
