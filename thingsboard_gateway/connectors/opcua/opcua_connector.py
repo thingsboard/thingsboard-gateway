@@ -393,42 +393,54 @@ class OpcUaConnector(Thread, Connector):
         return result
 
     def __search_node(self, current_node, fullpath, search_method=False, result=[]):
-        fullpath_pattern = regex.compile(fullpath)
         try:
-            for child_node in current_node.get_children():
-                new_node = self.client.get_node(child_node)
-                new_node_path = '\\\\.'.join(char.split(":")[1] for char in new_node.get_path(200000, True))
+            if regex.match("ns=\d*;[isgb]=.*", fullpath, regex.IGNORECASE):
                 if self.__show_map:
-                    log.debug("SHOW MAP: Current node path: %s", new_node_path)
-                new_node_class = new_node.get_node_class()
-                # regex_fullmatch = re.fullmatch(fullpath, new_node_path.replace('\\\\.', '.')) or new_node_path.replace('\\\\', '\\') == fullpath
-                regex_fullmatch = regex.fullmatch(fullpath_pattern, new_node_path.replace('\\\\.', '.')) or \
-                                  new_node_path.replace('\\\\', '\\') == fullpath.replace('\\\\', '\\') or \
-                                  new_node_path.replace('\\\\', '\\') == fullpath
-                regex_search = fullpath_pattern.fullmatch(new_node_path.replace('\\\\.', '.'), partial=True) or \
-                                  new_node_path.replace('\\\\', '\\') in fullpath.replace('\\\\', '\\')
-                # regex_search = re.search(new_node_path, fullpath.replace('\\\\', '\\'))
-                if regex_fullmatch:
+                    log.debug("Looking for node with config")
+                node = self.client.get_node(fullpath)
+                if node is None:
+                    log.warn("NODE NOT FOUND - using configuration %s", fullpath)
+                else:
+                    log.debug("Found in %s", node)
+                    result.append(node)
+            else:
+                fullpath_pattern = regex.compile(fullpath)
+                for child_node in current_node.get_children():
+                    new_node = self.client.get_node(child_node)
+                    new_node_path = '\\\\.'.join(char.split(":")[1] for char in new_node.get_path(200000, True))
                     if self.__show_map:
-                        log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path.replace('\\\\', '\\'))
-                    result.append(new_node)
-                elif regex_search:
-                    if self.__show_map:
-                        log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path)
-                    if new_node_class == ua.NodeClass.Object:
+                        log.debug("SHOW MAP: Current node path: %s", new_node_path)
+                    new_node_class = new_node.get_node_class()
+                    # regex_fullmatch = re.fullmatch(fullpath, new_node_path.replace('\\\\.', '.')) or new_node_path.replace('\\\\', '\\') == fullpath
+                    regex_fullmatch = regex.fullmatch(fullpath_pattern, new_node_path.replace('\\\\.', '.')) or \
+                                      new_node_path.replace('\\\\', '\\') == fullpath.replace('\\\\', '\\') or \
+                                      new_node_path.replace('\\\\', '\\') == fullpath
+                    regex_search = fullpath_pattern.fullmatch(new_node_path.replace('\\\\.', '.'), partial=True) or \
+                                      new_node_path.replace('\\\\', '\\') in fullpath.replace('\\\\', '\\')
+                    # regex_search = re.search(new_node_path, fullpath.replace('\\\\', '\\'))
+                    if regex_fullmatch:
                         if self.__show_map:
-                            log.debug("SHOW MAP: Search in %s", new_node_path)
-                        self.__search_node(new_node, fullpath, result=result)
-                    elif new_node_class == ua.NodeClass.Variable:
-                        log.debug("Found in %s", new_node_path)
+                            log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path.replace('\\\\', '\\'))
                         result.append(new_node)
-                    elif new_node_class == ua.NodeClass.Method and search_method:
-                        log.debug("Found in %s", new_node_path)
-                        result.append(new_node)
+                    elif regex_search:
+                        if self.__show_map:
+                            log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path)
+                        if new_node_class == ua.NodeClass.Object:
+                            if self.__show_map:
+                                log.debug("SHOW MAP: Search in %s", new_node_path)
+                            self.__search_node(new_node, fullpath, result=result)
+                        elif new_node_class == ua.NodeClass.Variable:
+                            log.debug("Found in %s", new_node_path)
+                            result.append(new_node)
+                        elif new_node_class == ua.NodeClass.Method and search_method:
+                            log.debug("Found in %s", new_node_path)
+                            result.append(new_node)
         except Exception as e:
             log.exception(e)
 
     def _check_path(self, config_path, node):
+        if regex.match("ns=\d*;[isgb]=.*", config_path, regex.IGNORECASE):
+            return config_path
         if re.search("^root", config_path.lower()) is None:
             node_path = '\\\\.'.join(
                 char.split(":")[1] for char in node.get_path(200000, True))

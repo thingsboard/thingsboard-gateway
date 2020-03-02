@@ -17,8 +17,8 @@
         "deviceNamePattern": "Device ${Root\\.Objects\\.Device1\\.serialNumber}",
         "attributes": [
           {
-            "key": "temperature",
-            "path": "${TemperatureAndHumiditySensor\\.Temperature}"
+            "key": "temperature °C",
+            "path": "${ns=2;i=5}"
           }
         ],
         "timeseries": [
