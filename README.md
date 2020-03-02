@@ -5,7 +5,7 @@ Thingsboard is an open-source IoT platform for data collection, processing, visu
 
 [**What is ThingsBoard IoT Gateway?**](https://thingsboard.io/docs/iot-gateway/what-is-iot-gateway/)  
 
-![ThingsBoard IoT Gateway architecture](http://thingsboard.io/images/gateway/python-gateway.png)
+![ThingsBoard IoT Gateway architecture](https://thingsboard.io/images/gw_animation.gif)
 
 ### Gateway features
 
