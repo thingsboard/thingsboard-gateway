@@ -55,6 +55,11 @@ class EventStorageWriter:
             if self.current_file_records_count[0] - self.previous_file_records_count[0] >= self.settings.get_max_records_between_fsync():
                 self.previous_file_records_count = self.current_file_records_count[:]
                 self.buffered_writer.flush()
+            try:
+                if self.buffered_writer is not None and self.buffered_writer.closed is False:
+                    self.buffered_writer.close()
+            except IOError as e:
+                log.warning("Failed to close buffered writer! %s", e)
         except IOError as e:
             log.warning("Failed to update data file![%s]\n%s", self.current_file, e)
 

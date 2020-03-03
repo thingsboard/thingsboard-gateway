@@ -17,6 +17,7 @@ from thingsboard_gateway.connectors.mqtt.json_mqtt_uplink_converter import JsonM
 from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 from random import randint
+from time import sleep
 import logging
 import os
 import base64
@@ -104,10 +105,11 @@ class TestStorage(unittest.TestCase):
              "max_read_records_count": 10,
              "no_records_sleep_interval": 5000
         }
-        storage = FileEventStorage('storage', storage_test_config)
+        storage = FileEventStorage(storage_test_config)
 
         for test_value in range(test_size * 10):
             storage.put(str(test_value))
+            sleep(.01)
 
         result = []
         for _ in range(test_size):
