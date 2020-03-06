@@ -32,7 +32,7 @@ setup(
         'lxml',
         'opcua',
         'paho-mqtt',
-        'pymodbus',
+        'pymodbus>=2.3.0',
         'pyserial',
         'pytz',
         'PyYAML',

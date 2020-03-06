@@ -50,10 +50,16 @@ class BytesModbusUplinkConverter(ModbusConverter):
                     reg_count = data_sent.get("registerCount", 1)
                     type_of_data = data_sent["type"]
                     try:
-                        if byte_order == "LITTLE":
-                            decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Little)
-                        elif byte_order == "BIG":
-                            decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Big)
+                        try:
+                            if byte_order == "LITTLE":
+                                decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Little)
+                            elif byte_order == "BIG":
+                                decoder = BinaryPayloadDecoder.fromRegisters(result, byteorder=Endian.Big)
+                        except TypeError:
+                            if byte_order == "LITTLE":
+                                decoder = BinaryPayloadDecoder.fromRegisters(result, endian=Endian.Little)
+                            elif byte_order == "BIG":
+                                decoder = BinaryPayloadDecoder.fromRegisters(result, endian=Endian.Big)
                         else:
                             log.warning("byte order is not BIG or LITTLE")
                             # continue
