@@ -27,7 +27,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         dict_result = {"deviceName": None, "deviceType": None,"attributes": [], "telemetry": []}
         try:
             if self.__config.get("deviceNameJsonExpression") is not None:
-                dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data)
+                dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data, expression_instead_none=True)
             elif self.__config.get("deviceNameTopicExpression") is not None:
                 search_result = search(self.__config["deviceNameTopicExpression"], config)
                 if search_result is not None:
@@ -38,7 +38,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
             else:
                 log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
             if self.__config.get("deviceTypeJsonExpression") is not None:
-                dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data)
+                dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data, expression_instead_none=True)
             elif self.__config.get("deviceTypeTopicExpression") is not None:
                 search_result = search(self.__config["deviceTypeTopicExpression"], config)
                 if search_result is not None:
