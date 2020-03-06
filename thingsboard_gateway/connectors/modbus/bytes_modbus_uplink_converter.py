@@ -116,7 +116,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
                     elif int(result):
                         self.__result[config_data].append({tag: result})
                 except ValueError:
-                    self.__result[config_data].append({tag: int(result, 16)})
+                    try:
+                        self.__result[config_data].append({tag: int(result, 16)})
+                    except ValueError:
+                        self.__result[config_data].append({tag: result.decode('UFT-8')})
         self.__result["telemetry"] = self.__result.pop("timeseries")
         log.debug(self.__result)
         return self.__result
