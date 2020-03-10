@@ -15,10 +15,13 @@
 from random import choice
 from string import ascii_lowercase
 from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_application import TBBACnetApplication
 from threading import Thread
+from bacpypes.core import run, stop
+from time import time, sleep
 
 
-class BacknetConnector(Thread, Connector):
+class BACnetConnector(Thread, Connector):
     def __init__(self, gateway, config, connector_type):
         self.__connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
@@ -27,21 +30,39 @@ class BacknetConnector(Thread, Connector):
         self.__config = config
         self.setName(config.get('name', 'BACnet ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__gateway = gateway
+        self._application = TBBACnetApplication(self.__config)
+        self.__bacnet_core_thread = Thread(target=run, name="BACnet core thread")
+        self.__bacnet_core_thread.start()
         self.__stopped = False
+        self.__poll_period = self.__config["general"].get("pollPeriod", 5000)
+        self.__previous_check_time = 0
         self.__connected = False
         self.daemon = True
 
     def open(self):
-        pass
+        self.__stopped = False
+        self.start()
+
+    def run(self):
+        self.__connected = True
+        while not self.__stopped:
+            cur_time = time()*1000
+            if cur_time - self.__previous_check_time >= self.__poll_period:
+                self._application.do_read("192.168.0.4", "analogValue:1", "presentValue")
+                self.__previous_check_time = cur_time
+            else:
+                sleep(.01)
 
     def close(self):
-        pass
+        self.__stopped = True
+        self.__connected = False
+        stop()
 
     def get_name(self):
-        pass
+        return self.name
 
     def is_connected(self):
-        pass
+        return self.__connected
 
     def on_attributes_update(self, content):
         pass

@@ -68,6 +68,7 @@ class TBGatewayService:
             "opcua": "OpcUaConnector",
             "ble": "BLEConnector",
             "request": "RequestConnector",
+            "bacnet": "BACnetConnector",
         }
         self._implemented_connectors = {}
         self._event_storage_types = {
