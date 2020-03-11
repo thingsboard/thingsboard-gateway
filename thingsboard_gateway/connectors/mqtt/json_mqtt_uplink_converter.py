@@ -24,6 +24,8 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         self.__config = config.get('converter')
 
     def convert(self, config, data):
+        datatypes = {"attributes": "attributes",
+                     "timeseries": "telemetry"}
         dict_result = {"deviceName": None, "deviceType": None,"attributes": [], "telemetry": []}
         try:
             if self.__config.get("deviceNameJsonExpression") is not None:
@@ -48,36 +50,24 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                     dict_result["deviceType"] = self.__config.get("deviceTypeTopicExpression")
             else:
                 log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
-            dict_result["attributes"] = []
-            dict_result["telemetry"] = []
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
         try:
-            if self.__config.get("attributes"):
-                for attribute in self.__config.get("attributes"):
-                    attribute_value = TBUtility.get_value(attribute["value"], data, attribute["type"])
-                    tag = TBUtility.get_value(attribute["value"], data, attribute["type"], get_tag=True)
-                    if attribute_value is not None and attribute_value != attribute["value"]:
-                        dict_result["attributes"].append({attribute["key"]: str(attribute["value"]).replace('${' + tag + '}', str(attribute_value))})
-                    else:
-                        log.debug("%s key not found in message: %s", str(attribute["value"]).replace("${", '"').replace("}", '"'), str(data))
-        except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
-            log.exception(e)
-        try:
-            if self.__config.get("timeseries"):
-                for ts in self.__config.get("timeseries"):
-                    ts_value = TBUtility.get_value(ts["value"], data, ts["type"])
-                    tag = TBUtility.get_value(ts["value"], data, ts["type"], get_tag=True)
-                    if ts_value is not None and ts_value != ts["value"]:
-                        if data.get('ts') is not None or data.get('timestamp') is not None:
-                            dict_result["telemetry"].append({"ts": data.get('ts', data.get('timestamp', int(time()))), 'values': {ts['key']: str(ts["value"]).replace('${' + tag + '}', str(ts_value))}})
+            for datatype in datatypes:
+                dict_result[datatypes[datatype]] = []
+                for datatype_config in self.__config.get(datatype, []):
+                    value = TBUtility.get_value(datatype_config["value"], data, datatype_config["type"])
+                    tag = TBUtility.get_value(datatype_config["value"], data, datatype_config["type"], get_tag=True)
+                    if value is not None and value != datatype_config["value"]:
+                        is_string = isinstance(value, str)
+                        full_value = datatype_config["value"].replace('${' + tag + '}', value) if is_string else value
+                        if datatype == 'timeseries' and (data.get("ts") is not None or data.get("timestamp") is not None):
+                            dict_result[datatypes[datatype]].append({"ts": data.get('ts', data.get('timestamp', int(time()))), 'values': {datatype_config['key']: full_value}})
                         else:
-                            dict_result["telemetry"].append({ts["key"]: str(ts["value"]).replace('${' + tag + '}', str(ts_value))})
-                    else:
-                        log.debug("%s key not found in message: %s", str(ts["value"]).replace("${", '"').replace("}", '"'), str(data))
+                            dict_result[datatypes[datatype]].append({datatype_config["key"]: full_value})
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
             log.exception(e)
-        return dict_result
+        finally:
+            return dict_result
