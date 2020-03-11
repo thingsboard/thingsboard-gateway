@@ -61,7 +61,7 @@ class ModbusConnector(Connector, threading.Thread):
         self.__connected = True
 
         while True:
-            time.sleep(1)
+            time.sleep(.01)
             self.__process_devices()
             if self.__stopped:
                 break
