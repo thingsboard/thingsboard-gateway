@@ -15,7 +15,9 @@
 from random import choice
 from string import ascii_lowercase
 from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.bacnet.bacnet_converter import BACnetUplinkConverter
 from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_application import TBBACnetApplication
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from threading import Thread
 from bacpypes.core import run, stop
 from time import time, sleep
@@ -35,7 +37,7 @@ class BACnetConnector(Thread, Connector):
         self.__bacnet_core_thread.start()
         self.__stopped = False
         self.__poll_period = self.__config["general"].get("pollPeriod", 5000)
-        self.__previous_check_time = 0
+        self.__devices = self.__config["devices"]
         self.__connected = False
         self.daemon = True
 
@@ -47,11 +49,17 @@ class BACnetConnector(Thread, Connector):
         self.__connected = True
         while not self.__stopped:
             cur_time = time()*1000
-            if cur_time - self.__previous_check_time >= self.__poll_period:
-                self._application.do_read("192.168.0.4", "analogValue:1", "presentValue")
-                self.__previous_check_time = cur_time
-            else:
-                sleep(.01)
+            for device in self.__devices:
+                if cur_time - self.__devices[device["name"]] >= self.__poll_period:
+                    device_address = device["address"]
+                    device_object_identifier = device["objectIdentifier"]
+                    device_name = TBUtility.get_value(device["name"], expression_instead_none=True)
+                    for mapping_object in device["mapping"]:
+                        converter = TBUtility.check_and_import(self.__connector_type, )
+                        data_to_thingsboard = self._application.do_read("192.168.0.4", "analogValue:1", "presentValue")
+                        self.__devices["device"]["name"] = cur_time
+                else:
+                    sleep(.01)
 
     def close(self):
         self.__stopped = True

@@ -46,6 +46,11 @@ connectors:
 #    configuration: request.json
 #
 #  -
+#    name: BACnet Connector
+#    type: bacnet
+#    configuration: bacnet.json
+#
+#  -
 #    name: Custom Serial Connector
 #    type: serial
 #    configuration: custom_serial.json
