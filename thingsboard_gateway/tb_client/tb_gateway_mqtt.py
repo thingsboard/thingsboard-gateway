@@ -155,8 +155,8 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         info = self._client.publish(topic=GATEWAY_MAIN_TOPIC + "disconnect", payload=dumps({"device": device_name}),
                                     qos=1)
         self.__connected_devices.remove(device_name)
-        if self.gateway:
-            self.gateway.on_device_disconnected(self, device_name)
+        # if self.gateway:
+        #     self.gateway.on_device_disconnected(self, device_name)
         log.debug("Disconnected device {name}".format(name=device_name))
         return info
 
