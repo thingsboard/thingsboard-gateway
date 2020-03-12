@@ -12,8 +12,8 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 
-from simplejson import dumps
 import struct
+from simplejson import dumps
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.request.request_converter import RequestConverter, log
 
@@ -23,7 +23,7 @@ class CustomRequestUplinkConverter(RequestConverter):
         self.__config = config.get('converter')
         self.dict_result = {}
 
-    def convert(self, topic, body):
+    def convert(self, _, body):
         try:
             data = body["data"]["value"]
             self.dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), body, expression_instead_none=True)

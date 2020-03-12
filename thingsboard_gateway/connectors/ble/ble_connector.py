@@ -12,14 +12,16 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from bluepy import __path__ as bluepy_path
+import time
+from random import choice
 from pprint import pformat
+from threading import Thread
+from string import ascii_lowercase
+
+from bluepy import __path__ as bluepy_path
 from bluepy.btle import DefaultDelegate, Peripheral, Scanner, UUID, capitaliseName
 from bluepy.btle import BTLEDisconnectError, BTLEManagementError, BTLEGattError
-from random import choice
-from string import ascii_lowercase
-import time
-from threading import Thread
+
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.ble.bytes_ble_uplink_converter import BytesBLEUplinkConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility

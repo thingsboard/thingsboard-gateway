@@ -64,8 +64,6 @@ class BytesModbusUplinkConverter(ModbusConverter):
         log.debug(self.__result)
         return self.__result
 
-
-
     def __decode_from_registers(self, decoder, configuration):
         type_ = configuration["type"]
         registers_count = configuration.get("registerCount", 1)
