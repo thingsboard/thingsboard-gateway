@@ -12,16 +12,14 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import os
+import time
+import json
 from thingsboard_gateway.storage.event_storage import EventStorage, log
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
 from thingsboard_gateway.storage.event_storage_writer import EventStorageWriter
 from thingsboard_gateway.storage.event_storage_reader import EventStorageReader
 from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
-from random import choice
-from string import ascii_lowercase
-import os
-import time
-import json
 
 
 class FileEventStorage(EventStorage):
@@ -54,7 +52,7 @@ class FileEventStorage(EventStorage):
             try:
                 os.makedirs(path)
             except OSError as e:
-                log.error('Failed to create data folder!', e)
+                log.error('Failed to create data folder! Error: %s', e)
 
     def init_data_files(self):
         data_files = []
@@ -86,5 +84,4 @@ class FileEventStorage(EventStorage):
             file.close()
             return prefix + filename + '.txt'
         except IOError as e:
-            log.error("Failed to create a new file!", e)
-            pass
+            log.error("Failed to create a new file! Error: %s", e)

@@ -86,7 +86,7 @@ class EventStorageReader:
                     # No more records to read for now
                     continue
             except IOError as e:
-                log.warning("[{}] Failed to read file!".format(self.new_pos.get_file(), e))
+                log.warning("[%s] Failed to read file! Error: %s", self.new_pos.get_file(), e)
                 break
             except Exception as e:
                 log.exception(e)
@@ -130,7 +130,7 @@ class EventStorageReader:
             return self.buffered_reader
 
         except IOError as e:
-            log.error("Failed to initialize buffered reader!", e)
+            log.error("Failed to initialize buffered reader! Error: %s", e)
             raise RuntimeError("Failed to initialize buffered reader!", e)
 
     def read_state_file(self):
@@ -138,13 +138,13 @@ class EventStorageReader:
             state_data_node = {}
             try:
                 with BufferedReader(FileIO(self.settings.get_data_folder_path() +
-                                                 self.files.get_state_file(), 'r')) as br:
-                    state_data_node = load(br)
+                                                 self.files.get_state_file(), 'r')) as buffered_reader:
+                    state_data_node = load(buffered_reader)
             except JSONDecodeError:
                 log.error("Failed to decode JSON from state file")
                 state_data_node = 0
             except IOError as e:
-                log.warning("Failed to fetch info from state file!", e)
+                log.warning("Failed to fetch info from state file! Error: %s", e)
             reader_file = None
             reader_pos = 0
             if state_data_node:
@@ -169,7 +169,7 @@ class EventStorageReader:
             with open(self.settings.get_data_folder_path() + self.files.get_state_file(), 'w') as outfile:
                 outfile.write(dumps(state_file_node))
         except IOError as e:
-            log.warning("Failed to update state file!", e)
+            log.warning("Failed to update state file! Error: %s", e)
         except Exception as e:
             log.exception(e)
 

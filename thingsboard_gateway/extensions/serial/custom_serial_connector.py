@@ -52,7 +52,7 @@ class CustomSerialConnector(Thread, Connector):    # Define a connector class, i
                         or not self.devices[device]["serial"].isOpen():    # Connect only if serial not available earlier or it is closed.
                     self.devices[device]["serial"] = None
                     while self.devices[device]["serial"] is None or not self.devices[device]["serial"].isOpen():    # Try connect
-                        '''connection to serial port with parameters from configuration file or default'''
+                        # connection to serial port with parameters from configuration file or default
                         self.devices[device]["serial"] = serial.Serial(
                                  port=self.__config.get('port', '/dev/ttyUSB0'),
                                  baudrate=self.__config.get('baudrate', 9600),
@@ -112,21 +112,21 @@ class CustomSerialConnector(Thread, Connector):    # Define a connector class, i
         try:
             while True:
                 for device in self.devices:
-                    serial = self.devices[device]["serial"]
+                    device_serial_port = self.devices[device]["serial"]
                     ch = b''
                     data_from_device = b''
-                    while ch != b'\n':
+                    while ch != b'\n':  # We will read until receive LF symbol
                         try:
                             try:
-                                ch = serial.read(1)    # Reading data from serial
+                                ch = device_serial_port.read(1)    # Read one symbol per time
                             except AttributeError as e:
-                                if serial is None:
+                                if device_serial_port is None:
                                     self.__connect_to_devices()    # if port not found - try to connect to it
                                     raise e
                             data_from_device = data_from_device + ch
                         except Exception as e:
                             log.exception(e)
-                            continue
+                            break
                     try:
                         converted_data = self.devices[device]['converter'].convert(self.devices[device]['device_config'], data_from_device)
                         self.__gateway.send_to_storage(self.get_name(), converted_data)

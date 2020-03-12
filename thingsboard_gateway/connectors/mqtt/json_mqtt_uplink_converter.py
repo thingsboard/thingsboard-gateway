@@ -69,5 +69,4 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
             log.exception(e)
-        finally:
-            return dict_result
+        return dict_result

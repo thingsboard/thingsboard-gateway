@@ -27,6 +27,7 @@ import requests
 from requests import Timeout
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
+# pylint: disable=E1101
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 
 
@@ -127,7 +128,7 @@ class RequestConnector(Connector, Thread):
                         log.debug('Custom converter for url %s - found!', endpoint["url"])
                         converter = module(endpoint)
                     else:
-                        log.error("\n\nCannot find extension module for %s url.\n\Please check your configuration.\n", endpoint["url"])
+                        log.error("\n\nCannot find extension module for %s url.\nPlease check your configuration.\n", endpoint["url"])
                 else:
                     converter = JsonRequestUplinkConverter(endpoint)
                 self.__requests_in_progress.append({"config": endpoint,
@@ -155,15 +156,15 @@ class RequestConnector(Connector, Thread):
             rpc_request_dict = {**rpc_request, "converter": converter}
             self.__rpc_requests.append(rpc_request_dict)
 
-    def __send_request(self, request, converter_queue, log):
+    def __send_request(self, request, converter_queue, logger):
         url = ""
         try:
             request["next_time"] = time() + request["config"].get("scanPeriod", 10)
             request_url_from_config = request["config"]["url"]
             request_url_from_config = str('/' + request_url_from_config) if request_url_from_config[0] != '/' else request_url_from_config
-            log.debug(request_url_from_config)
+            logger.debug(request_url_from_config)
             url = self.__host + request_url_from_config
-            log.debug(url)
+            logger.debug(url)
             request_timeout = request["config"].get("timeout", 1)
             params = {
                 "method": request["config"].get("httpMethod", "GET"),
@@ -173,10 +174,10 @@ class RequestConnector(Connector, Thread):
                 "verify": self.__ssl_verify,
                 "auth": self.__security
             }
-            log.debug(url)
+            logger.debug(url)
             if request["config"].get("httpHeaders") is not None:
                 params["headers"] = request["config"]["httpHeaders"]
-            log.debug("Request to %s will be sent", url)
+            logger.debug("Request to %s will be sent", url)
             response = request["request"](**params)
             if response and response.ok:
                 if not converter_queue.full():
@@ -188,16 +189,16 @@ class RequestConnector(Connector, Thread):
                     if len(data_to_storage) == 3:
                         converter_queue.put(data_to_storage)
             else:
-                log.error("Request to URL: %s finished with code: %i", url, response.status_code)
+                logger.error("Request to URL: %s finished with code: %i", url, response.status_code)
         except Timeout:
-            log.error("Timeout error on request %s.", url)
+            logger.error("Timeout error on request %s.", url)
         except RequestException as e:
-            log.error("Cannot connect to %s. Connection error.", url)
-            log.debug(e)
+            logger.error("Cannot connect to %s. Connection error.", url)
+            logger.debug(e)
         except ConnectionError:
-            log.error("Cannot connect to %s. Connection error.", url)
+            logger.error("Cannot connect to %s. Connection error.", url)
         except Exception as e:
-            log.exception(e)
+            logger.exception(e)
 
     def __process_data(self):
         try:

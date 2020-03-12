@@ -25,10 +25,8 @@
 #     limitations under the License.
 
 from pprint import pformat
-import codecs
+
 from thingsboard_gateway.connectors.ble.ble_uplink_converter import BLEUplinkConverter, log
-import struct
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class BytesBLEUplinkConverter(BLEUplinkConverter):

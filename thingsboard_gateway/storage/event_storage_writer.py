@@ -71,7 +71,7 @@ class EventStorageWriter:
             else:
                 return self.buffered_writer
         except IOError as e:
-            log.error("Failed to initialize buffered writer!", e)
+            log.error("Failed to initialize buffered writer! Error: %s", e)
             raise RuntimeError("Failed to initialize buffered writer!", e)
 
     def create_datafile(self):
@@ -87,7 +87,7 @@ class EventStorageWriter:
             os_open(file_path, O_CREAT | O_EXCL)
             return full_file_name
         except IOError as e:
-            log.error("Failed to create a new file!", e)
+            log.error("Failed to create a new file! Error: %s", e)
 
     def get_number_of_records_in_file(self, file):
         if self.current_file_records_count[0] <= 0:

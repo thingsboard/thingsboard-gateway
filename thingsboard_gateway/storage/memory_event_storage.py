@@ -12,9 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.storage.event_storage import EventStorage, log
 import queue
-from logging import getLogger
+from thingsboard_gateway.storage.event_storage import EventStorage, log
 
 
 class MemoryEventStorage(EventStorage):
@@ -23,6 +22,7 @@ class MemoryEventStorage(EventStorage):
         self.__events_per_time = config.get("read_records_count", 1000)
         self.__events_queue = queue.Queue(self.__queue_len)
         self.__event_pack = []
+        log.debug("Memory storage created with following configuration: \nMax size: %i\n Read records per time: %i", self.__queue_len, self.__events_per_time)
 
     def put(self, event):
         if not self.__events_queue.full():

@@ -16,14 +16,17 @@ import logging
 import queue
 import ssl
 import time
-from simplejson import loads, dumps
 from threading import RLock
 from threading import Thread
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 import paho.mqtt.client as paho
+
+from simplejson import dumps
 from jsonschema import Draft7Validator
 from jsonschema import ValidationError
+
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
 
 KV_SCHEMA = {
     "type": "object",
@@ -190,8 +193,7 @@ class TBDeviceMqttClient:
             self._client.subscribe(RPC_RESPONSE_TOPIC + '+', qos=1)
         else:
             if rc in result_codes:
-                log.error("connection FAIL with error {rc} {explanation}".format(rc=rc,
-                                                                                 explanation=result_codes[rc]))
+                log.error("connection FAIL with error %s %s", rc, result_codes[rc])
             else:
                 log.error("connection FAIL with unknown error")
 
@@ -250,8 +252,8 @@ class TBDeviceMqttClient:
             with self._lock:
                 # callbacks for everything
                 if self.__device_sub_dict.get("*"):
-                    for x in self.__device_sub_dict["*"]:
-                        dict_results.append(self.__device_sub_dict["*"][x])
+                    for subscription_id in self.__device_sub_dict["*"]:
+                        dict_results.append(self.__device_sub_dict["*"][subscription_id])
                 # specific callback
                 keys = content.keys()
                 keys_list = []
@@ -290,9 +292,9 @@ class TBDeviceMqttClient:
         self._client.reconnect_delay_set(min_delay, max_delay)
 
     def send_rpc_reply(self, req_id, resp, quality_of_service=1, wait_for_publish=False):
-        if quality_of_service != 0 and quality_of_service != 1:
+        if quality_of_service not in (0, 1):
             log.error("Quality of service (qos) value must be 0 or 1")
-            return
+            return None
         info = self._client.publish(RPC_RESPONSE_TOPIC + req_id, resp, qos=quality_of_service)
         if wait_for_publish:
             info.wait_for_publish()
@@ -313,14 +315,13 @@ class TBDeviceMqttClient:
 
     def publish_data(self, data, topic, qos):
         data = dumps(data)
-        if qos != 0 and qos != 1:
+        if qos not in (0, 1):
             log.exception("Quality of service (qos) value must be 0 or 1")
             raise TBQoSException("Quality of service (qos) value must be 0 or 1")
-        else:
-            return TBPublishInfo(self._client.publish(topic, data, qos))
+        return TBPublishInfo(self._client.publish(topic, data, qos))
 
     def send_telemetry(self, telemetry, quality_of_service=1):
-        if type(telemetry) is not list:
+        if not isinstance(telemetry, list):
             telemetry = [telemetry]
         self.validate(DEVICE_TS_OR_KV_VALIDATOR, telemetry)
         return self.publish_data(telemetry, TELEMETRY_TOPIC, quality_of_service)
@@ -331,14 +332,13 @@ class TBDeviceMqttClient:
 
     def unsubscribe_from_attribute(self, subscription_id):
         with self._lock:
-            for x in self.__device_sub_dict:
-                if self.__device_sub_dict[x].get(subscription_id):
-                    del self.__device_sub_dict[x][subscription_id]
-                    log.debug("Unsubscribed from {attribute}, subscription id {sub_id}".format(attribute=x,
-                                                                                               sub_id=subscription_id))
+            for attribute in self.__device_sub_dict:
+                if self.__device_sub_dict[attribute].get(subscription_id):
+                    del self.__device_sub_dict[attribute][subscription_id]
+                    log.debug("Unsubscribed from %s, subscription id %i", attribute, subscription_id)
             if subscription_id == '*':
                 self.__device_sub_dict = {}
-            self.__device_sub_dict = dict((k, v) for k, v in self.__device_sub_dict.items() if v is not {})
+            self.__device_sub_dict = dict((k, v) for k, v in self.__device_sub_dict.items() if v)
 
     def subscribe_to_all_attributes(self, callback):
         return self.subscribe_to_attribute("*", callback)
@@ -350,7 +350,7 @@ class TBDeviceMqttClient:
                 self.__device_sub_dict.update({key: {self.__device_max_sub_id: callback}})
             else:
                 self.__device_sub_dict[key].update({self.__device_max_sub_id: callback})
-            log.debug("Subscribed to {key} with id {id}".format(key=key, id=self.__device_max_sub_id))
+            log.debug("Subscribed to %s with id %i", key, self.__device_max_sub_id)
             return self.__device_max_sub_id
 
     def request_attributes(self, client_keys=None, shared_keys=None, callback=None):
@@ -398,8 +398,7 @@ class TBDeviceMqttClient:
                             current_ts_in_millis = int(round(time.time() * 1000))
                             if current_ts_in_millis > item["ts"]:
                                 break
-                            else:
-                                time.sleep(0.001)
+                            time.sleep(0.001)
                         with self._lock:
                             callback = None
                             if item.get("attribute_request_id"):

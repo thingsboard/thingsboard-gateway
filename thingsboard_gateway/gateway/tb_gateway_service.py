@@ -251,7 +251,7 @@ class TBGatewayService:
         if not connector_name == self.name:
             if not TBUtility.validate_converted_data(data):
                 log.error("Data from %s connector is invalid.", connector_name)
-                return
+                return None
             if data["deviceName"] not in self.get_devices():
                 self.add_device(data["deviceName"],
                                 {"connector": self.available_connectors[connector_name]}, wait_for_publish=True, device_type=data["deviceType"])

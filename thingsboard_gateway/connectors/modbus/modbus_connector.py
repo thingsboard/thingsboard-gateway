@@ -16,12 +16,15 @@ import time
 import threading
 from random import choice
 from string import ascii_lowercase
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient, ModbusRtuFramer, ModbusSocketFramer
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
-from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
+from pymodbus.register_write_message import WriteMultipleRegistersResponse, \
+                                            WriteSingleRegisterResponse
 from pymodbus.register_read_message import ReadRegistersResponseBase
 from pymodbus.exceptions import ConnectionException
+
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
@@ -157,12 +160,13 @@ class ModbusConnector(Connector, threading.Thread):
                                     log.debug("Data has not been changed.")
                             elif self.__devices[device]["config"].get("sendDataOnlyOnChange") is None or not self.__devices[device]["config"].get("sendDataOnlyOnChange"):
                                 self.statistics['MessagesReceived'] += 1
-                                to_send = {"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
+                                to_send = {"deviceName": converted_data["deviceName"],
+                                           "deviceType": converted_data["deviceType"]}
                                 # if converted_data["telemetry"] != self.__devices[device]["telemetry"]:
                                 self.__devices[device]["last_telemetry"] = converted_data["telemetry"]
                                 to_send["telemetry"] = converted_data["telemetry"]
                                 # if converted_data["attributes"] != self.__devices[device]["attributes"]:
-                                self.__devices[device]["last_telemetry"] = converted_data["attributes"]
+                                self.__devices[device]["last_attributes"] = converted_data["attributes"]
                                 to_send["attributes"] = converted_data["attributes"]
                                 self.__gateway.send_to_storage(self.get_name(), to_send)
                                 self.statistics['MessagesSent'] += 1
@@ -234,10 +238,10 @@ class ModbusConnector(Connector, threading.Thread):
                 log.exception(e)
             if response is not None:
                 log.debug(response)
-                if type(response) in (WriteMultipleRegistersResponse,
-                                      WriteMultipleCoilsResponse,
-                                      WriteSingleCoilResponse,
-                                      WriteSingleRegisterResponse):
+                if isinstance(response, (WriteMultipleRegistersResponse,
+                                         WriteMultipleCoilsResponse,
+                                         WriteSingleCoilResponse,
+                                         WriteSingleRegisterResponse)):
                     response = True
                 else:
                     response = False

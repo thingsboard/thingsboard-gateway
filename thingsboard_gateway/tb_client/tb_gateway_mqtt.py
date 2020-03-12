@@ -136,19 +136,17 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         return self.publish_data({device: attributes}, GATEWAY_MAIN_TOPIC + "attributes", quality_of_service)
 
     def gw_send_telemetry(self, device, telemetry, quality_of_service=1):
-        if type(telemetry) is not list:
+        if isinstance(telemetry, list):
             telemetry = [telemetry]
         # self.validate(DEVICE_TS_KV_VALIDATOR, telemetry)
         return self.publish_data({device: telemetry}, GATEWAY_MAIN_TOPIC + "telemetry", quality_of_service, )
-
-    #TODO ADD "type" to connection request
 
     def gw_connect_device(self, device_name, device_type):
         info = self._client.publish(topic=GATEWAY_MAIN_TOPIC + "connect", payload=dumps({"device": device_name, "type": device_type}), qos=1)
         self.__connected_devices.add(device_name)
         # if self.gateway:
         #     self.gateway.on_device_connected(device_name, self.__devices_server_side_rpc_request_handler)
-        log.debug("Connected device {name}".format(name=device_name))
+        log.debug("Connected device %s", device_name)
         return info
 
     def gw_disconnect_device(self, device_name):
@@ -157,7 +155,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         self.__connected_devices.remove(device_name)
         # if self.gateway:
         #     self.gateway.on_device_disconnected(self, device_name)
-        log.debug("Disconnected device {name}".format(name=device_name))
+        log.debug("Disconnected device %s", device_name)
         return info
 
     def gw_subscribe_to_all_attributes(self, callback):
@@ -168,7 +166,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
 
     def gw_subscribe_to_attribute(self, device, attribute, callback):
         if device not in self.__connected_devices:
-            log.error("Device {name} not connected".format(name=device))
+            log.error("Device %s not connected", device)
             return False
         with self._lock:
             self.__max_sub_id += 1
@@ -177,16 +175,15 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                 self.__sub_dict.update({key: {self.__max_sub_id: callback}})
             else:
                 self.__sub_dict[key].update({self.__max_sub_id: callback})
-            log.debug("Subscribed to {key} with id {id}".format(key=key, id=self.__max_sub_id))
+            log.debug("Subscribed to %s with id %i", key, self.__max_sub_id)
             return self.__max_sub_id
 
     def gw_unsubscribe(self, subscription_id):
         with self._lock:
-            for x in self.__sub_dict:
-                if self.__sub_dict[x].get(subscription_id):
-                    del self.__sub_dict[x][subscription_id]
-                    log.debug("Unsubscribed from {attribute}, subscription id {sub_id}".format(attribute=x,
-                                                                                               sub_id=subscription_id))
+            for attribute in self.__sub_dict:
+                if self.__sub_dict[attribute].get(subscription_id):
+                    del self.__sub_dict[attribute][subscription_id]
+                    log.debug("Unsubscribed from %s, subscription id %i", attribute, subscription_id)
             if subscription_id == '*':
                 self.__sub_dict = {}
 
@@ -194,9 +191,9 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         self.devices_server_side_rpc_request_handler = handler
 
     def gw_send_rpc_reply(self, device, req_id, resp, quality_of_service=1):
-        if quality_of_service != 0 and quality_of_service != 1:
+        if quality_of_service not in (0, 1):
             log.error("Quality of service (qos) value must be 0 or 1")
-            return
+            return None
         info = self._client.publish(GATEWAY_RPC_TOPIC,
                                     dumps({"device": device, "id": req_id, "data": resp}),
                                     qos=quality_of_service)

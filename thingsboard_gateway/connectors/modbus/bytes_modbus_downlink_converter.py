@@ -31,7 +31,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             builder = BinaryPayloadBuilder(byteorder=Endian.Big)
         else:
             log.warning("byte order is not BIG or LITTLE")
-            return
+            return None
         reg_count = config.get("registerCount", 1)
         value = config["value"]
         if config.get("tag") is not None:
@@ -46,14 +46,14 @@ class BytesModbusDownlinkConverter(ModbusConverter):
                 else:
                     log.warning("unsupported amount of registers with double type for device %s in Downlink converter",
                                 self.__config["deviceName"])
-                    return
+                    return None
             elif "Float" in tags:
                 if reg_count == 2:
                     builder.add_32bit_float(value)
                 else:
                     log.warning("unsupported amount of registers with float type for device %s in Downlink converter",
                                 self.__config["deviceName"])
-                    return
+                    return None
             elif "Integer" in tags or "DWord" in tags or "DWord/Integer" in tags or "Word" in tags:
                 if reg_count == 1:
                     builder.add_16bit_int(value)
@@ -64,7 +64,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
                 else:
                     log.warning("unsupported amount of registers with integer/word/dword type for device %s in Downlink converter",
                                 self.__config["deviceName"])
-                    return
+                    return None
             else:
                 log.warning("unsupported hardware data type for device %s in Downlink converter",
                             self.__config["deviceName"])
@@ -83,4 +83,4 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         else:
             log.warning("Unsupported function code,  for device %s in Downlink converter",
                         self.__config["deviceName"])
-        return
+        return None

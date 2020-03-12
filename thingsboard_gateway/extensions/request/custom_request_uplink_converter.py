@@ -23,7 +23,7 @@ class CustomRequestUplinkConverter(RequestConverter):
         self.__config = config.get('converter')
         self.dict_result = {}
 
-    def convert(self, topic, body):
+    def convert(self, _, body):
         try:
             data = body["data"]["value"]
             self.dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), body, expression_instead_none=True)

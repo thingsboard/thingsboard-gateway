@@ -52,6 +52,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
                     try:
                         decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order)
                     except TypeError:
+                        # pylint: disable=E1123
                         decoder = BinaryPayloadDecoder.fromRegisters(registers, endian=endian_order)
                     assert decoder is not None
                     decoded_data = self.__decode_from_registers(decoder, configuration)
