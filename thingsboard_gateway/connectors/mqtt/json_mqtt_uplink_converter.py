@@ -12,9 +12,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from simplejson import dumps
 from re import search
 from time import time
+
+from simplejson import dumps
+
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -26,7 +28,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
     def convert(self, config, data):
         datatypes = {"attributes": "attributes",
                      "timeseries": "telemetry"}
-        dict_result = {"deviceName": None, "deviceType": None,"attributes": [], "telemetry": []}
+        dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
         try:
             if self.__config.get("deviceNameJsonExpression") is not None:
                 dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data, expression_instead_none=True)

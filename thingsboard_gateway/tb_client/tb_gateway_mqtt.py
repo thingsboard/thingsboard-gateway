@@ -16,7 +16,7 @@ import logging
 import time
 from simplejson import dumps
 
-from thingsboard_gateway.tb_client.tb_device_mqtt import TBDeviceMqttClient, DEVICE_TS_KV_VALIDATOR, KV_VALIDATOR
+from thingsboard_gateway.tb_client.tb_device_mqtt import TBDeviceMqttClient
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 GATEWAY_ATTRIBUTES_TOPIC = "v1/gateway/attributes"
@@ -48,9 +48,9 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         self._gw_subscriptions = {}
         self.gateway = gateway
 
-    def _on_connect(self, client, userdata, flags, rc, *extra_params):
-        super()._on_connect(client, userdata, flags, rc, *extra_params)
-        if rc == 0:
+    def _on_connect(self, client, userdata, flags, result_code, *extra_params):
+        super()._on_connect(client, userdata, flags, result_code, *extra_params)
+        if result_code == 0:
             self._gw_subscriptions[int(self._client.subscribe(GATEWAY_ATTRIBUTES_TOPIC, qos=1)[1])] = GATEWAY_ATTRIBUTES_TOPIC
             self._gw_subscriptions[int(self._client.subscribe(GATEWAY_ATTRIBUTES_RESPONSE_TOPIC)[1])] = GATEWAY_ATTRIBUTES_RESPONSE_TOPIC
             self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_TOPIC)[1])] = GATEWAY_RPC_TOPIC
@@ -61,10 +61,10 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         if subscription is not None:
             if mid == 128:
                 log.error("Service subscription to topic %s - failed.", subscription)
-                del(self._gw_subscriptions[mid])
+                del self._gw_subscriptions[mid]
             else:
                 log.debug("Service subscription to topic %s - successfully completed.", subscription)
-                del(self._gw_subscriptions[mid])
+                del self._gw_subscriptions[mid]
 
     def _on_unsubscribe(self, *args):
         log.debug(args)
@@ -90,15 +90,15 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
             with self._lock:
                 # callbacks for everything
                 if self.__sub_dict.get("*|*"):
-                    for x in self.__sub_dict["*|*"]:
-                        self.__sub_dict["*|*"][x](content)
+                    for callback in self.__sub_dict["*|*"]:
+                        self.__sub_dict["*|*"][callback](content)
                 # callbacks for device. in this case callback executes for all attributes in message
                 target = content["device"] + "|*"
                 if self.__sub_dict.get(target):
-                    for x in self.__sub_dict[target]:
-                        self.__sub_dict[target][x](content)
+                    for callback in self.__sub_dict[target]:
+                        self.__sub_dict[target][callback](content)
                 # callback for atr. in this case callback executes for all attributes in message
-                targets = [content["device"] + "|" + x for x in content["data"]]
+                targets = [content["device"] + "|" + attribute for attribute in content["data"]]
                 for target in targets:
                     if self.__sub_dict.get(target):
                         for sub_id in self.__sub_dict[target]:
@@ -132,13 +132,11 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         return self.__request_attributes(device_name, keys, callback, True)
 
     def gw_send_attributes(self, device, attributes, quality_of_service=1):
-        # self.validate(KV_VALIDATOR, attributes)
         return self.publish_data({device: attributes}, GATEWAY_MAIN_TOPIC + "attributes", quality_of_service)
 
     def gw_send_telemetry(self, device, telemetry, quality_of_service=1):
         if isinstance(telemetry, list):
             telemetry = [telemetry]
-        # self.validate(DEVICE_TS_KV_VALIDATOR, telemetry)
         return self.publish_data({device: telemetry}, GATEWAY_MAIN_TOPIC + "telemetry", quality_of_service, )
 
     def gw_connect_device(self, device_name, device_type):
@@ -166,7 +164,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
 
     def gw_subscribe_to_attribute(self, device, attribute, callback):
         if device not in self.__connected_devices:
-            log.error("Device %s not connected", device)
+            log.error("Device %s is not connected", device)
             return False
         with self._lock:
             self.__max_sub_id += 1

@@ -12,17 +12,19 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from sys import getsizeof, executable, argv
+from os import listdir, path, execv, pathsep, system
+from time import time, sleep
 import logging.config
 import logging.handlers
-import time
-from yaml import safe_load
-from simplejson import load, loads, dumps
-from os import listdir, path, execv, pathsep, system
-from sys import getsizeof, executable, argv
-from threading import Thread, RLock
+from queue import Queue
 from random import choice
 from string import ascii_lowercase
-from queue import Queue
+from threading import Thread, RLock
+
+from yaml import safe_load
+from simplejson import load, loads, dumps
+
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -107,7 +109,7 @@ class TBGatewayService:
         try:
             gateway_statistic_send = 0
             while True:
-                cur_time = time.time()*1000
+                cur_time = time()*1000
                 if self.__sheduled_rpc_calls:
                     for rpc_call_index in range(len(self.__sheduled_rpc_calls)):
                         rpc_call = self.__sheduled_rpc_calls[rpc_call_index]
@@ -130,7 +132,7 @@ class TBGatewayService:
                     self.__rpc_requests_in_progress = new_rpc_request_in_progress
                 else:
                     try:
-                        time.sleep(1)
+                        sleep(.1)
                     except Exception as e:
                         log.exception(e)
                         break
@@ -143,7 +145,7 @@ class TBGatewayService:
                     summary_messages = self.__form_statistics()
                     # with self.__lock:
                     self.tb_client.client.send_telemetry(summary_messages)
-                    gateway_statistic_send = time.time()*1000
+                    gateway_statistic_send = time()*1000
                     # self.__check_shared_attributes()
         except KeyboardInterrupt:
             log.info("Stopping...")
@@ -270,7 +272,7 @@ class TBGatewayService:
         if telemetry_with_ts:
             data["telemetry"] = telemetry_with_ts
         else:
-            data["telemetry"] = {"ts": int(time.time() * 1000), "values": telemetry}
+            data["telemetry"] = {"ts": int(time() * 1000), "values": telemetry}
 
         json_data = dumps(data)
         save_result = self._event_storage.put(json_data)
@@ -292,7 +294,6 @@ class TBGatewayService:
             try:
                 if self.tb_client.is_connected():
                     size = getsizeof(devices_data_in_event_pack)
-                    # with self.__lock:
                     events = []
                     if self.__remote_configurator is None or not self.__remote_configurator.in_process:
                         events = self._event_storage.get_event_pack()
@@ -308,31 +309,35 @@ class TBGatewayService:
                                 devices_data_in_event_pack[current_event["deviceName"]] = {"telemetry": [],
                                                                                            "attributes": {}}
                             if current_event.get("telemetry"):
-                                if type(current_event["telemetry"]) == list:
+                                if isinstance(current_event["telemetry"], list):
                                     for item in current_event["telemetry"]:
                                         size += getsizeof(item)
                                         size = self.check_size(size, devices_data_in_event_pack)
                                         devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(item)
                                 else:
-                                    if not self.tb_client.is_connected(): break
+                                    if not self.tb_client.is_connected():
+                                        break
                                     size += getsizeof(current_event["telemetry"])
                                     size = self.check_size(size, devices_data_in_event_pack)
                                     devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(current_event["telemetry"])
                             if current_event.get("attributes"):
-                                if type(current_event["attributes"]) == list:
+                                if isinstance(current_event["attributes"], list):
                                     for item in current_event["attributes"]:
-                                        if not self.tb_client.is_connected(): break
+                                        if not self.tb_client.is_connected():
+                                            break
                                         size += getsizeof(item)
                                         size = self.check_size(size, devices_data_in_event_pack)
                                         devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(item.items())
                                 else:
-                                    if not self.tb_client.is_connected(): break
+                                    if not self.tb_client.is_connected():
+                                        break
                                     size += getsizeof(current_event["attributes"].items())
                                     size = self.check_size(size, devices_data_in_event_pack)
                                     devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(
                                         current_event["attributes"].items())
                         if devices_data_in_event_pack:
-                            if not self.tb_client.is_connected(): break
+                            if not self.tb_client.is_connected():
+                                break
                             self.__send_data(devices_data_in_event_pack)
                         if self.tb_client.is_connected() and (self.__remote_configurator is None or not self.__remote_configurator.in_process):
                             success = True
@@ -356,12 +361,12 @@ class TBGatewayService:
                         else:
                             continue
                     else:
-                        time.sleep(.01)
+                        sleep(.01)
                 else:
-                    time.sleep(.1)
+                    sleep(.1)
             except Exception as e:
                 log.exception(e)
-                time.sleep(1)
+                sleep(1)
 
     def __send_data(self, devices_data_in_event_pack):
         try:
@@ -370,18 +375,12 @@ class TBGatewayService:
                     if device == self.name:
                         self._published_events.put(self.tb_client.client.send_attributes(devices_data_in_event_pack[device]["attributes"]))
                     else:
-                        self._published_events.put(self.tb_client.client.gw_send_attributes(device,
-                                                                                            devices_data_in_event_pack[
-                                                                                             device][
-                                                                                             "attributes"]))
+                        self._published_events.put(self.tb_client.client.gw_send_attributes(device, devices_data_in_event_pack[device]["attributes"]))
                 if devices_data_in_event_pack[device].get("telemetry"):
                     if device == self.name:
                         self._published_events.put(self.tb_client.client.send_telemetry(devices_data_in_event_pack[device]["telemetry"]))
                     else:
-                        self._published_events.put(self.tb_client.client.gw_send_telemetry(device,
-                                                                                           devices_data_in_event_pack[
-                                                                                            device][
-                                                                                            "telemetry"]))
+                        self._published_events.put(self.tb_client.client.gw_send_telemetry(device, devices_data_in_event_pack[device]["telemetry"]))
                 devices_data_in_event_pack[device] = {"telemetry": [], "attributes": {}}
         except Exception as e:
             log.exception(e)
@@ -435,7 +434,7 @@ class TBGatewayService:
             result = self.__gateway_rpc_methods[method_to_call](*arguments)
         elif method_to_call in self.__self_rpc_sheduled_methods_functions:
             seconds_to_restart = arguments*1000 if arguments else 0
-            self.__sheduled_rpc_calls.append([time.time()*1000 + seconds_to_restart, self.__self_rpc_sheduled_methods_functions[method_to_call]])
+            self.__sheduled_rpc_calls.append([time()*1000 + seconds_to_restart, self.__self_rpc_sheduled_methods_functions[method_to_call]])
             log.info("Gateway %s sheduled in %i seconds", method_to_call, seconds_to_restart/1000)
             result = {"success": True}
         elif arguments is not None:

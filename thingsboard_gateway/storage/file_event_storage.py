@@ -59,6 +59,7 @@ class FileEventStorage(EventStorage):
         state_file = None
         data_files_size = 0
         _dir = self.settings.get_data_folder_path()
+        event_storage_files = None
         if os.path.isdir(_dir):
             for file in os.listdir(_dir):
                 if file.startswith('data_'):
@@ -70,9 +71,10 @@ class FileEventStorage(EventStorage):
                 data_files.append(self.create_new_datafile())
             if not state_file:
                 state_file = self.create_file('state_', 'file')
-                with open(self.settings.get_data_folder_path() + state_file, 'w') as f:
-                    json.dump({"position": 0, "file": sorted(data_files)[0]}, f)
-            return EventStorageFiles(state_file, data_files)
+                with open(self.settings.get_data_folder_path() + state_file, 'w') as state_file_obj:
+                    json.dump({"position": 0, "file": sorted(data_files)[0]}, state_file_obj)
+            event_storage_files = EventStorageFiles(state_file, data_files)
+        return event_storage_files
 
     def create_new_datafile(self):
         return self.create_file('data_', str(round(time.time() * 1000)))

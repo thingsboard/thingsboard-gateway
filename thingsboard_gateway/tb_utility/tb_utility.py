@@ -12,12 +12,12 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from re import search
 from os import path, listdir
 from inspect import getmembers, isclass
 from importlib import util
 from logging import getLogger
 from simplejson import dumps, loads
-from re import search
 from jsonpath_rw import parse
 
 
@@ -66,21 +66,20 @@ class TBUtility:
                             try:
                                 module_spec = util.spec_from_file_location(module_name, extension_path + path.sep + file)
                                 log.debug(module_spec)
+
                                 if module_spec is None:
                                     log.error('Module: %s not found', module_name)
                                     continue
-                                else:
-                                    module = util.module_from_spec(module_spec)
-                                    log.debug(str(module))
-                                    module_spec.loader.exec_module(module)
-                                    for extension_class in getmembers(module, isclass):
-                                        if module_name in extension_class:
-                                            log.debug("Import %s from %s.", module_name, extension_path)
-                                            return extension_class[1]
+
+                                module = util.module_from_spec(module_spec)
+                                log.debug(str(module))
+                                module_spec.loader.exec_module(module)
+                                for extension_class in getmembers(module, isclass):
+                                    if module_name in extension_class:
+                                        log.debug("Import %s from %s.", module_name, extension_path)
+                                        return extension_class[1]
                             except ImportError:
                                 continue
-                            except Exception as e:
-                                log.exception(e)
                 else:
                     log.error("Import %s failed, path %s doesn't exist", module_name, extension_path)
         except Exception as e:
@@ -92,7 +91,7 @@ class TBUtility:
             body = loads(body)
         if not expression:
             return ''
-        positions = search(r'\$\{(?:(.*))\}', expression)
+        positions = search(r'\${(?:(.*))}', expression)
         if positions is not None:
             p1 = positions.regs[-1][0]
             p2 = positions.regs[-1][1]
@@ -122,5 +121,4 @@ class TBUtility:
                 full_value = expression
         except Exception as e:
             log.exception(e)
-        finally:
-            return full_value
+        return full_value

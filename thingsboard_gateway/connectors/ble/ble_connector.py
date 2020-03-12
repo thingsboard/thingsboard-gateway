@@ -304,6 +304,7 @@ class BLEConnector(Connector, Thread):
             self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
 
     def __check_and_reconnect(self, device):
+        # pylint: disable=protected-access
         while self.__devices_around[device]['peripheral']._helper is None:
             self.__devices_around[device]['peripheral'].connect(self.__devices_around[device]['scanned_device'])
 

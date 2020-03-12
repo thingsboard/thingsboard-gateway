@@ -120,6 +120,7 @@ class TBPublishInfo:
     def __init__(self, message_info):
         self.message_info = message_info
 
+    # pylint: disable=invalid-name
     def rc(self):
         return self.message_info.rc
 
@@ -163,17 +164,19 @@ class TBDeviceMqttClient:
         self._client.on_disconnect = self._on_disconnect
 
     def _on_log(self, client, userdata, level, buf):
-        log.exception(buf)
+        if isinstance(buf, Exception):
+            log.exception(buf)
+        else:
+            log.debug("%s - %s - %s - %s", client, userdata, level, buf)
 
     def _on_publish(self, client, userdata, result):
         # log.debug("Data published to ThingsBoard!")
         pass
 
-    def _on_disconnect(self, client, userdata, rc):
-        log.debug(client)
-        log.debug("Disconnected")
+    def _on_disconnect(self, client, userdata, result_code):
+        log.debug("Disconnected client: %s, user data: %s, result code: %s", str(client), str(userdata), str(result_code))
 
-    def _on_connect(self, client, userdata, flags, rc, *extra_params):
+    def _on_connect(self, client, userdata, flags, result_code, *extra_params):
         result_codes = {
             1: "incorrect protocol version",
             2: "invalid client identifier",
@@ -182,8 +185,8 @@ class TBDeviceMqttClient:
             5: "not authorised",
         }
         if self.__connect_callback:
-            self.__connect_callback(client, userdata, flags, rc, *extra_params)
-        if rc == 0:
+            self.__connect_callback(client, userdata, flags, result_code, *extra_params)
+        if result_code == 0:
             self.__is_connected = True
             log.info("connection SUCCESS")
             log.debug(client)
@@ -192,8 +195,8 @@ class TBDeviceMqttClient:
             self._client.subscribe(RPC_REQUEST_TOPIC + '+')
             self._client.subscribe(RPC_RESPONSE_TOPIC + '+', qos=1)
         else:
-            if rc in result_codes:
-                log.error("connection FAIL with error %s %s", rc, result_codes[rc])
+            if result_code in result_codes:
+                log.error("connection FAIL with error %s %s", result_code, result_codes[result_code])
             else:
                 log.error("connection FAIL with unknown error")
 
@@ -263,8 +266,8 @@ class TBDeviceMqttClient:
                 for key in keys_list:
                     # find key in our dict
                     if self.__device_sub_dict.get(key):
-                        for x in self.__device_sub_dict[key]:
-                            dict_results.append(self.__device_sub_dict[key][x])
+                        for subscription in self.__device_sub_dict[key]:
+                            dict_results.append(self.__device_sub_dict[key][subscription])
             for res in dict_results:
                 res(content, None)
         elif message.topic.startswith(ATTRIBUTES_TOPIC_RESPONSE):
@@ -378,8 +381,8 @@ class TBDeviceMqttClient:
         self._add_timeout(attr_request_number, ts_in_millis + 30000)
         return info
 
-    def _add_timeout(self, attr_request_number, ts):
-        self.__timeout_queue.put({"ts": ts, "attribute_request_id": attr_request_number})
+    def _add_timeout(self, attr_request_number, timestamp):
+        self.__timeout_queue.put({"ts": timestamp, "attribute_request_id": attr_request_number})
 
     def _add_attr_request_callback(self, callback):
         with self._lock:
@@ -390,26 +393,23 @@ class TBDeviceMqttClient:
 
     def __timeout_check(self):
         while not self.stopped:
-            try:
-                if not self.__timeout_queue.empty():
-                    item = self.__timeout_queue.get_nowait()
-                    if item is not None:
-                        while not self.stopped:
-                            current_ts_in_millis = int(round(time.time() * 1000))
-                            if current_ts_in_millis > item["ts"]:
-                                break
-                            time.sleep(0.001)
-                        with self._lock:
-                            callback = None
-                            if item.get("attribute_request_id"):
-                                if self._attr_request_dict.get(item["attribute_request_id"]):
-                                    callback = self._attr_request_dict.pop(item["attribute_request_id"])
-                            elif item.get("rpc_request_id"):
-                                if self.__device_client_rpc_dict.get(item["rpc_request_id"]):
-                                    callback = self.__device_client_rpc_dict.pop(item["rpc_request_id"])
-                        if callback is not None:
-                            callback(None, TBTimeoutException("Timeout while waiting for reply from ThingsBoard!"))
-                else:
-                    time.sleep(0.01)
-            except Exception as e:
-                log.warning(e)
+            if not self.__timeout_queue.empty():
+                item = self.__timeout_queue.get_nowait()
+                if item is not None:
+                    while not self.stopped:
+                        current_ts_in_millis = int(round(time.time() * 1000))
+                        if current_ts_in_millis > item["ts"]:
+                            break
+                        time.sleep(0.001)
+                    with self._lock:
+                        callback = None
+                        if item.get("attribute_request_id"):
+                            if self._attr_request_dict.get(item["attribute_request_id"]):
+                                callback = self._attr_request_dict.pop(item["attribute_request_id"])
+                        elif item.get("rpc_request_id"):
+                            if self.__device_client_rpc_dict.get(item["rpc_request_id"]):
+                                callback = self.__device_client_rpc_dict.pop(item["rpc_request_id"])
+                    if callback is not None:
+                        callback(None, TBTimeoutException("Timeout while waiting for a reply from ThingsBoard!"))
+            else:
+                time.sleep(0.01)

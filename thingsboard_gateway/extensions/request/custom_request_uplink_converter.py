@@ -12,8 +12,10 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 
-from simplejson import dumps
 import struct
+
+from simplejson import dumps
+
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.request.request_converter import RequestConverter, log
 
@@ -40,8 +42,7 @@ class CustomRequestUplinkConverter(RequestConverter):
                         interest_bytes = converted_bytes[telemetry_key["fromByte"]: telemetry_key["toByte"]]
                         if telemetry_key["type"] == "float":
                             value = struct.unpack(">f" if byteorder == "big" else "<f", interest_bytes)
-                            if value:
-                                value = value[0]
+                            value = value[0] if isinstance(value, list) else None
                         if telemetry_key["type"] == "int":
                             value = int.from_bytes(interest_bytes, byteorder=byteorder, signed=signed)
                     else:

@@ -42,8 +42,7 @@ class MqttConnector(Connector, Thread):
         self.__sub_topics = {}
         client_id = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
         self._client = Client(client_id)
-        self.setName(config.get("name", self.__broker.get("name",
-                                       'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)))))
+        self.setName(config.get("name", self.__broker.get("name", 'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)))))
         if "username" in self.__broker["security"]:
             self._client.username_pw_set(self.__broker["security"]["username"],
                                          self.__broker["security"]["password"])
@@ -63,7 +62,7 @@ class MqttConnector(Connector, Thread):
                                          ciphers=None)
                 except Exception as e:
                     self.__log.error("Cannot setup connection to broker %s using SSL. Please check your configuration.\nError: ",
-                                      self.get_name())
+                                     self.get_name())
                     self.__log.exception(e)
                 self._client.tls_insecure_set(False)
         self._client.on_connect = self._on_connect
@@ -105,8 +104,7 @@ class MqttConnector(Connector, Thread):
         while True:
             if self.__stopped:
                 break
-            else:
-                time.sleep(1)
+            time.sleep(.1)
 
     def close(self):
         self.__stopped = True
@@ -127,7 +125,7 @@ class MqttConnector(Connector, Thread):
         except Exception as e:
             self.__log.exception(e)
 
-    def _on_connect(self, client, userdata, flags, rc, *extra_params):
+    def _on_connect(self, client, userdata, flags, result_code, *extra_params):
         result_codes = {
             1: "incorrect protocol version",
             2: "invalid client identifier",
@@ -135,22 +133,20 @@ class MqttConnector(Connector, Thread):
             4: "bad username or password",
             5: "not authorised",
         }
-        if rc == 0:
+        if result_code == 0:
             self._connected = True
             self.__log.info('%s connected to %s:%s - successfully.', self.get_name(), self.__broker["host"], self.__broker.get("port", "1883"))
+            self.__log.debug("Client %s, userdata %s, flags %s, extra_params %s", str(client), str(userdata), str(flags), extra_params)
             for mapping in self.__mapping:
                 try:
                     converter = None
                     if mapping["converter"]["type"] == "custom":
-                        try:
-                            module = TBUtility.check_and_import(self._connector_type, mapping["converter"]["extension"])
-                            if module is not None:
-                                self.__log.debug('Custom converter for topic %s - found!', mapping["topicFilter"])
-                                converter = module(mapping)
-                            else:
-                                self.__log.error("\n\nCannot find extension module for %s topic.\nPlease check your configuration.\n", mapping["topicFilter"])
-                        except Exception as e:
-                            self.__log.exception(e)
+                        module = TBUtility.check_and_import(self._connector_type, mapping["converter"]["extension"])
+                        if module is not None:
+                            self.__log.debug('Custom converter for topic %s - found!', mapping["topicFilter"])
+                            converter = module(mapping)
+                        else:
+                            self.__log.error("\n\nCannot find extension module for %s topic.\nPlease check your configuration.\n", mapping["topicFilter"])
                     else:
                         converter = JsonMqttUplinkConverter(mapping)
                     if converter is not None:
@@ -162,8 +158,8 @@ class MqttConnector(Connector, Thread):
                         # self._client.subscribe(TBUtility.regex_to_topic(regex_topic))
                         self.__subscribe(mapping["topicFilter"])
                         self.__log.info('Connector "%s" subscribe to %s',
-                                 self.get_name(),
-                                 TBUtility.regex_to_topic(regex_topic))
+                                        self.get_name(),
+                                        TBUtility.regex_to_topic(regex_topic))
                     else:
                         self.__log.error("Cannot find converter for %s topic", mapping["topicFilter"])
                 except Exception as e:
@@ -177,13 +173,13 @@ class MqttConnector(Connector, Thread):
                 self.__log.error(e)
 
         else:
-            if rc in result_codes:
-                self.__log.error("%s connection FAIL with error %s %s!", self.get_name(), rc, result_codes[rc])
+            if result_code in result_codes:
+                self.__log.error("%s connection FAIL with error %s %s!", self.get_name(), result_code, result_codes[result_code])
             else:
                 self.__log.error("%s connection FAIL with unknown error!", self.get_name())
 
     def _on_disconnect(self, *args):
-        self.__log.debug('"%s" was disconnected.', self.get_name())
+        self.__log.debug('"%s" was disconnected. %s', self.get_name(), str(args))
 
     def _on_log(self, *args):
         self.__log.debug(args)
@@ -228,7 +224,7 @@ class MqttConnector(Connector, Thread):
                                     else:
                                         continue
                             else:
-                                self.__log.error('Cannot find converter for topic:"%s"!', message.topic)
+                                self.__log.error('Cannot find converter for the topic:"%s"! Client: %s, User data: %s', message.topic, str(client), str(userdata))
                                 return None
             except Exception as e:
                 log.exception(e)
@@ -348,8 +344,8 @@ class MqttConnector(Connector, Thread):
                     try:
                         self._client.publish(topic, data_to_send)
                         self.__log.debug("Send RPC with no response request to topic: %s with data %s",
-                                  topic,
-                                  data_to_send)
+                                         topic,
+                                         data_to_send)
                         if rpc_config.get("responseTopicExpression") is None:
                             self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=True)
                     except Exception as e:

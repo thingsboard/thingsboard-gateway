@@ -12,13 +12,14 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from time import time
+from base64 import b64encode
+from io import BufferedWriter, FileIO
+from os import linesep, open as os_open, O_CREAT, O_EXCL
+
 from thingsboard_gateway.storage.file_event_storage import log
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
 from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
-from time import time
-from io import BufferedWriter, FileIO
-from os import linesep, open as os_open, O_CREAT, O_EXCL
-from base64 import b64encode
 
 
 class EventStorageWriter:
@@ -66,10 +67,8 @@ class EventStorageWriter:
     def get_or_init_buffered_writer(self, file):
         try:
             if self.buffered_writer is None or self.buffered_writer.closed:
-                buffered_writer = BufferedWriter(FileIO(self.settings.get_data_folder_path() + file, 'a'))
-                return buffered_writer
-            else:
-                return self.buffered_writer
+                self.buffered_writer = BufferedWriter(FileIO(self.settings.get_data_folder_path() + file, 'a'))
+            return self.buffered_writer
         except IOError as e:
             log.error("Failed to initialize buffered writer! Error: %s", e)
             raise RuntimeError("Failed to initialize buffered writer!", e)
@@ -92,8 +91,8 @@ class EventStorageWriter:
     def get_number_of_records_in_file(self, file):
         if self.current_file_records_count[0] <= 0:
             try:
-                with open(self.settings.get_data_folder_path() + file) as f:
-                    for i, _ in enumerate(f):
+                with open(self.settings.get_data_folder_path() + file) as data_file:
+                    for i, _ in enumerate(data_file):
                         self.current_file_records_count[0] = i + 1
             except IOError as e:
                 log.warning("Could not get the records count from the file![%s] with error: %s", file, e)

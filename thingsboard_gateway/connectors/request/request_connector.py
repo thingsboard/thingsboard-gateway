@@ -18,15 +18,17 @@ from random import choice
 from string import ascii_lowercase
 from time import sleep, time
 from re import fullmatch
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.connectors.connector import Connector, log
-from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
-from thingsboard_gateway.connectors.request.json_request_downlink_converter import JsonRequestDownlinkConverter
 
 import requests
 from requests import Timeout
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
+
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
+from thingsboard_gateway.connectors.request.json_request_downlink_converter import JsonRequestDownlinkConverter
+
 # pylint: disable=E1101
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 

@@ -22,9 +22,9 @@ class JsonRequestUplinkConverter(RequestConverter):
         self.__config = config.get('converter')
 
     def convert(self, config, data):
-        if type(data) in (bytes, str):
+        if isinstance(data, (bytes, str)):
             data = loads(data)
-        dict_result = {"deviceName": None, "deviceType": None,"attributes": [], "telemetry": []}
+        dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
         try:
             if self.__config.get("deviceNameJsonExpression") is not None:
                 dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data, expression_instead_none=True)
@@ -47,16 +47,16 @@ class JsonRequestUplinkConverter(RequestConverter):
                     else:
                         log.debug("%s key not found in response: %s", attribute["value"].replace("${", '"').replace("}", '"'), data)
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
+            log.error('Error in the JSON Mqtt Uplink converter, using config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
         try:
             if self.__config.get("telemetry"):
-                for ts in self.__config.get("telemetry"):
-                    ts_value = TBUtility.get_value(ts["value"], data, ts["type"])
-                    if ts_value is not None:
-                        dict_result["telemetry"].append({ts["key"]: ts_value})
+                for timeseries in self.__config.get("telemetry"):
+                    timeseries_value = TBUtility.get_value(timeseries["value"], data, timeseries["type"])
+                    if timeseries_value is not None:
+                        dict_result["telemetry"].append({timeseries["key"]: timeseries_value})
                     else:
-                        log.debug("%s key not found in response: %s", ts["value"].replace("${", '"').replace("}", '"'), data)
+                        log.debug("%s key not found in response: %s", timeseries["value"].replace("${", '"').replace("}", '"'), data)
         except Exception as e:
             log.exception(e)
         return dict_result

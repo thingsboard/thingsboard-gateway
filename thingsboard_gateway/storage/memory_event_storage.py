@@ -13,6 +13,7 @@
 #     limitations under the License.
 
 import queue
+
 from thingsboard_gateway.storage.event_storage import EventStorage, log
 
 
@@ -25,18 +26,16 @@ class MemoryEventStorage(EventStorage):
         log.debug("Memory storage created with following configuration: \nMax size: %i\n Read records per time: %i", self.__queue_len, self.__events_per_time)
 
     def put(self, event):
+        success = False
         if not self.__events_queue.full():
             self.__events_queue.put(event)
-            return True
-        else:
-            return False
+            success = True
+        return success
 
     def get_event_pack(self):
-        if self.__event_pack:
-            return self.__event_pack
-        elif not self.__events_queue.empty():
+        if not self.__events_queue.empty() and not self.__event_pack:
             self.__event_pack = [self.__events_queue.get(False) for _ in range(min(self.__events_per_time, self.__events_queue.qsize()))]
-            return self.__event_pack
+        return self.__event_pack
 
     def event_pack_processing_done(self):
         self.__event_pack = []

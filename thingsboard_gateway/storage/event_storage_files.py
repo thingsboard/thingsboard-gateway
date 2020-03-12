@@ -24,3 +24,5 @@ class EventStorageFiles:
     def get_data_files(self):
         return sorted(self.data_files)
 
+    def set_data_files(self, data_files):
+        self.data_files = data_files

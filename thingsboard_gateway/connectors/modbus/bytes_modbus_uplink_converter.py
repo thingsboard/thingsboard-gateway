@@ -117,7 +117,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             result_data = decoded
         elif isinstance(decoded, bytes):
             result_data = decoded.decode('UTF-8')
-        else:
+        elif decoded is not None:
             result_data = int(decoded, 16)
 
         return result_data

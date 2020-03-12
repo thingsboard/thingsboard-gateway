@@ -12,19 +12,18 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from os import remove
+from re import findall
+from time import time, sleep
+from logging import getLogger
 from base64 import b64encode, b64decode
 from simplejson import dumps, loads, dump
 from yaml import safe_dump
-from time import time, sleep
-from logging import getLogger
-from re import findall
-from logging.config import fileConfig
-from logging.handlers import MemoryHandler
-from os import remove
+
 from thingsboard_gateway.gateway.tb_client import TBClient
-from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
+# pylint: disable=protected-access
 LOG = getLogger("service")
 
 

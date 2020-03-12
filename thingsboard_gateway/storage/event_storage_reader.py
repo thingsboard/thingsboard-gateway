@@ -66,25 +66,18 @@ class EventStorageReader:
                 if current_line_in_file >= self.settings.get_max_records_per_file():
                     previous_file = self.new_pos
                     next_file = self.get_next_file(self.files, self.new_pos)
-                    if next_file is not None:
-                        if self.buffered_reader is not None:
-                            self.buffered_reader.close()
-                        self.buffered_reader = None
-                        self.delete_read_file(previous_file)
-                        self.new_pos = EventStorageReaderPointer(next_file, 0)
-                        self.write_info_to_state_file(self.new_pos)
-                        continue
-                    else:
-                        # No more records to read for now
+                    if next_file is None:
                         break
-                        # continue
-                        ###################
+                    if self.buffered_reader is not None:
+                        self.buffered_reader.close()
+                    self.buffered_reader = None
+                    self.delete_read_file(previous_file)
+                    self.new_pos = EventStorageReaderPointer(next_file, 0)
+                    self.write_info_to_state_file(self.new_pos)
+                    continue
                 if line == b'':
                     break
-                    #######################
-                else:
-                    # No more records to read for now
-                    continue
+                continue
             except IOError as e:
                 log.warning("[%s] Failed to read file! Error: %s", self.new_pos.get_file(), e)
                 break
@@ -102,18 +95,6 @@ class EventStorageReader:
             self.current_batch = None
         except Exception as e:
             log.exception(e)
-
-    def get_next_file(self, files: EventStorageFiles, new_pos: EventStorageReaderPointer):
-        found = False
-        data_files = files.get_data_files()
-        target_file = None
-        for file_index in range(len(data_files)):
-            if found:
-                target_file = data_files[file_index]
-                break
-            if data_files[file_index] == new_pos.get_file():
-                found = True
-        return target_file
 
     def get_or_init_buffered_reader(self, pointer):
         try:
@@ -137,8 +118,7 @@ class EventStorageReader:
         try:
             state_data_node = {}
             try:
-                with BufferedReader(FileIO(self.settings.get_data_folder_path() +
-                                                 self.files.get_state_file(), 'r')) as buffered_reader:
+                with BufferedReader(FileIO(self.settings.get_data_folder_path() + self.files.get_state_file(), 'r')) as buffered_reader:
                     state_data_node = load(buffered_reader)
             except JSONDecodeError:
                 log.error("Failed to decode JSON from state file")
@@ -177,13 +157,23 @@ class EventStorageReader:
         data_files = self.files.get_data_files()
         if exists(self.settings.get_data_folder_path() + current_file.file):
             remove(self.settings.get_data_folder_path() + current_file.file)
-            try:
-                data_files = data_files[1:]
-            except Exception as e:
-                log.exception(e)
+            self.files.set_data_files(data_files[1:])
             log.info("FileStorage_reader -- Cleanup old data file: %s%s!", self.settings.get_data_folder_path(), current_file.file)
 
     def destroy(self):
         if self.buffered_reader is not None:
             self.buffered_reader.close()
             raise IOError
+
+    @staticmethod
+    def get_next_file(files: EventStorageFiles, new_pos: EventStorageReaderPointer):
+        found = False
+        data_files = files.get_data_files()
+        target_file = None
+        for file_index, _ in enumerate(data_files):
+            if found:
+                target_file = data_files[file_index]
+                break
+            if data_files[file_index] == new_pos.get_file():
+                found = True
+        return target_file
