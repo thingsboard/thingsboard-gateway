@@ -12,8 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from math import isnan
-
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.exceptions import ModbusIOException
@@ -27,8 +25,8 @@ class BytesModbusUplinkConverter(ModbusConverter):
             "timeseries": "telemetry",
             "attributes": "attributes"
         }
-        self.__result = {"deviceName": config.get("deviceName", "ModbusDevice %s" % (config["unitId"])),
-                         "deviceType": config.get("deviceType", "ModbusDevice")}
+        self.__result = {"deviceName": config.get("deviceName", "ModbusDevice %s" % (str(config["unitId"]))),
+                         "deviceType": config.get("deviceType", "default")}
 
     def convert(self, config, data):
         self.__result["telemetry"] = []
@@ -123,12 +121,15 @@ class BytesModbusUplinkConverter(ModbusConverter):
         else:
             log.error("Unknown type: %s", type_)
 
-        result_data = None
         if isinstance(decoded, int):
             result_data = decoded
         elif isinstance(decoded, bytes):
             result_data = decoded.decode('UTF-8')
-        elif decoded is not None and not isnan(decoded):
+        elif isinstance(decoded, list):
+            result_data = str(decoded)
+        elif isinstance(decoded, float):
+            result_data = decoded
+        elif decoded is not None:
             result_data = int(decoded, 16)
         else:
             result_data = decoded
