@@ -12,8 +12,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from math import isnan
+
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder
+from pymodbus.exceptions import ModbusIOException
 
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
 
@@ -47,24 +50,26 @@ class BytesModbusUplinkConverter(ModbusConverter):
                         decoded_data = result[0]
                 elif configuration["functionCode"] in [3, 4]:
                     decoder = None
-                    registers = response.registers
-                    log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))
-                    try:
-                        decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order)
-                    except TypeError:
-                        # pylint: disable=E1123
-                        decoder = BinaryPayloadDecoder.fromRegisters(registers, endian=endian_order)
-                    assert decoder is not None
-                    decoded_data = self.__decode_from_registers(decoder, configuration)
-                if decoded_data is not None:
-                    log.debug("datatype: %s \t key: %s \t value: %s", self.__datatypes[config_data], tag, str(decoded_data))
-                    self.__result[self.__datatypes[config_data]].append({tag: decoded_data})
-                else:
-                    log.debug("Cannot decode data from: %s with config: %s for tag: %s", response, str(configuration), tag)
+                    if not isinstance(response, ModbusIOException):
+                        registers = response.registers
+                        log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))
+                        try:
+                            decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order)
+                        except TypeError:
+                            # pylint: disable=E1123
+                            decoder = BinaryPayloadDecoder.fromRegisters(registers, endian=endian_order)
+                        assert decoder is not None
+                        decoded_data = self.__decode_from_registers(decoder, configuration)
+                    else:
+                        log.exception(response)
+                        decoded_data = None
+                log.debug("datatype: %s \t key: %s \t value: %s", self.__datatypes[config_data], tag, str(decoded_data))
+                self.__result[self.__datatypes[config_data]].append({tag: decoded_data})
         log.debug(self.__result)
         return self.__result
 
-    def __decode_from_registers(self, decoder, configuration):
+    @staticmethod
+    def __decode_from_registers(decoder, configuration):
         type_ = configuration["type"]
         registers_count = configuration.get("registerCount", 1)
         lower_type = type_.lower()
@@ -111,13 +116,20 @@ class BytesModbusUplinkConverter(ModbusConverter):
         elif lower_type == 'bits':
             decoded = decoder_functions[type_]()
 
+        elif decoder_functions.get(lower_type) is not None:
+            decoded = decoder_functions[lower_type]()
+
+        else:
+            log.error("Unknown type: %s", type_)
+
         result_data = None
-        assert decoded is not None
         if isinstance(decoded, int):
             result_data = decoded
         elif isinstance(decoded, bytes):
             result_data = decoded.decode('UTF-8')
-        elif decoded is not None:
+        elif decoded is not None and not isnan(decoded):
             result_data = int(decoded, 16)
+        else:
+            result_data = decoded
 
         return result_data

@@ -119,9 +119,9 @@ class ModbusConnector(Connector, threading.Thread):
                                 current_data = self.__devices[device]["config"][config_data][interested_data]
                                 current_data["deviceName"] = device
                                 input_data = self.__function_to_device(current_data, unit_id)
-                                if not isinstance(input_data, ReadRegistersResponseBase) and input_data.isError():
-                                    log.exception(input_data)
-                                    continue
+                                # if not isinstance(input_data, ReadRegistersResponseBase) and input_data.isError():
+                                #     log.exception(input_data)
+                                #     continue
                                 device_responses[config_data][current_data["tag"]] = {"data_sent": current_data,
                                                                                       "input_data": input_data}
 
@@ -171,7 +171,8 @@ class ModbusConnector(Connector, threading.Thread):
                                 self.__gateway.send_to_storage(self.get_name(), to_send)
                                 self.statistics['MessagesSent'] += 1
             except ConnectionException:
-                log.error("Connection lost! Trying to reconnect")
+                time.sleep(5)
+                log.error("Connection lost! Reconnecting...")
             except Exception as e:
                 log.exception(e)
 
@@ -218,7 +219,7 @@ class ModbusConnector(Connector, threading.Thread):
         else:
             log.error("Unknown Modbus function with code: %i", function_code)
         log.debug("To modbus device %s, \n%s", config["deviceName"], config)
-        log.debug("With result %s", result)
+        log.debug("With result %s", str(result))
 
         return result
 
@@ -237,14 +238,10 @@ class ModbusConnector(Connector, threading.Thread):
             except Exception as e:
                 log.exception(e)
             if response is not None:
-                log.debug(response)
-                if isinstance(response, (WriteMultipleRegistersResponse,
-                                         WriteMultipleCoilsResponse,
-                                         WriteSingleCoilResponse,
-                                         WriteSingleRegisterResponse)):
-                    response = True
-                else:
-                    response = False
+                response = isinstance(response, (WriteMultipleRegistersResponse,
+                                                 WriteMultipleCoilsResponse,
+                                                 WriteSingleCoilResponse,
+                                                 WriteSingleRegisterResponse))
                 log.debug(response)
                 self.__gateway.send_rpc_reply(content["device"],
                                               content["data"]["id"],
