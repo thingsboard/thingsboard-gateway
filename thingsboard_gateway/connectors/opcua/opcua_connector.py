@@ -14,7 +14,7 @@
 
 import re
 import time
-from concurrent.futures import TimeoutError as FuturesTimeoutError
+from concurrent.futures import CancelledError, TimeoutError as FuturesTimeoutError
 from copy import deepcopy
 from random import choice
 from threading import Thread
@@ -46,10 +46,10 @@ class OpcUaConnector(Thread, Connector):
                 log.error("deviceNodePattern in mapping: %s - not found, add property deviceNodePattern to processing this mapping",
                           dumps(mapping))
         if "opc.tcp" not in self.__server_conf.get("url"):
-            opcua_url = "opc.tcp://"+self.__server_conf.get("url")
+            self.__opcua_url = "opc.tcp://"+self.__server_conf.get("url")
         else:
-            opcua_url = self.__server_conf.get("url")
-        self.client = Client(opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
+            self.__opcua_url = self.__server_conf.get("url")
+        self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
         if self.__server_conf["identity"]["type"] == "cert.PEM":
             try:
                 ca_cert = self.__server_conf["identity"].get("caCert")
@@ -114,22 +114,15 @@ class OpcUaConnector(Thread, Connector):
             else:
                 self.__connected = True
                 log.info("OPC-UA connector %s connected to server %s", self.get_name(), self.__server_conf.get("url"))
-        self.__opcua_nodes["root"] = self.client.get_objects_node()
-        self.__opcua_nodes["objects"] = self.client.get_objects_node()
-        if not self.__server_conf.get("disableSubscriptions", False):
-            self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
-        else:
-            self.__sub = False
-        self.__scan_nodes_from_config()
-        self.__previous_scan_time = time.time() * 1000
-        log.debug('Subscriptions: %s', self.subscribed)
-        log.debug("Available methods: %s", self.__available_object_resources)
+        self.__initialize_client()
         while not self.__stopped:
             try:
                 time.sleep(.1)
                 self.__check_connection()
                 if not self.__connected and not self.__stopped:
                     self.client.connect()
+                    self.__initialize_client()
+                    log.info("Reconnected to the OPC-UA server - %s", self.__server_conf.get("url"))
                 elif not self.__stopped:
                     if self.__server_conf.get("disableSubscriptions", False) and time.time()*1000 - self.__previous_scan_time > self.__server_conf.get("scanPeriodInMillis", 60000):
                         self.__scan_nodes_from_config()
@@ -145,6 +138,7 @@ class OpcUaConnector(Thread, Connector):
                 raise
             except ConnectionRefusedError:
                 log.error("Connection refused on connection to OPC-UA server with url %s", self.__server_conf.get("url"))
+                self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
                 time.sleep(10)
             except Exception as e:
                 self.close()
@@ -228,6 +222,18 @@ class OpcUaConnector(Thread, Connector):
         except Exception as e:
             log.exception(e)
 
+    def __initialize_client(self):
+        self.__opcua_nodes["root"] = self.client.get_objects_node()
+        self.__opcua_nodes["objects"] = self.client.get_objects_node()
+        if not self.__server_conf.get("disableSubscriptions", False):
+            self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
+        else:
+            self.__sub = False
+        self.__scan_nodes_from_config()
+        self.__previous_scan_time = time.time() * 1000
+        log.debug('Subscriptions: %s', self.subscribed)
+        log.debug("Available methods: %s", self.__available_object_resources)
+
     def __scan_nodes_from_config(self):
         try:
             if self.__interest_nodes:
@@ -245,6 +251,10 @@ class OpcUaConnector(Thread, Connector):
                                     log.error("Device node is None, please check your configuration.")
                                     log.debug("Current device node is: %s", str(device_configuration.get("deviceNodePattern")))
                                     break
+                        except BrokenPipeError:
+                            log.debug("Broken Pipe. Connection lost.")
+                        except OSError:
+                            log.debug("Stop on scanning.")
                         except Exception as e:
                             log.exception(e)
                 log.debug(self.__interest_nodes)
@@ -436,6 +446,12 @@ class OpcUaConnector(Thread, Connector):
                         elif new_node_class == ua.NodeClass.Method and search_method:
                             log.debug("Found in %s", new_node_path)
                             result.append(new_node)
+        except CancelledError:
+            log.error("Request during search has been canceled by the OPC-UA server.")
+        except BrokenPipeError:
+            log.error("Broken Pipe. Connection lost.")
+        except OSError:
+            log.debug("Stop on scanning.")
         except Exception as e:
             log.exception(e)
 
