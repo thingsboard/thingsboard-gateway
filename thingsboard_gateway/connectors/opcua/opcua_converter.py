@@ -12,12 +12,10 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
-from abc import ABC, abstractmethod
-from thingsboard_gateway.connectors.converter import Converter, ABC, abstractmethod, log
+from thingsboard_gateway.connectors.converter import Converter, abstractmethod, log
 
 
-class OpcUaConverter(ABC):
+class OpcUaConverter(Converter):
     @abstractmethod
     def convert(self, config, data):
         pass

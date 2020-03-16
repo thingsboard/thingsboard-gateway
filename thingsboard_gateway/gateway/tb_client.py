@@ -12,11 +12,12 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 import time
-from ssl import SSLContext, PROTOCOL_TLSv1_2
-from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 import threading
+import logging
+from ssl import SSLContext, PROTOCOL_TLSv1_2
+
+from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 
 log = logging.getLogger("tb_connection")
 
@@ -31,7 +32,7 @@ class TBClient(threading.Thread):
         self.__port = config.get("port", 1883)
         credentials = config["security"]
         self.__min_reconnect_delay = 10
-        self.__tls = True if credentials.get('tls', False) or credentials.get('caCert', False) else False
+        self.__tls = bool(credentials.get('tls', False) or credentials.get('caCert', False))
         self.__ca_cert = None
         self.__private_key = None
         self.__cert = None
@@ -47,6 +48,7 @@ class TBClient(threading.Thread):
             self.__cert = credentials.get("cert")
         self.client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self)
         if self.__tls and self.__ca_cert is None and self.__private_key is None and self.__cert is None:
+            # pylint: disable=protected-access
             self.client._client.tls_set_context(SSLContext(PROTOCOL_TLSv1_2))
         # Adding callbacks
         self.client._client._on_connect = self._on_connect
@@ -69,16 +71,18 @@ class TBClient(threading.Thread):
     def is_connected(self):
         return self.client.is_connected()
 
-    def _on_connect(self, client, userdata, flags, rc, *extra_params):
+    def _on_connect(self, client, userdata, flags, result_code, *extra_params):
         log.debug('TB client %s connected to ThingsBoard', str(client))
         self.__is_connected = True
-        self.client._on_connect(client, userdata, flags, rc, *extra_params)
+        # pylint: disable=protected-access
+        self.client._on_connect(client, userdata, flags, result_code, *extra_params)
 
-    def _on_disconnect(self, client, userdata, rc):
+    def _on_disconnect(self, client, userdata, result_code):
         log.info("TB client %s has been disconnected.", str(client))
         self.unsubscribe('*')
         self.__is_connected = False
-        self.client._on_disconnect(client, userdata, rc)
+        # pylint: disable=protected-access
+        self.client._on_disconnect(client, userdata, result_code)
 
     def stop(self):
         # self.disconnect()

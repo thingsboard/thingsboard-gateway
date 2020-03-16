@@ -18,21 +18,26 @@ from random import choice
 from string import ascii_lowercase
 from time import sleep, time
 from re import fullmatch
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.connectors.connector import Connector, log
-from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
-from thingsboard_gateway.connectors.request.json_request_downlink_converter import JsonRequestDownlinkConverter
 
 import requests
 from requests import Timeout
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
+
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
+from thingsboard_gateway.connectors.request.json_request_downlink_converter import JsonRequestDownlinkConverter
+
+# pylint: disable=E1101
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 
 
 class RequestConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
+        self.statistics = {'MessagesReceived': 0,
+                           'MessagesSent': 0}
         self.__rpc_requests = []
         self.__config = config
         self.__connector_type = connector_type
@@ -127,7 +132,7 @@ class RequestConnector(Connector, Thread):
                         log.debug('Custom converter for url %s - found!', endpoint["url"])
                         converter = module(endpoint)
                     else:
-                        log.error("\n\nCannot find extension module for %s url.\n\Please check your configuration.\n", endpoint["url"])
+                        log.error("\n\nCannot find extension module for %s url.\nPlease check your configuration.\n", endpoint["url"])
                 else:
                     converter = JsonRequestUplinkConverter(endpoint)
                 self.__requests_in_progress.append({"config": endpoint,
@@ -138,7 +143,7 @@ class RequestConnector(Connector, Thread):
                 log.exception(e)
 
     def __fill_attribute_updates(self):
-        for attribute_request in self.__config["attributeUpdates"]:
+        for attribute_request in self.__config.get("attributeUpdates", []):
             if attribute_request.get("converter") is not None:
                 converter = TBUtility.check_and_import("request", attribute_request["converter"])(attribute_request)
             else:
@@ -147,7 +152,7 @@ class RequestConnector(Connector, Thread):
             self.__attribute_updates.append(attribute_request_dict)
 
     def __fill_rpc_requests(self):
-        for rpc_request in self.__config["serverSideRpc"]:
+        for rpc_request in self.__config.get("serverSideRpc", []):
             if rpc_request.get("converter") is not None:
                 converter = TBUtility.check_and_import("request", rpc_request["converter"])(rpc_request)
             else:
@@ -155,15 +160,15 @@ class RequestConnector(Connector, Thread):
             rpc_request_dict = {**rpc_request, "converter": converter}
             self.__rpc_requests.append(rpc_request_dict)
 
-    def __send_request(self, request, converter_queue, log):
+    def __send_request(self, request, converter_queue, logger):
         url = ""
         try:
             request["next_time"] = time() + request["config"].get("scanPeriod", 10)
             request_url_from_config = request["config"]["url"]
             request_url_from_config = str('/' + request_url_from_config) if request_url_from_config[0] != '/' else request_url_from_config
-            log.debug(request_url_from_config)
+            logger.debug(request_url_from_config)
             url = self.__host + request_url_from_config
-            log.debug(url)
+            logger.debug(url)
             request_timeout = request["config"].get("timeout", 1)
             params = {
                 "method": request["config"].get("httpMethod", "GET"),
@@ -173,10 +178,10 @@ class RequestConnector(Connector, Thread):
                 "verify": self.__ssl_verify,
                 "auth": self.__security
             }
-            log.debug(url)
+            logger.debug(url)
             if request["config"].get("httpHeaders") is not None:
                 params["headers"] = request["config"]["httpHeaders"]
-            log.debug("Request to %s will be sent", url)
+            logger.debug("Request to %s will be sent", url)
             response = request["request"](**params)
             if response and response.ok:
                 if not converter_queue.full():
@@ -187,17 +192,18 @@ class RequestConnector(Connector, Thread):
                         data_to_storage.append(response.content())
                     if len(data_to_storage) == 3:
                         converter_queue.put(data_to_storage)
+                        self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
             else:
-                log.error("Request to URL: %s finished with code: %i", url, response.status_code)
+                logger.error("Request to URL: %s finished with code: %i", url, response.status_code)
         except Timeout:
-            log.error("Timeout error on request %s.", url)
+            logger.error("Timeout error on request %s.", url)
         except RequestException as e:
-            log.error("Cannot connect to %s. Connection error.", url)
-            log.debug(e)
+            logger.error("Cannot connect to %s. Connection error.", url)
+            logger.debug(e)
         except ConnectionError:
-            log.error("Cannot connect to %s. Connection error.", url)
+            logger.error("Cannot connect to %s. Connection error.", url)
         except Exception as e:
-            log.exception(e)
+            logger.exception(e)
 
     def __process_data(self):
         try:
@@ -205,6 +211,7 @@ class RequestConnector(Connector, Thread):
                 url, converter, data = self.__convert_queue.get()
                 converted_data = converter.convert(url, data)
                 self.__gateway.send_to_storage(self.get_name(), converted_data)
+                self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
                 log.debug(converted_data)
             else:
                 sleep(.01)

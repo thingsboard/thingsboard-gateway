@@ -12,9 +12,10 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from re import fullmatch
+
 from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from re import fullmatch
 
 
 class OpcUaUplinkConverter(OpcUaConverter):

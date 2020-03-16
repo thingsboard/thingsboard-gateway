@@ -12,11 +12,10 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 
-from abc import ABC, abstractmethod
-from thingsboard_gateway.connectors.converter import Converter, ABC, abstractmethod, log
+from thingsboard_gateway.connectors.converter import Converter, abstractmethod, log
 
 
-class RequestConverter(ABC):
+class RequestConverter(Converter):
     @abstractmethod
     def convert(self, config, data):
         pass

@@ -35,7 +35,7 @@ class Connector(ABC):
     @abstractmethod
     def is_connected(self):
         pass
-    
+
     @abstractmethod
     def on_attributes_update(self, content):
         pass
