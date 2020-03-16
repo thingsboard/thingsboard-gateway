@@ -19,7 +19,7 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 class JsonRequestUplinkConverter(RequestConverter):
     def __init__(self, config):
-        self.__config = config.get('converter')
+        self.__config = config
 
     def convert(self, config, data):
         if isinstance(data, (bytes, str)):
@@ -29,7 +29,7 @@ class JsonRequestUplinkConverter(RequestConverter):
             if self.__config.get("deviceNameJsonExpression") is not None:
                 dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data, expression_instead_none=True)
             else:
-                log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
+                log.error("The expression \"%s\" for looking \"deviceName\" not found in config %s", dumps(self.__config))
             if self.__config.get("deviceTypeJsonExpression") is not None:
                 dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data, expression_instead_none=True)
             else:
@@ -39,8 +39,8 @@ class JsonRequestUplinkConverter(RequestConverter):
         except Exception as e:
             log.exception(e)
         try:
-            if self.__config.get("attributes"):
-                for attribute in self.__config.get("attributes"):
+            if self.__config["converter"].get("attributes"):
+                for attribute in self.__config["converter"].get("attributes"):
                     attribute_value = TBUtility.get_value(attribute["value"], data, attribute["type"])
                     if attribute_value is not None:
                         dict_result["attributes"].append({attribute["key"]: attribute_value})
@@ -50,8 +50,8 @@ class JsonRequestUplinkConverter(RequestConverter):
             log.error('Error in the JSON Mqtt Uplink converter, using config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
         try:
-            if self.__config.get("telemetry"):
-                for timeseries in self.__config.get("telemetry"):
+            if self.__config["converter"].get("telemetry"):
+                for timeseries in self.__config["converter"].get("telemetry"):
                     timeseries_value = TBUtility.get_value(timeseries["value"], data, timeseries["type"])
                     if timeseries_value is not None:
                         dict_result["telemetry"].append({timeseries["key"]: timeseries_value})

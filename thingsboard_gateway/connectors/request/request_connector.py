@@ -36,6 +36,8 @@ requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 class RequestConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
+        self.statistics = {'MessagesReceived': 0,
+                           'MessagesSent': 0}
         self.__rpc_requests = []
         self.__config = config
         self.__connector_type = connector_type
@@ -141,7 +143,7 @@ class RequestConnector(Connector, Thread):
                 log.exception(e)
 
     def __fill_attribute_updates(self):
-        for attribute_request in self.__config["attributeUpdates"]:
+        for attribute_request in self.__config.get("attributeUpdates", []):
             if attribute_request.get("converter") is not None:
                 converter = TBUtility.check_and_import("request", attribute_request["converter"])(attribute_request)
             else:
@@ -150,7 +152,7 @@ class RequestConnector(Connector, Thread):
             self.__attribute_updates.append(attribute_request_dict)
 
     def __fill_rpc_requests(self):
-        for rpc_request in self.__config["serverSideRpc"]:
+        for rpc_request in self.__config.get("serverSideRpc", []):
             if rpc_request.get("converter") is not None:
                 converter = TBUtility.check_and_import("request", rpc_request["converter"])(rpc_request)
             else:
@@ -190,6 +192,7 @@ class RequestConnector(Connector, Thread):
                         data_to_storage.append(response.content())
                     if len(data_to_storage) == 3:
                         converter_queue.put(data_to_storage)
+                        self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
             else:
                 logger.error("Request to URL: %s finished with code: %i", url, response.status_code)
         except Timeout:
@@ -208,6 +211,7 @@ class RequestConnector(Connector, Thread):
                 url, converter, data = self.__convert_queue.get()
                 converted_data = converter.convert(url, data)
                 self.__gateway.send_to_storage(self.get_name(), converted_data)
+                self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
                 log.debug(converted_data)
             else:
                 sleep(.01)

@@ -108,16 +108,19 @@ class TBUtility:
                     full_value = expression[0: max(abs(p1 - 2), 0)] + body[target_str.split()[0]] + expression[p2 + 1:len(expression)]
                 else:
                     full_value = body.get(target_str.split()[0])
-            elif isinstance(body, dict):
-                jsonpath_expression = parse(target_str)
-                jsonpath_match = jsonpath_expression.find(body)
-                if jsonpath_match:
-                    full_value = jsonpath_match[0].value
+            elif isinstance(body, (dict, list)):
+                try:
+                    jsonpath_expression = parse(target_str)
+                    jsonpath_match = jsonpath_expression.find(body)
+                    if jsonpath_match:
+                        full_value = jsonpath_match[0].value
+                except Exception as e:
+                    log.debug(e)
             elif isinstance(body, (str, bytes)):
                 search_result = search(expression, body)
                 if search_result.groups():
                     full_value = search_result.group(0)
-            elif expression_instead_none:
+            if expression_instead_none and full_value is None:
                 full_value = expression
         except Exception as e:
             log.exception(e)
