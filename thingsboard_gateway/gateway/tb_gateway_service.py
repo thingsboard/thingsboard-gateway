@@ -217,6 +217,7 @@ class TBGatewayService:
                         connector_conf = load(conf_file)
                         if not self._connectors_configs.get(connector['type']):
                             self._connectors_configs[connector['type']] = []
+                        connector_conf["name"] = connector["name"]
                         self._connectors_configs[connector['type']].append({"name": connector["name"], "config": {connector['configuration']: connector_conf}})
                     except Exception as e:
                         log.exception(e)
@@ -250,17 +251,20 @@ class TBGatewayService:
         self._send_to_storage(connector_name, data)
 
     def _send_to_storage(self, connector_name, data):
-        if not connector_name == self.name:
-            if not TBUtility.validate_converted_data(data):
-                log.error("Data from %s connector is invalid.", connector_name)
-                return
-            if data["deviceName"] not in self.get_devices():
-                self.add_device(data["deviceName"],
-                                {"connector": self.available_connectors[connector_name]}, wait_for_publish=True)
-            if not self.__connector_incoming_messages.get(connector_name):
-                self.__connector_incoming_messages[connector_name] = 0
-            else:
-                self.__connector_incoming_messages[connector_name] += 1
+        try:
+            if not connector_name == self.name:
+                if not TBUtility.validate_converted_data(data):
+                    log.error("Data from %s connector is invalid.", connector_name)
+                    return
+                if data["deviceName"] not in self.get_devices():
+                    self.add_device(data["deviceName"],
+                                    {"connector": self.available_connectors[connector_name]}, wait_for_publish=True)
+                if not self.__connector_incoming_messages.get(connector_name):
+                    self.__connector_incoming_messages[connector_name] = 0
+                else:
+                    self.__connector_incoming_messages[connector_name] += 1
+        except Exception as e:
+            log.exception(e)
 
         telemetry = {}
         for item in data["telemetry"]:

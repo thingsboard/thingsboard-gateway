@@ -2,7 +2,7 @@ thingsboard:
   host: demo.thingsboard.io
   port: 1883
   security:
-    accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
+    accessToken: 3AgtFvKvWLlsJbtFzk4A
 storage:
   type: memory
   read_records_count: 100
