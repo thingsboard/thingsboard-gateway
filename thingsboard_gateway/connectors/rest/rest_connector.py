@@ -1,4 +1,5 @@
 from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
 from threading import Thread
 from random import choice
 from string import ascii_lowercase
@@ -9,7 +10,48 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.rest.rest_converter import RestConverter
 
 
-class RESTConnector(Connector, Thread):
+'''
+
+url: http://127.0.0.1/test_device
+
+method: POST
+
+HEADER: 
+
+Authorization: Basic dXNlcjpwYXNzd2Q=
+
+BODY:
+
+body = {
+            "name": "number 2",
+            "sensorModel": "0AF0CE",
+            "temp": 25.8,
+        }
+
+mapping_dict = {
+                "/test_device":
+                    {
+                        "converter":JsonRestUplinkConverter(config["converter"]),
+                        "rpc":"...",
+                        "attributeUpdates":"..."
+                    }
+                }
+
+mapping_dict["/test_device"]["converter"].convert("/test_device", body)
+
+#TODO: 
+1 Create endpoints (with/without authorization and methods from the config)
+1.1 Initialize converters for endpoints
+1.2 Create a dictionary for data processing 
+2 Run application on open() function on host and port from the config.
+3 On receiving message: convert data and send_to_storage 
+
+
+'''
+
+
+
+class HttpConnector(Connector, Thread):
     _app = None
 
     def __init__(self, gateway, config, connector_type):
@@ -110,5 +152,3 @@ class RESTConnector(Connector, Thread):
 
     def server_side_rpc_handler(self, content):
         pass
-
-
