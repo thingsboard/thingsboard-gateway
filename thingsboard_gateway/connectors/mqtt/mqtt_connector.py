@@ -35,7 +35,7 @@ class MqttConnector(Connector, Thread):
         self.__gateway = gateway
         self.__broker = config.get('broker')
         self.__mapping = config.get('mapping')
-        self.__server_side_rpc = config.get('serverSideRpc')
+        self.__server_side_rpc = config.get('serverSideRpc', [])
         self.__service_config = {"connectRequests": [], "disconnectRequests": []}
         self.__attribute_updates = []
         self.__get_service_config(config)

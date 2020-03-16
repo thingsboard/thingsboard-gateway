@@ -314,7 +314,7 @@ class OpcUaConnector(Thread, Connector):
                 self.__available_object_resources[device_info["deviceName"]] = {}
             if self.__available_object_resources[device_info["deviceName"]].get("methods") is None:
                 self.__available_object_resources[device_info["deviceName"]]["methods"] = []
-            if device_info["configuration"].get("rpc_methods"):
+            if device_info["configuration"].get("rpc_methods", []):
                 node = device_info["deviceNode"]
                 for method_object in device_info["configuration"]["rpc_methods"]:
                     method_node_path = self._check_path(method_object["method"], node)
@@ -331,7 +331,7 @@ class OpcUaConnector(Thread, Connector):
 
     def __search_attribute_update_variables(self, device_info):
         try:
-            if device_info["configuration"].get("attributes_updates"):
+            if device_info["configuration"].get("attributes_updates", []):
                 node = device_info["deviceNode"]
                 device_name = device_info["deviceName"]
                 if self.__available_object_resources.get(device_name) is None:
