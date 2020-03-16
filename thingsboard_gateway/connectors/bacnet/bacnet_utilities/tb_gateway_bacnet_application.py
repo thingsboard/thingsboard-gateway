@@ -40,21 +40,26 @@ class TBBACnetApplication(BIPSimpleApplication):
         except Exception as e:
             log.exception(e)
 
-    def do_read(self, address, object_id, property_id, property_index=None, converter=None):
+    def do_read(self, device, mapping_type, mapping_object, callback=None):
         try:
+            object_id = mapping_object.get("objectId")
+            property_id = mapping_object.get("propertyId")
+            property_index = mapping_object.get("propertyIndex")
             object_id = ObjectIdentifier(object_id).value
             request = ReadPropertyRequest(
                 objectIdentifier=object_id,
                 propertyIdentifier=property_id
             )
-            request.pduDestination = Address(address)
+            request.pduDestination = Address(device["address"])
             if property_index is not None:
                 request.propertyArrayIndex = int(property_index)
             iocb = IOCB(request)
             deferred(self.request_io, iocb)
             iocb.add_callback(self.__on_response)
-            self.requests_in_progress.update({iocb: converter})
-            log.debug(iocb.ioResponse)
+            self.requests_in_progress.update({iocb: {"callback": callback,
+                                                     "device": device,
+                                                     "mapping_type": mapping_type,
+                                                     "mapping_object": mapping_object}})
         except Exception as e:
             log.exception(e)
 
@@ -80,6 +85,9 @@ class TBBACnetApplication(BIPSimpleApplication):
                 # datatype = ArrayOf(datatype)
                 value = apdu.propertyValue.cast_out(datatype)
                 log.debug("Received callback with data: %s", str(value))
+                callback_params = self.requests_in_progress[iocb]
+                if callback_params["callback"] is not None:
+                    callback_params["callback"](callback_params["device"]["converter"], callback_params["mapping_type"], callback_params["mapping_object"], value)
             elif iocb.ioError:
                 log.exception(iocb.ioError)
             del self.requests_in_progress[iocb]

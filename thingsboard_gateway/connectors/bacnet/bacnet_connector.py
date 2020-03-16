@@ -15,7 +15,7 @@
 from random import choice
 from string import ascii_lowercase
 from thingsboard_gateway.connectors.connector import Connector, log
-from thingsboard_gateway.connectors.bacnet.bacnet_converter import BACnetUplinkConverter
+from thingsboard_gateway.connectors.bacnet.bacnet_uplink_converter import BACnetUplinkConverter
 from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_application import TBBACnetApplication
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from threading import Thread
@@ -43,6 +43,12 @@ class BACnetConnector(Thread, Connector):
 
     def open(self):
         self.__stopped = False
+        for device in self.__devices:
+            try:
+                converter_object = TBUtility.check_and_import(self.__connector_type, device.get("class", "BACnetUplinkConverter"))
+                device["converter"] = converter_object(device)
+            except Exception as e:
+                log.exception(e)
         self.start()
 
     def run(self):
@@ -50,16 +56,25 @@ class BACnetConnector(Thread, Connector):
         while not self.__stopped:
             cur_time = time()*1000
             for device in self.__devices:
-                if cur_time - self.__devices[device["name"]] >= self.__poll_period:
-                    device_address = device["address"]
-                    device_object_identifier = device["objectIdentifier"]
-                    device_name = TBUtility.get_value(device["name"], expression_instead_none=True)
-                    for mapping_object in device["mapping"]:
-                        converter = TBUtility.check_and_import(self.__connector_type, )
-                        data_to_thingsboard = self._application.do_read("192.168.0.4", "analogValue:1", "presentValue")
-                        self.__devices["device"]["name"] = cur_time
-                else:
-                    sleep(.01)
+                try:
+                    if device.get("previous_check") is None or cur_time - device["previous_check"] >= self.__poll_period:
+                        device["previous_check"] = cur_time
+                        device_address = device["address"]
+                        device_object_identifier = device["objectIdentifier"]
+                        device_name = TBUtility.get_value(device["name"], expression_instead_none=True)
+                        for mapping_type in ["attributes", "timeseries"]:
+                            for mapping_object in device[mapping_type]:
+                                data_to_application = {
+                                    "device": device,
+                                    "mapping_type": mapping_type,
+                                    "mapping_object": mapping_object,
+                                    "callback": self.__bacnet_device_response_cb
+                                }
+                                data_to_thingsboard = self._application.do_read(**data_to_application)
+                    else:
+                        sleep(.1)
+                except Exception as e:
+                    log.exception(e)
 
     def close(self):
         self.__stopped = True
@@ -77,3 +92,14 @@ class BACnetConnector(Thread, Connector):
 
     def server_side_rpc_handler(self, content):
         pass
+
+    def __bacnet_device_response_cb(self, converter, mapping_type, config, value):
+        log.debug(value)
+        log.debug(config)
+        log.debug(converter)
+        converted_data = {}
+        try:
+            converted_data = converter.convert((mapping_type, config), value)
+        except Exception as e:
+            log.exception(e)
+        self.__gateway.send_to_storage(self.name, converted_data)

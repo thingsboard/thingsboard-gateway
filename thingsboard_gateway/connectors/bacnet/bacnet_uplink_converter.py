@@ -12,13 +12,21 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 
-from thingsboard_gateway.connectors.converter import Converter, log
+from thingsboard_gateway.connectors.bacnet.bacnet_converter import BACnetConverter, log
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
-class BACnetConverter:
+class BACnetUplinkConverter:
     def __init__(self, config):
-        pass
+        self.__config = config
 
     def convert(self, config, data):
-        pass
+        datatypes = {"attributes": "attributes",
+                     "timeseries": "telemetry"}
+        dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
+        dict_result["deviceName"] = self.__config.get("name", "BACnet device") # TODO Add ability to use Regex and JSONPath
+        dict_result["deviceType"] = self.__config.get("deviceType", "default")
+        dict_result[datatypes[config[0]]] = [{config[1]["key"]: data}]
+        return dict_result
+
 
