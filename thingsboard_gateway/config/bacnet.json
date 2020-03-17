@@ -1,0 +1,29 @@
+{
+  "general": {
+    "objectName": "TB_gateway",
+    "address": "192.168.188.181:1052",
+    "objectIdentifier": 599,
+    "maxApduLengthAccepted": 1024,
+    "segmentationSupported": "segmentedBoth",
+    "vendorIdentifier": 15,
+    "pollPeriod": 5000
+  },
+  "devices": [
+    {
+      "deviceName": "BACnet Device",
+      "deviceType": "default",
+      "address": "192.168.188.181:10520",
+      "attributes": [
+        {
+          "key": "temperature",
+          "type": "string",
+          "objectId": "analogValue:1",
+          "propertyId": "presentValue"
+        }
+      ],
+      "timeseries": [
+
+      ]
+    }
+  ]
+}

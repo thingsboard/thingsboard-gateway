@@ -60,8 +60,7 @@ class BACnetConnector(Thread, Connector):
                     if device.get("previous_check") is None or cur_time - device["previous_check"] >= self.__poll_period:
                         device["previous_check"] = cur_time
                         device_address = device["address"]
-                        device_object_identifier = device["objectIdentifier"]
-                        device_name = TBUtility.get_value(device["name"], expression_instead_none=True)
+                        device_name = TBUtility.get_value(device["deviceName"], expression_instead_none=True)
                         for mapping_type in ["attributes", "timeseries"]:
                             for mapping_object in device[mapping_type]:
                                 data_to_application = {
