@@ -91,17 +91,17 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
         decoded = None
         if lower_type in ['int', 'long', 'integer']:
-            type_ = str(registers_count * 8) + "int"
+            type_ = str(registers_count * 16) + "int"
             assert decoder_functions.get(type_) is not None
             decoded = decoder_functions[type_]()
 
         elif lower_type in ["double", "float"]:
-            type_ = str(registers_count * 8) + "float"
+            type_ = str(registers_count * 16) + "float"
             assert decoder_functions.get(type_) is not None
             decoded = decoder_functions[type_]()
 
         elif lower_type == 'uint':
-            type_ = str(registers_count * 8) + "uint"
+            type_ = str(registers_count * 16) + "uint"
             assert decoder_functions.get(type_) is not None
             decoded = decoder_functions[type_]()
 
