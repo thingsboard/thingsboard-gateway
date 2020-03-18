@@ -82,7 +82,6 @@ class TBBACnetApplication(BIPSimpleApplication):
                     raise RuntimeError("unknown datatype")
                 if len(tag_list) > 1:
                     datatype = ArrayOf(datatype)
-                # datatype = ArrayOf(datatype)
                 value = apdu.propertyValue.cast_out(datatype)
                 log.debug("Received callback with data: %s", str(value))
                 callback_params = self.requests_in_progress[iocb]
