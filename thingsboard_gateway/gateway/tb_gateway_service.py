@@ -70,7 +70,7 @@ class TBGatewayService:
             "opcua": "OpcUaConnector",
             "ble": "BLEConnector",
             "request": "RequestConnector",
-            "rest": "RESTConnector",
+            "rest": "HttpConnector",
         }
         self._implemented_connectors = {}
         self._event_storage_types = {
