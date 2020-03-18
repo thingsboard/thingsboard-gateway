@@ -209,14 +209,21 @@ class RequestConnector(Connector, Thread):
         try:
             if not self.__convert_queue.empty():
                 url, converter, data = self.__convert_queue.get()
-                converted_data = converter.convert(url, data)
-                self.__gateway.send_to_storage(self.get_name(), converted_data)
-                self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
-                log.debug(converted_data)
+                if isinstance(data, list):
+                    for data_item in data:
+                        self.__convert_data(url, converter, data_item)
+                else:
+                    self.__convert_data(url, converter, data)
             else:
                 sleep(.01)
         except Exception as e:
             log.exception(e)
+
+    def __convert_data(self, url, converter, data):
+        converted_data = converter.convert(url, data)
+        self.__gateway.send_to_storage(self.get_name(), converted_data)
+        self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
+        log.debug(converted_data)
 
     def get_name(self):
         return self.name
