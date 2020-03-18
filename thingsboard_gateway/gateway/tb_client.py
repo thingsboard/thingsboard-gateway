@@ -12,10 +12,12 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 import time
-from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 import threading
+import logging
+from ssl import SSLContext, PROTOCOL_TLSv1_2
+
+from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 
 log = logging.getLogger("tb_connection")
 
@@ -30,7 +32,7 @@ class TBClient(threading.Thread):
         self.__port = config.get("port", 1883)
         credentials = config["security"]
         self.__min_reconnect_delay = 10
-        self.__tls = True if credentials.get('caCert', False) else False
+        self.__tls = bool(credentials.get('tls', False) or credentials.get('caCert', False))
         self.__ca_cert = None
         self.__private_key = None
         self.__cert = None
@@ -45,6 +47,9 @@ class TBClient(threading.Thread):
             self.__private_key = credentials.get("privateKey")
             self.__cert = credentials.get("cert")
         self.client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self)
+        if self.__tls and self.__ca_cert is None and self.__private_key is None and self.__cert is None:
+            # pylint: disable=protected-access
+            self.client._client.tls_set_context(SSLContext(PROTOCOL_TLSv1_2))
         # Adding callbacks
         self.client._client._on_connect = self._on_connect
         self.client._client._on_disconnect = self._on_disconnect
@@ -66,16 +71,22 @@ class TBClient(threading.Thread):
     def is_connected(self):
         return self.client.is_connected()
 
-    def _on_connect(self, client, userdata, flags, rc, *extra_params):
+    def _on_connect(self, client, userdata, flags, result_code, *extra_params):
         log.debug('TB client %s connected to ThingsBoard', str(client))
-        self.client._on_connect(client, userdata, flags, rc, *extra_params)
+        self.__is_connected = True
+        # pylint: disable=protected-access
+        self.client._on_connect(client, userdata, flags, result_code, *extra_params)
 
-    def _on_disconnect(self, client, userdata, rc):
+    def _on_disconnect(self, client, userdata, result_code):
         log.info("TB client %s has been disconnected.", str(client))
-        self.client._on_disconnect(client, userdata, rc)
+        self.unsubscribe('*')
+        self.__is_connected = False
+        # pylint: disable=protected-access
+        self.client._on_disconnect(client, userdata, result_code)
 
     def stop(self):
-        self.disconnect()
+        # self.disconnect()
+        self.client.stop()
         self.__stopped = True
 
     def disconnect(self):
@@ -95,8 +106,10 @@ class TBClient(threading.Thread):
         keep_alive = self.__config.get("keep_alive", 60)
         try:
             while not self.client.is_connected() and not self.__stopped:
-                log.debug("connecting to ThingsBoard")
                 if not self.__paused:
+                    if self.__stopped:
+                        break
+                    log.debug("connecting to ThingsBoard")
                     try:
                         self.client.connect(tls=self.__tls,
                                             ca_certs=self.__ca_cert,
@@ -106,6 +119,8 @@ class TBClient(threading.Thread):
                                             min_reconnect_delay=self.__min_reconnect_delay)
                     except ConnectionRefusedError:
                         pass
+                    except Exception as e:
+                        log.exception(e)
                 time.sleep(1)
         except Exception as e:
             log.exception(e)

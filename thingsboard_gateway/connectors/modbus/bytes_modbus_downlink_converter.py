@@ -13,8 +13,8 @@
 #     limitations under the License.
 
 from pymodbus.payload import BinaryPayloadBuilder
-from re import findall
 from pymodbus.constants import Endian
+
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
 
 
@@ -24,63 +24,59 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         self.__config = config
 
     def convert(self, config, data):
-        byte_order = config["byteOrder"] if config.get("byteOrder") else "LITTLE"
-        if byte_order == "LITTLE":
-            builder = BinaryPayloadBuilder(byteorder=Endian.Little)
-        elif byte_order == "BIG":
-            builder = BinaryPayloadBuilder(byteorder=Endian.Big)
-        else:
-            log.warning("byte order is not BIG or LITTLE")
-            return
-        reg_count = config.get("registerCount", 1)
-        value = config["value"]
-        if config.get("tag") is not None:
-            tags = (findall('[A-Z][a-z]*', config["tag"]))
-            if "Coil" in tags:
-                builder.add_bits(value)
-            elif "String" in tags:
-                builder.add_string(value)
-            elif "Double" in tags:
-                if reg_count == 4:
-                    builder.add_64bit_float(value)
-                else:
-                    log.warning("unsupported amount of registers with double type for device %s in Downlink converter",
-                                self.__config["deviceName"])
-                    return
-            elif "Float" in tags:
-                if reg_count == 2:
-                    builder.add_32bit_float(value)
-                else:
-                    log.warning("unsupported amount of registers with float type for device %s in Downlink converter",
-                                self.__config["deviceName"])
-                    return
-            elif "Integer" in tags or "DWord" in tags or "DWord/Integer" in tags or "Word" in tags:
-                if reg_count == 1:
-                    builder.add_16bit_int(value)
-                elif reg_count == 2:
-                    builder.add_32bit_int(value)
-                elif reg_count == 4:
-                    builder.add_64bit_int(value)
-                else:
-                    log.warning("unsupported amount of registers with integer/word/dword type for device %s in Downlink converter",
-                                self.__config["deviceName"])
-                    return
-            else:
-                log.warning("unsupported hardware data type for device %s in Downlink converter",
-                            self.__config["deviceName"])
+        byte_order_str = config.get("byteOrder", "LITTLE")
+        byte_order = Endian.Big if byte_order_str.upper() == "BIG" else Endian.Little
+        builder = BinaryPayloadBuilder(byteorder=byte_order)
+        builder_functions = {"string": builder.add_string,
+                             "bits": builder.add_bits,
+                             "8int": builder.add_8bit_int,
+                             "16int": builder.add_16bit_int,
+                             "32int": builder.add_32bit_int,
+                             "64int": builder.add_64bit_int,
+                             "8uint": builder.add_8bit_uint,
+                             "16uint": builder.add_16bit_uint,
+                             "32uint": builder.add_32bit_uint,
+                             "64uint": builder.add_64bit_uint,
+                             "16float": builder.add_16bit_float,
+                             "32float": builder.add_32bit_float,
+                             "64float": builder.add_64bit_float}
 
-        if config.get("bit") is not None:
+        value = config["value"]
+        lower_type = config["tag"].lower()
+        variable_size = config.get("registerCount", 1) * 8
+        if lower_type in ["integer", "dword", "dword/integer", "word"]:
+            lower_type = str(variable_size) + "int"
+            assert builder_functions.get(lower_type) is not None
+            builder_functions[lower_type](value)
+        elif lower_type in ["uint", "unsigned", "unsigned integer", "unsigned int"]:
+            lower_type = str(variable_size) + "uint"
+            assert builder_functions.get(lower_type) is not None
+            builder_functions[lower_type](value)
+        elif lower_type in ["float", "double"]:
+            lower_type = str(variable_size) + "float"
+            assert builder_functions.get(lower_type) is not None
+            builder_functions[lower_type](value)
+        elif lower_type in ["coil", "bits"]:
+            assert builder_functions.get("bits") is not None
+            builder_functions["bits"](value)
+        elif lower_type in ["string"]:
+            assert builder_functions.get("string") is not None
+            builder_functions[lower_type](value)
+        elif lower_type in ["bit"]:
             bits = [0 for _ in range(8)]
             bits[config["bit"]-1] = int(value)
             log.debug(bits)
             builder.add_bits(bits)
             return builder.to_string()
 
-        if config["functionCode"] in [5, 15]:
-            return builder.to_coils()
-        elif config["functionCode"] in [6, 16]:
-            return builder.to_registers()
-        else:
-            log.warning("Unsupported function code,  for device %s in Downlink converter",
-                        self.__config["deviceName"])
-        return
+        builder_converting_functions = {5: builder.to_coils,
+                                        15: builder.to_coils,
+                                        6: builder.to_registers,
+                                        16: builder.to_registers}
+
+        function_code = config["functionCode"]
+
+        if function_code in builder_converting_functions:
+            return builder_converting_functions[function_code]()
+        log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter", self.__config["deviceName"])
+        return None

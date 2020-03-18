@@ -5,7 +5,7 @@ Thingsboard is an open-source IoT platform for data collection, processing, visu
 
 [**What is ThingsBoard IoT Gateway?**](https://thingsboard.io/docs/iot-gateway/what-is-iot-gateway/)  
 
-![ThingsBoard IoT Gateway architecture](http://thingsboard.io/images/gateway/python-gateway.png)
+![ThingsBoard IoT Gateway architecture](https://thingsboard.io/images/gw_animation.gif)
 
 ### Gateway features
 
@@ -15,6 +15,7 @@ Thingsboard IoT Gateway provides following features:
  - **MQTT** connector to collect data that is published to external MQTT brokers. 
  - **Modbus** connector to collect data from Modbus servers and slaves.
  - **BLE** connector to collect data from BLE devices.
+ - **Request** connector to collect data from HTTP API.
  - **Custom** connector to collect data from custom protocols.
  - **Persistence** of collected data to guarantee data delivery in case of network and hardware failures.
  - **Automatic reconnect** to Thingsboard cluster.
@@ -29,6 +30,8 @@ Especially, when we are talking about language APIs and existing libraries to wo
 
 The Gateway provides simple integration APIs, and encapsulates common Thingsboard related tasks: device provisioning, local data persistence and delivery, message converters and other.  
 For processing data from devices you also can write custom converter, it will receive information from device and send it to converter to convert to unified format before sending it to the ThingsBoard cluster.  
+
+![ThingsBoard IoT Gateway architecture](http://thingsboard.io/images/gateway/python-gateway.png)
 
 ## Support
 

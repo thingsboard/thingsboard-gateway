@@ -16,12 +16,15 @@ import time
 import threading
 from random import choice
 from string import ascii_lowercase
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient, ModbusRtuFramer, ModbusSocketFramer
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
-from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
+from pymodbus.register_write_message import WriteMultipleRegistersResponse, \
+                                            WriteSingleRegisterResponse
 from pymodbus.register_read_message import ReadRegistersResponseBase
 from pymodbus.exceptions import ConnectionException
+
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
@@ -33,7 +36,7 @@ class ModbusConnector(Connector, threading.Thread):
                            'MessagesSent': 0}
         super().__init__()
         self.__gateway = gateway
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.__master = None
         self.__config = config.get("server")
         self.__configure_master()
@@ -61,7 +64,7 @@ class ModbusConnector(Connector, threading.Thread):
         self.__connected = True
 
         while True:
-            time.sleep(1)
+            time.sleep(.01)
             self.__process_devices()
             if self.__stopped:
                 break
@@ -70,15 +73,15 @@ class ModbusConnector(Connector, threading.Thread):
         try:
             for device in self.__config["devices"]:
                 if self.__config.get("converter") is not None:
-                    converter = TBUtility.check_and_import(self.__connector_type, self.__config["converter"])(device)
+                    converter = TBUtility.check_and_import(self._connector_type, self.__config["converter"])(device)
                 else:
                     converter = BytesModbusUplinkConverter(device)
                 if self.__config.get("downlink_converter") is not None:
-                    downlink_converter = TBUtility.check_and_import(self.__connector_type, self.__config["downlink_converter"])(device)
+                    downlink_converter = TBUtility.check_and_import(self._connector_type, self.__config["downlink_converter"])(device)
                 else:
                     downlink_converter = BytesModbusDownlinkConverter(device)
                 if device.get('deviceName') not in self.__gateway.get_devices():
-                    self.__gateway.add_device(device.get('deviceName'), {"connector": self})
+                    self.__gateway.add_device(device.get('deviceName'), {"connector": self}, device_type=device.get("deviceType"))
                     self.__devices[device["deviceName"]] = {"config": device,
                                                             "converter": converter,
                                                             "downlink_converter": downlink_converter,
@@ -116,9 +119,9 @@ class ModbusConnector(Connector, threading.Thread):
                                 current_data = self.__devices[device]["config"][config_data][interested_data]
                                 current_data["deviceName"] = device
                                 input_data = self.__function_to_device(current_data, unit_id)
-                                if not isinstance(input_data, ReadRegistersResponseBase) and input_data.isError():
-                                    log.exception(input_data)
-                                    continue
+                                # if not isinstance(input_data, ReadRegistersResponseBase) and input_data.isError():
+                                #     log.exception(input_data)
+                                #     continue
                                 device_responses[config_data][current_data["tag"]] = {"data_sent": current_data,
                                                                                       "input_data": input_data}
 
@@ -150,24 +153,26 @@ class ModbusConnector(Connector, threading.Thread):
                                 # if converted_data["attributes"] != self.__devices[device]["attributes"]:
                                     # self.__devices[device]["last_attributes"] = converted_data["attributes"]
                                     # to_send["attributes"] = converted_data["attributes"]
-                                if to_send.get("attributes") is not None or to_send.get("telemetry"):
+                                if to_send.get("attributes") or to_send.get("telemetry"):
                                     self.__gateway.send_to_storage(self.get_name(), to_send)
                                     self.statistics['MessagesSent'] += 1
                                 else:
                                     log.debug("Data has not been changed.")
                             elif self.__devices[device]["config"].get("sendDataOnlyOnChange") is None or not self.__devices[device]["config"].get("sendDataOnlyOnChange"):
                                 self.statistics['MessagesReceived'] += 1
-                                to_send = {"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
+                                to_send = {"deviceName": converted_data["deviceName"],
+                                           "deviceType": converted_data["deviceType"]}
                                 # if converted_data["telemetry"] != self.__devices[device]["telemetry"]:
                                 self.__devices[device]["last_telemetry"] = converted_data["telemetry"]
                                 to_send["telemetry"] = converted_data["telemetry"]
                                 # if converted_data["attributes"] != self.__devices[device]["attributes"]:
-                                self.__devices[device]["last_telemetry"] = converted_data["attributes"]
+                                self.__devices[device]["last_attributes"] = converted_data["attributes"]
                                 to_send["attributes"] = converted_data["attributes"]
                                 self.__gateway.send_to_storage(self.get_name(), to_send)
                                 self.statistics['MessagesSent'] += 1
             except ConnectionException:
-                log.error("Connection lost! Trying to reconnect")
+                time.sleep(5)
+                log.error("Connection lost! Reconnecting...")
             except Exception as e:
                 log.exception(e)
 
@@ -214,7 +219,7 @@ class ModbusConnector(Connector, threading.Thread):
         else:
             log.error("Unknown Modbus function with code: %i", function_code)
         log.debug("To modbus device %s, \n%s", config["deviceName"], config)
-        log.debug("With result %s", result)
+        log.debug("With result %s", str(result))
 
         return result
 
@@ -233,14 +238,10 @@ class ModbusConnector(Connector, threading.Thread):
             except Exception as e:
                 log.exception(e)
             if response is not None:
-                log.debug(response)
-                if type(response) in (WriteMultipleRegistersResponse,
-                                      WriteMultipleCoilsResponse,
-                                      WriteSingleCoilResponse,
-                                      WriteSingleRegisterResponse):
-                    response = True
-                else:
-                    response = False
+                response = isinstance(response, (WriteMultipleRegistersResponse,
+                                                 WriteMultipleCoilsResponse,
+                                                 WriteSingleCoilResponse,
+                                                 WriteSingleRegisterResponse))
                 log.debug(response)
                 self.__gateway.send_rpc_reply(content["device"],
                                               content["data"]["id"],

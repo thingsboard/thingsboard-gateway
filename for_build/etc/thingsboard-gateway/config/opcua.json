@@ -10,22 +10,22 @@
     },
     "mapping": [
       {
-        "deviceNodePattern": "MyObject\\d+",
-        "deviceNamePattern": "Device ${MyVariable22}",
+        "deviceNodePattern": "Root\\.Objects\\.Device1",
+        "deviceNamePattern": "Device ${Root\\.Objects\\.Device1\\.serialNumber}",
         "attributes": [
           {
-            "key": "Tag1",
-            "path": "${MyVariable1}"
+            "key": "temperature",
+            "path": "${TemperatureAndHumiditySensor\\.Temperature}"
           }
         ],
         "timeseries": [
           {
-            "key": "Tag3",
-            "path": "${Tag3}"
+            "key": "humidity",
+            "path": "${Root\\.Objects\\.Device1\\.TemperatureAndHumiditySensor\\.Humidity}"
           },
           {
-            "key": "Tag2",
-            "path": "${MyVariable3}"
+            "key": "batteryLevel",
+            "path": "${Battery\\.batteryLevel}"
           }
         ],
         "rpc_methods": [
@@ -36,8 +36,8 @@
         ],
         "attributes_updates": [
           {
-            "attributeOnThingsBoard": "t",
-            "attributeOnDevice": "MyVariable1"
+            "attributeOnThingsBoard": "deviceName",
+            "attributeOnDevice": "Root\\.Objects\\.Device1\\.serialNumber"
           }
         ]
       }
