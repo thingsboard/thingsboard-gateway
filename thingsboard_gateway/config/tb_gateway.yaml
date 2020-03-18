@@ -13,15 +13,15 @@ storage:
 #  max_read_records_count: 10
 #  max_records_per_file: 10000
 connectors:
+  -
+    name: REST Connector
+    type: rest
+    configuration: rest.json
 
 #  -
 #    name: MQTT Broker Connector
 #    type: mqtt
 #    configuration: mqtt.json
-  -
-    name: REST Connector
-    type: rest
-    configuration: rest.json
 
 #  -
 #    name: Modbus Connector

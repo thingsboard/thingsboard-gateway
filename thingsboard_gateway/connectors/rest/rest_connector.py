@@ -99,10 +99,13 @@ class HttpConnector(Connector, Thread):
                 log.debug(e)
 
     def add_endpoints(self):
-        self._api.add_resource(self.TelemetryHandler, '/api/v1/telemetry',
-                               resource_class_args=(self.__gateway.send_to_storage, self.get_name(), self.config))
-        self._api.add_resource(self.AttributesHandler, '/api/v1/attributes',
-                               resource_class_args=(self.__gateway.send_to_storage, self.get_name(), self.config))
+        for mapping in self.config.get("mappings"):
+            self._api.add_resource(self.TelemetryHandler, mapping['endpoint'],
+                                resource_class_args=(self.__gateway.send_to_storage, self.get_name(), mapping))
+        # self._api.add_resource(self.TelemetryHandler, '/api/v1/telemetry',
+        #                        resource_class_args=(self.__gateway.send_to_storage, self.get_name(), self.config))
+        # self._api.add_resource(self.AttributesHandler, '/api/v1/attributes',
+        #                        resource_class_args=(self.__gateway.send_to_storage, self.get_name(), self.config))
         # try:
         #     for endpoint in self.endpoints.keys():
         #         self._app.add_url_rule(rule=endpoint, view_func=self.endpoints[endpoint]['function'],

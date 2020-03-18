@@ -8,6 +8,8 @@ class RestConverter(Converter):
         self.__config = config
 
     def convert(self, config, data):
+        # Example
+        # dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
         result = {"deviceName": config['devices']['test']['name'],
                   "deviceType": config['devices']['test']['type'],
                   # "attributes": config['devices']['test']['attributes'],
