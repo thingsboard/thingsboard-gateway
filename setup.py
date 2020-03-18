@@ -40,7 +40,7 @@ setup(
         'pyrsistent',
         'requests'
     ],
-    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.2.3.1.tar.gz',
+    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.2.3.2.tar.gz',
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'
