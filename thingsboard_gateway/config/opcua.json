@@ -2,30 +2,33 @@
   "server": {
     "name": "OPC-UA Default Server",
     "url": "localhost:4840/freeopcua/server/",
-    "scanPeriodInMillis": 10000,
     "timeoutInMillis": 5000,
+    "scanPeriodInMillis": 5000,
+    "disableSubscriptions":false,
+    "subCheckPeriodInMillis": 100,
+    "showMap": false,
     "security": "Basic128Rsa15",
     "identity": {
       "type": "anonymous"
     },
     "mapping": [
       {
-        "deviceNodePattern": "MyObject\\d+",
-        "deviceNamePattern": "Device ${MyVariable22}",
+        "deviceNodePattern": "Root\\.Objects\\.Device1",
+        "deviceNamePattern": "Device ${Root\\.Objects\\.Device1\\.serialNumber}",
         "attributes": [
           {
-            "key": "Tag1",
-            "path": "${MyVariable1}"
+            "key": "temperature °C",
+            "path": "${ns=2;i=5}"
           }
         ],
         "timeseries": [
           {
-            "key": "Tag3",
-            "path": "${Tag3}"
+            "key": "humidity",
+            "path": "${Root\\.Objects\\.Device1\\.TemperatureAndHumiditySensor\\.Humidity}"
           },
           {
-            "key": "Tag2",
-            "path": "${MyVariable3}"
+            "key": "batteryLevel",
+            "path": "${Battery\\.batteryLevel}"
           }
         ],
         "rpc_methods": [
@@ -36,8 +39,8 @@
         ],
         "attributes_updates": [
           {
-            "attributeOnThingsBoard": "t",
-            "attributeOnDevice": "MyVariable1"
+            "attributeOnThingsBoard": "deviceName",
+            "attributeOnDevice": "Root\\.Objects\\.Device1\\.serialNumber"
           }
         ]
       }

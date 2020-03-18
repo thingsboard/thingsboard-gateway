@@ -8,3 +8,6 @@ pyserial python3-pyserial; PEP386
 pyyaml python3-PyYAML; PEP386
 pyrsistent python3-pyrsistent; PEP386
 importlib python3-importlib; PEP386
+jsonparh-rw python3-jsonpath-rw; PEP386
+regex python3-regex; PEP386
+requests python3-requests; PEP386

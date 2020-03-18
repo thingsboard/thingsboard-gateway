@@ -1,6 +1,7 @@
 thingsboard:
   host: demo.thingsboard.io
   port: 1883
+  remoteConfiguration: false
   security:
     accessToken: 3AgtFvKvWLlsJbtFzk4A
 storage:
@@ -42,7 +43,12 @@ connectors:
 #    name: BLE Connector
 #    type: ble
 #    configuration: ble.json
-
+#
+#  -
+#    name: REQUEST
+#    type: request
+#    configuration: request.json
+#
 #  -
 #    name: Custom Serial Connector
 #    type: serial

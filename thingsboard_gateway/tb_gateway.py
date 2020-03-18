@@ -12,16 +12,18 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from os import path
+from os import path, listdir, mkdir, curdir
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
 
 def main():
-    TBGatewayService(path.dirname(path.abspath(__file__)) + '//config//tb_gateway.yaml')
+    if "logs" not in listdir(curdir):
+        mkdir("logs")
+    TBGatewayService(path.dirname(path.abspath(__file__)) + '/config/tb_gateway.yaml'.replace('/', path.sep))
 
 
 def daemon():
-    TBGatewayService("//etc//thingsboard-gateway//config//tb_gateway.yaml")
+    TBGatewayService("/etc/thingsboard-gateway/config/tb_gateway.yaml".replace('/', path.sep))
 
 
 if __name__ == '__main__':

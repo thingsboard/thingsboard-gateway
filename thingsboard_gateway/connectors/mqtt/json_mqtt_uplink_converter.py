@@ -12,8 +12,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from simplejson import dumps
 from re import search
+from time import time
+
+from simplejson import dumps
+
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -23,10 +26,12 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         self.__config = config.get('converter')
 
     def convert(self, config, data):
-        dict_result = {"deviceName": None, "deviceType": None,"attributes": [], "telemetry": []}
+        datatypes = {"attributes": "attributes",
+                     "timeseries": "telemetry"}
+        dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
         try:
             if self.__config.get("deviceNameJsonExpression") is not None:
-                dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data)
+                dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data, expression_instead_none=True)
             elif self.__config.get("deviceNameTopicExpression") is not None:
                 search_result = search(self.__config["deviceNameTopicExpression"], config)
                 if search_result is not None:
@@ -37,7 +42,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
             else:
                 log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
             if self.__config.get("deviceTypeJsonExpression") is not None:
-                dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data)
+                dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data, expression_instead_none=True)
             elif self.__config.get("deviceTypeTopicExpression") is not None:
                 search_result = search(self.__config["deviceTypeTopicExpression"], config)
                 if search_result is not None:
@@ -47,31 +52,23 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                     dict_result["deviceType"] = self.__config.get("deviceTypeTopicExpression")
             else:
                 log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
-            dict_result["attributes"] = []
-            dict_result["telemetry"] = []
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
         try:
-            if self.__config.get("attributes"):
-                for attribute in self.__config.get("attributes"):
-                    attribute_value = TBUtility.get_value(attribute["value"], data, attribute["type"])
-                    if attribute_value is not None:
-                        dict_result["attributes"].append({attribute["key"]: attribute_value})
-                    else:
-                        log.debug("%s key not found in message: %s", attribute["value"].replace("${", '"').replace("}", '"'), data)
+            for datatype in datatypes:
+                dict_result[datatypes[datatype]] = []
+                for datatype_config in self.__config.get(datatype, []):
+                    value = TBUtility.get_value(datatype_config["value"], data, datatype_config["type"])
+                    tag = TBUtility.get_value(datatype_config["value"], data, datatype_config["type"], get_tag=True)
+                    if value is not None and value != datatype_config["value"]:
+                        is_string = isinstance(value, str)
+                        full_value = datatype_config["value"].replace('${' + tag + '}', value) if is_string else value
+                        if datatype == 'timeseries' and (data.get("ts") is not None or data.get("timestamp") is not None):
+                            dict_result[datatypes[datatype]].append({"ts": data.get('ts', data.get('timestamp', int(time()))), 'values': {datatype_config['key']: full_value}})
+                        else:
+                            dict_result[datatypes[datatype]].append({datatype_config["key"]: full_value})
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
-            log.exception(e)
-        try:
-            if self.__config.get("timeseries"):
-                for ts in self.__config.get("timeseries"):
-                    ts_value = TBUtility.get_value(ts["value"], data, ts["type"])
-                    if ts_value is not None:
-                        dict_result["telemetry"].append({ts["key"]: ts_value})
-                    else:
-                        log.debug("%s key not found in message: %s", ts["value"].replace("${", '"').replace("}", '"'), data)
-        except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
+            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
             log.exception(e)
         return dict_result

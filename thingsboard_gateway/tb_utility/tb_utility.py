@@ -12,12 +12,13 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from re import search
 from os import path, listdir
 from inspect import getmembers, isclass
 from importlib import util
 from logging import getLogger
 from simplejson import dumps, loads
-from re import search, match, compile
+from jsonpath_rw import parse
 
 
 log = getLogger("service")
@@ -39,7 +40,7 @@ class TBUtility:
         if not data.get("deviceType") or data.get("deviceType") is None:
             log.error('deviceType is empty in data: %s', json_data)
             return False
-        if (data.get("attributes") is None and data.get("telemetry") is None) or (not data.get("attributes") and not data.get("telemetry")):
+        if not data.get("attributes") and not data.get("telemetry"):
             log.error('No telemetry and attributes in data: %s', json_data)
             return False
         return True
@@ -53,49 +54,44 @@ class TBUtility:
         return regex.replace("[^/]+", "+").replace(".+", "#")
 
     @staticmethod
-    def check_and_import(extension_type, module_name, default=False):
+    def check_and_import(extension_type, module_name):
+        extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
+                            '/var/lib/thingsboard_gateway/'.replace('/', path.sep) + extension_type.lower(),
+                            path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
         try:
-            if not default and path.exists('/var/lib/thingsboard_gateway/'+extension_type.lower()):
-                extension_path = '/var/lib/thingsboard_gateway/' + extension_type.lower()
-                log.info('Extension %s - looking for class in %s', extension_type, extension_path)
-            elif not default:
-                extension_path = path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/' + extension_type.lower())
-                log.info('Extension %s - looking for class in %s', extension_type, extension_path)
-            elif default:
-                extension_path = path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/' + extension_type.lower())
-                log.debug('Load connector for %s class name - %s from %s', extension_type, module_name, extension_path)
-            for file in listdir(extension_path):
-                if not file.startswith('__') and file.endswith('.py'):
-                    try:
-                        module_spec = util.spec_from_file_location(module_name, extension_path + '/' + file)
-                        log.debug(module_spec)
-                        if module_spec is None:
-                            log.error('Module: {} not found'.format(module_name))
-                            return None
-                        else:
-                            module = util.module_from_spec(module_spec)
-                            log.debug(str(module))
+            for extension_path in extensions_paths:
+                if path.exists(extension_path):
+                    for file in listdir(extension_path):
+                        if not file.startswith('__') and file.endswith('.py'):
                             try:
+                                module_spec = util.spec_from_file_location(module_name, extension_path + path.sep + file)
+                                log.debug(module_spec)
+
+                                if module_spec is None:
+                                    log.error('Module: %s not found', module_name)
+                                    continue
+
+                                module = util.module_from_spec(module_spec)
+                                log.debug(str(module))
                                 module_spec.loader.exec_module(module)
-                            except Exception as e:
-                                log.exception(e)
-                            for extension_class in getmembers(module, isclass):
-                                if module_name in extension_class:
-                                    return extension_class[1]
-                    except ImportError:
-                        continue
-                    except Exception as e:
-                        log.exception(e)
+                                for extension_class in getmembers(module, isclass):
+                                    if module_name in extension_class:
+                                        log.debug("Import %s from %s.", module_name, extension_path)
+                                        return extension_class[1]
+                            except ImportError:
+                                continue
+                else:
+                    log.error("Import %s failed, path %s doesn't exist", module_name, extension_path)
         except Exception as e:
             log.exception(e)
 
     @staticmethod
-    def get_value(expression, body={}, value_type="string", get_tag=False):
+    def get_value(expression, body=None, value_type="string", get_tag=False, expression_instead_none=False):
         if isinstance(body, str):
             body = loads(body)
         if not expression:
             return ''
-        positions = search(r'\$\{(?:(.*))\}', expression)
+        positions = search(r'\${(?:(.*))}', expression)
         if positions is not None:
             p1 = positions.regs[-1][0]
             p2 = positions.regs[-1][1]
@@ -107,23 +103,25 @@ class TBUtility:
             return target_str
         full_value = None
         try:
-            if value_type == "string":
-                full_value = expression[0: min(abs(p1 - 2), 0)] + body[target_str.split()[0]] + expression[p2 + 1:len(expression)]
-                if full_value is None:
-                    try:
-                        full_value = search(expression, body).group(0)
-                    except Exception as e:
-                        full_value = None
-            else:
-                try:
+            if isinstance(body, dict) and target_str.split()[0] in body:
+                if value_type.lower() == "string":
+                    full_value = expression[0: max(abs(p1 - 2), 0)] + body[target_str.split()[0]] + expression[p2 + 1:len(expression)]
+                else:
                     full_value = body.get(target_str.split()[0])
+            elif isinstance(body, (dict, list)):
+                try:
+                    jsonpath_expression = parse(target_str)
+                    jsonpath_match = jsonpath_expression.find(body)
+                    if jsonpath_match:
+                        full_value = jsonpath_match[0].value
                 except Exception as e:
-                    log.exception(e)
-        except TypeError:
-            if full_value is None:
-                log.error('Value is None - Cannot find the pattern: %s in %s. Expression will be interpreted as value.', target_str, dumps(body))
+                    log.debug(e)
+            elif isinstance(body, (str, bytes)):
+                search_result = search(expression, body)
+                if search_result.groups():
+                    full_value = search_result.group(0)
+            if expression_instead_none and full_value is None:
                 full_value = expression
         except Exception as e:
             log.exception(e)
-            return None
         return full_value

@@ -16,14 +16,17 @@ import logging
 import queue
 import ssl
 import time
-from simplejson import loads, dumps
 from threading import RLock
 from threading import Thread
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 import paho.mqtt.client as paho
+
+from simplejson import dumps
 from jsonschema import Draft7Validator
 from jsonschema import ValidationError
+
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
 
 KV_SCHEMA = {
     "type": "object",
@@ -84,7 +87,6 @@ ATTRIBUTES_TOPIC_REQUEST = 'v1/devices/me/attributes/request/'
 ATTRIBUTES_TOPIC_RESPONSE = 'v1/devices/me/attributes/response/'
 TELEMETRY_TOPIC = 'v1/devices/me/telemetry'
 log = logging.getLogger("tb_connection")
-log.setLevel(logging.DEBUG)
 
 
 class TBTimeoutException(Exception):
@@ -118,6 +120,7 @@ class TBPublishInfo:
     def __init__(self, message_info):
         self.message_info = message_info
 
+    # pylint: disable=invalid-name
     def rc(self):
         return self.message_info.rc
 
@@ -141,6 +144,7 @@ class TBDeviceMqttClient:
         self._lock = RLock()
 
         self._attr_request_dict = {}
+        self.stopped = False
         self.__timeout_queue = queue.Queue()
         self.__timeout_thread = Thread(target=self.__timeout_check)
         self.__timeout_thread.daemon = True
@@ -160,17 +164,19 @@ class TBDeviceMqttClient:
         self._client.on_disconnect = self._on_disconnect
 
     def _on_log(self, client, userdata, level, buf):
-        log.exception(buf)
+        if isinstance(buf, Exception):
+            log.exception(buf)
+        else:
+            log.debug("%s - %s - %s - %s", client, userdata, level, buf)
 
     def _on_publish(self, client, userdata, result):
         # log.debug("Data published to ThingsBoard!")
         pass
 
-    def _on_disconnect(self, client, userdata, rc):
-        log.debug(client)
-        log.debug("Disconnected")
+    def _on_disconnect(self, client, userdata, result_code):
+        log.debug("Disconnected client: %s, user data: %s, result code: %s", str(client), str(userdata), str(result_code))
 
-    def _on_connect(self, client, userdata, flags, rc, *extra_params):
+    def _on_connect(self, client, userdata, flags, result_code, *extra_params):
         result_codes = {
             1: "incorrect protocol version",
             2: "invalid client identifier",
@@ -179,8 +185,8 @@ class TBDeviceMqttClient:
             5: "not authorised",
         }
         if self.__connect_callback:
-            self.__connect_callback(client, userdata, flags, rc, *extra_params)
-        if rc == 0:
+            self.__connect_callback(client, userdata, flags, result_code, *extra_params)
+        if result_code == 0:
             self.__is_connected = True
             log.info("connection SUCCESS")
             log.debug(client)
@@ -189,9 +195,8 @@ class TBDeviceMqttClient:
             self._client.subscribe(RPC_REQUEST_TOPIC + '+')
             self._client.subscribe(RPC_RESPONSE_TOPIC + '+', qos=1)
         else:
-            if rc in result_codes:
-                log.error("connection FAIL with error {rc} {explanation}".format(rc=rc,
-                                                                                 explanation=result_codes[rc]))
+            if result_code in result_codes:
+                log.error("connection FAIL with error %s %s", result_code, result_codes[result_code])
             else:
                 log.error("connection FAIL with unknown error")
 
@@ -217,6 +222,10 @@ class TBDeviceMqttClient:
         log.debug(self._client)
         log.debug("Disconnecting from ThingsBoard")
         self.__is_connected = False
+        self._client.loop_stop()
+
+    def stop(self):
+        self.stopped = True
 
     def _on_message(self, client, userdata, message):
         content = TBUtility.decode(message)
@@ -246,8 +255,8 @@ class TBDeviceMqttClient:
             with self._lock:
                 # callbacks for everything
                 if self.__device_sub_dict.get("*"):
-                    for x in self.__device_sub_dict["*"]:
-                        dict_results.append(self.__device_sub_dict["*"][x])
+                    for subscription_id in self.__device_sub_dict["*"]:
+                        dict_results.append(self.__device_sub_dict["*"][subscription_id])
                 # specific callback
                 keys = content.keys()
                 keys_list = []
@@ -257,8 +266,8 @@ class TBDeviceMqttClient:
                 for key in keys_list:
                     # find key in our dict
                     if self.__device_sub_dict.get(key):
-                        for x in self.__device_sub_dict[key]:
-                            dict_results.append(self.__device_sub_dict[key][x])
+                        for subscription in self.__device_sub_dict[key]:
+                            dict_results.append(self.__device_sub_dict[key][subscription])
             for res in dict_results:
                 res(content, None)
         elif message.topic.startswith(ATTRIBUTES_TOPIC_RESPONSE):
@@ -286,9 +295,9 @@ class TBDeviceMqttClient:
         self._client.reconnect_delay_set(min_delay, max_delay)
 
     def send_rpc_reply(self, req_id, resp, quality_of_service=1, wait_for_publish=False):
-        if quality_of_service != 0 and quality_of_service != 1:
+        if quality_of_service not in (0, 1):
             log.error("Quality of service (qos) value must be 0 or 1")
-            return
+            return None
         info = self._client.publish(RPC_RESPONSE_TOPIC + req_id, resp, qos=quality_of_service)
         if wait_for_publish:
             info.wait_for_publish()
@@ -309,14 +318,13 @@ class TBDeviceMqttClient:
 
     def publish_data(self, data, topic, qos):
         data = dumps(data)
-        if qos != 0 and qos != 1:
+        if qos not in (0, 1):
             log.exception("Quality of service (qos) value must be 0 or 1")
             raise TBQoSException("Quality of service (qos) value must be 0 or 1")
-        else:
-            return TBPublishInfo(self._client.publish(topic, data, qos))
+        return TBPublishInfo(self._client.publish(topic, data, qos))
 
     def send_telemetry(self, telemetry, quality_of_service=1):
-        if type(telemetry) is not list:
+        if not isinstance(telemetry, list) and not (isinstance(telemetry, dict) and telemetry.get("ts") is not None):
             telemetry = [telemetry]
         self.validate(DEVICE_TS_OR_KV_VALIDATOR, telemetry)
         return self.publish_data(telemetry, TELEMETRY_TOPIC, quality_of_service)
@@ -327,14 +335,13 @@ class TBDeviceMqttClient:
 
     def unsubscribe_from_attribute(self, subscription_id):
         with self._lock:
-            for x in self.__device_sub_dict:
-                if self.__device_sub_dict[x].get(subscription_id):
-                    del self.__device_sub_dict[x][subscription_id]
-                    log.debug("Unsubscribed from {attribute}, subscription id {sub_id}".format(attribute=x,
-                                                                                               sub_id=subscription_id))
+            for attribute in self.__device_sub_dict:
+                if self.__device_sub_dict[attribute].get(subscription_id):
+                    del self.__device_sub_dict[attribute][subscription_id]
+                    log.debug("Unsubscribed from %s, subscription id %i", attribute, subscription_id)
             if subscription_id == '*':
                 self.__device_sub_dict = {}
-            self.__device_sub_dict = dict((k, v) for k, v in self.__device_sub_dict.items() if v is not {})
+            self.__device_sub_dict = dict((k, v) for k, v in self.__device_sub_dict.items() if v)
 
     def subscribe_to_all_attributes(self, callback):
         return self.subscribe_to_attribute("*", callback)
@@ -346,7 +353,7 @@ class TBDeviceMqttClient:
                 self.__device_sub_dict.update({key: {self.__device_max_sub_id: callback}})
             else:
                 self.__device_sub_dict[key].update({self.__device_max_sub_id: callback})
-            log.debug("Subscribed to {key} with id {id}".format(key=key, id=self.__device_max_sub_id))
+            log.debug("Subscribed to %s with id %i", key, self.__device_max_sub_id)
             return self.__device_max_sub_id
 
     def request_attributes(self, client_keys=None, shared_keys=None, callback=None):
@@ -374,8 +381,8 @@ class TBDeviceMqttClient:
         self._add_timeout(attr_request_number, ts_in_millis + 30000)
         return info
 
-    def _add_timeout(self, attr_request_number, ts):
-        self.__timeout_queue.put({"ts": ts, "attribute_request_id": attr_request_number})
+    def _add_timeout(self, attr_request_number, timestamp):
+        self.__timeout_queue.put({"ts": timestamp, "attribute_request_id": attr_request_number})
 
     def _add_attr_request_callback(self, callback):
         with self._lock:
@@ -385,16 +392,15 @@ class TBDeviceMqttClient:
         return attr_request_number
 
     def __timeout_check(self):
-        while True:
-            try:
-                item = self.__timeout_queue.get()
+        while not self.stopped:
+            if not self.__timeout_queue.empty():
+                item = self.__timeout_queue.get_nowait()
                 if item is not None:
-                    while True:
+                    while not self.stopped:
                         current_ts_in_millis = int(round(time.time() * 1000))
                         if current_ts_in_millis > item["ts"]:
                             break
-                        else:
-                            time.sleep(0.001)
+                        time.sleep(0.001)
                     with self._lock:
                         callback = None
                         if item.get("attribute_request_id"):
@@ -404,8 +410,6 @@ class TBDeviceMqttClient:
                             if self.__device_client_rpc_dict.get(item["rpc_request_id"]):
                                 callback = self.__device_client_rpc_dict.pop(item["rpc_request_id"])
                     if callback is not None:
-                        callback(None, TBTimeoutException("Timeout while waiting for reply from ThingsBoard!"))
-                else:
-                    time.sleep(0.001)
-            except Exception as e:
-                log.warning(e)
+                        callback(None, TBTimeoutException("Timeout while waiting for a reply from ThingsBoard!"))
+            else:
+                time.sleep(0.01)
