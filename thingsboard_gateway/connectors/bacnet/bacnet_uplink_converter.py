@@ -24,8 +24,8 @@ class BACnetUplinkConverter:
         datatypes = {"attributes": "attributes",
                      "timeseries": "telemetry"}
         dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
-        dict_result["deviceName"] = self.__config.get("name", "BACnet device") # TODO Add ability to use Regex and JSONPath
-        dict_result["deviceType"] = self.__config.get("deviceType", "default")
+        dict_result["deviceName"] = config[1].get("deviceName", self.__config.get("name", "BACnet device"))
+        dict_result["deviceType"] = config[1].get("deviceType", self.__config.get("deviceType", "default"))
         dict_result[datatypes[config[0]]].append({config[1]["key"]: data})
         return dict_result
 

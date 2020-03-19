@@ -61,22 +61,21 @@ class BACnetConnector(Thread, Connector):
             if self.__send_whois_broadcast and cur_time - self.__send_whois_broadcast_previous_time >= self.__send_whois_broadcast_period:
                 self.__send_whois_broadcast_previous_time = cur_time
                 self._application.do_whois()
+                log.debug("WhoIsRequest has been sent.")
             for device in self.__devices:
                 try:
                     if device.get("previous_check") is None or cur_time - device["previous_check"] >= self.__poll_period:
+                        if self._application.check_or_add(device):
+                            for mapping_type in ["attributes", "timeseries"]:
+                                for mapping_object in device[mapping_type]:
+                                    data_to_application = {
+                                        "device": device,
+                                        "mapping_type": mapping_type,
+                                        "mapping_object": mapping_object,
+                                        "callback": self.__bacnet_device_mapping_response_cb
+                                    }
+                                    self._application.do_read(**data_to_application)
                         device["previous_check"] = cur_time
-                        device_name = TBUtility.get_value(device["deviceName"], expression_instead_none=True)
-                        if device.get("sendWhoIs"):
-                            self._application.do_whois(device)
-                        for mapping_type in ["attributes", "timeseries"]:
-                            for mapping_object in device[mapping_type]:
-                                data_to_application = {
-                                    "device": device,
-                                    "mapping_type": mapping_type,
-                                    "mapping_object": mapping_object,
-                                    "callback": self.__bacnet_device_mapping_response_cb
-                                }
-                                self._application.do_read(**data_to_application)
                     else:
                         sleep(.1)
                 except Exception as e:

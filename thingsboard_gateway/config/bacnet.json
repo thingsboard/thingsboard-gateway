@@ -8,14 +8,13 @@
     "vendorIdentifier": 15,
     "sendWhoIsBroadcast": true,
     "sendWhoIsBroadcastPeriod": 5000,
-    "pollPeriod": 1000
+    "pollPeriod": 5000
   },
   "devices": [
     {
-      "deviceName": "BACnet Device",
+      "deviceName": "BACnet Device ${objectName}",
       "deviceType": "default",
       "address": "192.168.188.181:10520",
-      "sendWhoIs": false,
       "attributes": [
         {
           "key": "temperature",
