@@ -38,7 +38,8 @@ setup(
         'PyYAML',
         'simplejson',
         'pyrsistent',
-        'requests'
+        'requests',
+        'bacpypes>=0.18.0'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.2.3.2.tar.gz',
     entry_points={

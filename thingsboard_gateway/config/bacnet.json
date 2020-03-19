@@ -6,13 +6,16 @@
     "maxApduLengthAccepted": 1024,
     "segmentationSupported": "segmentedBoth",
     "vendorIdentifier": 15,
-    "pollPeriod": 5000
+    "sendWhoIsBroadcast": true,
+    "sendWhoIsBroadcastPeriod": 5000,
+    "pollPeriod": 1000
   },
   "devices": [
     {
       "deviceName": "BACnet Device",
       "deviceType": "default",
       "address": "192.168.188.181:10520",
+      "sendWhoIs": false,
       "attributes": [
         {
           "key": "temperature",

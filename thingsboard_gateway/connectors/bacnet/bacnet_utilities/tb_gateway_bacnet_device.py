@@ -12,8 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from thingsboard_gateway.connectors.connector import log
 from bacpypes.local.device import LocalDeviceObject
+from thingsboard_gateway.connectors.connector import log
 
 
 class TBBACnetDevice(LocalDeviceObject):

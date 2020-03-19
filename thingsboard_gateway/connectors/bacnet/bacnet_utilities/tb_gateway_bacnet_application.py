@@ -15,14 +15,15 @@
 from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_device import TBBACnetDevice
 
-from bacpypes.pdu import Address
+from bacpypes.pdu import Address, GlobalBroadcast
+from bacpypes.apdu import APDU
 
 from bacpypes.app import BIPSimpleApplication
 
 from bacpypes.core import run, deferred, enable_sleeping
 from bacpypes.iocb import IOCB
 
-from bacpypes.apdu import ReadPropertyRequest
+from bacpypes.apdu import ReadPropertyRequest, WhoIsRequest, IAmRequest
 from bacpypes.primitivedata import Tag, ObjectIdentifier
 from bacpypes.constructeddata import ArrayOf
 
@@ -35,10 +36,41 @@ class TBBACnetApplication(BIPSimpleApplication):
             assert self.__config is not None
             assert self.__config.get("general") is not None
             self.requests_in_progress = {}
+            self.discovered_devices = {}
             self.__device = TBBACnetDevice(self.__config["general"])
             super().__init__(self.__device, self.__config["general"]["address"])
         except Exception as e:
             log.exception(e)
+
+    def do_whois(self, device=None):
+        try:
+            device = {} if device is None else device
+            request = WhoIsRequest()
+            address = device.get("address")
+            low_limit = device.get("idLowLimit")
+            high_limit = device.get("idHighLimit")
+            if address is not None:
+                request.pduDestination = Address(address)
+            else:
+                request.pduDestination = GlobalBroadcast()
+            if low_limit is not None and high_limit is not None:
+                request.deviceInstanceRangeLowLimit = int(low_limit)
+                request.deviceInstanceRangeHighLimit = int(high_limit)
+            iocb = IOCB(request)
+            deferred(self.request_io, iocb)
+
+        except Exception as e:
+            log.exception(e)
+
+    def indication(self, apdu: APDU):
+        if isinstance(apdu, IAmRequest):
+            log.debug("Received IAmRequest from device with ID: %i and address %s:%i",
+                      apdu.iAmDeviceIdentifier[1],
+                      *apdu.pduSource.addrTuple
+                      )
+            log.debug(apdu.pduSource)
+            self.confirmation(apdu)
+            self.discovered_devices[apdu.pduSource] = apdu
 
     def do_read(self, device, mapping_type, mapping_object, callback=None):
         try:
@@ -55,7 +87,7 @@ class TBBACnetApplication(BIPSimpleApplication):
                 request.propertyArrayIndex = int(property_index)
             iocb = IOCB(request)
             deferred(self.request_io, iocb)
-            iocb.add_callback(self.__on_response)
+            iocb.add_callback(self.__on_mapping_response_cb)
             self.requests_in_progress.update({iocb: {"callback": callback,
                                                      "device": device,
                                                      "mapping_type": mapping_type,
@@ -63,7 +95,7 @@ class TBBACnetApplication(BIPSimpleApplication):
         except Exception as e:
             log.exception(e)
 
-    def __on_response(self, iocb: IOCB):
+    def __on_mapping_response_cb(self, iocb: IOCB):
         try:
             log.debug(iocb)
             log.debug(self.requests_in_progress[iocb])
@@ -85,7 +117,7 @@ class TBBACnetApplication(BIPSimpleApplication):
                 value = apdu.propertyValue.cast_out(datatype)
                 log.debug("Received callback with data: %s", str(value))
                 callback_params = self.requests_in_progress[iocb]
-                if callback_params["callback"] is not None:
+                if callback_params.get("callback") is not None:
                     callback_params["callback"](callback_params["device"]["converter"], callback_params["mapping_type"], callback_params["mapping_object"], value)
             elif iocb.ioError:
                 log.exception(iocb.ioError)

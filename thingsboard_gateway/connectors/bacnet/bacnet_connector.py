@@ -13,14 +13,14 @@
 #      limitations under the License.
 
 from random import choice
+from threading import Thread
+from time import time, sleep
 from string import ascii_lowercase
+from bacpypes.core import run, stop
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.bacnet.bacnet_uplink_converter import BACnetUplinkConverter
 from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_application import TBBACnetApplication
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from threading import Thread
-from bacpypes.core import run, stop
-from time import time, sleep
 
 
 class BACnetConnector(Thread, Connector):
@@ -38,6 +38,9 @@ class BACnetConnector(Thread, Connector):
         self.__stopped = False
         self.__poll_period = self.__config["general"].get("pollPeriod", 5000)
         self.__devices = self.__config["devices"]
+        self.__send_whois_broadcast = self.__config["general"].get("sendWhoIsBroadcast", False)
+        self.__send_whois_broadcast_period = self.__config.get("sendWhoIsBroadcastPeriod", 5000)
+        self.__send_whois_broadcast_previous_time = 0
         self.__connected = False
         self.daemon = True
 
@@ -55,21 +58,25 @@ class BACnetConnector(Thread, Connector):
         self.__connected = True
         while not self.__stopped:
             cur_time = time()*1000
+            if self.__send_whois_broadcast and cur_time - self.__send_whois_broadcast_previous_time >= self.__send_whois_broadcast_period:
+                self.__send_whois_broadcast_previous_time = cur_time
+                self._application.do_whois()
             for device in self.__devices:
                 try:
                     if device.get("previous_check") is None or cur_time - device["previous_check"] >= self.__poll_period:
                         device["previous_check"] = cur_time
-                        device_address = device["address"]
                         device_name = TBUtility.get_value(device["deviceName"], expression_instead_none=True)
+                        if device.get("sendWhoIs"):
+                            self._application.do_whois(device)
                         for mapping_type in ["attributes", "timeseries"]:
                             for mapping_object in device[mapping_type]:
                                 data_to_application = {
                                     "device": device,
                                     "mapping_type": mapping_type,
                                     "mapping_object": mapping_object,
-                                    "callback": self.__bacnet_device_response_cb
+                                    "callback": self.__bacnet_device_mapping_response_cb
                                 }
-                                data_to_thingsboard = self._application.do_read(**data_to_application)
+                                self._application.do_read(**data_to_application)
                     else:
                         sleep(.1)
                 except Exception as e:
@@ -92,7 +99,7 @@ class BACnetConnector(Thread, Connector):
     def server_side_rpc_handler(self, content):
         pass
 
-    def __bacnet_device_response_cb(self, converter, mapping_type, config, value):
+    def __bacnet_device_mapping_response_cb(self, converter, mapping_type, config, value):
         log.debug(value)
         log.debug(config)
         log.debug(converter)
