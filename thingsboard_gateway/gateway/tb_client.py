@@ -79,9 +79,11 @@ class TBClient(threading.Thread):
 
     def _on_disconnect(self, client, userdata, result_code):
         log.info("TB client %s has been disconnected.", str(client))
-        self.unsubscribe('*')
-        self.__is_connected = False
         # pylint: disable=protected-access
+        if self.client._client != client:
+            client.disconnect()
+        self.__is_connected = False
+        client.loop_stop()
         self.client._on_disconnect(client, userdata, result_code)
 
     def stop(self):
@@ -91,6 +93,7 @@ class TBClient(threading.Thread):
 
     def disconnect(self):
         self.__paused = True
+        self.unsubscribe('*')
         self.client.disconnect()
 
     def unsubscribe(self, subsription_id):

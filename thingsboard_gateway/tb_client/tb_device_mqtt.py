@@ -174,7 +174,10 @@ class TBDeviceMqttClient:
         pass
 
     def _on_disconnect(self, client, userdata, result_code):
+        prev_level = log.level
+        log.setLevel("DEBUG")
         log.debug("Disconnected client: %s, user data: %s, result code: %s", str(client), str(userdata), str(result_code))
+        log.setLevel(prev_level)
 
     def _on_connect(self, client, userdata, flags, result_code, *extra_params):
         result_codes = {
