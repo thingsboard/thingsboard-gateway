@@ -41,9 +41,14 @@ connectors:
 #    configuration: ble.json
 #
 #  -
-#    name: REQUEST
+#    name: REQUEST Connector
 #    type: request
 #    configuration: request.json
+#
+#  -
+#    name: CAN Connector
+#    type: can
+#    configuration: can.json
 #
 #  -
 #    name: Custom Serial Connector
