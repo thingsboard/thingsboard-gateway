@@ -76,8 +76,8 @@ class OpcUaConnector(Thread, Connector):
         self.__opcua_nodes = {}
         self._subscribed = {}
         self.__sub = None
-        self.data_to_send = []
         self.__sub_handler = SubHandler(self)
+        self.data_to_send = []
         self.__stopped = False
         self.__connected = False
         self.daemon = True
@@ -125,9 +125,8 @@ class OpcUaConnector(Thread, Connector):
                     log.info("Reconnected to the OPC-UA server - %s", self.__server_conf.get("url"))
                 elif not self.__stopped:
                     if self.__server_conf.get("disableSubscriptions", False) and time.time()*1000 - self.__previous_scan_time > self.__server_conf.get("scanPeriodInMillis", 60000):
-                        self.__scan_nodes_from_config()
+                        self.scan_nodes_from_config()
                         self.__previous_scan_time = time.time() * 1000
-
                     if self.data_to_send:
                         self.__gateway.send_to_storage(self.get_name(), self.data_to_send.pop())
                 if self.__stopped:
@@ -139,7 +138,12 @@ class OpcUaConnector(Thread, Connector):
             except ConnectionRefusedError:
                 log.error("Connection refused on connection to OPC-UA server with url %s", self.__server_conf.get("url"))
                 self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
+                # self.__sub_handler = SubHandler(self)
+                self._subscribed = {}
+                self.__available_object_resources = {}
                 time.sleep(10)
+            except FuturesTimeoutError:
+                self.__check_connection()
             except Exception as e:
                 self.close()
                 log.exception(e)
@@ -149,25 +153,32 @@ class OpcUaConnector(Thread, Connector):
             node = self.client.get_root_node()
             node.get_children()
             self.__connected = True
+            if not self.__server_conf.get("disableSubscriptions", False):
+                self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
         except ConnectionRefusedError:
             self.__connected = False
             self._subscribed = {}
+            self.__available_object_resources = {}
             self.__sub = None
         except OSError:
             self.__connected = False
             self._subscribed = {}
+            self.__available_object_resources = {}
             self.__sub = None
         except FuturesTimeoutError:
             self.__connected = False
             self._subscribed = {}
+            self.__available_object_resources = {}
             self.__sub = None
         except AttributeError:
             self.__connected = False
             self._subscribed = {}
+            self.__available_object_resources = {}
             self.__sub = None
         except Exception as e:
             self.__connected = False
             self._subscribed = {}
+            self.__available_object_resources = {}
             self.__sub = None
             log.exception(e)
 
@@ -225,16 +236,12 @@ class OpcUaConnector(Thread, Connector):
     def __initialize_client(self):
         self.__opcua_nodes["root"] = self.client.get_objects_node()
         self.__opcua_nodes["objects"] = self.client.get_objects_node()
-        if not self.__server_conf.get("disableSubscriptions", False):
-            self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
-        else:
-            self.__sub = False
-        self.__scan_nodes_from_config()
+        self.scan_nodes_from_config()
         self.__previous_scan_time = time.time() * 1000
         log.debug('Subscriptions: %s', self.subscribed)
         log.debug("Available methods: %s", self.__available_object_resources)
 
-    def __scan_nodes_from_config(self):
+    def scan_nodes_from_config(self):
         try:
             if self.__interest_nodes:
                 for device_object in self.__interest_nodes:
@@ -255,6 +262,8 @@ class OpcUaConnector(Thread, Connector):
                             log.debug("Broken Pipe. Connection lost.")
                         except OSError:
                             log.debug("Stop on scanning.")
+                        except FuturesTimeoutError:
+                            self.__check_connection()
                         except Exception as e:
                             log.exception(e)
                 log.debug(self.__interest_nodes)
@@ -296,12 +305,12 @@ class OpcUaConnector(Thread, Connector):
                         if not device_info.get(information_types[information_type]):
                             device_info[information_types[information_type]] = []
                         converted_data = converter.convert((config_path, information_path), information_value)
-                        self.statistics['MessagesReceived'] += 1
+                        self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                         self.data_to_send.append(converted_data)
-                        self.statistics['MessagesSent'] += 1
-                        if self.__sub is None:
-                            self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
-                        if self.__sub:
+                        self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+                        if not self.__server_conf.get("disableSubscriptions", False):
+                            if self.__sub is None:
+                                self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
                             self.__sub.subscribe_data_change(information_node)
                         log.debug("Added subscription to node: %s", str(information_node))
                         log.debug("Data to ThingsBoard: %s", converted_data)
@@ -484,10 +493,12 @@ class SubHandler(object):
             log.debug("Python: New data change event on node %s, with val: %s and data %s", node, val, str(data))
             subscription = self.connector.subscribed[node]
             converted_data = subscription["converter"].convert((subscription["config_path"], subscription["path"]), val)
-            self.connector.statistics['MessagesReceived'] += 1
+            self.connector.statistics['MessagesReceived'] = self.connector.statistics['MessagesReceived'] + 1
             self.connector.data_to_send.append(converted_data)
-            self.connector.statistics['MessagesSent'] += 1
-            log.debug("Data to ThingsBoard: %s", converted_data)
+            self.connector.statistics['MessagesSent'] = self.connector.statistics['MessagesSent'] + 1
+            log.debug("[SUBSCRIPTION] Data to ThingsBoard: %s", converted_data)
+        except KeyError:
+            self.connector.scan_nodes_from_config()
         except Exception as e:
             log.exception(e)
 
