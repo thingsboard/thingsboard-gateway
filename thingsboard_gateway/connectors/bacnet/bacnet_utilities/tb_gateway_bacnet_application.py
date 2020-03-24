@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 from bacpypes.pdu import Address, GlobalBroadcast
+from bacpypes.object import get_datatype
 from bacpypes.apdu import APDU
 
 from bacpypes.app import BIPSimpleApplication
@@ -20,9 +21,10 @@ from bacpypes.app import BIPSimpleApplication
 from bacpypes.core import run, deferred, enable_sleeping
 from bacpypes.iocb import IOCB
 
-from bacpypes.apdu import ReadPropertyRequest, WhoIsRequest, IAmRequest
-from bacpypes.primitivedata import Tag, ObjectIdentifier
-from bacpypes.constructeddata import ArrayOf
+from bacpypes.apdu import ReadPropertyRequest, WhoIsRequest, IAmRequest, WritePropertyRequest, SimpleAckPDU
+from bacpypes.primitivedata import Tag, Null, Atomic, Boolean, Unsigned, Integer, \
+    Real, Double, OctetString, CharacterString, BitString, Date, Time, ObjectIdentifier
+from bacpypes.constructeddata import ArrayOf, Array, Any, AnyAtomic
 
 from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -107,6 +109,123 @@ class TBBACnetApplication(BIPSimpleApplication):
                                                          "mapping_object": mapping_object}})
         except Exception as e:
             log.exception(e)
+    
+    def do_write(self, device, content):
+        address = content.get("address")
+        objectId = content.get("objectId")
+        propertyId = content.get("propertyId")
+        value = content.get("value")
+        index = content.get("index")
+        priority = content.get("priority")
+        log.debug("do_write %r", args)
+
+        try:
+            addr, obj_id, prop_id = args[:3]
+            obj_id = ObjectIdentifier(obj_id).value
+            value = args[3]
+            indx = None
+            if len(args) >= 5:
+                if args[4] != "-":
+                    indx = int(args[4])
+            log.debug("    - indx: %r", indx)
+            priority = None
+            if len(args) >= 6:
+                priority = int(args[5])
+            log.debug("    - priority: %r", priority)
+            datatype = get_datatype(obj_id[0], prop_id)
+            log.debug("    - datatype: %r", datatype)
+
+            # change atomic values into something encodeable, null is a special case
+            if (value == 'null'):
+                value = Null()
+            elif issubclass(datatype, AnyAtomic):
+                dtype, dvalue = value.split(':', 1)
+                log.debug("    - dtype, dvalue: %r, %r", dtype, dvalue)
+
+                datatype = {
+                    'b': Boolean,
+                    'u': lambda x: Unsigned(int(x)),
+                    'i': lambda x: Integer(int(x)),
+                    'r': lambda x: Real(float(x)),
+                    'd': lambda x: Double(float(x)),
+                    'o': OctetString,
+                    'c': CharacterString,
+                    'bs': BitString,
+                    'date': Date,
+                    'time': Time,
+                    'id': ObjectIdentifier,
+                }[dtype]
+                log.debug("    - datatype: %r", datatype)
+
+                value = datatype(dvalue)
+                log.debug("    - value: %r", value)
+
+            elif issubclass(datatype, Atomic):
+                if datatype is Integer:
+                    value = int(value)
+                elif datatype is Real:
+                    value = float(value)
+                elif datatype is Unsigned:
+                    value = int(value)
+                value = datatype(value)
+            elif issubclass(datatype, Array) and (indx is not None):
+                if indx == 0:
+                    value = Integer(value)
+                elif issubclass(datatype.subtype, Atomic):
+                    value = datatype.subtype(value)
+                elif not isinstance(value, datatype.subtype):
+                    raise TypeError("invalid result datatype, expecting %s" % (datatype.subtype.__name__,))
+            elif not isinstance(value, datatype):
+                raise TypeError("invalid result datatype, expecting %s" % (datatype.__name__,))
+            log.debug("    - encodeable value: %r %s", value, type(value))
+
+            # build a request
+            request = WritePropertyRequest(
+                objectIdentifier=obj_id,
+                propertyIdentifier=prop_id
+            )
+            request.pduDestination = Address(addr)
+
+            # save the value
+            request.propertyValue = Any()
+            try:
+                request.propertyValue.cast_in(value)
+            except Exception as error:
+                log.exception("WriteProperty cast error: %r", error)
+
+            # optional array index
+            if indx is not None:
+                request.propertyArrayIndex = indx
+
+            # optional priority
+            if priority is not None:
+                request.priority = priority
+
+            log.debug("    - request: %r", request)
+
+            # make an IOCB
+            iocb = IOCB(request)
+            log.debug("    - iocb: %r", iocb)
+
+            # give it to the application
+            deferred(self.request_io, iocb)
+
+            # wait for it to complete
+            iocb.wait()
+
+            # do something for success
+            if iocb.ioResponse:
+                # should be an ack
+                if not isinstance(iocb.ioResponse, SimpleAckPDU):
+                    log.debug("    - not an ack")
+                    return
+
+            # do something for error/reject/abort
+            if iocb.ioError:
+                log.error(str(iocb.ioError) + '\n')
+
+        except Exception as error:
+            log.exception("exception: %r", error)
 
     def check_or_add(self, device):
         device_address = Address(device["address"])
