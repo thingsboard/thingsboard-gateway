@@ -7,8 +7,7 @@
     "segmentationSupported": "segmentedBoth",
     "vendorIdentifier": 15,
     "sendWhoIsBroadcast": true,
-    "sendWhoIsBroadcastPeriod": 5000,
-    "pollPeriod": 5000
+    "sendWhoIsBroadcastPeriod": 5000
   },
   "devices": [
     {
@@ -25,6 +24,14 @@
       ],
       "timeseries": [
 
+      ],
+      "attributeUpdates": [
+        {
+          "key": "temperatureCalibration",
+          "requestType": "writeProperty",
+          "objectId": "analogValue:1",
+          "propertyId": "presentValue"
+        }
       ]
     }
   ]

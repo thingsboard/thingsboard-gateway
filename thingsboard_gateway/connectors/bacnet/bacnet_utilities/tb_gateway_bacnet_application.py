@@ -32,9 +32,10 @@ from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_de
 
 
 class TBBACnetApplication(BIPSimpleApplication):
-    def __init__(self, configuration):
+    def __init__(self, connector, configuration):
         try:
             self.__config = configuration
+            self.__connector = connector
             assert self.__config is not None
             assert self.__config.get("general") is not None
             self.requests_in_progress = {}
@@ -68,7 +69,8 @@ class TBBACnetApplication(BIPSimpleApplication):
         if isinstance(apdu, IAmRequest):
             log.debug("Received IAmRequest from device with ID: %i and address %s:%i",
                       apdu.iAmDeviceIdentifier[1],
-                      *apdu.pduSource.addrTuple
+                      apdu.pduSource.addrTuple[0],
+                      apdu.pduSource.addrTuple[1]
                       )
             log.debug(apdu.pduSource)
             request = ReadPropertyRequest(
@@ -78,163 +80,36 @@ class TBBACnetApplication(BIPSimpleApplication):
             )
             iocb = IOCB(request)
             deferred(self.request_io, iocb)
-            iocb.add_callback(self.__on_mapping_response_cb)
-            self.requests_in_progress.update({iocb: {"callback": self.__general_cb}})
+            iocb.add_callback(self.__iam_cb)
+            self.requests_in_progress.update({iocb: {"callback": self.__iam_cb}})
 
-    def do_read(self, device, mapping_type, mapping_object, callback=None):
+    def do_read_property(self, device, mapping_type, mapping_object, callback=None):
         try:
-            object_id = mapping_object.get("objectId")
-            property_id = mapping_object.get("propertyId")
-            property_index = mapping_object.get("propertyIndex")
-            object_id = ObjectIdentifier(object_id)
-            request = ReadPropertyRequest(
-                objectIdentifier=object_id,
-                propertyIdentifier=property_id
-            )
-            request.pduDestination = Address(device["address"])
-            if self.discovered_devices.get(request.pduDestination) is not None:
-                # TODO Add ability to select any property for getting name and move this into converter
-                device_name_tag = TBUtility.get_value(device["deviceName"], get_tag=True)
-                if self.discovered_devices[request.pduDestination].get(device_name_tag) is not None:
-                    device_name = device["deviceName"].replace("${%s}" % (device_name_tag,), self.discovered_devices[request.pduDestination][device_name_tag])
-                    mapping_object.update({"deviceName": device_name})
-                if property_index is not None:
-                    request.propertyArrayIndex = int(property_index)
-                iocb = IOCB(request)
-                deferred(self.request_io, iocb)
-                iocb.add_callback(self.__on_mapping_response_cb)
-                self.requests_in_progress.update({iocb: {"callback": callback,
-                                                         "device": device,
-                                                         "mapping_type": mapping_type,
-                                                         "mapping_object": mapping_object}})
+            iocb = self.form_iocb(device, mapping_object, "readProperty")
+            deferred(self.request_io, iocb)
+            iocb.add_callback(self.__on_mapping_response_cb)
+            self.requests_in_progress.update({iocb: {"callback": callback,
+                                                     "device": device,
+                                                     "mapping_type": mapping_type,
+                                                     "mapping_object": mapping_object}})
         except Exception as e:
             log.exception(e)
     
-    def do_write(self, device, content):
-        address = content.get("address")
-        objectId = content.get("objectId")
-        propertyId = content.get("propertyId")
-        value = content.get("value")
-        index = content.get("index")
-        priority = content.get("priority")
-        log.debug("do_write %r", args)
-
+    def do_write_property(self, device):
         try:
-            addr, obj_id, prop_id = args[:3]
-            obj_id = ObjectIdentifier(obj_id).value
-            value = args[3]
-            indx = None
-            if len(args) >= 5:
-                if args[4] != "-":
-                    indx = int(args[4])
-            log.debug("    - indx: %r", indx)
-            priority = None
-            if len(args) >= 6:
-                priority = int(args[5])
-            log.debug("    - priority: %r", priority)
-            datatype = get_datatype(obj_id[0], prop_id)
-            log.debug("    - datatype: %r", datatype)
-
-            # change atomic values into something encodeable, null is a special case
-            if (value == 'null'):
-                value = Null()
-            elif issubclass(datatype, AnyAtomic):
-                dtype, dvalue = value.split(':', 1)
-                log.debug("    - dtype, dvalue: %r, %r", dtype, dvalue)
-
-                datatype = {
-                    'b': Boolean,
-                    'u': lambda x: Unsigned(int(x)),
-                    'i': lambda x: Integer(int(x)),
-                    'r': lambda x: Real(float(x)),
-                    'd': lambda x: Double(float(x)),
-                    'o': OctetString,
-                    'c': CharacterString,
-                    'bs': BitString,
-                    'date': Date,
-                    'time': Time,
-                    'id': ObjectIdentifier,
-                }[dtype]
-                log.debug("    - datatype: %r", datatype)
-
-                value = datatype(dvalue)
-                log.debug("    - value: %r", value)
-
-            elif issubclass(datatype, Atomic):
-                if datatype is Integer:
-                    value = int(value)
-                elif datatype is Real:
-                    value = float(value)
-                elif datatype is Unsigned:
-                    value = int(value)
-                value = datatype(value)
-            elif issubclass(datatype, Array) and (indx is not None):
-                if indx == 0:
-                    value = Integer(value)
-                elif issubclass(datatype.subtype, Atomic):
-                    value = datatype.subtype(value)
-                elif not isinstance(value, datatype.subtype):
-                    raise TypeError("invalid result datatype, expecting %s" % (datatype.subtype.__name__,))
-            elif not isinstance(value, datatype):
-                raise TypeError("invalid result datatype, expecting %s" % (datatype.__name__,))
-            log.debug("    - encodeable value: %r %s", value, type(value))
-
-            # build a request
-            request = WritePropertyRequest(
-                objectIdentifier=obj_id,
-                propertyIdentifier=prop_id
-            )
-            request.pduDestination = Address(addr)
-
-            # save the value
-            request.propertyValue = Any()
-            try:
-                request.propertyValue.cast_in(value)
-            except Exception as error:
-                log.exception("WriteProperty cast error: %r", error)
-
-            # optional array index
-            if indx is not None:
-                request.propertyArrayIndex = indx
-
-            # optional priority
-            if priority is not None:
-                request.priority = priority
-
-            log.debug("    - request: %r", request)
-
-            # make an IOCB
-            iocb = IOCB(request)
-            log.debug("    - iocb: %r", iocb)
-
-            # give it to the application
+            iocb = self.form_iocb(device, request_type="writeProperty")
             deferred(self.request_io, iocb)
-
-            # wait for it to complete
-            iocb.wait()
-
-            # do something for success
-            if iocb.ioResponse:
-                # should be an ack
-                if not isinstance(iocb.ioResponse, SimpleAckPDU):
-                    log.debug("    - not an ack")
-                    return
-
-            # do something for error/reject/abort
-            if iocb.ioError:
-                log.error(str(iocb.ioError) + '\n')
-
+            callback_params = {}
+            iocb.add_callback(self.__general_cb, (iocb, callback_params, None))
         except Exception as error:
             log.exception("exception: %r", error)
 
     def check_or_add(self, device):
-        device_address = Address(device["address"])
+        device_address = device["address"] if isinstance(device["address"], Address) else Address(device["address"])
         if self.discovered_devices.get(device_address) is None:
             self.do_whois(device)
             return False
         return True
-
-
 
     def __on_mapping_response_cb(self, iocb: IOCB):
         try:
@@ -242,21 +117,7 @@ class TBBACnetApplication(BIPSimpleApplication):
             log.debug(self.requests_in_progress[iocb])
             if iocb.ioResponse:
                 apdu = iocb.ioResponse
-                tag_list = apdu.propertyValue.tagList
-                non_app_tags = [tag for tag in tag_list if tag.tagClass != Tag.applicationTagClass]
-                if non_app_tags:
-                    raise RuntimeError("Value has some non-application tags")
-                first_tag = tag_list[0]
-                other_type_tags = [tag for tag in tag_list[1:] if tag.tagNumber != first_tag.tagNumber]
-                if other_type_tags:
-                    raise RuntimeError("All tags must be the same type")
-                datatype = Tag._app_tag_class[first_tag.tagNumber]
-                if not datatype:
-                    raise RuntimeError("unknown datatype")
-                if len(tag_list) > 1:
-                    datatype = ArrayOf(datatype)
-                value = apdu.propertyValue.cast_out(datatype)
-                log.debug("Received callback with data: %s", str(value))
+                value = self.__property_value_from_apdu(apdu)
                 callback_params = self.requests_in_progress[iocb]
                 if callback_params.get("callback") is not None:
                     self.__general_cb(iocb, callback_params, value)
@@ -270,15 +131,99 @@ class TBBACnetApplication(BIPSimpleApplication):
     def __general_cb(self, iocb, callback_params, value):
         log.debug(callback_params)
         if callback_params.get("mapping_type") is not None:
-            callback_params["callback"](callback_params["device"]["converter"], callback_params["mapping_type"], callback_params["mapping_object"], value)
+            callback_params["callback"](callback_params["mapping_object"]["uplink_converter"], callback_params["mapping_type"], callback_params["mapping_object"], value)
         else:
             if iocb.ioResponse:
                 apdu = iocb.ioResponse
-                if self.discovered_devices.get(apdu.pduSource) is None:
-                    self.discovered_devices[apdu.pduSource] = {}
-                self.discovered_devices[apdu.pduSource].update({apdu.propertyIdentifier: value})
+                if isinstance(apdu, SimpleAckPDU):
+                    log.debug("Write to %s - successfully.", str(apdu.pduSource))
             elif iocb.ioError:
                 log.exception(iocb.ioError)
             else:
                 log.error("There are no data in response and no errors.")
 
+    def __iam_cb(self, iocb: IOCB, *args):
+        if iocb.ioResponse:
+            apdu = iocb.ioResponse
+            log.debug(args)
+            log.debug("Received IAm Response: %s", str(apdu))
+            if self.discovered_devices.get(apdu.pduSource) is None:
+                self.discovered_devices[apdu.pduSource] = {}
+            value = self.__property_value_from_apdu(apdu)
+            log.debug("Property: %s is %s", apdu.propertyIdentifier, value)
+            self.discovered_devices[apdu.pduSource].update({apdu.propertyIdentifier: value})
+            data_to_connector = {
+                "address": apdu.pduSource,
+                "objectId": apdu.objectIdentifier,
+                "name": self.__property_value_from_apdu(apdu),
+
+            }
+            self.__connector.add_device(data_to_connector)
+
+        elif iocb.ioError:
+            log.exception(iocb.ioError)
+
+    @staticmethod
+    def form_iocb(device, config=None, request_type="readProperty"):
+        config = config if config is not None else device
+        address = device["address"] if isinstance(device["address"], Address) else Address(device["address"])
+        object_id = ObjectIdentifier(config["objectId"])
+        property_id = config.get("propertyId")
+        value = config.get("propertyValue")
+        property_index = config.get("propertyIndex")
+        priority = config.get("priority")
+        request = None
+        iocb = None
+        if request_type == "readProperty":
+            try:
+                request = ReadPropertyRequest(
+                    objectIdentifier=object_id,
+                    propertyIdentifier=property_id
+                )
+                request.pduDestination = address
+                if property_index is not None:
+                    request.propertyArrayIndex = int(property_index)
+                iocb = IOCB(request)
+            except Exception as e:
+                log.exception(e)
+        elif request_type == "writeProperty":
+            datatype = get_datatype(object_id.value[0], property_id)
+            if isinstance(value, str) and value.lower() == 'null':
+                value = Null()
+            datatype(value)
+            request = WritePropertyRequest(
+                objectIdentifier=object_id,
+                propertyIdentifier=property_id
+            )
+            request.pduDestination = Address(address)
+            request.propertyValue = Any()
+            try:
+                request.propertyValue.cast_in(value)
+            except Exception as error:
+                log.exception("WriteProperty cast error: %r", error)
+            if property_index is not None:
+                request.propertyArrayIndex = property_index
+            if priority is not None:
+                request.priority = priority
+            iocb = IOCB(request)
+        else:
+            log.error("Request type is not found or not implemented")
+        return iocb
+
+    @staticmethod
+    def __property_value_from_apdu(apdu: APDU):
+        tag_list = apdu.propertyValue.tagList
+        non_app_tags = [tag for tag in tag_list if tag.tagClass != Tag.applicationTagClass]
+        if non_app_tags:
+            raise RuntimeError("Value has some non-application tags")
+        first_tag = tag_list[0]
+        other_type_tags = [tag for tag in tag_list[1:] if tag.tagNumber != first_tag.tagNumber]
+        if other_type_tags:
+            raise RuntimeError("All tags must be the same type")
+        datatype = Tag._app_tag_class[first_tag.tagNumber]
+        if not datatype:
+            raise RuntimeError("unknown datatype")
+        if len(tag_list) > 1:
+            datatype = ArrayOf(datatype)
+        value = apdu.propertyValue.cast_out(datatype)
+        return value
