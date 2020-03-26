@@ -113,24 +113,25 @@ class TBBACnetApplication(BIPSimpleApplication):
 
     def __on_mapping_response_cb(self, iocb: IOCB):
         try:
-            log.debug(iocb)
-            log.debug(self.requests_in_progress[iocb])
-            if iocb.ioResponse:
-                apdu = iocb.ioResponse
-                value = self.__property_value_from_apdu(apdu)
-                callback_params = self.requests_in_progress[iocb]
-                if callback_params.get("callback") is not None:
-                    self.__general_cb(iocb, callback_params, value)
-            elif iocb.ioError:
-                log.exception(iocb.ioError)
-            del self.requests_in_progress[iocb]
+            if self.requests_in_progress.get(iocb) is not None:
+                log.debug(iocb)
+                log.debug(self.requests_in_progress[iocb])
+                if iocb.ioResponse:
+                    apdu = iocb.ioResponse
+                    value = self.__property_value_from_apdu(apdu)
+                    callback_params = self.requests_in_progress[iocb]
+                    if callback_params.get("callback") is not None:
+                        self.__general_cb(iocb, callback_params, value)
+                elif iocb.ioError:
+                    log.exception(iocb.ioError)
         except Exception as e:
             log.exception(e)
+        if self.requests_in_progress.get(iocb) is not None:
             del self.requests_in_progress[iocb]
 
     def __general_cb(self, iocb, callback_params, value):
         log.debug(callback_params)
-        if callback_params.get("mapping_type") is not None:
+        if callback_params.get("mapping_type") is not None and callback_params["mapping_object"].get("uplink_converter") is not None:
             callback_params["callback"](callback_params["mapping_object"]["uplink_converter"], callback_params["mapping_type"], callback_params["mapping_object"], value)
         else:
             if iocb.ioResponse:
@@ -141,6 +142,8 @@ class TBBACnetApplication(BIPSimpleApplication):
                 log.exception(iocb.ioError)
             else:
                 log.error("There are no data in response and no errors.")
+        if self.requests_in_progress.get(iocb) is not None:
+            del self.requests_in_progress[iocb]
 
     def __iam_cb(self, iocb: IOCB, *args):
         if iocb.ioResponse:
@@ -156,7 +159,6 @@ class TBBACnetApplication(BIPSimpleApplication):
                 "address": apdu.pduSource,
                 "objectId": apdu.objectIdentifier,
                 "name": self.__property_value_from_apdu(apdu),
-
             }
             self.__connector.add_device(data_to_connector)
 
@@ -188,14 +190,14 @@ class TBBACnetApplication(BIPSimpleApplication):
                 log.exception(e)
         elif request_type == "writeProperty":
             datatype = get_datatype(object_id.value[0], property_id)
-            if isinstance(value, str) and value.lower() == 'null':
+            if (isinstance(value, str) and value.lower() == 'null') or value is None:
                 value = Null()
             datatype(value)
             request = WritePropertyRequest(
                 objectIdentifier=object_id,
                 propertyIdentifier=property_id
             )
-            request.pduDestination = Address(address)
+            request.pduDestination = address
             request.propertyValue = Any()
             try:
                 request.propertyValue.cast_in(value)
