@@ -21,10 +21,9 @@ from bacpypes.app import BIPSimpleApplication
 from bacpypes.core import run, deferred, enable_sleeping
 from bacpypes.iocb import IOCB
 
-from bacpypes.apdu import ReadPropertyRequest, WhoIsRequest, IAmRequest, WritePropertyRequest, SimpleAckPDU
-from bacpypes.primitivedata import Tag, Null, Atomic, Boolean, Unsigned, Integer, \
-    Real, Double, OctetString, CharacterString, BitString, Date, Time, ObjectIdentifier
-from bacpypes.constructeddata import ArrayOf, Array, Any, AnyAtomic
+from bacpypes.apdu import ReadPropertyRequest, WhoIsRequest, IAmRequest, WritePropertyRequest, SimpleAckPDU, ReadPropertyACK
+from bacpypes.primitivedata import Null, ObjectIdentifier
+from bacpypes.constructeddata import Any
 
 from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -80,27 +79,27 @@ class TBBACnetApplication(BIPSimpleApplication):
             )
             iocb = IOCB(request)
             deferred(self.request_io, iocb)
-            iocb.add_callback(self.__iam_cb)
+            iocb.add_callback(self.__iam_cb, vendor_id=apdu.vendorID)
             self.requests_in_progress.update({iocb: {"callback": self.__iam_cb}})
 
     def do_read_property(self, device, mapping_type, mapping_object, callback=None):
         try:
             iocb = self.form_iocb(device, mapping_object, "readProperty")
             deferred(self.request_io, iocb)
-            iocb.add_callback(self.__on_mapping_response_cb)
             self.requests_in_progress.update({iocb: {"callback": callback,
                                                      "device": device,
                                                      "mapping_type": mapping_type,
                                                      "mapping_object": mapping_object}})
+            iocb.add_callback(self.__general_cb)
         except Exception as e:
             log.exception(e)
     
-    def do_write_property(self, device):
+    def do_write_property(self, device, callback=None):
         try:
-            iocb = self.form_iocb(device, request_type="writeProperty")
+            iocb = device if isinstance(device, IOCB) else self.form_iocb(device, request_type="writeProperty")
             deferred(self.request_io, iocb)
-            callback_params = {}
-            iocb.add_callback(self.__general_cb, (iocb, callback_params, None))
+            self.requests_in_progress.update({iocb: {"callback": callback}})
+            iocb.add_callback(self.__general_cb)
         except Exception as error:
             log.exception("exception: %r", error)
 
@@ -129,11 +128,10 @@ class TBBACnetApplication(BIPSimpleApplication):
         if self.requests_in_progress.get(iocb) is not None:
             del self.requests_in_progress[iocb]
 
-    def __general_cb(self, iocb, callback_params, value):
-        log.debug(callback_params)
-        if callback_params.get("mapping_type") is not None and callback_params["mapping_object"].get("uplink_converter") is not None:
-            callback_params["callback"](callback_params["mapping_object"]["uplink_converter"], callback_params["mapping_type"], callback_params["mapping_object"], value)
-        else:
+    def __general_cb(self, iocb, callback_params=None, value=None):
+        try:
+            if callback_params is None:
+                callback_params = self.requests_in_progress[iocb]
             if iocb.ioResponse:
                 apdu = iocb.ioResponse
                 if isinstance(apdu, SimpleAckPDU):
@@ -142,26 +140,30 @@ class TBBACnetApplication(BIPSimpleApplication):
                 log.exception(iocb.ioError)
             else:
                 log.error("There are no data in response and no errors.")
+            if isinstance(callback_params, dict) and callback_params.get("callback"):
+                callback_params["callback"](iocb, callback_params)
+        except Exception as e:
+            log.exception("During processing callback, exception has been raised:")
+            log.exception(e)
         if self.requests_in_progress.get(iocb) is not None:
             del self.requests_in_progress[iocb]
 
-    def __iam_cb(self, iocb: IOCB, *args):
+    def __iam_cb(self, iocb: IOCB, vendor_id=None):
         if iocb.ioResponse:
             apdu = iocb.ioResponse
-            log.debug(args)
             log.debug("Received IAm Response: %s", str(apdu))
             if self.discovered_devices.get(apdu.pduSource) is None:
                 self.discovered_devices[apdu.pduSource] = {}
-            value = self.__property_value_from_apdu(apdu)
+            value = self.__connector.default_converters["uplink_converter"]("{}").convert(None, apdu)
             log.debug("Property: %s is %s", apdu.propertyIdentifier, value)
             self.discovered_devices[apdu.pduSource].update({apdu.propertyIdentifier: value})
             data_to_connector = {
                 "address": apdu.pduSource,
                 "objectId": apdu.objectIdentifier,
-                "name": self.__property_value_from_apdu(apdu),
+                "name": value,
+                "vendor": vendor_id if vendor_id is not None else 0
             }
             self.__connector.add_device(data_to_connector)
-
         elif iocb.ioError:
             log.exception(iocb.ioError)
 
@@ -174,6 +176,7 @@ class TBBACnetApplication(BIPSimpleApplication):
         value = config.get("propertyValue")
         property_index = config.get("propertyIndex")
         priority = config.get("priority")
+        vendor = device.get("vendor", config.get("vendorId", 0))
         request = None
         iocb = None
         if request_type == "readProperty":
@@ -189,7 +192,7 @@ class TBBACnetApplication(BIPSimpleApplication):
             except Exception as e:
                 log.exception(e)
         elif request_type == "writeProperty":
-            datatype = get_datatype(object_id.value[0], property_id)
+            datatype = get_datatype(object_id.value[0], property_id, vendor)
             if (isinstance(value, str) and value.lower() == 'null') or value is None:
                 value = Null()
             datatype(value)
@@ -201,6 +204,8 @@ class TBBACnetApplication(BIPSimpleApplication):
             request.propertyValue = Any()
             try:
                 request.propertyValue.cast_in(value)
+            except AttributeError as e:
+                log.debug(e)
             except Exception as error:
                 log.exception("WriteProperty cast error: %r", error)
             if property_index is not None:
@@ -211,21 +216,3 @@ class TBBACnetApplication(BIPSimpleApplication):
         else:
             log.error("Request type is not found or not implemented")
         return iocb
-
-    @staticmethod
-    def __property_value_from_apdu(apdu: APDU):
-        tag_list = apdu.propertyValue.tagList
-        non_app_tags = [tag for tag in tag_list if tag.tagClass != Tag.applicationTagClass]
-        if non_app_tags:
-            raise RuntimeError("Value has some non-application tags")
-        first_tag = tag_list[0]
-        other_type_tags = [tag for tag in tag_list[1:] if tag.tagNumber != first_tag.tagNumber]
-        if other_type_tags:
-            raise RuntimeError("All tags must be the same type")
-        datatype = Tag._app_tag_class[first_tag.tagNumber]
-        if not datatype:
-            raise RuntimeError("unknown datatype")
-        if len(tag_list) > 1:
-            datatype = ArrayOf(datatype)
-        value = apdu.propertyValue.cast_out(datatype)
-        return value

@@ -44,8 +44,11 @@ class BACnetConnector(Thread, Connector):
         self.__send_whois_broadcast = self.__config["general"].get("sendWhoIsBroadcast", False)
         self.__send_whois_broadcast_period = self.__config.get("sendWhoIsBroadcastPeriod", 5000)
         self.__send_whois_broadcast_previous_time = 0
+        self.default_converters = {"uplink_converter": TBUtility.check_and_import(self.__connector_type, "BACnetUplinkConverter"),
+                                     "downlink_converter": TBUtility.check_and_import(self.__connector_type, "BACnetDownlinkConverter")}
         self.__request_functions = {"writeProperty": self._application.do_write_property}
         self.__available_object_resources = {}
+        self.rpc_requests_in_progress = {}
         self.__connected = False
         self.daemon = True
 
@@ -67,18 +70,17 @@ class BACnetConnector(Thread, Connector):
             for device in self.__devices:
                 try:
                     if device.get("previous_check") is None or cur_time - device["previous_check"] >= device["poll_period"]:
-                        if device.get("uplink_converter") is None or device.get("downlink_converter") is None:
-                            self.__load_converters(device)
-                        else:
-                            for mapping_type in ["attributes", "telemetry"]:
-                                for mapping_object in device[mapping_type]:
-                                    data_to_application = {
-                                        "device": device,
-                                        "mapping_type": mapping_type,
-                                        "mapping_object": mapping_object,
-                                        "callback": self.__bacnet_device_mapping_response_cb
-                                    }
-                                    self._application.do_read_property(**data_to_application)
+                        for mapping_type in ["attributes", "telemetry"]:
+                            for mapping_object in device[mapping_type]:
+                                if mapping_object.get("uplink_converter") is None or mapping_object.get("downlink_converter") is None:
+                                    self.__load_converters(device)
+                                data_to_application = {
+                                    "device": device,
+                                    "mapping_type": mapping_type,
+                                    "mapping_object": mapping_object,
+                                    "callback": self.__bacnet_device_mapping_response_cb
+                                }
+                                self._application.do_read_property(**data_to_application)
                         device["previous_check"] = cur_time
                     else:
                         sleep(.1)
@@ -97,32 +99,76 @@ class BACnetConnector(Thread, Connector):
         return self.__connected
 
     def on_attributes_update(self, content):
-        log.debug('\n\n\n\n\n\n'+content+'\n\n\n\n\n\n\n\n')
         try:
+            log.debug('Recieved Attribute Update Request: %r', str(content))
             for device in self.__devices:
-                for request in device["attribute_updates"]:
-                    if request.get("requestType") is not None:
-                        for attribute in content["data"]:
-                            if attribute == request["key"]:
-                                to_write_device_information = {
-                                    "address": device["address"],
-                                    "objectId": request["objectId"],
-                                    "propertyId": request["propertyId"],
-                                    "propertyValue": content["data"][attribute],
-                                    "index": request.get("index"),
-                                    "priority": request.get("priority"),
-                                }
-                                self.__request_functions[request["requestType"]](to_write_device_information)
-                                return
-                    else:
-                        log.error("\"requestType\" not found in request configuration for key %s device: %s",
-                                  request.get("key", "[KEY IS EMPTY]"),
-                                  device["deviceName"])
+                if device["deviceName"] == content["device"]:
+                    for request in device["attribute_updates"]:
+                        if request["config"].get("requestType") is not None:
+                            for attribute in content["data"]:
+                                if attribute == request["key"]:
+                                    request["iocb"][1]["config"].update({"propertyValue": content["data"][attribute]})
+                                    kwargs = request["iocb"][1]
+                                    iocb = request["iocb"][0](device, **kwargs)
+                                    self.__request_functions[request["config"]["requestType"]](iocb)
+                                    return
+                        else:
+                            log.error("\"requestType\" not found in request configuration for key %s device: %s",
+                                      request.get("key", "[KEY IS EMPTY]"),
+                                      device["deviceName"])
         except Exception as e:
             log.exception(e)
 
     def server_side_rpc_handler(self, content):
-        pass
+        try:
+            log.debug('Recieved RPC Request: %r', str(content))
+            for device in self.__devices:
+                if device["deviceName"] == content["device"]:
+                    method_found = False
+                    for request in device["server_side_rpc"]:
+                        if request["config"].get("requestType") is not None:
+                            if content["data"]["method"] == request["method"]:
+                                method_found = True
+                                kwargs = request["iocb"][1]
+                                kwargs["config"].update({"propertyValue": content["data"]["params"]})
+                                iocb = request["iocb"][0](device, **kwargs)
+                                self.__request_functions[request["config"]["requestType"]](iocb, self.__rpc_response_cb)
+                                self.rpc_requests_in_progress[iocb] = {"content": content,
+                                                                       "converter": request["uplink_converter"]}
+                                self.__gateway.register_rpc_request_timeout(content,
+                                                                            request["config"].get("requestTimeout", 200),
+                                                                            iocb,
+                                                                            self.__rpc_cancel_processing)
+                        else:
+                            log.error("\"requestType\" not found in request configuration for key %s device: %s",
+                                      request.get("key", "[KEY IS EMPTY]"),
+                                      device["deviceName"])
+                    if not method_found:
+                        log.error("RPC method %s not found in configuration", content["data"]["method"])
+                        self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], success_sent=False)
+        except Exception as e:
+            log.exception(e)
+
+    def __rpc_response_cb(self, iocb):
+        device = self.rpc_requests_in_progress[iocb]
+        converter = device["uplink_converter"]
+        content = device["content"]
+        if iocb.ioResponse:
+            apdu = iocb.ioResponse
+            log.debug("Received callback with Response: %r", apdu)
+            converted_data = converter.convert(None, apdu)
+            self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], converted_data)
+        elif iocb.ioError:
+            log.exception("Received callback with Error: %r", iocb.ioError)
+            data = {"error": str(iocb.ioError)}
+            self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], data)
+        else:
+            log.error("Received unknown RPC response callback from device: %r", iocb)
+
+
+
+    def __rpc_cancel_processing(self, iocb):
+        log.info("RPC with iocb %r - cancelled.", iocb)
 
     def scan_network(self):
         self._application.do_whois()
@@ -142,29 +188,24 @@ class BACnetConnector(Thread, Connector):
             except Exception as e:
                 log.exception(e)
 
-    def __bacnet_device_mapping_response_cb(self, converter, mapping_type, config, value):
-        log.debug(value)
-        log.debug(config)
-        log.debug(converter)
+    def __bacnet_device_mapping_response_cb(self, iocb, callback_params):
+        converter = callback_params["mapping_object"]["uplink_converter"]
+        mapping_type = callback_params["mapping_type"]
+        config = callback_params["mapping_object"]
         converted_data = {}
         try:
-            converted_data = converter.convert((mapping_type, config), value)
+            converted_data = converter.convert((mapping_type, config), iocb.ioResponse if iocb.ioResponse else iocb.ioError)
         except Exception as e:
             log.exception(e)
         self.__gateway.send_to_storage(self.name, converted_data)
 
     def __load_converters(self, device):
         datatypes = ["attributes", "timeseries", "attributeUpdates", "serverSideRpc"]
-        converters = {"uplink_converter": TBUtility.check_and_import(self.__connector_type, "BACnetUplinkConverter"),
-                      "downlink_converter": TBUtility.check_and_import(self.__connector_type,
-                                                                       "BACnetDownlinkConverter")}
         for datatype in datatypes:
             for datatype_config in device.get(datatype, []):
                 try:
-                    for converter_type in converters:
-                        converter_object = converters[converter_type] if datatype_config.get(
-                            "class") is None else TBUtility.check_and_import(self.__connector_type,
-                                                                             device.get("class"))
+                    for converter_type in self.default_converters:
+                        converter_object = self.default_converters[converter_type] if datatype_config.get("class") is None else TBUtility.check_and_import(self.__connector_type, device.get("class"))
                         datatype_config[converter_type] = converter_object(device)
                 except Exception as e:
                     log.exception(e)
@@ -202,7 +243,6 @@ class BACnetConnector(Thread, Connector):
         result = {"attribute_updates": [], "server_side_rpc": []}
         for request in device.get("attributeUpdates", []):
             kwarg_dict = {
-                "device": device,
                 "config": request,
                 "request_type": request["requestType"]
             }
@@ -214,7 +254,6 @@ class BACnetConnector(Thread, Connector):
             result["attribute_updates"].append(request_config)
         for request in device.get("serverSideRpc", []):
             kwarg_dict = {
-                "device": device,
                 "config": request,
                 "request_type": request["requestType"]
             }

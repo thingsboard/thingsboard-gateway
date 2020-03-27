@@ -32,6 +32,15 @@
           "objectId": "analogValue:1",
           "propertyId": "presentValue"
         }
+      ],
+      "serverSideRpc": [
+        {
+          "method": "write",
+          "requestType": "writeProperty",
+          "requestTimeout": 10000,
+          "objectId": "analogValue:1",
+          "propertyId": "presentValue"
+        }
       ]
     }
   ]
