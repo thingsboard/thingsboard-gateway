@@ -12,10 +12,11 @@ Thingsboard is an open-source IoT platform for data collection, processing, visu
 Thingsboard IoT Gateway provides following features:  
 
  - **OPC-UA** connector to collect data from devices that are connected to OPC-UA servers.
- - **MQTT** connector to collect data that is published to external MQTT brokers. 
- - **Modbus** connector to collect data from Modbus servers and slaves.
- - **BLE** connector to collect data from BLE devices.
- - **Request** connector to collect data from HTTP API.
+ - (**MQTT** connector)[https://thingsboard.io/docs/iot-gateway/config/mqtt/] to collect data that is published to external MQTT brokers. 
+ - (**Modbus** connector)[https://thingsboard.io/docs/iot-gateway/config/modbus/] to collect data from Modbus servers and slaves.
+ - (**BLE** connector)[https://thingsboard.io/docs/iot-gateway/config/ble/] to collect data from BLE devices.
+ - (**Request** connector)[https://thingsboard.io/docs/iot-gateway/config/request/] to collect data from HTTP API.
+ - (**CAN** connector)[https://thingsboard.io/docs/iot-gateway/config/can/] to collect data using CAN protocol.
  - **Custom** connector to collect data from custom protocols.
  - **Persistence** of collected data to guarantee data delivery in case of network and hardware failures.
  - **Automatic reconnect** to Thingsboard cluster.
