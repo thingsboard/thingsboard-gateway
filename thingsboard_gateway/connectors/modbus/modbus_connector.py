@@ -17,6 +17,7 @@ import threading
 from random import choice
 from string import ascii_lowercase
 
+from pymodbus.constants import Defaults
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient, ModbusRtuFramer, ModbusSocketFramer
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, \
@@ -185,13 +186,24 @@ class ModbusConnector(Connector, threading.Thread):
         baudrate = self.__config.get('baudrate', 19200)
         timeout = self.__config.get("timeout", 35)
         method = self.__config.get('method', 'rtu')
+        stopbits = self.__config.get('stopbits', Defaults.Stopbits)
+        bytesize = self.__config.get('bytesize', Defaults.Bytesize)
+        parity = self.__config.get('parity',   Defaults.Parity)
+        strict = self.__config.get("strict", True)
         rtu = ModbusRtuFramer if self.__config.get("method") == "rtu" else ModbusSocketFramer
         if self.__config.get('type') == 'tcp':
             self.__master = ModbusTcpClient(host, port, rtu, timeout=timeout)
         elif self.__config.get('type') == 'udp':
             self.__master = ModbusUdpClient(host, port, rtu, timeout=timeout)
         elif self.__config.get('type') == 'serial':
-            self.__master = ModbusSerialClient(method=method, port=port, timeout=timeout, baudrate=baudrate)
+            self.__master = ModbusSerialClient(method=method,
+                                               port=port,
+                                               timeout=timeout,
+                                               baudrate=baudrate,
+                                               stopbits=stopbits,
+                                               bytesize=bytesize,
+                                               parity=parity,
+                                               strict=strict)
         else:
             raise Exception("Invalid Modbus transport type.")
         self.__available_functions = {
