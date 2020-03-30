@@ -17,10 +17,12 @@ Thingsboard IoT Gateway provides following features:
  - [**BLE** connector](https://thingsboard.io/docs/iot-gateway/config/ble/) to collect data from BLE devices.
  - [**Request** connector](https://thingsboard.io/docs/iot-gateway/config/request/) to collect data from HTTP API.
  - [**CAN** connector](https://thingsboard.io/docs/iot-gateway/config/can/) to collect data using CAN protocol.
- - **Custom** connector to collect data from custom protocols.
+ - [**Custom** connector](https://thingsboard.io/docs/iot-gateway/custom/) to collect data from custom protocols.
  - **Persistence** of collected data to guarantee data delivery in case of network and hardware failures.
  - **Automatic reconnect** to Thingsboard cluster.
  - Simple yet powerful **mapping** of incoming data and messages **to unified format**.
+ - [Remote logging feature](https://thingsboard.io/docs/iot-gateway/guides/how-to-enable-remote-logging/) to monitor the gateway status through the ThingsBoard WEB interface.
+ - [RPC gateway methods](https://thingsboard.io/docs/iot-gateway/guides/how-to-use-gateway-rpc-methods/) to control and get information from the gateway through ThingsBoard WEB interface.
   
 ### Architecture  
 
