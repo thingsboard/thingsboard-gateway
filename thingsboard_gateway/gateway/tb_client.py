@@ -78,8 +78,8 @@ class TBClient(threading.Thread):
         self.client._on_connect(client, userdata, flags, result_code, *extra_params)
 
     def _on_disconnect(self, client, userdata, result_code):
-        log.info("TB client %s has been disconnected.", str(client))
         # pylint: disable=protected-access
+        log.info("TB client %s has been disconnected. Current client for connection is: %s", str(client), str(self.client._client))
         if self.client._client != client:
             client.disconnect()
         self.__is_connected = False
