@@ -22,7 +22,7 @@ from bacpypes.core import run, deferred, enable_sleeping
 from bacpypes.iocb import IOCB
 
 from bacpypes.apdu import ReadPropertyRequest, WhoIsRequest, IAmRequest, WritePropertyRequest, SimpleAckPDU, ReadPropertyACK
-from bacpypes.primitivedata import Null, ObjectIdentifier
+from bacpypes.primitivedata import Null, ObjectIdentifier, Integer, Unsigned, Real
 from bacpypes.constructeddata import Any
 
 from thingsboard_gateway.connectors.connector import log
@@ -195,7 +195,6 @@ class TBBACnetApplication(BIPSimpleApplication):
             datatype = get_datatype(object_id.value[0], property_id, vendor)
             if (isinstance(value, str) and value.lower() == 'null') or value is None:
                 value = Null()
-            datatype(value)
             request = WritePropertyRequest(
                 objectIdentifier=object_id,
                 propertyIdentifier=property_id
@@ -203,6 +202,13 @@ class TBBACnetApplication(BIPSimpleApplication):
             request.pduDestination = address
             request.propertyValue = Any()
             try:
+                if datatype is (Integer, Unsigned):
+                    value = int(value)
+                    value = datatype(value)
+                elif datatype is Real:
+                    value = float(value)
+                    value = datatype(value)
+                request.propertyValue = Any()
                 request.propertyValue.cast_in(value)
             except AttributeError as e:
                 log.debug(e)
