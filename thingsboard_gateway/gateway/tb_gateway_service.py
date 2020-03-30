@@ -558,7 +558,7 @@ class TBGatewayService:
                         self.__connected_devices[device_name] = {
                             "connector": self.available_connectors[devices[device_name]]}
                     else:
-                        log.warning("Device %s connector not found, maybe it had been disabled.", device_name)
+                        log.info("Pair device %s - connector %s from persistent device storage - not found.", device_name, devices[device_name])
                 except Exception as e:
                     log.exception(e)
                     continue
