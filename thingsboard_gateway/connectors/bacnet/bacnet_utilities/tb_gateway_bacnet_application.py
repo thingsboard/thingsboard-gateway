@@ -22,7 +22,7 @@ from bacpypes.core import run, deferred, enable_sleeping
 from bacpypes.iocb import IOCB
 
 from bacpypes.apdu import ReadPropertyRequest, WhoIsRequest, IAmRequest, WritePropertyRequest, SimpleAckPDU, ReadPropertyACK
-from bacpypes.primitivedata import Null, ObjectIdentifier, Integer, Unsigned, Real
+from bacpypes.primitivedata import Null, ObjectIdentifier
 from bacpypes.constructeddata import Any
 
 from thingsboard_gateway.connectors.connector import log
@@ -82,14 +82,14 @@ class TBBACnetApplication(BIPSimpleApplication):
             iocb.add_callback(self.__iam_cb, vendor_id=apdu.vendorID)
             self.requests_in_progress.update({iocb: {"callback": self.__iam_cb}})
 
-    def do_read_property(self, device, mapping_type, mapping_object, callback=None):
+    def do_read_property(self, device, mapping_type=None, config=None, callback=None):
         try:
-            iocb = self.form_iocb(device, mapping_object, "readProperty")
+            iocb = device if isinstance(device, IOCB) else self.form_iocb(device, config, "readProperty")
             deferred(self.request_io, iocb)
             self.requests_in_progress.update({iocb: {"callback": callback,
                                                      "device": device,
                                                      "mapping_type": mapping_type,
-                                                     "mapping_object": mapping_object}})
+                                                     "config": config}})
             iocb.add_callback(self.__general_cb)
         except Exception as e:
             log.exception(e)
@@ -136,12 +136,17 @@ class TBBACnetApplication(BIPSimpleApplication):
                 apdu = iocb.ioResponse
                 if isinstance(apdu, SimpleAckPDU):
                     log.debug("Write to %s - successfully.", str(apdu.pduSource))
+                else:
+                    log.debug("Received response: %r", apdu)
             elif iocb.ioError:
                 log.exception(iocb.ioError)
             else:
                 log.error("There are no data in response and no errors.")
             if isinstance(callback_params, dict) and callback_params.get("callback"):
-                callback_params["callback"](iocb, callback_params)
+                try:
+                    callback_params["callback"](iocb, callback_params)
+                except TypeError:
+                    callback_params["callback"](iocb)
         except Exception as e:
             log.exception("During processing callback, exception has been raised:")
             log.exception(e)
@@ -202,14 +207,8 @@ class TBBACnetApplication(BIPSimpleApplication):
             request.pduDestination = address
             request.propertyValue = Any()
             try:
-                if datatype is (Integer, Unsigned):
-                    value = int(value)
-                    value = datatype(value)
-                elif datatype is Real:
-                    value = float(value)
-                    value = datatype(value)
-                request.propertyValue = Any()
-                request.propertyValue.cast_in(value)
+                value = datatype(value)
+                request.propertyValue = Any(value)
             except AttributeError as e:
                 log.debug(e)
             except Exception as error:

@@ -29,7 +29,8 @@ class BACnetUplinkConverter(BACnetConverter):
             value = self.__property_value_from_apdu(data)
         if config is not None:
             datatypes = {"attributes": "attributes",
-                         "timeseries": "telemetry"}
+                         "timeseries": "telemetry",
+                         "telemetry": "telemetry"}
             dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
             dict_result["deviceName"] = self.__config.get("deviceName", config[1].get("name", "BACnet device"))
             dict_result["deviceType"] = self.__config.get("deviceType", "default")
