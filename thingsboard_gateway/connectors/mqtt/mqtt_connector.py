@@ -37,7 +37,7 @@ class MqttConnector(Connector, Thread):
         self.__mapping = config.get('mapping')
         self.__server_side_rpc = config.get('serverSideRpc', [])
         self.__service_config = {"connectRequests": [], "disconnectRequests": []}
-        self.__attribute_updates = []
+        self.__attribute_updates = config.get("attributeUpdates")
         self.__get_service_config(config)
         self.__sub_topics = {}
         client_id = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
@@ -197,10 +197,8 @@ class MqttConnector(Connector, Thread):
 
     def __get_service_config(self, config):
         for service_config in self.__service_config:
-            if service_config != "attributeUpdates" and config.get(service_config):
+            if config.get(service_config):
                 self.__service_config[service_config] = config[service_config]
-            else:
-                self.__attribute_updates = config[service_config]
 
     def _on_message(self, client, userdata, message):
         self.statistics['MessagesReceived'] += 1
