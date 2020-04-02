@@ -56,7 +56,7 @@ class TBUtility:
     @staticmethod
     def check_and_import(extension_type, module_name):
         extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
-                            '/var/lib/thingsboard_gateway/'.replace('/', path.sep) + extension_type.lower(),
+                            '/var/lib/thingsboard_gateway/extensions/'.replace('/', path.sep) + extension_type.lower(),
                             path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
         try:
             for extension_path in extensions_paths:
