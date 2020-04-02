@@ -281,27 +281,30 @@ class MqttConnector(Connector, Thread):
     def on_attributes_update(self, content):
         if self.__attribute_updates:
             for attribute_update in self.__attribute_updates:
-                if match(attribute_update["deviceNameFilter"], content["device"]) and \
-                        content["data"].get(attribute_update["attributeFilter"]):
-                    try:
-                        topic = attribute_update["topicExpression"]\
-                                .replace("${deviceName}", content["device"])\
-                                .replace("${attributeKey}", attribute_update["attributeFilter"])\
-                                .replace("${attributeValue}", content["data"][attribute_update["attributeFilter"]])
-                    except KeyError as e:
-                        log.exception("Cannot form topic, key %s - not found", e)
-                        raise e
-                    try:
-                        data = attribute_update["valueExpression"]\
-                                .replace("${attributeKey}", attribute_update["attributeFilter"])\
-                                .replace("${attributeValue}", content["data"][attribute_update["attributeFilter"]])
-                    except KeyError as e:
-                        log.exception("Cannot form topic, key %s - not found", e)
-                        raise e
-                    self._client.publish(topic, data).wait_for_publish()
-                    self.__log.debug("Attribute Update data: %s for device %s to topic: %s", data, content["device"], topic)
+                if match(attribute_update["deviceNameFilter"], content["device"]):
+                    for attribute_key in content["data"]:
+                        if match(attribute_update["attributeFilter"], attribute_key):
+                            try:
+                                topic = attribute_update["topicExpression"]\
+                                        .replace("${deviceName}", content["device"])\
+                                        .replace("${attributeKey}", attribute_key)\
+                                        .replace("${attributeValue}", content["data"][attribute_key])
+                            except KeyError as e:
+                                log.exception("Cannot form topic, key %s - not found", e)
+                                raise e
+                            try:
+                                data = attribute_update["valueExpression"]\
+                                        .replace("${attributeKey}", attribute_key)\
+                                        .replace("${attributeValue}", content["data"][attribute_key])
+                            except KeyError as e:
+                                log.exception("Cannot form topic, key %s - not found", e)
+                                raise e
+                            self._client.publish(topic, data).wait_for_publish()
+                            self.__log.debug("Attribute Update data: %s for device %s to topic: %s", data, content["device"], topic)
+                        else:
+                            self.__log.error("Cannot find attributeName by filter in message with data: %s", content)
                 else:
-                    self.__log.error("Cannot found deviceName by filter in message or attributeFilter in message with data: %s", content)
+                    self.__log.error("Cannot find deviceName by filter in message with data: %s", content)
         else:
             self.__log.error("Attribute updates config not found.")
 
