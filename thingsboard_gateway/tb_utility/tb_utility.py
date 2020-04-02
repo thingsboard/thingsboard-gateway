@@ -17,7 +17,8 @@ from os import path, listdir
 from inspect import getmembers, isclass
 from importlib import util
 from logging import getLogger
-from simplejson import dumps, loads
+# from simplejson import dumps, loads
+from orjson import loads, dumps
 from jsonpath_rw import parse
 
 
@@ -33,15 +34,16 @@ class TBUtility:
 
     @staticmethod
     def validate_converted_data(data):
-        json_data = dumps(data)
-        if not data.get("deviceName") or data.get("deviceName") is None:
-            log.error('deviceName is empty in data %s', json_data)
-            return False
-        if not data.get("deviceType") or data.get("deviceType") is None:
-            log.error('deviceType is empty in data: %s', json_data)
-            return False
-        if not data.get("attributes") and not data.get("telemetry"):
-            log.error('No telemetry and attributes in data: %s', json_data)
+        error = None
+        if error is None and not data.get("deviceName"):
+            error = 'deviceName is empty in data: '
+        if error is None and not data.get("deviceType"):
+            error = 'deviceType is empty in data: '
+        if error is None and not data.get("attributes") and not data.get("telemetry"):
+            error = 'No telemetry and attributes in data: '
+        if error is not None:
+            json_data = dumps(data)
+            log.error(error+json_data)
             return False
         return True
 

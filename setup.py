@@ -38,6 +38,7 @@ setup(
         'pytz',
         'PyYAML',
         'simplejson',
+        'orjson>=2.6.3',
         'pyrsistent',
         'requests',
         'python-can'

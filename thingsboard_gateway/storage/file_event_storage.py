@@ -14,7 +14,7 @@
 
 import os
 import time
-import json
+from simplejson import dump
 from thingsboard_gateway.storage.event_storage import EventStorage, log
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
 from thingsboard_gateway.storage.event_storage_writer import EventStorageWriter
@@ -72,7 +72,7 @@ class FileEventStorage(EventStorage):
             if not state_file:
                 state_file = self.create_file('state_', 'file')
                 with open(self.settings.get_data_folder_path() + state_file, 'w') as state_file_obj:
-                    json.dump({"position": 0, "file": sorted(data_files)[0]}, state_file_obj)
+                    dump({"position": 0, "file": sorted(data_files)[0]}, state_file_obj)
             event_storage_files = EventStorageFiles(state_file, data_files)
         return event_storage_files
 

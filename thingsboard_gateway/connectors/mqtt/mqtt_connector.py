@@ -70,7 +70,7 @@ class MqttConnector(Connector, Thread):
         self._client.on_subscribe = self._on_subscribe
         self.__subscribes_sent = {}  # For logging the subscriptions
         self._client.on_disconnect = self._on_disconnect
-        self._client.on_log = self._on_log
+        # self._client.on_log = self._on_log
         self._connected = False
         self.__stopped = False
         self.daemon = True
@@ -104,7 +104,7 @@ class MqttConnector(Connector, Thread):
         while True:
             if self.__stopped:
                 break
-            time.sleep(.1)
+            time.sleep(.01)
 
     def close(self):
         self.__stopped = True

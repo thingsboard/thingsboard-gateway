@@ -23,7 +23,8 @@ from string import ascii_lowercase
 from threading import Thread, RLock
 
 from yaml import safe_load
-from simplejson import load, loads, dumps
+from simplejson import load
+from orjson import loads, dumps
 
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
@@ -137,8 +138,7 @@ class TBGatewayService:
                     except Exception as e:
                         log.exception(e)
                         break
-                if not self.__request_config_after_connect and \
-                        self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
+                if not self.__request_config_after_connect and self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
                     self.__request_config_after_connect = True
                     self.__check_shared_attributes()
 
@@ -316,29 +316,22 @@ class TBGatewayService:
                                         size = self.check_size(size, devices_data_in_event_pack)
                                         devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(item)
                                 else:
-                                    if not self.tb_client.is_connected():
-                                        break
                                     size += getsizeof(current_event["telemetry"])
                                     size = self.check_size(size, devices_data_in_event_pack)
                                     devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(current_event["telemetry"])
                             if current_event.get("attributes"):
                                 if isinstance(current_event["attributes"], list):
                                     for item in current_event["attributes"]:
-                                        if not self.tb_client.is_connected():
-                                            break
                                         size += getsizeof(item)
                                         size = self.check_size(size, devices_data_in_event_pack)
                                         devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(item.items())
                                 else:
-                                    if not self.tb_client.is_connected():
-                                        break
                                     size += getsizeof(current_event["attributes"].items())
                                     size = self.check_size(size, devices_data_in_event_pack)
-                                    devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(
-                                        current_event["attributes"].items())
+                                    devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(current_event["attributes"].items())
                         if devices_data_in_event_pack:
                             if not self.tb_client.is_connected():
-                                break
+                                continue
                             self.__send_data(devices_data_in_event_pack)
                         if self.tb_client.is_connected() and (self.__remote_configurator is None or not self.__remote_configurator.in_process):
                             success = True
@@ -355,6 +348,7 @@ class TBGatewayService:
                                 except Exception as e:
                                     log.exception(e)
                                     success = False
+                                sleep(.01)
                             if success:
                                 self._event_storage.event_pack_processing_done()
                                 del devices_data_in_event_pack

@@ -14,7 +14,8 @@
 
 import logging
 import time
-from simplejson import dumps
+# from simplejson import dumps
+from orjson import dumps
 
 from thingsboard_gateway.tb_client.tb_device_mqtt import TBDeviceMqttClient
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility

@@ -53,14 +53,14 @@ class TBClient(threading.Thread):
         # Adding callbacks
         self.client._client._on_connect = self._on_connect
         self.client._client._on_disconnect = self._on_disconnect
-        self.client._client._on_log = self._on_log
+        # self.client._client._on_log = self._on_log
         self.start()
 
-    def _on_log(self, *args):
-        if "exception" in args[-1]:
-            log.exception(args)
-        else:
-            log.debug(args)
+    # def _on_log(self, *args):
+    #     if "exception" in args[-1]:
+    #         log.exception(args)
+    #     else:
+    #         log.debug(args)
 
     def pause(self):
         self.__paused = True

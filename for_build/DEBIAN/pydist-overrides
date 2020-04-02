@@ -11,3 +11,4 @@ importlib python3-importlib; PEP386
 jsonparh-rw python3-jsonpath-rw; PEP386
 regex python3-regex; PEP386
 requests python3-requests; PEP386
+orjson python3-orjson; PEP386
