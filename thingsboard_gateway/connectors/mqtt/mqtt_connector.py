@@ -16,7 +16,7 @@ import time
 import string
 import random
 from threading import Thread
-from re import match, fullmatch, search
+from re import match, fullmatch, search, sub
 import ssl
 from paho.mqtt.client import Client
 from thingsboard_gateway.connectors.connector import Connector, log
@@ -203,6 +203,8 @@ class MqttConnector(Connector, Thread):
     def _on_message(self, client, userdata, message):
         self.statistics['MessagesReceived'] += 1
         content = TBUtility.decode(message)
+
+        # Check if message topic exists in mappings "i.e., I'm posting telemetry/attributes"
         regex_topic = [regex for regex in self.__sub_topics if fullmatch(regex, message.topic)]
         if regex_topic:
             try:
@@ -226,52 +228,108 @@ class MqttConnector(Connector, Thread):
                                 return None
             except Exception as e:
                 log.exception(e)
-                return None
-        elif self.__service_config.get("connectRequests"):
+            return None
+
+        # Check if message topic is matched by an existing connection request handler
+        if self.__service_config.get("connectRequests"):
             for request in self.__service_config["connectRequests"]:
-                if request.get("topicFilter"):
-                    if message.topic in request.get("topicFilter") or\
-                            (request.get("deviceNameTopicExpression") is not None and search(request.get("deviceNameTopicExpression"), message.topic)):
-                        founded_device_name = None
-                        founded_device_type = 'default'
-                        if request.get("deviceNameJsonExpression"):
-                            founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"], content)
-                        if request.get("deviceNameTopicExpression"):
-                            device_name_expression = request["deviceNameTopicExpression"]
-                            founded_device_name = search(device_name_expression, message.topic)
-                        if request.get("deviceTypeJsonExpression"):
-                            founded_device_type = TBUtility.get_value(request["deviceTypeJsonExpression"], content)
-                        if request.get("deviceTypeTopicExpression"):
-                            device_type_expression = request["deviceTypeTopicExpression"]
-                            founded_device_type = search(device_type_expression, message.topic)
-                        if founded_device_name is not None and founded_device_name not in self.__gateway.get_devices():
-                            self.__gateway.add_device(founded_device_name, {"connector": self}, device_type=founded_device_type)
-                    else:
-                        self.__log.error("Cannot find connect request for device from message from topic: %s and with data: %s",
-                                         message.topic,
-                                         content)
-                else:
-                    self.__log.error("\"topicFilter\" in connect requests config not found.")
-        elif self.__service_config.get("disconnectRequests"):
+
+                # Check that the current connection request handler defines a topic filter (mandatory)
+                if request.get("topicFilter") is None:
+                    continue
+
+                found_device_name = None
+                found_device_type = 'default'
+
+                # Extract device name and type from regexps, if any.
+                # This cannot be postponed because message topic may contain wildcards
+                if request.get("deviceNameJsonExpression"):
+                    found_device_name = TBUtility.get_value(request["deviceNameJsonExpression"], content)
+                if request.get("deviceNameTopicExpression"):
+                    device_name_expression = request["deviceNameTopicExpression"]
+                    device_name_match = search(device_name_expression, message.topic)
+                    if device_name_match is not None:
+                        found_device_name = device_name_match.group(0)
+                if request.get("deviceTypeJsonExpression"):
+                    found_device_type = TBUtility.get_value(request["deviceTypeJsonExpression"], content)
+                if request.get("deviceTypeTopicExpression"):
+                    device_type_expression = request["deviceTypeTopicExpression"]
+                    found_device_type = search(device_type_expression, message.topic)
+
+                # Check if request topic matches with message topic before of after regexp substitution
+                if message.topic not in request.get("topicFilter"):
+                    sub_topic = message.topic
+                    # Substitute device name (if defined) in topic
+                    if found_device_name is not None:
+                        sub_topic = sub(found_device_name, "+", sub_topic)
+                    # Substitute device type in topic
+                    sub_topic = sub(found_device_type, "+", sub_topic)
+                    # If topic still not matches, this is not the correct handler
+
+                    if sub_topic not in request.get("topicFilter"):
+                        continue
+
+                # I'm now sure that this message must be handled by this connection request handler
+                if found_device_name is None:
+                    self.__log.error("Device name missing from connection request")
+                    return None
+
+                # Note: device must be added even if it is already known locally: else ThingsBoard
+                # will not send RPCs and attribute updates
+                self.__gateway.add_device(found_device_name, {"connector": self}, device_type=found_device_type)
+                return None
+
+        # Check if message topic is matched by an existing disconnection request handler
+        if self.__service_config.get("disconnectRequests"):
             for request in self.__service_config["disconnectRequests"]:
-                if request.get("topicFilter") is not None:
-                    if message.topic in request.get("topicFilter") or\
-                            (request.get("deviceNameTopicExpression") is not None and search(request.get("deviceNameTopicExpression"), message.topic)):
-                        founded_device_name = None
-                        if request.get("deviceNameJsonExpression"):
-                            founded_device_name = TBUtility.get_value(request["deviceNameJsonExpression"], content)
-                        if request.get("deviceNameTopicExpression"):
-                            device_name_expression = request["deviceNameTopicExpression"]
-                            founded_device_name = search(device_name_expression, message.topic)
-                        if founded_device_name is not None and founded_device_name in self.__gateway.get_devices():
-                            self.__gateway.del_device(founded_device_name)
-                    else:
-                        self.__log.error("Cannot find connect request for device from message from topic: %s and with data: %s",
-                                         message.topic,
-                                         content)
+                # Check that the current disconnection request handler defines a topic filter (mandatory)
+                if request.get("topicFilter") is None:
+                    continue
+
+                found_device_name = None
+                found_device_type = 'default'
+
+                # Extract device name and type from regexps, if any.
+                # This cannot be postponed because message topic may contain wildcards
+                if request.get("deviceNameJsonExpression"):
+                    found_device_name = TBUtility.get_value(request["deviceNameJsonExpression"], content)
+                if request.get("deviceNameTopicExpression"):
+                    device_name_expression = request["deviceNameTopicExpression"]
+                    device_name_match = search(device_name_expression, message.topic)
+                    if device_name_match is not None:
+                        found_device_name = device_name_match.group(0)
+                if request.get("deviceTypeJsonExpression"):
+                    found_device_type = TBUtility.get_value(request["deviceTypeJsonExpression"], content)
+                if request.get("deviceTypeTopicExpression"):
+                    device_type_expression = request["deviceTypeTopicExpression"]
+                    found_device_type = search(device_type_expression, message.topic)
+
+                # Check if request topic matches with message topic before of after regexp substitution
+                if message.topic not in request.get("topicFilter"):
+                    sub_topic = message.topic
+                    # Substitute device name (if defined) in topic
+                    if found_device_name is not None:
+                        sub_topic = sub(found_device_name, "+", sub_topic)
+                    # Substitute device type in topic
+                    sub_topic = sub(found_device_type, "+", sub_topic)
+                    # If topic still not matches, this is not the correct handler
+
+                    if sub_topic not in request.get("topicFilter"):
+                        continue
+
+                # I'm now sure that this message must be handled by this connection request handler
+                if found_device_name is None:
+                    self.__log.error("Device name missing from disconnection request")
+                    return None
+
+                if found_device_name in self.__gateway.get_devices():
+                    self.__log.info("Device %s of type %s disconnected", found_device_name, found_device_type)
+                    self.__gateway.del_device(found_device_name)
                 else:
-                    self.__log.error("\"topicFilter\" in connect requests config not found.")
-        elif message.topic in self.__gateway.rpc_requests_in_progress:
+                    self.__log.info("Device %s is already disconnected", found_device_name)
+                return None
+
+        if message.topic in self.__gateway.rpc_requests_in_progress:
             self.__gateway.rpc_with_reply_processing(message.topic, content)
         else:
             self.__log.debug("Received message to topic \"%s\" with unknown interpreter data: \n\n\"%s\"",
