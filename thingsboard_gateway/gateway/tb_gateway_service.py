@@ -14,6 +14,7 @@
 
 from sys import getsizeof, executable, argv
 from os import listdir, path, execv, pathsep, system
+from pkg_resources import get_distribution
 from time import time, sleep
 import logging.config
 import logging.handlers
@@ -49,6 +50,8 @@ class TBGatewayService:
         global log
         log = logging.getLogger('service')
         log.info("Gateway starting...")
+        self.version = get_distribution('thingsboard_gateway').version
+        log.info("ThingsBoard IoT gateway version: %s", self.version)
         self.available_connectors = {}
         self.__connector_incoming_messages = {}
         self.__connected_devices = {}
