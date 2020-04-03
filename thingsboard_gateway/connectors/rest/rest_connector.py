@@ -9,7 +9,6 @@ from flask_restful import reqparse, abort, Api, Resource
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.rest.rest_converter import RestConverter
 
-
 '''
 
 url: http://127.0.0.1/test_device
@@ -50,7 +49,6 @@ mapping_dict["/test_device"]["converter"].convert("/test_device", body)
 '''
 
 
-
 class HttpConnector(Connector, Thread):
     _app = None
 
@@ -74,11 +72,6 @@ class HttpConnector(Connector, Thread):
         self.add_endpoints()
 
     class TelemetryHandler(Resource):
-        def get(self):
-            log.debug('Telemetry handler WORKS')
-            return '<h1> Telemetry handler WORKS</h1>'
-
-    class AttributesHandler(Resource):
         def __init__(self, send_to_storage, name, config):
             super().__init__()
             self.send_to_storage = send_to_storage
@@ -98,10 +91,31 @@ class HttpConnector(Connector, Thread):
             except Exception as e:
                 log.debug(e)
 
+    # class AttributesHandler(Resource):
+    #     def __init__(self, send_to_storage, name, config):
+    #         super().__init__()
+    #         self.send_to_storage = send_to_storage
+    #         self.__name = name
+    #         self.__config = config
+    #
+    #     def get(self):
+    #         log.debug('attrs get works')
+    #         return {'test': 'get'}
+    #
+    #     def post(self):
+    #         try:
+    #             converter = RestConverter(config=self.__config)
+    #             converted_data = converter.convert(config=self.__config, data=request.get_json())
+    #             self.send_to_storage(self.__name, converted_data)
+    #             return {'you sent this': 'data'}
+    #         except Exception as e:
+    #             log.debug(e)
+
     def add_endpoints(self):
         for mapping in self.config.get("mappings"):
+            print(mapping)
             self._api.add_resource(self.TelemetryHandler, mapping['endpoint'],
-                                resource_class_args=(self.__gateway.send_to_storage, self.get_name(), mapping))
+                                   resource_class_args=(self.__gateway.send_to_storage, self.get_name(), mapping))
         # self._api.add_resource(self.TelemetryHandler, '/api/v1/telemetry',
         #                        resource_class_args=(self.__gateway.send_to_storage, self.get_name(), self.config))
         # self._api.add_resource(self.AttributesHandler, '/api/v1/attributes',
@@ -112,8 +126,6 @@ class HttpConnector(Connector, Thread):
         #                                methods=self.endpoints[endpoint]['methods'])
         # except Exception as e:
         #     log.exception(e)
-
-
 
     # def telemetry_handler(self):
     #     log.debug('Telemetry handler WORKS')
@@ -127,7 +139,7 @@ class HttpConnector(Connector, Thread):
         self.__stopped = False
         self.start()
 
-# TODO implement data type check
+    # TODO implement data type check
     def run(self):
         #
         try:
