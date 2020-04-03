@@ -112,6 +112,14 @@ class ConvertersTests(unittest.TestCase):
                     "functionCode": 4,
                     "registerCount": 1
                 }},
+                {"long_with_divider": {
+                    "byteOrder": "BIG",
+                    "tag": "long",
+                    "type": "long",
+                    "functionCode": 4,
+                    "registerCount": 1,
+                    "divider": 10
+                }},
                 {"32int": {
                     "byteOrder": "BIG",
                     "tag": "32int",
@@ -197,6 +205,7 @@ class ConvertersTests(unittest.TestCase):
                                   {'8int': -18},
                                   {'16int': -22136},
                                   {'long': -22136},
+                                  {'long_with_divider': -2213.6},
                                   {'32int': -4660},
                                   {'64int': -3735928559}]
                               }
@@ -207,6 +216,7 @@ class ConvertersTests(unittest.TestCase):
                              "8int": (builder.add_8bit_int, -0x12),
                              "16int": (builder.add_16bit_int, -0x5678),
                              "long": (builder.add_16bit_int, -0x5678),
+                             "long_with_divider": (builder.add_16bit_int, -0x5678),
                              "32int": (builder.add_32bit_int, -0x1234),
                              "64int": (builder.add_64bit_int, -0xDEADBEEF),
                              "8uint": (builder.add_8bit_uint, 0x12),
