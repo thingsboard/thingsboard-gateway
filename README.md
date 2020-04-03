@@ -1,9 +1,11 @@
-# ThingsBoard IoT Gateway
+# ThingsBoard IoT Gateway  
+
 The Thingsboard **IoT Gateway** is an open-source solution that allows you to integrate devices connected to legacy and third-party systems with Thingsboard.  
 
 Thingsboard is an open-source IoT platform for data collection, processing, visualization, and device management. See [**What is Thingsboard?**](https://thingsboard.io/docs/getting-started-guides/what-is-thingsboard/) if you are new platform user.  
 
 [**What is ThingsBoard IoT Gateway?**](https://thingsboard.io/docs/iot-gateway/what-is-iot-gateway/)  
+[**Getting started with ThingsBoard IoT Gateway**](https://thingsboard.io/docs/iot-gateway/getting-started/)
 
 ![ThingsBoard IoT Gateway architecture](https://thingsboard.io/images/gw_animation.gif)
 
@@ -41,6 +43,8 @@ For processing data from devices you also can write custom converter, it will re
  - [Community chat](https://gitter.im/thingsboard/chat)
  - [Q&A forum](https://groups.google.com/forum/#!forum/thingsboard)
  - [Stackoverflow](http://stackoverflow.com/questions/tagged/thingsboard)
+ 
+**Don't forget to star the repository to show your ❤️ and support.**
 
 ## Licenses
 
