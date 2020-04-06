@@ -64,6 +64,7 @@ class TBGatewayService:
         self.tb_client.connect()
         self.subscribe_to_required_topics()
         self.counter = 0
+        self.__rpc_reply_sent = False
         global main_handler
         self.main_handler = main_handler
         self.remote_handler = TBLoggerHandler(self)
@@ -335,11 +336,16 @@ class TBGatewayService:
                         if devices_data_in_event_pack:
                             if not self.tb_client.is_connected():
                                 continue
+                            while self.__rpc_reply_sent:
+                                sleep(.01)
                             self.__send_data(devices_data_in_event_pack)
                         if self.tb_client.is_connected() and (self.__remote_configurator is None or not self.__remote_configurator.in_process):
                             success = True
                             while not self._published_events.empty():
-                                if (self.__remote_configurator is not None and self.__remote_configurator.in_process) or not self.tb_client.is_connected() or self._published_events.empty():
+                                if (self.__remote_configurator is not None and self.__remote_configurator.in_process) or \
+                                        not self.tb_client.is_connected() or \
+                                        self._published_events.empty() or \
+                                        self.__rpc_reply_sent:
                                     success = False
                                     break
                                 event = self._published_events.get(False, 10)
@@ -457,20 +463,22 @@ class TBGatewayService:
         self.send_rpc_reply(device, req_id, content)
         self.cancel_rpc_request(topic)
 
-    def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None):
+    def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None, quality_of_service=0):
         try:
+            self.__rpc_reply_sent = True
             rpc_response = {"success": False}
             if success_sent is not None:
                 if success_sent:
                     rpc_response["success"] = True
             if device is not None and success_sent is not None:
-                self.tb_client.client.gw_send_rpc_reply(device, req_id, dumps(rpc_response))
+                self.tb_client.client.gw_send_rpc_reply(device, req_id, dumps(rpc_response), quality_of_service=quality_of_service)
             elif device is not None and req_id is not None and content is not None:
-                self.tb_client.client.gw_send_rpc_reply(device, req_id, content)
+                self.tb_client.client.gw_send_rpc_reply(device, req_id, content, quality_of_service=quality_of_service)
             elif device is None and success_sent is not None:
-                self.tb_client.client.send_rpc_reply(req_id, dumps(rpc_response), quality_of_service=1, wait_for_publish=wait_for_publish)
+                self.tb_client.client.send_rpc_reply(req_id, dumps(rpc_response), quality_of_service=quality_of_service, wait_for_publish=wait_for_publish)
             elif device is None and content is not None:
-                self.tb_client.client.send_rpc_reply(req_id, content, quality_of_service=1, wait_for_publish=wait_for_publish)
+                self.tb_client.client.send_rpc_reply(req_id, content, quality_of_service=quality_of_service, wait_for_publish=wait_for_publish)
+            self.__rpc_reply_sent = False
         except Exception as e:
             log.exception(e)
 

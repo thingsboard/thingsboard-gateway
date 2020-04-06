@@ -44,20 +44,27 @@
         "rpc": {
           "turnLightOn": {
             "address": 4,
+            "tag": "bit",
             "bit": 2,
             "value": true
           },
           "turnLightOff": {
             "address": 4,
+            "tag": "bit",
             "bit": 2,
             "value": false
           },
-          "getCPULoad": {
-            "tag": "Integer",
+          "setCPUFanSpeed": {
             "value": 42,
             "functionCode": 16,
             "address": 0,
-            "unitId": 1,
+            "byteOrder": "BIG",
+            "registerCount": 1
+          },
+          "getCPULoad": {
+            "type": "int",
+            "functionCode": 4,
+            "address": 0,
             "byteOrder": "BIG",
             "registerCount": 1
           }
