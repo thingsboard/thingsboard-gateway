@@ -43,7 +43,7 @@ class TBUtility:
             error = 'No telemetry and attributes in data: '
         if error is not None:
             json_data = dumps(data)
-            log.error(error+json_data)
+            log.error(error+json_data.decode("UTF-8"))
             return False
         return True
 

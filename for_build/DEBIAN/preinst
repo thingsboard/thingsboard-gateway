@@ -2,6 +2,6 @@
 set -e
 
 echo "Installing directory for configs..."
-sudo mkdir /etc/thingsboard-gateway
-sudo adduser --system --gecos "ThingsBoard-Gateway Service" --disabled-password --group --home /var/lib/thingsboard_gateway thingsboard_gateway
-sudo mkdir /var/lib/thingsboard_gateway/extensions
+sudo mkdir /etc/thingsboard-gateway || echo
+sudo adduser --system --gecos "ThingsBoard-Gateway Service" --disabled-password --group --home /var/lib/thingsboard_gateway thingsboard_gateway || echo "User exists"
+sudo mkdir /var/lib/thingsboard_gateway/extensions || echo

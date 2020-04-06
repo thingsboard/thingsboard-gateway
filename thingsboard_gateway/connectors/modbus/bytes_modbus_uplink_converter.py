@@ -59,9 +59,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
                         assert decoder is not None
                         decoded_data = self.__decode_from_registers(decoder, configuration)
                         if configuration.get("divider"):
-                            decoded_data = float(decoded_data)/float(configuration["divider"])
+                            decoded_data = float(decoded_data) / float(configuration["divider"])
                         if configuration.get("multiplier"):
-                            decoded_data = decoded_data/configuration["multiplier"]
+                            decoded_data = decoded_data * configuration["multiplier"]
                 else:
                     log.exception(response)
                     decoded_data = None
