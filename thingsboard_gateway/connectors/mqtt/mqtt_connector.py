@@ -36,13 +36,14 @@ class MqttConnector(Connector, Thread):
         self.__broker = config.get('broker')
         self.__mapping = config.get('mapping')
         self.__server_side_rpc = config.get('serverSideRpc', [])
-        self.__service_config = {"connectRequests": [], "disconnectRequests": []}
+        self.__service_config = {"connectRequests": [], "disconnectRequests": [], "attributeRequests" : []}
         self.__attribute_updates = config.get("attributeUpdates")
         self.__get_service_config(config)
 
         self.__mapping_sub_topics = {}
         self.__connect_sub_topics = {}
         self.__disconnect_sub_topics = {}
+        self.__attributes_sub_topics = {}
 
         client_id = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
         self._client = Client(client_id)
@@ -170,6 +171,7 @@ class MqttConnector(Connector, Thread):
                         self.__log.error("Cannot find converter for %s topic", mapping["topicFilter"])
                 except Exception as e:
                     self.__log.exception(e)
+
             try:
                 for request in self.__service_config:
                     if self.__service_config.get(request) is not None:
@@ -196,6 +198,16 @@ class MqttConnector(Connector, Thread):
                     topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
                     self.__disconnect_sub_topics[topic_filter] = request
 
+            # Extract topic regexps for attributes requests
+            if self.__service_config.get("attributeRequests"):
+                for request in self.__service_config["attributeRequests"]:
+                    if request.get("topicFilter") is None \
+                            or request.get("topicExpression") is None \
+                            or request.get("valueExpression") is None:
+                        continue
+
+                    topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
+                    self.__attributes_sub_topics[topic_filter] = request
         else:
             if result_code in result_codes:
                 self.__log.error("%s connection FAIL with error %s %s!", self.get_name(), result_code, result_codes[result_code])
@@ -227,6 +239,8 @@ class MqttConnector(Connector, Thread):
     def _on_message(self, client, userdata, message):
         self.statistics['MessagesReceived'] += 1
         content = TBUtility.decode(message)
+
+        self.__log.info("ON_MESSAGE %s", message.topic)
 
         # Check if message topic exists in mappings "i.e., I'm posting telemetry/attributes"
         regex_topic = [regex for regex in self.__mapping_sub_topics if fullmatch(regex, message.topic)]
@@ -333,6 +347,55 @@ class MqttConnector(Connector, Thread):
             except Exception as e:
                 log.exception(e)
 
+        # Check if message topic exists in attribute request handlers "i.e., I'm asking for a shared attribute"
+        regex_topic = [regex for regex in self.__attributes_sub_topics if fullmatch(regex, message.topic)]
+        if regex_topic:
+            try:
+                for regex in regex_topic:
+                    config = self.__attributes_sub_topics[regex]
+
+                    found_device_name = None
+                    found_attribute_name = None
+
+                    # Get device name, either from topic or from content
+                    if config.get("deviceNameTopicExpression"):
+                        device_name_match = search(config["deviceNameTopicExpression"], message.topic)
+                        if device_name_match is not None:
+                            found_device_name = device_name_match.group(0)
+                    elif config.get("deviceNameJsonExpression"):
+                        found_device_name = TBUtility.get_value(config["deviceNameJsonExpression"], content)
+
+                    # Get attribute name, either from topic or from content
+                    if config.get("attributeNameTopicExpression"):
+                        attribute_name_match = search(config["attributeNameTopicExpression"], message.topic)
+                        if attribute_name_match is not None:
+                            found_attribute_name = attribute_name_match.group(0)
+                    elif config.get("attributeNameJsonExpression"):
+                        found_attribute_name = TBUtility.get_value(config["attributeNameJsonExpression"], content)
+
+                    if found_device_name is None:
+                        self.__log.error("Device name missing from attribute request")
+                        return None
+
+                    if found_attribute_name is None:
+                        self.__log.error("Attribute name missing from attribute request")
+                        return None
+
+                    self.__log.info("Will retrieve attribute %s of %s", found_attribute_name, found_device_name)
+                    self.__gateway.tb_client.client.gw_request_shared_attributes(
+                        found_device_name,
+                        [found_attribute_name],
+                        lambda data, *args: self.notify_attribute(
+                            data,
+                            found_attribute_name,
+                            config.get("topicExpression"),
+                            config.get("valueExpression")))
+
+                    return None
+
+            except Exception as e:
+                log.exception(e)
+
         # Check if message topic exists in RPC handlers
         if message.topic in self.__gateway.rpc_requests_in_progress:
             self.__gateway.rpc_with_reply_processing(message.topic, content)
@@ -340,6 +403,22 @@ class MqttConnector(Connector, Thread):
             self.__log.debug("Received message to topic \"%s\" with unknown interpreter data: \n\n\"%s\"",
                              message.topic,
                              content)
+
+    def notify_attribute(self, incoming_data, attribute_name, topic_expression, value_expression):
+        if incoming_data.get("device") is None or incoming_data.get("value") is None:
+            return
+
+        device_name = incoming_data.get("device")
+        attribute_value = incoming_data.get("value")
+
+        topic = topic_expression \
+            .replace("${deviceName}", device_name) \
+            .replace("${attributeKey}", attribute_name)
+
+        data = value_expression.replace("${attributeKey}", attribute_name) \
+            .replace("${attributeValue}", attribute_value)
+
+        self._client.publish(topic, data).wait_for_publish()
 
     def on_attributes_update(self, content):
         if self.__attribute_updates:
