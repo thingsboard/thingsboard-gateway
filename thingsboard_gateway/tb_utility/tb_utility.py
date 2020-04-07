@@ -17,8 +17,7 @@ from os import path, listdir
 from inspect import getmembers, isclass
 from importlib import util
 from logging import getLogger
-# from simplejson import dumps, loads
-from orjson import loads, dumps
+from simplejson import dumps, loads
 from jsonpath_rw import parse
 
 

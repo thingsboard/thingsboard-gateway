@@ -231,44 +231,48 @@ class ModbusConnector(Connector, threading.Thread):
         else:
             log.error("Unknown Modbus function with code: %i", function_code)
         log.debug("With result %s", str(result))
-
+        if "Exception" in str(result):
+            log.exception(result)
+            result = str(result)
         return result
 
     def server_side_rpc_handler(self, content):
-        log.debug("Modbus connector received rpc request for %s with content: %s", self.get_name(), content)
-        rpc_command_config = self.__devices[content["device"]]["config"]["rpc"].get(content["data"].get("method"))
-
-        if rpc_command_config is not None:
-            rpc_command_config["unitId"] = self.__devices[content["device"]]["config"]["unitId"]
-            if rpc_command_config.get('bit') is not None:
-                rpc_command_config["functionCode"] = 6
-            if rpc_command_config.get("functionCode") in (5, 6, 15, 16):
-                rpc_command_config["payload"] = self.__devices[content["device"]]["downlink_converter"].convert(rpc_command_config, content)
-            response = None
-            try:
-                response = self.__function_to_device(rpc_command_config, rpc_command_config["unitId"])
-            except Exception as e:
-                log.exception(e)
-
-            if isinstance(response, ReadRegistersResponseBase):
-                to_converter = {"rpc": {content["data"]["method"]: {"data_sent": rpc_command_config,
-                                                                    "input_data": response}}}
-                response = self.__devices[content["device"]]["converter"].convert(config=None, data=to_converter)
-                log.debug("Received RPC method: %s, result: %r", content["data"]["method"], response)
-            elif isinstance(response, (WriteMultipleRegistersResponse,
-                                       WriteMultipleCoilsResponse,
-                                       WriteSingleCoilResponse,
-                                       WriteSingleRegisterResponse)):
-                response = str(response)
-                log.debug("Write %r", response)
-            response = False if response is None else response
-            self.__gateway.send_rpc_reply(content["device"],
-                                          content["data"]["id"],
-                                          {content["data"]["method"]: response})
+        if content.get("device") is not None:
+            log.debug("Modbus connector received rpc request for %s with content: %s", content["device"], content)
+            rpc_command_config = self.__devices[content["device"]]["config"]["rpc"].get(content["data"].get("method"))
+            if rpc_command_config is not None:
+                rpc_command_config["unitId"] = self.__devices[content["device"]]["config"]["unitId"]
+                if rpc_command_config.get('bit') is not None:
+                    rpc_command_config["functionCode"] = 6
+                if rpc_command_config.get("functionCode") in (5, 6, 15, 16):
+                    rpc_command_config["payload"] = self.__devices[content["device"]]["downlink_converter"].convert(rpc_command_config, content)
+                response = None
+                try:
+                    response = self.__function_to_device(rpc_command_config, rpc_command_config["unitId"])
+                except Exception as e:
+                    log.exception(e)
+                if isinstance(response, ReadRegistersResponseBase):
+                    to_converter = {"rpc": {content["data"]["method"]: {"data_sent": rpc_command_config,
+                                                                        "input_data": response}}}
+                    response = self.__devices[content["device"]]["converter"].convert(config=None, data=to_converter)
+                    log.debug("Received RPC method: %s, result: %r", content["data"]["method"], response)
+                elif isinstance(response, (WriteMultipleRegistersResponse,
+                                           WriteMultipleCoilsResponse,
+                                           WriteSingleCoilResponse,
+                                           WriteSingleRegisterResponse)):
+                    response = str(response)
+                    log.debug("Write %r", response)
+                response = False if response is None else response
+                response = str(response) if isinstance(response, Exception) else response
+                self.__gateway.send_rpc_reply(content["device"],
+                                              content["data"]["id"],
+                                              {content["data"]["method"]: response})
+            else:
+                log.error("Received rpc request, but method %s not found in config for %s.",
+                          content["data"].get("method"),
+                          self.get_name())
+                self.__gateway.send_rpc_reply(content["device"],
+                                              content["data"]["id"],
+                                              {content["data"]["method"]: "METHOD NOT FOUND!"})
         else:
-            log.error("Received rpc request, but method %s not found in config for %s.",
-                      content["data"].get("method"),
-                      self.get_name())
-            self.__gateway.send_rpc_reply(content["device"],
-                                          content["data"]["id"],
-                                          {content["data"]["method"]: "METHOD NOT FOUND!"})
+            log.debug("Received RPC to connector: %r", content)

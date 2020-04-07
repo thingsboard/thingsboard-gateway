@@ -24,8 +24,7 @@ from string import ascii_lowercase
 from threading import Thread, RLock
 
 from yaml import safe_load
-from simplejson import load, dumps
-from orjson import loads
+from simplejson import load, dumps, loads
 
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler

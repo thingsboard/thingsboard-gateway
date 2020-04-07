@@ -55,11 +55,12 @@
             "value": false
           },
           "setCPUFanSpeed": {
+            "type": "int",
             "value": 42,
             "functionCode": 16,
-            "address": 0,
+            "address": 1,
             "byteOrder": "BIG",
-            "registerCount": 1
+            "registerCount": 2
           },
           "getCPULoad": {
             "type": "int",

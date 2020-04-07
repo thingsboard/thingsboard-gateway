@@ -21,8 +21,7 @@ from threading import Thread
 
 import paho.mqtt.client as paho
 
-# from simplejson import dumps
-from orjson import dumps
+from simplejson import dumps
 # from jsonschema import Draft7Validator
 # from jsonschema import ValidationError
 

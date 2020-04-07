@@ -38,12 +38,11 @@ setup(
         'pytz',
         'PyYAML',
         'simplejson',
-        'orjson>=2.6.3',
         'pyrsistent',
         'requests',
         'python-can'
     ],
-    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.2.4.1.tar.gz',
+    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.2.4.2.tar.gz',
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'
