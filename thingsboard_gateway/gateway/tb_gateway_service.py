@@ -528,6 +528,7 @@ class TBGatewayService:
 
     def del_device(self, device_name):
         del self.__connected_devices[device_name]
+        del self.__saved_devices[device_name]
         self.tb_client.client.gw_disconnect_device(device_name)
         self.__save_persistent_devices()
 
