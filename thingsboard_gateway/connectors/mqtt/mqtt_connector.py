@@ -27,34 +27,72 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 class MqttConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
+
+        self.__gateway = gateway                 # Reference to TB Gateway
+        self._connector_type = connector_type    # Should be "mqtt"
+        self.config = config                     # mqtt.json contents
+
         self.__log = log
-        self.config = config
-        self._connector_type = connector_type
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
-        self.__gateway = gateway
+        self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
+        self.__subscribes_sent = {}
+
+        # Extract main sections from configuration ---------------------------------------------------------------------
         self.__broker = config.get('broker')
-        self.__mapping = config.get('mapping')
-        self.__server_side_rpc = config.get('serverSideRpc', [])
-        self.__service_config = {"connectRequests": [], "disconnectRequests": [], "attributeRequests" : []}
-        self.__attribute_updates = config.get("attributeUpdates")
-        self.__get_service_config(config)
 
+        self.__mapping = [
+            x for x in config.get('mapping')
+            if x.get("topicFilter") and x.get("converter")
+        ]
+
+        self.__server_side_rpc = [
+            x for x in config.get('serverSideRpc')
+            if x.get("deviceNameFilter") and x.get("methodFilter")
+        ]
+
+        self.__connect_requests = [
+            x for x in config.get('connectRequests')
+            if x.get("topicFilter")
+        ]
+
+        self.__disconnect_requests = [
+            x for x in config.get('disconnectRequests')
+            if x.get("topicFilter")
+        ]
+
+        self.__attribute_requests = [
+            x for x in config.get('attributeRequests')
+            if x.get("topicFilter") and x.get("topicExpression") and x.get("valueExpression")
+        ]
+
+        self.__attribute_updates = [
+            x for x in config.get('attributeUpdates')
+            if x.get("deviceNameFilter") and x.get("attributeFilter")
+            and x.get("topicExpression") and x.get("valueExpression")
+        ]
+
+        # Setup topic substitution lists for each class of handlers ----------------------------------------------------
         self.__mapping_sub_topics = {}
-        self.__connect_sub_topics = {}
-        self.__disconnect_sub_topics = {}
-        self.__attributes_sub_topics = {}
+        self.__connect_requests_sub_topics = {}
+        self.__disconnect_requests_sub_topics = {}
+        self.__attribute_requests_sub_topics = {}
 
+        # Set up external MQTT broker connection -----------------------------------------------------------------------
         client_id = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
         self._client = Client(client_id)
-        self.setName(config.get("name", self.__broker.get("name", 'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)))))
+        self.setName(config.get("name", self.__broker.get(
+            "name",
+            'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)))))
+
         if "username" in self.__broker["security"]:
             self._client.username_pw_set(self.__broker["security"]["username"],
                                          self.__broker["security"]["password"])
-        if "caCert" in self.__broker["security"] or self.__broker["security"].get("type", "none").lower() == "tls":
+
+        if "caCert" in self.__broker["security"] \
+                or self.__broker["security"].get("type", "none").lower() == "tls":
             ca_cert = self.__broker["security"].get("caCert")
             private_key = self.__broker["security"].get("privateKey")
             cert = self.__broker["security"].get("cert")
+
             if ca_cert is None:
                 self._client.tls_set_context(ssl.SSLContext(ssl.PROTOCOL_TLSv1_2))
             else:
@@ -66,16 +104,20 @@ class MqttConnector(Connector, Thread):
                                          tls_version=ssl.PROTOCOL_TLSv1_2,
                                          ciphers=None)
                 except Exception as e:
-                    self.__log.error("Cannot setup connection to broker %s using SSL. Please check your configuration.\nError: ",
+                    self.__log.error("Cannot setup connection to broker %s using SSL. "
+                                     "Please check your configuration.\nError: ",
                                      self.get_name())
                     self.__log.exception(e)
                 self._client.tls_insecure_set(False)
+
+        # Set up external MQTT broker callbacks ------------------------------------------------------------------------
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
         self._client.on_subscribe = self._on_subscribe
-        self.__subscribes_sent = {}  # For logging the subscriptions
         self._client.on_disconnect = self._on_disconnect
         # self._client.on_log = self._on_log
+
+        # Set up lifecycle flags ---------------------------------------------------------------------------------------
         self._connected = False
         self.__stopped = False
         self.daemon = True
@@ -123,14 +165,15 @@ class MqttConnector(Connector, Thread):
     def get_name(self):
         return self.name
 
-    def __subscribe(self, topic):
-        message = self._client.subscribe(topic)
+    def __subscribe(self, topic, qos):
+        message = self._client.subscribe(topic, qos)
         try:
             self.__subscribes_sent[message[1]] = topic
         except Exception as e:
             self.__log.exception(e)
 
     def _on_connect(self, client, userdata, flags, result_code, *extra_params):
+
         result_codes = {
             1: "incorrect protocol version",
             2: "invalid client identifier",
@@ -138,76 +181,87 @@ class MqttConnector(Connector, Thread):
             4: "bad username or password",
             5: "not authorised",
         }
+
         if result_code == 0:
             self._connected = True
-            self.__log.info('%s connected to %s:%s - successfully.', self.get_name(), self.__broker["host"], self.__broker.get("port", "1883"))
-            self.__log.debug("Client %s, userdata %s, flags %s, extra_params %s", str(client), str(userdata), str(flags), extra_params)
+            self.__log.info('%s connected to %s:%s - successfully.',
+                            self.get_name(),
+                            self.__broker["host"],
+                            self.__broker.get("port", "1883"))
 
-            # Extract topic regexps for data upload requests
+            self.__log.debug("Client %s, userdata %s, flags %s, extra_params %s",
+                             str(client),
+                             str(userdata),
+                             str(flags),
+                             extra_params)
+
+            # Setup data upload requests handling ----------------------------------------------------------------------
             for mapping in self.__mapping:
                 try:
                     converter = None
-                    if mapping["converter"]["type"] == "custom":
-                        module = TBUtility.check_and_import(self._connector_type, mapping["converter"]["extension"])
-                        if module is not None:
-                            self.__log.debug('Custom converter for topic %s - found!', mapping["topicFilter"])
-                            converter = module(mapping)
-                        else:
-                            self.__log.error("\n\nCannot find extension module for %s topic.\nPlease check your configuration.\n", mapping["topicFilter"])
+
+                    # Load converter for this mapping entry ------------------------------------------------------------
+                    # mappings are guaranteed to have topicFilter and converter fields. See __init__
+                    converter_type = mapping["converter"]["type"]
+                    converter_extension = mapping["converter"]["extension"]
+
+                    if converter_type:
+                        if converter_extension:
+                            module = TBUtility.check_and_import(self._connector_type, converter_extension)
+
+                            if module:
+                                self.__log.debug('Custom converter for topic %s - found!', mapping["topicFilter"])
+                                converter = module(mapping)
+                            else:
+                                self.__log.error("\n\nCannot find extension module for %s topic."
+                                                 "\nPlease check your configuration.\n", mapping["topicFilter"])
                     else:
                         converter = JsonMqttUplinkConverter(mapping)
-                    if converter is not None:
-                        regex_topic = TBUtility.topic_to_regex(mapping.get("topicFilter"))
-                        if not self.__mapping_sub_topics.get(regex_topic):
-                            self.__mapping_sub_topics[regex_topic] = []
 
-                        self.__mapping_sub_topics[regex_topic].append({converter: None})
-                        # self._client.subscribe(TBUtility.regex_to_topic(regex_topic))
-                        self.__subscribe(mapping["topicFilter"])
-                        self.__log.info('Connector "%s" subscribe to %s',
-                                        self.get_name(),
-                                        TBUtility.regex_to_topic(regex_topic))
-                    else:
+                    if converter is None:
                         self.__log.error("Cannot find converter for %s topic", mapping["topicFilter"])
+                        continue
+
+                    # Setup regexp topic acceptance list ---------------------------------------------------------------
+                    regex_topic = TBUtility.topic_to_regex(mapping["topicFilter"])
+
+                    # There may be more than one converter per topic, so I'm using vectors
+                    if not self.__mapping_sub_topics.get(regex_topic):
+                        self.__mapping_sub_topics[regex_topic] = []
+
+                    self.__mapping_sub_topics[regex_topic].append(converter)
+
+                    # Subscribe to appropriate topic -------------------------------------------------------------------
+                    self.__subscribe(mapping["topicFilter"], mapping.get("subscriptionQos", 0))
+
+                    self.__log.info('Connector "%s" subscribe to %s',
+                                    self.get_name(),
+                                    TBUtility.regex_to_topic(regex_topic))
+
                 except Exception as e:
                     self.__log.exception(e)
 
-            try:
-                for request in self.__service_config:
-                    if self.__service_config.get(request) is not None:
-                        for request_config in self.__service_config.get(request):
-                            self.__subscribe(request_config["topicFilter"])
-            except Exception as e:
-                self.__log.error(e)
+            # Setup connection requests handling -----------------------------------------------------------------------
+            for request in [entry for entry in self.__connect_requests if entry is not None]:
+                # requests are guaranteed to have topicFilter field. See __init__
+                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 0))
+                topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
+                self.__connect_requests_sub_topics[topic_filter] = request
 
-            # Extract topic regexps for connection requests
-            if self.__service_config.get("connectRequests"):
-                for request in self.__service_config["connectRequests"]:
-                    if request.get("topicFilter") is None:
-                        continue
+            # Setup disconnection requests handling --------------------------------------------------------------------
+            for request in [entry for entry in self.__disconnect_requests if entry is not None]:
+                # requests are guaranteed to have topicFilter field. See __init__
+                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 0))
+                topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
+                self.__disconnect_requests_sub_topics[topic_filter] = request
 
-                    topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
-                    self.__connect_sub_topics[topic_filter] = request
+            # Setup attributes requests handling -----------------------------------------------------------------------
+            for request in [entry for entry in self.__attribute_requests if entry is not None]:
+                # requests are guaranteed to have topicFilter field. See __init__
+                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 0))
+                topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
+                self.__attribute_requests_sub_topics[topic_filter] = request
 
-            # Extract topic regexps for disconnection requests
-            if self.__service_config.get("disconnectRequests"):
-                for request in self.__service_config["disconnectRequests"]:
-                    if request.get("topicFilter") is None:
-                        continue
-
-                    topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
-                    self.__disconnect_sub_topics[topic_filter] = request
-
-            # Extract topic regexps for attributes requests
-            if self.__service_config.get("attributeRequests"):
-                for request in self.__service_config["attributeRequests"]:
-                    if request.get("topicFilter") is None \
-                            or request.get("topicExpression") is None \
-                            or request.get("valueExpression") is None:
-                        continue
-
-                    topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
-                    self.__attributes_sub_topics[topic_filter] = request
         else:
             if result_code in result_codes:
                 self.__log.error("%s connection FAIL with error %s %s!", self.get_name(), result_code, result_codes[result_code])
@@ -223,163 +277,169 @@ class MqttConnector(Connector, Thread):
     def _on_subscribe(self, _, __, mid, granted_qos):
         try:
             if granted_qos[0] == 128:
-                self.__log.error('"%s" subscription failed to topic %s subscription message id = %i', self.get_name(), self.__subscribes_sent.get(mid), mid)
+                self.__log.error('"%s" subscription failed to topic %s subscription message id = %i',
+                                 self.get_name(),
+                                 self.__subscribes_sent.get(mid), mid)
             else:
-                self.__log.info('"%s" subscription success to topic %s, subscription message id = %i', self.get_name(), self.__subscribes_sent.get(mid), mid)
+                self.__log.info('"%s" subscription success to topic %s, subscription message id = %i',
+                                self.get_name(),
+                                self.__subscribes_sent.get(mid), mid)
+
                 if self.__subscribes_sent.get(mid) is not None:
                     del self.__subscribes_sent[mid]
         except Exception as e:
             self.__log.exception(e)
 
-    def __get_service_config(self, config):
-        for service_config in self.__service_config:
-            if config.get(service_config):
-                self.__service_config[service_config] = config[service_config]
-
     def _on_message(self, client, userdata, message):
         self.statistics['MessagesReceived'] += 1
         content = TBUtility.decode(message)
 
-        self.__log.info("ON_MESSAGE %s", message.topic)
+        # Check if message topic exists in mappings "i.e., I'm posting telemetry/attributes" ---------------------------
+        topic_handlers = [regex for regex in self.__mapping_sub_topics if fullmatch(regex, message.topic)]
 
-        # Check if message topic exists in mappings "i.e., I'm posting telemetry/attributes"
-        regex_topic = [regex for regex in self.__mapping_sub_topics if fullmatch(regex, message.topic)]
-        if regex_topic:
-            try:
-                for regex in regex_topic:
-                    if self.__mapping_sub_topics.get(regex):
-                        for converter_value in range(len(self.__mapping_sub_topics.get(regex))):
-                            if self.__mapping_sub_topics[regex][converter_value]:
-                                for converter in self.__mapping_sub_topics.get(regex)[converter_value]:
-                                    converted_content = converter.convert(message.topic, content)
-                                    if converted_content:
-                                        try:
-                                            self.__mapping_sub_topics[regex][converter_value][converter] = converted_content
-                                        except Exception as e:
-                                            self.__log.exception(e)
-                                        self.__gateway.send_to_storage(self.name, converted_content)
-                                        self.statistics['MessagesSent'] += 1
-                                    else:
-                                        continue
-                            else:
-                                self.__log.error('Cannot find converter for the topic:"%s"! Client: %s, User data: %s', message.topic, str(client), str(userdata))
-                                return None
-            except Exception as e:
-                log.exception(e)
+        if topic_handlers:
+            # Note: every topic may be associated to one or more converter. This means that a single MQTT message
+            # may produce more than one message towards ThingsBoard. This also means that I cannot return after
+            # the first successful conversion: I got to use all the available ones.
+            # I will use a flag to understand whether at least one converter succeeded
+            request_handled = False
+
+            for topic in topic_handlers:
+                available_converters = self.__mapping_sub_topics[topic]
+                for converter in available_converters:
+                    converted_content = converter.convert(message.topic, content)
+
+                    if converted_content:
+                        request_handled = True
+                        self.__gateway.send_to_storage(self.name, converted_content)
+                        self.statistics['MessagesSent'] += 1
+                        self.__log.info("Successfully converted message from topic %s", message.topic)
+                    else:
+                        continue
+
+            if not request_handled:
+                self.__log.error('Cannot find converter for the topic:"%s"! Client: %s, User data: %s',
+                                 message.topic,
+                                 str(client),
+                                 str(userdata))
+
+            # Note: if I'm in this branch, this was for sure a telemetry/attribute push message
+            # => Execution must end here both in case of failure and success
             return None
 
-        # Check if message topic exists in connection handlers "i.e., I'm connecting a device"
-        regex_topic = [regex for regex in self.__connect_sub_topics if fullmatch(regex, message.topic)]
-        if regex_topic:
+        # Check if message topic exists in connection handlers "i.e., I'm connecting a device" -------------------------
+        topic_handlers = [regex for regex in self.__connect_requests_sub_topics if fullmatch(regex, message.topic)]
+
+        if topic_handlers:
+            for topic in topic_handlers:
+                handler = self.__connect_requests_sub_topics[topic]
+
+                found_device_name = None
+                found_device_type = 'default'
+
+                # Get device name, either from topic or from content
+                if handler.get("deviceNameTopicExpression"):
+                    device_name_match = search(handler["deviceNameTopicExpression"], message.topic)
+                    if device_name_match is not None:
+                        found_device_name = device_name_match.group(0)
+                elif handler.get("deviceNameJsonExpression"):
+                    found_device_name = TBUtility.get_value(handler["deviceNameJsonExpression"], content)
+
+                # Get device type (if any), either from topic or from content
+                if handler.get("deviceTypeTopicExpression"):
+                    device_type_match = search(handler["deviceTypeTopicExpression"], message.topic)
+                    if device_type_match is not None:
+                        found_device_type = device_type_match.group(0)
+                elif handler.get("deviceTypeJsonExpression"):
+                    found_device_type = TBUtility.get_value(handler["deviceTypeJsonExpression"], content)
+
+                if found_device_name is None:
+                    self.__log.error("Device name missing from connection request")
+                    continue
+
+                # Note: device must be added even if it is already known locally: else ThingsBoard
+                # will not send RPCs and attribute updates
+                self.__log.info("Connecting device %s of type %s", found_device_name, found_device_type)
+                self.__gateway.add_device(found_device_name, {"connector": self}, device_type=found_device_type)
+
+            # Note: if I'm in this branch, this was for sure a connection message
+            # => Execution must end here both in case of failure and success
+            return None
+
+        # Check if message topic exists in disconnection handlers "i.e., I'm disconnecting a device" -------------------
+        topic_handlers = [regex for regex in self.__disconnect_requests_sub_topics if fullmatch(regex, message.topic)]
+        if topic_handlers:
+            for topic in topic_handlers:
+                handler = self.__disconnect_requests_sub_topics[topic]
+
+                found_device_name = None
+                found_device_type = 'default'
+
+                # Get device name, either from topic or from content
+                if handler.get("deviceNameTopicExpression"):
+                    device_name_match = search(handler["deviceNameTopicExpression"], message.topic)
+                    if device_name_match is not None:
+                        found_device_name = device_name_match.group(0)
+                elif handler.get("deviceNameJsonExpression"):
+                    found_device_name = TBUtility.get_value(handler["deviceNameJsonExpression"], content)
+
+                # Get device type (if any), either from topic or from content
+                if handler.get("deviceTypeTopicExpression"):
+                    device_type_match = search(handler["deviceTypeTopicExpression"], message.topic)
+                    if device_type_match is not None:
+                        found_device_type = device_type_match.group(0)
+                elif handler.get("deviceTypeJsonExpression"):
+                    found_device_type = TBUtility.get_value(handler["deviceTypeJsonExpression"], content)
+
+                if found_device_name is None:
+                    self.__log.error("Device name missing from disconnection request")
+                    continue
+
+                if found_device_name in self.__gateway.get_devices():
+                    self.__log.info("Disconnecting device %s of type %s", found_device_name, found_device_type)
+                    self.__gateway.del_device(found_device_name)
+                else:
+                    self.__log.info("Device %s was not connected", found_device_name)
+
+                break
+
+            # Note: if I'm in this branch, this was for sure a disconnection message
+            # => Execution must end here both in case of failure and success
+            return None
+
+        # Check if message topic exists in attribute request handlers "i.e., I'm asking for a shared attribute" --------
+        topic_handlers = [regex for regex in self.__attribute_requests_sub_topics if fullmatch(regex, message.topic)]
+        if topic_handlers:
             try:
-                for regex in regex_topic:
-                    config = self.__connect_sub_topics[regex]
-
-                    found_device_name = None
-                    found_device_type = 'default'
-
-                    # Get device name, either from topic or from content
-                    if config.get("deviceNameTopicExpression"):
-                        device_name_match = search(config["deviceNameTopicExpression"], message.topic)
-                        if device_name_match is not None:
-                            found_device_name = device_name_match.group(0)
-                    elif config.get("deviceNameJsonExpression"):
-                        found_device_name = TBUtility.get_value(config["deviceNameJsonExpression"], content)
-
-                    # Get device type (if any), either from topic or from content
-                    if config.get("deviceTypeTopicExpression"):
-                        device_type_match = search(config["deviceTypeTopicExpression"], message.topic)
-                        if device_type_match is not None:
-                            found_device_type = device_type_match.group(0)
-                    elif config.get("deviceTypeJsonExpression"):
-                        found_device_type = TBUtility.get_value(config["deviceTypeJsonExpression"], content)
-
-                    if found_device_name is None:
-                        self.__log.error("Device name missing from connection request")
-                        return None
-
-                    # Note: device must be added even if it is already known locally: else ThingsBoard
-                    # will not send RPCs and attribute updates
-                    self.__log.info("Connecting device %s of type %s", found_device_name, found_device_type)
-                    self.__gateway.add_device(found_device_name, {"connector": self}, device_type=found_device_type)
-                    return None
-
-            except Exception as e:
-                log.exception(e)
-
-        # Check if message topic exists in disconnection handlers "i.e., I'm disconnecting a device"
-        regex_topic = [regex for regex in self.__disconnect_sub_topics if fullmatch(regex, message.topic)]
-        if regex_topic:
-            try:
-                for regex in regex_topic:
-                    config = self.__disconnect_sub_topics[regex]
-
-                    found_device_name = None
-                    found_device_type = 'default'
-
-                    # Get device name, either from topic or from content
-                    if config.get("deviceNameTopicExpression"):
-                        device_name_match = search(config["deviceNameTopicExpression"], message.topic)
-                        if device_name_match is not None:
-                            found_device_name = device_name_match.group(0)
-                    elif config.get("deviceNameJsonExpression"):
-                        found_device_name = TBUtility.get_value(config["deviceNameJsonExpression"], content)
-
-                    # Get device type (if any), either from topic or from content
-                    if config.get("deviceTypeTopicExpression"):
-                        device_type_match = search(config["deviceTypeTopicExpression"], message.topic)
-                        if device_type_match is not None:
-                            found_device_type = device_type_match.group(0)
-                    elif config.get("deviceTypeJsonExpression"):
-                        found_device_type = TBUtility.get_value(config["deviceTypeJsonExpression"], content)
-
-                    if found_device_name is None:
-                        self.__log.error("Device name missing from disconnection request")
-                        return None
-
-                    if found_device_name in self.__gateway.get_devices():
-                        self.__log.info("Disconnecting device %s of type %s", found_device_name, found_device_type)
-                        self.__gateway.del_device(found_device_name)
-                    else:
-                        self.__log.info("Device %s was not connected", found_device_name)
-                    return None
-
-            except Exception as e:
-                log.exception(e)
-
-        # Check if message topic exists in attribute request handlers "i.e., I'm asking for a shared attribute"
-        regex_topic = [regex for regex in self.__attributes_sub_topics if fullmatch(regex, message.topic)]
-        if regex_topic:
-            try:
-                for regex in regex_topic:
-                    config = self.__attributes_sub_topics[regex]
+                for topic in topic_handlers:
+                    handler = self.__attribute_requests_sub_topics[topic]
 
                     found_device_name = None
                     found_attribute_name = None
 
                     # Get device name, either from topic or from content
-                    if config.get("deviceNameTopicExpression"):
-                        device_name_match = search(config["deviceNameTopicExpression"], message.topic)
+                    if handler.get("deviceNameTopicExpression"):
+                        device_name_match = search(handler["deviceNameTopicExpression"], message.topic)
                         if device_name_match is not None:
                             found_device_name = device_name_match.group(0)
-                    elif config.get("deviceNameJsonExpression"):
-                        found_device_name = TBUtility.get_value(config["deviceNameJsonExpression"], content)
+                    elif handler.get("deviceNameJsonExpression"):
+                        found_device_name = TBUtility.get_value(handler["deviceNameJsonExpression"], content)
 
                     # Get attribute name, either from topic or from content
-                    if config.get("attributeNameTopicExpression"):
-                        attribute_name_match = search(config["attributeNameTopicExpression"], message.topic)
+                    if handler.get("attributeNameTopicExpression"):
+                        attribute_name_match = search(handler["attributeNameTopicExpression"], message.topic)
                         if attribute_name_match is not None:
                             found_attribute_name = attribute_name_match.group(0)
-                    elif config.get("attributeNameJsonExpression"):
-                        found_attribute_name = TBUtility.get_value(config["attributeNameJsonExpression"], content)
+                    elif handler.get("attributeNameJsonExpression"):
+                        found_attribute_name = TBUtility.get_value(handler["attributeNameJsonExpression"], content)
 
                     if found_device_name is None:
                         self.__log.error("Device name missing from attribute request")
-                        return None
+                        continue
 
                     if found_attribute_name is None:
                         self.__log.error("Attribute name missing from attribute request")
-                        return None
+                        continue
 
                     self.__log.info("Will retrieve attribute %s of %s", found_attribute_name, found_device_name)
                     self.__gateway.tb_client.client.gw_request_shared_attributes(
@@ -388,21 +448,27 @@ class MqttConnector(Connector, Thread):
                         lambda data, *args: self.notify_attribute(
                             data,
                             found_attribute_name,
-                            config.get("topicExpression"),
-                            config.get("valueExpression")))
+                            handler.get("topicExpression"),
+                            handler.get("valueExpression")))
 
-                    return None
+                    break
 
             except Exception as e:
                 log.exception(e)
 
-        # Check if message topic exists in RPC handlers
+            # Note: if I'm in this branch, this was for sure an attribute request message
+            # => Execution must end here both in case of failure and success
+            return None
+
+        # Check if message topic exists in RPC handlers ----------------------------------------------------------------
+        # The gateway is expecting for this message => no wildcards here, the topic must be evaluated as is
         if message.topic in self.__gateway.rpc_requests_in_progress:
             self.__gateway.rpc_with_reply_processing(message.topic, content)
-        else:
-            self.__log.debug("Received message to topic \"%s\" with unknown interpreter data: \n\n\"%s\"",
-                             message.topic,
-                             content)
+            return None
+
+        self.__log.debug("Received message to topic \"%s\" with unknown interpreter data: \n\n\"%s\"",
+                         message.topic,
+                         content)
 
     def notify_attribute(self, incoming_data, attribute_name, topic_expression, value_expression):
         if incoming_data.get("device") is None or incoming_data.get("value") is None:
