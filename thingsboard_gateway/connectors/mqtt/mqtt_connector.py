@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import json
 import time
 import string
 import random
@@ -39,36 +40,39 @@ class MqttConnector(Connector, Thread):
         # Extract main sections from configuration ---------------------------------------------------------------------
         self.__broker = config.get('broker')
 
-        self.__mapping = [
-            x for x in config.get('mapping')
-            if x.get("topicFilter") and x.get("converter")
-        ]
+        self.__mapping = []
+        self.__server_side_rpc = []
+        self.__connect_requests = []
+        self.__disconnect_requests = []
+        self.__attribute_requests = []
+        self.__attribute_updates = []
 
-        self.__server_side_rpc = [
-            x for x in config.get('serverSideRpc')
-            if x.get("deviceNameFilter") and x.get("methodFilter")
-        ]
+        mandatory_keys = {
+            "mapping": ['topicFilter', 'converter'],
+            "serverSideRpc": ['deviceNameFilter', 'methodFilter'],
+            "connectRequests": ['topicFilter'],
+            "disconnectRequests": ['topicFilter'],
+            "attributeRequests": ['topicFilter', 'topicExpression', 'valueExpression'],
+            "attributeUpdates": ['deviceNameFilter', 'attributeFilter', 'topicExpression', 'valueExpression']
+        }
 
-        self.__connect_requests = [
-            x for x in config.get('connectRequests')
-            if x.get("topicFilter")
-        ]
+        # Mappings, i.e., telemetry/attributes-push handlers provided by user via configuration file
+        self.load_handlers('mapping', mandatory_keys['mapping'], self.__mapping)
 
-        self.__disconnect_requests = [
-            x for x in config.get('disconnectRequests')
-            if x.get("topicFilter")
-        ]
+        # RPCs, i.e., remote procedure calls (ThingsBoard towards devices) handlers
+        self.load_handlers('serverSideRpc', mandatory_keys['serverSideRpc'], self.__server_side_rpc)
 
-        self.__attribute_requests = [
-            x for x in config.get('attributeRequests')
-            if x.get("topicFilter") and x.get("topicExpression") and x.get("valueExpression")
-        ]
+        # Connect requests, i.e., telling ThingsBoard that a device is online even if it does not post telemetry
+        self.load_handlers('connectRequests', mandatory_keys['connectRequests'], self.__connect_requests)
 
-        self.__attribute_updates = [
-            x for x in config.get('attributeUpdates')
-            if x.get("deviceNameFilter") and x.get("attributeFilter")
-            and x.get("topicExpression") and x.get("valueExpression")
-        ]
+        # Disconnect requests, i.e., telling ThingsBoard that a device is offline even if keep-alive has not expired yet
+        self.load_handlers('disconnectRequests', mandatory_keys['disconnectRequests'], self.__disconnect_requests)
+
+        # Shared attributes direct requests, i.e., asking ThingsBoard for some shared attribute value
+        self.load_handlers('attributeRequests', mandatory_keys['attributeRequests'], self.__attribute_requests)
+
+        # Attributes updates requests, i.e., asking ThingsBoard to send updates about an attribute
+        self.load_handlers('attributeUpdates', mandatory_keys['attributeUpdates'], self.__attribute_updates)
 
         # Setup topic substitution lists for each class of handlers ----------------------------------------------------
         self.__mapping_sub_topics = {}
@@ -121,6 +125,39 @@ class MqttConnector(Connector, Thread):
         self._connected = False
         self.__stopped = False
         self.daemon = True
+
+    def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list):
+        if handler_flavor not in self.config:
+            self.__log.error("'%s' section missing from configuration", handler_flavor)
+        else:
+            for handler in self.config.get(handler_flavor):
+                discard = False
+
+                for key in mandatory_keys:
+                    if key not in handler:
+                        # Will report all missing fields to user before discarding the entry => no break here
+                        discard = True
+                        self.__log.error("Mandatory key '%s' missing from %s handler: %s",
+                                         key, handler_flavor, json.dumps(handler))
+                    else:
+                        self.__log.debug("Mandatory key '%s' found in %s handler: %s",
+                                         key, handler_flavor, json.dumps(handler))
+
+                if discard:
+                    self.__log.error("%s handler is missing some mandatory keys => rejected: %s",
+                                     handler_flavor, json.dumps(handler))
+                else:
+                    accepted_handlers_list.append(handler)
+                    self.__log.debug("%s handler has all mandatory keys => accepted: %s",
+                                     handler_flavor, json.dumps(handler))
+
+            self.__log.info("Number of accepted %s handlers: %d",
+                            handler_flavor,
+                            len(accepted_handlers_list))
+
+            self.__log.info("Number of rejected %s handlers: %d",
+                            handler_flavor,
+                            len(self.config.get(handler_flavor)) - len(accepted_handlers_list))
 
     def is_connected(self):
         return self._connected
