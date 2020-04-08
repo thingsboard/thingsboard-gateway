@@ -19,6 +19,7 @@ sudo pip3 install --upgrade importlib
 sudo pip3 install --upgrade importlib-metadata
 sudo cp -a -r /etc/thingsboard-gateway/extensions /var/lib/thingsboard_gateway/
 sudo rm -r /etc/thingsboard-gateway/extensions
+sudo usermod -a -G dialout $CURRENT_USER
 sudo usermod -a -G thingsboard_gateway $CURRENT_USER
 sudo chown thingsboard_gateway:thingsboard_gateway /var/log/thingsboard-gateway/ -R
 sudo chown thingsboard_gateway:thingsboard_gateway /var/lib/thingsboard_gateway/ -R
