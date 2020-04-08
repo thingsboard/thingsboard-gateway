@@ -17,7 +17,6 @@ sudo pip3 install --upgrade jsonschema==3.1.1
 #sudo pip3 install --upgrade bluepy
 sudo pip3 install --upgrade importlib
 sudo pip3 install --upgrade importlib-metadata
-sudo pip3 install --upgrade orjson
 sudo cp -a -r /etc/thingsboard-gateway/extensions /var/lib/thingsboard_gateway/
 sudo rm -r /etc/thingsboard-gateway/extensions
 sudo usermod -a -G thingsboard_gateway $CURRENT_USER
