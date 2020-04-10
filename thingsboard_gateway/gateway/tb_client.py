@@ -31,7 +31,7 @@ class TBClient(threading.Thread):
         self.__host = config["host"]
         self.__port = config.get("port", 1883)
         credentials = config["security"]
-        self.__min_reconnect_delay = 10
+        self.__min_reconnect_delay = 1
         self.__tls = bool(credentials.get('tls', False) or credentials.get('caCert', False))
         self.__ca_cert = None
         self.__private_key = None
@@ -79,11 +79,11 @@ class TBClient(threading.Thread):
 
     def _on_disconnect(self, client, userdata, result_code):
         # pylint: disable=protected-access
-        log.info("TB client %s has been disconnected. Current client for connection is: %s", str(client), str(self.client._client))
         if self.client._client != client:
+            log.info("TB client %s has been disconnected. Current client for connection is: %s", str(client), str(self.client._client))
             client.disconnect()
-        self.__is_connected = False
-        client.loop_stop()
+            self.__is_connected = False
+            client.loop_stop()
         self.client._on_disconnect(client, userdata, result_code)
 
     def stop(self):
