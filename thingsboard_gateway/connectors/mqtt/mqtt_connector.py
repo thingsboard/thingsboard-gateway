@@ -240,7 +240,11 @@ class MqttConnector(Connector, Thread):
                     # Load converter for this mapping entry ------------------------------------------------------------
                     # mappings are guaranteed to have topicFilter and converter fields. See __init__
                     converter_type = mapping["converter"]["type"]
-                    converter_extension = mapping["converter"]["extension"]
+
+                    # extension is optional
+                    converter_extension = None
+                    if "extension" in mapping["converter"]:
+                        converter_extension = mapping["converter"]["extension"]
 
                     if converter_type:
                         if converter_extension:
@@ -252,6 +256,9 @@ class MqttConnector(Connector, Thread):
                             else:
                                 self.__log.error("\n\nCannot find extension module for %s topic."
                                                  "\nPlease check your configuration.\n", mapping["topicFilter"])
+                        else:
+                            # if extension is not specified, use json converter
+                            converter = JsonMqttUplinkConverter(mapping)
                     else:
                         converter = JsonMqttUplinkConverter(mapping)
 
