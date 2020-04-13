@@ -235,27 +235,17 @@ class MqttConnector(Connector, Thread):
             # Setup data upload requests handling ----------------------------------------------------------------------
             for mapping in self.__mapping:
                 try:
-                    converter = None
-
                     # Load converter for this mapping entry ------------------------------------------------------------
                     # mappings are guaranteed to have topicFilter and converter fields. See __init__
-                    converter_type = mapping["converter"]["type"]
-                    converter_extension = mapping["converter"]["extension"]
-
-                    if converter_type:
-                        if converter_extension:
-                            module = TBUtility.check_and_import(self._connector_type, converter_extension)
-
-                            if module:
-                                self.__log.debug('Custom converter for topic %s - found!', mapping["topicFilter"])
-                                converter = module(mapping)
-                            else:
-                                self.__log.error("\n\nCannot find extension module for %s topic."
-                                                 "\nPlease check your configuration.\n", mapping["topicFilter"])
+                    default_converter_class_name = "JsonMqttUplinkConverter"
+                    # Get converter class from "extension" parameter or default converter
+                    converter_class_name = mapping["converter"].get("extension", default_converter_class_name)
+                    # Find and load required class
+                    module = TBUtility.check_and_import(self._connector_type, converter_class_name)
+                    if module:
+                        self.__log.debug('Converter %s for topic %s - found!', converter_class_name, mapping["topicFilter"])
+                        converter = module(mapping)
                     else:
-                        converter = JsonMqttUplinkConverter(mapping)
-
-                    if converter is None:
                         self.__log.error("Cannot find converter for %s topic", mapping["topicFilter"])
                         continue
 
