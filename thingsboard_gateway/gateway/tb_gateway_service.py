@@ -221,21 +221,24 @@ class TBGatewayService:
 
     def _load_connectors(self, main_config):
         self.connectors_configs = {}
-        if not main_config.get("connectors"):
-            raise Exception("Configuration for connectors not found, check your config file.")
-        for connector in main_config['connectors']:
-            try:
-                connector_class = TBUtility.check_and_import(connector["type"], self._default_connectors.get(connector["type"], connector.get("class")))
-                self._implemented_connectors[connector["type"]] = connector_class
-                with open(self._config_dir + connector['configuration'], 'r') as conf_file:
-                    connector_conf = load(conf_file)
-                    if not self.connectors_configs.get(connector['type']):
-                        self.connectors_configs[connector['type']] = []
-                    connector_conf["name"] = connector["name"]
-                    self.connectors_configs[connector['type']].append({"name": connector["name"], "config": {connector['configuration']: connector_conf}})
-            except Exception as e:
-                log.error("Error on loading connector:")
-                log.exception(e)
+        if main_config.get("connectors"):
+            for connector in main_config['connectors']:
+                try:
+                    connector_class = TBUtility.check_and_import(connector["type"], self._default_connectors.get(connector["type"], connector.get("class")))
+                    self._implemented_connectors[connector["type"]] = connector_class
+                    with open(self._config_dir + connector['configuration'], 'r') as conf_file:
+                        connector_conf = load(conf_file)
+                        if not self.connectors_configs.get(connector['type']):
+                            self.connectors_configs[connector['type']] = []
+                        connector_conf["name"] = connector["name"]
+                        self.connectors_configs[connector['type']].append({"name": connector["name"], "config": {connector['configuration']: connector_conf}})
+                except Exception as e:
+                    log.error("Error on loading connector:")
+                    log.exception(e)
+        else:
+            log.error("Connectors - not found! Check your configuration!")
+            main_config["remoteConfiguration"] = True
+            log.info("Remote configuration is enabled forcibly!")
 
     def _connect_with_connectors(self):
         for connector_type in self.connectors_configs:
