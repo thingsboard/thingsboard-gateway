@@ -96,7 +96,11 @@ class BytesModbusUplinkConverter(ModbusConverter):
         }
 
         decoded = None
-        if lower_type in ['int', 'long', 'integer']:
+
+        if decoder_functions.get(lower_type) is not None:
+            decoded = decoder_functions[lower_type]()
+
+        elif lower_type in ['int', 'long', 'integer']:
             type_ = str(registers_count * 16) + "int"
             assert decoder_functions.get(type_) is not None
             decoded = decoder_functions[type_]()
@@ -120,9 +124,6 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
         elif lower_type == 'bits':
             decoded = decoder_functions[type_]()
-
-        elif decoder_functions.get(lower_type) is not None:
-            decoded = decoder_functions[lower_type]()
 
         else:
             log.error("Unknown type: %s", type_)
