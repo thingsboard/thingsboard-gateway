@@ -157,13 +157,10 @@ class EventStorageReader:
     def delete_read_file(self, current_file: EventStorageReaderPointer):
         try:
             data_files = self.files.get_data_files()
-            files_in_directory = listdir(self.settings.get_data_folder_path())
-            log.debug(files_in_directory)
-            for file_ in files_in_directory:
-                if file_ not in data_files and file_ != "state_file.txt":
-                    remove(self.settings.get_data_folder_path()+file_)
-            self.files.set_data_files(data_files[1:])
-            log.info("FileStorage_reader -- Cleanup old data file: %s%s!", self.settings.get_data_folder_path(), current_file.file)
+            if exists(self.settings.get_data_folder_path() + current_file.file):
+                remove(self.settings.get_data_folder_path() + current_file.file)
+                self.files.set_data_files(data_files[1:])
+                log.info("FileStorage_reader -- Cleanup old data file: %s%s!", self.settings.get_data_folder_path(), current_file.file)
         except Exception as e:
             log.exception(e)
 
