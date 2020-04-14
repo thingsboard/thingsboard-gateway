@@ -13,8 +13,9 @@
 #     limitations under the License.
 
 from io import BufferedReader, FileIO
-from os import remove
+from os import remove, listdir
 from os.path import exists
+from time import sleep
 from base64 import b64decode
 from simplejson import load, JSONDecodeError, dumps
 from thingsboard_gateway.storage.file_event_storage import log
@@ -63,7 +64,7 @@ class EventStorageReader:
                     if records_to_read == 0:
                         break
 
-                if current_line_in_file >= self.settings.get_max_records_per_file():
+                if current_line_in_file >= self.settings.get_max_records_per_file() - 1:
                     previous_file = self.new_pos
                     next_file = self.get_next_file(self.files, self.new_pos)
                     if next_file is None:
@@ -154,11 +155,17 @@ class EventStorageReader:
             log.exception(e)
 
     def delete_read_file(self, current_file: EventStorageReaderPointer):
-        data_files = self.files.get_data_files()
-        if exists(self.settings.get_data_folder_path() + current_file.file):
-            remove(self.settings.get_data_folder_path() + current_file.file)
+        try:
+            data_files = self.files.get_data_files()
+            files_in_directory = listdir(self.settings.get_data_folder_path())
+            log.debug(files_in_directory)
+            for file_ in files_in_directory:
+                if file_ not in data_files and file_ != "state_file.txt":
+                    remove(self.settings.get_data_folder_path()+file_)
             self.files.set_data_files(data_files[1:])
             log.info("FileStorage_reader -- Cleanup old data file: %s%s!", self.settings.get_data_folder_path(), current_file.file)
+        except Exception as e:
+            log.exception(e)
 
     def destroy(self):
         if self.buffered_reader is not None:
