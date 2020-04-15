@@ -83,16 +83,16 @@ class ModbusConnector(Connector, threading.Thread):
                     downlink_converter = BytesModbusDownlinkConverter(device)
                 if device.get('deviceName') not in self.__gateway.get_devices():
                     self.__gateway.add_device(device.get('deviceName'), {"connector": self}, device_type=device.get("deviceType"))
-                    self.__devices[device["deviceName"]] = {"config": device,
-                                                            "converter": converter,
-                                                            "downlink_converter": downlink_converter,
-                                                            "next_attributes_check": 0,
-                                                            "next_timeseries_check": 0,
-                                                            "telemetry": {},
-                                                            "attributes": {},
-                                                            "last_telemetry": {},
-                                                            "last_attributes": {}
-                                                            }
+                self.__devices[device["deviceName"]] = {"config": device,
+                                                        "converter": converter,
+                                                        "downlink_converter": downlink_converter,
+                                                        "next_attributes_check": 0,
+                                                        "next_timeseries_check": 0,
+                                                        "telemetry": {},
+                                                        "attributes": {},
+                                                        "last_telemetry": {},
+                                                        "last_attributes": {}
+                                                        }
         except Exception as e:
             log.exception(e)
 
