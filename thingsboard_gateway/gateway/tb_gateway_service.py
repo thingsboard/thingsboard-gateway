@@ -268,6 +268,8 @@ class TBGatewayService:
                 self.__connector_incoming_messages[connector_name] = 0
             else:
                 self.__connector_incoming_messages[connector_name] += 1
+        else:
+            data["deviceName"] = "currentThingsBoardGateway"
 
         telemetry = {}
         telemetry_with_ts = []
@@ -378,12 +380,12 @@ class TBGatewayService:
         try:
             for device in devices_data_in_event_pack:
                 if devices_data_in_event_pack[device].get("attributes"):
-                    if device == self.name:
+                    if device == self.name or device == "currentThingsBoardGateway":
                         self._published_events.put(self.tb_client.client.send_attributes(devices_data_in_event_pack[device]["attributes"]))
                     else:
                         self._published_events.put(self.tb_client.client.gw_send_attributes(device, devices_data_in_event_pack[device]["attributes"]))
                 if devices_data_in_event_pack[device].get("telemetry"):
-                    if device == self.name:
+                    if device == self.name or device == "currentThingsBoardGateway":
                         self._published_events.put(self.tb_client.client.send_telemetry(devices_data_in_event_pack[device]["telemetry"]))
                     else:
                         self._published_events.put(self.tb_client.client.gw_send_telemetry(device, devices_data_in_event_pack[device]["telemetry"]))
