@@ -26,6 +26,11 @@ log = getLogger("service")
 
 class TBUtility:
 
+    # Buffer for connectors/converters
+    # key - class name
+    # value - loaded class
+    loaded_extensions = {}
+
     @staticmethod
     def decode(message):
         content = loads(message.payload.decode("utf-8"))
@@ -33,15 +38,16 @@ class TBUtility:
 
     @staticmethod
     def validate_converted_data(data):
-        json_data = dumps(data)
-        if not data.get("deviceName") or data.get("deviceName") is None:
-            log.error('deviceName is empty in data %s', json_data)
-            return False
-        if not data.get("deviceType") or data.get("deviceType") is None:
-            log.error('deviceType is empty in data: %s', json_data)
-            return False
-        if not data.get("attributes") and not data.get("telemetry"):
-            log.error('No telemetry and attributes in data: %s', json_data)
+        error = None
+        if error is None and not data.get("deviceName"):
+            error = 'deviceName is empty in data: '
+        if error is None and not data.get("deviceType"):
+            error = 'deviceType is empty in data: '
+        if error is None and not data.get("attributes") and not data.get("telemetry"):
+            error = 'No telemetry and attributes in data: '
+        if error is not None:
+            json_data = dumps(data)
+            log.error(error+json_data.decode("UTF-8"))
             return False
         return True
 
@@ -55,35 +61,41 @@ class TBUtility:
 
     @staticmethod
     def check_and_import(extension_type, module_name):
-        extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
-                            '/var/lib/thingsboard_gateway/'.replace('/', path.sep) + extension_type.lower(),
-                            path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
-        try:
-            for extension_path in extensions_paths:
-                if path.exists(extension_path):
-                    for file in listdir(extension_path):
-                        if not file.startswith('__') and file.endswith('.py'):
-                            try:
-                                module_spec = util.spec_from_file_location(module_name, extension_path + path.sep + file)
-                                log.debug(module_spec)
+        if TBUtility.loaded_extensions.get(extension_type + module_name) is None:
+            extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
+                                '/var/lib/thingsboard_gateway/extensions/'.replace('/', path.sep) + extension_type.lower(),
+                                path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
+            try:
+                for extension_path in extensions_paths:
+                    if path.exists(extension_path):
+                        for file in listdir(extension_path):
+                            if not file.startswith('__') and file.endswith('.py'):
+                                try:
+                                    module_spec = util.spec_from_file_location(module_name, extension_path + path.sep + file)
+                                    log.debug(module_spec)
 
-                                if module_spec is None:
-                                    log.error('Module: %s not found', module_name)
+                                    if module_spec is None:
+                                        log.error('Module: %s not found', module_name)
+                                        continue
+
+                                    module = util.module_from_spec(module_spec)
+                                    log.debug(str(module))
+                                    module_spec.loader.exec_module(module)
+                                    for extension_class in getmembers(module, isclass):
+                                        if module_name in extension_class:
+                                            log.debug("Import %s from %s.", module_name, extension_path)
+                                            # Save class into buffer
+                                            TBUtility.loaded_extensions[extension_type + module_name] = extension_class[1]
+                                            return extension_class[1]
+                                except ImportError:
                                     continue
-
-                                module = util.module_from_spec(module_spec)
-                                log.debug(str(module))
-                                module_spec.loader.exec_module(module)
-                                for extension_class in getmembers(module, isclass):
-                                    if module_name in extension_class:
-                                        log.debug("Import %s from %s.", module_name, extension_path)
-                                        return extension_class[1]
-                            except ImportError:
-                                continue
-                else:
-                    log.error("Import %s failed, path %s doesn't exist", module_name, extension_path)
-        except Exception as e:
-            log.exception(e)
+                    else:
+                        log.error("Import %s failed, path %s doesn't exist", module_name, extension_path)
+            except Exception as e:
+                log.exception(e)
+        else:
+            log.debug("Class %s found in TBUtility buffer.", module_name)
+            return TBUtility.loaded_extensions[extension_type + module_name]
 
     @staticmethod
     def get_value(expression, body=None, value_type="string", get_tag=False, expression_instead_none=False):

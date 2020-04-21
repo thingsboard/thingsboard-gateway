@@ -22,6 +22,7 @@ from thingsboard_gateway.connectors.mqtt.json_mqtt_uplink_converter import JsonM
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
 from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
 from thingsboard_gateway.connectors.ble.bytes_ble_uplink_converter import BytesBLEUplinkConverter
+from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
 from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 
@@ -102,28 +103,36 @@ class ConvertersTests(unittest.TestCase):
                     "tag": "16int",
                     "type": "16int",
                     "functionCode": 4,
-                    "registerCount": 2
+                    "registerCount": 1
                 }},
                 {"long": {
                     "byteOrder": "BIG",
                     "tag": "long",
                     "type": "long",
                     "functionCode": 4,
-                    "registerCount": 2
+                    "registerCount": 1
+                }},
+                {"long_with_divider": {
+                    "byteOrder": "BIG",
+                    "tag": "long",
+                    "type": "long",
+                    "functionCode": 4,
+                    "registerCount": 1,
+                    "divider": 10
                 }},
                 {"32int": {
                     "byteOrder": "BIG",
                     "tag": "32int",
                     "type": "32int",
                     "functionCode": 4,
-                    "registerCount": 4
+                    "registerCount": 2
                 }},
                 {"64int": {
                     "byteOrder": "BIG",
                     "tag": "64int",
                     "type": "64int",
                     "functionCode": 4,
-                    "registerCount": 8
+                    "registerCount": 4
                 }},
             ],
             "timeseries": [
@@ -156,25 +165,25 @@ class ConvertersTests(unittest.TestCase):
                     "tag": "double",
                     "type": "double",
                     "functionCode": 4,
-                    "registerCount": 4}},
+                    "registerCount": 2}},
                 {"16float": {
                     "byteOrder": "BIG",
                     "tag": "16float",
                     "type": "16float",
                     "functionCode": 4,
-                    "registerCount": 2}},
+                    "registerCount": 1}},
                 {"32float": {
                     "byteOrder": "BIG",
                     "tag": "32float",
                     "type": "32float",
                     "functionCode": 4,
-                    "registerCount": 4}},
+                    "registerCount": 2}},
                 {"64float": {
                     "byteOrder": "BIG",
                     "tag": "64float",
                     "type": "64float",
                     "functionCode": 4,
-                    "registerCount": 8}},
+                    "registerCount": 4}},
             ]
         }
         test_modbus_body_to_convert = {}
@@ -186,7 +195,7 @@ class ConvertersTests(unittest.TestCase):
                                   {'16uint': 4660},
                                   {'32uint': 305419896},
                                   {'64uint': 1311768468603649775},
-                                  {'double': 38.5},
+                                  {'double': 22.5},
                                   {'16float': 1.240234375},
                                   {'32float': 22.34000015258789},
                                   {'64float': -123.45}],
@@ -196,6 +205,7 @@ class ConvertersTests(unittest.TestCase):
                                   {'8int': -18},
                                   {'16int': -22136},
                                   {'long': -22136},
+                                  {'long_with_divider': -2213.6},
                                   {'32int': -4660},
                                   {'64int': -3735928559}]
                               }
@@ -206,13 +216,14 @@ class ConvertersTests(unittest.TestCase):
                              "8int": (builder.add_8bit_int, -0x12),
                              "16int": (builder.add_16bit_int, -0x5678),
                              "long": (builder.add_16bit_int, -0x5678),
+                             "long_with_divider": (builder.add_16bit_int, -0x5678),
                              "32int": (builder.add_32bit_int, -0x1234),
                              "64int": (builder.add_64bit_int, -0xDEADBEEF),
                              "8uint": (builder.add_8bit_uint, 0x12),
                              "16uint": (builder.add_16bit_uint, 0x1234),
                              "32uint": (builder.add_32bit_uint, 0x12345678),
                              "64uint": (builder.add_64bit_uint, 0x12345678DEADBEEF),
-                             "double": (builder.add_32bit_float, 38.5),
+                             "double": (builder.add_32bit_float, 22.5),
                              "16float": (builder.add_16bit_float, 1.24),
                              "32float": (builder.add_32bit_float, 22.34),
                              "64float": (builder.add_64bit_float, -123.45),
@@ -327,6 +338,50 @@ class ConvertersTests(unittest.TestCase):
         for index, config in enumerate(test_configs):
             result = converter.convert(config, test_data_list[index])
         self.assertDictEqual(result, test_result)
+
+    def test_request_getting_values(self):
+        test_request_config = {
+          "url": "/last",
+          "httpMethod": "GET",
+          "deviceNameJsonExpression": "${$.sensor}",
+          "deviceTypeJsonExpression": "default",
+          "httpHeaders": {
+            "ACCEPT": "application/json"
+          },
+          "allowRedirects": True,
+          "timeout": 0.5,
+          "scanPeriod": 5,
+          "converter": {
+            "type": "json",
+            "attributes": [
+            ],
+            "telemetry": [
+              {
+
+                "key": "${$.name}",
+                "type": "int",
+                "value": "${$.value}"
+              }
+            ]
+          }
+        }
+        test_request_body_to_convert = {"name": "Humidity",
+                                        "sensor": "aranet:358151000412:100886",
+                                        "time": "2020-03-17T16:16:03Z",
+                                        "unit": "%RH",
+                                        "value": "66"}
+
+        test_request_convert_config = "127.0.0.1:5000/last"
+        test_request_result = {
+            "deviceName": "aranet:358151000412:100886",
+            "deviceType": "default",
+            "attributes": [],
+            "telemetry": [{"Humidity": '66'}]
+        }
+
+        converter = JsonRequestUplinkConverter(test_request_config)
+        result = converter.convert(test_request_convert_config, test_request_body_to_convert)
+        self.assertDictEqual(result, test_request_result)
 
 
 class TestStorage(unittest.TestCase):

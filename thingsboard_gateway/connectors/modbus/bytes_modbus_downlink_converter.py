@@ -40,11 +40,16 @@ class BytesModbusDownlinkConverter(ModbusConverter):
                              "16float": builder.add_16bit_float,
                              "32float": builder.add_32bit_float,
                              "64float": builder.add_64bit_float}
-
-        value = config["value"]
-        lower_type = config["tag"].lower()
+        value = None
+        if data.get("data") and data["data"].get("params") is not None:
+            value = data["data"]["params"]
+        else:
+            value = config["value"]
+        lower_type = config.get("type", config.get("tag", "error")).lower()
+        if lower_type == "error":
+            log.error('"type" and "tag" - not found in configuration.')
         variable_size = config.get("registerCount", 1) * 8
-        if lower_type in ["integer", "dword", "dword/integer", "word"]:
+        if lower_type in ["integer", "dword", "dword/integer", "word", "int"]:
             lower_type = str(variable_size) + "int"
             assert builder_functions.get(lower_type) is not None
             builder_functions[lower_type](value)
@@ -68,6 +73,8 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             log.debug(bits)
             builder.add_bits(bits)
             return builder.to_string()
+        else:
+            log.error("Unknown variable type")
 
         builder_converting_functions = {5: builder.to_coils,
                                         15: builder.to_coils,
@@ -77,6 +84,10 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         function_code = config["functionCode"]
 
         if function_code in builder_converting_functions:
-            return builder_converting_functions[function_code]()
-        log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter", self.__config["deviceName"])
+            builder = builder_converting_functions[function_code]()
+            if "Exception" in str(builder):
+                log.exception(builder)
+                builder = str(builder)
+            return builder
+        log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter", config["device"])
         return None

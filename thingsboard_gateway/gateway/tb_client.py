@@ -31,7 +31,7 @@ class TBClient(threading.Thread):
         self.__host = config["host"]
         self.__port = config.get("port", 1883)
         credentials = config["security"]
-        self.__min_reconnect_delay = 10
+        self.__min_reconnect_delay = 1
         self.__tls = bool(credentials.get('tls', False) or credentials.get('caCert', False))
         self.__ca_cert = None
         self.__private_key = None
@@ -53,14 +53,14 @@ class TBClient(threading.Thread):
         # Adding callbacks
         self.client._client._on_connect = self._on_connect
         self.client._client._on_disconnect = self._on_disconnect
-        self.client._client._on_log = self._on_log
+        # self.client._client._on_log = self._on_log
         self.start()
 
-    def _on_log(self, *args):
-        if "exception" in args[-1]:
-            log.exception(args)
-        else:
-            log.debug(args)
+    # def _on_log(self, *args):
+    #     if "exception" in args[-1]:
+    #         log.exception(args)
+    #     else:
+    #         log.debug(args)
 
     def pause(self):
         self.__paused = True
@@ -78,10 +78,12 @@ class TBClient(threading.Thread):
         self.client._on_connect(client, userdata, flags, result_code, *extra_params)
 
     def _on_disconnect(self, client, userdata, result_code):
-        log.info("TB client %s has been disconnected.", str(client))
-        self.unsubscribe('*')
-        self.__is_connected = False
         # pylint: disable=protected-access
+        if self.client._client != client:
+            log.info("TB client %s has been disconnected. Current client for connection is: %s", str(client), str(self.client._client))
+            client.disconnect()
+            self.__is_connected = False
+            client.loop_stop()
         self.client._on_disconnect(client, userdata, result_code)
 
     def stop(self):
@@ -91,6 +93,7 @@ class TBClient(threading.Thread):
 
     def disconnect(self):
         self.__paused = True
+        self.unsubscribe('*')
         self.client.disconnect()
 
     def unsubscribe(self, subsription_id):

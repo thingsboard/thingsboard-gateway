@@ -27,7 +27,6 @@ GATEWAY_RPC_TOPIC = "v1/gateway/rpc"
 GATEWAY_RPC_RESPONSE_TOPIC = "v1/gateway/rpc/response"
 
 log = logging.getLogger("tb_connection")
-log.setLevel(logging.DEBUG)
 
 
 class TBGatewayAPI:
@@ -173,7 +172,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                 self.__sub_dict.update({key: {self.__max_sub_id: callback}})
             else:
                 self.__sub_dict[key].update({self.__max_sub_id: callback})
-            log.debug("Subscribed to %s with id %i", key, self.__max_sub_id)
+            log.info("Subscribed to %s with id %i", key, self.__max_sub_id)
             return self.__max_sub_id
 
     def gw_unsubscribe(self, subscription_id):
@@ -181,7 +180,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
             for attribute in self.__sub_dict:
                 if self.__sub_dict[attribute].get(subscription_id):
                     del self.__sub_dict[attribute][subscription_id]
-                    log.debug("Unsubscribed from %s, subscription id %i", attribute, subscription_id)
+                    log.info("Unsubscribed from %s, subscription id %i", attribute, subscription_id)
             if subscription_id == '*':
                 self.__sub_dict = {}
 

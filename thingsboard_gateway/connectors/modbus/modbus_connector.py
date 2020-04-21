@@ -17,6 +17,7 @@ import threading
 from random import choice
 from string import ascii_lowercase
 
+from pymodbus.constants import Defaults
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient, ModbusRtuFramer, ModbusSocketFramer
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, \
@@ -82,16 +83,16 @@ class ModbusConnector(Connector, threading.Thread):
                     downlink_converter = BytesModbusDownlinkConverter(device)
                 if device.get('deviceName') not in self.__gateway.get_devices():
                     self.__gateway.add_device(device.get('deviceName'), {"connector": self}, device_type=device.get("deviceType"))
-                    self.__devices[device["deviceName"]] = {"config": device,
-                                                            "converter": converter,
-                                                            "downlink_converter": downlink_converter,
-                                                            "next_attributes_check": 0,
-                                                            "next_timeseries_check": 0,
-                                                            "telemetry": {},
-                                                            "attributes": {},
-                                                            "last_telemetry": {},
-                                                            "last_attributes": {}
-                                                            }
+                self.__devices[device["deviceName"]] = {"config": device,
+                                                        "converter": converter,
+                                                        "downlink_converter": downlink_converter,
+                                                        "next_attributes_check": 0,
+                                                        "next_timeseries_check": 0,
+                                                        "telemetry": {},
+                                                        "attributes": {},
+                                                        "last_telemetry": {},
+                                                        "last_attributes": {}
+                                                        }
         except Exception as e:
             log.exception(e)
 
@@ -185,13 +186,24 @@ class ModbusConnector(Connector, threading.Thread):
         baudrate = self.__config.get('baudrate', 19200)
         timeout = self.__config.get("timeout", 35)
         method = self.__config.get('method', 'rtu')
+        stopbits = self.__config.get('stopbits', Defaults.Stopbits)
+        bytesize = self.__config.get('bytesize', Defaults.Bytesize)
+        parity = self.__config.get('parity',   Defaults.Parity)
+        strict = self.__config.get("strict", True)
         rtu = ModbusRtuFramer if self.__config.get("method") == "rtu" else ModbusSocketFramer
         if self.__config.get('type') == 'tcp':
             self.__master = ModbusTcpClient(host, port, rtu, timeout=timeout)
         elif self.__config.get('type') == 'udp':
             self.__master = ModbusUdpClient(host, port, rtu, timeout=timeout)
         elif self.__config.get('type') == 'serial':
-            self.__master = ModbusSerialClient(method=method, port=port, timeout=timeout, baudrate=baudrate)
+            self.__master = ModbusSerialClient(method=method,
+                                               port=port,
+                                               timeout=timeout,
+                                               baudrate=baudrate,
+                                               stopbits=stopbits,
+                                               bytesize=bytesize,
+                                               parity=parity,
+                                               strict=strict)
         else:
             raise Exception("Invalid Modbus transport type.")
         self.__available_functions = {
@@ -218,35 +230,62 @@ class ModbusConnector(Connector, threading.Thread):
                                                                unit=unit_id)
         else:
             log.error("Unknown Modbus function with code: %i", function_code)
-        log.debug("To modbus device %s, \n%s", config["deviceName"], config)
         log.debug("With result %s", str(result))
-
+        if "Exception" in str(result):
+            log.exception(result)
+            result = str(result)
         return result
 
     def server_side_rpc_handler(self, content):
-        log.debug("Modbus connector received rpc request for %s with content: %s", self.get_name(), content)
-        rpc_command_config = self.__devices[content["device"]]["config"]["rpc"].get(content["data"].get("method"))
-        if rpc_command_config.get('bit') is not None:
-            rpc_command_config["functionCode"] = 6
-            rpc_command_config["unitId"] = self.__devices[content["device"]]["config"]["unitId"]
+        try:
+            if content.get("device") is not None:
+                log.debug("Modbus connector received rpc request for %s with content: %s", content["device"], content)
+                if isinstance(self.__devices[content["device"]]["config"]["rpc"], dict):
+                    rpc_command_config = self.__devices[content["device"]]["config"]["rpc"].get(content["data"]["method"])
+                    if rpc_command_config is not None:
+                        self.__process_rpc_request(content, rpc_command_config)
+                elif isinstance(self.__devices[content["device"]]["config"]["rpc"], list):
+                    for rpc_command_config in self.__devices[content["device"]]["config"]["rpc"]:
+                        if rpc_command_config["tag"] == content["data"]["method"]:
+                            self.__process_rpc_request(content, rpc_command_config)
+                else:
+                    log.error("Received rpc request, but method %s not found in config for %s.",
+                              content["data"].get("method"),
+                              self.get_name())
+                    self.__gateway.send_rpc_reply(content["device"],
+                                                  content["data"]["id"],
+                                                  {content["data"]["method"]: "METHOD NOT FOUND!"})
+            else:
+                log.debug("Received RPC to connector: %r", content)
+        except Exception as e:
+            log.exception(e)
 
+    def __process_rpc_request(self, content, rpc_command_config):
         if rpc_command_config is not None:
-            rpc_command_config["payload"] = self.__devices[content["device"]]["downlink_converter"].convert(rpc_command_config, content)
+            rpc_command_config["unitId"] = self.__devices[content["device"]]["config"]["unitId"]
+            if rpc_command_config.get('bit') is not None:
+                rpc_command_config["functionCode"] = 6
+            if rpc_command_config.get("functionCode") in (5, 6, 15, 16):
+                rpc_command_config["payload"] = self.__devices[content["device"]]["downlink_converter"].convert(
+                    rpc_command_config, content)
             response = None
             try:
                 response = self.__function_to_device(rpc_command_config, rpc_command_config["unitId"])
             except Exception as e:
                 log.exception(e)
-            if response is not None:
-                response = isinstance(response, (WriteMultipleRegistersResponse,
-                                                 WriteMultipleCoilsResponse,
-                                                 WriteSingleCoilResponse,
-                                                 WriteSingleRegisterResponse))
-                log.debug(response)
-                self.__gateway.send_rpc_reply(content["device"],
-                                              content["data"]["id"],
-                                              {content["data"]["method"]: response})
-        else:
-            log.error("Received rpc request, but method %s not found in config for %s.",
-                      content["data"].get("method"),
-                      self.get_name())
+            if isinstance(response, ReadRegistersResponseBase):
+                to_converter = {"rpc": {content["data"]["method"]: {"data_sent": rpc_command_config,
+                                                                    "input_data": response}}}
+                response = self.__devices[content["device"]]["converter"].convert(config=None, data=to_converter)
+                log.debug("Received RPC method: %s, result: %r", content["data"]["method"], response)
+            elif isinstance(response, (WriteMultipleRegistersResponse,
+                                       WriteMultipleCoilsResponse,
+                                       WriteSingleCoilResponse,
+                                       WriteSingleRegisterResponse)):
+                response = str(response)
+                log.debug("Write %r", response)
+            response = False if response is None else response
+            response = str(response) if isinstance(response, Exception) else response
+            self.__gateway.send_rpc_reply(content["device"],
+                                          content["data"]["id"],
+                                          {content["data"]["method"]: response})

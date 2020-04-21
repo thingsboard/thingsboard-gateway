@@ -25,7 +25,6 @@ class TBLoggerHandler(logging.Handler):
         self.activated = False
         self.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - [%(filename)s] - %(module)s - %(lineno)d - %(message)s'))
         self.loggers = ['service',
-                        'storage',
                         'extension',
                         'converter',
                         'connector',
