@@ -43,42 +43,43 @@ class EventStorageReader:
             try:
                 current_line_in_file = self.new_pos.get_line()
                 self.buffered_reader = self.get_or_init_buffered_reader(self.new_pos)
-                line = self.buffered_reader.readline()
-                while line != b'':
-                    try:
-                        self.current_batch.append(b64decode(line).decode("utf-8"))
-                        records_to_read -= 1
-                    except IOError as e:
-                        log.warning("Could not parse line [%s] to uplink message! %s", line, e)
-                    except Exception as e:
-                        log.exception(e)
-                        current_line_in_file += 1
+                if self.buffered_reader is not None:
+                    line = self.buffered_reader.readline()
+                    while line != b'':
+                        try:
+                            self.current_batch.append(b64decode(line).decode("utf-8"))
+                            records_to_read -= 1
+                        except IOError as e:
+                            log.warning("Could not parse line [%s] to uplink message! %s", line, e)
+                        except Exception as e:
+                            log.exception(e)
+                            current_line_in_file += 1
+                            self.new_pos.set_line(current_line_in_file)
+                            self.write_info_to_state_file(self.new_pos)
+                            break
+                        finally:
+                            current_line_in_file += 1
+                            if records_to_read > 0:
+                                line = self.buffered_reader.readline()
                         self.new_pos.set_line(current_line_in_file)
-                        self.write_info_to_state_file(self.new_pos)
-                        break
-                    finally:
-                        current_line_in_file += 1
-                        if records_to_read > 0:
-                            line = self.buffered_reader.readline()
-                    self.new_pos.set_line(current_line_in_file)
-                    if records_to_read == 0:
-                        break
+                        if records_to_read == 0:
+                            break
 
-                if current_line_in_file >= self.settings.get_max_records_per_file() - 1:
-                    previous_file = self.new_pos
-                    next_file = self.get_next_file(self.files, self.new_pos)
-                    if next_file is None:
+                    if self.settings.get_max_records_per_file() >= current_line_in_file >= 0 or (line == b'' and current_line_in_file >= self.settings.get_max_records_per_file() - 1):
+                        previous_file = self.new_pos
+                        next_file = self.get_next_file(self.files, self.new_pos)
+                        self.delete_read_file(previous_file)
+                        self.write_info_to_state_file(self.new_pos)
+                        if next_file is None:
+                            break
+                        if self.buffered_reader is not None:
+                            self.buffered_reader.close()
+                        self.buffered_reader = None
+                        self.new_pos = EventStorageReaderPointer(next_file, 0)
+                        continue
+                    if line == b'':
                         break
-                    if self.buffered_reader is not None:
-                        self.buffered_reader.close()
-                    self.buffered_reader = None
-                    self.delete_read_file(previous_file)
-                    self.new_pos = EventStorageReaderPointer(next_file, 0)
-                    self.write_info_to_state_file(self.new_pos)
                     continue
-                if line == b'':
-                    break
-                continue
             except IOError as e:
                 log.warning("[%s] Failed to read file! Error: %s", self.new_pos.get_file(), e)
                 break
@@ -101,14 +102,22 @@ class EventStorageReader:
         try:
             if self.buffered_reader is None or self.buffered_reader.closed:
                 new_file_to_read_path = self.settings.get_data_folder_path() + pointer.get_file()
+                if not exists(new_file_to_read_path):
+                    next_file = self.get_next_file(self.files, self.new_pos)
+                    if next_file is not None:
+                        new_file_to_read_path = self.settings.get_data_folder_path() + next_file
+                    else:
+                        self.buffered_reader = None
+                        return None
                 self.buffered_reader = BufferedReader(FileIO(new_file_to_read_path, 'r'))
                 lines_to_skip = pointer.get_line()
                 if lines_to_skip > 0:
                     while self.buffered_reader.readline() is not None:
-                        if lines_to_skip != 0:
+                        if lines_to_skip > 0:
                             lines_to_skip -= 1
                         else:
                             break
+
             return self.buffered_reader
 
         except IOError as e:
@@ -159,7 +168,7 @@ class EventStorageReader:
             data_files = self.files.get_data_files()
             if exists(self.settings.get_data_folder_path() + current_file.file):
                 remove(self.settings.get_data_folder_path() + current_file.file)
-                self.files.set_data_files(data_files[1:])
+                data_files.remove(current_file.file)
                 log.info("FileStorage_reader -- Cleanup old data file: %s%s!", self.settings.get_data_folder_path(), current_file.file)
         except Exception as e:
             log.exception(e)
