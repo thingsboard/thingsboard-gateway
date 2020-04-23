@@ -13,10 +13,11 @@
 #     limitations under the License.
 
 from os import remove, linesep
-from os.path import exists
+from os.path import exists, dirname
 from re import findall
 from time import time, sleep
 from logging import getLogger
+from logging.config import fileConfig
 from base64 import b64encode, b64decode
 from simplejson import dumps, loads, dump
 from yaml import safe_dump
@@ -24,6 +25,7 @@ from configparser import ConfigParser
 
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
 
 # pylint: disable=protected-access
 LOG = getLogger("service")
@@ -262,10 +264,14 @@ class RemoteConfigurator:
                                  .split(', '))
                     path = args[0][1:-1]
                     LOG.debug("Checking %s...", path)
-                    if not exists(path):
+                    if not exists(dirname(path)):
                         raise FileNotFoundError
             with open(logs_conf_file_path, 'w', encoding="UTF-8") as logs:
                 logs.write(self.__new_logs_configuration.replace("NONE", "NOTSET")+"\r\n")
+            fileConfig(logs_config)
+            LOG = getLogger('service')
+            # self.__gateway.remote_handler.deactivate()
+            self.__gateway.remote_handler = TBLoggerHandler(self.__gateway)
             self.__gateway.main_handler.setLevel(new_logging_level)
             self.__gateway.main_handler.setTarget(self.__gateway.remote_handler)
             if new_logging_level == "NOTSET":
