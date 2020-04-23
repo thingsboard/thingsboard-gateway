@@ -14,6 +14,7 @@
 
 from pymodbus.payload import BinaryPayloadBuilder
 from pymodbus.constants import Endian
+from struct import unpack, pack
 
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
 
@@ -68,11 +69,19 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             assert builder_functions.get("string") is not None
             builder_functions[lower_type](value)
         elif lower_type in ["bit"]:
-            bits = [0 for _ in range(8)]
-            bits[config["bit"]-1] = int(value)
+            bits = [0 for _ in range(16)]
+            if byte_order_str == "LITTLE":
+                bits = bits[-1]
+                bits[config["bit"]-1] = int(bool(value))
+                bits = bits[-1]
+            else:
+                bits[config["bit"]-1] = int(bool(value))
             log.debug(bits)
             builder.add_bits(bits)
-            return builder.to_string()
+            # result = 0
+            # for bit in bits:
+            #     result = (result << 1) | bit
+            # return result
         else:
             log.error("Unknown variable type")
 

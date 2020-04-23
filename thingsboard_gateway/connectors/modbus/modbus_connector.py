@@ -263,8 +263,8 @@ class ModbusConnector(Connector, threading.Thread):
     def __process_rpc_request(self, content, rpc_command_config):
         if rpc_command_config is not None:
             rpc_command_config["unitId"] = self.__devices[content["device"]]["config"]["unitId"]
-            if rpc_command_config.get('bit') is not None:
-                rpc_command_config["functionCode"] = 6
+            # if rpc_command_config.get('bit') is not None:
+            #     rpc_command_config["functionCode"] = 6
             if rpc_command_config.get("functionCode") in (5, 6, 15, 16):
                 rpc_command_config["payload"] = self.__devices[content["device"]]["downlink_converter"].convert(
                     rpc_command_config, content)
@@ -273,6 +273,7 @@ class ModbusConnector(Connector, threading.Thread):
                 response = self.__function_to_device(rpc_command_config, rpc_command_config["unitId"])
             except Exception as e:
                 log.exception(e)
+                response = e
             if isinstance(response, ReadRegistersResponseBase):
                 to_converter = {"rpc": {content["data"]["method"]: {"data_sent": rpc_command_config,
                                                                     "input_data": response}}}
@@ -287,7 +288,7 @@ class ModbusConnector(Connector, threading.Thread):
             if isinstance(response, Exception):
                 self.__gateway.send_rpc_reply(content["device"],
                                               content["data"]["id"],
-                                              {content["data"]["method"]: response})
+                                              {content["data"]["method"]: str(response)})
             else:
                 self.__gateway.send_rpc_reply(content["device"],
                                               content["data"]["id"],
