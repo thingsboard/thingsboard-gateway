@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 #     Copyright 2019. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,9 +15,26 @@
 #     limitations under the License.
 
 from setuptools import setup
+from os import path
+
+this_directory = path.abspath(path.dirname(__file__))
+with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+    long_description = f.read()
+
+VERSION = "2.2.5"
 
 setup(
+    version=VERSION,
+    name="thingsboard-gateway",
+    author="ThingsBoard",
+    author_email="info@thingsboard.io",
+    license="Apache Software License (Apache Software License 2.0)",
+    description="Thingsboard Gateway for IoT devices.",
+    url="https://github.com/thingsboard/thingsboard-gateway",
+    long_description=long_description,
     long_description_content_type="text/markdown",
+    include_package_data=True,
+    python_requires=">=3.5",
     packages=['thingsboard_gateway', 'thingsboard_gateway.gateway', 'thingsboard_gateway.storage',
               'thingsboard_gateway.tb_client', 'thingsboard_gateway.connectors', 'thingsboard_gateway.connectors.ble',
               'thingsboard_gateway.connectors.mqtt', 'thingsboard_gateway.connectors.opcua', 'thingsboard_gateway.connectors.request',
@@ -44,11 +63,13 @@ setup(
         'python-can',
         'bacpypes>=0.18.0'
     ],
-    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/2.2.5.tar.gz',
+    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'
-        ]
+        ]},
+    package_data={
+        "*": ["config/*"]
     })
 
 
