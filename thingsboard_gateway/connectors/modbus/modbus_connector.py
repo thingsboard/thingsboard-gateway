@@ -211,8 +211,8 @@ class ModbusConnector(Connector, threading.Thread):
             2: self.__master.read_discrete_inputs,
             3: self.__master.read_holding_registers,
             4: self.__master.read_input_registers,
-            5: self.__master.write_coils,
-            6: self.__master.write_registers,
+            5: self.__master.write_coil,
+            6: self.__master.write_register,
             15: self.__master.write_coils,
             16: self.__master.write_registers,
         }

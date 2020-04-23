@@ -41,35 +41,38 @@
             "address": 2
           }
         ],
-        "rpc": {
-          "turnLightOn": {
+        "rpc": [
+          {
+            "tag": "turnLightOn",
             "address": 4,
-            "tag": "bit",
+            "type": "bit",
             "bit": 2,
             "value": true
           },
-          "turnLightOff": {
+          {
+            "tag": "turnLightOff",
             "address": 4,
-            "tag": "bit",
+            "type": "bit",
             "bit": 2,
             "value": false
           },
-          "setCPUFanSpeed": {
+          {
+            "tag": "setCPUFanSpeed",
             "type": "int",
-            "value": 42,
             "functionCode": 16,
             "address": 1,
             "byteOrder": "BIG",
             "registerCount": 2
           },
-          "getCPULoad": {
+          {
+            "tag":"getCPULoad",
             "type": "int",
             "functionCode": 4,
             "address": 0,
             "byteOrder": "BIG",
             "registerCount": 1
           }
-        }
+        ]
       }
     ]
   }
