@@ -284,8 +284,11 @@ class ModbusConnector(Connector, threading.Thread):
                                        WriteSingleRegisterResponse)):
                 response = str(response)
                 log.debug("Write %r", response)
-            response = False if response is None else response
-            response = str(response) if isinstance(response, Exception) else response
-            self.__gateway.send_rpc_reply(content["device"],
-                                          content["data"]["id"],
-                                          {content["data"]["method"]: response})
+            if isinstance(response, Exception):
+                self.__gateway.send_rpc_reply(content["device"],
+                                              content["data"]["id"],
+                                              {content["data"]["method"]: response})
+            else:
+                self.__gateway.send_rpc_reply(content["device"],
+                                              content["data"]["id"],
+                                              success_sent=True)
