@@ -12,10 +12,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from sys import getsizeof, executable, argv
+from sys import getsizeof, executable, argv, stdout
 from os import listdir, path, execv, pathsep, system
 from pkg_resources import get_distribution
 from time import time, sleep
+import logging
 import logging.config
 import logging.handlers
 from queue import Queue
@@ -33,6 +34,8 @@ from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 from thingsboard_gateway.gateway.tb_gateway_remote_configurator import RemoteConfigurator
 
+
+
 log = logging.getLogger('service')
 main_handler = logging.handlers.MemoryHandler(-1)
 
@@ -45,7 +48,11 @@ class TBGatewayService:
         with open(config_file) as general_config:
             config = safe_load(general_config)
         self._config_dir = path.dirname(path.abspath(config_file)) + path.sep
-        logging.config.fileConfig(self._config_dir + "logs.conf")
+        logging_error = None
+        try:
+            logging.config.fileConfig(self._config_dir + "logs.conf", disable_existing_loggers=False)
+        except Exception as e:
+            logging_error = e
         global log
         log = logging.getLogger('service')
         log.info("Gateway starting...")
@@ -62,6 +69,9 @@ class TBGatewayService:
         self.tb_client = TBClient(config["thingsboard"])
         self.tb_client.connect()
         self.subscribe_to_required_topics()
+        if logging_error is not None:
+            self.tb_client.client.send_telemetry({"ts": time()*1000, "values": {"LOGS": "Logging loading exception, logs.conf is wrong: %s" % (str(logging_error), )}})
+            TBLoggerHandler.set_default_handler()
         self.counter = 0
         self.__rpc_reply_sent = False
         global main_handler
@@ -227,7 +237,7 @@ class TBGatewayService:
                 try:
                     connector_class = TBUtility.check_and_import(connector["type"], self._default_connectors.get(connector["type"], connector.get("class")))
                     self._implemented_connectors[connector["type"]] = connector_class
-                    with open(self._config_dir + connector['configuration'], 'r') as conf_file:
+                    with open(self._config_dir + connector['configuration'], 'r', encoding="UTF-8") as conf_file:
                         connector_conf = load(conf_file)
                         if not self.connectors_configs.get(connector['type']):
                             self.connectors_configs[connector['type']] = []

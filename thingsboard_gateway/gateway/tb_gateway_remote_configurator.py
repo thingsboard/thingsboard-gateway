@@ -12,13 +12,15 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from os import remove
+from os import remove, linesep
+from os.path import exists
 from re import findall
 from time import time, sleep
 from logging import getLogger
 from base64 import b64encode, b64decode
 from simplejson import dumps, loads, dump
 from yaml import safe_dump
+from configparser import ConfigParser
 
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -101,7 +103,7 @@ class RemoteConfigurator:
         self.__apply_storage_configuration()
         if self.__safe_apply_connection_configuration():
             LOG.info("Remote configuration has been applied.")
-            with open(self.__gateway.get_config_path() + "tb_gateway.yaml", "w") as general_configuration_file:
+            with open(self.__gateway.get_config_path() + "tb_gateway.yaml", "w", encoding="UTF-8") as general_configuration_file:
                 safe_dump(self.__new_general_configuration_file, general_configuration_file)
             self.__old_connectors_configs = {}
             self.__new_connectors_configs = {}
@@ -114,7 +116,7 @@ class RemoteConfigurator:
         else:
             self.__update_logs_configuration()
             self.__old_general_configuration_file.pop("logs")
-            with open(self.__gateway.get_config_path() + "tb_gateway.yaml", "w") as general_configuration_file:
+            with open(self.__gateway.get_config_path() + "tb_gateway.yaml", "w", encoding="UTF-8") as general_configuration_file:
                 safe_dump(self.__old_general_configuration_file, general_configuration_file)
             LOG.error("A remote general configuration applying has been failed.")
             self.__old_connectors_configs = {}
@@ -167,7 +169,7 @@ class RemoteConfigurator:
                 for connector_config_section in self.__new_connectors_configs[connector_type]:
                     for connector_file in connector_config_section["config"]:
                         connector_config = connector_config_section["config"][connector_file]
-                        with open(self.__gateway.get_config_path() + connector_file, "w") as config_file:
+                        with open(self.__gateway.get_config_path() + connector_file, "w", encoding="UTF-8") as config_file:
                             dump(connector_config, config_file, sort_keys=True, indent=2)
                         new_connectors_files.append(connector_file)
                         LOG.debug("Saving new configuration for \"%s\" connector to file \"%s\"", connector_type,
@@ -237,7 +239,7 @@ class RemoteConfigurator:
 
     def __get_current_logs_configuration(self):
         try:
-            with open(self.__gateway.get_config_path() + 'logs.conf', 'r') as logs:
+            with open(self.__gateway.get_config_path() + 'logs.conf', 'r', encoding="UTF-8") as logs:
                 current_logs_configuration = logs.read()
             return current_logs_configuration
         except Exception as e:
@@ -249,7 +251,20 @@ class RemoteConfigurator:
             LOG = getLogger('service')
             logs_conf_file_path = self.__gateway.get_config_path() + 'logs.conf'
             new_logging_level = findall(r'level=(.*)', self.__new_logs_configuration.replace("NONE", "NOTSET"))[-1]
-            with open(logs_conf_file_path, 'w') as logs:
+            new_logging_config = self.__new_logs_configuration.replace("NONE", "NOTSET").replace("\r\n", linesep)
+            logs_config = ConfigParser(allow_no_value=True)
+            logs_config.read_string(new_logging_config)
+            for section in logs_config:
+                if "handler_" in section and section != "handler_consoleHandler":
+                    args = tuple(logs_config[section]["args"]
+                                 .replace('(', '')
+                                 .replace(')', '')
+                                 .split(', '))
+                    path = args[0][1:-1]
+                    LOG.debug("Checking %s...", path)
+                    if not exists(path):
+                        raise FileNotFoundError
+            with open(logs_conf_file_path, 'w', encoding="UTF-8") as logs:
                 logs.write(self.__new_logs_configuration.replace("NONE", "NOTSET")+"\r\n")
             self.__gateway.main_handler.setLevel(new_logging_level)
             self.__gateway.main_handler.setTarget(self.__gateway.remote_handler)
@@ -259,5 +274,6 @@ class RemoteConfigurator:
                 self.__gateway.remote_handler.activate(new_logging_level)
             LOG.debug("Logs configuration has been updated.")
         except Exception as e:
+            LOG.error("Remote logging configuration is wrong!")
             LOG.exception(e)
 
