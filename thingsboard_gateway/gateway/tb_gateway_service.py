@@ -257,11 +257,14 @@ class TBGatewayService:
                 for config in connector_config["config"]:
                     connector = None
                     try:
-                        connector = self._implemented_connectors[connector_type](self, connector_config["config"][config],
-                                                                                 connector_type)
-                        connector.setName(connector_config["name"])
-                        self.available_connectors[connector.get_name()] = connector
-                        connector.open()
+                        if connector_config["config"][config] is not None:
+                            connector = self._implemented_connectors[connector_type](self, connector_config["config"][config],
+                                                                                     connector_type)
+                            connector.setName(connector_config["name"])
+                            self.available_connectors[connector.get_name()] = connector
+                            connector.open()
+                        else:
+                            log.info("Config not found for %s", connector_type)
                     except Exception as e:
                         log.exception(e)
                         if connector is not None:
