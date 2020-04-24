@@ -25,7 +25,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         self.__config = config
 
     def convert(self, config, data):
-        byte_order_str = config.get("byteOrder", "LITTLE")
+        byte_order_str = config.get("byteOrder", "BIG")
         byte_order = Endian.Big if byte_order_str.upper() == "BIG" else Endian.Little
         builder = BinaryPayloadBuilder(byteorder=byte_order)
         builder_functions = {"string": builder.add_string,
@@ -69,19 +69,22 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             assert builder_functions.get("string") is not None
             builder_functions[lower_type](value)
         elif lower_type in ["bit"]:
-            bits = [0 for _ in range(16)]
-            if byte_order_str == "LITTLE":
-                bits = bits[-1]
-                bits[config["bit"]-1] = int(bool(value))
-                bits = bits[-1]
-            else:
-                bits[config["bit"]-1] = int(bool(value))
-            log.debug(bits)
-            builder.add_bits(bits)
+            # bits = [0 for _ in range(16)]
+            # if byte_order_str == "LITTLE":
+            #     bits = bits[-1]
+            #     bits[config["bit"]-1] = int(bool(value))
+            #     bits = bits[-1]
+            # else:
+            #     bits[config["bit"]-1] = int(bool(value))
+            # log.debug(bits)
+            # builder.add_bits(bits)
+            builder.add_bits([bool(value)])
             # result = 0
             # for bit in bits:
             #     result = (result << 1) | bit
-            # return result
+            # return builder
+        elif lower_type in builder_functions:
+            builder_functions[lower_type](value)
         else:
             log.error("Unknown variable type")
 
@@ -97,6 +100,8 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             if "Exception" in str(builder):
                 log.exception(builder)
                 builder = str(builder)
+            if isinstance(builder, list) and len(builder) not in (8, 16, 32, 64):
+                builder = builder[0]
             return builder
         log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter", config["device"])
         return None

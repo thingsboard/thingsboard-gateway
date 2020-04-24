@@ -452,7 +452,7 @@ class TBGatewayService:
         if isinstance(arguments, list):
             result = self.__gateway_rpc_methods[method_to_call](*arguments)
         elif method_to_call in self.__self_rpc_sheduled_methods_functions:
-            seconds_to_restart = arguments*1000 if arguments else 0
+            seconds_to_restart = arguments*1000 if arguments and arguments != '{}' else 0
             self.__sheduled_rpc_calls.append([time()*1000 + seconds_to_restart, self.__self_rpc_sheduled_methods_functions[method_to_call]])
             log.info("Gateway %s sheduled in %i seconds", method_to_call, seconds_to_restart/1000)
             result = {"success": True}
