@@ -23,6 +23,7 @@ from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoi
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, \
                                             WriteSingleRegisterResponse
 from pymodbus.register_read_message import ReadRegistersResponseBase
+from pymodbus.bit_read_message import ReadBitsResponseBase
 from pymodbus.exceptions import ConnectionException
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -222,7 +223,7 @@ class ModbusConnector(Connector, threading.Thread):
         result = None
         if function_code in (1, 2, 3, 4):
             result = self.__available_functions[function_code](config["address"],
-                                                               config.get("registerCount", 1),
+                                                               config.get("objectsCount", config.get("registersCount", 1)),
                                                                unit=unit_id)
         elif function_code in (5, 6, 15, 16):
             result = self.__available_functions[function_code](config["address"],
@@ -274,17 +275,18 @@ class ModbusConnector(Connector, threading.Thread):
             except Exception as e:
                 log.exception(e)
                 response = e
-            if isinstance(response, ReadRegistersResponseBase):
+            if isinstance(response, (ReadRegistersResponseBase, ReadBitsResponseBase)):
                 to_converter = {"rpc": {content["data"]["method"]: {"data_sent": rpc_command_config,
                                                                     "input_data": response}}}
                 response = self.__devices[content["device"]]["converter"].convert(config=None, data=to_converter)
                 log.debug("Received RPC method: %s, result: %r", content["data"]["method"], response)
+                # response = {"success": response}
             elif isinstance(response, (WriteMultipleRegistersResponse,
                                        WriteMultipleCoilsResponse,
                                        WriteSingleCoilResponse,
                                        WriteSingleRegisterResponse)):
-                response = str(response)
-                log.debug("Write %r", response)
+                log.debug("Write %r", str(response))
+                response = {"success": True}
             if isinstance(response, Exception):
                 self.__gateway.send_rpc_reply(content["device"],
                                               content["data"]["id"],
@@ -292,4 +294,5 @@ class ModbusConnector(Connector, threading.Thread):
             else:
                 self.__gateway.send_rpc_reply(content["device"],
                                               content["data"]["id"],
-                                              success_sent=True)
+                                              response)
+            log.debug("%r", response)

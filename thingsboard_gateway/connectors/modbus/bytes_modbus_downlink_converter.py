@@ -25,7 +25,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         self.__config = config
 
     def convert(self, config, data):
-        byte_order_str = config.get("byteOrder", "BIG")
+        byte_order_str = config.get("byteOrder", "LITTLE")
         byte_order = Endian.Big if byte_order_str.upper() == "BIG" else Endian.Little
         builder = BinaryPayloadBuilder(byteorder=byte_order)
         builder_functions = {"string": builder.add_string,
@@ -49,7 +49,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         lower_type = config.get("type", config.get("tag", "error")).lower()
         if lower_type == "error":
             log.error('"type" and "tag" - not found in configuration.')
-        variable_size = config.get("registerCount", 1) * 8
+        variable_size = config.get("objectsCount", config.get("registersCount", 1)) * 16
         if lower_type in ["integer", "dword", "dword/integer", "word", "int"]:
             lower_type = str(variable_size) + "int"
             assert builder_functions.get(lower_type) is not None
@@ -69,20 +69,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             assert builder_functions.get("string") is not None
             builder_functions[lower_type](value)
         elif lower_type in ["bit"]:
-            # bits = [0 for _ in range(16)]
-            # if byte_order_str == "LITTLE":
-            #     bits = bits[-1]
-            #     bits[config["bit"]-1] = int(bool(value))
-            #     bits = bits[-1]
-            # else:
-            #     bits[config["bit"]-1] = int(bool(value))
-            # log.debug(bits)
-            # builder.add_bits(bits)
-            builder.add_bits([bool(value)])
-            # result = 0
-            # for bit in bits:
-            #     result = (result << 1) | bit
-            # return builder
+            return bytes(bool(int(value)))
         elif lower_type in builder_functions:
             builder_functions[lower_type](value)
         else:
@@ -97,6 +84,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
 
         if function_code in builder_converting_functions:
             builder = builder_converting_functions[function_code]()
+            log.debug(builder)
             if "Exception" in str(builder):
                 log.exception(builder)
                 builder = str(builder)

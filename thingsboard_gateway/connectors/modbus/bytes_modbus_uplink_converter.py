@@ -35,7 +35,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             for tag in data[config_data]:
                 configuration = data[config_data][tag]["data_sent"]
                 response = data[config_data][tag]["input_data"]
-                byte_order = configuration.get("byteOrder", "BIG")
+                byte_order = configuration.get("byteOrder", "LITTLE")
                 endian_order = Endian.Little if byte_order.upper() == "LITTLE" else Endian.Big
                 decoded_data = None
                 if not isinstance(response, ModbusIOException):
@@ -43,8 +43,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
                         result = response.bits
                         result = result if byte_order.upper() == 'LITTLE' else result[::-1]
                         log.debug(result)
-                        if "bit" in configuration:
-                            decoded_data = result[configuration["bit"]]
+                        if configuration["type"].lower() == "bit":
+                            decoded_data = result[:configuration.get("objectsCount", configuration.get("registersCount", 1))]
+                            if len(decoded_data) == 1:
+                                decoded_data = decoded_data[0]
                         else:
                             decoded_data = result[0]
                     elif configuration["functionCode"] in [3, 4]:
