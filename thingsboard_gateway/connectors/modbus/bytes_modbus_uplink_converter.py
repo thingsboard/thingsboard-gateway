@@ -33,55 +33,62 @@ class BytesModbusUplinkConverter(ModbusConverter):
         self.__result["attributes"] = []
         for config_data in data:
             for tag in data[config_data]:
-                configuration = data[config_data][tag]["data_sent"]
-                response = data[config_data][tag]["input_data"]
-                byte_order = configuration.get("byteOrder", "LITTLE")
-                endian_order = Endian.Little if byte_order.upper() == "LITTLE" else Endian.Big
-                decoded_data = None
-                if not isinstance(response, ModbusIOException):
-                    if configuration["functionCode"] in [1, 2]:
-                        result = response.bits
-                        result = result if byte_order.upper() == 'LITTLE' else result[::-1]
-                        log.debug(result)
-                        if configuration["type"].lower() == "bit":
-                            decoded_data = result[:configuration.get("objectsCount", configuration.get("registersCount", 1))]
-                            if len(decoded_data) == 1:
-                                decoded_data = decoded_data[0]
-                        else:
-                            decoded_data = result[0]
-                    elif configuration["functionCode"] in [3, 4]:
-                        decoder = None
-                        registers = response.registers
-                        log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))
-                        try:
-                            decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order)
-                        except TypeError:
-                            # pylint: disable=E1123
-                            decoder = BinaryPayloadDecoder.fromRegisters(registers, endian=endian_order)
-                        assert decoder is not None
-                        decoded_data = self.__decode_from_registers(decoder, configuration)
-                        if configuration.get("divider"):
-                            decoded_data = float(decoded_data) / float(configuration["divider"])
-                        if configuration.get("multiplier"):
-                            decoded_data = decoded_data * configuration["multiplier"]
-                else:
-                    log.exception(response)
+                try:
+                    configuration = data[config_data][tag]["data_sent"]
+                    response = data[config_data][tag]["input_data"]
+                    if config.get("byteOrder"):
+                        byte_order = config["byteOrder"]
+                    else:
+                        byte_order = configuration.get("byteOrder", "LITTLE")
+                    endian_order = Endian.Little if byte_order.upper() == "LITTLE" else Endian.Big
                     decoded_data = None
-                if config_data == "rpc":
-                    return decoded_data
-                log.debug("datatype: %s \t key: %s \t value: %s", self.__datatypes[config_data], tag, str(decoded_data))
-                self.__result[self.__datatypes[config_data]].append({tag: decoded_data})
+                    if not isinstance(response, ModbusIOException):
+                        if configuration["functionCode"] in [1, 2]:
+                            result = response.bits
+                            result = result if byte_order.upper() == 'LITTLE' else result[::-1]
+                            log.debug(result)
+                            if configuration["type"].lower() == "bit":
+                                decoded_data = result[:configuration.get("objectsCount", configuration.get("registersCount", configuration.get("registerCount", 1)))]
+                                if len(decoded_data) == 1:
+                                    decoded_data = decoded_data[0]
+                            else:
+                                decoded_data = result[0]
+                        elif configuration["functionCode"] in [3, 4]:
+                            decoder = None
+                            registers = response.registers
+                            log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))
+                            try:
+                                decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order)
+                            except TypeError:
+                                # pylint: disable=E1123
+                                decoder = BinaryPayloadDecoder.fromRegisters(registers, endian=endian_order)
+                            assert decoder is not None
+                            decoded_data = self.__decode_from_registers(decoder, configuration)
+                            if configuration.get("divider"):
+                                decoded_data = float(decoded_data) / float(configuration["divider"])
+                            if configuration.get("multiplier"):
+                                decoded_data = decoded_data * configuration["multiplier"]
+                    else:
+                        log.exception(response)
+                        decoded_data = None
+                    if config_data == "rpc":
+                        return decoded_data
+                    log.debug("datatype: %s \t key: %s \t value: %s", self.__datatypes[config_data], tag, str(decoded_data))
+                    self.__result[self.__datatypes[config_data]].append({tag: decoded_data})
+                except Exception as e:
+                    log.exception(e)
         log.debug(self.__result)
         return self.__result
 
     @staticmethod
     def __decode_from_registers(decoder, configuration):
         type_ = configuration["type"]
-        registers_count = configuration.get("registerCount", 1)
+        objects_count = configuration.get("objectsCount", configuration.get("registersCount", configuration.get("registerCount", 1)))
         lower_type = type_.lower()
 
         decoder_functions = {
             'string': decoder.decode_string,
+            'bytes': decoder.decode_string,
             'bit': decoder.decode_bits,
             'bits': decoder.decode_bits,
             '8int': decoder.decode_8bit_int,
@@ -99,41 +106,40 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
         decoded = None
 
-        if decoder_functions.get(lower_type) is not None:
+        if lower_type == "string":
+            decoded = decoder_functions[type_](objects_count * 2)
+
+        elif decoder_functions.get(lower_type) is not None:
             decoded = decoder_functions[lower_type]()
 
         elif lower_type in ['int', 'long', 'integer']:
-            type_ = str(registers_count * 16) + "int"
+            type_ = str(objects_count * 16) + "int"
             assert decoder_functions.get(type_) is not None
             decoded = decoder_functions[type_]()
 
         elif lower_type in ["double", "float"]:
-            type_ = str(registers_count * 16) + "float"
+            type_ = str(objects_count * 16) + "float"
             assert decoder_functions.get(type_) is not None
             decoded = decoder_functions[type_]()
 
         elif lower_type == 'uint':
-            type_ = str(registers_count * 16) + "uint"
+            type_ = str(objects_count * 16) + "uint"
             assert decoder_functions.get(type_) is not None
             decoded = decoder_functions[type_]()
-
-        elif lower_type == "string":
-            decoded = decoder_functions[type_](registers_count * 2)
 
         elif lower_type == 'bit':
             bit_address = configuration["bit"]
             decoded = decoder_functions[type_]()[bit_address]
-
-        elif lower_type == 'bits':
-            decoded = decoder_functions[type_]()
 
         else:
             log.error("Unknown type: %s", type_)
 
         if isinstance(decoded, int):
             result_data = decoded
-        elif isinstance(decoded, bytes):
+        elif isinstance(decoded, bytes) and lower_type == "string":
             result_data = decoded.decode('UTF-8')
+        elif isinstance(decoded, bytes) and lower_type == "bytes":
+            result_data = decoded
         elif isinstance(decoded, list):
             result_data = str(decoded)
         elif isinstance(decoded, float):

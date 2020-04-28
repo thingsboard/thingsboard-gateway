@@ -41,6 +41,7 @@ class ModbusConnector(Connector, threading.Thread):
         self._connector_type = connector_type
         self.__master = None
         self.__config = config.get("server")
+        self.__byte_order = self.__config.get("byteOrder")
         self.__configure_master()
         self.__devices = {}
         self.setName(self.__config.get("name",
@@ -130,9 +131,14 @@ class ModbusConnector(Connector, threading.Thread):
                             log.debug("Checking %s for device %s", config_data, device)
                             self.__devices[device]["next_"+config_data+"_check"] = current_time + self.__devices[device]["config"][config_data+"PollPeriod"]/1000
                             log.debug(device_responses)
-                            converted_data = self.__devices[device]["converter"].convert(config=None, data=device_responses)
+                            converted_data = {}
+                            try:
+                                converted_data = self.__devices[device]["converter"].convert(config={"byteOrder": self.__byte_order},
+                                                                                             data=device_responses)
+                            except Exception as e:
+                                log.error(e)
 
-                            if self.__devices[device]["config"].get("sendDataOnlyOnChange"):
+                            if converted_data and self.__devices[device]["config"].get("sendDataOnlyOnChange"):
                                 self.statistics['MessagesReceived'] += 1
                                 to_send = {"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
                                 if to_send.get("telemetry") is None:
@@ -160,7 +166,7 @@ class ModbusConnector(Connector, threading.Thread):
                                     self.statistics['MessagesSent'] += 1
                                 else:
                                     log.debug("Data has not been changed.")
-                            elif self.__devices[device]["config"].get("sendDataOnlyOnChange") is None or not self.__devices[device]["config"].get("sendDataOnlyOnChange"):
+                            elif converted_data and self.__devices[device]["config"].get("sendDataOnlyOnChange") is None or not self.__devices[device]["config"].get("sendDataOnlyOnChange"):
                                 self.statistics['MessagesReceived'] += 1
                                 to_send = {"deviceName": converted_data["deviceName"],
                                            "deviceType": converted_data["deviceType"]}
@@ -223,7 +229,7 @@ class ModbusConnector(Connector, threading.Thread):
         result = None
         if function_code in (1, 2, 3, 4):
             result = self.__available_functions[function_code](config["address"],
-                                                               config.get("objectsCount", config.get("registersCount", 1)),
+                                                               config.get("objectsCount", config.get("registersCount",  config.get("registerCount", 1))),
                                                                unit=unit_id)
         elif function_code in (5, 6, 15, 16):
             result = self.__available_functions[function_code](config["address"],

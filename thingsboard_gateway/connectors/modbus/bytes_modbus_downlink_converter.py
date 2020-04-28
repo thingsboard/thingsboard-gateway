@@ -49,7 +49,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         lower_type = config.get("type", config.get("tag", "error")).lower()
         if lower_type == "error":
             log.error('"type" and "tag" - not found in configuration.')
-        variable_size = config.get("objectsCount", config.get("registersCount", 1)) * 16
+        variable_size = config.get("objectsCount", config.get("registersCount",  config.get("registerCount", 1))) * 8
         if lower_type in ["integer", "dword", "dword/integer", "word", "int"]:
             lower_type = str(variable_size) + "int"
             assert builder_functions.get(lower_type) is not None
