@@ -175,7 +175,7 @@ class MqttConnector(Connector, Thread):
                     self._client.loop_start()
                     if not self._connected:
                         time.sleep(1)
-                except Exception as e:
+                except ConnectionRefusedError as e:
                     self.__log.exception(e)
                     time.sleep(10)
 
