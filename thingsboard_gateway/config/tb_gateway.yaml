@@ -56,6 +56,11 @@ connectors:
 #    configuration: bacnet.json
 #
 #  -
+#    name: ODBC Connector
+#    type: odbc
+#    configuration: odbc.json
+#
+#  -
 #    name: Custom Serial Connector
 #    type: serial
 #    configuration: custom_serial.json

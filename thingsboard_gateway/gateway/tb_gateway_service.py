@@ -86,6 +86,7 @@ class TBGatewayService:
             "request": "RequestConnector",
             "can": "CanConnector",
             "bacnet": "BACnetConnector",
+            "odbc": "OdbcConnector"
         }
         self._implemented_connectors = {}
         self._event_storage_types = {

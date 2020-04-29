@@ -21,11 +21,6 @@ connectors:
     configuration: mqtt.json
 
 #  -
-#    name: Request Connector
-#    type: request
-#    configuration: request.json
-#
-#  -
 #    name: Modbus Connector
 #    type: modbus
 #    configuration: modbus.json
@@ -44,6 +39,21 @@ connectors:
 #    name: BLE Connector
 #    type: ble
 #    configuration: ble.json
+#
+#  -
+#    name: REQUEST Connector
+#    type: request
+#    configuration: request.json
+#
+#  -
+#    name: CAN Connector
+#    type: can
+#    configuration: can.json
+#
+#  -
+#    name: ODBC Connector
+#    type: odbc
+#    configuration: odbc.json
 #
 #  -
 #    name: Custom Serial Connector
