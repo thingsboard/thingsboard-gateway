@@ -185,7 +185,20 @@ class ModbusConnector(Connector, threading.Thread):
                 log.exception(e)
 
     def on_attributes_update(self, content):
-        pass
+        try:
+            for attribute_updates_command_config in self.__devices[content["device"]]["config"]["attributeUpdates"]:
+                for attribute_updated in content["data"]:
+                    if attribute_updates_command_config["tag"] == attribute_updated:
+                        to_process = {
+                            "device": content["device"],
+                            "data": {
+                                "method": attribute_updated,
+                                "params": content["data"][attribute_updated]
+                            }
+                        }
+                        self.__process_rpc_request(to_process, attribute_updates_command_config)
+        except Exception as e:
+            log.exception(e)
 
     def __configure_master(self):
         host = self.__config.get("host", "localhost")
@@ -293,12 +306,13 @@ class ModbusConnector(Connector, threading.Thread):
                                        WriteSingleRegisterResponse)):
                 log.debug("Write %r", str(response))
                 response = {"success": True}
-            if isinstance(response, Exception):
-                self.__gateway.send_rpc_reply(content["device"],
-                                              content["data"]["id"],
-                                              {content["data"]["method"]: str(response)})
-            else:
-                self.__gateway.send_rpc_reply(content["device"],
-                                              content["data"]["id"],
-                                              response)
+            if content.get("id"):
+                if isinstance(response, Exception):
+                    self.__gateway.send_rpc_reply(content["device"],
+                                                  content["data"]["id"],
+                                                  {content["data"]["method"]: str(response)})
+                else:
+                    self.__gateway.send_rpc_reply(content["device"],
+                                                  content["data"]["id"],
+                                                  response)
             log.debug("%r", response)
