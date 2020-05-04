@@ -259,6 +259,7 @@ class ModbusConnector(Connector, threading.Thread):
     def server_side_rpc_handler(self, content):
         try:
             if content.get("device") is not None:
+
                 log.debug("Modbus connector received rpc request for %s with content: %s", content["device"], content)
                 if isinstance(self.__devices[content["device"]]["config"]["rpc"], dict):
                     rpc_command_config = self.__devices[content["device"]]["config"]["rpc"].get(content["data"]["method"])
@@ -268,6 +269,7 @@ class ModbusConnector(Connector, threading.Thread):
                     for rpc_command_config in self.__devices[content["device"]]["config"]["rpc"]:
                         if rpc_command_config["tag"] == content["data"]["method"]:
                             self.__process_rpc_request(content, rpc_command_config)
+                            break
                 else:
                     log.error("Received rpc request, but method %s not found in config for %s.",
                               content["data"].get("method"),
@@ -306,7 +308,7 @@ class ModbusConnector(Connector, threading.Thread):
                                        WriteSingleRegisterResponse)):
                 log.debug("Write %r", str(response))
                 response = {"success": True}
-            if content.get("id"):
+            if content.get("id") or (content.get("data") is not None and content["data"].get("id")):
                 if isinstance(response, Exception):
                     self.__gateway.send_rpc_reply(content["device"],
                                                   content["data"]["id"],
