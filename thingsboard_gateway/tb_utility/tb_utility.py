@@ -140,3 +140,12 @@ class TBUtility:
         except Exception as e:
             log.exception(e)
         return full_value
+
+    @staticmethod
+    def install_package(package, version="upgrade"):
+        from sys import executable
+        from subprocess import check_call
+        if version.lower() == "upgrade":
+            check_call([executable, "-m", "pip", "install", package, "--upgrade", "--user"])
+        else:
+            check_call([executable, "-m", "pip", "install", package + version, "--user"])

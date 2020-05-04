@@ -463,6 +463,7 @@ class TBGatewayService:
             result = self.__gateway_rpc_methods[method_to_call]()
         else:
             result = self.__gateway_rpc_methods[method_to_call]()
+        log.debug(result)
         return result
 
     def __rpc_ping(self, *args):

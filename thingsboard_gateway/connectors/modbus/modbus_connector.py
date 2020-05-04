@@ -17,7 +17,15 @@ import threading
 from random import choice
 from string import ascii_lowercase
 
-from pymodbus.constants import Defaults
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+# Try import Pymodbus library or install it and import
+try:
+    from pymodbus.constants import Defaults
+except ImportError:
+    print("Modbus library not found - installing...")
+    TBUtility.install_package("pymodbus", ">=2.3.0")
+    from pymodbus.constants import Defaults
+
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient, ModbusRtuFramer, ModbusSocketFramer
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, \
@@ -26,7 +34,6 @@ from pymodbus.register_read_message import ReadRegistersResponseBase
 from pymodbus.bit_read_message import ReadBitsResponseBase
 from pymodbus.exceptions import ConnectionException
 
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter

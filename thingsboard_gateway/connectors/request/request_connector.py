@@ -19,12 +19,18 @@ from string import ascii_lowercase
 from time import sleep, time
 from re import fullmatch
 
-import requests
-from requests import Timeout
+# import requests
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+try:
+    from requests import Timeout, request
+except ImportError:
+    print("Requests library not found - installing...")
+    TBUtility.install_package("requests")
+    from requests import Timeout, request
+
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
 
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
 from thingsboard_gateway.connectors.request.json_request_downlink_converter import JsonRequestDownlinkConverter
@@ -80,7 +86,7 @@ class RequestConnector(Connector, Thread):
                     response_queue = Queue(1)
                     request_dict = {"config": {**attribute_request,
                                                **converted_data},
-                                    "request": requests.request}
+                                    "request": request}
                     attribute_update_request_thread = Thread(target=self.__send_request,
                                                              args=(request_dict, response_queue, log),
                                                              daemon=True,
@@ -102,7 +108,7 @@ class RequestConnector(Connector, Thread):
                     response_queue = Queue(1)
                     request_dict = {"config": {**rpc_request,
                                                **converted_data},
-                                    "request": requests.request}
+                                    "request": request}
                     request_dict["config"].get("uplink_converter")
                     rpc_request_thread = Thread(target=self.__send_request,
                                                 args=(request_dict, response_queue, log),
@@ -138,7 +144,7 @@ class RequestConnector(Connector, Thread):
                 self.__requests_in_progress.append({"config": endpoint,
                                                     "converter": converter,
                                                     "next_time": time(),
-                                                    "request": requests.request})
+                                                    "request": request})
             except Exception as e:
                 log.exception(e)
 
