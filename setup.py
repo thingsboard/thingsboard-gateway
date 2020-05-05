@@ -52,17 +52,13 @@ setup(
         'pip',
         'jsonschema==3.1.1',
         'lxml',
-        'opcua',
         'paho-mqtt',
-        'pymodbus>=2.3.0',
         'pyserial',
         'pytz',
         'PyYAML',
         'simplejson',
         'pyrsistent',
-        'requests',
-        'python-can',
-        'bacpypes>=0.18.0'
+        'requests'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={

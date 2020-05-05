@@ -12,16 +12,24 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 
-from copy import deepcopy
 from random import choice
 from threading import Thread
 from time import time, sleep
 from string import ascii_lowercase
-from bacpypes.core import run, stop
+
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
+try:
+    from bacpypes.core import run, stop
+except ImportError:
+    print("BACnet library not found - installing...")
+    TBUtility.install_package("bacpypes", ">=0.18.0")
+    from bacpypes.core import run, stop
+
 from bacpypes.pdu import Address, GlobalBroadcast, LocalBroadcast, LocalStation, RemoteStation
+
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_application import TBBACnetApplication
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class BACnetConnector(Thread, Connector):

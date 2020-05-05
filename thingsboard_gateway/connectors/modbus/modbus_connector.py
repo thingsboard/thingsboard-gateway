@@ -17,7 +17,15 @@ import threading
 from random import choice
 from string import ascii_lowercase
 
-from pymodbus.constants import Defaults
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+# Try import Pymodbus library or install it and import
+try:
+    from pymodbus.constants import Defaults
+except ImportError:
+    print("Modbus library not found - installing...")
+    TBUtility.install_package("pymodbus", ">=2.3.0")
+    from pymodbus.constants import Defaults
+
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient, ModbusRtuFramer, ModbusSocketFramer
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, \
@@ -26,7 +34,6 @@ from pymodbus.register_read_message import ReadRegistersResponseBase
 from pymodbus.bit_read_message import ReadBitsResponseBase
 from pymodbus.exceptions import ConnectionException
 
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
@@ -185,7 +192,20 @@ class ModbusConnector(Connector, threading.Thread):
                 log.exception(e)
 
     def on_attributes_update(self, content):
-        pass
+        try:
+            for attribute_updates_command_config in self.__devices[content["device"]]["config"]["attributeUpdates"]:
+                for attribute_updated in content["data"]:
+                    if attribute_updates_command_config["tag"] == attribute_updated:
+                        to_process = {
+                            "device": content["device"],
+                            "data": {
+                                "method": attribute_updated,
+                                "params": content["data"][attribute_updated]
+                            }
+                        }
+                        self.__process_rpc_request(to_process, attribute_updates_command_config)
+        except Exception as e:
+            log.exception(e)
 
     def __configure_master(self):
         host = self.__config.get("host", "localhost")
@@ -246,6 +266,7 @@ class ModbusConnector(Connector, threading.Thread):
     def server_side_rpc_handler(self, content):
         try:
             if content.get("device") is not None:
+
                 log.debug("Modbus connector received rpc request for %s with content: %s", content["device"], content)
                 if isinstance(self.__devices[content["device"]]["config"]["rpc"], dict):
                     rpc_command_config = self.__devices[content["device"]]["config"]["rpc"].get(content["data"]["method"])
@@ -255,6 +276,7 @@ class ModbusConnector(Connector, threading.Thread):
                     for rpc_command_config in self.__devices[content["device"]]["config"]["rpc"]:
                         if rpc_command_config["tag"] == content["data"]["method"]:
                             self.__process_rpc_request(content, rpc_command_config)
+                            break
                 else:
                     log.error("Received rpc request, but method %s not found in config for %s.",
                               content["data"].get("method"),
@@ -293,12 +315,13 @@ class ModbusConnector(Connector, threading.Thread):
                                        WriteSingleRegisterResponse)):
                 log.debug("Write %r", str(response))
                 response = {"success": True}
-            if isinstance(response, Exception):
-                self.__gateway.send_rpc_reply(content["device"],
-                                              content["data"]["id"],
-                                              {content["data"]["method"]: str(response)})
-            else:
-                self.__gateway.send_rpc_reply(content["device"],
-                                              content["data"]["id"],
-                                              response)
+            if content.get("id") or (content.get("data") is not None and content["data"].get("id")):
+                if isinstance(response, Exception):
+                    self.__gateway.send_rpc_reply(content["device"],
+                                                  content["data"]["id"],
+                                                  {content["data"]["method"]: str(response)})
+                else:
+                    self.__gateway.send_rpc_reply(content["device"],
+                                                  content["data"]["id"],
+                                                  response)
             log.debug("%r", response)

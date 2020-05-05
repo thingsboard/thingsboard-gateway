@@ -36,8 +36,8 @@ class BytesModbusUplinkConverter(ModbusConverter):
                 try:
                     configuration = data[config_data][tag]["data_sent"]
                     response = data[config_data][tag]["input_data"]
-                    if config.get("byteOrder"):
-                        byte_order = config["byteOrder"]
+                    if configuration.get("byteOrder") is not None:
+                        byte_order = configuration["byteOrder"]
                     else:
                         byte_order = configuration.get("byteOrder", "LITTLE")
                     endian_order = Endian.Little if byte_order.upper() == "LITTLE" else Endian.Big
@@ -47,9 +47,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             result = response.bits
                             result = result if byte_order.upper() == 'LITTLE' else result[::-1]
                             log.debug(result)
-                            if configuration["type"].lower() == "bit":
+                            if configuration["type"].lower() == "bits":
                                 decoded_data = result[:configuration.get("objectsCount", configuration.get("registersCount", configuration.get("registerCount", 1)))]
-                                if len(decoded_data) == 1:
+                                if len(decoded_data) == 1 and isinstance(decoded_data, list):
                                     decoded_data = decoded_data[0]
                             else:
                                 decoded_data = result[0]
@@ -127,10 +127,6 @@ class BytesModbusUplinkConverter(ModbusConverter):
             assert decoder_functions.get(type_) is not None
             decoded = decoder_functions[type_]()
 
-        elif lower_type == 'bit':
-            bit_address = configuration["bit"]
-            decoded = decoder_functions[type_]()[bit_address]
-
         else:
             log.error("Unknown type: %s", type_)
 
@@ -141,7 +137,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
         elif isinstance(decoded, bytes) and lower_type == "bytes":
             result_data = decoded
         elif isinstance(decoded, list):
-            result_data = str(decoded)
+            result_data = decoded
         elif isinstance(decoded, float):
             result_data = decoded
         elif decoded is not None:

@@ -15,16 +15,22 @@
 import re
 import sched
 import time
+from threading import Thread
 from copy import copy
 from random import choice
 from string import ascii_lowercase
-from can import Notifier, BufferedReader, Message, CanError, ThreadSafeBus
-from threading import Thread
+
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+try:
+    from can import Notifier, BufferedReader, Message, CanError, ThreadSafeBus
+except ImportError:
+    print("CAN library not found - installing...")
+    TBUtility.install_package("python-can")
+    from can import Notifier, BufferedReader, Message, CanError, ThreadSafeBus
 
 from thingsboard_gateway.connectors.can.bytes_can_downlink_converter import BytesCanDownlinkConverter
 from thingsboard_gateway.connectors.can.bytes_can_uplink_converter import BytesCanUplinkConverter
 from thingsboard_gateway.connectors.connector import Connector, log
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class CanConnector(Connector, Thread):

@@ -20,9 +20,14 @@ from random import choice
 from threading import Thread
 from string import ascii_lowercase
 import regex
-from opcua import Client, ua
 from simplejson import dumps
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+try:
+    from opcua import Client, ua
+except ImportError:
+    print("OPC-UA library not found")
+    TBUtility.install_package("opcua")
+    from opcua import Client, ua
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
 

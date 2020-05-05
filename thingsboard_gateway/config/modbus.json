@@ -136,14 +136,14 @@
         "rpc": [
           {
             "tag": "setValue",
-            "type": "bit",
+            "type": "bits",
             "functionCode": 5,
             "objectsCount": 1,
             "address": 31
           },
           {
             "tag": "getValue",
-            "type": "bit",
+            "type": "bits",
             "functionCode": 1,
             "objectsCount": 1,
             "address": 31
