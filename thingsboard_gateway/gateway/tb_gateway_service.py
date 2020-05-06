@@ -27,9 +27,15 @@ from threading import Thread, RLock
 from yaml import safe_load
 from simplejson import load, dumps, loads
 
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
+try:
+    import pyrsistent
+except ImportError:
+    TBUtility.install_package("pyrsistent")
+
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 from thingsboard_gateway.gateway.tb_gateway_remote_configurator import RemoteConfigurator
