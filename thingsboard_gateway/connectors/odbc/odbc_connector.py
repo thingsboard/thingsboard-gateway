@@ -17,12 +17,17 @@ from time import sleep
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
-
-import pyodbc
 from simplejson import dumps, load
 
-from thingsboard_gateway.connectors.odbc.odbc_uplink_converter import OdbcUplinkConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+try:
+    import pyodbc
+except ImportError:
+    print("ODBC library not found - installing...")
+    TBUtility.install_package("pyodbc")
+    import pyodbc
+
+from thingsboard_gateway.connectors.odbc.odbc_uplink_converter import OdbcUplinkConverter
 
 from thingsboard_gateway.connectors.connector import Connector, log
 
