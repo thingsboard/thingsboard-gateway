@@ -201,7 +201,7 @@ class ConvertersTests(unittest.TestCase):
                                   {'64float': -123.45}],
                               'attributes': [
                                   {'string': 'abcdefgh'},
-                                  {'bits': '[False, True, False, True, True, False, True, False]'},
+                                  {'bits': [False, True, False, True, True, False, True, False]},
                                   {'8int': -18},
                                   {'16int': -22136},
                                   {'long': -22136},
