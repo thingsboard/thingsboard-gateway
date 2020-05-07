@@ -33,7 +33,10 @@ class TBUtility:
 
     @staticmethod
     def decode(message):
-        content = loads(message.payload.decode("utf-8"))
+        if message.payload != b'nan':
+            content = loads(message.payload.decode("utf-8"))
+        else:
+            content = None
         return content
 
     @staticmethod
