@@ -17,7 +17,7 @@ from os import path, listdir
 from inspect import getmembers, isclass
 from importlib import util
 from logging import getLogger
-from simplejson import dumps, loads
+from simplejson import dumps, loads, JSONDecodeError
 from jsonpath_rw import parse
 
 
@@ -34,10 +34,15 @@ class TBUtility:
     @staticmethod
     def decode(message):
         try:
-            content = loads(message.payload.decode("utf-8"))
-        except UnicodeDecodeError:
-            content = message.payload
-            log.info("Cannot decode incoming message: %r - will be processed as a bytes", content)
+            if isinstance(message.payload, bytes):
+                content = loads(message.payload.decode("utf-8"))
+            else:
+                content = loads(message.payload)
+        except JSONDecodeError:
+            if isinstance(message.payload, bytes):
+                content = message.payload.decode("utf-8")
+            else:
+                content = message.payload
         return content
 
     @staticmethod
