@@ -33,10 +33,11 @@ class TBUtility:
 
     @staticmethod
     def decode(message):
-        if message.payload != b'nan':
+        try:
             content = loads(message.payload.decode("utf-8"))
-        else:
-            content = None
+        except UnicodeDecodeError:
+            content = message.payload
+            log.info("Cannot decode incoming message: %r - will be processed as a bytes", content)
         return content
 
     @staticmethod
