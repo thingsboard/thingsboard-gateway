@@ -22,11 +22,12 @@ from time import sleep
 from simplejson import loads
 from base64 import b64encode
 
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 log = getLogger("service")
 
-# UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
-UPDATE_SERVICE_BASE_URL = "http://0.0.0.0:8090"
+UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
+# UPDATE_SERVICE_BASE_URL = "http://0.0.0.0:8090"
 
 
 class TBUpdater(Thread):
@@ -56,8 +57,12 @@ class TBUpdater(Thread):
         request_args = self.form_request_params()
         try:
             response = post(**request_args)
+            content = None
             content = loads(response.content)
-            log.debug(response)
+            if content is not None and content.get("updateAvailable", False):
+                new_version = content["message"].replace("New version ", "").replace(" is available!")
+                log.info(content["message"])
+                TBUtility.install_package("thingsboard-gateway", new_version)
         except Exception as e:
             log.exception(e)
 
