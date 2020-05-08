@@ -35,6 +35,7 @@ except ImportError:
     TBUtility.install_package("pyrsistent")
 
 from thingsboard_gateway.gateway.tb_client import TBClient
+from thingsboard_gateway.gateway.tb_updater import TBUpdater
 from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
 from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
@@ -62,7 +63,8 @@ class TBGatewayService:
         global log
         log = logging.getLogger('service')
         log.info("Gateway starting...")
-        self.version = get_distribution('thingsboard_gateway').version
+        self.__updater = TBUpdater(self, config)
+        self.version = self.__updater.get_version()
         log.info("ThingsBoard IoT gateway version: %s", self.version)
         self.available_connectors = {}
         self.__connector_incoming_messages = {}
