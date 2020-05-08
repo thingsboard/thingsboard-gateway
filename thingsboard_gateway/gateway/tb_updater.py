@@ -60,7 +60,7 @@ class TBUpdater(Thread):
             content = None
             content = loads(response.content)
             if content is not None and content.get("updateAvailable", False):
-                new_version = content["message"].replace("New version ", "").replace(" is available!")
+                new_version = content["message"].replace("New version ", "").replace(" is available!", "")
                 log.info(content["message"])
                 TBUtility.install_package("thingsboard-gateway", new_version)
         except Exception as e:
