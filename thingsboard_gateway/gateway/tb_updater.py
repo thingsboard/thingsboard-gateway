@@ -26,16 +26,15 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 log = getLogger("service")
 
-UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
-# UPDATE_SERVICE_BASE_URL = "http://0.0.0.0:8090"
+# UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
+UPDATE_SERVICE_BASE_URL = "http://0.0.0.0:8090"
 
 
 class TBUpdater(Thread):
     def __init__(self, gateway, auto_updates_enabled):
         super().__init__()
         self.__gateway = gateway
-        # self.__version = get_distribution('thingsboard_gateway').version
-        self.__version = "1.2.1"  #For test
+        self.__version = get_distribution('thingsboard_gateway').version
         self.__instance_id = str(uuid1())
         self.__platform = "deb"
         self.__os_version = platform()
@@ -45,7 +44,7 @@ class TBUpdater(Thread):
         self.start()
 
     def run(self):
-        while True:
+        while not self.__gateway.stopped:
             self.check_for_new_version()
             sleep(self.__check_period)
 
@@ -63,6 +62,8 @@ class TBUpdater(Thread):
                 new_version = content["message"].replace("New version ", "").replace(" is available!", "")
                 log.info(content["message"])
                 TBUtility.install_package("thingsboard-gateway", new_version)
+        except ConnectionRefusedError:
+            log.warning("Cannot connect to the update service. PLease check your internet connection.")
         except Exception as e:
             log.exception(e)
 

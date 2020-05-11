@@ -157,4 +157,4 @@ class TBUtility:
         if version.lower() == "upgrade":
             check_call([executable, "-m", "pip", "install", package, "--upgrade", "--user"])
         else:
-            check_call([executable, "-m", "pip", "install", package + version, "--user"])
+            check_call([executable, "-m", "pip", "install", package + "==" + version, "--user"])

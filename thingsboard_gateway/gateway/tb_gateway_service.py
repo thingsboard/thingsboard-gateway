@@ -49,6 +49,7 @@ main_handler = logging.handlers.MemoryHandler(-1)
 
 class TBGatewayService:
     def __init__(self, config_file=None):
+        self.stopped = False
         self.__lock = RLock()
         if config_file is None:
             config_file = path.dirname(path.dirname(path.abspath(__file__))) + '/config/tb_gateway.yaml'.replace('/', path.sep)
@@ -133,7 +134,7 @@ class TBGatewayService:
 
         try:
             gateway_statistic_send = 0
-            while True:
+            while not self.stopped:
                 cur_time = time()*1000
                 if self.__sheduled_rpc_calls:
                     for rpc_call_index in range(len(self.__sheduled_rpc_calls)):
@@ -172,10 +173,7 @@ class TBGatewayService:
                     gateway_statistic_send = time()*1000
                     # self.__check_shared_attributes()
         except KeyboardInterrupt:
-            log.info("Stopping...")
-            self.__close_connectors()
-            log.info("The gateway has been stopped.")
-            self.tb_client.stop()
+            self.__stop_gateway()
         except Exception as e:
             log.exception(e)
             self.__close_connectors()
@@ -191,7 +189,11 @@ class TBGatewayService:
                 log.exception(e)
 
     def __stop_gateway(self):
-        pass
+        self.stopped = True
+        log.info("Stopping...")
+        self.__close_connectors()
+        log.info("The gateway has been stopped.")
+        self.tb_client.stop()
 
     def _attributes_parse(self, content, *args):
         try:
