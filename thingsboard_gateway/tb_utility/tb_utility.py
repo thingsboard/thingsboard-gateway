@@ -157,4 +157,11 @@ class TBUtility:
         if version.lower() == "upgrade":
             check_call([executable, "-m", "pip", "install", package, "--upgrade", "--user"])
         else:
-            check_call([executable, "-m", "pip", "install", package + "==" + version, "--user"])
+            from pkg_resources import get_distribution
+            current_package_version = None
+            try:
+                current_package_version = get_distribution(package)
+            except Exception:
+                pass
+            if current_package_version is None or current_package_version != version:
+                check_call([executable, "-m", "pip", "install", package + "==" + version, "--user"])
