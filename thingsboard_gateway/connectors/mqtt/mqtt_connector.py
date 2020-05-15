@@ -340,7 +340,7 @@ class MqttConnector(Connector, Thread):
                         request_handled = True
                         self.__gateway.send_to_storage(self.name, converted_content)
                         self.statistics['MessagesSent'] += 1
-                        self.__log.info("Successfully converted message from topic %s", message.topic)
+                        self.__log.debug("Successfully converted message from topic %s", message.topic)
                     else:
                         continue
 
