@@ -21,15 +21,14 @@ from threading import Thread
 from time import time, sleep
 from simplejson import loads
 
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-
 log = getLogger("service")
 
-UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
+# UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
+UPDATE_SERVICE_BASE_URL = "http://127.0.0.1:8090"
 
 
 class TBUpdater(Thread):
-    def __init__(self, auto_updates_enabled):
+    def __init__(self):
         super().__init__()
         self.__version = {"current_version": get_distribution('thingsboard_gateway').version,
                           "latest_version": None}
@@ -76,7 +75,7 @@ class TBUpdater(Thread):
 
     def form_request_params(self):
         json_data = {
-            "version": self.__version,
+            "version": self.__version["current_version"],
             "platform": self.__platform,
             "instanceId": self.__instance_id,
             "osVersion": self.__os_version,
@@ -92,4 +91,4 @@ class TBUpdater(Thread):
 
 
 if __name__ == '__main__':
-    updater = TBUpdater("test", True)
+    updater = TBUpdater()

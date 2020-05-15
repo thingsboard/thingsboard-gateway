@@ -63,7 +63,7 @@ class TBGatewayService:
         global log
         log = logging.getLogger('service')
         log.info("Gateway starting...")
-        self.__updater = TBUpdater(config)
+        self.__updater = TBUpdater()
         self.__updates_check_period_ms = 3000
         self.__updates_check_time = 0
         self.version = self.__updater.get_version()
