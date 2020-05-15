@@ -29,9 +29,8 @@ UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
 
 
 class TBUpdater(Thread):
-    def __init__(self, gateway, auto_updates_enabled):
+    def __init__(self, auto_updates_enabled):
         super().__init__()
-        self.__gateway = gateway
         self.__version = {"current_version": get_distribution('thingsboard_gateway').version,
                           "latest_version": None}
         self.__instance_id = str(uuid1())
@@ -40,7 +39,6 @@ class TBUpdater(Thread):
         self.__previous_check = 0
         self.__check_period = 3600.0
         self.__request_timeout = 5
-        self.__auto_update = auto_updates_enabled
         self.__stopped = True
         self.start()
 
