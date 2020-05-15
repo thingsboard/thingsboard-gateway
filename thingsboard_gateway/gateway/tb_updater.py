@@ -18,35 +18,43 @@ from platform import platform
 from logging import getLogger
 from pkg_resources import get_distribution
 from threading import Thread
-from time import sleep
+from time import time, sleep
 from simplejson import loads
-from base64 import b64encode
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 log = getLogger("service")
 
-# UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
-UPDATE_SERVICE_BASE_URL = "http://0.0.0.0:8090"
+UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
 
 
 class TBUpdater(Thread):
     def __init__(self, gateway, auto_updates_enabled):
         super().__init__()
         self.__gateway = gateway
-        self.__version = get_distribution('thingsboard_gateway').version
+        self.__version = {"current_version": get_distribution('thingsboard_gateway').version,
+                          "latest_version": None}
         self.__instance_id = str(uuid1())
         self.__platform = "deb"
         self.__os_version = platform()
-        self.__check_period = 3600
+        self.__previous_check = 0
+        self.__check_period = 3600.0
         self.__request_timeout = 5
         self.__auto_update = auto_updates_enabled
+        self.__stopped = True
         self.start()
 
     def run(self):
-        while not self.__gateway.stopped:
-            self.check_for_new_version()
-            sleep(self.__check_period)
+        self.__stopped = False
+        while not self.__stopped:
+            if time() >= self.__previous_check + self.__check_period:
+                self.check_for_new_version()
+                self.__previous_check = time()
+            else:
+                sleep(1)
+
+    def stop(self):
+        self.__stopped = True
 
     def get_version(self):
         return self.__version
@@ -62,8 +70,7 @@ class TBUpdater(Thread):
                 new_version = content["message"].replace("New version ", "").replace(" is available!", "")
                 log.info(content["message"])
                 if new_version != self.__version:
-                    TBUtility.install_package("thingsboard-gateway", new_version)
-                    self.__gateway
+                    self.__version["latest_version"] = new_version
         except ConnectionRefusedError:
             log.warning("Cannot connect to the update service. PLease check your internet connection.")
         except Exception as e:
