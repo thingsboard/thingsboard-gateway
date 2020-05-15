@@ -63,7 +63,9 @@ class TBGatewayService:
         global log
         log = logging.getLogger('service')
         log.info("Gateway starting...")
-        self.__updater = TBUpdater(self, config)
+        self.__updater = TBUpdater(config)
+        self.__updates_check_period_ms = 3000
+        self.__updates_check_time = 0
         self.version = self.__updater.get_version()
         log.info("ThingsBoard IoT gateway version: %s", self.version)
         self.available_connectors = {}
@@ -171,6 +173,13 @@ class TBGatewayService:
                     self.tb_client.client.send_telemetry(summary_messages)
                     gateway_statistic_send = time()*1000
                     # self.__check_shared_attributes()
+
+                if cur_time - self.__updates_check_time >= self.__updates_check_period_ms:
+                    self.__updates_check_time = time()*1000
+                    self.version = self.__updater.get_version()
+                    if self.version.get("latest_version") is not None:
+                        log.info("\n\n[===UPDATE===]\n\n New version %s is available! \n\n[===UPDATE===]\n",
+                                 self.version["latest_version"])
         except KeyboardInterrupt:
             self.__stop_gateway()
         except Exception as e:
@@ -189,6 +198,7 @@ class TBGatewayService:
 
     def __stop_gateway(self):
         self.stopped = True
+        self.__updater.stop()
         log.info("Stopping...")
         self.__close_connectors()
         log.info("The gateway has been stopped.")
