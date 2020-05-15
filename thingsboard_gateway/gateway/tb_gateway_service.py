@@ -12,9 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from sys import getsizeof, executable, argv, stdout
+from sys import getsizeof, executable, argv
 from os import listdir, path, execv, pathsep, system
-from pkg_resources import get_distribution
 from time import time, sleep
 import logging
 import logging.config

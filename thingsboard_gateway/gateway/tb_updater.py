@@ -61,7 +61,9 @@ class TBUpdater(Thread):
             if content is not None and content.get("updateAvailable", False):
                 new_version = content["message"].replace("New version ", "").replace(" is available!", "")
                 log.info(content["message"])
-                TBUtility.install_package("thingsboard-gateway", new_version)
+                if new_version != self.__version:
+                    TBUtility.install_package("thingsboard-gateway", new_version)
+                    self.__gateway
         except ConnectionRefusedError:
             log.warning("Cannot connect to the update service. PLease check your internet connection.")
         except Exception as e:
