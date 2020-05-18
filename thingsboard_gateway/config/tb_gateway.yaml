@@ -14,11 +14,15 @@ storage:
 #  max_read_records_count: 10
 #  max_records_per_file: 10000
 connectors:
-
   -
-    name: MQTT Broker Connector
-    type: mqtt
-    configuration: mqtt.json
+    name: TCP Server Connector
+    type: tcpserver
+    configuration: tcpserver.json
+    class: TCPServerConnector
+#   -
+#     name: MQTT Broker Connector
+#     type: mqtt
+#     configuration: mqtt.json
 
 #  -
 #    name: Modbus Connector
