@@ -64,10 +64,10 @@ class TBGatewayService:
         log = logging.getLogger('service')
         log.info("Gateway starting...")
         self.__updater = TBUpdater()
-        self.__updates_check_period_ms = 3000
+        self.__updates_check_period_ms = 300000
         self.__updates_check_time = 0
         self.version = self.__updater.get_version()
-        log.info("ThingsBoard IoT gateway version: %s", self.version)
+        log.info("ThingsBoard IoT gateway version: %s", self.version["current_version"])
         self.available_connectors = {}
         self.__connector_incoming_messages = {}
         self.__connected_devices = {}
@@ -107,6 +107,7 @@ class TBGatewayService:
             "ping": self.__rpc_ping,
             "stats": self.__form_statistics,
             "devices": self.__rpc_devices,
+            "update": self.__rpc_update,
         }
         self.__sheduled_rpc_calls = []
         self.__self_rpc_sheduled_methods_functions = {
@@ -177,9 +178,6 @@ class TBGatewayService:
                 if cur_time - self.__updates_check_time >= self.__updates_check_period_ms:
                     self.__updates_check_time = time()*1000
                     self.version = self.__updater.get_version()
-                    if self.version.get("latest_version") is not None:
-                        log.info("\n\n[===UPDATE===]\n\n New version %s is available! \n\n[===UPDATE===]\n",
-                                 self.version["latest_version"])
         except KeyboardInterrupt:
             self.__stop_gateway()
         except Exception as e:
@@ -480,7 +478,7 @@ class TBGatewayService:
             log.info("Gateway %s sheduled in %i seconds", method_to_call, seconds_to_restart/1000)
             result = {"success": True}
         elif arguments is not None:
-            result = self.__gateway_rpc_methods[method_to_call]()
+            result = self.__gateway_rpc_methods[method_to_call](arguments)
         else:
             result = self.__gateway_rpc_methods[method_to_call]()
         log.debug(result)
@@ -495,6 +493,17 @@ class TBGatewayService:
             if self.__connected_devices[device]["connector"] is not None:
                 data_to_send[device] = self.__connected_devices[device]["connector"].get_name()
         return {"code": 200, "resp": data_to_send}
+
+    def __rpc_update(self, *args):
+        try:
+            result = {"resp": self.__updater.update(),
+                      "code": 200,
+                      }
+        except Exception as e:
+            result = {"error": str(e),
+                      "code": 500
+                      }
+        return result
 
     def rpc_with_reply_processing(self, topic, content):
         req_id = self.__rpc_requests_in_progress[topic][0]["data"]["id"]

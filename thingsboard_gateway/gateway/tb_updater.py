@@ -21,10 +21,12 @@ from threading import Thread
 from time import time, sleep
 from simplejson import loads
 
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
 log = getLogger("service")
 
-# UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
-UPDATE_SERVICE_BASE_URL = "http://127.0.0.1:8090"
+UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
+# UPDATE_SERVICE_BASE_URL = "http://127.0.0.1:8090"
 
 
 class TBUpdater(Thread):
@@ -66,8 +68,9 @@ class TBUpdater(Thread):
             if content is not None and content.get("updateAvailable", False):
                 new_version = content["message"].replace("New version ", "").replace(" is available!", "")
                 log.info(content["message"])
-                if new_version != self.__version:
-                    self.__version["latest_version"] = new_version
+                self.__version["latest_version"] = new_version
+                log.info("\n\n[===UPDATE===]\n\n New version %s is available! \n\n[===UPDATE===]\n",
+                         self.__version["latest_version"])
         except ConnectionRefusedError:
             log.warning("Cannot connect to the update service. PLease check your internet connection.")
         except Exception as e:
@@ -89,6 +92,12 @@ class TBUpdater(Thread):
         }
         return request_args
 
+    def update(self):
+        if self.__version["latest_version"] is not None:
+            result = TBUtility.install_package("thingsboard-gateway", self.__version["latest_version"])
+        else:
+            result = "Congratulations! You have the latest version."
+        return result
 
 if __name__ == '__main__':
     updater = TBUpdater()
