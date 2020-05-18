@@ -1,0 +1,118 @@
+{
+  "name": "TCP Server",
+  "host": "192.168.200.129",
+  "port": 36,
+  "devices": [
+    {
+      "deviceName": "温湿度传感器001",
+      "deviceType": "温湿度传感器",
+      "attributesPollPeriod": 10000,
+      "timeseriesPollPeriod": 10000,
+      "sendDataOnlyOnChange": false,
+      "getDataCommand": "010300000002C40B",
+      "byteOrder": "LITTLE",
+      "timeseries": [
+        {
+          "tag": "humi",
+          "type": "int",
+          "fromByte": 3,
+          "toByte": 4
+        },
+        {
+          "tag": "temp",
+          "type": "int",
+          "fromByte": 5,
+          "toByte": 6
+        }
+      ]
+    },
+    {
+      "deviceName": "噪声传感器001",
+      "deviceType": "噪声传感器",
+      "attributesPollPeriod": 10000,
+      "timeseriesPollPeriod": 10000,
+      "sendDataOnlyOnChange": false,
+      "getDataCommand": "0103000C00014409",
+      "byteOrder": "LITTLE",
+      "timeseries": [
+        {
+          "tag": "noise",
+          "type": "int",
+          "fromByte": 3,
+          "toByte": 4
+        }
+      ]
+    },
+    {
+      "deviceName": "风速传感器001",
+      "deviceType": "风速传感器",
+      "attributesPollPeriod": 10000,
+      "timeseriesPollPeriod": 10000,
+      "sendDataOnlyOnChange": false,
+      "getDataCommand": "01030016000165CE",
+      "byteOrder": "LITTLE",
+      "timeseries": [
+        {
+          "tag": "windspeed",
+          "type": "int",
+          "fromByte": 3,
+          "toByte": 4
+        }
+      ]
+    },
+    {
+      "deviceName": "继电器001",
+      "deviceType": "继电器",
+      "attributesPollPeriod": 10000,
+      "timeseriesPollPeriod": 10000,
+      "sendDataOnlyOnChange": false,
+      "rpc": [
+        {
+          "tag": "setValue",
+          "onCommand": "FE050000FF009835",
+          "offCommand": "FE0500000000D9C5"
+        }
+      ]
+    },
+    {
+      "deviceName": "水浸传感器001",
+      "deviceType": "水浸传感器",
+      "attributesPollPeriod": 10000,
+      "timeseriesPollPeriod": 10000,
+      "sendDataOnlyOnChange": false,
+      "getDataCommand": "010300000001840a",
+      "byteOrder": "LITTLE",
+      "timeseries": [
+        {
+          "tag": "water",
+          "type": "int",
+          "fromByte": 4,
+          "toByte": 4
+        }
+      ]
+    },
+    {
+      "deviceName": "土壤温湿度传感器001",
+      "deviceType": "土壤温湿度传感器",
+      "attributesPollPeriod": 10000,
+      "timeseriesPollPeriod": 10000,
+      "sendDataOnlyOnChange": false,
+      "getDataCommand": "01030002000265CB",
+      "byteOrder": "LITTLE",
+      "timeseries": [
+        {
+          "tag": "humi",
+          "type": "int",
+          "fromByte": 3,
+          "toByte": 4
+        },
+        {
+          "tag": "temp",
+          "type": "int",
+          "fromByte": 5,
+          "toByte": 6
+        }
+      ]
+    }
+  ]
+}
