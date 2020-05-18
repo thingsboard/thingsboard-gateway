@@ -21,7 +21,6 @@ from re import match, fullmatch, search
 import ssl
 from paho.mqtt.client import Client
 from thingsboard_gateway.connectors.connector import Connector, log
-from thingsboard_gateway.connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
