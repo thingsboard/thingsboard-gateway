@@ -17,7 +17,7 @@ import time
 from simplejson import dump
 from thingsboard_gateway.storage.event_storage import EventStorage, log
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.event_storage_writer import EventStorageWriter
+from thingsboard_gateway.storage.event_storage_writer import EventStorageWriter, DataFileCountError
 from thingsboard_gateway.storage.event_storage_reader import EventStorageReader
 from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
 
@@ -35,10 +35,13 @@ class FileEventStorage(EventStorage):
     def put(self, event):
         try:
             self.__writer.write(event)
-            return True
+        except DataFileCountError as e:
+            log.error(e)
         except Exception as e:
             log.exception(e)
             return False
+        else:
+            return True
 
     def get_event_pack(self):
         return self.__reader.read()

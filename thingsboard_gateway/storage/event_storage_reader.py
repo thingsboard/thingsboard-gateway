@@ -26,6 +26,7 @@ from thingsboard_gateway.storage.event_storage_reader_pointer import EventStorag
 
 class EventStorageReader:
     def __init__(self, files: EventStorageFiles, settings: FileEventStorageSettings):
+        self.log = log
         self.files = files
         self.settings = settings
         self.current_batch = None
@@ -65,17 +66,19 @@ class EventStorageReader:
                         if records_to_read == 0:
                             break
 
-                    if self.settings.get_max_records_per_file() >= current_line_in_file >= 0 or (line == b'' and current_line_in_file >= self.settings.get_max_records_per_file() - 1):
-                        previous_file = self.new_pos
+                    if (self.settings.get_max_records_per_file() >= current_line_in_file >= 0) or \
+                            (line == b'' and current_line_in_file >= self.settings.get_max_records_per_file() - 1):
+                        previous_file = self.current_pos
                         next_file = self.get_next_file(self.files, self.new_pos)
-                        self.delete_read_file(previous_file)
-                        self.write_info_to_state_file(self.new_pos)
+                        # self.write_info_to_state_file(self.new_pos)
                         if next_file is None:
                             break
+                        self.delete_read_file(previous_file)
                         if self.buffered_reader is not None:
                             self.buffered_reader.close()
-                        self.buffered_reader = None
+                        # self.buffered_reader = None
                         self.new_pos = EventStorageReaderPointer(next_file, 0)
+                        self.get_or_init_buffered_reader(self.new_pos)
                         continue
                     if line == b'':
                         break
@@ -102,13 +105,13 @@ class EventStorageReader:
         try:
             if self.buffered_reader is None or self.buffered_reader.closed:
                 new_file_to_read_path = self.settings.get_data_folder_path() + pointer.get_file()
-                if not exists(new_file_to_read_path):
-                    next_file = self.get_next_file(self.files, self.new_pos)
-                    if next_file is not None:
-                        new_file_to_read_path = self.settings.get_data_folder_path() + next_file
-                    else:
-                        self.buffered_reader = None
-                        return None
+                # if not exists(new_file_to_read_path):
+                #     next_file = self.get_next_file(self.files, self.new_pos)
+                #     if next_file is not None:
+                #         new_file_to_read_path = self.settings.get_data_folder_path() + next_file
+                #     else:
+                #         self.buffered_reader = None
+                #         return None
                 self.buffered_reader = BufferedReader(FileIO(new_file_to_read_path, 'r'))
                 lines_to_skip = pointer.get_line()
                 if lines_to_skip > 0:
@@ -123,6 +126,8 @@ class EventStorageReader:
         except IOError as e:
             log.error("Failed to initialize buffered reader! Error: %s", e)
             raise RuntimeError("Failed to initialize buffered reader!", e)
+        except Exception as e:
+            log.exception(e)
 
     def read_state_file(self):
         try:
@@ -164,11 +169,12 @@ class EventStorageReader:
             log.exception(e)
 
     def delete_read_file(self, current_file: EventStorageReaderPointer):
+        data_files = self.files.get_data_files()
         try:
-            data_files = self.files.get_data_files()
             if exists(self.settings.get_data_folder_path() + current_file.file) and len(data_files) > 1:
                 remove(self.settings.get_data_folder_path() + current_file.file)
-                data_files.remove(current_file.file)
+            if current_file.file in data_files:
+                self.files.data_files.remove(current_file.file)
                 log.info("FileStorage_reader -- Cleanup old data file: %s%s!", self.settings.get_data_folder_path(), current_file.file)
         except Exception as e:
             log.exception(e)

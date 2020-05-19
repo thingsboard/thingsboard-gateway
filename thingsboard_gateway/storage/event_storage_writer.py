@@ -15,11 +15,15 @@
 from time import time
 from base64 import b64encode
 from io import BufferedWriter, FileIO
-from os import linesep, open as os_open, O_CREAT, O_EXCL
+from os import linesep, open as os_open, close as os_close, O_CREAT, O_EXCL
+from os.path import exists
 
 from thingsboard_gateway.storage.file_event_storage import log
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
 from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
+
+class DataFileCountError(Exception):
+    pass
 
 
 class EventStorageWriter:
@@ -33,36 +37,38 @@ class EventStorageWriter:
         self.get_number_of_records_in_file(self.current_file)
 
     def write(self, msg):
-        if self.current_file_records_count[0] >= self.settings.get_max_records_per_file():
+        if len(self.files.data_files) <= self.settings.get_max_files_count():
+            if self.current_file_records_count[0] >= self.settings.get_max_records_per_file() or not exists(self.settings.get_data_folder_path()+self.current_file):
+                try:
+                    self.current_file = self.create_datafile()
+                    log.debug("FileStorage_writer -- Created new data file: %s", self.current_file)
+                except IOError as e:
+                    log.error("Failed to create a new file! %s", e)
+                self.files.get_data_files().append(self.current_file)
+                self.current_file_records_count[0] = 0
+                try:
+                    if self.buffered_writer is not None and self.buffered_writer.closed is False:
+                        self.buffered_writer.close()
+                except IOError as e:
+                    log.warning("Failed to close buffered writer! %s", e)
+                self.buffered_writer = None
             try:
-                self.current_file = self.create_datafile()
-                log.debug("FileStorage_writer -- Created new data file: %s", self.current_file)
+                encoded = b64encode(msg.encode("utf-8"))
+                self.buffered_writer = self.get_or_init_buffered_writer(self.current_file)
+                self.buffered_writer.write(encoded + linesep.encode('utf-8'))
+                self.current_file_records_count[0] += 1
+                if self.current_file_records_count[0] - self.previous_file_records_count[0] >= self.settings.get_max_records_between_fsync():
+                    self.previous_file_records_count = self.current_file_records_count[:]
+                    self.buffered_writer.flush()
+                try:
+                    if self.buffered_writer is not None and self.buffered_writer.closed is False:
+                        self.buffered_writer.close()
+                except IOError as e:
+                    log.warning("Failed to close buffered writer! %s", e)
             except IOError as e:
-                log.error("Failed to create a new file! %s", e)
-            self.files.get_data_files().append(self.current_file)
-            self.current_file_records_count[0] = 0
-            try:
-                if self.buffered_writer is not None and self.buffered_writer.closed is False:
-                    self.buffered_writer.close()
-            except IOError as e:
-                log.warning("Failed to close buffered writer! %s", e)
-            self.buffered_writer = None
-        try:
-            encoded = b64encode(msg.encode("utf-8"))
-            self.buffered_writer = self.get_or_init_buffered_writer(self.current_file)
-            self.buffered_writer.write(encoded + linesep.encode('utf-8'))
-            # self.buffered_writer.write(linesep.encode('utf-8'))
-            self.current_file_records_count[0] += 1
-            if self.current_file_records_count[0] - self.previous_file_records_count[0] >= self.settings.get_max_records_between_fsync():
-                self.previous_file_records_count = self.current_file_records_count[:]
-                self.buffered_writer.flush()
-            try:
-                if self.buffered_writer is not None and self.buffered_writer.closed is False:
-                    self.buffered_writer.close()
-            except IOError as e:
-                log.warning("Failed to close buffered writer! %s", e)
-        except IOError as e:
-            log.warning("Failed to update data file![%s]\n%s", self.current_file, e)
+                log.warning("Failed to update data file![%s]\n%s", self.current_file, e)
+        else:
+            raise DataFileCountError("The number of data files has been exceeded - change the settings or check the connection. New data will be lost.")
 
     def get_or_init_buffered_writer(self, file):
         try:
@@ -83,7 +89,8 @@ class EventStorageWriter:
         full_file_name = "%s%s.txt" % (prefix, filename)
         file_path = "%s%s" % (self.settings.get_data_folder_path(), full_file_name)
         try:
-            os_open(file_path, O_CREAT | O_EXCL)
+            file = os_open(file_path, O_CREAT | O_EXCL)
+            os_close(file)
             return full_file_name
         except IOError as e:
             log.error("Failed to create a new file! Error: %s", e)

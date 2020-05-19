@@ -16,7 +16,7 @@
 class FileEventStorageSettings:
     def __init__(self, config):
         self.data_folder_path = config.get("data_folder_path", "./")
-        self.max_files_count = config.get("max_files_count", 5)
+        self.max_files_count = config.get("max_file_count", 5)
         self.max_records_per_file = config.get("max_records_per_file", 3)
         self.max_records_between_fsync = config.get("max_records_between_fsync", 1)
         self.max_read_records_count = config.get("max_read_records_count", 1000)
