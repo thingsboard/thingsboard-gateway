@@ -3,7 +3,7 @@ thingsboard:
   port: 1883
   remoteConfiguration: false
   security:
-    accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
+    accessToken: 3AgtFvKvWLlsJbtFzk4A
 storage:
   type: memory
   read_records_count: 100
@@ -14,11 +14,15 @@ storage:
 #  max_read_records_count: 10
 #  max_records_per_file: 10000
 connectors:
-
   -
-    name: MQTT Broker Connector
-    type: mqtt
-    configuration: mqtt.json
+    name: REST Connector
+    type: rest
+    configuration: rest.json
+
+#  -
+#    name: MQTT Broker Connector
+#    type: mqtt
+#    configuration: mqtt.json
 
 #  -
 #    name: Modbus Connector
