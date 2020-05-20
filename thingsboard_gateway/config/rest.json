@@ -1,9 +1,10 @@
 {
   "host": "127.0.0.1",
   "port": "5000",
-  "mapping":[
+  "name": "REST Connector",
+  "mappings":[
     {
-      "endpoint": "/test_device",
+      "endpoint": "/device1",
       "HTTPMethod": [
         "POST"
       ],
@@ -33,14 +34,13 @@
           {
             "type": "double",
             "key": "humidity",
-            "value": "${hum}",
-            "converter": "CustomConverter"
+            "value": "${hum}"
           }
         ]
       }
     },
     {
-      "endpoint": "/test",
+      "endpoint": "/anon1",
       "HTTPMethod": [
         "GET",
         "POST"
@@ -59,6 +59,40 @@
             "type": "string",
             "key": "model",
             "value": "Model2"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "double",
+            "key": "temperature",
+            "value": "${temp}"
+          },
+          {
+            "type": "double",
+            "key": "humidity",
+            "value": "${hum}"
+          }
+        ]
+      }
+    },
+    {
+      "endpoint": "/anon2",
+      "HTTPMethod": [
+        "POST"
+      ],
+      "security":
+      {
+        "type": "anonymous"
+      },
+      "converter": {
+        "type": "json",
+        "deviceNameExpression": "SuperAnonDevice",
+        "deviceTypeExpression": "default",
+        "attributes": [
+          {
+            "type": "string",
+            "key": "model",
+            "value": "${sensorModel}"
           }
         ],
         "timeseries": [
