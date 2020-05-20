@@ -19,7 +19,6 @@ from string import ascii_lowercase
 from time import sleep, time
 from re import fullmatch
 
-# import requests
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 try:
     from requests import Timeout, request
@@ -27,7 +26,7 @@ except ImportError:
     print("Requests library not found - installing...")
     TBUtility.install_package("requests")
     from requests import Timeout, request
-
+import requests
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
 
