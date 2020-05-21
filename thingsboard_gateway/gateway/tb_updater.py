@@ -67,10 +67,11 @@ class TBUpdater(Thread):
             content = loads(response.content)
             if content is not None and content.get("updateAvailable", False):
                 new_version = content["message"].replace("New version ", "").replace(" is available!", "")
-                log.info(content["message"])
-                self.__version["latest_version"] = new_version
-                log.info("\n\n[===UPDATE===]\n\n New version %s is available! \n\n[===UPDATE===]\n",
-                         self.__version["latest_version"])
+                if new_version > self.__version["current_version"]:
+                    log.info(content["message"])
+                    self.__version["latest_version"] = new_version
+                    log.info("\n\n[===UPDATE===]\n\n New version %s is available! \n\n[===UPDATE===]\n",
+                             self.__version["latest_version"])
         except ConnectionRefusedError:
             log.warning("Cannot connect to the update service. PLease check your internet connection.")
         except Exception as e:
