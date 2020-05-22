@@ -78,7 +78,7 @@ class RESTConnector(Connector, Thread):
                 self._api.add_resource(data_handlers[security_type],
                                        mapping['endpoint'],
                                        endpoint=mapping['endpoint'],
-                                       resource_class_args=(self.__gateway.send_to_storage,
+                                       resource_class_args=(self.collect_statistic_and_send,
                                                             self.get_name(),
                                                             self.endpoints[mapping["endpoint"]]))
             except Exception as e:
@@ -89,6 +89,7 @@ class RESTConnector(Connector, Thread):
         self.start()
 
     def run(self):
+        self._connected = True
         try:
             self._app.run(host=self.config["host"], port=self.config["port"])
 
@@ -102,18 +103,24 @@ class RESTConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
+        self._connected = False
 
     def get_name(self):
         return self.name
 
     def is_connected(self):
-        pass
+        return self._connected
 
     def on_attributes_update(self, content):
         pass
 
     def server_side_rpc_handler(self, content):
         pass
+
+    def collect_statistic_and_send(self, connector_name, data):
+        self.statistics["MessagesReceived"] += 1
+        self.__gateway.send_to_storage(connector_name, data)
+        self.statistics["MessagesSent"] += 1
 
     def load_converters(self):
         converters = {}
