@@ -1,11 +1,10 @@
 {
   "host": "127.0.0.1",
   "port": "5000",
-  "name": "REST Connector",
-  "mappings":[
+  "mapping":[
     {
       "endpoint": "/device1",
-      "HTTPMethod": [
+      "HTTPMethods": [
         "POST"
       ],
       "security":
@@ -28,20 +27,21 @@
         "timeseries": [
           {
             "type": "double",
-            "key": "temperature",
+            "key": "${sensorModel}",
             "value": "${temp}"
           },
           {
             "type": "double",
             "key": "humidity",
-            "value": "${hum}"
+            "value": "${hum}",
+            "converter": "CustomConverter"
           }
         ]
       }
     },
     {
       "endpoint": "/anon1",
-      "HTTPMethod": [
+      "HTTPMethods": [
         "GET",
         "POST"
       ],
@@ -77,7 +77,7 @@
     },
     {
       "endpoint": "/anon2",
-      "HTTPMethod": [
+      "HTTPMethods": [
         "POST"
       ],
       "security":

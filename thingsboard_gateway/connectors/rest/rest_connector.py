@@ -1,10 +1,7 @@
-from thingsboard_gateway.connectors.connector import Connector, log
-from thingsboard_gateway.connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
-from threading import Thread
-from random import choice
-from string import ascii_lowercase
 from time import sleep
-
+from threading import Thread
+from string import ascii_lowercase
+from random import choice
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -18,8 +15,23 @@ try:
     from flask_restful import reqparse, abort, Api, Resource
 except ImportError:
     print("RESTFUL flask library not found - installing...")
-    TBUtility.install_package("flask_restful")
+    TBUtility.install_package("Flask-restful")
     from flask_restful import reqparse, abort, Api, Resource
+try:
+    from flask_httpauth import HTTPBasicAuth
+except ImportError:
+    print("HTTPAuth flask library not found - installing...")
+    TBUtility.install_package("Flask-httpauth")
+    from flask_httpauth import HTTPBasicAuth
+try:
+    from werkzeug.security import generate_password_hash, check_password_hash
+except ImportError:
+    print("Werkzeug flask library not found - installing...")
+    TBUtility.install_package("werkzeug")
+    from werkzeug.security import generate_password_hash, check_password_hash
+
+from thingsboard_gateway.connectors.connector import Connector, log
+
 
 '''
 
@@ -72,6 +84,7 @@ class RESTConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.__gateway = gateway
+        self.__USER_DATA = {}
         self.setName(config.get("name", 'REST Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
 
         self._connected = False
@@ -86,65 +99,34 @@ class RESTConnector(Connector, Thread):
         # TODO create converters dict
         # TODO Implement check allowed method
 
-    class BasicDataHandler(Resource):
-        def __init__(self, send_to_storage, name, endpoints):
-            super().__init__()
-            self.send_to_storage = send_to_storage
-            self.__name = name
-            self.__endpoints = endpoints
-
-        def get(self):
-            log.debug('attrs get works')
-            return {'test': 'get'}
-
-        def post(self):
-            print(request.get_json())
-            print(request.endpoint)
-            # try:
-            #     converter = RestConverter(config=self.__config)
-            #     converted_data = converter.convert(config=self.__config, data=request.get_json())
-            #     self.send_to_storage(self.__name, converted_data)
-            #     return {'you sent this': 'data'}
-            # except Exception as e:
-            #     log.debug(e)
-
-    class AnonymousDataHandler(Resource):
-        def __init__(self, send_to_storage, name, endpoints):
-            super().__init__()
-            self.send_to_storage = send_to_storage
-            self.__name = name
-            self.__endpoints = endpoints
-
-        def get(self):
-            log.debug('attrs get works')
-            return {'test': 'get'}
-
-        def post(self):
-            try:
-                log.info("CONVERTER CONFIG: %r", self.__endpoints[request.endpoint]['config']['converter'])
-                converter = self.__endpoints[request.endpoint]['converter'](self.__endpoints[request.endpoint]['config']['converter'])
-                converted_data = converter.convert(config=self.__endpoints[request.endpoint]['config']['converter'], data=request.get_json())
-                log.info("CONVERTED_DATA: %r", converted_data)
-            except Exception as e:
-                log.error("Error while post to anonymous handler: %s", e)
-
     def load_endpoints(self):
         endpoints = {}
-        for mapping in self.config.get("mappings"):
+        for mapping in self.config.get("mapping"):
             converter = TBUtility.check_and_import(self._connector_type,
                                                    mapping.get("class", "JsonRESTUplinkConverter"))
             endpoints.update({mapping['endpoint']: {"config": mapping, "converter": converter}})
         return endpoints
 
     def load_handlers(self):
-        for mapping in self.config.get("mappings"):
-            if mapping.get("security")["type"] == "basic":
-                self._api.add_resource(self.BasicDataHandler, mapping['endpoint'], endpoint=mapping['endpoint'],
-                                       resource_class_args=(
-                                       self.__gateway.send_to_storage, self.get_name(), self.endpoints))
-            elif mapping.get("security")["type"] == "anonymous":
-                self._api.add_resource(self.AnonymousDataHandler, mapping['endpoint'], endpoint=mapping['endpoint'],
-                                       resource_class_args=(self.__gateway.send_to_storage, self.get_name(), self.endpoints))
+        data_handlers = {
+            "basic": BasicDataHandler,
+            "anonymous": AnonymousDataHandler,
+        }
+        for mapping in self.config.get("mapping"):
+            try:
+                security_type = "anonymous" if mapping.get("security") is None else mapping["security"]["type"].lower()
+                if security_type != "anonymous":
+                    Users.add_user(mapping['endpoint'],
+                                   mapping['security']['username'],
+                                   mapping['security']['password'])
+                self._api.add_resource(data_handlers[security_type],
+                                       mapping['endpoint'],
+                                       endpoint=mapping['endpoint'],
+                                       resource_class_args=(self.__gateway.send_to_storage,
+                                                            self.get_name(),
+                                                            self.endpoints[mapping["endpoint"]]))
+            except Exception as e:
+                log.error("Error on creating handlers - %s", str(e))
 
     def open(self):
         self.__stopped = False
@@ -152,11 +134,10 @@ class RESTConnector(Connector, Thread):
 
     # TODO implement data type check
     def run(self):
-        #
         try:
             self._app.run(host=self.config["host"], port=self.config["port"])
 
-            while True:
+            while not self.__stopped:
                 if self.__stopped:
                     break
                 else:
@@ -181,8 +162,118 @@ class RESTConnector(Connector, Thread):
 
     def load_converters(self):
         converters = {}
-        for mapping in self.config.get("mappings"):
+        for mapping in self.config.get("mapping"):
             converter = TBUtility.check_and_import(self._connector_type, mapping.get("class", "JsonRestUplinkConverter"))
             converters.update({mapping['endpoint']: converter})
-        #print(converters)
         return converters
+
+
+class AnonymousDataHandler(Resource):
+    def __init__(self, send_to_storage, name, endpoint):
+        super().__init__()
+        self.send_to_storage = send_to_storage
+        self.__name = name
+        self.__endpoint = endpoint
+
+    def process_data(self, request):
+        if not request.json:
+            abort(415)
+        endpoint_config = self.__endpoint[request.endpoint]['config']
+        if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
+            abort(405)
+        try:
+            log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
+            converter = self.__endpoint['converter'](endpoint_config['converter'])
+            converted_data = converter.convert(config=endpoint_config['converter'], data=request.get_json())
+            self.send_to_storage(self.__name, converted_data)
+            log.info("CONVERTED_DATA: %r", converted_data)
+            return "", 200
+        except Exception as e:
+            log.exception("Error while post to anonymous handler: %s", e)
+            return "", 500
+
+    def get(self):
+        return self.process_data(request)
+
+    def post(self):
+        return self.process_data(request)
+
+    def put(self):
+        return self.process_data(request)
+
+    def update(self):
+        return self.process_data(request)
+
+    def delete(self):
+        return self.process_data(request)
+
+class BasicDataHandler(Resource):
+
+    auth = HTTPBasicAuth()
+
+    def __init__(self, send_to_storage, name, endpoint):
+        super().__init__()
+        self.send_to_storage = send_to_storage
+        self.__name = name
+        self.__endpoint = endpoint
+
+    @staticmethod
+    @auth.verify_password
+    def verify(username, password):
+        x = request
+
+        if not username and password:
+            return False
+        return Users.validate_user_credentials(request.endpoint, username, password)
+
+    def process_data(self, request):
+        if not request.json:
+            abort(415)
+        endpoint_config = self.__endpoint['config']
+        if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
+            abort(405)
+        try:
+            log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
+            converter = self.__endpoint['converter'](endpoint_config['converter'])
+            converted_data = converter.convert(config=endpoint_config['converter'], data=request.get_json())
+            self.send_to_storage(self.__name, converted_data)
+            log.info("CONVERTED_DATA: %r", converted_data)
+            return "", 200
+        except Exception as e:
+            log.exception("Error while post to basic handler: %s", e)
+            return "", 500
+
+    @auth.login_required
+    def get(self):
+        return self.process_data(request)
+
+    @auth.login_required
+    def post(self):
+        return self.process_data(request)
+
+    @auth.login_required
+    def put(self):
+        return self.process_data(request)
+
+    @auth.login_required
+    def update(self):
+        return self.process_data(request)
+
+    @auth.login_required
+    def delete(self):
+        return self.process_data(request)
+
+
+class Users:
+    USER_DATA = {}
+
+    @classmethod
+    def add_user(cls, endpoint, username, password):
+        cls.USER_DATA.update({endpoint: {username: password}})
+
+    @classmethod
+    def validate_user_credentials(cls, endpoint, username, password):
+        result = False
+        if cls.USER_DATA.get(endpoint) is not None and cls.USER_DATA[endpoint].get(username) == password:
+            result = True
+        return result

@@ -18,47 +18,45 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class JsonRESTUplinkConverter(RESTConverter):
+
     def __init__(self, config):
-        super().__init__()
-        self.__log = log
         self.__config = config
 
     def convert(self, config, data):
-        if isinstance(data, (bytes, str)):
-            data = loads(data)
+        datatypes = {"attributes": "attributes",
+                     "timeseries": "telemetry"}
         dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
         try:
             if self.__config.get("deviceNameExpression") is not None:
                 dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameExpression"), data, expression_instead_none=True)
             else:
-                log.error("The expression \"%s\" for looking \"deviceName\" not found in config %s", dumps(self.__config))
+                log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
             if self.__config.get("deviceTypeExpression") is not None:
                 dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeExpression"), data, expression_instead_none=True)
             else:
                 log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
-            dict_result["attributes"] = []
-            dict_result["telemetry"] = []
         except Exception as e:
+            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
         try:
-            if self.__config.get("attributes"):
-                for attribute in self.__config.get("attributes"):
-                    attribute_value = TBUtility.get_value(attribute["value"], data, attribute["type"])
-                    if attribute_value is not None:
-                        dict_result["attributes"].append({attribute["key"]: attribute_value})
-                    else:
-                        log.debug("%s key not found in response: %s", attribute["value"].replace("${", '"').replace("}", '"'), data)
+            for datatype in datatypes:
+                dict_result[datatypes[datatype]] = []
+                for datatype_config in self.__config.get(datatype, []):
+                    value = TBUtility.get_value(datatype_config["value"], data, datatype_config["type"], expression_instead_none=True)
+                    value_tag = TBUtility.get_value(datatype_config["value"], data, datatype_config["type"], get_tag=True)
+                    key = TBUtility.get_value(datatype_config["key"], data, datatype_config["type"], expression_instead_none=True)
+                    key_tag = TBUtility.get_value(datatype_config["key"], data, get_tag=True)
+                    if ("${" not in str(value) and "}" not in str(value)) \
+                       and ("${" not in str(key) and "}" not in str(key)):
+                        is_string_key = isinstance(value, str)
+                        is_string_value = isinstance(value, str)
+                        full_key = datatype_config["key"].replace('${' + key_tag + '}', key) if is_string_key else key
+                        full_value = datatype_config["value"].replace('${' + value_tag + '}', value) if is_string_value else value
+                        if datatype == 'timeseries' and (data.get("ts") is not None or data.get("timestamp") is not None):
+                            dict_result[datatypes[datatype]].append({"ts": data.get('ts', data.get('timestamp', int(time()))), 'values': {full_key: full_value}})
+                        else:
+                            dict_result[datatypes[datatype]].append({full_key: full_value})
         except Exception as e:
-            log.error('Error in the JSON Rest Uplink converter, using config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
-            log.exception(e)
-        try:
-            if self.__config.get("timeseries"):
-                for timeseries in self.__config.get("timeseries"):
-                    timeseries_value = TBUtility.get_value(timeseries["value"], data, timeseries["type"])
-                    if timeseries_value is not None:
-                        dict_result["telemetry"].append({timeseries["key"]: timeseries_value})
-                    else:
-                        log.debug("%s key not found in response: %s", timeseries["value"].replace("${", '"').replace("}", '"'), data)
-        except Exception as e:
+            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
             log.exception(e)
         return dict_result
