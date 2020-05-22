@@ -33,8 +33,7 @@
           {
             "type": "double",
             "key": "humidity",
-            "value": "${hum}",
-            "converter": "CustomConverter"
+            "value": "${hum}"
           }
         ]
       }
@@ -50,8 +49,7 @@
         "type": "anonymous"
       },
       "converter": {
-        "type": "custom",
-        "class": "CustomConverter",
+        "type": "json",
         "deviceNameExpression": "Device 2",
         "deviceTypeExpression": "default",
         "attributes": [

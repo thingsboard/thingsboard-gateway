@@ -33,46 +33,6 @@ except ImportError:
 from thingsboard_gateway.connectors.connector import Connector, log
 
 
-'''
-
-url: http://127.0.0.1/test_device
-
-method: POST
-
-HEADER: 
-
-Authorization: Basic dXNlcjpwYXNzd2Q=
-
-BODY:
-
-body = {
-            "name": "number 2",
-            "sensorModel": "0AF0CE",
-            "temp": 25.8,
-        }
-
-mapping_dict = {
-                "/test_device":
-                    {
-                        "converter":JsonRestUplinkConverter(config["converter"]),
-                        "rpc":"...",
-                        "attributeUpdates":"..."
-                    }
-                }
-
-mapping_dict["/test_device"]["converter"].convert("/test_device", body)
-
-#TODO: 
-1 Create endpoints (with/without authorization and methods from the config)
-1.1 Initialize converters for endpoints
-1.2 Create a dictionary for data processing 
-2 Run application on open() function on host and port from the config.
-3 On receiving message: convert data and send_to_storage 
-
-
-'''
-
-
 class RESTConnector(Connector, Thread):
     _app = None
 
@@ -90,14 +50,10 @@ class RESTConnector(Connector, Thread):
         self._connected = False
         self.__stopped = False
         self.daemon = True
-        # self.endpoints = {'/api/v1/telemetry': {'function': self.telemetry_handler, 'methods': ['GET', 'POST']},
-        #                   '/api/v1/attributes': {'function': self.attributes_handler, 'methods': ['GET']}}
         self._app = Flask(self.get_name())
         self._api = Api(self._app)
         self.endpoints = self.load_endpoints()
         self.load_handlers()
-        # TODO create converters dict
-        # TODO Implement check allowed method
 
     def load_endpoints(self):
         endpoints = {}
@@ -132,7 +88,6 @@ class RESTConnector(Connector, Thread):
         self.__stopped = False
         self.start()
 
-    # TODO implement data type check
     def run(self):
         try:
             self._app.run(host=self.config["host"], port=self.config["port"])
@@ -178,7 +133,7 @@ class AnonymousDataHandler(Resource):
     def process_data(self, request):
         if not request.json:
             abort(415)
-        endpoint_config = self.__endpoint[request.endpoint]['config']
+        endpoint_config = self.__endpoint['config']
         if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
             abort(405)
         try:
@@ -187,7 +142,7 @@ class AnonymousDataHandler(Resource):
             converted_data = converter.convert(config=endpoint_config['converter'], data=request.get_json())
             self.send_to_storage(self.__name, converted_data)
             log.info("CONVERTED_DATA: %r", converted_data)
-            return "", 200
+            return "OK", 200
         except Exception as e:
             log.exception("Error while post to anonymous handler: %s", e)
             return "", 500
@@ -220,8 +175,6 @@ class BasicDataHandler(Resource):
     @staticmethod
     @auth.verify_password
     def verify(username, password):
-        x = request
-
         if not username and password:
             return False
         return Users.validate_user_credentials(request.endpoint, username, password)
@@ -238,7 +191,7 @@ class BasicDataHandler(Resource):
             converted_data = converter.convert(config=endpoint_config['converter'], data=request.get_json())
             self.send_to_storage(self.__name, converted_data)
             log.info("CONVERTED_DATA: %r", converted_data)
-            return "", 200
+            return "OK", 200
         except Exception as e:
             log.exception("Error while post to basic handler: %s", e)
             return "", 500
