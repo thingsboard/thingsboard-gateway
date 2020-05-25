@@ -107,5 +107,26 @@
         ]
       }
     }
+  ],
+  "attributeUpdates": [
+      {
+        "httpMethod": "POST",
+        "SSLVerify": false,
+        "httpHeaders": {
+          "CONTENT-TYPE": "application/json"
+        },
+        "security": {
+          "type": "basic",
+          "username": "user",
+          "password": "passwd"
+        },
+        "timeout": 0.5,
+        "tries": 3,
+        "allowRedirects": true,
+        "deviceNameFilter": ".*REST$",
+        "attributeFilter": "data",
+        "requestUrlExpression": "sensor/${deviceName}/${attributeKey}",
+        "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
+      }
   ]
 }
