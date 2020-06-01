@@ -22,13 +22,14 @@ class BytesCanDownlinkConverter(CanConverter):
     def convert(self, config, data):
         try:
             if config.get("dataInHex", ""):
-                return bytearray.fromhex(config["dataInHex"])
-            elif data.get("dataInHex", ""):
-                return bytearray.fromhex(data["dataInHex"])
+                return list(bytearray.fromhex(config["dataInHex"]))
 
             if not isinstance(data, dict) or not data:
                 log.error("Failed to convert TB data to CAN payload: data is empty or not a dictionary")
                 return
+
+            if data.get("dataInHex", ""):
+                return list(bytearray.fromhex(data["dataInHex"]))
 
             if config.get("dataExpression", ""):
                 value = eval(config["dataExpression"],
@@ -50,7 +51,9 @@ class BytesCanDownlinkConverter(CanConverter):
             elif isinstance(value, int) or isinstance(value, float):
                 byteorder = config["dataByteorder"] if config.get("dataByteorder", "") else "big"
                 if isinstance(value, int):
-                    can_data.extend(value.to_bytes(config.get("dataLength", 1), byteorder))
+                    can_data.extend(value.to_bytes(config.get("dataLength", 1),
+                                                   byteorder,
+                                                   signed=(config.get("dataSigned", False) or value < 0)))
                 else:
                     can_data.extend(struct.pack(">f" if byteorder[0] == "b" else "<f", value))
             elif isinstance(value, str):

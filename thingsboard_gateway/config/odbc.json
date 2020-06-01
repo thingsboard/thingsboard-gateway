@@ -18,12 +18,12 @@
     "pooling": false
   },
   "polling": {
-    "query": "SELECT bool_v, str_v, dbl_v, long_v, entity_id, ts FROM ts_kv_latest WHERE ts > ? ORDER BY ts ASC LIMIT 10",
+    "query": "SELECT bool_v, str_v, dbl_v, long_v, entity_id, ts FROM ts_kv WHERE ts > ? ORDER BY ts ASC LIMIT 10",
     "period": 10,
     "iterator": {
       "column": "ts",
-      "query": "SELECT MIN(ts) - 1 FROM ts_kv_latest",
-      "save": false
+      "query": "SELECT MIN(ts) - 1 FROM ts_kv",
+      "persistent": false
     }
   },
   "mapping": {
@@ -47,7 +47,7 @@
       "procedureOne",
       {
         "name": "procedureTwo",
-        "params": [ "One", 2, 3.0 ]
+        "args": [ "One", 2, 3.0 ]
       }
     ]
   }

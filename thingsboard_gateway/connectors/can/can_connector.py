@@ -21,6 +21,7 @@ from random import choice
 from string import ascii_lowercase
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
 try:
     from can import Notifier, BufferedReader, Message, CanError, ThreadSafeBus
 except ImportError:
@@ -39,6 +40,27 @@ class CanConnector(Connector, Thread):
 
     NO_CMD_ID = "no_cmd"
     UNKNOWN_ARBITRATION_ID = -1
+
+    DEFAULT_RECONNECT_PERIOD = 30.0
+    DEFAULT_POLL_PERIOD = 1.0
+
+    DEFAULT_SEND_IF_CHANGED = False
+    DEFAULT_RECONNECT_STATE = True
+
+    DEFAULT_EXTENDED_ID_FLAG = False
+    DEFAULT_FD_FLAG = False
+    DEFAULT_BITRATE_SWITCH_FLAG = False
+
+    DEFAULT_BYTEORDER = "big"
+    DEFAULT_ENCODING = "ascii"
+
+    DEFAULT_ENABLE_UNKNOWN_RPC = False
+    DEFAULT_OVERRIDE_RPC_PARAMS = False
+    DEFAULT_STRICT_EVAL_FLAG = True
+
+    DEFAULT_SIGNED_FLAG = False
+
+    DEFAULT_RPC_RESPONSE_SEND_FLAG = False
 
     def __init__(self, gateway, config, connector_type):
         self.statistics = {'MessagesReceived': 0,
@@ -84,7 +106,7 @@ class CanConnector(Connector, Thread):
         for attr_name, attr_value in content["data"].items():
             attr_config = self.__shared_attributes.get(content["device"], {}).get(attr_name)
             if attr_config is None:
-                log.warn("[%s] No configuration for '%s' attribute, ignore its update", self.get_name(), attr_name)
+                log.warning("[%s] No configuration for '%s' attribute, ignore its update", self.get_name(), attr_name)
                 return
 
             log.debug("[%s] Processing attribute update for '%s' device: attribute=%s,value=%s",
@@ -97,23 +119,18 @@ class CanConnector(Connector, Thread):
                           self.get_name(), attr_name, content["device"])
                 return
 
-            done = self.send_data_to_bus(attr_config.get("nodeId", self.UNKNOWN_ARBITRATION_ID),
-                                         data,
-                                         attr_config.get("isExtendedId", False),
-                                         attr_config.get("isFd", False),
-                                         attr_config.get("bitrateSwitch", False),
-                                         True)
-            if not done:
+            done = self.send_data_to_bus(data, attr_config, data_check=True)
+            if done:
+                log.debug("[%s] Updated '%s' attribute for '%s' device", self.get_name(), attr_name, content["device"])
+            else:
                 log.error("[%s] Failed to update '%s' attribute for '%s' device",
                           self.get_name(), attr_name, content["device"])
-            else:
-                log.debug("[%s] Updated '%s' attribute for '%s' device", self.get_name(), attr_name, content["device"])
 
     def server_side_rpc_handler(self, content):
         rpc_config = self.__rpc_calls.get(content["device"], {}).get(content["data"]["method"])
         if rpc_config is None:
             if not self.__devices[content["device"]]["enableUnknownRpc"]:
-                log.warn("[%s] No configuration for '%s' RPC request (id=%s), ignore it",
+                log.warning("[%s] No configuration for '%s' RPC request (id=%s), ignore it",
                          self.get_name(), content["data"]["method"], content["data"]["id"])
                 return
             else:
@@ -137,25 +154,20 @@ class CanConnector(Connector, Thread):
 
         data = self.__converters[content["device"]]["downlink"].convert(conversion_config,
                                                                         content["data"].get("params", {}))
-        if data is None:
+        if data is not None:
+            done = self.send_data_to_bus(data, conversion_config, data_check=True)
+            if done:
+                log.debug("[%s] Processed '%s' RPC request (id=%s) for '%s' device",
+                          self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
+            else:
+                log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device",
+                          self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
+        else:
+            done = False
             log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device: data conversion failure",
                       self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
-            return
 
-        done = self.send_data_to_bus(conversion_config.get("nodeId", self.UNKNOWN_ARBITRATION_ID),
-                                     data,
-                                     conversion_config.get("isExtendedId"),
-                                     conversion_config.get("isFd"),
-                                     conversion_config.get("bitrateSwitch"),
-                                     True)
-        if not done:
-            log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device",
-                      self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
-        else:
-            log.debug("[%s] Processed '%s' RPC request (id=%s) for '%s' device",
-                      self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
-
-        if conversion_config.get("response", True):
+        if conversion_config.get("response", self.DEFAULT_RPC_RESPONSE_SEND_FLAG):
             self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], {"success": done})
 
     def run(self):
@@ -177,9 +189,7 @@ class CanConnector(Connector, Thread):
                     poller = Poller(self)
                     # Poll once to check if network is not down.
                     # It would be better to have some kind of a ping message to check a bus state.
-                    poller.poll_once()
-                    self.__check_if_error_happened()
-                    poller.start()
+                    poller.poll()
 
                 # Initialize the connected flag and reconnect count only after bus creation and sending poll messages.
                 # It is expected that after these operations most likely the bus is up.
@@ -230,12 +240,12 @@ class CanConnector(Connector, Thread):
     def get_polling_messages(self):
         return self.__polling_messages
 
-    def send_data_to_bus(self, node_id, data, is_extended_id=False, is_fd=False, bitrate_switch=False, data_check=False):
+    def send_data_to_bus(self, data, config, data_check=True, raise_exception=False):
         try:
-            self.__bus.send(Message(arbitration_id=node_id,
-                                    is_extended_id=is_extended_id,
-                                    is_fd=is_fd,
-                                    bitrate_switch=bitrate_switch,
+            self.__bus.send(Message(arbitration_id=config["nodeId"],
+                                    is_extended_id=config.get("isExtendedId", self.DEFAULT_EXTENDED_ID_FLAG),
+                                    is_fd=config.get("isFd", self.DEFAULT_FD_FLAG),
+                                    bitrate_switch=config.get("bitrateSwitch", self.DEFAULT_BITRATE_SWITCH_FLAG),
                                     data=data,
                                     check=data_check))
             return True
@@ -243,11 +253,14 @@ class CanConnector(Connector, Thread):
             log.error("[%s] Wrong CAN message data: %s", self.get_name(), str(e))
         except CanError as e:
             log.error("[%s] Failed to send CAN message: %s", self.get_name(), str(e))
-            self.__on_bus_error(e)
+            if raise_exception:
+                raise e
+            else:
+                self.__on_bus_error(e)
         return False
 
     def __on_bus_error(self, e):
-        log.warn("[%s] Notified about CAN bus error. Store it to later processing", self.get_name())
+        log.warning("[%s] Notified about CAN bus error. Store it to later processing", self.get_name())
         self.__bus_error = e
 
     def __check_if_error_happened(self):
@@ -261,14 +274,15 @@ class CanConnector(Connector, Thread):
         config = {}
         options = {
             "nodeId": self.UNKNOWN_ARBITRATION_ID,
-            "isExtendedId": False,
-            "isFd": False,
-            "bitrateSwitch": False,
+            "isExtendedId": self.DEFAULT_EXTENDED_ID_FLAG,
+            "isFd": self.DEFAULT_FD_FLAG,
+            "bitrateSwitch": self.DEFAULT_BITRATE_SWITCH_FLAG,
             "response": True,
             "dataLength": 1,
-            "dataByteorder": "big",
+            "dataByteorder": self.DEFAULT_BYTEORDER,
+            "dataSigned": self.DEFAULT_SIGNED_FLAG,
             "dataExpression": None,
-            "dataEncoding": "ascii",
+            "dataEncoding": self.DEFAULT_ENCODING,
             "dataBefore": None,
             "dataAfter": None,
             "dataInHex": None
@@ -302,9 +316,9 @@ class CanConnector(Connector, Thread):
 
         parsing_conf = self.__nodes[message.arbitration_id][cmd_id]
         data = self.__converters[parsing_conf["deviceName"]]["uplink"].convert(parsing_conf["configs"], message.data)
-        if data is None or data.get("attributes", []) and data.get("telemetry", []):
-            log.error("[%s] Failed to process CAN message (id=%d,cmd_id=%s): data conversion failure",
-                      self.get_name(), message.arbitration_id, cmd_id)
+        if data is None or not data.get("attributes", []) and not data.get("telemetry", []):
+            log.warning("[%s] Failed to process CAN message (id=%d,cmd_id=%s): data conversion failure",
+                     self.get_name(), message.arbitration_id, cmd_id)
             return
 
         self.__check_and_send(parsing_conf, data)
@@ -343,8 +357,8 @@ class CanConnector(Connector, Thread):
     def __parse_config(self, config):
         self.__reconnect_count = 0
         self.__reconnect_conf = {
-            "enabled": config.get("reconnect", True),
-            "period": config.get("reconnectPeriod", 30.0),
+            "enabled": config.get("reconnect", self.DEFAULT_RECONNECT_STATE),
+            "period": config.get("reconnectPeriod", self.DEFAULT_RECONNECT_PERIOD),
             "maxCount": config.get("reconnectCount", None)
         }
 
@@ -357,13 +371,14 @@ class CanConnector(Connector, Thread):
         for device_config in config.get("devices"):
             is_device_config_valid = False
             device_name = device_config["name"]
-            device_type = device_config.get("type", "CAN")
-            strict_eval = device_config.get("strictEval", True)
+            device_type = device_config.get("type", self.__connector_type)
+            strict_eval = device_config.get("strictEval", self.DEFAULT_STRICT_EVAL_FLAG)
 
             self.__devices[device_name] = {}
-            self.__devices[device_name]["enableUnknownRpc"] = device_config.get("enableUnknownRpc", False)
+            self.__devices[device_name]["enableUnknownRpc"] = device_config.get("enableUnknownRpc",
+                                                                                self.DEFAULT_ENABLE_UNKNOWN_RPC)
             self.__devices[device_name]["overrideRpcConfig"] = True if self.__devices[device_name]["enableUnknownRpc"] \
-                else device_config.get("overrideRpcConfig", False)
+                else device_config.get("overrideRpcConfig", self.DEFAULT_OVERRIDE_RPC_PARAMS)
 
             self.__converters[device_name] = {}
 
@@ -388,13 +403,14 @@ class CanConnector(Connector, Thread):
                                                                                       False)
                 for attribute_config in device_config["attributeUpdates"]:
                     attribute_config["strictEval"] = strict_eval
-                    self.__shared_attributes[device_name][attribute_config["attributeOnThingsBoard"]] = attribute_config
+                    attribute_name = attribute_config.get("attributeOnThingsBoard") or attribute_config.get("attribute")
+                    self.__shared_attributes[device_name][attribute_name] = attribute_config
 
             for config_key in ["timeseries", "attributes"]:
                 if config_key not in device_config or not device_config[config_key]:
                     continue
 
-                is_device_config_valid = False
+                is_device_config_valid = True
                 is_ts = (config_key[0] == "t")
                 tb_item = "telemetry" if is_ts else "attributes"
 
@@ -419,7 +435,7 @@ class CanConnector(Connector, Thread):
                         msg_config.update(value_config)
                     else:
                         log.warning("[%s] Ignore '%s' %s configuration: no value configuration",
-                                    self.get_name(), tb_key, config_key,)
+                                    self.get_name(), tb_key, config_key, )
                         continue
 
                     if msg_config.get("command", "") and node_id not in self.__commands:
@@ -442,7 +458,7 @@ class CanConnector(Connector, Thread):
                         self.__nodes[node_id][cmd_id] = {
                             "deviceName": device_name,
                             "deviceType": device_type,
-                            "sendOnChange": device_config.get("sendDataOnlyOnChange", False),
+                            "sendOnChange": device_config.get("sendDataOnlyOnChange", self.DEFAULT_SEND_IF_CHANGED),
                             "configs": []}
 
                     self.__nodes[node_id][cmd_id]["configs"].append(msg_config)
@@ -453,11 +469,13 @@ class CanConnector(Connector, Thread):
                             polling_config = msg_config.get("polling")
                             polling_config["key"] = tb_key  # Just for logging
                             polling_config["type"] = polling_config.get("type", "always")
-                            polling_config["period"] = polling_config.get("period", 1.0)
+                            polling_config["period"] = polling_config.get("period", self.DEFAULT_POLL_PERIOD)
                             polling_config["nodeId"] = node_id
-                            polling_config["isExtendedId"] = msg_config.get("isExtendedId", False)
-                            polling_config["isFd"] = msg_config.get("isFd", False)
-                            polling_config["bitrateSwitch"] = msg_config.get("bitrateSwitch", False)
+                            polling_config["isExtendedId"] = msg_config.get("isExtendedId",
+                                                                            self.DEFAULT_EXTENDED_ID_FLAG)
+                            polling_config["isFd"] = msg_config.get("isFd", self.DEFAULT_FD_FLAG)
+                            polling_config["bitrateSwitch"] = msg_config.get("bitrateSwitch",
+                                                                             self.DEFAULT_BITRATE_SWITCH_FLAG)
                             # Create CAN message object to validate its data
                             can_msg = Message(arbitration_id=polling_config["nodeId"],
                                               is_extended_id=polling_config["isExtendedId"],
@@ -488,22 +506,35 @@ class CanConnector(Connector, Thread):
                 log.warning("[%s] Wrong value configuration: '%s' doesn't match pattern", self.get_name(), config)
                 return
 
-            return {
+            value_config = {
                 "start": int(value_matches.group(1)),
                 "length": int(value_matches.group(2)),
-                "byteorder": value_matches.group(3) if value_matches.group(3) else "big",
-                "type": value_matches.group(4),
-                "encoding": value_matches.group(5) if value_matches.group(5) else "ascii"
+                "byteorder": value_matches.group(3) if value_matches.group(3) else self.DEFAULT_BYTEORDER,
+                "type": value_matches.group(4)
             }
+
+            if value_config["type"][0] == "i" or value_config["type"][0] == "l":
+                value_config["signed"] = value_matches.group(5) == "signed" if value_matches.group(5) \
+                    else self.DEFAULT_SIGNED_FLAG
+            elif value_config["type"][0] == "s":
+                value_config["encoding"] = value_matches.group(5) if value_matches.group(5) else self.DEFAULT_ENCODING
+
+            return value_config
         elif isinstance(config, dict):
             try:
-                return {
+                value_config = {
                     "start": int(config["start"]),
                     "length": int(config["length"]),
-                    "byteorder": config["byteorder"] if config.get("byteorder", "") else "big",
-                    "type": config["type"],
-                    "encoding": config["encoding"] if config.get("encoding", "") else "ascii"
+                    "byteorder": config["byteorder"] if config.get("byteorder", "") else self.DEFAULT_BYTEORDER,
+                    "type": config["type"]
                 }
+
+                if value_config["type"][0] == "i" or value_config["type"][0] == "l":
+                    value_config["signed"] = config.get("signed", self.DEFAULT_SIGNED_FLAG)
+                elif value_config["type"][0] == "s":
+                    value_config["encoding"] = config["encoding"] if config.get("encoding", "") else self.DEFAULT_ENCODING
+
+                return value_config
             except (KeyError, ValueError) as e:
                 log.warning("[%s] Wrong value configuration: %s", self.get_name(), str(e))
                 return
@@ -524,7 +555,7 @@ class CanConnector(Connector, Thread):
             return {
                 "start": int(cmd_matches.group(1)),
                 "length": int(cmd_matches.group(2)),
-                "byteorder": cmd_matches.group(3) if cmd_matches.group(3) else "big",
+                "byteorder": cmd_matches.group(3) if cmd_matches.group(3) else self.DEFAULT_BYTEORDER,
                 "value": int(cmd_matches.group(4))
             }
         elif isinstance(config, dict):
@@ -532,7 +563,7 @@ class CanConnector(Connector, Thread):
                 return {
                     "start": int(config["start"]),
                     "length": int(config["length"]),
-                    "byteorder": config["byteorder"] if config.get("byteorder", "") else "big",
+                    "byteorder": config["byteorder"] if config.get("byteorder", "") else self.DEFAULT_BYTEORDER,
                     "value": int(config["value"])
                 }
             except (KeyError, ValueError) as e:
@@ -561,36 +592,28 @@ class Poller(Thread):
         self.connector = connector
         self.scheduler = sched.scheduler(time.time, time.sleep)
         self.events = []
+        self.first_run = True
         self.daemon = True
-        log.info("[%s] Starting poller", self.connector.get_name())
 
-    def poll_once(self):
-        log.info("[%s] Starting one time poll", self.connector.get_name())
-        for polling_config in self.connector.get_polling_messages():
-            self.connector.send_data_to_bus(polling_config["nodeId"],
-                                            bytearray.fromhex(polling_config["dataInHex"]),
-                                            polling_config["isExtendedId"],
-                                            polling_config["isFd"],
-                                            polling_config["bitrateSwitch"])
+    def poll(self):
+        if self.first_run:
+            log.info("[%s] Starting poller", self.connector.get_name())
 
-    def run(self):
         for polling_config in self.connector.get_polling_messages():
             key = polling_config["key"]
             if polling_config["type"] == "always":
                 log.info("[%s] Polling '%s' key every %f sec", self.connector.get_name(), key, polling_config["period"])
-                self.__poll_and_schedule(polling_config["period"],
-                                         polling_config["nodeId"],
-                                         bytearray.fromhex(polling_config["dataInHex"]),
-                                         polling_config["isExtendedId"],
-                                         polling_config["isFd"],
-                                         polling_config["bitrateSwitch"])
-            else:
+                self.__poll_and_schedule(bytearray.fromhex(polling_config["dataInHex"]), polling_config)
+            elif self.first_run:
                 log.info("[%s] Polling '%s' key once", self.connector.get_name(), key)
-                self.connector.send_data_to_bus(polling_config["nodeId"],
-                                                bytearray.fromhex(polling_config["dataInHex"]),
-                                                polling_config["isExtendedId"],
-                                                polling_config["isFd"],
-                                                polling_config["bitrateSwitch"])
+                self.connector.send_data_to_bus(bytearray.fromhex(polling_config["dataInHex"]),
+                                                polling_config,
+                                                raise_exception=self.first_run)
+        if self.first_run:
+            self.first_run = False
+            self.start()
+
+    def run(self):
         self.scheduler.run()
         log.info("[%s] Poller stopped", self.connector.get_name())
 
@@ -599,18 +622,15 @@ class Poller(Thread):
         for event in self.events:
             self.scheduler.cancel(event)
 
-    def __poll_and_schedule(self, period, node_id, data, is_extended_id, is_fd, bitrate_switch):
+    def __poll_and_schedule(self, data, config):
         if self.connector.is_stopped():
             return
         if self.events:
             self.events.pop(0)
 
-        log.debug("[%s] Sending periodic (%d sec) CAN message (arbitration_id=%d, data=%s)",
-                  self.connector.get_name(), period, node_id, data)
-        self.connector.send_data_to_bus(node_id, data, is_extended_id, is_fd, bitrate_switch)
+        log.debug("[%s] Sending periodic (%f sec) CAN message (arbitration_id=%d, data=%s)",
+                  self.connector.get_name(), config["period"], config["nodeId"], data)
+        self.connector.send_data_to_bus(data, config, raise_exception=self.first_run)
 
-        event = self.scheduler.enter(period,
-                                     1,
-                                     self.__poll_and_schedule,
-                                     argument=(period, node_id, data, is_extended_id, is_fd, bitrate_switch))
+        event = self.scheduler.enter(config["period"], 1, self.__poll_and_schedule, argument=(data, config))
         self.events.append(event)

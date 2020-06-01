@@ -51,6 +51,11 @@ connectors:
 #    configuration: can.json
 #
 #  -
+#    name: BACnet Connector
+#    type: bacnet
+#    configuration: bacnet.json
+#
+#  -
 #    name: ODBC Connector
 #    type: odbc
 #    configuration: odbc.json

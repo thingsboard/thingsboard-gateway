@@ -14,6 +14,7 @@
 
 import logging
 import unittest
+from os import remove, listdir, removedirs
 from time import sleep
 from random import randint
 from pymodbus.constants import Endian
@@ -409,14 +410,15 @@ class TestStorage(unittest.TestCase):
 
     def test_file_storage(self):
 
-        test_size = randint(0, 100)
-
         storage_test_config = {"data_folder_path": "storage/data/",
-                               "max_files_count": 100,
+                               "max_file_count": 1000,
                                "max_records_per_file": 10,
                                "max_read_records_count": 10,
                                "no_records_sleep_interval": 5000
                                }
+
+        test_size = randint(0, storage_test_config["max_file_count"]-1)
+
         storage = FileEventStorage(storage_test_config)
 
         for test_value in range(test_size * 10):
@@ -433,6 +435,9 @@ class TestStorage(unittest.TestCase):
 
         print(result)
         print(correct_result)
+        for file in listdir(storage_test_config["data_folder_path"]):
+            remove(storage_test_config["data_folder_path"]+"/"+file)
+        removedirs(storage_test_config["data_folder_path"])
         self.assertListEqual(result, correct_result)
 
 

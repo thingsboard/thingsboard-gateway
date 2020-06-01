@@ -209,7 +209,10 @@ class ModbusConnector(Connector, threading.Thread):
 
     def __configure_master(self):
         host = self.__config.get("host", "localhost")
-        port = self.__config.get("port", 502)
+        try:
+            port = self.__config.get(int("port"), 502)
+        except ValueError:
+            port = self.__config.get("port", 502)
         baudrate = self.__config.get('baudrate', 19200)
         timeout = self.__config.get("timeout", 35)
         method = self.__config.get('method', 'rtu')

@@ -27,10 +27,15 @@ class OdbcUplinkConverter(OdbcConverter):
                 if isinstance(config_item, str):
                     converted_data[config_item] = data[config_item]
                 elif isinstance(config_item, dict):
+                    if "nameExpression" in config_item:
+                        name = eval(config_item["nameExpression"], globals(), data)
+                    else:
+                        name = config_item["name"]
+
                     if "column" in config_item:
-                        converted_data[config_item["name"]] = data[config_item["column"]]
+                        converted_data[name] = data[config_item["column"]]
                     elif "value" in config_item:
-                        converted_data[config_item["name"]] = eval(config_item["value"], globals(), data)
+                        converted_data[name] = eval(config_item["value"], globals(), data)
                     else:
                         log.error("Failed to convert SQL data to TB format: no column/value configuration item")
                 else:

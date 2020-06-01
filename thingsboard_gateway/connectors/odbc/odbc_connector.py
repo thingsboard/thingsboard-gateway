@@ -11,7 +11,9 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
 from hashlib import sha1
+from os import path
 from pathlib import Path
 from time import sleep
 from random import choice
@@ -20,6 +22,7 @@ from threading import Thread
 from simplejson import dumps, load
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
 try:
     import pyodbc
 except ImportError:
@@ -33,13 +36,14 @@ from thingsboard_gateway.connectors.connector import Connector, log
 
 
 class OdbcConnector(Connector, Thread):
-    DEFAULT_SEND_IF_CHANGED = True
+    DEFAULT_SEND_IF_CHANGED = False
     DEFAULT_RECONNECT_STATE = True
     DEFAULT_SAVE_ITERATOR = False
     DEFAULT_RECONNECT_PERIOD = 60
     DEFAULT_POLL_PERIOD = 60
     DEFAULT_ENABLE_UNKNOWN_RPC = False
     DEFAULT_OVERRIDE_RPC_PARAMS = False
+    DEFAULT_PROCESS_RPC_RESULT = False
 
     def __init__(self, gateway, config, connector_type):
         super().__init__()
@@ -53,7 +57,7 @@ class OdbcConnector(Connector, Thread):
         self.__config = config
         self.__stopped = False
 
-        self.__config_dir = "thingsboard_gateway/config/odbc/"
+        self.__config_dir = self.__gateway.get_config_path() + "odbc" + path.sep
 
         self.__connection = None
         self.__cursor = None
@@ -96,46 +100,64 @@ class OdbcConnector(Connector, Thread):
         done = False
         try:
             if not self.is_connected():
-                log.warn("[%s] Cannot process RPC request: not connected to database", self.get_name())
+                log.warning("[%s] Cannot process RPC request: not connected to database", self.get_name())
                 raise Exception("no connection")
 
-            sql_params = self.__config["serverSideRpc"]["methods"].get(content["data"]["method"])
-            if sql_params is None:
+            is_rpc_unknown = False
+            rpc_config = self.__config["serverSideRpc"]["methods"].get(content["data"]["method"])
+            if rpc_config is None:
                 if not self.__config["serverSideRpc"]["enableUnknownRpc"]:
-                    log.warn("[%s] Ignore unknown RPC request '%s' (id=%s)",
-                             self.get_name(), content["data"]["method"], content["data"]["id"])
+                    log.warning("[%s] Ignore unknown RPC request '%s' (id=%s)",
+                                self.get_name(), content["data"]["method"], content["data"]["id"])
                     raise Exception("unknown RPC request")
                 else:
-                    sql_params = content["data"].get("params", {}).get("args", [])
-            elif self.__config["serverSideRpc"]["overrideRpcConfig"]:
-                if content["data"].get("params", {}).get("args", []):
-                    sql_params = content["data"]["params"]["args"]
+                    is_rpc_unknown = True
+                    rpc_config = content["data"].get("params", {})
+                    sql_params = rpc_config.get("args", [])
+                    query = rpc_config.get("query", "")
+            else:
+                if self.__config["serverSideRpc"]["overrideRpcConfig"]:
+                    rpc_config = {**rpc_config, **content["data"].get("params", {})}
 
-            log.debug("[%s] Processing '%s' RPC request (id=%s) for '%s' device: params=%s",
-                      self.get_name(), content["data"]["method"], content["data"]["id"],
-                      content["device"], content["data"].get("params"))
+                # The params attribute is obsolete but leave for backward configuration compatibility
+                sql_params = rpc_config.get("args") or rpc_config.get("params", [])
+                query = rpc_config.get("query", "")
+
+            log.debug("[%s] Processing %s '%s' RPC request (id=%s) for '%s' device: params=%s, query=%s",
+                      self.get_name(), "unknown" if is_rpc_unknown else "", content["data"]["method"],
+                      content["data"]["id"], content["device"], sql_params, query)
 
             if self.__rpc_cursor is None:
                 self.__rpc_cursor = self.__connection.cursor()
 
-            if sql_params:
-                self.__rpc_cursor.execute("{{CALL {} ({})}}".format(content["data"]["method"],
-                                                                    ("?," * len(sql_params))[0:-1]),
-                                          sql_params)
+            if query:
+                if sql_params:
+                    self.__rpc_cursor.execute(query, sql_params)
+                else:
+                    self.__rpc_cursor.execute(query)
             else:
-                self.__rpc_cursor.execute("{{CALL {}}}".format(content["data"]["method"]))
+                if sql_params:
+                    self.__rpc_cursor.execute("{{CALL {} ({})}}".format(content["data"]["method"],
+                                                                        ("?," * len(sql_params))[0:-1]),
+                                              sql_params)
+                else:
+                    self.__rpc_cursor.execute("{{CALL {}}}".format(content["data"]["method"]))
 
             done = True
             log.debug("[%s] Processed '%s' RPC request (id=%s) for '%s' device",
                       self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
         except pyodbc.Warning as w:
-            log.warn("[%s] Warning while processing '%s' RPC request (id=%s) for '%s' device: %s",
-                     self.get_name(), content["data"]["method"], content["data"]["id"], content["device"], str(w))
+            log.warning("[%s] Warning while processing '%s' RPC request (id=%s) for '%s' device: %s",
+                        self.get_name(), content["data"]["method"], content["data"]["id"], content["device"], str(w))
         except Exception as e:
             log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device: %s",
                       self.get_name(), content["data"]["method"], content["data"]["id"], content["device"], str(e))
         finally:
-            self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], {"success": done})
+            if done and rpc_config.get("result", self.DEFAULT_PROCESS_RPC_RESULT):
+                response = self.row_to_dict(self.__rpc_cursor.fetchone())
+                self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], response)
+            else:
+                self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], {"success": done})
 
     def run(self):
         while not self.__stopped:
@@ -150,7 +172,6 @@ class OdbcConnector(Connector, Thread):
 
                 if not self.is_connected():
                     log.error("[%s] Cannot connect to database so exit from main loop", self.get_name())
-                    self.__stopped = True
                     break
 
                 if not self.__init_iterator():
@@ -160,58 +181,58 @@ class OdbcConnector(Connector, Thread):
             # Polling phase
             try:
                 self.__poll()
-                # self.server_side_rpc_handler({"device": "RPC test",
-                #                               "data": {
-                #                                   "id": 777,
-                #                                   "method": "usp_NoParameters",
-                #                                   "params": [ 8, True, "Three" ]
-                #                               }})
                 if not self.__stopped:
                     polling_period = self.__config["polling"].get("period", self.DEFAULT_POLL_PERIOD)
                     log.debug("[%s] Next polling iteration will be in %d second(s)", self.get_name(), polling_period)
                     sleep(polling_period)
             except pyodbc.Warning as w:
-                log.warn("[%s] Warning while polling database: %s", self.get_name(), str(w))
+                log.warning("[%s] Warning while polling database: %s", self.get_name(), str(w))
             except pyodbc.Error as e:
                 log.error("[%s] Error while polling database: %s", self.get_name(), str(e))
                 self.__close()
+
         self.__close()
+        self.__stopped = False
         log.info("[%s] Stopped", self.get_name())
 
     def __close(self):
         if self.is_connected():
             try:
+                self.__cursor.close()
+                if self.__rpc_cursor is not None:
+                    self.__rpc_cursor.close()
                 self.__connection.close()
             finally:
                 log.info("[%s] Connection to database closed", self.get_name())
                 self.__connection = None
                 self.__cursor = None
+                self.__rpc_cursor = None
 
     def __poll(self):
         rows = self.__cursor.execute(self.__config["polling"]["query"], self.__iterator["value"])
 
-        if not self.__column_names and self.__cursor.rowcount > 0:
+        if not self.__column_names:
             for column in self.__cursor.description:
                 self.__column_names.append(column[0])
             log.info("[%s] Fetch column names: %s", self.get_name(), self.__column_names)
 
+        # For some reason pyodbc.Cursor.rowcount may be 0 (sqlite) so use our own row counter
+        row_count = 0
         for row in rows:
             # log.debug("[%s] Fetch row: %s", self.get_name(), row)
+            row_count += 1
             self.__process_row(row)
 
-        self.__iterator["total"] += self.__cursor.rowcount
+        self.__iterator["total"] += row_count
         log.info("[%s] Polling iteration finished. Processed rows: current %d, total %d",
-                 self.get_name(), self.__cursor.rowcount, self.__iterator["total"])
+                 self.get_name(), row_count, self.__iterator["total"])
 
-        if self.__config["polling"]["iterator"].get("persistent",
-                                                    self.DEFAULT_SAVE_ITERATOR) and self.__cursor.rowcount > 0:
+        if self.__config["polling"]["iterator"]["persistent"] and row_count > 0:
             self.__save_iterator_config()
 
     def __process_row(self, row):
         try:
-            data = {}
-            for column in self.__column_names:
-                data[column] = getattr(row, column)
+            data = self.row_to_dict(row)
 
             to_send = {"attributes": {} if "attributes" not in self.__config["mapping"] else
             self.__converter.convert(self.__config["mapping"]["attributes"], data),
@@ -228,7 +249,14 @@ class OdbcConnector(Connector, Thread):
                                   self.__config["mapping"]["device"].get("type", self.__connector_type),
                                   to_send)
         except Exception as e:
-            log.warn("[%s] Failed to process database row: %s", self.get_name(), str(e))
+            log.warning("[%s] Failed to process database row: %s", self.get_name(), str(e))
+
+    @staticmethod
+    def row_to_dict(row):
+        data = {}
+        for column_description in row.cursor_description:
+            data[column_description[0]] = getattr(row, column_description[0])
+        return data
 
     def __check_and_send(self, device_name, device_type, new_data):
         self.statistics['MessagesReceived'] += 1
@@ -275,8 +303,8 @@ class OdbcConnector(Connector, Thread):
                                  self.get_name(), decoding_config["metadata"])
                         self.__connection.setdecoding(pyodbc.SQL_WMETADATA, decoding_config["metadata"])
                 else:
-                    log.warn("[%s] Unknown decoding configuration %s. Read data may be misdecoded", self.get_name(),
-                             decoding_config)
+                    log.warning("[%s] Unknown decoding configuration %s. Read data may be misdecoded", self.get_name(),
+                                decoding_config)
 
             self.__cursor = self.__connection.cursor()
             log.info("[%s] Connection to database opened, attributes %s",
@@ -301,11 +329,16 @@ class OdbcConnector(Connector, Thread):
             self.__iterator_file_name = sha1(file_name.encode()).hexdigest() + ".json"
             log.debug("[%s] Iterator file name resolved to %s", self.get_name(), self.__iterator_file_name)
         except Exception as e:
-            log.warn("[%s] Failed to resolve iterator file name: %s", self.get_name(), str(e))
+            log.warning("[%s] Failed to resolve iterator file name: %s", self.get_name(), str(e))
         return bool(self.__iterator_file_name)
 
     def __init_iterator(self):
-        save_iterator = self.__config["polling"]["iterator"].get("persistent", self.DEFAULT_SAVE_ITERATOR)
+        save_iterator = self.DEFAULT_SAVE_ITERATOR
+        if "persistent" not in self.__config["polling"]["iterator"]:
+            self.__config["polling"]["iterator"]["persistent"] = save_iterator
+        else:
+            save_iterator = self.__config["polling"]["iterator"]["persistent"]
+
         log.info("[%s] Iterator saving %s", self.get_name(), "enabled" if save_iterator else "disabled")
 
         if save_iterator and self.__load_iterator_config():
@@ -328,7 +361,7 @@ class OdbcConnector(Connector, Thread):
                 log.info("[%s] Init iterator from database: column=%s, start_value=%s",
                          self.get_name(), self.__iterator["name"], self.__iterator["value"])
             except pyodbc.Warning as w:
-                log.warn("[%s] Warning on init iterator from database: %s", self.get_name(), str(w))
+                log.warning("[%s] Warning on init iterator from database: %s", self.get_name(), str(w))
             except pyodbc.Error as e:
                 log.error("[%s] Failed to init iterator from database: %s", self.get_name(), str(e))
         else:
@@ -378,6 +411,8 @@ class OdbcConnector(Connector, Thread):
         log.info("[%s] Set pyodbc attributes: %s", self.get_name(), pyodbc_config)
 
     def __parse_rpc_config(self):
+        if "serverSideRpc" not in self.__config:
+            self.__config["serverSideRpc"] = {}
         if "enableUnknownRpc" not in self.__config["serverSideRpc"]:
             self.__config["serverSideRpc"]["enableUnknownRpc"] = self.DEFAULT_ENABLE_UNKNOWN_RPC
 
@@ -397,10 +432,11 @@ class OdbcConnector(Connector, Thread):
         reformatted_config = {}
         for rpc_config in self.__config["serverSideRpc"]["methods"]:
             if isinstance(rpc_config, str):
-                reformatted_config[rpc_config] = []
+                reformatted_config[rpc_config] = {}
             elif isinstance(rpc_config, dict):
-                reformatted_config[rpc_config["name"]] = rpc_config.get("params", [])
+                reformatted_config[rpc_config["name"]] = rpc_config
             else:
-                log.warn("[%s] Wrong RPC config format. Expected str or dict, get %s", self.get_name(), type(rpc_config))
+                log.warning("[%s] Wrong RPC config format. Expected str or dict, get %s", self.get_name(),
+                            type(rpc_config))
 
         self.__config["serverSideRpc"]["methods"] = reformatted_config

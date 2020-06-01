@@ -27,19 +27,10 @@
       "timeseries": [
         {
           "key": "rpm",
-          "nodeId": 3,
+          "nodeId": 1918,
           "isExtendedId": true,
-          "command": {
-            "start": 2,
-            "length": 2,
-            "byteorder": "little",
-            "value": 48059
-          },
-          "value": {
-            "start": 4,
-            "length": 2,
-            "type": "int"
-          },
+          "command": "2:2:big:48059",
+          "value": "4:2:big:int",
           "expression": "value / 4",
           "polling": {
             "type": "always",

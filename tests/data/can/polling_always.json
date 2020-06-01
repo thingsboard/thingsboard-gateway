@@ -1,0 +1,20 @@
+{
+  "interface": "virtual",
+  "channel": "virtual_channel",
+  "devices": [
+    {
+      "name": "TestDevice",
+      "attributes": [
+        {
+          "key": "testVar",
+          "nodeId": 41,
+          "value": "4:1:int",
+          "polling": {
+            "dataInHex": "CC",
+            "period": 2
+          }
+        }
+      ]
+    }
+  ]
+}
