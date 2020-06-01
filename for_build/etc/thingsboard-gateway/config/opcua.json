@@ -2,8 +2,11 @@
   "server": {
     "name": "OPC-UA Default Server",
     "url": "localhost:4840/freeopcua/server/",
-    "scanPeriodInMillis": 10000,
     "timeoutInMillis": 5000,
+    "scanPeriodInMillis": 5000,
+    "disableSubscriptions":false,
+    "subCheckPeriodInMillis": 100,
+    "showMap": false,
     "security": "Basic128Rsa15",
     "identity": {
       "type": "anonymous"
@@ -14,8 +17,8 @@
         "deviceNamePattern": "Device ${Root\\.Objects\\.Device1\\.serialNumber}",
         "attributes": [
           {
-            "key": "temperature",
-            "path": "${TemperatureAndHumiditySensor\\.Temperature}"
+            "key": "temperature °C",
+            "path": "${ns=2;i=5}"
           }
         ],
         "timeseries": [

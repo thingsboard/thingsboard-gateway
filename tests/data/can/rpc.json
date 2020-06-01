@@ -1,0 +1,66 @@
+{
+  "interface": "virtual",
+  "channel": "virtual_channel",
+  "backend": {
+    "fd": true
+  },
+  "devices": [
+    {
+      "name": "Car1",
+      "enableUnknownRpc": false,
+      "serverSideRpc": [
+        {
+          "method": "sendSameData",
+          "nodeId": 4,
+          "isExtendedId": true,
+          "isFd": true,
+          "bitrateSwitch": true,
+          "dataInHex": "aa bb cc dd ee ff    aa bb aa bb cc dd ee ff"
+        },
+        {
+          "method": "setSpeed",
+          "nodeId": 16,
+          "dataExpression": "userSpeed if maxAllowedSpeed > userSpeed else maxAllowedSpeed",
+          "dataByteorder": "little",
+          "dataLength": 2
+        }
+      ]
+    },
+    {
+      "name": "Car2",
+      "overrideRpcConfig": true,
+      "serverSideRpc": [
+        {
+          "method": "sendSameData",
+          "nodeId": 4,
+          "isExtendedId": true,
+          "isFd": true,
+          "bitrateSwitch": true,
+          "dataInHex": "aa bb cc dd ee ff    aa bb aa bb cc dd ee ff"
+        }
+      ]
+    },
+    {
+      "name": "Car3",
+      "enableUnknownRpc": true,
+      "serverSideRpc": [
+        {
+          "method": "someMethod",
+          "nodeId": 4,
+          "dataInHex": "010203"
+        }
+      ]
+    },
+    {
+      "name": "Car4",
+      "serverSideRpc": [
+        {
+          "method": "wrongDataMethod",
+          "nodeId": 4,
+          "dataInHex": "123",
+          "response": true
+        }
+      ]
+    }
+  ]
+}

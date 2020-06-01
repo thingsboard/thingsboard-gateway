@@ -1,0 +1,40 @@
+{
+  "interface": "virtual",
+  "channel": "virtual_channel",
+  "backend": {
+    "fd": true
+  },
+  "devices": [
+    {
+      "name": "Car",
+      "strictEval": false,
+      "attributeUpdates": [
+        {
+          "attributeOnThingsBoard": "boolAttr",
+          "nodeId": 1
+        },
+        {
+          "attribute": "intAttr",
+          "nodeId": 2,
+          "isExtendedId": true,
+          "dataLength": 4,
+          "dataByteorder": "little"
+        },
+        {
+          "attributeOnThingsBoard": "floatAttr",
+          "nodeId": 3
+        },
+        {
+          "attribute": "stringAttr",
+          "nodeId": 4,
+          "isFd": true,
+          "dataExpression": "'Test' + value"
+        },
+        {
+          "attributeOnThingsBoard": "wrongConfigAttr",
+          "nodeId": 123456
+        }
+      ]
+    }
+  ]
+}

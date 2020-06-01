@@ -1,0 +1,27 @@
+{
+  "connection": {
+    "str": "DO_NOT_EDIT_THIS_PARAMETER.IT WILL BE OVERRIDDEN BY TESTS.",
+    "reconnectPeriod": 3
+  },
+  "polling": {
+    "query": "SELECT bool_v, str_v, dbl_v, long_v, device_id, ts FROM timeseries WHERE ts > ? ORDER BY ts ASC LIMIT 2",
+    "period": 5,
+    "iterator": {
+      "column": "ts",
+      "query": "SELECT MIN(ts) - 1 FROM timeseries",
+      "persistent": true
+    }
+  },
+  "mapping": {
+    "sendDataOnlyOnChange": true,
+    "device": {
+      "name": "'ODBC ' + str(device_id)"
+    },
+    "timeseries": [
+      {
+        "name": "value",
+        "value": "[i for i in [str_v, long_v, dbl_v,bool_v] if i is not None][0]"
+      }
+    ]
+  }
+}

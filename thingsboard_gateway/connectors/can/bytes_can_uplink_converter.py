@@ -24,34 +24,36 @@ class BytesCanUplinkConverter(CanConverter):
                   "telemetry": {}}
 
         for config in configs:
-            tb_key = config["key"]
-            tb_item = "telemetry" if config["is_ts"] else "attributes"
-
             try:
+                tb_key = config["key"]
+                tb_item = "telemetry" if config["is_ts"] else "attributes"
+
                 # The 'value' variable is used in eval
                 if config["type"][0] == "b":
                     value = bool(can_data[config["start"]])
                 elif config["type"][0] == "i" or config["type"][0] == "l":
                     value = int.from_bytes(can_data[config["start"]:config["start"] + config["length"]],
-                                           config["byteorder"])
+                                           config["byteorder"],
+                                           signed=config["signed"])
                 elif config["type"][0] == "f" or config["type"][0] == "d":
                     fmt = ">" + config["type"][0] if config["byteorder"][0] == "b" else "<" + config["type"][0]
-                    value = struct.unpack_from(fmt, can_data[config["start"]:config["start"] + config["length"]])
+                    value = struct.unpack_from(fmt,
+                                               bytes(can_data[config["start"]:config["start"] + config["length"]]))[0]
                 elif config["type"][0] == "s":
                     value = can_data[config["start"]:config["start"] + config["length"]].decode(config["encoding"])
                 else:
                     log.error("Failed to convert CAN data to TB %s '%s': unknown data type '%s'",
-                              "timeseries key" if config["is_ts"] else "attribute", tb_key, config["type"])
-                    return
+                              "time series key" if config["is_ts"] else "attribute", tb_key, config["type"])
+                    continue
 
                 if config.get("expression", ""):
                     result[tb_item][tb_key] = eval(config["expression"],
-                                                   {"__builtins__": {}} if config.get("strictEval", True) else globals(),
+                                                   {"__builtins__": {}} if config["strictEval"] else globals(),
                                                    {"value": value, "can_data": can_data})
                 else:
                     result[tb_item][tb_key] = value
             except Exception as e:
                 log.error("Failed to convert CAN data to TB %s '%s': %s",
-                          "timeseries key" if config["is_ts"] else "attribute", tb_key, str(e))
+                          "time series key" if config["is_ts"] else "attribute", tb_key, str(e))
                 continue
         return result

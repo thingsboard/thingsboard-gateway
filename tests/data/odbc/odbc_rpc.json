@@ -1,0 +1,43 @@
+{
+  "connection": {
+    "str": "DO_NOT_EDIT_THIS_PARAMETER.IT WILL BE OVERRIDDEN BY TESTS.",
+    "reconnectPeriod": 5
+  },
+  "polling": {
+    "query": "SELECT key FROM attributes WHERE ts > ? ORDER BY ts ASC LIMIT 10",
+    "iterator": {
+      "column": "ts",
+      "query": "SELECT MAX(ts) FROM attributes"
+    }
+  },
+  "mapping": {
+    "device": {
+      "name": "'ODBC ' + entity_id"
+    },
+    "timeseries": [
+      {
+        "name": "value",
+        "value": "[i for i in [str_v, long_v, dbl_v,bool_v] if i is not None][0]"
+      }
+    ]
+  },
+  "serverSideRpc": {
+    "methods": [
+      "decrement_value",
+      {
+        "name": "increment_value",
+        "query": "CALL increment_value()"
+      },
+      {
+        "name": "reset_values",
+        "params": [ "test", 25 ]
+      },
+      {
+        "name": "update_values",
+        "params": [ "hello world", 150 ],
+        "query": "CALL update_values(?,?)"
+      },
+      "get_values"
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "interface": "virtual",
+  "channel": "virtual_channel",
+  "backend": {
+    "fd": true
+  },
+  "devices": [
+    {
+      "name": "Car1",
+      "type": "test_car",
+      "attributes": [
+        {
+          "key": "serialNumber",
+          "nodeId": 1,
+          "isFd": true,
+          "command": {
+            "start": 0,
+            "length": 2,
+            "byteorder": "little",
+            "value": 12345
+          },
+          "value": "2:8:string:utf-8"
+        }
+      ],
+      "timeseries": [
+        {
+          "key": "milliage",
+          "nodeId": 1918,
+          "isExtendedId": true,
+          "value": "4:2:little:int",
+          "expression": "value * 10"
+        }
+      ]
+    },
+    {
+      "name": "Car2",
+      "sendDataOnlyOnChange": true,
+      "timeseries": [
+        {
+          "key": "rpm",
+          "nodeId": 2,
+          "value": "4:2:int"
+        }
+      ]
+    }
+  ]
+}
