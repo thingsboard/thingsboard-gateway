@@ -83,28 +83,20 @@
         "type": "anonymous"
       },
       "converter": {
-        "type": "json",
+        "type": "custom",
         "deviceNameExpression": "SuperAnonDevice",
         "deviceTypeExpression": "default",
-        "attributes": [
+        "extension": "CustomRestUplinkConverter",
+        "extension-config": [
           {
-            "type": "string",
-            "key": "model",
-            "value": "${sensorModel}"
-          }
-        ],
-        "timeseries": [
-          {
-            "type": "double",
-            "key": "temperature",
-            "value": "${temp}"
-          },
-          {
-            "type": "double",
-            "key": "humidity",
-            "value": "${hum}"
-          }
-        ]
+          "key": "Totaliser",
+          "datatype": "float",
+          "fromByte": 0,
+          "toByte": 4,
+          "byteorder": "big",
+          "signed": true,
+          "multiplier": 1
+          }]
       }
     }
   ],
