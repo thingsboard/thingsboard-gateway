@@ -45,6 +45,17 @@ from thingsboard_gateway.gateway.tb_gateway_remote_configurator import RemoteCon
 log = logging.getLogger('service')
 main_handler = logging.handlers.MemoryHandler(-1)
 
+DEFAULT_CONNECTORS = {
+            "mqtt": "MqttConnector",
+            "modbus": "ModbusConnector",
+            "opcua": "OpcUaConnector",
+            "ble": "BLEConnector",
+            "request": "RequestConnector",
+            "can": "CanConnector",
+            "bacnet": "BACnetConnector",
+            "odbc": "OdbcConnector",
+            "rest": "RESTConnector",
+        }
 
 class TBGatewayService:
     def __init__(self, config_file=None):
@@ -88,17 +99,7 @@ class TBGatewayService:
         self.main_handler = main_handler
         self.remote_handler = TBLoggerHandler(self)
         self.main_handler.setTarget(self.remote_handler)
-        self._default_connectors = {
-            "mqtt": "MqttConnector",
-            "modbus": "ModbusConnector",
-            "opcua": "OpcUaConnector",
-            "ble": "BLEConnector",
-            "request": "RequestConnector",
-            "can": "CanConnector",
-            "bacnet": "BACnetConnector",
-            "odbc": "OdbcConnector",
-            "rest": "RESTConnector",
-        }
+        self._default_connectors = DEFAULT_CONNECTORS
         self._implemented_connectors = {}
         self._event_storage_types = {
             "memory": MemoryEventStorage,

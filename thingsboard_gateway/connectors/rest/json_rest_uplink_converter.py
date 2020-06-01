@@ -12,6 +12,7 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 
+from time import time
 from simplejson import dumps, loads
 from thingsboard_gateway.connectors.rest.rest_converter import RESTConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
