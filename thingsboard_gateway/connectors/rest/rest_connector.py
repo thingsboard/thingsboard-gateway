@@ -169,8 +169,9 @@ class RESTConnector(Connector, Thread):
                                     "request": regular_request}
                     request_dict["converter"] = request_dict["config"].get("uplink_converter")
                     with self._app.test_request_context():
+                        from flask import request as flask_request
                         rpc_request_thread = Thread(target=self.__send_request,
-                                                    args=(request_dict, response_queue, log),
+                                                    args=(request_dict, response_queue, log, flask_request),
                                                     daemon=True,
                                                     name="RPC request to %s" % (converted_data["url"]))
                         rpc_request_thread.start()
@@ -181,7 +182,8 @@ class RESTConnector(Connector, Thread):
                         self.__gateway.send_rpc_reply(device=content["device"],
                                                       req_id=content["data"]["id"],
                                                       content=response[2])
-                    self.__gateway.send_rpc_reply(success_sent=True)
+                    else:
+                        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=True)
 
                     del response_queue
         except Exception as e:
@@ -209,7 +211,7 @@ class RESTConnector(Connector, Thread):
                                 }
                 requests_from_tb[request_section].append(request_dict)
 
-    def __send_request(self, request_dict, converter_queue, logger):
+    def __send_request(self, request_dict, converter_queue, logger, request):
         url = ""
         try:
             request_dict["next_time"] = time() + request_dict["config"].get("scanPeriod", 10)
@@ -232,7 +234,7 @@ class RESTConnector(Connector, Thread):
             except JSONDecodeError:
                 data = {"data": request_dict.get("data")}
             params = {
-                "method": request_dict["config"].get("httpMethod", "GET"),
+                "method": request_dict["config"].get("HTTPMethod", "GET"),
                 "url": url,
                 "timeout": request_timeout,
                 "allow_redirects": request_dict["config"].get("allowRedirects", False),
@@ -245,13 +247,15 @@ class RESTConnector(Connector, Thread):
                 params["headers"] = request_dict["config"]["httpHeaders"]
             logger.debug("Request to %s will be sent", url)
             response = request_dict["request"](**params)
+            data_to_storage = [url, request_dict["config"]["uplink_converter"]]
             if response and response.ok:
                 if not converter_queue.full():
-                    data_to_storage = [url, request_dict["config"]["uplink_converter"]]
                     try:
                         data_to_storage.append(response.json())
                     except UnicodeDecodeError:
-                        data_to_storage.append(response.content())
+                        data_to_storage.append(response.content)
+                    except JSONDecodeError:
+                        data_to_storage.append(response.content)
                     if len(data_to_storage) == 3:
                         converter_queue.put(data_to_storage)
                         self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
@@ -260,7 +264,10 @@ class RESTConnector(Connector, Thread):
                              url,
                              response.status_code,
                              response.status_code)
-                logger.debug("Request: %r", request.data)
+                logger.debug("Response: %r", response.text)
+                data_to_storage.append({"error": response.reason, "code": response.status_code})
+                converter_queue.put(data_to_storage)
+                self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
 
         except Timeout:
             logger.error("Timeout error on request %s.", url)

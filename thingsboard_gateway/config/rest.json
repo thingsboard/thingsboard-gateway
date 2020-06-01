@@ -102,7 +102,7 @@
   ],
   "attributeUpdates": [
       {
-        "httpMethod": "POST",
+        "HTTPMethod": "POST",
         "SSLVerify": false,
         "httpHeaders": {
           "CONTENT-TYPE": "application/json"
@@ -120,5 +120,33 @@
         "requestUrlExpression": "sensor/${deviceName}/${attributeKey}",
         "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
       }
+  ],
+  "serverSideRpc": [
+    {
+      "deviceNameFilter": ".*",
+      "methodFilter": "echo",
+      "requestUrlExpression": "http://127.0.0.1:5001/${deviceName}",
+      "responseTimeout": 1,
+      "HTTPMethod": "GET",
+      "valueExpression": "${params}",
+      "timeout": 0.5,
+      "tries": 3,
+      "httpHeaders": {
+        "Content-Type": "application/json"
+      },
+      "security": {
+        "type": "anonymous"
+      }
+    },
+    {
+      "deviceNameFilter": ".*",
+      "methodFilter": "no-reply",
+      "requestUrlExpression": "sensor/${deviceName}/request/${methodName}/${requestId}",
+      "HTTPMethod": "POST",
+      "valueExpression": "${params}",
+      "httpHeaders": {
+        "Content-Type": "application/json"
+      }
+    }
   ]
 }
