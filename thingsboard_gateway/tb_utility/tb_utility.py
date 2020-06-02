@@ -165,5 +165,6 @@ class TBUtility:
             except Exception:
                 pass
             if current_package_version is None or current_package_version != version:
-                result = check_call([executable, "-m", "pip", "install", package + "==" + version, "--user"])
+                installation_sign = "==" if ">=" not in version else ""
+                result = check_call([executable, "-m", "pip", "install", package + installation_sign + version, "--user"])
         return result
