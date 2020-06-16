@@ -85,6 +85,7 @@ class TBGatewayService:
         self.__saved_devices = {}
         self.__events = []
         self.name = ''.join(choice(ascii_lowercase) for _ in range(64))
+        self.__rpc_register_queue = Queue(-1)
         self.__rpc_requests_in_progress = {}
         self.__connected_devices_file = "connected_devices.json"
         self.tb_client = TBClient(config["thingsboard"])
@@ -152,13 +153,20 @@ class TBGatewayService:
                                 log.exception(e)
                             if result == 256:
                                 log.warning("Error on RPC command: 256. Permission denied.")
-                if self.__rpc_requests_in_progress and self.tb_client.is_connected():
-                    for rpc_in_progress, data in self.__rpc_requests_in_progress.items():
-                        if cur_time >= data[1]:
-                            data[2](rpc_in_progress)
-                            self.cancel_rpc_request(rpc_in_progress)
-                            self.__rpc_requests_in_progress[rpc_in_progress] = "del"
-                    new_rpc_request_in_progress = {key: value for key, value in self.__rpc_requests_in_progress.items() if value != 'del'}
+                if (self.__rpc_requests_in_progress or not self.__rpc_register_queue.empty()) and self.tb_client.is_connected():
+                    new_rpc_request_in_progress = {}
+                    if self.__rpc_requests_in_progress:
+                        for rpc_in_progress, data in self.__rpc_requests_in_progress.items():
+                            if cur_time >= data[1]:
+                                data[2](rpc_in_progress)
+                                self.cancel_rpc_request(rpc_in_progress)
+                                self.__rpc_requests_in_progress[rpc_in_progress] = "del"
+                        new_rpc_request_in_progress = {key: value for key, value in self.__rpc_requests_in_progress.items() if value != 'del'}
+                    if not self.__rpc_register_queue.empty():
+                        rpc_request_from_queue = self.__rpc_register_queue.get(False)
+                        topic = rpc_request_from_queue["topic"]
+                        data = rpc_request_from_queue["data"]
+                        new_rpc_request_in_progress[topic] = data
                     self.__rpc_requests_in_progress = new_rpc_request_in_progress
                 else:
                     try:
@@ -533,7 +541,8 @@ class TBGatewayService:
             log.exception(e)
 
     def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
-        self.__rpc_requests_in_progress[topic] = (content, timeout, cancel_method)
+        self.__rpc_register_queue.put({"topic": topic, "data": (content, timeout, cancel_method)}, False)
+        # self.__rpc_requests_in_progress[topic] = (content, timeout, cancel_method)
 
     def cancel_rpc_request(self, rpc_request):
         content = self.__rpc_requests_in_progress[rpc_request][0]

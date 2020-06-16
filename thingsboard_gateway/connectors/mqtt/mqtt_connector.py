@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import json
+import simplejson
 import time
 import string
 import random
@@ -137,18 +137,18 @@ class MqttConnector(Connector, Thread):
                         # Will report all missing fields to user before discarding the entry => no break here
                         discard = True
                         self.__log.error("Mandatory key '%s' missing from %s handler: %s",
-                                         key, handler_flavor, json.dumps(handler))
+                                         key, handler_flavor, simplejson.dumps(handler))
                     else:
                         self.__log.debug("Mandatory key '%s' found in %s handler: %s",
-                                         key, handler_flavor, json.dumps(handler))
+                                         key, handler_flavor, simplejson.dumps(handler))
 
                 if discard:
                     self.__log.error("%s handler is missing some mandatory keys => rejected: %s",
-                                     handler_flavor, json.dumps(handler))
+                                     handler_flavor, simplejson.dumps(handler))
                 else:
                     accepted_handlers_list.append(handler)
                     self.__log.debug("%s handler has all mandatory keys => accepted: %s",
-                                     handler_flavor, json.dumps(handler))
+                                     handler_flavor, simplejson.dumps(handler))
 
             self.__log.info("Number of accepted %s handlers: %d",
                             handler_flavor,
@@ -552,7 +552,7 @@ class MqttConnector(Connector, Thread):
                         .replace("${deviceName}", content["device"]) \
                         .replace("${methodName}", content["data"]["method"]) \
                         .replace("${requestId}", str(content["data"]["id"])) \
-                        .replace("${params}", content["data"]["params"])
+                        .replace("${params}", simplejson.dumps(content["data"].get("params", "")))
                     if rpc_config.get("responseTimeout"):
                         timeout = time.time()*1000+rpc_config.get("responseTimeout")
                         self.__gateway.register_rpc_request_timeout(content,
@@ -570,12 +570,12 @@ class MqttConnector(Connector, Thread):
                         .replace("${deviceName}", content["device"])\
                         .replace("${methodName}", content["data"]["method"])\
                         .replace("${requestId}", str(content["data"]["id"]))\
-                        .replace("${params}", content["data"]["params"])
+                        .replace("${params}", simplejson.dumps(content["data"].get("params", "")))
                     data_to_send = rpc_config.get("valueExpression")\
                         .replace("${deviceName}", content["device"])\
                         .replace("${methodName}", content["data"]["method"])\
                         .replace("${requestId}", str(content["data"]["id"]))\
-                        .replace("${params}", content["data"]["params"])
+                        .replace("${params}", simplejson.dumps(content["data"].get("params", "")))
                     try:
                         self._client.publish(topic, data_to_send)
                         self.__log.debug("Send RPC with no response request to topic: %s with data %s",
