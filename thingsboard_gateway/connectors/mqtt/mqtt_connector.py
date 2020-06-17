@@ -374,8 +374,7 @@ class MqttConnector(Connector, Thread):
                 # Get device type (if any), either from topic or from content
                 if handler.get("deviceTypeTopicExpression"):
                     device_type_match = search(handler["deviceTypeTopicExpression"], message.topic)
-                    if device_type_match is not None:
-                        found_device_type = device_type_match.group(0)
+                    found_device_type = device_type_match.group(0) if device_type_match is not None else handler["deviceTypeTopicExpression"]
                 elif handler.get("deviceTypeJsonExpression"):
                     found_device_type = TBUtility.get_value(handler["deviceTypeJsonExpression"], content)
 
