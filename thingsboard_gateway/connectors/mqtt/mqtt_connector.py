@@ -167,17 +167,7 @@ class MqttConnector(Connector, Thread):
 
     def run(self):
         try:
-            while not self._connected and not self.__stopped:
-                try:
-                    self._client.connect(self.__broker['host'],
-                                         self.__broker.get('port', 1883))
-                    self._client.loop_start()
-                    if not self._connected:
-                        time.sleep(1)
-                except ConnectionRefusedError as e:
-                    self.__log.exception(e)
-                    time.sleep(10)
-
+            self.__connect()
         except Exception as e:
             self.__log.exception(e)
             try:
@@ -187,7 +177,21 @@ class MqttConnector(Connector, Thread):
         while True:
             if self.__stopped:
                 break
+            elif not self._connected:
+                self.__connect()
             time.sleep(.01)
+
+    def __connect(self):
+        while not self._connected and not self.__stopped:
+            try:
+                self._client.connect(self.__broker['host'],
+                                     self.__broker.get('port', 1883))
+                self._client.loop_start()
+                if not self._connected:
+                    time.sleep(1)
+            except ConnectionRefusedError as e:
+                self.__log.error(e)
+                time.sleep(10)
 
     def close(self):
         self.__stopped = True
@@ -295,6 +299,7 @@ class MqttConnector(Connector, Thread):
                 self.__log.error("%s connection FAIL with unknown error!", self.get_name())
 
     def _on_disconnect(self, *args):
+        self._connected = False
         self.__log.debug('"%s" was disconnected. %s', self.get_name(), str(args))
 
     def _on_log(self, *args):
