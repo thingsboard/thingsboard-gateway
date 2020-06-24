@@ -35,12 +35,12 @@ class TBUtility:
     def decode(message):
         try:
             if isinstance(message.payload, bytes):
-                content = loads(message.payload.decode("utf-8"))
+                content = loads(message.payload.decode("utf-8", "ignore"))
             else:
                 content = loads(message.payload)
         except JSONDecodeError:
             if isinstance(message.payload, bytes):
-                content = message.payload.decode("utf-8")
+                content = message.payload.decode("utf-8", "ignore")
             else:
                 content = message.payload
         return content
