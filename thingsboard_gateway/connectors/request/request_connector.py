@@ -225,11 +225,14 @@ class RequestConnector(Connector, Thread):
                                 data_to_send[converted_data["deviceName"]]["telemetry"].append(converted_data["telemetry"][0])
                             if converted_data["attributes"]:
                                 data_to_send[converted_data["deviceName"]]["attributes"].append(converted_data["attributes"][0])
+                    for device in data_to_send:
+                        self.__gateway.send_to_storage(self.get_name(), data_to_send[device])
+                        self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
+                    log.debug(data_to_send)
                 else:
                     data_to_send = converter.convert(url, data)
-                for device in data_to_send:
-                    self.__gateway.send_to_storage(self.get_name(), data_to_send[device])
-                    self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
+                self.__gateway.send_to_storage(self.get_name(), data_to_send)
+                self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
                 log.debug(data_to_send)
             else:
                 sleep(.01)

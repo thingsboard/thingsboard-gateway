@@ -28,17 +28,16 @@ class JsonRequestUplinkConverter(RequestConverter):
             data = loads(data)
         dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
         try:
-            if self.__config.get("deviceNameJsonExpression") is not None:
-                dict_result["deviceName"] = TBUtility.get_value(self.__config.get("deviceNameJsonExpression"), data, expression_instead_none=True)
+            if self.__config['converter'].get("deviceNameJsonExpression") is not None:
+                dict_result["deviceName"] = TBUtility.get_value(self.__config['converter'].get("deviceNameJsonExpression"), data, expression_instead_none=True)
             else:
-                log.error("The expression \"%s\" for looking \"deviceName\" not found in config %s", dumps(self.__config))
-            if self.__config.get("deviceTypeJsonExpression") is not None:
-                dict_result["deviceType"] = TBUtility.get_value(self.__config.get("deviceTypeJsonExpression"), data, expression_instead_none=True)
+                log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config['converter']))
+            if self.__config['converter'].get("deviceTypeJsonExpression") is not None:
+                dict_result["deviceType"] = TBUtility.get_value(self.__config['converter'].get("deviceTypeJsonExpression"), data, expression_instead_none=True)
             else:
-                log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
+                log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config['converter']))
         except Exception as e:
             log.exception(e)
-
 
         try:
             for datatype in self.__datatypes:
