@@ -188,11 +188,13 @@ class TBDeviceMqttClient:
             5: "not authorised",
         }
         if self.__connect_callback:
+            time.sleep(.05)
             self.__connect_callback(client, userdata, flags, result_code, *extra_params)
         if result_code == 0:
             self.__is_connected = True
             log.info("connection SUCCESS")
             log.debug(client)
+            time.sleep(.05)
             self._client.subscribe(ATTRIBUTES_TOPIC, qos=1)
             self._client.subscribe(ATTRIBUTES_TOPIC + "/response/+", 1)
             self._client.subscribe(RPC_REQUEST_TOPIC + '+')

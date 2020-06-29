@@ -69,7 +69,7 @@ class ModbusConnector(Connector, threading.Thread):
     def run(self):
         while not self.__master.connect():
             time.sleep(5)
-            log.warning("Modbus trying reconnect to %s", self.__config.get("name"))
+            log.warning("Modbus trying reconnect to %s", self.__config.get("host"))
         log.info("Modbus connected.")
         self.__connected = True
 
