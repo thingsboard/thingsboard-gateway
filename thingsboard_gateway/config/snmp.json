@@ -42,14 +42,17 @@
       ],
       "serverSideRpcRequests": [
         {
+          "requestFilter": "setData",
           "method": "set",
           "oid": ""
         },
         {
+          "requestFilter": "getData",
           "method": "get",
           "oid": ""
         },
         {
+          "requestFilter": "runBulkWalk",
           "method": "bulkWalk",
           "oid": [
             "",
