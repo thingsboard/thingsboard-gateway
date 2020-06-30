@@ -1,0 +1,62 @@
+{
+  "agent": {
+    "devices": {
+      "deviceName": "SNMP router",
+      "deviceType": "snmp",
+      "ip": "127.0.0.1",
+      "community": "public",
+      "attributes": [
+        {
+          "key": "ReceivedFromGet",
+          "method": "get",
+          "oid": ""
+        },
+        {
+          "key": "ReceivedFromBulkWalk",
+          "method": "bulkWalk",
+          "oid": [
+            "",
+            ""
+          ]
+        }
+      ],
+      "telemetry": [
+        {
+          "key": "ReceivedFromWalk",
+          "community": "private",
+          "method": "walk",
+          "oid": ""
+        },
+        {
+          "key": "ReceivedFromTable",
+          "method": "table",
+          "oid": ""
+        }
+      ],
+      "attributeUpdateRequests": [
+        {
+          "attributeFilter": "dataToSet",
+          "method": "set",
+          "oid": ""
+        }
+      ],
+      "serverSideRpcRequests": [
+        {
+          "method": "set",
+          "oid": ""
+        },
+        {
+          "method": "get",
+          "oid": ""
+        },
+        {
+          "method": "bulkWalk",
+          "oid": [
+            "",
+            ""
+          ]
+        }
+      ]
+    }
+  }
+}
