@@ -13,7 +13,7 @@
 #      limitations under the License.
 
 from threading import Thread
-from time import sleep
+from time import sleep, time
 from random import choice
 from string import ascii_lowercase
 
@@ -21,10 +21,10 @@ from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
-    import pysnmp
+    import puresnmp
 except ImportError:
-    TBUtility.install_package("pysnmp")
-    import pysnmp
+    TBUtility.install_package("puresnmp")
+    import puresnmp
 
 
 class SNMPConnector(Connector, Thread):
@@ -36,12 +36,22 @@ class SNMPConnector(Connector, Thread):
         self.__stopped = False
         self._connector_type = connector_type
         self.__config = config
+        self.__devices = self.__config["devices"]
         self.setName(config.get("name", 'SNMP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self._default_converters = {
-            "uplink": "JsonSNMPUplinkConverter",
-            "downlink": "JsonSNMPDownlinkConverter"
+            "uplink": "SNMPUplinkConverter",
+            "downlink": "SNMPDownlinkConverter"
+        }
+        self.__methods = {
+            "get": puresnmp.get,
+            "set": puresnmp.set,
+            "walk": puresnmp.walk,
+            "table": puresnmp.table,
+            "bulkGet": puresnmp.bulkget,
+            "bulkWalk": puresnmp.bulkwalk,
+            "bulkTable": puresnmp.bulktable,
         }
 
     def open(self):
@@ -51,8 +61,12 @@ class SNMPConnector(Connector, Thread):
     def run(self):
         self._connected = True
         try:
-            #some start
             while not self.__stopped:
+                current_time = time()*1000
+                for device in self.__devices:
+                    if device.get("previous_poll_time", 0) + device.get("pollPeriod", 10000) < current_time:
+
+                        device["previous_poll_time"] = current_time
                 if self.__stopped:
                     break
                 else:
@@ -64,7 +78,7 @@ class SNMPConnector(Connector, Thread):
         self.__stopped = True
         self._connected = False
 
-    def gat_name(self):
+    def get_name(self):
         return self.name
 
     def is_connected(self):

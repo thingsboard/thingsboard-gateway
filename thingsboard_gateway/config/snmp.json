@@ -1,9 +1,10 @@
 {
-  "agent": {
-    "devices": {
+  "devices": [
+    {
       "deviceName": "SNMP router",
       "deviceType": "snmp",
       "ip": "127.0.0.1",
+      "pollPeriod": 5000,
       "community": "public",
       "attributes": [
         {
@@ -13,11 +14,25 @@
         },
         {
           "key": "ReceivedFromBulkWalk",
-          "method": "bulkWalk",
+          "method": "bulkwalk",
           "oid": [
             "",
             ""
           ]
+        },
+        {
+          "key": "ReceivedFromBulkGet",
+          "method": "bulkget",
+          "scalarOid": [
+            "",
+            ""
+          ],
+          "repeatingOid": [
+            "",
+            ""
+          ],
+          "maxListSize": 10,
+          "converter": "CustomSNMPConverter"
         }
       ],
       "telemetry": [
@@ -53,7 +68,7 @@
         },
         {
           "requestFilter": "runBulkWalk",
-          "method": "bulkWalk",
+          "method": "bulkwalk",
           "oid": [
             "",
             ""
@@ -61,5 +76,5 @@
         }
       ]
     }
-  }
+  ]
 }
