@@ -194,11 +194,6 @@ class TBDeviceMqttClient:
             self.__is_connected = True
             log.info("connection SUCCESS")
             log.debug(client)
-            time.sleep(.05)
-            self._client.subscribe(ATTRIBUTES_TOPIC, qos=1)
-            self._client.subscribe(ATTRIBUTES_TOPIC + "/response/+", 1)
-            self._client.subscribe(RPC_REQUEST_TOPIC + '+')
-            self._client.subscribe(RPC_RESPONSE_TOPIC + '+', qos=1)
         else:
             if result_code in result_codes:
                 log.error("connection FAIL with error %s %s", result_code, result_codes[result_code])

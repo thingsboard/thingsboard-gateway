@@ -69,11 +69,12 @@ class TBClient(threading.Thread):
         self.__paused = False
 
     def is_connected(self):
-        return self.client.is_connected()
+        return self.__is_connected
 
     def _on_connect(self, client, userdata, flags, result_code, *extra_params):
         log.debug('TB client %s connected to ThingsBoard', str(client))
-        self.__is_connected = True
+        if result_code == 0:
+            self.__is_connected = True
         # pylint: disable=protected-access
         self.client._on_connect(client, userdata, flags, result_code, *extra_params)
 
@@ -82,9 +83,10 @@ class TBClient(threading.Thread):
         if self.client._client != client:
             log.info("TB client %s has been disconnected. Current client for connection is: %s", str(client), str(self.client._client))
             client.disconnect()
-            self.__is_connected = False
             client.loop_stop()
-        self.client._on_disconnect(client, userdata, result_code)
+        else:
+            self.__is_connected = False
+            self.client._on_disconnect(client, userdata, result_code)
 
     def stop(self):
         # self.disconnect()
