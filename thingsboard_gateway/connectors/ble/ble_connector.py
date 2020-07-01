@@ -186,7 +186,8 @@ class BLEConnector(Connector, Thread):
                     log.debug('Connecting to device with address: %s',
                               self.__devices_around[device]['scanned_device'].addr.upper())
                     if self.__devices_around[device].get('peripheral') is None:
-                        peripheral = Peripheral(self.__devices_around[device]['scanned_device'])
+                        address_type = self.__devices_around[device]['device_config'].get('addrType', "public")
+                        peripheral = Peripheral(self.__devices_around[device]['scanned_device'], address_type)
                         self.__devices_around[device]['peripheral'] = peripheral
                     else:
                         peripheral = self.__devices_around[device]['peripheral']
