@@ -111,9 +111,9 @@ class SNMPConnector(Connector, Thread):
                         method = method.lower()
                     if method not in self.__methods:
                         log.error("Unknown method: %s, configuration is: %r", method, datatype_config)
-
                     response = self.__process_methods(method, common_parameters, datatype_config)
-
+                    converted_data = device["uplink_converter"].convert((datatype, datatype_config), response)
+                    self.collect_statistic_and_send(self.get_name(), converted_data)
                 except Exception as e:
                     log.exception(e)
 
@@ -131,22 +131,24 @@ class SNMPConnector(Connector, Thread):
                                          oids=oids)
         if method == "getnext":
             oid = datatype_config["oid"]
-            response = puresnmp.getnext(**common_parameters,
-                                        oid=oid)
+            master_response = puresnmp.getnext(**common_parameters,
+                                               oid=oid)
+            response = {master_response.oid: master_response.value}
         if method == "multigetnext":
             oids = datatype_config["oid"]
             oids = oids if isinstance(oids, list) else list(oids)
-            response = puresnmp.multigetnext(**common_parameters,
-                                             oids=oids)
+            master_response = puresnmp.multigetnext(**common_parameters,
+                                                    oids=oids)
+            response = {binded_var.oid: binded_var.value for binded_var in master_response}
         if method == "walk":
             oid = datatype_config["oid"]
-            response = puresnmp.walk(**common_parameters,
-                                     oid=oid)
+            response = {binded_var.oid: binded_var.value for binded_var in list(puresnmp.walk(**common_parameters,
+                                                                                              oid=oid))}
         if method == "multiwalk":
             oids = datatype_config["oid"]
             oids = oids if isinstance(oids, list) else list(oids)
-            response = puresnmp.multiwalk(**common_parameters,
-                                          oids=oids)
+            response = {binded_var.oid: binded_var.value for binded_var in list(puresnmp.multiwalk(**common_parameters,
+                                                                                                   oids=oids))}
         if method == "set":
             oid = datatype_config["oid"]
             value = datatype_config["value"]
@@ -166,14 +168,14 @@ class SNMPConnector(Connector, Thread):
             response = puresnmp.bulkget(**common_parameters,
                                         scalar_oids=scalar_oids,
                                         repeating_oids=repeating_oids,
-                                        max_list_size=max_list_size)
+                                        max_list_size=max_list_size)._asdict()
         if method == "bulkwalk":
             oids = datatype_config["oid"]
             oids = oids if isinstance(oids, list) else list(oids)
             bulk_size = datatype_config.get("bulkSize", 10)
-            response = puresnmp.bulkwalk(**common_parameters,
-                                         bulk_size=bulk_size,
-                                         oids=oids)
+            response = {binded_var.oid: binded_var.value for binded_var in list(puresnmp.bulkwalk(**common_parameters,
+                                                                                bulk_size=bulk_size,
+                                                                                oids=oids))}
         if method == "table":
             oid = datatype_config["oid"]
             num_base_nodes = datatype_config.get("numBaseNodes", 0)
@@ -193,5 +195,5 @@ class SNMPConnector(Connector, Thread):
 
     def __fill_converters(self):
         for device in self.__devices:
-            device["uplink_converter"] = TBUtility.check_and_import("snmp", device.get('converter',self._default_converters["uplink"]))(device)
-            device["downlink_converter"] = TBUtility.check_and_import("snmp", device.get('converter',self._default_converters["downlink"]))(device)
+            device["uplink_converter"] = TBUtility.check_and_import("snmp", device.get('converter', self._default_converters["uplink"]))(device)
+            device["downlink_converter"] = TBUtility.check_and_import("snmp", device.get('converter', self._default_converters["downlink"]))(device)

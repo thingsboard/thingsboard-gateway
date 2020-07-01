@@ -14,17 +14,9 @@
 
 from thingsboard_gateway.connectors.converter import Converter, log
 
-class SNMPUplinkConverter(Converter):
+class SNMPDownlinkConverter(Converter):
     def __init__(self, config):
         self.__config = config
 
     def convert(self, config, data):
-        result = {
-            "deviceName": self.__config["deviceName"],
-            "deviceType": self.__config["deviceType"],
-            "attributes": [],
-            "telemetry": []
-        }
-        result[config[0]].append({config[1]["key"]: data})
-        log.debug(result)
-        return result
+        return data["params"]

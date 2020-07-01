@@ -4,35 +4,62 @@
       "deviceName": "SNMP router",
       "deviceType": "snmp",
       "ip": "127.0.0.1",
+      "port": 161,
       "pollPeriod": 5000,
       "community": "public",
       "attributes": [
         {
           "key": "ReceivedFromGet",
           "method": "get",
-          "oid": ""
+          "oid": "1.3.6.0.1.1",
+          "timeout": 6
+        },
+        {
+          "key": "ReceivedFromMultiGet",
+          "method": "multiget",
+          "oid": [
+            "1.3.6.0.1.1",
+            "1.3.6.0.2.1"
+          ],
+          "timeout": 6
+        },
+        {
+          "key": "ReceivedFromGetNext",
+          "method": "getnext",
+          "oid": [
+            "1.3.6.0.1.1",
+            "1.3.6.0.2.1"
+          ],
+          "timeout": 6
+        },
+        {
+          "key": "ReceivedFromMultiWalk",
+          "method": "multiwalk",
+          "oid": [
+            "1.3.6.0.1.1",
+            "1.3.6.0.2.1"
+          ]
         },
         {
           "key": "ReceivedFromBulkWalk",
           "method": "bulkwalk",
           "oid": [
-            "",
-            ""
+            "1.3.6.0.1.1",
+            "1.3.6.0.2.1"
           ]
         },
         {
           "key": "ReceivedFromBulkGet",
           "method": "bulkget",
           "scalarOid": [
-            "",
-            ""
+            "1.3.6.0.1.1",
+            "1.3.6.0.2.1"
           ],
           "repeatingOid": [
-            "",
-            ""
+            "1.3.6.0.1.1",
+            "1.3.6.0.2.1"
           ],
-          "maxListSize": 10,
-          "converter": "CustomSNMPConverter"
+          "maxListSize": 10
         }
       ],
       "telemetry": [
@@ -40,39 +67,73 @@
           "key": "ReceivedFromWalk",
           "community": "private",
           "method": "walk",
-          "oid": ""
+          "oid": "1.3.6.0.1.1"
         },
         {
           "key": "ReceivedFromTable",
           "method": "table",
-          "oid": ""
+          "oid": "1.3.6.0.1.1"
         }
       ],
       "attributeUpdateRequests": [
         {
           "attributeFilter": "dataToSet",
           "method": "set",
-          "oid": ""
+          "oid": "1.3.6.0.1.1"
+        },
+        {
+          "attributeFilter": "dataToMultiSet",
+          "method": "multiset",
+          "mappings": {
+            "1.2.3": "10",
+            "2.3.4": "${attribute}"
+          }
         }
       ],
       "serverSideRpcRequests": [
         {
           "requestFilter": "setData",
           "method": "set",
-          "oid": ""
+          "oid": "1.3.6.0.1.1"
+        },
+        {
+          "requestFilter": "multiSetData",
+          "method": "multiset"
         },
         {
           "requestFilter": "getData",
           "method": "get",
-          "oid": ""
+          "oid": "1.3.6.0.1.1"
         },
         {
           "requestFilter": "runBulkWalk",
           "method": "bulkwalk",
           "oid": [
-            "",
-            ""
+            "1.3.6.0.1.1",
+            "1.3.6.0.2.1"
           ]
+        }
+      ]
+    },
+    {
+      "deviceName": "SNMP router",
+      "deviceType": "snmp",
+      "ip": "127.0.0.1",
+      "pollPeriod": 5000,
+      "community": "public",
+      "converter": "CustomSNMPConverter",
+      "attributes": [
+        {
+          "key": "ReceivedFromGetWithCustomConverter",
+          "method": "get",
+          "oid": "1.3.6.0.1.1"
+        }
+      ],
+      "telemetry": [
+        {
+          "key": "ReceivedFromTableWithCustomConverter",
+          "method": "table",
+          "oid": "1.3.6.0.1.1"
         }
       ]
     }
