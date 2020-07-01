@@ -44,18 +44,12 @@ class SNMPConnector(Connector, Thread):
             "uplink": "SNMPUplinkConverter",
             "downlink": "SNMPDownlinkConverter"
         }
-        self.__methods = {
-            "get": puresnmp.get,
-            "set": puresnmp.set,
-            "walk": puresnmp.walk,
-            "table": puresnmp.table,
-            "bulkGet": puresnmp.bulkget,
-            "bulkWalk": puresnmp.bulkwalk,
-            "bulkTable": puresnmp.bulktable,
-        }
+        self.__methods = ["get", "multiget", "getnext", "multigetnext", "walk", "multiwalk", "set", "multiset", "bulkget", "bulkwalk", "table", "bulktable"]
+        self.__datatypes = ('attributes', 'telemetry')
 
     def open(self):
         self.__stopped = False
+        self.__fill_converters()
         self.start()
 
     def run(self):
@@ -64,9 +58,12 @@ class SNMPConnector(Connector, Thread):
             while not self.__stopped:
                 current_time = time()*1000
                 for device in self.__devices:
-                    if device.get("previous_poll_time", 0) + device.get("pollPeriod", 10000) < current_time:
-
-                        device["previous_poll_time"] = current_time
+                    try:
+                        if device.get("previous_poll_time", 0) + device.get("pollPeriod", 10000) < current_time:
+                            self.__process_data(device)
+                            device["previous_poll_time"] = current_time
+                    except Exception as e:
+                        log.exception(e)
                 if self.__stopped:
                     break
                 else:
@@ -94,3 +91,107 @@ class SNMPConnector(Connector, Thread):
         self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
         self.__gateway.send_to_storage(connector_name, data)
         self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
+
+    def __process_data(self, device):
+        common_parameters = {
+            "ip": device["ip"],
+            "port": device.get("port", 161),
+            "timeout": device.get("timeout", 6),
+            "community": device["community"],
+        }
+        for datatype in self.__datatypes:
+            for datatype_config in device[datatype]:
+                try:
+                    response = None
+                    method = datatype_config.get("method")
+                    if method is None:
+                        log.error("Method not found in configuration: %r", datatype_config)
+                        continue
+                    else:
+                        method = method.lower()
+                    if method not in self.__methods:
+                        log.error("Unknown method: %s, configuration is: %r", method, datatype_config)
+
+                    response = self.__process_methods(method, common_parameters, datatype_config)
+
+                except Exception as e:
+                    log.exception(e)
+
+    def __process_methods(self, method, common_parameters, datatype_config):
+        response = None
+
+        if method == "get":
+            oid = datatype_config["oid"]
+            response = puresnmp.get(**common_parameters,
+                                    oid=oid)
+        if method == "multiget":
+            oids = datatype_config["oid"]
+            oids = oids if isinstance(oids, list) else list(oids)
+            response = puresnmp.multiget(**common_parameters,
+                                         oids=oids)
+        if method == "getnext":
+            oid = datatype_config["oid"]
+            response = puresnmp.getnext(**common_parameters,
+                                        oid=oid)
+        if method == "multigetnext":
+            oids = datatype_config["oid"]
+            oids = oids if isinstance(oids, list) else list(oids)
+            response = puresnmp.multigetnext(**common_parameters,
+                                             oids=oids)
+        if method == "walk":
+            oid = datatype_config["oid"]
+            response = puresnmp.walk(**common_parameters,
+                                     oid=oid)
+        if method == "multiwalk":
+            oids = datatype_config["oid"]
+            oids = oids if isinstance(oids, list) else list(oids)
+            response = puresnmp.multiwalk(**common_parameters,
+                                          oids=oids)
+        if method == "set":
+            oid = datatype_config["oid"]
+            value = datatype_config["value"]
+            response = puresnmp.set(**common_parameters,
+                                    oid=oid,
+                                    value=value)
+        if method == "multiset":
+            mappings = datatype_config["mappings"]
+            response = puresnmp.multiset(**common_parameters,
+                                         mappings=mappings)
+        if method == "bulkget":
+            scalar_oids = datatype_config.get("scalarOid", [])
+            scalar_oids = scalar_oids if isinstance(scalar_oids, list) else list(scalar_oids)
+            repeating_oids = datatype_config.get("repeatingOid", [])
+            repeating_oids = repeating_oids if isinstance(repeating_oids, list) else list(repeating_oids)
+            max_list_size = datatype_config.get("maxListSize", 1)
+            response = puresnmp.bulkget(**common_parameters,
+                                        scalar_oids=scalar_oids,
+                                        repeating_oids=repeating_oids,
+                                        max_list_size=max_list_size)
+        if method == "bulkwalk":
+            oids = datatype_config["oid"]
+            oids = oids if isinstance(oids, list) else list(oids)
+            bulk_size = datatype_config.get("bulkSize", 10)
+            response = puresnmp.bulkwalk(**common_parameters,
+                                         bulk_size=bulk_size,
+                                         oids=oids)
+        if method == "table":
+            oid = datatype_config["oid"]
+            num_base_nodes = datatype_config.get("numBaseNodes", 0)
+            response = puresnmp.table(**common_parameters,
+                                      oid=oid,
+                                      num_base_nodes=num_base_nodes)
+        if method == "bulktable":
+            oid = datatype_config["oid"]
+            num_base_nodes = datatype_config.get("numBaseNodes", 0)
+            bulk_size = datatype_config.get("bulkSize", 10)
+            response = puresnmp.bulktable(**common_parameters,
+                                          oid=oid,
+                                          num_base_nodes=num_base_nodes,
+                                          bulk_size=bulk_size)
+
+        return response
+
+    def __fill_converters(self):
+        for device in self.__devices:
+            device["uplink_converter"] = TBUtility.check_and_import("snmp", device.get('converter',self._default_converters["uplink"]))(device)
+            device["downlink_converter"] = TBUtility.check_and_import("snmp", device.get('converter',self._default_converters["downlink"]))(device)
