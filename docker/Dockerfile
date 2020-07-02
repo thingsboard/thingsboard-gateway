@@ -19,6 +19,7 @@ if [ ! -f ${firstlaunch} ]; then\n\
     touch ${firstlaunch}\n\
     echo "#Remove this file only if you want to recreate default config files! This will overwrite exesting files" > ${firstlaunch}\n\
 fi\n\
+echo "nameserver 8.8.8.8" >> /etc/resolv.conf\n\
 \n\
 /usr/bin/python3 -c "from thingsboard_gateway.tb_gateway import daemon; daemon()"\n'\
 >> start-gateway.sh
@@ -30,6 +31,7 @@ RUN mkdir -p /default-config/config /default-config/extensions/
 RUN cp -r /etc/thingsboard-gateway/config/* /default-config/config/
 RUN cp -r /var/lib/thingsboard_gateway/extensions/* /default-config/extensions/
 
+ENV PATH="/root/.local/bin:$PATH"
 ENV configs /etc/thingsboard-gateway/config
 ENV extensions /var/lib/thingsboard_gateway/extensions
 ENV logs /var/log/thingsboard-gateway
