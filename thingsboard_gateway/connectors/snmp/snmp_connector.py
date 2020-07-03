@@ -16,6 +16,7 @@ from threading import Thread
 from time import sleep, time
 from random import choice
 from string import ascii_lowercase
+from socket import gethostbyname
 
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -94,7 +95,7 @@ class SNMPConnector(Connector, Thread):
 
     def __process_data(self, device):
         common_parameters = {
-            "ip": device["ip"],
+            "ip": gethostbyname(device["ip"]),
             "port": device.get("port", 161),
             "timeout": device.get("timeout", 6),
             "community": device["community"],
@@ -178,6 +179,7 @@ class SNMPConnector(Connector, Thread):
                                                                                 oids=oids))}
         if method == "table":
             oid = datatype_config["oid"]
+            del common_parameters["timeout"]
             num_base_nodes = datatype_config.get("numBaseNodes", 0)
             response = puresnmp.table(**common_parameters,
                                       oid=oid,
@@ -194,6 +196,9 @@ class SNMPConnector(Connector, Thread):
         return response
 
     def __fill_converters(self):
-        for device in self.__devices:
-            device["uplink_converter"] = TBUtility.check_and_import("snmp", device.get('converter', self._default_converters["uplink"]))(device)
-            device["downlink_converter"] = TBUtility.check_and_import("snmp", device.get('converter', self._default_converters["downlink"]))(device)
+        try:
+            for device in self.__devices:
+                device["uplink_converter"] = TBUtility.check_and_import("snmp", device.get('converter', self._default_converters["uplink"]))(device)
+                device["downlink_converter"] = TBUtility.check_and_import("snmp", device.get('converter', self._default_converters["downlink"]))(device)
+        except Exception as e:
+            log.exception(e)

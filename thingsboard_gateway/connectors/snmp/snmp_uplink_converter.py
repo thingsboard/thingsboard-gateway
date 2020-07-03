@@ -11,6 +11,7 @@
 #      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
+from simplejson import dumps
 
 from thingsboard_gateway.connectors.converter import Converter, log
 
@@ -25,6 +26,18 @@ class SNMPUplinkConverter(Converter):
             "attributes": [],
             "telemetry": []
         }
-        result[config[0]].append({config[1]["key"]: data})
-        log.debug(result)
+        try:
+            if isinstance(data, dict):
+                result[config[0]].append({config[1]["key"]: {str(k): str(v) for k, v in data.items()}})
+            elif isinstance(data, list):
+                if isinstance(data[0], str):
+                    result[config[0]].append({config[1]["key"]: ','.join(data)})
+                elif isinstance(data[0], dict):
+                    res = {}
+                    for item in data:
+                        res.update(**item)
+                    result[config[0]].append({config[1]["key"]: {str(k): str(v) for k, v in res.items()}})
+            log.debug(result)
+        except Exception as e:
+            log.exception(e)
         return result
