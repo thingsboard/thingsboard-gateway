@@ -338,15 +338,18 @@ class MqttConnector(Connector, Thread):
             for topic in topic_handlers:
                 available_converters = self.__mapping_sub_topics[topic]
                 for converter in available_converters:
-                    converted_content = converter.convert(message.topic, content)
+                    try:
+                        converted_content = converter.convert(message.topic, content)
 
-                    if converted_content:
-                        request_handled = True
-                        self.__gateway.send_to_storage(self.name, converted_content)
-                        self.statistics['MessagesSent'] += 1
-                        self.__log.debug("Successfully converted message from topic %s", message.topic)
-                    else:
-                        continue
+                        if converted_content:
+                            request_handled = True
+                            self.__gateway.send_to_storage(self.name, converted_content)
+                            self.statistics['MessagesSent'] += 1
+                            self.__log.debug("Successfully converted message from topic %s", message.topic)
+                        else:
+                            continue
+                    except Exception as e:
+                        log.exception(e)
 
             if not request_handled:
                 self.__log.error('Cannot find converter for the topic:"%s"! Client: %s, User data: %s',
