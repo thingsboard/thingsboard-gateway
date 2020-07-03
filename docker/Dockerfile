@@ -1,5 +1,5 @@
 FROM python:3.7-slim
-ADD ../ /
+ADD ./ /
 RUN echo '#Main start script\n\
 CONF_FOLDER="./thingsboard_gateway/config"\n\
 firstlaunch=${CONF_FOLDER}/.firstlaunch\n\
