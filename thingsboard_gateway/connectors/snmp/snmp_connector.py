@@ -85,7 +85,16 @@ class SNMPConnector(Connector, Thread):
         return self._connected
 
     def on_attributes_update(self, content):
-        log.debug(content)
+        for device in self.__devices:
+            if content["device"] == device["deviceName"]:
+                for attribute_request_config in device["attributeUpdateRequests"]:
+                    for attribute, value in content["data"]:
+                        if attribute == TBUtility.get_value(attribute_request_config["attributeFilter"], "", get_tag=True):
+                            common_parameters = self.__get_common_parameters(device)
+                            result = self.__process_methods(attribute_request_config["method"], common_parameters, {**attribute_request_config, "value": value})
+                            log.debug("Received attribute update request for device \"%s\" with attribute \"%s\" and value \"%s\"", content["device"], attribute)
+
+                            log.debug(content)
 
     def server_side_rpc_handler(self, content):
         log.debug(content)
@@ -96,12 +105,7 @@ class SNMPConnector(Connector, Thread):
         self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
 
     def __process_data(self, device):
-        common_parameters = {
-            "ip": gethostbyname(device["ip"]),
-            "port": device.get("port", 161),
-            "timeout": device.get("timeout", 6),
-            "community": device["community"],
-        }
+        common_parameters = self.__get_common_parameters(device)
         converted_data = {}
         for datatype in self.__datatypes:
             for datatype_config in device[datatype]:
@@ -125,7 +129,6 @@ class SNMPConnector(Connector, Thread):
                 if isinstance(converted_data, dict) and (converted_data.get("attributes") or converted_data.get("telemetry")):
                     self.collect_statistic_and_send(self.get_name(), converted_data)
 
-
     def __process_methods(self, method, common_parameters, datatype_config):
         response = None
 
@@ -133,42 +136,42 @@ class SNMPConnector(Connector, Thread):
             oid = datatype_config["oid"]
             response = puresnmp.get(**common_parameters,
                                     oid=oid)
-        if method == "multiget":
+        elif method == "multiget":
             oids = datatype_config["oid"]
             oids = oids if isinstance(oids, list) else list(oids)
             response = puresnmp.multiget(**common_parameters,
                                          oids=oids)
-        if method == "getnext":
+        elif method == "getnext":
             oid = datatype_config["oid"]
             master_response = puresnmp.getnext(**common_parameters,
                                                oid=oid)
             response = {master_response.oid: master_response.value}
-        if method == "multigetnext":
+        elif method == "multigetnext":
             oids = datatype_config["oid"]
             oids = oids if isinstance(oids, list) else list(oids)
             master_response = puresnmp.multigetnext(**common_parameters,
                                                     oids=oids)
             response = {binded_var.oid: binded_var.value for binded_var in master_response}
-        if method == "walk":
+        elif method == "walk":
             oid = datatype_config["oid"]
             response = {binded_var.oid: binded_var.value for binded_var in list(puresnmp.walk(**common_parameters,
                                                                                               oid=oid))}
-        if method == "multiwalk":
+        elif method == "multiwalk":
             oids = datatype_config["oid"]
             oids = oids if isinstance(oids, list) else list(oids)
             response = {binded_var.oid: binded_var.value for binded_var in list(puresnmp.multiwalk(**common_parameters,
                                                                                                    oids=oids))}
-        if method == "set":
+        elif method == "set":
             oid = datatype_config["oid"]
             value = datatype_config["value"]
             response = puresnmp.set(**common_parameters,
                                     oid=oid,
                                     value=value)
-        if method == "multiset":
+        elif method == "multiset":
             mappings = datatype_config["mappings"]
             response = puresnmp.multiset(**common_parameters,
                                          mappings=mappings)
-        if method == "bulkget":
+        elif method == "bulkget":
             scalar_oids = datatype_config.get("scalarOid", [])
             scalar_oids = scalar_oids if isinstance(scalar_oids, list) else list(scalar_oids)
             repeating_oids = datatype_config.get("repeatingOid", [])
@@ -178,21 +181,21 @@ class SNMPConnector(Connector, Thread):
                                         scalar_oids=scalar_oids,
                                         repeating_oids=repeating_oids,
                                         max_list_size=max_list_size)._asdict()
-        if method == "bulkwalk":
+        elif method == "bulkwalk":
             oids = datatype_config["oid"]
             oids = oids if isinstance(oids, list) else list(oids)
             bulk_size = datatype_config.get("bulkSize", 10)
             response = {binded_var.oid: binded_var.value for binded_var in list(puresnmp.bulkwalk(**common_parameters,
                                                                                 bulk_size=bulk_size,
                                                                                 oids=oids))}
-        if method == "table":
+        elif method == "table":
             oid = datatype_config["oid"]
             del common_parameters["timeout"]
             num_base_nodes = datatype_config.get("numBaseNodes", 0)
             response = puresnmp.table(**common_parameters,
                                       oid=oid,
                                       num_base_nodes=num_base_nodes)
-        if method == "bulktable":
+        elif method == "bulktable":
             oid = datatype_config["oid"]
             num_base_nodes = datatype_config.get("numBaseNodes", 0)
             bulk_size = datatype_config.get("bulkSize", 10)
@@ -200,7 +203,8 @@ class SNMPConnector(Connector, Thread):
                                           oid=oid,
                                           num_base_nodes=num_base_nodes,
                                           bulk_size=bulk_size)
-
+        else:
+            log.error("Method \"%s\" - Not found", str(method))
         return response
 
     def __fill_converters(self):
@@ -210,3 +214,11 @@ class SNMPConnector(Connector, Thread):
                 device["downlink_converter"] = TBUtility.check_and_import("snmp", device.get('converter', self._default_converters["downlink"]))(device)
         except Exception as e:
             log.exception(e)
+
+    @staticmethod
+    def __get_common_parameters(device):
+        return {"ip": gethostbyname(device["ip"]),
+                "port": device.get("port", 161),
+                "timeout": device.get("timeout", 6),
+                "community": device["community"],
+                }
