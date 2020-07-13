@@ -27,6 +27,8 @@ except ImportError:
     TBUtility.install_package("puresnmp")
     import puresnmp
 
+from puresnmp.exc import Timeout as SNMPTimeoutException
+
 
 class SNMPConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
@@ -100,6 +102,7 @@ class SNMPConnector(Connector, Thread):
             "timeout": device.get("timeout", 6),
             "community": device["community"],
         }
+        converted_data = {}
         for datatype in self.__datatypes:
             for datatype_config in device[datatype]:
                 try:
@@ -113,10 +116,15 @@ class SNMPConnector(Connector, Thread):
                     if method not in self.__methods:
                         log.error("Unknown method: %s, configuration is: %r", method, datatype_config)
                     response = self.__process_methods(method, common_parameters, datatype_config)
-                    converted_data = device["uplink_converter"].convert((datatype, datatype_config), response)
-                    self.collect_statistic_and_send(self.get_name(), converted_data)
+                    converted_data.update(**device["uplink_converter"].convert((datatype, datatype_config), response))
+                except SNMPTimeoutException:
+                    log.error("Timeout exception on connection to device \"%s\" with ip: \"%s\"", device["deviceName"], device["ip"])
+                    return
                 except Exception as e:
                     log.exception(e)
+                if isinstance(converted_data, dict) and (converted_data.get("attributes") or converted_data.get("telemetry")):
+                    self.collect_statistic_and_send(self.get_name(), converted_data)
+
 
     def __process_methods(self, method, common_parameters, datatype_config):
         response = None

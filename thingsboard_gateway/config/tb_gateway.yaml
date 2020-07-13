@@ -65,6 +65,11 @@ connectors:
 #    configuration: rest.json
 #
 #  -
+#    name: SNMP Connector
+#    type: snmp
+#    configuration: snmp.json
+#
+#  -
 #    name: Custom Serial Connector
 #    type: serial
 #    configuration: custom_serial.json
