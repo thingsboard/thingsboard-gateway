@@ -80,7 +80,7 @@ class MqttConnector(Connector, Thread):
         self.__attribute_requests_sub_topics = {}
 
         # Set up external MQTT broker connection -----------------------------------------------------------------------
-        client_id = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
+        client_id = self.__broker.get("clientId", ''.join(random.choice(string.ascii_lowercase) for _ in range(23)))
         self._client = Client(client_id)
         self.setName(config.get("name", self.__broker.get(
             "name",
