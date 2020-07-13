@@ -193,7 +193,10 @@ class TBDeviceMqttClient:
         if result_code == 0:
             self.__is_connected = True
             log.info("connection SUCCESS")
-            log.debug(client)
+            self._client.subscribe(ATTRIBUTES_TOPIC, qos=1)
+            self._client.subscribe(ATTRIBUTES_TOPIC + "/response/+", 1)
+            self._client.subscribe(RPC_REQUEST_TOPIC + '+')
+            self._client.subscribe(RPC_RESPONSE_TOPIC + '+', qos=1)
         else:
             if result_code in result_codes:
                 log.error("connection FAIL with error %s %s", result_code, result_codes[result_code])
@@ -251,7 +254,6 @@ class TBDeviceMqttClient:
             callback(request_id, content, None)
         elif message.topic == ATTRIBUTES_TOPIC:
             dict_results = []
-
             with self._lock:
                 # callbacks for everything
                 if self.__device_sub_dict.get("*"):
