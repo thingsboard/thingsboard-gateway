@@ -1,41 +1,24 @@
-FROM ubuntu:20.04
-
-RUN apt-get update && apt-get -y install sudo
-
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get install -y tzdata wget
-
-#COPY python3-thingsboard-gateway.deb /
-RUN wget https://github.com/thingsboard/thingsboard-gateway/releases/latest/download/python3-thingsboard-gateway.deb
-RUN sudo apt-get install -y /python3-thingsboard-gateway.deb
-
+FROM python:3.7-slim
+ADD ./ /
 RUN echo '#Main start script\n\
-CONF_FOLDER="/etc/thingsboard-gateway/config"\n\
+CONF_FOLDER="./thingsboard_gateway/config"\n\
 firstlaunch=${CONF_FOLDER}/.firstlaunch\n\
 \n\
 if [ ! -f ${firstlaunch} ]; then\n\
-    cp -r /default-config/config/* /etc/thingsboard-gateway/config/\n\
-    cp -r /default-config/extensions/* /var/lib/thingsboard_gateway/extensions/\n\
+    cp -r /default-config/config/* /thingsboard_gateway/config/\n\
+    cp -r /default-config/extensions/* /thingsboard_gateway/extensions/\n\
     touch ${firstlaunch}\n\
     echo "#Remove this file only if you want to recreate default config files! This will overwrite exesting files" > ${firstlaunch}\n\
 fi\n\
 echo "nameserver 8.8.8.8" >> /etc/resolv.conf\n\
 \n\
-/usr/bin/python3 -c "from thingsboard_gateway.tb_gateway import daemon; daemon()"\n'\
->> start-gateway.sh
-
-RUN cp start-gateway.sh /usr/bin/
-RUN chmod +x /usr/bin/start-gateway.sh
-
-RUN mkdir -p /default-config/config /default-config/extensions/
-RUN cp -r /etc/thingsboard-gateway/config/* /default-config/config/
-RUN cp -r /var/lib/thingsboard_gateway/extensions/* /default-config/extensions/
-
+python ./thingsboard_gateway/tb_gateway.py\n\
+'\
+>> start-gateway.sh && chmod +x start-gateway.sh
 ENV PATH="/root/.local/bin:$PATH"
-ENV configs /etc/thingsboard-gateway/config
-ENV extensions /var/lib/thingsboard_gateway/extensions
-ENV logs /var/log/thingsboard-gateway
-
+ENV configs /thingsboard_gateway/config
+ENV extensions /thingsboard_gateway/extensions
+ENV logs /thingsboard_gateway/logs
+RUN python /setup.py install && mkdir -p /default-config/config /default-config/extensions/ && cp -r /thingsboard_gateway/config/* /default-config/config/ && cp -r /thingsboard_gateway/extensions/* /default-config/extensions
 VOLUME ["${configs}", "${extensions}", "${logs}"]
-
-ENTRYPOINT start-gateway.sh
+CMD [ "/bin/sh", "./start-gateway.sh" ]
