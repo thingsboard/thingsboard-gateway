@@ -55,6 +55,7 @@ DEFAULT_CONNECTORS = {
             "bacnet": "BACnetConnector",
             "odbc": "OdbcConnector",
             "rest": "RESTConnector",
+            "snmp": "SNMPConnector",
         }
 
 class TBGatewayService:
