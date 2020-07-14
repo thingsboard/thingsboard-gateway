@@ -17,6 +17,7 @@ from time import sleep, time
 from random import choice
 from string import ascii_lowercase
 from socket import gethostbyname
+from re import search
 
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -85,19 +86,35 @@ class SNMPConnector(Connector, Thread):
         return self._connected
 
     def on_attributes_update(self, content):
-        for device in self.__devices:
-            if content["device"] == device["deviceName"]:
-                for attribute_request_config in device["attributeUpdateRequests"]:
-                    for attribute, value in content["data"]:
-                        if attribute == TBUtility.get_value(attribute_request_config["attributeFilter"], "", get_tag=True):
-                            common_parameters = self.__get_common_parameters(device)
-                            result = self.__process_methods(attribute_request_config["method"], common_parameters, {**attribute_request_config, "value": value})
-                            log.debug("Received attribute update request for device \"%s\" with attribute \"%s\" and value \"%s\"", content["device"], attribute)
-
-                            log.debug(content)
+        try:
+            for device in self.__devices:
+                if content["device"] == device["deviceName"]:
+                    for attribute_request_config in device["attributeUpdateRequests"]:
+                        for attribute, value in content["data"]:
+                            if search(attribute, attribute_request_config["attributeFilter"]):
+                                common_parameters = self.__get_common_parameters(device)
+                                result = self.__process_methods(attribute_request_config["method"], common_parameters, {**attribute_request_config, "value": value})
+                                log.debug("Received attribute update request for device \"%s\" with attribute \"%s\" and value \"%s\"", content["device"], attribute)
+                                log.debug(result)
+                                log.debug(content)
+        except Exception as e:
+            log.exception(e)
 
     def server_side_rpc_handler(self, content):
-        log.debug(content)
+        try:
+            for device in self.__devices:
+                if content["device"] == device["deviceName"]:
+                    for rpc_request_config in device["serverSideRpcRequests"]:
+                        if search(content["data"]["method"], rpc_request_config["requestFilter"]):
+                            common_parameters = self.__get_common_parameters(device)
+                            result = self.__process_methods(rpc_request_config["method"], common_parameters, {**rpc_request_config, "value": content["data"]["params"]})
+                            log.debug("Received RPC request for device \"%s\" with command \"%s\" and value \"%s\"", content["device"], content["data"]["method"])
+                            log.debug(result)
+                            log.debug(content)
+                            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], content=result)
+        except Exception as e:
+            log.exception(e)
+            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=False)
 
     def collect_statistic_and_send(self, connector_name, data):
         self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
@@ -129,7 +146,8 @@ class SNMPConnector(Connector, Thread):
                 if isinstance(converted_data, dict) and (converted_data.get("attributes") or converted_data.get("telemetry")):
                     self.collect_statistic_and_send(self.get_name(), converted_data)
 
-    def __process_methods(self, method, common_parameters, datatype_config):
+    @staticmethod
+    def __process_methods(method, common_parameters, datatype_config):
         response = None
 
         if method == "get":
