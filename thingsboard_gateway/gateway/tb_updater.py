@@ -33,7 +33,7 @@ class TBUpdater(Thread):
     def __init__(self):
         super().__init__()
         self.__version = {"current_version": get_distribution('thingsboard_gateway').version,
-                          "latest_version": None}
+                          "latest_version": get_distribution('thingsboard_gateway').version}
         self.__instance_id = str(uuid1())
         self.__platform = "deb"
         self.__os_version = platform()
@@ -94,7 +94,7 @@ class TBUpdater(Thread):
         return request_args
 
     def update(self):
-        if self.__version["latest_version"] is not None:
+        if self.__version["latest_version"] != self.__version["current_version"]:
             result = TBUtility.install_package("thingsboard-gateway", self.__version["latest_version"])
         else:
             result = "Congratulations! You have the latest version."

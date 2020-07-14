@@ -112,6 +112,7 @@ class TBGatewayService:
             "stats": self.__form_statistics,
             "devices": self.__rpc_devices,
             "update": self.__rpc_update,
+            "version": self.__rpc_version,
         }
         self.__sheduled_rpc_calls = []
         self.__self_rpc_sheduled_methods_functions = {
@@ -515,6 +516,17 @@ class TBGatewayService:
     def __rpc_update(self, *args):
         try:
             result = {"resp": self.__updater.update(),
+                      "code": 200,
+                      }
+        except Exception as e:
+            result = {"error": str(e),
+                      "code": 500
+                      }
+        return result
+
+    def __rpc_version(self, *args):
+        try:
+            result = {"resp": self.__updater.get_version(),
                       "code": 200,
                       }
         except Exception as e:
