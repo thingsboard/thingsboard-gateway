@@ -39,6 +39,7 @@ from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
 from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 from thingsboard_gateway.gateway.tb_gateway_remote_configurator import RemoteConfigurator
+from thingsboard_gateway.gateway.tb_remote_shell import RemoteShell
 
 
 
@@ -115,8 +116,10 @@ class TBGatewayService:
             "update": self.__rpc_update,
             "version": self.__rpc_version,
         }
+        self.__remote_shell = RemoteShell(platform=self.__updater.get_platform(), release=self.__updater.get_release())
+        self.__rpc_remote_shell_command_in_progress = None
         self.__sheduled_rpc_calls = []
-        self.__self_rpc_sheduled_methods_functions = {
+        self.__rpc_sheduled_methods_functions = {
             "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
             "reboot": {"function": system, "arguments": ("reboot 0",)},
             }
@@ -470,13 +473,15 @@ class TBGatewayService:
                                 if self.available_connectors[connector_name]._connector_type == module:
                                     log.debug("Sending command RPC %s to connector %s", content["method"], connector_name)
                                     result = self.available_connectors[connector_name].server_side_rpc_handler(content)
-                        elif module == 'gateway':
+                        elif module == 'gateway' or module in self.__remote_shell.shell_commands:
                             result = self.__rpc_gateway_processing(request_id, content)
                         else:
                             log.error("Connector \"%s\" not found", module)
                             result = {"error": "%s - connector not found in available connectors." % module, "code": 404}
                         if result is None:
                             self.send_rpc_reply(None, request_id, success_sent=False)
+                        elif "qos" in result:
+                            self.send_rpc_reply(None, request_id, dumps({k: v for k, v in result.items() if k != "qos"}), quality_of_service=result["qos"])
                         else:
                             self.send_rpc_reply(None, request_id, dumps(result))
                 except Exception as e:
@@ -487,24 +492,29 @@ class TBGatewayService:
 
     def __rpc_gateway_processing(self, request_id, content):
         log.info("Received RPC request to the gateway, id: %s, method: %s", str(request_id), content["method"])
-        arguments = content.get('params')
+        arguments = content.get('params', {})
+        if content.get("timeout") is not None:
+            arguments.update({"timeout": content["timeout"]})
         method_to_call = content["method"].replace("gateway_", "")
         result = None
-        if isinstance(arguments, list):
-            result = self.__gateway_rpc_methods[method_to_call](*arguments)
-        elif method_to_call in self.__self_rpc_sheduled_methods_functions:
+        method_function = self.__remote_shell.shell_commands.get(method_to_call, self.__gateway_rpc_methods.get(method_to_call))
+        if method_function is None and method_to_call in self.__rpc_sheduled_methods_functions:
             seconds_to_restart = arguments*1000 if arguments and arguments != '{}' else 0
-            self.__sheduled_rpc_calls.append([time()*1000 + seconds_to_restart, self.__self_rpc_sheduled_methods_functions[method_to_call]])
-            log.info("Gateway %s sheduled in %i seconds", method_to_call, seconds_to_restart/1000)
+            self.__sheduled_rpc_calls.append([time() * 1000 + seconds_to_restart, self.__rpc_sheduled_methods_functions[method_to_call]])
+            log.info("Gateway %s scheduled in %i seconds", method_to_call, seconds_to_restart/1000)
             result = {"success": True}
-        elif arguments is not None:
-            result = self.__gateway_rpc_methods[method_to_call](arguments)
+        elif method_function is None:
+            return {"error": "Method not found", "code": 404}
+        elif isinstance(arguments, list):
+            result = method_function(*arguments)
+        elif arguments:
+            result = method_function(arguments)
         else:
-            result = self.__gateway_rpc_methods[method_to_call]()
-        log.debug(result)
+            result = method_function()
         return result
 
-    def __rpc_ping(self, *args):
+    @staticmethod
+    def __rpc_ping(*args):
         return {"code": 200, "resp": "pong"}
 
     def __rpc_devices(self, *args):
@@ -643,8 +653,6 @@ class TBGatewayService:
                     if self.available_connectors.get(devices[device_name]):
                         self.__connected_devices[device_name] = {
                             "connector": self.available_connectors[devices[device_name]]}
-                    else:
-                        log.info("Pair device %s - connector %s from persistent device storage - not found.", device_name, devices[device_name])
                 except Exception as e:
                     log.exception(e)
                     continue

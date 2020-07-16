@@ -14,7 +14,7 @@
 
 from requests import post
 from uuid import uuid1
-from platform import platform
+from platform import platform, system, release
 from logging import getLogger
 from pkg_resources import get_distribution
 from threading import Thread
@@ -35,7 +35,8 @@ class TBUpdater(Thread):
         self.__version = {"current_version": get_distribution('thingsboard_gateway').version,
                           "latest_version": get_distribution('thingsboard_gateway').version}
         self.__instance_id = str(uuid1())
-        self.__platform = "deb"
+        self.__platform = system()
+        self.__release = release()
         self.__os_version = platform()
         self.__previous_check = 0
         self.__check_period = 3600.0
@@ -57,6 +58,12 @@ class TBUpdater(Thread):
 
     def get_version(self):
         return self.__version
+
+    def get_platform(self):
+        return self.__platform
+
+    def get_release(self):
+        return self.__release
 
     def check_for_new_version(self):
         log.debug("Checking for new version")
