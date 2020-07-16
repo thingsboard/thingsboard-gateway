@@ -16,7 +16,6 @@
 from os import getcwd, chdir
 from subprocess import Popen, PIPE, STDOUT, TimeoutExpired
 from logging import getLogger
-from queue import Queue
 
 log = getLogger("service")
 
