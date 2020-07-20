@@ -82,10 +82,10 @@ class RemoteShell:
                 log.debug("Process is run")
                 stdout_value = b"" if e.stdout is None else e.stdout.replace(self.__previous_stdout, b"")
                 stderr_value = b"" if e.stderr is None else e.stderr.replace(self.__previous_stderr, b"")
-                stdout_value = stdout_value[:-1] if len(stdout_value)>0 and stdout_value[-1] == b"\n" else stdout_value
-                stderr_value = stderr_value[:-1] if len(stderr_value)>0 and stderr_value[-1] == b"\n" else stderr_value
-            self.__previous_stderr = self.__previous_stderr + stderr_value
-            self.__previous_stdout = self.__previous_stdout + stdout_value
+                stdout_value = stdout_value[:-1] if len(stdout_value) and stdout_value[-1] == b"\n" else stdout_value
+                stderr_value = stderr_value[:-1] if len(stderr_value) and stderr_value[-1] == b"\n" else stderr_value
+            self.__previous_stderr = self.__previous_stderr + b"" if stderr_value is None else stderr_value
+            self.__previous_stdout = self.__previous_stdout + b"" if stdout_value is None else stdout_value
             str_stdout = str(stdout_value, "UTF-8") if isinstance(stdout_value, bytes) else stdout_value
             str_stderr = str(stderr_value, "UTF-8") if isinstance(stderr_value, bytes) else stderr_value
             result.update({"data": [{"stdout": str_stdout,

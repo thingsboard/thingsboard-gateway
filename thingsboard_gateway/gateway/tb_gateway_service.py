@@ -116,7 +116,10 @@ class TBGatewayService:
             "update": self.__rpc_update,
             "version": self.__rpc_version,
         }
-        self.__remote_shell = RemoteShell(platform=self.__updater.get_platform(), release=self.__updater.get_release())
+        self.__remote_shell = None
+        if config["thingsboard"].get("remoteShell"):
+            log.warning("Remote shell is enabled. Please be carefully with this feature.")
+            self.__remote_shell = RemoteShell(platform=self.__updater.get_platform(), release=self.__updater.get_release())
         self.__rpc_remote_shell_command_in_progress = None
         self.__sheduled_rpc_calls = []
         self.__rpc_sheduled_methods_functions = {
@@ -497,13 +500,18 @@ class TBGatewayService:
             arguments.update({"timeout": content["timeout"]})
         method_to_call = content["method"].replace("gateway_", "")
         result = None
-        method_function = self.__remote_shell.shell_commands.get(method_to_call, self.__gateway_rpc_methods.get(method_to_call))
+        if self.__remote_shell is not None:
+            method_function = self.__remote_shell.shell_commands.get(method_to_call, self.__gateway_rpc_methods.get(method_to_call))
+        else:
+            log.info("Remote shell is disabled.")
+            method_function = self.__gateway_rpc_methods.get(method_to_call)
         if method_function is None and method_to_call in self.__rpc_sheduled_methods_functions:
             seconds_to_restart = arguments*1000 if arguments and arguments != '{}' else 0
             self.__sheduled_rpc_calls.append([time() * 1000 + seconds_to_restart, self.__rpc_sheduled_methods_functions[method_to_call]])
             log.info("Gateway %s scheduled in %i seconds", method_to_call, seconds_to_restart/1000)
             result = {"success": True}
         elif method_function is None:
+            log.error("RPC method %s - Not found", content["method"])
             return {"error": "Method not found", "code": 404}
         elif isinstance(arguments, list):
             result = method_function(*arguments)

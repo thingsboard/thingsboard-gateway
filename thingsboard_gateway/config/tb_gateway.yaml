@@ -1,6 +1,7 @@
 thingsboard:
   host: demo.thingsboard.io
   port: 1883
+  remoteShell: false
   remoteConfiguration: false
   security:
     accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
