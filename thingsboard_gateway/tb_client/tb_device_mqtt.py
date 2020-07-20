@@ -22,63 +22,8 @@ from threading import Thread
 import paho.mqtt.client as paho
 
 from simplejson import dumps
-# from jsonschema import Draft7Validator
-# from jsonschema import ValidationError
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-
-#
-# KV_SCHEMA = {
-#     "type": "object",
-#     "patternProperties":
-#         {
-#             ".": {"type": ["integer",
-#                            "string",
-#                            "boolean",
-#                            "number"]}
-#         },
-#     "minProperties": 1,
-# }
-# SCHEMA_FOR_CLIENT_RPC = {
-#     "type": "object",
-#     "patternProperties":
-#         {
-#             ".": {"type": ["integer",
-#                            "string",
-#                            "boolean",
-#                            "number"]}
-#         },
-#     "minProperties": 0,
-# }
-# TS_KV_SCHEMA = {
-#     "type": "object",
-#     "properties": {
-#         "ts": {
-#             "type": ["integer"]
-#         },
-#         "values": KV_SCHEMA
-#     },
-#     "additionalProperties": False
-# }
-# DEVICE_TS_KV_SCHEMA = {
-#     "type": "array",
-#     "items": TS_KV_SCHEMA
-# }
-# DEVICE_TS_OR_KV_SCHEMA = {
-#     "type": "array",
-#     "items":    {
-#         "anyOf":
-#             [
-#                 TS_KV_SCHEMA,
-#                 KV_SCHEMA
-#             ]
-#     }
-# }
-# RPC_VALIDATOR = Draft7Validator(SCHEMA_FOR_CLIENT_RPC)
-# KV_VALIDATOR = Draft7Validator(KV_SCHEMA)
-# TS_KV_VALIDATOR = Draft7Validator(TS_KV_SCHEMA)
-# DEVICE_TS_KV_VALIDATOR = Draft7Validator(DEVICE_TS_KV_SCHEMA)
-# DEVICE_TS_OR_KV_VALIDATOR = Draft7Validator(DEVICE_TS_OR_KV_SCHEMA)
 
 RPC_RESPONSE_TOPIC = 'v1/devices/me/rpc/response/'
 RPC_REQUEST_TOPIC = 'v1/devices/me/rpc/request/'
@@ -234,14 +179,6 @@ class TBDeviceMqttClient:
         content = TBUtility.decode(message)
         self._on_decoded_message(content, message)
 
-    # @staticmethod
-    # def validate(validator, data):
-    #     try:
-    #         validator.validate(data)
-    #     except ValidationError as e:
-    #         log.error(e)
-    #         raise e
-
     def _on_decoded_message(self, content, message):
         if message.topic.startswith(RPC_REQUEST_TOPIC):
             request_id = message.topic[len(RPC_REQUEST_TOPIC):len(message.topic)]
@@ -305,7 +242,6 @@ class TBDeviceMqttClient:
             info.wait_for_publish()
 
     def send_rpc_call(self, method, params, callback):
-        # self.validate(RPC_VALIDATOR, params)
         with self._lock:
             self.__device_client_rpc_number += 1
             self.__device_client_rpc_dict.update({self.__device_client_rpc_number: callback})
@@ -328,11 +264,9 @@ class TBDeviceMqttClient:
     def send_telemetry(self, telemetry, quality_of_service=1):
         if not isinstance(telemetry, list) and not (isinstance(telemetry, dict) and telemetry.get("ts") is not None):
             telemetry = [telemetry]
-        # self.validate(DEVICE_TS_OR_KV_VALIDATOR, telemetry)
         return self.publish_data(telemetry, TELEMETRY_TOPIC, quality_of_service)
 
     def send_attributes(self, attributes, quality_of_service=1):
-        # self.validate(KV_VALIDATOR, attributes)
         return self.publish_data(attributes, ATTRIBUTES_TOPIC, quality_of_service)
 
     def unsubscribe_from_attribute(self, subscription_id):

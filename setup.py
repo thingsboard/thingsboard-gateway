@@ -48,17 +48,13 @@ setup(
               'thingsboard_gateway.extensions.rest',  'thingsboard_gateway.extensions.snmp'
               ],
     install_requires=[
-        'cffi',
         'jsonpath-rw',
         'regex',
         'pip',
-        'jsonschema==3.1.1',
-        'lxml',
         'paho-mqtt',
-        'pyserial',
-        'pytz',
         'PyYAML',
         'simplejson',
+        'pyrsistent',
         'requests'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,

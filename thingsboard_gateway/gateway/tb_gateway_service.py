@@ -27,12 +27,6 @@ from yaml import safe_load
 from simplejson import load, dumps, loads
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-
-try:
-    import pyrsistent
-except ImportError:
-    TBUtility.install_package("pyrsistent")
-
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.gateway.tb_updater import TBUpdater
 from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
