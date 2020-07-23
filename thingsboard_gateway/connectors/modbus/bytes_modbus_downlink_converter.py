@@ -53,15 +53,15 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         if lower_type in ["integer", "dword", "dword/integer", "word", "int"]:
             lower_type = str(variable_size) + "int"
             assert builder_functions.get(lower_type) is not None
-            builder_functions[lower_type](value)
+            builder_functions[lower_type](int(value))
         elif lower_type in ["uint", "unsigned", "unsigned integer", "unsigned int"]:
             lower_type = str(variable_size) + "uint"
             assert builder_functions.get(lower_type) is not None
-            builder_functions[lower_type](value)
+            builder_functions[lower_type](int(value))
         elif lower_type in ["float", "double"]:
             lower_type = str(variable_size) + "float"
             assert builder_functions.get(lower_type) is not None
-            builder_functions[lower_type](value)
+            builder_functions[lower_type](float(value))
         elif lower_type in ["coil", "bits", "coils", "bit"]:
             assert builder_functions.get("bits") is not None
             if variable_size/8 > 1.0:
@@ -71,6 +71,10 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         elif lower_type in ["string"]:
             assert builder_functions.get("string") is not None
             builder_functions[lower_type](value)
+        elif lower_type in builder_functions and 'int' in lower_type:
+            builder_functions[lower_type](int(value))
+        elif lower_type in builder_functions and 'float' in lower_type:
+            builder_functions[lower_type](float(value))
         elif lower_type in builder_functions:
             builder_functions[lower_type](value)
         else:
