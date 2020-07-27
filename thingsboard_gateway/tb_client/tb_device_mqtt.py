@@ -78,8 +78,9 @@ class TBPublishInfo:
 
 
 class TBDeviceMqttClient:
-    def __init__(self, host, port=1883, token=None):
+    def __init__(self, host, port=1883, token=None, quality_of_service=None):
         self._client = paho.Client()
+        self.__default_quality_of_service = quality_of_service if quality_of_service is not None else 1
         self.__host = host
         self.__port = port
         if token == "":
@@ -138,10 +139,10 @@ class TBDeviceMqttClient:
         if result_code == 0:
             self.__is_connected = True
             log.info("connection SUCCESS")
-            self._client.subscribe(ATTRIBUTES_TOPIC, qos=1)
-            self._client.subscribe(ATTRIBUTES_TOPIC + "/response/+", 1)
-            self._client.subscribe(RPC_REQUEST_TOPIC + '+')
-            self._client.subscribe(RPC_RESPONSE_TOPIC + '+', qos=1)
+            self._client.subscribe(ATTRIBUTES_TOPIC, qos=self.__default_quality_of_service)
+            self._client.subscribe(ATTRIBUTES_TOPIC + "/response/+", qos=self.__default_quality_of_service)
+            self._client.subscribe(RPC_REQUEST_TOPIC + '+', qos=self.__default_quality_of_service)
+            self._client.subscribe(RPC_RESPONSE_TOPIC + '+', qos=self.__default_quality_of_service)
         else:
             if result_code in result_codes:
                 log.error("connection FAIL with error %s %s", result_code, result_codes[result_code])
@@ -233,7 +234,9 @@ class TBDeviceMqttClient:
           when the connection complete (e.g. the CONNACK is received, not just the TCP connection is established)."""
         self._client.reconnect_delay_set(min_delay, max_delay)
 
-    def send_rpc_reply(self, req_id, resp, quality_of_service=1, wait_for_publish=False):
+    def send_rpc_reply(self, req_id, resp, quality_of_service=None, wait_for_publish=False):
+        if quality_of_service is None:
+            quality_of_service = self.__default_quality_of_service
         if quality_of_service not in (0, 1):
             log.error("Quality of service (qos) value must be 0 or 1")
             return None
@@ -256,6 +259,8 @@ class TBDeviceMqttClient:
 
     def publish_data(self, data, topic, qos):
         data = dumps(data)
+        if qos is None:
+            qos = self.__default_quality_of_service
         if qos not in (0, 1):
             log.exception("Quality of service (qos) value must be 0 or 1")
             raise TBQoSException("Quality of service (qos) value must be 0 or 1")
@@ -313,7 +318,7 @@ class TBDeviceMqttClient:
 
         info = self._client.publish(topic=ATTRIBUTES_TOPIC_REQUEST + str(self.__attr_request_number),
                                     payload=dumps(msg),
-                                    qos=1)
+                                    qos=self.__default_quality_of_service)
         self._add_timeout(attr_request_number, ts_in_millis + 30000)
         return info
 

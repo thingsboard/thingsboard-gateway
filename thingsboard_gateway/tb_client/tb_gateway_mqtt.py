@@ -34,8 +34,9 @@ class TBGatewayAPI:
 
 
 class TBGatewayMqttClient(TBDeviceMqttClient):
-    def __init__(self, host, port, token=None, gateway=None):
-        super().__init__(host, port, token)
+    def __init__(self, host, port, token=None, gateway=None, quality_of_service=1):
+        super().__init__(host, port, token, quality_of_service)
+        self.__default_quality_of_service = quality_of_service
         self.__max_sub_id = 0
         self.__sub_dict = {}
         self.__connected_devices = set("*")
@@ -52,7 +53,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         if result_code == 0:
             self._gw_subscriptions[int(self._client.subscribe(GATEWAY_ATTRIBUTES_TOPIC, qos=1)[1])] = GATEWAY_ATTRIBUTES_TOPIC
             self._gw_subscriptions[int(self._client.subscribe(GATEWAY_ATTRIBUTES_RESPONSE_TOPIC)[1])] = GATEWAY_ATTRIBUTES_RESPONSE_TOPIC
-            self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_TOPIC)[1])] = GATEWAY_RPC_TOPIC
+            self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_TOPIC, qos=1)[1])] = GATEWAY_RPC_TOPIC
             # self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_RESPONSE_TOPIC)[1])] = GATEWAY_RPC_RESPONSE_TOPIC
 
     def _on_subscribe(self, client, userdata, mid, granted_qos):
@@ -139,7 +140,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         return self.publish_data({device: telemetry}, GATEWAY_MAIN_TOPIC + "telemetry", quality_of_service, )
 
     def gw_connect_device(self, device_name, device_type):
-        info = self._client.publish(topic=GATEWAY_MAIN_TOPIC + "connect", payload=dumps({"device": device_name, "type": device_type}), qos=1)
+        info = self._client.publish(topic=GATEWAY_MAIN_TOPIC + "connect", payload=dumps({"device": device_name, "type": device_type}), qos=self.__default_quality_of_service)
         self.__connected_devices.add(device_name)
         # if self.gateway:
         #     self.gateway.on_device_connected(device_name, self.__devices_server_side_rpc_request_handler)
@@ -148,7 +149,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
 
     def gw_disconnect_device(self, device_name):
         info = self._client.publish(topic=GATEWAY_MAIN_TOPIC + "disconnect", payload=dumps({"device": device_name}),
-                                    qos=1)
+                                    qos=self.__default_quality_of_service)
         self.__connected_devices.remove(device_name)
         # if self.gateway:
         #     self.gateway.on_device_disconnected(self, device_name)
@@ -187,7 +188,9 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
     def gw_set_server_side_rpc_request_handler(self, handler):
         self.devices_server_side_rpc_request_handler = handler
 
-    def gw_send_rpc_reply(self, device, req_id, resp, quality_of_service=1):
+    def gw_send_rpc_reply(self, device, req_id, resp, quality_of_service):
+        if quality_of_service is None:
+            quality_of_service = self.__default_quality_of_service
         if quality_of_service not in (0, 1):
             log.error("Quality of service (qos) value must be 0 or 1")
             return None

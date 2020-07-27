@@ -30,6 +30,7 @@ class TBClient(threading.Thread):
         self.__config = config
         self.__host = config["host"]
         self.__port = config.get("port", 1883)
+        self.__default_quality_of_service = config.get("qos",1)
         credentials = config["security"]
         self.__min_reconnect_delay = 1
         self.__tls = bool(credentials.get('tls', False) or credentials.get('caCert', False))
@@ -46,7 +47,7 @@ class TBClient(threading.Thread):
             self.__ca_cert = credentials.get("caCert")
             self.__private_key = credentials.get("privateKey")
             self.__cert = credentials.get("cert")
-        self.client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self)
+        self.client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self, quality_of_service=self.__default_quality_of_service)
         if self.__tls and self.__ca_cert is None and self.__private_key is None and self.__cert is None:
             # pylint: disable=protected-access
             self.client._client.tls_set_context(SSLContext(PROTOCOL_TLSv1_2))
