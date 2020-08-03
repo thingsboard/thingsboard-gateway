@@ -120,6 +120,7 @@ class ModbusConnector(Connector, threading.Thread):
             device_responses = {"timeseries": {},
                                 "attributes": {},
                                 }
+            to_send = {}
             try:
                 for config_data in device_responses:
                     if self.__devices[device]["config"].get(config_data) is not None:
@@ -169,10 +170,9 @@ class ModbusConnector(Connector, threading.Thread):
                                 # if converted_data["attributes"] != self.__devices[device]["attributes"]:
                                     # self.__devices[device]["last_attributes"] = converted_data["attributes"]
                                     # to_send["attributes"] = converted_data["attributes"]
-                                if to_send.get("attributes") or to_send.get("telemetry"):
-                                    self.__gateway.send_to_storage(self.get_name(), to_send)
-                                    self.statistics['MessagesSent'] += 1
-                                else:
+                                if not to_send.get("attributes") and not to_send.get("telemetry"):
+                                    # self.__gateway.send_to_storage(self.get_name(), to_send)
+                                    # self.statistics['MessagesSent'] += 1
                                     log.debug("Data has not been changed.")
                             elif converted_data and self.__devices[device]["config"].get("sendDataOnlyOnChange") is None or not self.__devices[device]["config"].get("sendDataOnlyOnChange"):
                                 self.statistics['MessagesReceived'] += 1
@@ -184,8 +184,12 @@ class ModbusConnector(Connector, threading.Thread):
                                 # if converted_data["attributes"] != self.__devices[device]["attributes"]:
                                 self.__devices[device]["last_attributes"] = converted_data["attributes"]
                                 to_send["attributes"] = converted_data["attributes"]
-                                self.__gateway.send_to_storage(self.get_name(), to_send)
-                                self.statistics['MessagesSent'] += 1
+                                # self.__gateway.send_to_storage(self.get_name(), to_send)
+                                # self.statistics['MessagesSent'] += 1
+
+                if to_send.get("attributes") or to_send.get("telemetry"):
+                    self.__gateway.send_to_storage(self.get_name(), to_send)
+                    self.statistics['MessagesSent'] += 1
             except ConnectionException:
                 time.sleep(5)
                 log.error("Connection lost! Reconnecting...")
