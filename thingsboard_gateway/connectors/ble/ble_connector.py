@@ -19,7 +19,7 @@ from threading import Thread
 from string import ascii_lowercase
 
 from bluepy import __path__ as bluepy_path
-from bluepy.btle import DefaultDelegate, Peripheral, Scanner, UUID, capitaliseName
+from bluepy.btle import DefaultDelegate, Peripheral, Scanner, UUID, capitaliseName, BTLEInternalError
 from bluepy.btle import BTLEDisconnectError, BTLEManagementError, BTLEGattError
 
 from thingsboard_gateway.connectors.connector import Connector, log
@@ -183,19 +183,22 @@ class BLEConnector(Connector, Thread):
             try:
                 if self.__devices_around.get(device) is not None and self.__devices_around[device].get(
                         'scanned_device') is not None:
-                    log.debug('Connecting to device with address: %s',
-                              self.__devices_around[device]['scanned_device'].addr.upper())
+                    log.debug('Connecting to device: %s', device)
                     if self.__devices_around[device].get('peripheral') is None:
                         address_type = self.__devices_around[device]['device_config'].get('addrType', "public")
                         peripheral = Peripheral(self.__devices_around[device]['scanned_device'], address_type)
                         self.__devices_around[device]['peripheral'] = peripheral
                     else:
                         peripheral = self.__devices_around[device]['peripheral']
-                        try:
-                            peripheral.connect(self.__devices_around[device]['scanned_device'])
-                        except Exception as e:
-                            log.exception(e)
-                    services = peripheral.getServices()
+                    try:
+                        log.info(peripheral.getState())
+                    except BTLEInternalError:
+                        peripheral.connect(self.__devices_around[device]['scanned_device'])
+                    try:
+                        services = peripheral.getServices()
+                    except BTLEDisconnectError:
+                        self.__check_and_reconnect(device)
+                        services = peripheral.getServices()
                     for service in services:
                         if self.__devices_around[device].get('services') is None:
                             log.debug('Building device %s map, it may take a time, please wait...', device)
@@ -213,31 +216,29 @@ class BLEConnector(Connector, Thread):
                             if self.__config.get('buildDevicesMap', False):
                                 for characteristic in characteristics:
                                     descriptors = []
+                                    self.__check_and_reconnect(device)
                                     try:
-                                        self.__check_and_reconnect(device)
-                                        try:
-                                            descriptors = characteristic.getDescriptors()
-                                        except BTLEDisconnectError:
-                                            self.__check_and_reconnect(device)
-                                            descriptors = characteristic.getDescriptors()
-                                        except BTLEGattError as e:
-                                            log.debug(e)
-                                        except Exception as e:
-                                            log.exception(e)
-                                        characteristic_uuid = str(characteristic.uuid).upper()
-                                        if self.__devices_around[device]['services'][service_uuid].get(
-                                                characteristic_uuid) is None:
-                                            self.__devices_around[device]['services'][service_uuid][characteristic_uuid] = {'characteristic': characteristic,
-                                                                                                                            'handle': characteristic.handle,
-                                                                                                                            'descriptors': {}}
-                                        for descriptor in descriptors:
-                                            log.debug(descriptor.handle)
-                                            log.debug(str(descriptor.uuid))
-                                            log.debug(str(descriptor))
-                                            self.__devices_around[device]['services'][service_uuid][
-                                                characteristic_uuid]['descriptors'][descriptor.handle] = descriptor
+                                        descriptors = characteristic.getDescriptors()
                                     except BTLEDisconnectError:
                                         self.__check_and_reconnect(device)
+                                        descriptors = characteristic.getDescriptors()
+                                    except BTLEGattError as e:
+                                        log.debug(e)
+                                    except Exception as e:
+                                        log.exception(e)
+                                    characteristic_uuid = str(characteristic.uuid).upper()
+                                    if self.__devices_around[device]['services'][service_uuid].get(
+                                            characteristic_uuid) is None:
+                                        self.__check_and_reconnect(device)
+                                        self.__devices_around[device]['services'][service_uuid][characteristic_uuid] = {'characteristic': characteristic,
+                                                                                                                        'handle': characteristic.handle,
+                                                                                                                        'descriptors': {}}
+                                    for descriptor in descriptors:
+                                        log.debug(descriptor.handle)
+                                        log.debug(str(descriptor.uuid))
+                                        log.debug(str(descriptor))
+                                        self.__devices_around[device]['services'][service_uuid][
+                                            characteristic_uuid]['descriptors'][descriptor.handle] = descriptor
                             else:
                                 for characteristic in characteristics:
                                     characteristic_uuid = str(characteristic.uuid).upper()
@@ -260,7 +261,7 @@ class BLEConnector(Connector, Thread):
                             self.__gateway.send_to_storage(self.get_name(), converted_data)
                             self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
             except BTLEDisconnectError:
-                log.debug('Cannot connect to device %s', device)
+                log.debug('Connection lost. Device %s', device)
                 continue
             except Exception as e:
                 log.exception(e)
@@ -307,6 +308,7 @@ class BLEConnector(Connector, Thread):
     def __check_and_reconnect(self, device):
         # pylint: disable=protected-access
         while self.__devices_around[device]['peripheral']._helper is None:
+            log.debug("Connecting to %s...", device)
             self.__devices_around[device]['peripheral'].connect(self.__devices_around[device]['scanned_device'])
 
     def __notify_handler(self, device, notify_handle, delegate=None):
