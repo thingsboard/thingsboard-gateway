@@ -19,6 +19,7 @@ from importlib import util
 from logging import getLogger
 from simplejson import dumps, loads, JSONDecodeError
 from jsonpath_rw import parse
+from platform import system
 
 
 log = getLogger("service")
@@ -74,9 +75,13 @@ class TBUtility:
     @staticmethod
     def check_and_import(extension_type, module_name):
         if TBUtility.loaded_extensions.get(extension_type + module_name) is None:
-            extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
-                                '/var/lib/thingsboard_gateway/extensions/'.replace('/', path.sep) + extension_type.lower(),
-                                path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
+            if system() == "Windows":
+                extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
+                                    path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
+            else:
+                extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
+                                    '/var/lib/thingsboard_gateway/extensions/'.replace('/', path.sep) + extension_type.lower(),
+                                    path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
             try:
                 for extension_path in extensions_paths:
                     if path.exists(extension_path):
