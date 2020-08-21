@@ -12,7 +12,7 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 
-from requests import post
+from requests import post, ConnectionError
 from uuid import uuid1
 from platform import platform, system, release
 from logging import getLogger
@@ -80,6 +80,8 @@ class TBUpdater(Thread):
                     log.info("\n\n[===UPDATE===]\n\n New version %s is available! \n\n[===UPDATE===]\n",
                              self.__version["latest_version"])
         except ConnectionRefusedError:
+            log.warning("Cannot connect to the update service. PLease check your internet connection.")
+        except ConnectionError:
             log.warning("Cannot connect to the update service. PLease check your internet connection.")
         except Exception as e:
             log.exception(e)
