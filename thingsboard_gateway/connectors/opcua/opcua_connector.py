@@ -140,18 +140,16 @@ class OpcUaConnector(Thread, Connector):
             except (KeyboardInterrupt, SystemExit):
                 self.close()
                 raise
-            except ConnectionRefusedError:
-                log.error("Connection refused on connection to OPC-UA server with url %s", self.__server_conf.get("url"))
-                self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
-                # self.__sub_handler = SubHandler(self)
-                self._subscribed = {}
-                self.__available_object_resources = {}
-                time.sleep(10)
             except FuturesTimeoutError:
                 self.__check_connection()
             except Exception as e:
-                self.close()
+                log.error("Connection failed on connection to OPC-UA server with url %s",
+                          self.__server_conf.get("url"))
                 log.exception(e)
+                self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000) / 1000)
+                self._subscribed = {}
+                self.__available_object_resources = {}
+                time.sleep(10)
 
     def __check_connection(self):
         try:
