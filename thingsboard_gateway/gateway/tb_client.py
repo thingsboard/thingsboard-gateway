@@ -15,7 +15,7 @@
 import time
 import threading
 import logging
-from ssl import SSLContext, PROTOCOL_TLSv1_2
+from ssl import SSLContext, PROTOCOL_TLSv1_2, CERT_REQUIRED
 
 from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 
@@ -48,7 +48,12 @@ class TBClient(threading.Thread):
             self.__ca_cert = credentials.get("caCert")
             self.__private_key = credentials.get("privateKey")
             self.__cert = credentials.get("cert")
-            self.client._client.tls_set_context(SSLContext(PROTOCOL_TLSv1_2))
+            self.client._client.tls_set(ca_certs=self.__ca_cert,
+                                        certfile=self.__cert,
+                                        keyfile=self.__private_key,
+                                        tls_version=PROTOCOL_TLSv1_2,
+                                        cert_reqs=CERT_REQUIRED,
+                                        ciphers=None)
             if self.__ca_cert is not None:
                 self.client._client.tls_insecure_set(False)
         # if self.__tls and self.__ca_cert is None and self.__private_key is None and self.__cert is None:
