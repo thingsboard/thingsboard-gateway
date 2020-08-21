@@ -43,14 +43,16 @@ class TBClient(threading.Thread):
         self.__paused = False
         if credentials.get("accessToken") is not None:
             self.__token = str(credentials["accessToken"])
+        self.client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self, quality_of_service=self.__default_quality_of_service)
         if self.__tls:
             self.__ca_cert = credentials.get("caCert")
             self.__private_key = credentials.get("privateKey")
             self.__cert = credentials.get("cert")
-        self.client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self, quality_of_service=self.__default_quality_of_service)
-        if self.__tls and self.__ca_cert is None and self.__private_key is None and self.__cert is None:
-            # pylint: disable=protected-access
             self.client._client.tls_set_context(SSLContext(PROTOCOL_TLSv1_2))
+            if self.__ca_cert is not None:
+                self.client._client.tls_insecure_set(False)
+        # if self.__tls and self.__ca_cert is None and self.__private_key is None and self.__cert is None:
+            # pylint: disable=protected-access
         # Adding callbacks
         self.client._client._on_connect = self._on_connect
         self.client._client._on_disconnect = self._on_disconnect
@@ -117,11 +119,7 @@ class TBClient(threading.Thread):
                         break
                     log.debug("connecting to ThingsBoard")
                     try:
-                        self.client.connect(tls=self.__tls,
-                                            ca_certs=self.__ca_cert,
-                                            cert_file=self.__cert,
-                                            key_file=self.__private_key,
-                                            keepalive=keep_alive,
+                        self.client.connect(keepalive=keep_alive,
                                             min_reconnect_delay=self.__min_reconnect_delay)
                     except ConnectionRefusedError:
                         pass
