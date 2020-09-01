@@ -13,6 +13,10 @@
       "httpHeaders": {
         "ACCEPT": "application/json"
       },
+      "content": {
+        "name": "morpheus",
+        "job": "leader"
+      },
       "allowRedirects": true,
       "timeout": 0.5,
       "scanPeriod": 5,
