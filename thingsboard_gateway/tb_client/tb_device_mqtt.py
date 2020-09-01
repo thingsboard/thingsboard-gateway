@@ -235,8 +235,7 @@ class TBDeviceMqttClient:
         self._client.reconnect_delay_set(min_delay, max_delay)
 
     def send_rpc_reply(self, req_id, resp, quality_of_service=None, wait_for_publish=False):
-        if quality_of_service is None:
-            quality_of_service = self.__default_quality_of_service
+        quality_of_service = quality_of_service if quality_of_service is not None else self.__default_quality_of_service
         if quality_of_service not in (0, 1):
             log.error("Quality of service (qos) value must be 0 or 1")
             return None
@@ -252,7 +251,7 @@ class TBDeviceMqttClient:
         payload = {"method": method, "params": params}
         self._client.publish(RPC_REQUEST_TOPIC + str(rpc_request_id),
                              dumps(payload),
-                             qos=1)
+                             qos=self.__default_quality_of_service)
 
     def set_server_side_rpc_request_handler(self, handler):
         self.__device_on_server_side_rpc_response = handler
@@ -266,12 +265,14 @@ class TBDeviceMqttClient:
             raise TBQoSException("Quality of service (qos) value must be 0 or 1")
         return TBPublishInfo(self._client.publish(topic, data, qos))
 
-    def send_telemetry(self, telemetry, quality_of_service=1):
+    def send_telemetry(self, telemetry, quality_of_service=None):
+        quality_of_service = quality_of_service if quality_of_service is not None else self.__default_quality_of_service
         if not isinstance(telemetry, list) and not (isinstance(telemetry, dict) and telemetry.get("ts") is not None):
             telemetry = [telemetry]
         return self.publish_data(telemetry, TELEMETRY_TOPIC, quality_of_service)
 
-    def send_attributes(self, attributes, quality_of_service=1):
+    def send_attributes(self, attributes, quality_of_service=None):
+        quality_of_service = quality_of_service if quality_of_service is not None else self.__default_quality_of_service
         return self.publish_data(attributes, ATTRIBUTES_TOPIC, quality_of_service)
 
     def unsubscribe_from_attribute(self, subscription_id):

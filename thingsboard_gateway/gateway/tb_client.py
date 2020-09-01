@@ -30,7 +30,7 @@ class TBClient(threading.Thread):
         self.__config = config
         self.__host = config["host"]
         self.__port = config.get("port", 1883)
-        self.__default_quality_of_service = config.get("qos",1)
+        self.__default_quality_of_service = config.get("qos", 1)
         credentials = config["security"]
         self.__min_reconnect_delay = 1
         self.__tls = bool(credentials.get('tls', False) or credentials.get('caCert', False))
