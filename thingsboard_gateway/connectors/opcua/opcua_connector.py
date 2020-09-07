@@ -212,8 +212,8 @@ class OpcUaConnector(Thread, Connector):
 
     def server_side_rpc_handler(self, content):
         try:
+            rpc_method = content["data"].get("method")
             for method in self.__available_object_resources[content["device"]]['methods']:
-                rpc_method = content["data"].get("method")
                 if rpc_method is not None and method.get(rpc_method) is not None:
                     arguments_from_config = method["arguments"]
                     arguments = content["data"].get("params") if content["data"].get("params") is not None else arguments_from_config
