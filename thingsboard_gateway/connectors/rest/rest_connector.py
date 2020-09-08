@@ -288,7 +288,7 @@ class AnonymousDataHandler(Resource):
         self.__endpoint = endpoint
 
     def process_data(self, request):
-        if not request.json:
+        if not request.json and not len(request.args):
             abort(415)
         endpoint_config = self.__endpoint['config']
         if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
@@ -296,7 +296,8 @@ class AnonymousDataHandler(Resource):
         try:
             log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
             converter = self.__endpoint['converter'](endpoint_config['converter'])
-            converted_data = converter.convert(config=endpoint_config['converter'], data=request.get_json())
+            data = request.get_json() if request.json else dict(request.args)
+            converted_data = converter.convert(config=endpoint_config['converter'], data=data)
             self.send_to_storage(self.__name, converted_data)
             log.info("CONVERTED_DATA: %r", converted_data)
             return "OK", 200
