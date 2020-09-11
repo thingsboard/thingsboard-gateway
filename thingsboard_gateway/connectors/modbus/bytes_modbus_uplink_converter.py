@@ -137,7 +137,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
         elif isinstance(decoded, bytes) and lower_type == "bytes":
             result_data = decoded
         elif isinstance(decoded, list):
-            result_data = decoded
+            if configuration.get('bit') is not None:
+                result_data = decoded[configuration['bit']]
+            else:
+                result_data = decoded
         elif isinstance(decoded, float):
             result_data = decoded
         elif decoded is not None:
