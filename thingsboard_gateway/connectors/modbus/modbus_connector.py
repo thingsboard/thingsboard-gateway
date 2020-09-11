@@ -47,8 +47,9 @@ class ModbusConnector(Connector, threading.Thread):
         super().__init__()
         self.__gateway = gateway
         self._connector_type = connector_type
-        self.__master = None
         self.__config = config.get("server")
+        self.__current_master, self.__available_functions = self.__configure_master()
+        self.__default_config_parameters = ['host', 'port', 'baudrate', 'timeout', 'method', 'stopbits', 'bytesize', 'parity', 'strict', 'type']
         self.__byte_order = self.__config.get("byteOrder")
         self.__configure_master()
         self.__devices = {}
@@ -68,7 +69,7 @@ class ModbusConnector(Connector, threading.Thread):
         log.info("Starting Modbus connector")
 
     def run(self):
-        while not self.__master.connect():
+        while not self.__current_master.connect():
             time.sleep(5)
             log.warning("Modbus trying reconnect to %s", self.__config.get("host"))
         log.info("Modbus connected.")
@@ -108,7 +109,7 @@ class ModbusConnector(Connector, threading.Thread):
 
     def close(self):
         self.__stopped = True
-        self.__master.close()
+        self.__stop_master()
         log.info('%s has been stopped.', self.get_name())
 
     def get_name(self):
@@ -126,6 +127,7 @@ class ModbusConnector(Connector, threading.Thread):
                     if self.__devices[device]["config"].get(config_data) is not None:
                         unit_id = self.__devices[device]["config"]["unitId"]
                         if self.__devices[device]["next_"+config_data+"_check"] < current_time:
+                            self.connect_to_current_master(device)                            
                             #  Reading data from device
                             for interested_data in range(len(self.__devices[device]["config"][config_data])):
                                 current_data = self.__devices[device]["config"][config_data][interested_data]
@@ -212,26 +214,49 @@ class ModbusConnector(Connector, threading.Thread):
         except Exception as e:
             log.exception(e)
 
-    def __configure_master(self):
-        host = self.__config.get("host", "localhost")
+    def connect_to_current_master(self, device):
+        if self.__devices[device].get('master') is None:
+            self.__devices[device]['master'], self.__devices[device]['available_functions'] = self.__configure_master(
+                self.__devices[device]["config"])
+        if self.__devices[device]['master'] != self.__current_master:
+            self.__stop_master()
+            self.__current_master = self.__devices[device]['master']
+            self.__available_functions = self.__devices[device]['available_functions']
+        connect_attempt_count = self.__devices[device]["config"].get("connectAttemptCount", 5)
+        connect_attempt_time_ms = self.__devices[device]["config"].get("connectAttemptTimeMs", 100) / 1000
+        attempt = 0
+        while not self.__current_master.is_socket_open() and attempt < connect_attempt_count:
+            attempt = attempt + 1
+            self.__current_master.connect()
+            if not self.__current_master.is_socket_open():
+                time.sleep(connect_attempt_time_ms)
+            log.debug("Modbus trying connect to %s:%r", self.__devices[device]["master"].host,
+                      self.__devices[device]["master"].port)
+        if attempt > 0 and self.__current_master.is_socket_open():
+            log.debug("Modbus connected.")
+
+    def __configure_master(self, config=None):
+        current_config = self.__config if config is None else config
+
+        host = current_config['host'] if current_config.get("host") is not None else self.__config.get("host", "localhost")
         try:
-            port = self.__config.get(int("port"), 502)
+            port = int(current_config['port']) if current_config.get("port") is not None else self.__config.get(int("port"), 502)
         except ValueError:
-            port = self.__config.get("port", 502)
-        baudrate = self.__config.get('baudrate', 19200)
-        timeout = self.__config.get("timeout", 35)
-        method = self.__config.get('method', 'rtu')
-        stopbits = self.__config.get('stopbits', Defaults.Stopbits)
-        bytesize = self.__config.get('bytesize', Defaults.Bytesize)
-        parity = self.__config.get('parity',   Defaults.Parity)
-        strict = self.__config.get("strict", True)
-        rtu = ModbusRtuFramer if self.__config.get("method") == "rtu" else ModbusSocketFramer
-        if self.__config.get('type') == 'tcp':
-            self.__master = ModbusTcpClient(host, port, rtu, timeout=timeout)
-        elif self.__config.get('type') == 'udp':
-            self.__master = ModbusUdpClient(host, port, rtu, timeout=timeout)
-        elif self.__config.get('type') == 'serial':
-            self.__master = ModbusSerialClient(method=method,
+            port = current_config['port'] if current_config.get("port") is not None else self.__config.get("port", 502)
+        baudrate = current_config['baudrate'] if current_config.get('baudrate') is not None else self.__config.get('baudrate', 19200)
+        timeout = current_config['timeout'] if current_config.get("timeout") is not None else self.__config.get("timeout", 35)
+        method = current_config['method'] if current_config.get('method') is not None else self.__config.get('method', 'rtu')
+        stopbits = current_config['stopbits'] if current_config.get('stopbits') is not None else self.__config.get('stopbits', Defaults.Stopbits)
+        bytesize = current_config['bytesize'] if current_config.get('bytesize') is not None else self.__config.get('bytesize', Defaults.Bytesize)
+        parity = current_config['parity'] if current_config.get('parity') is not None else self.__config.get('parity',   Defaults.Parity)
+        strict = current_config["strict"] if current_config.get("strict") is not None else self.__config.get("strict", True)
+        rtu = ModbusRtuFramer if current_config.get("method") == "rtu" or (current_config.get("method") is None and self.__config.get("method") == "rtu") else ModbusSocketFramer
+        if current_config.get('type') == 'tcp' or (current_config.get("type") is None and self.__config.get("type") == "tcp"):
+            master = ModbusTcpClient(host, port, rtu, timeout=timeout)
+        elif current_config.get('type') == 'udp' or (current_config.get("type") is None and self.__config.get("type") == "udp"):
+            master = ModbusUdpClient(host, port, rtu, timeout=timeout)
+        elif current_config.get('type') == 'serial' or (current_config.get("type") is None and self.__config.get("type") == "serial"):
+            master = ModbusSerialClient(method=method,
                                                port=port,
                                                timeout=timeout,
                                                baudrate=baudrate,
@@ -241,16 +266,20 @@ class ModbusConnector(Connector, threading.Thread):
                                                strict=strict)
         else:
             raise Exception("Invalid Modbus transport type.")
-        self.__available_functions = {
-            1: self.__master.read_coils,
-            2: self.__master.read_discrete_inputs,
-            3: self.__master.read_holding_registers,
-            4: self.__master.read_input_registers,
-            5: self.__master.write_coil,
-            6: self.__master.write_register,
-            15: self.__master.write_coils,
-            16: self.__master.write_registers,
+        available_functions = {
+            1: master.read_coils,
+            2: master.read_discrete_inputs,
+            3: master.read_holding_registers,
+            4: master.read_input_registers,
+            5: master.write_coil,
+            6: master.write_register,
+            15: master.write_coils,
+            16: master.write_registers,
         }
+        return master, available_functions
+
+    def __stop_master(self):
+        self.__current_master.close()
 
     def __function_to_device(self, config, unit_id):
         function_code = config.get('functionCode')
