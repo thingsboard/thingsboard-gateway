@@ -529,14 +529,14 @@ class MqttConnector(Connector, Thread):
                                 topic = attribute_update["topicExpression"]\
                                         .replace("${deviceName}", content["device"])\
                                         .replace("${attributeKey}", attribute_key)\
-                                        .replace("${attributeValue}", content["data"][attribute_key])
+                                        .replace("${attributeValue}", str(content["data"][attribute_key]))
                             except KeyError as e:
                                 log.exception("Cannot form topic, key %s - not found", e)
                                 raise e
                             try:
                                 data = attribute_update["valueExpression"]\
                                         .replace("${attributeKey}", attribute_key)\
-                                        .replace("${attributeValue}", content["data"][attribute_key])
+                                        .replace("${attributeValue}", str(content["data"][attribute_key]))
                             except KeyError as e:
                                 log.exception("Cannot form topic, key %s - not found", e)
                                 raise e

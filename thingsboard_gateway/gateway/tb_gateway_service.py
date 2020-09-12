@@ -407,7 +407,10 @@ class TBGatewayService:
                                 event = self._published_events.get(False, 10)
                                 try:
                                     if self.tb_client.is_connected() and (self.__remote_configurator is None or not self.__remote_configurator.in_process):
-                                        success = event.get() == event.TB_ERR_SUCCESS
+                                        if self.tb_client.client.quality_of_service == 1:
+                                            success = event.get() == event.TB_ERR_SUCCESS
+                                        else:
+                                            success = True
                                     else:
                                         break
                                 except Exception as e:

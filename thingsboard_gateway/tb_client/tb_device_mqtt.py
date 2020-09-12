@@ -80,7 +80,7 @@ class TBPublishInfo:
 class TBDeviceMqttClient:
     def __init__(self, host, port=1883, token=None, quality_of_service=None):
         self._client = paho.Client()
-        self.__default_quality_of_service = quality_of_service if quality_of_service is not None else 1
+        self.quality_of_service = quality_of_service if quality_of_service is not None else 1
         self.__host = host
         self.__port = port
         if token == "":
@@ -139,10 +139,10 @@ class TBDeviceMqttClient:
         if result_code == 0:
             self.__is_connected = True
             log.info("connection SUCCESS")
-            self._client.subscribe(ATTRIBUTES_TOPIC, qos=self.__default_quality_of_service)
-            self._client.subscribe(ATTRIBUTES_TOPIC + "/response/+", qos=self.__default_quality_of_service)
-            self._client.subscribe(RPC_REQUEST_TOPIC + '+', qos=self.__default_quality_of_service)
-            self._client.subscribe(RPC_RESPONSE_TOPIC + '+', qos=self.__default_quality_of_service)
+            self._client.subscribe(ATTRIBUTES_TOPIC, qos=self.quality_of_service)
+            self._client.subscribe(ATTRIBUTES_TOPIC + "/response/+", qos=self.quality_of_service)
+            self._client.subscribe(RPC_REQUEST_TOPIC + '+', qos=self.quality_of_service)
+            self._client.subscribe(RPC_RESPONSE_TOPIC + '+', qos=self.quality_of_service)
         else:
             if result_code in result_codes:
                 log.error("connection FAIL with error %s %s", result_code, result_codes[result_code])
@@ -235,8 +235,7 @@ class TBDeviceMqttClient:
         self._client.reconnect_delay_set(min_delay, max_delay)
 
     def send_rpc_reply(self, req_id, resp, quality_of_service=None, wait_for_publish=False):
-        if quality_of_service is None:
-            quality_of_service = self.__default_quality_of_service
+        quality_of_service = quality_of_service if quality_of_service is not None else self.quality_of_service
         if quality_of_service not in (0, 1):
             log.error("Quality of service (qos) value must be 0 or 1")
             return None
@@ -252,7 +251,7 @@ class TBDeviceMqttClient:
         payload = {"method": method, "params": params}
         self._client.publish(RPC_REQUEST_TOPIC + str(rpc_request_id),
                              dumps(payload),
-                             qos=1)
+                             qos=self.quality_of_service)
 
     def set_server_side_rpc_request_handler(self, handler):
         self.__device_on_server_side_rpc_response = handler
@@ -260,18 +259,20 @@ class TBDeviceMqttClient:
     def publish_data(self, data, topic, qos):
         data = dumps(data)
         if qos is None:
-            qos = self.__default_quality_of_service
+            qos = self.quality_of_service
         if qos not in (0, 1):
             log.exception("Quality of service (qos) value must be 0 or 1")
             raise TBQoSException("Quality of service (qos) value must be 0 or 1")
         return TBPublishInfo(self._client.publish(topic, data, qos))
 
-    def send_telemetry(self, telemetry, quality_of_service=1):
+    def send_telemetry(self, telemetry, quality_of_service=None):
+        quality_of_service = quality_of_service if quality_of_service is not None else self.quality_of_service
         if not isinstance(telemetry, list) and not (isinstance(telemetry, dict) and telemetry.get("ts") is not None):
             telemetry = [telemetry]
         return self.publish_data(telemetry, TELEMETRY_TOPIC, quality_of_service)
 
-    def send_attributes(self, attributes, quality_of_service=1):
+    def send_attributes(self, attributes, quality_of_service=None):
+        quality_of_service = quality_of_service if quality_of_service is not None else self.quality_of_service
         return self.publish_data(attributes, ATTRIBUTES_TOPIC, quality_of_service)
 
     def unsubscribe_from_attribute(self, subscription_id):
@@ -318,7 +319,7 @@ class TBDeviceMqttClient:
 
         info = self._client.publish(topic=ATTRIBUTES_TOPIC_REQUEST + str(self.__attr_request_number),
                                     payload=dumps(msg),
-                                    qos=self.__default_quality_of_service)
+                                    qos=self.quality_of_service)
         self._add_timeout(attr_request_number, ts_in_millis + 30000)
         return info
 

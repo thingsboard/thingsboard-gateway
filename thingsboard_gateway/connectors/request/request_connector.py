@@ -18,6 +18,7 @@ from random import choice
 from string import ascii_lowercase
 from time import sleep, time
 from re import fullmatch
+from json import JSONDecodeError
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 try:
@@ -181,7 +182,8 @@ class RequestConnector(Connector, Thread):
                 "timeout": request_timeout,
                 "allow_redirects": request["config"].get("allowRedirects", False),
                 "verify": self.__ssl_verify,
-                "auth": self.__security
+                "auth": self.__security,
+                "data": request["config"].get("content", {})
             }
             logger.debug(url)
             if request["config"].get("httpHeaders") is not None:
@@ -194,6 +196,8 @@ class RequestConnector(Connector, Thread):
                     try:
                         data_to_storage.append(response.json())
                     except UnicodeDecodeError:
+                        data_to_storage.append(response.content())
+                    except JSONDecodeError:
                         data_to_storage.append(response.content())
                     if len(data_to_storage) == 3:
                         converter_queue.put(data_to_storage)
