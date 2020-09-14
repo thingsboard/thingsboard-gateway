@@ -60,7 +60,7 @@ class TBGatewayService:
         if config_file is None:
             config_file = path.dirname(path.dirname(path.abspath(__file__))) + '/config/tb_gateway.yaml'.replace('/', path.sep)
         with open(config_file) as general_config:
-            config = safe_load(general_config)
+            self.__config = safe_load(general_config)
         self._config_dir = path.dirname(path.abspath(config_file)) + path.sep
         logging_error = None
         try:
@@ -84,7 +84,7 @@ class TBGatewayService:
         self.__rpc_register_queue = Queue(-1)
         self.__rpc_requests_in_progress = {}
         self.__connected_devices_file = "connected_devices.json"
-        self.tb_client = TBClient(config["thingsboard"])
+        self.tb_client = TBClient(self.__config["thingsboard"])
         self.tb_client.connect()
         self.subscribe_to_required_topics()
         self.__subscribed_to_rpc_topics = True
@@ -111,7 +111,7 @@ class TBGatewayService:
             "version": self.__rpc_version,
         }
         self.__remote_shell = None
-        if config["thingsboard"].get("remoteShell"):
+        if self.__config["thingsboard"].get("remoteShell"):
             log.warning("Remote shell is enabled. Please be carefully with this feature.")
             self.__remote_shell = RemoteShell(platform=self.__updater.get_platform(), release=self.__updater.get_release())
         self.__rpc_remote_shell_command_in_progress = None
@@ -120,19 +120,13 @@ class TBGatewayService:
             "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
             "reboot": {"function": system, "arguments": ("reboot 0",)},
             }
-        self._event_storage = self._event_storage_types[config["storage"]["type"]](config["storage"])
+        self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"])
         self.connectors_configs = {}
-        self._load_connectors(config)
-        self._connect_with_connectors()
         self.__remote_configurator = None
         self.__request_config_after_connect = False
-        if config["thingsboard"].get("remoteConfiguration"):
-            try:
-                self.__remote_configurator = RemoteConfigurator(self, config)
-            except Exception as e:
-                log.exception(e)
-        if self.__remote_configurator is not None:
-            self.__remote_configurator.send_current_configuration()
+        self.__init_remote_configuration()
+        self._load_connectors()
+        self._connect_with_connectors()
         self.__load_persistent_devices()
         self._published_events = Queue(-1)
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
@@ -222,10 +216,20 @@ class TBGatewayService:
         log.info("The gateway has been stopped.")
         self.tb_client.stop()
 
+    def __init_remote_configuration(self, force=False):
+        if (self.__config["thingsboard"].get("remoteConfiguration") or force) and self.__remote_configurator is None:
+            try:
+                self.__remote_configurator = RemoteConfigurator(self, self.__config)
+                if self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
+                    self.__check_shared_attributes()
+            except Exception as e:
+                log.exception(e)
+        if self.__remote_configurator is not None:
+            self.__remote_configurator.send_current_configuration()
+
     def _attributes_parse(self, content, *args):
         try:
             log.debug("Received data: %s", content)
-            log.debug(args)
             if content is not None:
                 shared_attributes = content.get("shared")
                 client_attributes = content.get("client")
@@ -268,10 +272,10 @@ class TBGatewayService:
     def __check_shared_attributes(self):
         self.tb_client.client.request_attributes(callback=self._attributes_parse)
 
-    def _load_connectors(self, main_config):
+    def _load_connectors(self):
         self.connectors_configs = {}
-        if main_config.get("connectors"):
-            for connector in main_config['connectors']:
+        if self.__config.get("connectors"):
+            for connector in self.__config['connectors']:
                 try:
                     connector_class = TBUtility.check_and_import(connector["type"], self._default_connectors.get(connector["type"], connector.get("class")))
                     self._implemented_connectors[connector["type"]] = connector_class
@@ -286,7 +290,7 @@ class TBGatewayService:
                     log.exception(e)
         else:
             log.error("Connectors - not found! Check your configuration!")
-            main_config["remoteConfiguration"] = True
+            self.__init_remote_configuration(force=True)
             log.info("Remote configuration is enabled forcibly!")
 
     def _connect_with_connectors(self):
