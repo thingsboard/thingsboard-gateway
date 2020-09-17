@@ -36,7 +36,7 @@ from thingsboard_gateway.connectors.connector import Connector, log
 
 class CanConnector(Connector, Thread):
     CMD_REGEX = r"^(\d{1,2}):(\d{1,2}):?(big|little)?:(\d+)$"
-    VALUE_REGEX = r"^(\d{1,2}):(\d{1,2}):?(big|little)?:(bool|boolean|int|long|float|double|string):?([0-9A-Za-z-_]+)?$"
+    VALUE_REGEX = r"^(\d{1,2}):((?:-1)?|\d{1,2}):?(big|little)?:(bool|boolean|int|long|float|double|string|raw):?([0-9A-Za-z-_]+)?$"
 
     NO_CMD_ID = "no_cmd"
     UNKNOWN_ARBITRATION_ID = -1
@@ -516,7 +516,7 @@ class CanConnector(Connector, Thread):
             if value_config["type"][0] == "i" or value_config["type"][0] == "l":
                 value_config["signed"] = value_matches.group(5) == "signed" if value_matches.group(5) \
                     else self.DEFAULT_SIGNED_FLAG
-            elif value_config["type"][0] == "s":
+            elif value_config["type"][0] == "s" or value_config["type"][0] == "r":
                 value_config["encoding"] = value_matches.group(5) if value_matches.group(5) else self.DEFAULT_ENCODING
 
             return value_config

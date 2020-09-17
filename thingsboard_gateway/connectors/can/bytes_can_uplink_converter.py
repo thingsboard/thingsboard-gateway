@@ -28,19 +28,25 @@ class BytesCanUplinkConverter(CanConverter):
                 tb_key = config["key"]
                 tb_item = "telemetry" if config["is_ts"] else "attributes"
 
+                data_length = config["length"] if config["length"] != -1 else len(can_data) - config["start"]
+
                 # The 'value' variable is used in eval
                 if config["type"][0] == "b":
                     value = bool(can_data[config["start"]])
                 elif config["type"][0] == "i" or config["type"][0] == "l":
-                    value = int.from_bytes(can_data[config["start"]:config["start"] + config["length"]],
+                    value = int.from_bytes(can_data[config["start"]:config["start"] + data_length],
                                            config["byteorder"],
                                            signed=config["signed"])
                 elif config["type"][0] == "f" or config["type"][0] == "d":
                     fmt = ">" + config["type"][0] if config["byteorder"][0] == "b" else "<" + config["type"][0]
                     value = struct.unpack_from(fmt,
-                                               bytes(can_data[config["start"]:config["start"] + config["length"]]))[0]
+                                               bytes(can_data[config["start"]:config["start"] + data_length]))[0]
                 elif config["type"][0] == "s":
-                    value = can_data[config["start"]:config["start"] + config["length"]].decode(config["encoding"])
+                    value = can_data[config["start"]:config["start"] + data_length].decode(config["encoding"])
+                elif config["type"][0] == "r":
+                    value = ""
+                    for hex_byte in can_data[config["start"]:config["start"] + data_length]:
+                        value += "%02x" % hex_byte
                 else:
                     log.error("Failed to convert CAN data to TB %s '%s': unknown data type '%s'",
                               "time series key" if config["is_ts"] else "attribute", tb_key, config["type"])
