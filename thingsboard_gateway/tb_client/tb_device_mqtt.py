@@ -154,13 +154,16 @@ class TBDeviceMqttClient:
 
     def connect(self, callback=None, min_reconnect_delay=1, timeout=120, tls=False, ca_certs=None, cert_file=None, key_file=None, keepalive=60):
         if tls:
-            self._client.tls_set(ca_certs=ca_certs,
-                                 certfile=cert_file,
-                                 keyfile=key_file,
-                                 cert_reqs=ssl.CERT_REQUIRED,
-                                 tls_version=ssl.PROTOCOL_TLSv1_2,
-                                 ciphers=None)
-            self._client.tls_insecure_set(False)
+            try:
+                self._client.tls_set(ca_certs=ca_certs,
+                                     certfile=cert_file,
+                                     keyfile=key_file,
+                                     cert_reqs=ssl.CERT_REQUIRED,
+                                     tls_version=ssl.PROTOCOL_TLSv1_2,
+                                     ciphers=None)
+                self._client.tls_insecure_set(False)
+            except ValueError:
+                pass
         self._client.connect(self.__host, self.__port, keepalive=keepalive)
         self.reconnect_delay_set(min_reconnect_delay, timeout)
         self._client.loop_start()
