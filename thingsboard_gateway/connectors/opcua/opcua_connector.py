@@ -132,7 +132,12 @@ class OpcUaConnector(Thread, Connector):
                     if self.__server_conf.get("disableSubscriptions", False) and time.time()*1000 - self.__previous_scan_time > self.__server_conf.get("scanPeriodInMillis", 60000):
                         self.scan_nodes_from_config()
                         self.__previous_scan_time = time.time() * 1000
-                    if self.data_to_send:
+                    # giusguerrini, 2020-09-24: Fix: flush event set and send all data to platform,
+                    # so data_to_send doesn't grow indefinitely in case of more than one value change
+                    # per cycle, and platform doesn't lose events.
+                    # NOTE: possible performance improvement: use a map to store only one event per
+                    # variable to reduce frequency of messages to platform.
+                    while self.data_to_send:
                         self.__gateway.send_to_storage(self.get_name(), self.data_to_send.pop())
                 if self.__stopped:
                     self.close()
