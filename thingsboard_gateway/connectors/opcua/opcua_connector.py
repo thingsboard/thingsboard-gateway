@@ -444,9 +444,13 @@ class OpcUaConnector(Thread, Connector):
                 fullpath_pattern = regex.compile(fullpath)
                 full1 = fullpath.replace('\\\\.', '.')
                 for child_node in current_node.get_children():
-                    new_node = self.client.get_node(child_node)
-                    # new_node_path = '\\\\.'.join(char.split(":")[1] for char in new_node.get_path(200000, True))
-                    new_node_path = 'Root.Objects.'+ str(new_node.nodeid.Identifier)
+                    new_node_class = child_node.get_node_class()
+                    child_node_parent_class = child_node.get_parent().get_node_class()
+                    new_node_path = '\\\\.'.join(char.split(":")[1] for char in child_node.get_path(200000, True))
+                    if child_node_parent_class == ua.NodeClass.View:
+                        current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
+                        parent_path = '\\.'.join(char.split(":")[1] for char in child_node.get_parent().get_path(200000, True))
+                        fullpath = fullpath.replace(current_node_path, parent_path)
                     nnp1 = new_node_path.replace('\\\\.', '.')
                     nnp2 = new_node_path.replace('\\\\', '\\')
                     if self.__show_map:
@@ -457,24 +461,23 @@ class OpcUaConnector(Thread, Connector):
                     if regex_fullmatch:
                         if self.__show_map:
                             log.debug("SHOW MAP: Current node path: %s - NODE FOUND", nnp2)
-                        result.append(new_node)
+                        result.append(child_node)
                     else:
                         regex_search = fullpath_pattern.fullmatch(nnp1, partial=True) or \
                                           nnp2 in full1
                         if regex_search:
-                            new_node_class = new_node.get_node_class()
                             if self.__show_map:
                                 log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path)
                             if new_node_class == ua.NodeClass.Object:
                                 if self.__show_map:
                                     log.debug("SHOW MAP: Search in %s", new_node_path)
-                                self.__search_node(new_node, fullpath, result=result)
+                                self.__search_node(child_node, fullpath, result=result)
                             elif new_node_class == ua.NodeClass.Variable:
                                 log.debug("Found in %s", new_node_path)
-                                result.append(new_node)
+                                result.append(child_node)
                             elif new_node_class == ua.NodeClass.Method and search_method:
                                 log.debug("Found in %s", new_node_path)
-                                result.append(new_node)
+                                result.append(child_node)
         except CancelledError:
             log.error("Request during search has been canceled by the OPC-UA server.")
         except BrokenPipeError:
