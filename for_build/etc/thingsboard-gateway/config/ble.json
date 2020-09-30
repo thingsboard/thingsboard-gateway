@@ -8,6 +8,7 @@
         {
             "name": "Temperature and humidity sensor",
             "MACAddress": "4C:65:A8:DF:85:C0",
+            "addrType": "public",
             "telemetry": [
                 {
                     "key": "temperature",
