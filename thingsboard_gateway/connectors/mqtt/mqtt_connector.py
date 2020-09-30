@@ -235,6 +235,8 @@ class MqttConnector(Connector, Thread):
                              str(flags),
                              extra_params)
 
+            self.__mapping_sub_topics = {}
+
             # Setup data upload requests handling ----------------------------------------------------------------------
             for mapping in self.__mapping:
                 try:
