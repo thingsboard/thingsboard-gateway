@@ -25,7 +25,7 @@ fi
 
 if [ "$1" != "only_clean" ] ; then
   echo "Installing libraries for building deb package."
-  sudo apt-get install python3-stdeb fakeroot python-all
+  sudo apt-get install python3-stdeb fakeroot python-all dh-python -y
   echo "Building DEB package"
   echo "Creating sources for DEB package..."
   python3 setup.py --command-packages=stdeb.command bdist_deb
