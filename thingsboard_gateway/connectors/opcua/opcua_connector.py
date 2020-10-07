@@ -457,7 +457,8 @@ class OpcUaConnector(Thread, Connector):
                         log.debug("SHOW MAP: Current node path: %s", new_node_path)
                     regex_fullmatch = regex.fullmatch(fullpath_pattern,  nnp1) or \
                                       nnp2 == full1 or \
-                                      nnp2 == fullpath
+                                      nnp2 == fullpath or \
+                                      nnp1 == full1
                     if regex_fullmatch:
                         if self.__show_map:
                             log.debug("SHOW MAP: Current node path: %s - NODE FOUND", nnp2)
