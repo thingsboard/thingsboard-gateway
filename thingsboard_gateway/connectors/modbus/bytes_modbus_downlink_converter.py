@@ -26,8 +26,11 @@ class BytesModbusDownlinkConverter(ModbusConverter):
 
     def convert(self, config, data):
         byte_order_str = config.get("byteOrder", "LITTLE")
+        word_order_str = config.get("wordOrder", "BIG")
         byte_order = Endian.Big if byte_order_str.upper() == "BIG" else Endian.Little
-        builder = BinaryPayloadBuilder(byteorder=byte_order)
+        word_order = Endian.Big if word_order_str.upper() == "BIG" else Endian.Little
+        repack = config.get("repack", False)
+        builder = BinaryPayloadBuilder(byteorder=byte_order, wordorder=word_order, repack=repack)
         builder_functions = {"string": builder.add_string,
                              "bits": builder.add_bits,
                              "8int": builder.add_8bit_int,

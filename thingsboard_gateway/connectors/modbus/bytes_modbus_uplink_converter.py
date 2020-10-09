@@ -40,7 +40,12 @@ class BytesModbusUplinkConverter(ModbusConverter):
                         byte_order = configuration["byteOrder"]
                     else:
                         byte_order = config.get("byteOrder", "LITTLE")
+                    if configuration.get("wordOrder") is not None:
+                        word_order = configuration["wordOrder"]
+                    else:
+                        word_order = config.get("wordOrder", "BIG")
                     endian_order = Endian.Little if byte_order.upper() == "LITTLE" else Endian.Big
+                    word_endian_order = Endian.Little if word_order.upper() == "LITTLE" else Endian.Big
                     decoded_data = None
                     if not isinstance(response, ModbusIOException):
                         if configuration["functionCode"] in [1, 2]:
@@ -58,10 +63,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             registers = response.registers
                             log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))
                             try:
-                                decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order)
+                                decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order, wordorder=word_endian_order)
                             except TypeError:
                                 # pylint: disable=E1123
-                                decoder = BinaryPayloadDecoder.fromRegisters(registers, endian=endian_order)
+                                decoder = BinaryPayloadDecoder.fromRegisters(registers, endian=endian_order, wordorder=word_endian_order)
                             assert decoder is not None
                             decoded_data = self.__decode_from_registers(decoder, configuration)
                             if configuration.get("divider"):
