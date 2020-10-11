@@ -55,7 +55,7 @@ class OpcUaConnector(Thread, Connector):
         else:
             self.__opcua_url = self.__server_conf.get("url")
         self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
-        if self.__server_conf["identity"]["type"] == "cert.PEM":
+        if self.__server_conf["identity"].get("type") == "cert.PEM":
             try:
                 ca_cert = self.__server_conf["identity"].get("caCert")
                 private_key = self.__server_conf["identity"].get("privateKey")
@@ -445,10 +445,15 @@ class OpcUaConnector(Thread, Connector):
                 full1 = fullpath.replace('\\\\.', '.')
                 for child_node in current_node.get_children():
                     new_node_class = child_node.get_node_class()
+                    new_parent = child_node.get_parent()
+                    if (new_parent is None):
+                        child_node_parent_class = current_node.get_node_class()
+                    else:
+                        child_node_parent_class = child_node.get_parent().get_node_class() 
                     child_node_parent_class = child_node.get_parent().get_node_class()
+                    current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
                     new_node_path = '\\\\.'.join(char.split(":")[1] for char in child_node.get_path(200000, True))
-                    if child_node_parent_class == ua.NodeClass.View:
-                        current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
+                    if child_node_parent_class == ua.NodeClass.View and new_parent is not None:
                         parent_path = '\\.'.join(char.split(":")[1] for char in child_node.get_parent().get_path(200000, True))
                         fullpath = fullpath.replace(current_node_path, parent_path)
                     nnp1 = new_node_path.replace('\\\\.', '.')
