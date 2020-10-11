@@ -55,7 +55,7 @@ class OpcUaConnector(Thread, Connector):
         else:
             self.__opcua_url = self.__server_conf.get("url")
         self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
-        if self.__server_conf["identity"]["type"] == "cert.PEM":
+        if self.__server_conf["identity"].get("type") == "cert.PEM": 
             try:
                 ca_cert = self.__server_conf["identity"].get("caCert")
                 private_key = self.__server_conf["identity"].get("privateKey")
