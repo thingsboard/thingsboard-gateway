@@ -451,7 +451,6 @@ class OpcUaConnector(Thread, Connector):
                         child_node_parent_class = current_node.get_node_class()
                     else:
                         child_node_parent_class = child_node.get_parent().get_node_class() 
-                    child_node_parent_class = child_node.get_parent().get_node_class()
                     current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
                     new_node_path = '\\\\.'.join(char.split(":")[1] for char in child_node.get_path(200000, True))
                     if child_node_parent_class == ua.NodeClass.View and new_parent is not None:
