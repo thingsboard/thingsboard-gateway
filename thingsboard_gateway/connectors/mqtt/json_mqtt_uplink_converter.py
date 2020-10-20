@@ -67,8 +67,8 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                        and ("${" not in str(key) and "}" not in str(key)):
                         is_valid_key = isinstance(key, str) and "${" in datatype_config["key"] and "}" in datatype_config["key"]
                         is_valid_value = isinstance(value, str) and "${" in datatype_config["value"] and "}" in datatype_config["value"]
-                        full_key = datatype_config["key"].replace('${' + key_tag + '}', key) if is_valid_key else key_tag
-                        full_value = datatype_config["value"].replace('${' + value_tag + '}', value) if is_valid_value else value
+                        full_key = datatype_config["key"].replace('${' + str(key_tag) + '}', str(key)) if is_valid_key else key_tag
+                        full_value = datatype_config["value"].replace('${' + str(value_tag) + '}', str(value)) if is_valid_value else value
                         if datatype == 'timeseries' and (data.get("ts") is not None or data.get("timestamp") is not None):
                             dict_result[datatypes[datatype]].append({"ts": data.get('ts', data.get('timestamp', int(time()))), 'values': {full_key: full_value}})
                         else:
