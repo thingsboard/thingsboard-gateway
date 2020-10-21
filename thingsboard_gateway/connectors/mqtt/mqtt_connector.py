@@ -264,7 +264,7 @@ class MqttConnector(Connector, Thread):
                     self.__mapping_sub_topics[regex_topic].append(converter)
 
                     # Subscribe to appropriate topic -------------------------------------------------------------------
-                    self.__subscribe(mapping["topicFilter"], mapping.get("subscriptionQos", 0))
+                    self.__subscribe(mapping["topicFilter"], mapping.get("subscriptionQos", 1))
 
                     self.__log.info('Connector "%s" subscribe to %s',
                                     self.get_name(),
@@ -276,21 +276,21 @@ class MqttConnector(Connector, Thread):
             # Setup connection requests handling -----------------------------------------------------------------------
             for request in [entry for entry in self.__connect_requests if entry is not None]:
                 # requests are guaranteed to have topicFilter field. See __init__
-                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 0))
+                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 1))
                 topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
                 self.__connect_requests_sub_topics[topic_filter] = request
 
             # Setup disconnection requests handling --------------------------------------------------------------------
             for request in [entry for entry in self.__disconnect_requests if entry is not None]:
                 # requests are guaranteed to have topicFilter field. See __init__
-                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 0))
+                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 1))
                 topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
                 self.__disconnect_requests_sub_topics[topic_filter] = request
 
             # Setup attributes requests handling -----------------------------------------------------------------------
             for request in [entry for entry in self.__attribute_requests if entry is not None]:
                 # requests are guaranteed to have topicFilter field. See __init__
-                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 0))
+                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 1))
                 topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
                 self.__attribute_requests_sub_topics[topic_filter] = request
 
