@@ -152,7 +152,7 @@ class TBDeviceMqttClient:
     def is_connected(self):
         return self.__is_connected
 
-    def connect(self, callback=None, min_reconnect_delay=1, timeout=120, tls=False, ca_certs=None, cert_file=None, key_file=None, keepalive=60):
+    def connect(self, callback=None, min_reconnect_delay=1, timeout=120, tls=False, ca_certs=None, cert_file=None, key_file=None, keepalive=120):
         if tls:
             try:
                 self._client.tls_set(ca_certs=ca_certs,

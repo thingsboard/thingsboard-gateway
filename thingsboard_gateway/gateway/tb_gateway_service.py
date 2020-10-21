@@ -214,6 +214,7 @@ class TBGatewayService:
         log.info("Stopping...")
         self.__close_connectors()
         log.info("The gateway has been stopped.")
+        self.tb_client.disconnect()
         self.tb_client.stop()
 
     def __init_remote_configuration(self, force=False):

@@ -116,7 +116,7 @@ class TBClient(threading.Thread):
         self.__min_reconnect_delay = min_reconnect_delay
 
     def run(self):
-        keep_alive = self.__config.get("keep_alive", 60)
+        keep_alive = self.__config.get("keep_alive", 120)
         try:
             while not self.client.is_connected() and not self.__stopped:
                 if not self.__paused:
@@ -130,7 +130,7 @@ class TBClient(threading.Thread):
                         pass
                     except Exception as e:
                         log.exception(e)
-                time.sleep(1)
+                time.sleep(.01)
         except Exception as e:
             log.exception(e)
             time.sleep(10)
