@@ -66,7 +66,7 @@ if [ "$1" != "only_clean" ] ; then
   cd for_build/etc/thingsboard-gateway || echo 0 > /dev/null
   tar -zcvf configs.tar.gz config/*
   tar -zcvf extensions.tar.gz extensions/*
-  mv configs.tar.gz ../../../
+  mv configs.tar.gz ../../../ -y
   cd ../../../
   rm /home/$CURRENT_USER/rpmbuild/SOURCES/configs.tar.gz
   cp configs.tar.gz /home/$CURRENT_USER/rpmbuild/SOURCES/
