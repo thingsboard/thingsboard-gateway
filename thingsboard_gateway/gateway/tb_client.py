@@ -130,7 +130,7 @@ class TBClient(threading.Thread):
                         pass
                     except Exception as e:
                         log.exception(e)
-                time.sleep(.01)
+                time.sleep(1)
         except Exception as e:
             log.exception(e)
             time.sleep(10)
@@ -138,7 +138,7 @@ class TBClient(threading.Thread):
         while not self.__stopped:
             try:
                 if not self.__stopped:
-                    time.sleep(1)
+                    time.sleep(.1)
                 else:
                     break
             except KeyboardInterrupt:
