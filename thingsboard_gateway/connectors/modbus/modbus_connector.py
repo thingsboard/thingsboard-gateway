@@ -214,15 +214,16 @@ class ModbusConnector(Connector, threading.Thread):
     def __connect_to_current_master(self, device=None):
         connect_attempt_count = 5
         connect_attempt_time_ms = 100
-        if device is not None:
-            if self.__devices[device].get('master') is None:
-                self.__devices[device]['master'], self.__devices[device]['available_functions'] = self.__configure_master(
-                    self.__devices[device]["config"])
-            if self.__devices[device]['master'] != self.__current_master:
-                self.__current_master = self.__devices[device]['master']
-                self.__available_functions = self.__devices[device]['available_functions']
-            connect_attempt_count = self.__devices[device]["config"].get("connectAttemptCount", connect_attempt_count)
-            connect_attempt_time_ms = self.__devices[device]["config"].get("connectAttemptTimeMs", connect_attempt_time_ms)
+        if device is None:
+            device = list(self.__devices.keys())[0]
+        if self.__devices[device].get('master') is None:
+            self.__devices[device]['master'], self.__devices[device]['available_functions'] = self.__configure_master(
+                self.__devices[device]["config"])
+        if self.__devices[device]['master'] != self.__current_master:
+            self.__current_master = self.__devices[device]['master']
+            self.__available_functions = self.__devices[device]['available_functions']
+        connect_attempt_count = self.__devices[device]["config"].get("connectAttemptCount", connect_attempt_count)
+        connect_attempt_time_ms = self.__devices[device]["config"].get("connectAttemptTimeMs", connect_attempt_time_ms)
         attempt = 0
         if not self.__current_master.is_socket_open():
             while not self.__current_master.is_socket_open() and attempt < connect_attempt_count:
@@ -230,7 +231,7 @@ class ModbusConnector(Connector, threading.Thread):
                 self.__current_master.connect()
                 if not self.__current_master.is_socket_open():
                     time.sleep(connect_attempt_time_ms / 1000)
-                log.debug("Modbus trying connect to %s", self.__devices[device]["config"]["deviceName"])
+                log.debug("Modbus trying connect to %s", device)
         if attempt > 0 and self.__current_master.is_socket_open():
             log.debug("Modbus connected.")
 
