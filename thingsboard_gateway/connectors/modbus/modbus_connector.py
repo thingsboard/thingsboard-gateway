@@ -230,7 +230,8 @@ class ModbusConnector(Connector, threading.Thread):
                 self.__current_master.connect()
                 if not self.__current_master.is_socket_open():
                     time.sleep(connect_attempt_time_ms / 1000)
-                device_address = str(self.__current_master.host) + ":" + str(self.__current_master.port) if self.__devices[device]["config"]["type"] != 'serial' else self.__current_master.port
+                current_type = self.__devices[device]["config"]["type"] if self.__devices[device]["config"].get("type") is not None else self.__config["type"]
+                device_address = str(self.__current_master.host) + ":" + str(self.__current_master.port) if current_type != 'serial' else self.__current_master.port
                 log.debug("Modbus trying connect to %s", device_address)
         if attempt > 0 and self.__current_master.is_socket_open():
             log.debug("Modbus connected.")
