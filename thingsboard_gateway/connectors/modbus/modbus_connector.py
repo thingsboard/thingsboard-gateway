@@ -51,6 +51,7 @@ class ModbusConnector(Connector, threading.Thread):
         self.__current_master, self.__available_functions = self.__configure_master()
         self.__default_config_parameters = ['host', 'port', 'baudrate', 'timeout', 'method', 'stopbits', 'bytesize', 'parity', 'strict', 'type']
         self.__byte_order = self.__config.get("byteOrder")
+        self.__word_order = self.__config.get("wordOrder")
         self.__configure_master()
         self.__devices = {}
         self.setName(self.__config.get("name",
@@ -141,7 +142,8 @@ class ModbusConnector(Connector, threading.Thread):
                             log.debug(device_responses)
                             converted_data = {}
                             try:
-                                converted_data = self.__devices[device]["converter"].convert(config={"byteOrder": self.__byte_order},
+                                converted_data = self.__devices[device]["converter"].convert(config={"byteOrder": self.__devices[device]["config"].get("byteOrder", self.__byte_order),
+                                                                                                     "wordOrder": self.__devices[device]["config"].get("wordOrder", self.__word_order)},
                                                                                              data=device_responses)
                             except Exception as e:
                                 log.error(e)
