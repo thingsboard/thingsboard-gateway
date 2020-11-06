@@ -142,7 +142,8 @@ class ModbusConnector(Connector, threading.Thread):
                             log.debug(device_responses)
                             converted_data = {}
                             try:
-                                converted_data = self.__devices[device]["converter"].convert(config={"byteOrder": self.__devices[device]["config"].get("byteOrder", self.__byte_order),
+                                converted_data = self.__devices[device]["converter"].convert(config={**self.__devices[device]["config"],
+                                                                                                     "byteOrder": self.__devices[device]["config"].get("byteOrder", self.__byte_order),
                                                                                                      "wordOrder": self.__devices[device]["config"].get("wordOrder", self.__word_order)},
                                                                                              data=device_responses)
                             except Exception as e:
