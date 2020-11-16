@@ -110,6 +110,8 @@ class TBUtility:
                                     continue
                     else:
                         log.error("Import %s failed, path %s doesn't exist", module_name, extension_path)
+                    if TBUtility.loaded_extensions.get(extension_type + module_name) is not None:
+                        break
             except Exception as e:
                 log.exception(e)
         else:
