@@ -79,9 +79,11 @@ class TBUtility:
                 extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
                                     path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
             else:
-                extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
-                                    '/var/lib/thingsboard_gateway/extensions/'.replace('/', path.sep) + extension_type.lower(),
-                                    path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
+                extensions_paths = tuple(path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()))
+                extension_folder_path = '/var/lib/thingsboard_gateway/extensions/'.replace('/', path.sep) + extension_type.lower()
+                if path.exists(extension_folder_path):
+                    extensions_paths = extensions_paths + tuple(extension_folder_path)
+                extensions_paths = extensions_paths + tuple(path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
             try:
                 for extension_path in extensions_paths:
                     if path.exists(extension_path):
