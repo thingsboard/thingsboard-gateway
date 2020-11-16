@@ -86,6 +86,8 @@ class TBUtility:
                 extensions_paths = extensions_paths + tuple(path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
             try:
                 for extension_path in extensions_paths:
+                    if TBUtility.loaded_extensions.get(extension_type + module_name) is not None:
+                        return TBUtility.loaded_extensions[extension_type + module_name]
                     if path.exists(extension_path):
                         for file in listdir(extension_path):
                             if not file.startswith('__') and file.endswith('.py'):
@@ -110,8 +112,6 @@ class TBUtility:
                                     continue
                     else:
                         log.error("Import %s failed, path %s doesn't exist", module_name, extension_path)
-                    if TBUtility.loaded_extensions.get(extension_type + module_name) is not None:
-                        break
             except Exception as e:
                 log.exception(e)
         else:
