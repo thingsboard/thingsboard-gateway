@@ -76,14 +76,14 @@ class TBUtility:
     def check_and_import(extension_type, module_name):
         if TBUtility.loaded_extensions.get(extension_type + module_name) is None:
             if system() == "Windows":
-                extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
-                                    path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
+                extensions_paths = [path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
+                                    path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower())]
             else:
-                extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep,) + extension_type.lower()))
+                extensions_paths = [path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower())]
                 extension_folder_path = '/var/lib/thingsboard_gateway/extensions/'.replace('/', path.sep) + extension_type.lower()
                 if path.exists(extension_folder_path):
-                    extensions_paths = extensions_paths + (extension_folder_path,)
-                extensions_paths = extensions_paths + (path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()),)
+                    extensions_paths.append(extension_folder_path)
+                extensions_paths.append(path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
             try:
                 for extension_path in extensions_paths:
                     if TBUtility.loaded_extensions.get(extension_type + module_name) is not None:
