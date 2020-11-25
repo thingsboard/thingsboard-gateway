@@ -348,7 +348,9 @@ class ModbusConnector(Connector, threading.Thread):
             if isinstance(response, (ReadRegistersResponseBase, ReadBitsResponseBase)):
                 to_converter = {"rpc": {content["data"]["method"]: {"data_sent": rpc_command_config,
                                                                     "input_data": response}}}
-                response = self.__devices[content["device"]]["converter"].convert(config=None, data=to_converter)
+                response = self.__devices[content["device"]]["converter"].convert(config={**self.__devices[content["device"]]["config"],
+                                                                                                     "byteOrder": self.__devices[content["device"]]["config"].get("byteOrder", self.__byte_order),
+                                                                                                     "wordOrder": self.__devices[content["device"]]["config"].get("wordOrder", self.__word_order)}, data=to_converter)
                 log.debug("Received RPC method: %s, result: %r", content["data"]["method"], response)
                 # response = {"success": response}
             elif isinstance(response, (WriteMultipleRegistersResponse,
