@@ -183,7 +183,7 @@ class RequestConnector(Connector, Thread):
                 "allow_redirects": request["config"].get("allowRedirects", False),
                 "verify": self.__ssl_verify,
                 "auth": self.__security,
-                "data": request["config"].get("content", {})
+                "data": request["config"].get("data", {})
             }
             logger.debug(url)
             if request["config"].get("httpHeaders") is not None:
