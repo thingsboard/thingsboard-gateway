@@ -36,14 +36,14 @@ class BytesModbusUplinkConverter(ModbusConverter):
                 try:
                     configuration = data[config_data][tag]["data_sent"]
                     response = data[config_data][tag]["input_data"]
-                    if configuration.get("byteOrder") is not None:
-                        byte_order = configuration["byteOrder"]
+                    if config.get("byteOrder") is not None:
+                        byte_order = config["byteOrder"]
                     else:
-                        byte_order = config.get("byteOrder", "LITTLE")
-                    if configuration.get("wordOrder") is not None:
-                        word_order = configuration["wordOrder"]
+                        byte_order = configuration.get("byteOrder", "LITTLE")
+                    if config.get("wordOrder") is not None:
+                        word_order = config["wordOrder"]
                     else:
-                        word_order = config.get("wordOrder", "BIG")
+                        word_order = configuration.get("wordOrder", "BIG")
                     endian_order = Endian.Little if byte_order.upper() == "LITTLE" else Endian.Big
                     word_endian_order = Endian.Little if word_order.upper() == "LITTLE" else Endian.Big
                     decoded_data = None
