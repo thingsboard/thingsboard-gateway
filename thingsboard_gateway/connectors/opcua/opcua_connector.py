@@ -282,6 +282,7 @@ class OpcUaConnector(Thread, Connector):
             log.exception(e)
 
     def __search_nodes_and_subscribe(self, device_info):
+        sub_nodes = []
         information_types = {"attributes": "attributes", "timeseries": "telemetry"}
         for information_type in information_types:
             for information in device_info["configuration"][information_type]:
@@ -323,14 +324,18 @@ class OpcUaConnector(Thread, Connector):
                         self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                         self.data_to_send.append(converted_data)
                         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                        if not self.__server_conf.get("disableSubscriptions", False):
-                            if self.__sub is None:
-                                self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
-                            self.__sub.subscribe_data_change(information_node)
-                        log.debug("Added subscription to node: %s", str(information_node))
                         log.debug("Data to ThingsBoard: %s", converted_data)
+                        if not self.__server_conf.get("disableSubscriptions", False):
+                            sub_nodes.append(information_node)
                     else:
                         log.error("Node for %s \"%s\" with path %s - NOT FOUND!", information_type, information_key, information_path)
+        if not self.__server_conf.get("disableSubscriptions", False):
+            if self.__sub is None:
+                self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500),
+                                                             self.__sub_handler)
+            if sub_nodes:
+                self.__sub.subscribe_data_change(sub_nodes)
+                log.debug("Added subscription to nodes: %s", str(sub_nodes))
 
     def __save_methods(self, device_info):
         try:
