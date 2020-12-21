@@ -41,12 +41,12 @@ class BLEConnector(Connector, Thread):
 
         self._connected = False
         self.__stopped = False
-        self.__previous_scan_time = time.time() - 10000
-        self.__previous_read_time = time.time() - 10000
         self.__check_interval_seconds = self.__config['checkIntervalSeconds'] if self.__config.get(
             'checkIntervalSeconds') is not None else 10
         self.__rescan_time = self.__config['rescanIntervalSeconds'] if self.__config.get(
             'rescanIntervalSeconds') is not None else 10
+        self.__previous_scan_time = time.time() - self.__rescan_time
+        self.__previous_read_time = time.time() - self.__check_interval_seconds
         self.__scanner = Scanner().withDelegate(ScanDelegate(self))
         self.__devices_around = {}
         self.__available_converters = []

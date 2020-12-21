@@ -222,31 +222,32 @@ class BACnetConnector(Thread, Connector):
     def add_device(self, data):
         if self.__devices_address_name.get(data["address"]) is None:
             for device in self.__config_devices:
-                try:
-                    config_address = Address(device["address"])
-                    device_name_tag = TBUtility.get_value(device["deviceName"], get_tag=True)
-                    device_name = device["deviceName"].replace("${" + device_name_tag + "}", data.pop("name"))
-                    device_information = {
-                        **data,
-                        **self.__get_requests_configs(device),
-                        "type": device["deviceType"],
-                        "config": device,
-                        "attributes": device.get("attributes", []),
-                        "telemetry": device.get("timeseries", []),
-                        "poll_period": device.get("pollPeriod", 5000),
-                        "deviceName": device_name,
-                    }
-                    if config_address == data["address"] or \
-                            (config_address, GlobalBroadcast) or \
-                            (isinstance(config_address, LocalBroadcast) and isinstance(device["address"], LocalStation)) or \
-                            (isinstance(config_address, (LocalStation, RemoteStation)) and isinstance(data["address"], (
-                            LocalStation, RemoteStation))):
-                        self.__devices_address_name[data["address"]] = device_information["deviceName"]
-                        self.__devices.append(device_information)
+                if device["address"] == data["address"]:
+                    try:
+                        config_address = Address(device["address"])
+                        device_name_tag = TBUtility.get_value(device["deviceName"], get_tag=True)
+                        device_name = device["deviceName"].replace("${" + device_name_tag + "}", data.pop("name"))
+                        device_information = {
+                            **data,
+                            **self.__get_requests_configs(device),
+                            "type": device["deviceType"],
+                            "config": device,
+                            "attributes": device.get("attributes", []),
+                            "telemetry": device.get("timeseries", []),
+                            "poll_period": device.get("pollPeriod", 5000),
+                            "deviceName": device_name,
+                        }
+                        if config_address == data["address"] or \
+                                (config_address, GlobalBroadcast) or \
+                                (isinstance(config_address, LocalBroadcast) and isinstance(device["address"], LocalStation)) or \
+                                (isinstance(config_address, (LocalStation, RemoteStation)) and isinstance(data["address"], (
+                                LocalStation, RemoteStation))):
+                            self.__devices_address_name[data["address"]] = device_information["deviceName"]
+                            self.__devices.append(device_information)
 
-                    log.debug(data["address"].addrType)
-                except Exception as e:
-                    log.exception(e)
+                        log.debug(data["address"].addrType)
+                    except Exception as e:
+                        log.exception(e)
 
     def __get_requests_configs(self, device):
         result = {"attribute_updates": [], "server_side_rpc": []}
