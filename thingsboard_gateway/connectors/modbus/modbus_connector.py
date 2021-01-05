@@ -126,6 +126,8 @@ class ModbusConnector(Connector, threading.Thread):
                         unit_id = self.__devices[device]["config"]["unitId"]
                         if self.__devices[device]["next_"+config_data+"_check"] < current_time:
                             self.__connect_to_current_master(device)
+                            if not self.__current_master.is_socket_open():
+                                continue
                             #  Reading data from device
                             for interested_data in range(len(self.__devices[device]["config"][config_data])):
                                 current_data = self.__devices[device]["config"][config_data][interested_data]
