@@ -262,13 +262,13 @@ class ModbusConnector(Connector, threading.Thread):
             master = ModbusUdpClient(host, port, rtu, timeout=timeout)
         elif current_config.get('type') == 'serial' or (current_config.get("type") is None and self.__config.get("type") == "serial"):
             master = ModbusSerialClient(method=method,
-                                               port=port,
-                                               timeout=timeout,
-                                               baudrate=baudrate,
-                                               stopbits=stopbits,
-                                               bytesize=bytesize,
-                                               parity=parity,
-                                               strict=strict)
+                                        port=port,
+                                        timeout=timeout,
+                                        baudrate=baudrate,
+                                        stopbits=stopbits,
+                                        bytesize=bytesize,
+                                        parity=parity,
+                                        strict=strict)
         else:
             raise Exception("Invalid Modbus transport type.")
         available_functions = {
@@ -291,19 +291,18 @@ class ModbusConnector(Connector, threading.Thread):
         function_code = config.get('functionCode')
         result = None
         if function_code in (1, 2, 3, 4):
-            result = self.__available_functions[function_code](config["address"],
-                                                               config.get("objectsCount", config.get("registersCount",  config.get("registerCount", 1))),
+            result = self.__available_functions[function_code](address=config["address"],
+                                                               count=config.get("objectsCount", config.get("registersCount",  config.get("registerCount", 1))),
                                                                unit=unit_id)
         elif function_code in (5, 6, 15, 16):
-            result = self.__available_functions[function_code](config["address"],
-                                                               config["payload"],
+            result = self.__available_functions[function_code](address=config["address"],
+                                                               value=config["payload"],
                                                                unit=unit_id)
         else:
             log.error("Unknown Modbus function with code: %i", function_code)
         log.debug("With result %s", str(result))
         if "Exception" in str(result):
             log.exception(result)
-            result = str(result)
         return result
 
     def server_side_rpc_handler(self, content):
@@ -351,8 +350,10 @@ class ModbusConnector(Connector, threading.Thread):
                 to_converter = {"rpc": {content["data"]["method"]: {"data_sent": rpc_command_config,
                                                                     "input_data": response}}}
                 response = self.__devices[content["device"]]["converter"].convert(config={**self.__devices[content["device"]]["config"],
-                                                                                                     "byteOrder": self.__devices[content["device"]]["config"].get("byteOrder", self.__byte_order),
-                                                                                                     "wordOrder": self.__devices[content["device"]]["config"].get("wordOrder", self.__word_order)}, data=to_converter)
+                                                                                          "byteOrder": self.__devices[content["device"]]["config"].get("byteOrder", self.__byte_order),
+                                                                                          "wordOrder": self.__devices[content["device"]]["config"].get("wordOrder", self.__word_order)
+                                                                                          },
+                                                                                  data=to_converter)
                 log.debug("Received RPC method: %s, result: %r", content["data"]["method"], response)
                 # response = {"success": response}
             elif isinstance(response, (WriteMultipleRegistersResponse,

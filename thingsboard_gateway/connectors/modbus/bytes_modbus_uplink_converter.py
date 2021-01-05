@@ -15,6 +15,7 @@
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.exceptions import ModbusIOException
+from pymodbus.pdu import ExceptionResponse
 
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
 
@@ -36,18 +37,22 @@ class BytesModbusUplinkConverter(ModbusConverter):
                 try:
                     configuration = data[config_data][tag]["data_sent"]
                     response = data[config_data][tag]["input_data"]
-                    if configuration.get("byteOrder") is not None:
+                    if configuration.get("byteOrder"):
                         byte_order = configuration["byteOrder"]
+                    elif config.get("byteOrder"):
+                        byte_order = config["byteOrder"]
                     else:
-                        byte_order = config.get("byteOrder", "LITTLE")
-                    if configuration.get("wordOrder") is not None:
+                        byte_order = "LITTLE"
+                    if configuration.get("wordOrder"):
                         word_order = configuration["wordOrder"]
-                    else:
+                    elif config.get("wordOrder"):
                         word_order = config.get("wordOrder", "BIG")
+                    else:
+                        word_order = "BIG"
                     endian_order = Endian.Little if byte_order.upper() == "LITTLE" else Endian.Big
                     word_endian_order = Endian.Little if word_order.upper() == "LITTLE" else Endian.Big
                     decoded_data = None
-                    if not isinstance(response, ModbusIOException):
+                    if not isinstance(response, ModbusIOException) and not isinstance(response, ExceptionResponse):
                         if configuration["functionCode"] in [1, 2]:
                             result = response.bits
                             result = result if byte_order.upper() == 'LITTLE' else result[::-1]
