@@ -226,7 +226,11 @@ class OpcUaConnector(Thread, Connector):
                         if isinstance(arguments, list):
                             result = method["node"].call_method(method[rpc_method], *arguments)
                         elif arguments is not None:
-                            result = method["node"].call_method(method[rpc_method], arguments)
+                            try:
+                                result = method["node"].call_method(method[rpc_method], arguments)
+                            except ua.UaStatusCodeError as e:
+                                if "BadTypeMismatch" in str(e) and isinstance(arguments, int):
+                                    result = method["node"].call_method(method[rpc_method], float(arguments))
                         else:
                             result = method["node"].call_method(method[rpc_method])
 
