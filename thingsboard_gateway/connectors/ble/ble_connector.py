@@ -336,7 +336,7 @@ class BLEConnector(Connector, Thread):
             if characteristic_uuid_from_config is None:
                 log.error('Characteristic not found in config: %s', pformat(characteristic_processing_conf))
                 return None
-            if self.__devices_around[device]['services'][service].get(characteristic_uuid_from_config) is None:
+            if self.__devices_around[device]['services'][service].get(characteristic_uuid_from_config.upper()) is None:
                 continue
             characteristic = self.__devices_around[device]['services'][service][characteristic_uuid_from_config][
                 'characteristic']
