@@ -394,17 +394,25 @@ class OpcUaConnector(Thread, Connector):
                 name_expression = TBUtility.get_value(name_pattern_config, get_tag=True)
                 if "${" in name_pattern_config and "}" in name_pattern_config:
                     log.debug("Looking for device name")
-                    name_path = self._check_path(name_expression, device_node)
-                    device_name_node = []
-                    self.__search_node(device_node, name_path, result=device_name_node)
-                    device_name_node = device_name_node[0]
-                    if device_name_node is not None:
-                        device_name_from_node = device_name_node.get_value()
-                        full_device_name = name_pattern_config.replace("${" + name_expression + "}", str(device_name_from_node)).replace(
-                            name_expression, str(device_name_from_node))
+                    device_name_from_node=""
+                    if name_expression == "$DisplayName":
+                        device_name_from_node = device_node.get_display_name().Text
+                    elif name_expression == "$BrowseName":
+                        device_name_from_node = device_node.get_browse_name().Name
+                    elif name_expression == "$NodeId.Identifier":
+                        device_name_from_node = str(device_node.nodeid.Identifier)
                     else:
+                        name_path = self._check_path(name_expression, device_node)
+                        device_name_node = []
+                        self.__search_node(device_node, name_path, result=device_name_node)
+                        device_name_node = device_name_node[0]
+                        if device_name_node is not None:
+                            device_name_from_node = device_name_node.get_value()
+                    if device_name_from_node == "":
                         log.error("Device name node not found with expression: %s", name_expression)
                         return None
+                    full_device_name = name_pattern_config.replace("${" + name_expression + "}", str(device_name_from_node)).replace(
+                        name_expression, str(device_name_from_node))
                 else:
                     full_device_name = name_expression
                 result_device_dict["deviceName"] = full_device_name
@@ -435,7 +443,21 @@ class OpcUaConnector(Thread, Connector):
             else:
                 log.error("Device node not found with expression: %s", TBUtility.get_value(device["deviceNodePattern"], get_tag=True))
         return result
-
+    #
+    # get fullpath of node as string
+    # 
+    # this is verry slow
+    # path = '\\.'.join(char.split(":")[1] for char in node.get_path(200000, True))
+    # i think we don't need \\.
+    #
+    def get_node_path(self, node):
+        ID = node.nodeid.Identifier
+        if ID == 85:
+            return 'Root.Objects'         # this is Root
+        if type(ID) == int:
+            ID = node.get_browse_name().Name    # for int Identifer we take browsename
+        return 'Root.Objects.' + ID
+    
     def __search_node(self, current_node, fullpath, search_method=False, result=None):
         if result is None:
             result = []
@@ -452,18 +474,26 @@ class OpcUaConnector(Thread, Connector):
             else:
                 fullpath_pattern = regex.compile(fullpath)
                 full1 = fullpath.replace('\\\\.', '.')
+                #current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
+                current_node_path = self.get_node_path(current_node)
+                # we are allways the parent
+                child_node_parent_class = current_node.get_node_class()
+                new_parent = current_node
                 for child_node in current_node.get_children():
                     new_node_class = child_node.get_node_class()
-                    #basis Description of node.get_parent() function, sometime child_node.get_parent() return None
-                    new_parent = child_node.get_parent()
-                    if (new_parent is None):
-                        child_node_parent_class = current_node.get_node_class()
-                    else:
-                        child_node_parent_class = child_node.get_parent().get_node_class() 
-                    current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
-                    new_node_path = '\\\\.'.join(char.split(":")[1] for char in child_node.get_path(200000, True))
+                    # this will not change you can do it outside th loop
+                    # basis Description of node.get_parent() function, sometime child_node.get_parent() return None
+                    #new_parent = child_node.get_parent()
+                    #if (new_parent is None):
+                    #    child_node_parent_class = current_node.get_node_class()
+                    #else:
+                    #    child_node_parent_class = child_node.get_parent().get_node_class() 
+                    #current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
+                    #new_node_path = '\\\\.'.join(char.split(":")[1] for char in child_node.get_path(200000, True))
+                    new_node_path = self.get_node_path(child_node)
                     if child_node_parent_class == ua.NodeClass.View and new_parent is not None:
-                        parent_path = '\\.'.join(char.split(":")[1] for char in child_node.get_parent().get_path(200000, True))
+                        parent_path = self.get_node_path(new_parent)
+                        #parent_path = '\\.'.join(char.split(":")[1] for char in new_parent.get_path(200000, True))
                         fullpath = fullpath.replace(current_node_path, parent_path)
                     nnp1 = new_node_path.replace('\\\\.', '.')
                     nnp2 = new_node_path.replace('\\\\', '\\')
@@ -507,8 +537,8 @@ class OpcUaConnector(Thread, Connector):
         if regex.match(r"ns=\d*;[isgb]=.*", config_path, regex.IGNORECASE):
             return config_path
         if re.search(r"^root", config_path.lower()) is None:
-            node_path = '\\\\.'.join(
-                char.split(":")[1] for char in node.get_path(200000, True))
+            node_path = self.get_node_path(node)
+            #node_path = '\\\\.'.join(char.split(":")[1] for char in node.get_path(200000, True))
             if config_path[-3:] != '\\.':
                 information_path = node_path + '\\\\.' + config_path.replace('\\', '\\\\')
             else:
