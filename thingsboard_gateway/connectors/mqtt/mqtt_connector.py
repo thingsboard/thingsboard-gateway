@@ -124,7 +124,7 @@ class MqttConnector(Connector, Thread):
         self._connected = False
         self.__stopped = False
         self.daemon = True
-
+        
     def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list):
         if handler_flavor not in self.config:
             self.__log.error("'%s' section missing from configuration", handler_flavor)
@@ -497,7 +497,7 @@ class MqttConnector(Connector, Thread):
 
         # Check if message topic exists in RPC handlers ----------------------------------------------------------------
         # The gateway is expecting for this message => no wildcards here, the topic must be evaluated as is
-        if message.topic in self.__gateway.rpc_requests_in_progress:
+        if self.__gateway.rpc_requests_in_progress(message.topic):
             self.__gateway.rpc_with_reply_processing(message.topic, content)
             return None
 
@@ -553,7 +553,7 @@ class MqttConnector(Connector, Thread):
 
     def server_side_rpc_handler(self, content):
         for rpc_config in self.__server_side_rpc:
-            if search(rpc_config["deviceNameFilter"], content["device"]) \
+            if search(rpc_config["deviceNameFilter"], content["device"]) is not None \
                     and search(rpc_config["methodFilter"], content["data"]["method"]) is not None:
                 # Subscribe to RPC response topic
                 if rpc_config.get("responseTopicExpression"):
@@ -587,7 +587,12 @@ class MqttConnector(Connector, Thread):
                         .replace("${params}", simplejson.dumps(content["data"].get("params", "")))
                     try:
                         self._client.publish(topic, data_to_send)
-                        self.__log.debug("Send RPC with no response request to topic: %s with data %s",
+                        responseTopicExpression_needed = "without"
+                        if rpc_config.get("responseTopicExpression") is not None:
+                            responseTopicExpression_needed = "with"
+
+                        self.__log.debug("Send RPC %s response request to topic: %s with data %s",
+                                         responseTopicExpression_needed,
                                          topic,
                                          data_to_send)
                         if rpc_config.get("responseTopicExpression") is None:

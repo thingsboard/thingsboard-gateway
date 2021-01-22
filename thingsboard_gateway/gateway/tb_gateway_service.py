@@ -565,6 +565,12 @@ class TBGatewayService:
         self.send_rpc_reply(device, req_id, content)
         self.cancel_rpc_request(topic)
 
+    def rpc_requests_in_progress(self, topic):
+        if topic in self.__rpc_requests_in_progress:
+            return True
+        else:
+            return False
+
     def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None, quality_of_service=0):
         try:
             self.__rpc_reply_sent = True
