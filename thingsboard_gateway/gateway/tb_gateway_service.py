@@ -481,7 +481,7 @@ class TBGatewayService:
                                 if self.available_connectors[connector_name]._connector_type == module:
                                     log.debug("Sending command RPC %s to connector %s", content["method"], connector_name)
                                     result = self.available_connectors[connector_name].server_side_rpc_handler(content)
-                        elif module == 'gateway' or module in self.__remote_shell.shell_commands:
+                        elif module == 'gateway' or (self.__remote_shell is not None and module in self.__remote_shell.shell_commands):
                             result = self.__rpc_gateway_processing(request_id, content)
                         else:
                             log.error("Connector \"%s\" not found", module)
