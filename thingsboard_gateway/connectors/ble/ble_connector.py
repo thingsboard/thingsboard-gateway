@@ -251,15 +251,28 @@ class BLEConnector(Connector, Thread):
                         self.__devices_around[device]['is_new_device'] = False
                         self.__new_device_processing(device)
                     for interest_char in self.__devices_around[device]['interest_uuid']:
-                        for section in self.__devices_around[device]['interest_uuid'][interest_char]:
-                            data = self.__service_processing(device, section['section_config'])
-                            converter = section['converter']
-                            converted_data = converter.convert(section, data)
-                            self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
-                            log.debug(data)
-                            log.debug(converted_data)
-                            self.__gateway.send_to_storage(self.get_name(), converted_data)
-                            self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+                        characteristics_configs_for_processing_by_methods = {}
+
+                        for configuration_section in self.__devices_around[device]['interest_uuid'][interest_char]:
+                            characteristic_uuid_from_config = configuration_section['section_config'].get("characteristicUUID")
+                            if characteristic_uuid_from_config is None:
+                                log.error('Characteristic not found in config: %s', pformat(configuration_section))
+                                continue
+                            method = configuration_section['section_config'].get('method')
+                            if method is None:
+                                log.error('Method not found in config: %s', pformat(configuration_section))
+                                continue
+                            characteristics_configs_for_processing_by_methods[method.upper()] = {"method": method, "characteristicUUID": characteristic_uuid_from_config}
+                        for method in characteristics_configs_for_processing_by_methods:
+                            data = self.__service_processing(device, characteristics_configs_for_processing_by_methods[method])
+                            for section in self.__devices_around[device]['interest_uuid'][interest_char]:
+                                converter = section['converter']
+                                converted_data = converter.convert(section, data)
+                                self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
+                                log.debug(data)
+                                log.debug(converted_data)
+                                self.__gateway.send_to_storage(self.get_name(), converted_data)
+                                self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
             except BTLEDisconnectError:
                 log.debug('Connection lost. Device %s', device)
                 continue
@@ -327,15 +340,12 @@ class BLEConnector(Connector, Thread):
         device['peripheral'].withDelegate(delegate)
         device['peripheral'].writeCharacteristic(notify_handle, b'\x01\x00', True)
         if device['peripheral'].waitForNotifications(1):
-            log.debug("Data received: %s", delegate.data)
+            log.debug("Data received from notification: %s", delegate.data)
         return delegate
 
     def __service_processing(self, device, characteristic_processing_conf):
         for service in self.__devices_around[device]['services']:
             characteristic_uuid_from_config = characteristic_processing_conf.get('characteristicUUID')
-            if characteristic_uuid_from_config is None:
-                log.error('Characteristic not found in config: %s', pformat(characteristic_processing_conf))
-                return None
             if self.__devices_around[device]['services'][service].get(characteristic_uuid_from_config.upper()) is None:
                 continue
             characteristic = self.__devices_around[device]['services'][service][characteristic_uuid_from_config][
