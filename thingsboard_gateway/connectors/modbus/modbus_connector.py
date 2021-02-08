@@ -292,9 +292,13 @@ class ModbusConnector(Connector, threading.Thread):
             result = self.__available_functions[function_code](config["address"],
                                                                config.get("objectsCount", config.get("registersCount",  config.get("registerCount", 1))),
                                                                unit=unit_id)
-        elif function_code in (5, 6, 15, 16):
-            result = self.__available_functions[function_code](config["address"],
-                                                               config["payload"],
+        elif function_code in (5, 6):
+            result = self.__available_functions[function_code](address=config["address"],
+                                                               value=config["payload"],
+                                                               unit=unit_id)
+        elif function_code in (15, 16):
+            result = self.__available_functions[function_code](address=config["address"],
+                                                               values=config["payload"],
                                                                unit=unit_id)
         else:
             log.error("Unknown Modbus function with code: %i", function_code)
