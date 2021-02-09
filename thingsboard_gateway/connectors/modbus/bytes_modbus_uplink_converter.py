@@ -151,9 +151,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
             result_data = decoded.hex()
         elif isinstance(decoded, list):
             if configuration.get('bit') is not None:
-                result_data = decoded[configuration['bit']]
+                result_data = int(decoded[configuration['bit']])
             else:
-                result_data = decoded
+                result_data = [int(bit) for bit in decoded]
         elif isinstance(decoded, float):
             result_data = decoded
         elif decoded is not None:
