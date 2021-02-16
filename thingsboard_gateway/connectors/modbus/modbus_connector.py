@@ -140,16 +140,19 @@ class ModbusConnector(Connector, threading.Thread):
                             log.debug("Checking %s for device %s", config_data, device)
                             self.__devices[device]["next_"+config_data+"_check"] = current_time + self.__devices[device]["config"][config_data+"PollPeriod"]/1000
                             log.debug(device_responses)
-                            converted_data = {}
-                            try:
-                                converted_data = self.__devices[device]["converter"].convert(config={**self.__devices[device]["config"],
-                                                                                                     "byteOrder": self.__devices[device]["config"].get("byteOrder", self.__byte_order),
-                                                                                                     "wordOrder": self.__devices[device]["config"].get("wordOrder", self.__word_order)},
-                                                                                             data=device_responses)
-                            except Exception as e:
-                                log.error(e)
+                        converted_data = {}
+                        try:
+                            converted_data = self.__devices[device]["converter"].convert(config={**self.__devices[device]["config"],
+                                                                                                 "byteOrder": self.__devices[device]["config"].get("byteOrder", self.__byte_order),
+                                                                                                 "wordOrder": self.__devices[device]["config"].get("wordOrder", self.__word_order)},
+                                                                                         data=device_responses)
+                        except Exception as e:
+                            log.error(e)
 
-                            if converted_data and self.__devices[device]["config"].get("sendDataOnlyOnChange"):
+                        if converted_data and self.__devices[device]["config"].get("sendDataOnlyOnChange"):
+                            if current_data["sendDataOnlyOnChange"] == False:
+                                pass
+                            else:
                                 self.statistics['MessagesReceived'] += 1
                                 to_send = {"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
                                 if to_send.get("telemetry") is None:
