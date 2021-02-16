@@ -40,10 +40,13 @@ class JsonRequestUplinkConverter(RequestConverter):
             log.exception(e)
 
         try:
+            has_timestamp = False
             for datatype in self.__datatypes:
                 current_datatype = self.__datatypes[datatype]
                 for datatype_object_config in self.__config["converter"].get(datatype, []):
-                    datatype_object_config_key = TBUtility.get_value(datatype_object_config["key"], data, datatype_object_config["type"], expression_instead_none=True)
+                    datatype_object_config_key = datatype_object_config["key"]
+                    if datatype_object_config_key == "ts":
+                        has_timestamp = True
                     datatype_object_config_value = TBUtility.get_value(datatype_object_config["value"], data, datatype_object_config["type"])
                     if datatype_object_config_key is not None and datatype_object_config_value is not None:
                         dict_result[current_datatype].append({datatype_object_config_key: datatype_object_config_value})
@@ -53,4 +56,17 @@ class JsonRequestUplinkConverter(RequestConverter):
         except Exception as e:
             log.exception(e)
 
+        if has_timestamp:
+            self.__transform_telemetry__(dict_result)
         return dict_result
+
+
+    def __transform_telemetry__(self, dict_result):
+        telemetry = {"ts": None, "values": {}}
+        for item in dict_result["telemetry"]:
+            if item.get("ts") is not None:
+                telemetry["ts"] = item.get("ts")
+            else:
+                telemetry["values"] = {**telemetry["values"], **item}
+        dict_result["telemetry"] = [telemetry]
+

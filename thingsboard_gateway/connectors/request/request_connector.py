@@ -235,9 +235,9 @@ class RequestConnector(Connector, Thread):
                     log.debug(data_to_send)
                 else:
                     data_to_send = converter.convert(url, data)
-                self.__gateway.send_to_storage(self.get_name(), data_to_send)
-                self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
-                log.debug(data_to_send)
+                    self.__gateway.send_to_storage(self.get_name(), data_to_send)
+                    self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
+                    log.debug(data_to_send)
             else:
                 sleep(.01)
         except Exception as e:
