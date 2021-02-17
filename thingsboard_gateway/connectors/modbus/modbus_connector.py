@@ -119,6 +119,9 @@ class ModbusConnector(Connector, threading.Thread):
             device_responses = {"timeseries": {},
                                 "attributes": {},
                                 }
+            device_responses_always = {"timeseries": {},
+                                "attributes": {},
+                                }
             to_send = {}
             try:
                 for config_data in device_responses:
@@ -134,67 +137,90 @@ class ModbusConnector(Connector, threading.Thread):
                                 # if not isinstance(input_data, ReadRegistersResponseBase) and input_data.isError():
                                 #     log.exception(input_data)
                                 #     continue
-                                device_responses[config_data][current_data["tag"]] = {"data_sent": current_data,
+                                if not current_data["sendDataOnlyOnChange"]:
+                                    #sendataonlyonchange FALSE for variable
+                                    device_responses_always[config_data][current_data["tag"]] = {"data_sent": current_data,
+                                                                                      "input_data": input_data}
+                                elif current_data["sendDataOnlyOnChange"]:
+                                    #sendataonlyonchange TRUE for variable
+                                    device_responses[config_data][current_data["tag"]] = {"data_sent": current_data,
+                                                                                      "input_data": input_data}
+                                elif self.__devices[device]["config"].get("sendDataOnlyOnChange"):
+                                    #sendataonlyonchange TRUE for variable
+                                    device_responses[config_data][current_data["tag"]] = {"data_sent": current_data,
+                                                                                      "input_data": input_data}
+                                elif not self.__devices[device]["config"].get("sendDataOnlyOnChange") or self.__devices[device]["config"].get("sendDataOnlyOnChange") is None:
+                                    #sendataonlyonchange FALSE for variable
+                                    device_responses_always[config_data][current_data["tag"]] = {"data_sent": current_data,
                                                                                       "input_data": input_data}
 
                             log.debug("Checking %s for device %s", config_data, device)
                             self.__devices[device]["next_"+config_data+"_check"] = current_time + self.__devices[device]["config"][config_data+"PollPeriod"]/1000
                             log.debug(device_responses)
+                            log.debug(device_responses_always)
                         converted_data = {}
                         try:
                             converted_data = self.__devices[device]["converter"].convert(config={**self.__devices[device]["config"],
                                                                                                  "byteOrder": self.__devices[device]["config"].get("byteOrder", self.__byte_order),
                                                                                                  "wordOrder": self.__devices[device]["config"].get("wordOrder", self.__word_order)},
                                                                                          data=device_responses)
+                            
+                            converted_data_always = self.__devices[device]["converter"].convert(config={**self.__devices[device]["config"],
+                                                                                                 "byteOrder": self.__devices[device]["config"].get("byteOrder", self.__byte_order),
+                                                                                                 "wordOrder": self.__devices[device]["config"].get("wordOrder", self.__word_order)},
+                                                                                         data=device_responses_always)
                         except Exception as e:
                             log.error(e)
 
-                        if converted_data and self.__devices[device]["config"].get("sendDataOnlyOnChange"):
-                            if current_data["sendDataOnlyOnChange"] == False:
-                                pass
-                            else:
-                                self.statistics['MessagesReceived'] += 1
-                                to_send = {"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
-                                if to_send.get("telemetry") is None:
-                                    to_send["telemetry"] = []
-                                if to_send.get("attributes") is None:
-                                    to_send["attributes"] = []
-                                for telemetry_dict in converted_data["telemetry"]:
-                                    for key, value in telemetry_dict.items():
-                                        if self.__devices[device]["last_telemetry"].get(key) is None or \
-                                           self.__devices[device]["last_telemetry"][key] != value:
-                                            self.__devices[device]["last_telemetry"][key] = value
-                                            to_send["telemetry"].append({key: value})
-                                for attribute_dict in converted_data["attributes"]:
-                                    for key, value in attribute_dict.items():
-                                        if self.__devices[device]["last_attributes"].get(key) is None or \
-                                           self.__devices[device]["last_attributes"][key] != value:
-                                            self.__devices[device]["last_attributes"][key] = value
-                                            to_send["attributes"].append({key: value})
-                                        # to_send["telemetry"] = converted_data["telemetry"]
-                                # if converted_data["attributes"] != self.__devices[device]["attributes"]:
-                                    # self.__devices[device]["last_attributes"] = converted_data["attributes"]
-                                    # to_send["attributes"] = converted_data["attributes"]
-                                if not to_send.get("attributes") and not to_send.get("telemetry"):
-                                    # self.__gateway.send_to_storage(self.get_name(), to_send)
-                                    # self.statistics['MessagesSent'] += 1
-                                    log.debug("Data has not been changed.")
-                        elif converted_data and self.__devices[device]["config"].get("sendDataOnlyOnChange") is None or not self.__devices[device]["config"].get("sendDataOnlyOnChange"):
+                        #to_send only on change (converted_data)
+                        if converted_data:
                             self.statistics['MessagesReceived'] += 1
-                            to_send = {"deviceName": converted_data["deviceName"],
-                                       "deviceType": converted_data["deviceType"]}
-                            # if converted_data["telemetry"] != self.__devices[device]["telemetry"]:
-                            self.__devices[device]["last_telemetry"] = converted_data["telemetry"]
-                            to_send["telemetry"] = converted_data["telemetry"]
+                            to_send = {"deviceName": converted_data["deviceName"], "deviceType": converted_data["deviceType"]}
+                            if to_send.get("telemetry") is None:
+                                to_send["telemetry"] = []
+                            if to_send.get("attributes") is None:
+                                to_send["attributes"] = []
+                            for telemetry_dict in converted_data["telemetry"]:
+                                for key, value in telemetry_dict.items():
+                                    if self.__devices[device]["last_telemetry"].get(key) is None or \
+                                       self.__devices[device]["last_telemetry"][key] != value:
+                                        self.__devices[device]["last_telemetry"][key] = value
+                                        to_send["telemetry"].append({key: value})
+                            for attribute_dict in converted_data["attributes"]:
+                                for key, value in attribute_dict.items():
+                                    if self.__devices[device]["last_attributes"].get(key) is None or \
+                                       self.__devices[device]["last_attributes"][key] != value:
+                                        self.__devices[device]["last_attributes"][key] = value
+                                        to_send["attributes"].append({key: value})
+                                    # to_send["telemetry"] = converted_data["telemetry"]
                             # if converted_data["attributes"] != self.__devices[device]["attributes"]:
-                            self.__devices[device]["last_attributes"] = converted_data["attributes"]
-                            to_send["attributes"] = converted_data["attributes"]
-                            # self.__gateway.send_to_storage(self.get_name(), to_send)
-                            # self.statistics['MessagesSent'] += 1
+                                # self.__devices[device]["last_attributes"] = converted_data["attributes"]
+                                # to_send["attributes"] = converted_data["attributes"]
+                            if not to_send.get("attributes") and not to_send.get("telemetry"):
+                                # self.__gateway.send_to_storage(self.get_name(), to_send)
+                                # self.statistics['MessagesSent'] += 1
+                                log.debug("Data has not been changed.")   
+                             #Here we do store last_telemetry and last_attribute because it is compulsory to check in future reads
+
+                        
+                        #to_send always (converted_data_always)
+                        if converted_data_always:
+                            self.statistics['MessagesReceived'] += 1
+                            to_send_always = {"deviceName": converted_data_always["deviceName"],
+                                       "deviceType": converted_data_always["deviceType"]}
+                            to_send_always["telemetry"] = converted_data["telemetry"]
+                            to_send_always["attributes"] = converted_data_always["attributes"]
+                            #Here we do not store last_telemetry or last_attribute because it is not necessary to check in future reads
+                        
 
                     if to_send.get("attributes") or to_send.get("telemetry"):
                         self.__gateway.send_to_storage(self.get_name(), to_send)
                         self.statistics['MessagesSent'] += 1
+                        
+                    if to_send_always.get("attributes") or to_send_always.get("telemetry"):
+                        self.__gateway.send_to_storage(self.get_name(), to_send_always)
+                        self.statistics['MessagesSent'] += 1
+                        
             except ConnectionException:
                 time.sleep(5)
                 log.error("Connection lost! Reconnecting...")
