@@ -104,14 +104,14 @@ class TBUtility:
                                     module_spec.loader.exec_module(module)
                                     for extension_class in getmembers(module, isclass):
                                         if module_name in extension_class:
-                                            log.debug("Import %s from %s.", module_name, extension_path)
+                                            log.info("Import %s from %s.", module_name, extension_path)
                                             # Save class into buffer
                                             TBUtility.loaded_extensions[extension_type + module_name] = extension_class[1]
                                             return extension_class[1]
                                 except ImportError:
                                     continue
                     else:
-                        log.error("Import %s failed, path %s doesn't exist", module_name, extension_path)
+                        log.debug("Import %s failed, path %s doesn't exist", module_name, extension_path)
             except Exception as e:
                 log.exception(e)
         else:
