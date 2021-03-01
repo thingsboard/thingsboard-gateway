@@ -111,7 +111,10 @@ class MqttConnector(Connector, Thread):
                                      "Please check your configuration.\nError: ",
                                      self.get_name())
                     self.__log.exception(e)
-                self._client.tls_insecure_set(False)
+                if self.__broker["security"].get("insecure", False):
+                    self._client.tls_insecure_set(True)
+                else:
+                    self._client.tls_insecure_set(False)
 
         # Set up external MQTT broker callbacks ------------------------------------------------------------------------
         self._client.on_connect = self._on_connect
