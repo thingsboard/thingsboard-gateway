@@ -70,7 +70,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             if variable_size/8 > 1.0:
                 builder_functions["bits"](value)
             else:
-                return bytes(bool(int(value)))
+                return bytes(int(value))
         elif lower_type in ["string"]:
             assert builder_functions.get("string") is not None
             builder_functions[lower_type](value)
