@@ -21,12 +21,10 @@ from simplejson import dumps, loads, JSONDecodeError
 from jsonpath_rw import parse
 from platform import system
 
-
 log = getLogger("service")
 
 
 class TBUtility:
-
     # Buffer for connectors/converters
     # key - class name
     # value - loaded class
@@ -40,9 +38,9 @@ class TBUtility:
             else:
                 content = loads(message.payload)
         except JSONDecodeError:
-            if isinstance(message.payload, bytes):
+            try:
                 content = message.payload.decode("utf-8", "ignore")
-            else:
+            except JSONDecodeError:
                 content = message.payload
         return content
 
@@ -58,7 +56,7 @@ class TBUtility:
         if error is not None:
             json_data = dumps(data)
             if isinstance(json_data, bytes):
-                log.error(error+json_data.decode("UTF-8"))
+                log.error(error + json_data.decode("UTF-8"))
             else:
                 log.error(error + json_data)
             return False
@@ -76,14 +74,19 @@ class TBUtility:
     def check_and_import(extension_type, module_name):
         if TBUtility.loaded_extensions.get(extension_type + module_name) is None:
             if system() == "Windows":
-                extensions_paths = [path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
-                                    path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower())]
+                extensions_paths = [path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/',
+                                                                                                               path.sep) + extension_type.lower()),
+                                    path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/',
+                                                                                                               path.sep) + extension_type.lower())]
             else:
-                extensions_paths = [path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower())]
-                extension_folder_path = '/var/lib/thingsboard_gateway/extensions/'.replace('/', path.sep) + extension_type.lower()
+                extensions_paths = [path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/',
+                                                                                                               path.sep) + extension_type.lower())]
+                extension_folder_path = '/var/lib/thingsboard_gateway/extensions/'.replace('/',
+                                                                                           path.sep) + extension_type.lower()
                 if path.exists(extension_folder_path):
                     extensions_paths.append(extension_folder_path)
-                extensions_paths.append(path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
+                extensions_paths.append(path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/',
+                                                                                                                   path.sep) + extension_type.lower()))
             try:
                 for extension_path in extensions_paths:
                     if TBUtility.loaded_extensions.get(extension_type + module_name) is not None:
@@ -92,7 +95,8 @@ class TBUtility:
                         for file in listdir(extension_path):
                             if not file.startswith('__') and file.endswith('.py'):
                                 try:
-                                    module_spec = util.spec_from_file_location(module_name, extension_path + path.sep + file)
+                                    module_spec = util.spec_from_file_location(module_name,
+                                                                               extension_path + path.sep + file)
                                     log.debug(module_spec)
 
                                     if module_spec is None:
@@ -106,7 +110,8 @@ class TBUtility:
                                         if module_name in extension_class:
                                             log.info("Import %s from %s.", module_name, extension_path)
                                             # Save class into buffer
-                                            TBUtility.loaded_extensions[extension_type + module_name] = extension_class[1]
+                                            TBUtility.loaded_extensions[extension_type + module_name] = extension_class[
+                                                1]
                                             return extension_class[1]
                                 except ImportError:
                                     continue
@@ -138,7 +143,9 @@ class TBUtility:
         try:
             if isinstance(body, dict) and target_str.split()[0] in body:
                 if value_type.lower() == "string":
-                    full_value = expression[0: max(abs(p1 - 2), 0)] + body[target_str.split()[0]] + expression[p2 + 1:len(expression)]
+                    full_value = expression[0: max(abs(p1 - 2), 0)] + body[target_str.split()[0]] + expression[
+                                                                                                    p2 + 1:len(
+                                                                                                        expression)]
                 else:
                     full_value = body.get(target_str.split()[0])
             elif isinstance(body, (dict, list)):
@@ -179,7 +186,8 @@ class TBUtility:
             if current_package_version is None or current_package_version != version:
                 installation_sign = "==" if ">=" not in version else ""
                 try:
-                    result = check_call([executable, "-m", "pip", "install", package + installation_sign + version, "--user"])
+                    result = check_call(
+                        [executable, "-m", "pip", "install", package + installation_sign + version, "--user"])
                 except CalledProcessError:
                     result = check_call([executable, "-m", "pip", "install", package + installation_sign + version])
         return result
