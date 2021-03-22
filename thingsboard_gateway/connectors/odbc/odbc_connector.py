@@ -324,6 +324,7 @@ class OdbcConnector(Connector, Thread):
             file_name += self.__connection.getinfo(pyodbc.SQL_DRIVER_NAME)
             file_name += self.__connection.getinfo(pyodbc.SQL_SERVER_NAME)
             file_name += self.__connection.getinfo(pyodbc.SQL_DATABASE_NAME)
+            file_name += self.get_name()
             file_name += self.__config["polling"]["iterator"]["column"]
 
             self.__iterator_file_name = sha1(file_name.encode()).hexdigest() + ".json"
