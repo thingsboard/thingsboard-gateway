@@ -1,5 +1,5 @@
 thingsboard:
-  host: demo.thingsboard.io
+  host: thingsboard.cloud
   port: 1883
   remoteShell: false
   remoteConfiguration: false
