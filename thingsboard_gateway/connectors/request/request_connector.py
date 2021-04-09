@@ -20,7 +20,9 @@ from time import sleep, time
 from re import fullmatch
 from json import JSONDecodeError
 
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
 try:
     from requests import Timeout, request
 except ImportError:
@@ -133,7 +135,7 @@ class RequestConnector(Connector, Thread):
                 log.debug(endpoint)
                 converter = None
                 if endpoint["converter"]["type"] == "custom":
-                    module = TBUtility.check_and_import(self.__connector_type, endpoint["converter"]["extension"])
+                    module = TBModuleLoader.import_module(self.__connector_type, endpoint["converter"]["extension"])
                     if module is not None:
                         log.debug('Custom converter for url %s - found!', endpoint["url"])
                         converter = module(endpoint)
@@ -151,7 +153,7 @@ class RequestConnector(Connector, Thread):
     def __fill_attribute_updates(self):
         for attribute_request in self.__config.get("attributeUpdates", []):
             if attribute_request.get("converter") is not None:
-                converter = TBUtility.check_and_import("request", attribute_request["converter"])(attribute_request)
+                converter = TBModuleLoader.import_module("request", attribute_request["converter"])(attribute_request)
             else:
                 converter = JsonRequestDownlinkConverter(attribute_request)
             attribute_request_dict = {**attribute_request, "converter": converter}
@@ -160,7 +162,7 @@ class RequestConnector(Connector, Thread):
     def __fill_rpc_requests(self):
         for rpc_request in self.__config.get("serverSideRpc", []):
             if rpc_request.get("converter") is not None:
-                converter = TBUtility.check_and_import("request", rpc_request["converter"])(rpc_request)
+                converter = TBModuleLoader.import_module("request", rpc_request["converter"])(rpc_request)
             else:
                 converter = JsonRequestDownlinkConverter(rpc_request)
             rpc_request_dict = {**rpc_request, "converter": converter}

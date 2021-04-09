@@ -1,4 +1,4 @@
-#      Copyright 2020. ThingsBoard
+#      Copyright 2021. ThingsBoard
 #  #
 #      Licensed under the Apache License, Version 2.0 (the "License");
 #      you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 log = getLogger("service")
 
 UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
-# UPDATE_SERVICE_BASE_URL = "http://127.0.0.1:8090"
 
 
 class TBUpdater(Thread):

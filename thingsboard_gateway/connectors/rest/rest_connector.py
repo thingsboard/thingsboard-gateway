@@ -7,6 +7,7 @@ from re import fullmatch
 from queue import Queue
 from simplejson import loads, JSONDecodeError
 
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -80,8 +81,8 @@ class RESTConnector(Connector, Thread):
     def load_endpoints(self):
         endpoints = {}
         for mapping in self.__config.get("mapping"):
-            converter = TBUtility.check_and_import(self._connector_type,
-                                                   mapping.get("extension", self._default_converters["uplink"]))
+            converter = TBModuleLoader.import_module(self._connector_type,
+                                                     mapping.get("extension", self._default_converters["uplink"]))
             endpoints.update({mapping['endpoint']: {"config": mapping, "converter": converter}})
         return endpoints
 
@@ -201,10 +202,10 @@ class RESTConnector(Connector, Thread):
         }
         for request_section in requests_from_tb:
             for request_config_object in self.__config.get(request_section, []):
-                uplink_converter = TBUtility.check_and_import(self._connector_type,
-                                                       request_config_object.get("extension", self._default_converters["uplink"]))(request_config_object)
-                downlink_converter = TBUtility.check_and_import(self._connector_type,
-                                                       request_config_object.get("extension", self._default_converters["downlink"]))(request_config_object)
+                uplink_converter = TBModuleLoader.import_module(self._connector_type,
+                                                                request_config_object.get("extension", self._default_converters["uplink"]))(request_config_object)
+                downlink_converter = TBModuleLoader.import_module(self._connector_type,
+                                                                  request_config_object.get("extension", self._default_converters["downlink"]))(request_config_object)
                 request_dict = {**request_config_object,
                                 "uplink_converter": uplink_converter,
                                 "downlink_converter": downlink_converter,

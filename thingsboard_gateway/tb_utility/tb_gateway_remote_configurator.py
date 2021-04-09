@@ -25,7 +25,7 @@ from configparser import ConfigParser
 
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
+from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
 
 # pylint: disable=protected-access
 LOG = getLogger("service")

@@ -21,6 +21,7 @@ from string import ascii_lowercase
 from threading import Thread
 from simplejson import dumps, load
 
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
@@ -72,7 +73,7 @@ class OdbcConnector(Connector, Thread):
         self.__timeseries_columns = []
 
         self.__converter = OdbcUplinkConverter() if not self.__config.get("converter", "") else \
-            TBUtility.check_and_import(self.__connector_type, self.__config["converter"])
+            TBModuleLoader.import_module(self.__connector_type, self.__config["converter"])
 
         self.__configure_pyodbc()
         self.__parse_rpc_config()

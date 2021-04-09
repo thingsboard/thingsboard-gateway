@@ -20,6 +20,7 @@ from socket import gethostbyname
 from re import search
 
 from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
@@ -228,8 +229,8 @@ class SNMPConnector(Connector, Thread):
     def __fill_converters(self):
         try:
             for device in self.__devices:
-                device["uplink_converter"] = TBUtility.check_and_import("snmp", device.get('converter', self._default_converters["uplink"]))(device)
-                device["downlink_converter"] = TBUtility.check_and_import("snmp", device.get('converter', self._default_converters["downlink"]))(device)
+                device["uplink_converter"] = TBModuleLoader.import_module("snmp", device.get('converter', self._default_converters["uplink"]))(device)
+                device["downlink_converter"] = TBModuleLoader.import_module("snmp", device.get('converter', self._default_converters["downlink"]))(device)
         except Exception as e:
             log.exception(e)
 

@@ -26,14 +26,15 @@ from threading import Thread, RLock
 from yaml import safe_load
 from simplejson import load, dumps, loads
 
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.tb_client import TBClient
-from thingsboard_gateway.gateway.tb_updater import TBUpdater
-from thingsboard_gateway.gateway.tb_logger import TBLoggerHandler
+from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
+from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
 from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
-from thingsboard_gateway.gateway.tb_gateway_remote_configurator import RemoteConfigurator
-from thingsboard_gateway.gateway.tb_remote_shell import RemoteShell
+from thingsboard_gateway.tb_utility.tb_gateway_remote_configurator import RemoteConfigurator
+from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
 
 
 
@@ -196,6 +197,7 @@ class TBGatewayService:
             self.__stop_gateway()
         except Exception as e:
             log.exception(e)
+            self.__stop_gateway()
             self.__close_connectors()
             log.info("The gateway has been stopped.")
             self.tb_client.stop()
@@ -278,7 +280,7 @@ class TBGatewayService:
         if self.__config.get("connectors"):
             for connector in self.__config['connectors']:
                 try:
-                    connector_class = TBUtility.check_and_import(connector["type"], self._default_connectors.get(connector["type"], connector.get("class")))
+                    connector_class = TBModuleLoader.import_module(connector["type"], self._default_connectors.get(connector["type"], connector.get("class")))
                     self._implemented_connectors[connector["type"]] = connector_class
                     with open(self._config_dir + connector['configuration'], 'r', encoding="UTF-8") as conf_file:
                         connector_conf = load(conf_file)

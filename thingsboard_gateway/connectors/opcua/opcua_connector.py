@@ -21,7 +21,10 @@ from threading import Thread
 from string import ascii_lowercase
 import regex
 from simplejson import dumps
+
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
 try:
     from opcua import Client, ua
 except ImportError:
@@ -55,7 +58,7 @@ class OpcUaConnector(Thread, Connector):
         else:
             self.__opcua_url = self.__server_conf.get("url")
         self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
-        if self.__server_conf["identity"].get("type") == "cert.PEM": 
+        if self.__server_conf["identity"].get("type") == "cert.PEM":
             try:
                 ca_cert = self.__server_conf["identity"].get("caCert")
                 private_key = self.__server_conf["identity"].get("privateKey")
@@ -190,7 +193,6 @@ class OpcUaConnector(Thread, Connector):
             self.__sub = None
             log.exception(e)
 
-
     def close(self):
         self.__stopped = True
         if self.__connected:
@@ -315,7 +317,7 @@ class OpcUaConnector(Thread, Connector):
                             if device_info["configuration"].get('converter') is None:
                                 converter = OpcUaUplinkConverter(configuration)
                             else:
-                                converter = TBUtility.check_and_import(self._connector_type, configuration)
+                                converter = TBModuleLoader.import_module(self._connector_type, configuration)
                             device_info["uplink_converter"] = converter
                         else:
                             converter = device_info["uplink_converter"]
@@ -457,7 +459,7 @@ class OpcUaConnector(Thread, Connector):
         if type(ID) == int:
             ID = node.get_browse_name().Name    # for int Identifer we take browsename
         return 'Root.Objects.' + ID
-    
+
     def __search_node(self, current_node, fullpath, search_method=False, result=None):
         if result is None:
             result = []
@@ -487,7 +489,7 @@ class OpcUaConnector(Thread, Connector):
                     #if (new_parent is None):
                     #    child_node_parent_class = current_node.get_node_class()
                     #else:
-                    #    child_node_parent_class = child_node.get_parent().get_node_class() 
+                    #    child_node_parent_class = child_node.get_parent().get_node_class()
                     #current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
                     #new_node_path = '\\\\.'.join(char.split(":")[1] for char in child_node.get_path(200000, True))
                     new_node_path = self.get_node_path(child_node)
