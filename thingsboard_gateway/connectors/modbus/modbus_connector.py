@@ -105,7 +105,8 @@ class ModbusConnector(Connector, threading.Thread):
                                                         "telemetry": {},
                                                         "attributes": {},
                                                         "last_telemetry": {},
-                                                        "last_attributes": {}
+                                                        "last_attributes": {},
+                                                        "connection_attempt": 0
                                                         }
         except Exception as e:
             log.exception(e)
@@ -139,9 +140,6 @@ class ModbusConnector(Connector, threading.Thread):
                                 current_data = current_device_config[config_section][interested_data]
                                 current_data["deviceName"] = device
                                 input_data = self.__function_to_device(current_data, unit_id)
-                                # if not isinstance(input_data, ReadRegistersResponseBase) and input_data.isError():
-                                #     log.exception(input_data)
-                                #     continue
                                 device_responses[config_section][current_data["tag"]] = {"data_sent": current_data,
                                                                                          "input_data": input_data}
 
@@ -206,6 +204,7 @@ class ModbusConnector(Connector, threading.Thread):
     def __connect_to_current_master(self, device=None):
         connect_attempt_count = 5
         connect_attempt_time_ms = 100
+        wait_after_failed_attempts_ms = 300000
         if device is None:
             device = list(self.__devices.keys())[0]
         if self.__devices[device].get('master') is None:
@@ -216,16 +215,22 @@ class ModbusConnector(Connector, threading.Thread):
             self.__available_functions = self.__devices[device]['available_functions']
         connect_attempt_count = self.__devices[device]["config"].get("connectAttemptCount", connect_attempt_count)
         connect_attempt_time_ms = self.__devices[device]["config"].get("connectAttemptTimeMs", connect_attempt_time_ms)
-        attempt = 0
+        wait_after_failed_attempts_ms = self.__devices[device]["config"].get("waitAfterFailedAttemptsMs", wait_after_failed_attempts_ms)
+        current_time = time.time() * 1000
         if not self.__current_master.is_socket_open():
-            while not self.__current_master.is_socket_open() and attempt < connect_attempt_count:
-                attempt = attempt + 1
+            if self.__devices[device]["connection_attempt"] >= connect_attempt_count and \
+                    self.__devices[device]["last_connection_attempt_time"] - current_time >= wait_after_failed_attempts_ms:
+                self.__devices[device]["connection_attempt"] = 0
+            while not self.__current_master.is_socket_open() and self.__devices[device]["connection_attempt"] < connect_attempt_count:
+                self.__devices[device]["connection_attempt"] = self.__devices[device]["connection_attempt"] + 1
+                self.__devices[device]["last_connection_attempt_time"] = current_time
                 self.__current_master.connect()
                 if not self.__current_master.is_socket_open():
                     time.sleep(connect_attempt_time_ms / 1000)
                 log.debug("Modbus trying connect to %s", device)
-        if attempt > 0 and self.__current_master.is_socket_open():
-            log.debug("Modbus connected.")
+        if self.__devices[device]["connection_attempt"] >= 0 and self.__current_master.is_socket_open():
+            self.__devices[device]["connection_attempt"] = 0
+            log.debug("Modbus connected to device %s.", device)
 
     def __configure_master(self, config=None):
         current_config = self.__config if config is None else config
