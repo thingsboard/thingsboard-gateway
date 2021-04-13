@@ -48,7 +48,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         if data.get("data") and data["data"].get("params") is not None:
             value = data["data"]["params"]
         else:
-            value = config["value"]
+            value = config.get("value", 0)
         lower_type = config.get("type", config.get("tag", "error")).lower()
         if lower_type == "error":
             log.error('"type" and "tag" - not found in configuration.')
