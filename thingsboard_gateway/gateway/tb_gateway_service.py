@@ -143,7 +143,7 @@ class TBGatewayService:
                     self.__subscribed_to_rpc_topics = False
                 if self.tb_client.is_connected() and not self.__subscribed_to_rpc_topics:
                     for device in self.__saved_devices:
-                        self.add_device(device, {"connector": self.__saved_devices[device]["connector"]}, True, device_type=self.__saved_devices[device]["device_type"])
+                        self.add_device(device, {"connector": self.__saved_devices[device]["connector"]}, device_type=self.__saved_devices[device]["device_type"])
                     self.subscribe_to_required_topics()
                     self.__subscribed_to_rpc_topics = True
                 if self.__sheduled_rpc_calls:
@@ -323,9 +323,9 @@ class TBGatewayService:
             if not TBUtility.validate_converted_data(data):
                 log.error("Data from %s connector is invalid.", connector_name)
                 return None
-            if data["deviceName"] not in self.get_devices():
+            if data["deviceName"] not in self.get_devices() and self.tb_client.is_connected():
                 self.add_device(data["deviceName"],
-                                {"connector": self.available_connectors[connector_name]}, wait_for_publish=True, device_type=data["deviceType"])
+                                {"connector": self.available_connectors[connector_name]}, device_type=data["deviceType"])
             if not self.__connector_incoming_messages.get(connector_name):
                 self.__connector_incoming_messages[connector_name] = 0
             else:
@@ -623,15 +623,12 @@ class TBGatewayService:
             summary_messages.update(**telemetry)
         return summary_messages
 
-    def add_device(self, device_name, content, wait_for_publish=False, device_type=None):
+    def add_device(self, device_name, content, device_type=None):
         if device_name not in self.__saved_devices:
             device_type = device_type if device_type is not None else 'default'
             self.__connected_devices[device_name] = {**content, "device_type": device_type}
             self.__saved_devices[device_name] = {**content, "device_type": device_type}
             self.__save_persistent_devices()
-        if wait_for_publish:
-            self.tb_client.client.gw_connect_device(device_name, device_type).wait_for_publish()
-        else:
             self.tb_client.client.gw_connect_device(device_name, device_type)
 
     def update_device(self, device_name, event, content):

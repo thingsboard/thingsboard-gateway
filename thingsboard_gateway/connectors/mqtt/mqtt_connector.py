@@ -312,7 +312,8 @@ class MqttConnector(Connector, Thread):
     def _on_log(self, *args):
         self.__log.debug(args)
 
-    def _on_subscribe(self, _, __, mid, granted_qos):
+    def _on_subscribe(self, _, __, mid, granted_qos, *args):
+        log.info(args)
         try:
             if granted_qos[0] == 128:
                 self.__log.error('"%s" subscription failed to topic %s subscription message id = %i',
