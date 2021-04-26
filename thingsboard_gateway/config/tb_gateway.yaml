@@ -3,6 +3,7 @@ thingsboard:
   port: 1883
   remoteShell: false
   remoteConfiguration: false
+  statsSendPeriodInSeconds: 3600
   security:
     accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
   qos: 1

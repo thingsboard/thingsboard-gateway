@@ -183,7 +183,7 @@ class TBGatewayService:
                     self.__request_config_after_connect = True
                     self.__check_shared_attributes()
 
-                if cur_time - gateway_statistic_send > 5000.0 and self.tb_client.is_connected():
+                if cur_time - gateway_statistic_send > self.__config["thingsboard"].get("statsSendPeriodInSeconds", 3600) * 1000 and self.tb_client.is_connected():
                     summary_messages = self.__form_statistics()
                     # with self.__lock:
                     self.tb_client.client.send_telemetry(summary_messages)
