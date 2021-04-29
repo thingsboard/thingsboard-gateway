@@ -575,7 +575,7 @@ class MqttConnector(Connector, Thread):
                                                                     topic_for_subscribe,
                                                                     self.rpc_cancel_processing)
                         # Maybe we need to wait for the command to execute successfully before publishing the request.
-                        self._client.subscribe(topic_for_subscribe)
+                        self.__subscribe(topic_for_subscribe, 1)                        
                     else:
                         self.__log.error("Not found RPC response timeout in config, sending without waiting for response")
                 # Publish RPC request
