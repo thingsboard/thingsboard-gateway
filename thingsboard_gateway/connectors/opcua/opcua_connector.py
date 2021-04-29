@@ -26,7 +26,7 @@ from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
-    from opcua import Client, ua
+    from opcua import Client, Node, ua
 except ImportError:
     print("OPC-UA library not found")
     TBUtility.install_package("opcua")
@@ -445,20 +445,9 @@ class OpcUaConnector(Thread, Connector):
             else:
                 log.error("Device node not found with expression: %s", TBUtility.get_value(device["deviceNodePattern"], get_tag=True))
         return result
-    #
-    # get fullpath of node as string
-    # 
-    # this is verry slow
-    # path = '\\.'.join(char.split(":")[1] for char in node.get_path(200000, True))
-    # i think we don't need \\.
-    #
-    def get_node_path(self, node):
-        ID = node.nodeid.Identifier
-        if ID == 85:
-            return 'Root.Objects'         # this is Root
-        if type(ID) == int:
-            ID = node.get_browse_name().Name    # for int Identifer we take browsename
-        return 'Root.Objects.' + ID
+
+    def get_node_path(self, node:Node):
+        return '\\.'.join(node.get_browse_name().Name for node in node.get_path(200000))
 
     def __search_node(self, current_node, fullpath, search_method=False, result=None):
         if result is None:
