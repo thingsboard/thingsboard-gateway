@@ -503,7 +503,7 @@ class MqttConnector(Connector, Thread):
 
         # Check if message topic exists in RPC handlers ----------------------------------------------------------------
         # The gateway is expecting for this message => no wildcards here, the topic must be evaluated as is
-        if message.topic in self.__gateway.rpc_requests_in_progress:
+        if message.topic in self.__gateway._TBGatewayService__rpc_requests_in_progress:
             self.__gateway.rpc_with_reply_processing(message.topic, content)
             return None
 
