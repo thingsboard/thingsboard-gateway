@@ -17,6 +17,7 @@ from threading import Thread
 from time import time, sleep
 from string import ascii_lowercase
 
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
@@ -49,8 +50,8 @@ class BACnetConnector(Thread, Connector):
         self.__bacnet_core_thread.start()
         self.__stopped = False
         self.__config_devices = self.__config["devices"]
-        self.default_converters = {"uplink_converter": TBUtility.check_and_import(self.__connector_type, "BACnetUplinkConverter"),
-                                     "downlink_converter": TBUtility.check_and_import(self.__connector_type, "BACnetDownlinkConverter")}
+        self.default_converters = {"uplink_converter": TBModuleLoader.import_module(self.__connector_type, "BACnetUplinkConverter"),
+                                     "downlink_converter": TBModuleLoader.import_module(self.__connector_type, "BACnetDownlinkConverter")}
         self.__request_functions = {"writeProperty": self._application.do_write_property,
                                     "readProperty": self._application.do_read_property}
         self.__available_object_resources = {}
@@ -214,7 +215,7 @@ class BACnetConnector(Thread, Connector):
             for datatype_config in device.get(datatype, []):
                 try:
                     for converter_type in self.default_converters:
-                        converter_object = self.default_converters[converter_type] if datatype_config.get("class") is None else TBUtility.check_and_import(self.__connector_type, device.get("class"))
+                        converter_object = self.default_converters[converter_type] if datatype_config.get("class") is None else TBModuleLoader.import_module(self.__connector_type, device.get("class"))
                         datatype_config[converter_type] = converter_object(device)
                 except Exception as e:
                     log.exception(e)
