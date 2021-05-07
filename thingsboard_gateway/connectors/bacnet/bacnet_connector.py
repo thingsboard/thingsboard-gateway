@@ -53,7 +53,8 @@ class BACnetConnector(Thread, Connector):
         self.default_converters = {"uplink_converter": TBModuleLoader.import_module(self.__connector_type, "BACnetUplinkConverter"),
                                      "downlink_converter": TBModuleLoader.import_module(self.__connector_type, "BACnetDownlinkConverter")}
         self.__request_functions = {"writeProperty": self._application.do_write_property,
-                                    "readProperty": self._application.do_read_property}
+                                    "readProperty": self._application.do_read_property,
+                                    "risingEdge": self._application.do_binary_rising_edge}
         self.__available_object_resources = {}
         self.rpc_requests_in_progress = {}
         self.__connected = False
