@@ -407,6 +407,9 @@ class OpcUaConnector(Thread, Connector):
                         name_path = self._check_path(name_expression, device_node)
                         device_name_node = []
                         self.__search_node(device_node, name_path, result=device_name_node)
+                        if len(device_name_node) == 0:
+                            log.warn("Device name node - not found, skipping device...")
+                            continue
                         device_name_node = device_name_node[0]
                         if device_name_node is not None:
                             device_name_from_node = device_name_node.get_value()
