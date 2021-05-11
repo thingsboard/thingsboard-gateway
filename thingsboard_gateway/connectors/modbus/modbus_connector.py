@@ -165,13 +165,15 @@ class ModbusConnector(Connector, threading.Thread):
                                     data=device_responses)
                             except Exception as e:
                                 log.error(e)
-
+                            if len(converted_data[ATTRIBUTES_PARAMETER]) == 0 and len(converted_data[TELEMETRY_PARAMETER]) == 0:
+                                log.warn("Converted data is empty!")
+                                continue
                             to_send = {DEVICE_NAME_PARAMETER: converted_data[DEVICE_NAME_PARAMETER],
                                        DEVICE_TYPE_PARAMETER: converted_data[DEVICE_TYPE_PARAMETER],
                                        TELEMETRY_PARAMETER: [],
                                        ATTRIBUTES_PARAMETER: []
                                        }
-                            if converted_data and current_device_config.get(SEND_DATA_ONLY_ON_CHANGE_PARAMETER):
+                            if current_device_config.get(SEND_DATA_ONLY_ON_CHANGE_PARAMETER):
                                 self.statistics[STATISTIC_MESSAGE_RECEIVED_PARAMETER] += 1
                                 for converted_data_section in CONVERTED_DATA_SECTIONS:
                                     for current_section_dict in converted_data[converted_data_section]:

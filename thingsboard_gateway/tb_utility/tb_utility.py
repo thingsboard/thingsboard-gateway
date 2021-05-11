@@ -43,7 +43,7 @@ class TBUtility:
             error = 'deviceName is empty in data: '
         if error is None and not data.get("deviceType"):
             error = 'deviceType is empty in data: '
-        if error is None and not data.get("attributes") and not data.get("telemetry"):
+        if error is None and data.get("attributes") is None and (data.get("telemetry") is None or (data["telemetry"].get("ts") is not None and len(data["telemetry"].get("values")) == 0)):
             error = 'No telemetry and attributes in data: '
         if error is not None:
             json_data = dumps(data)

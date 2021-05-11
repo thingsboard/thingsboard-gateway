@@ -84,7 +84,8 @@ class BytesModbusUplinkConverter(ModbusConverter):
                     if config_data == "rpc":
                         return decoded_data
                     log.debug("datatype: %s \t key: %s \t value: %s", self.__datatypes[config_data], tag, str(decoded_data))
-                    self.__result[self.__datatypes[config_data]].append({tag: decoded_data})
+                    if decoded_data is not None:
+                        self.__result[self.__datatypes[config_data]].append({tag: decoded_data})
                 except Exception as e:
                     log.exception(e)
         log.debug(self.__result)
