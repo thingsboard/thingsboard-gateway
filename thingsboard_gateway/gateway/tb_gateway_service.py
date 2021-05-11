@@ -13,7 +13,7 @@
 #     limitations under the License.
 
 from sys import getsizeof, executable, argv
-from os import listdir, path, execv, pathsep, system
+from os import listdir, path, execv, pathsep, system, stat
 from time import time, sleep
 import logging
 import logging.config
@@ -137,6 +137,7 @@ class TBGatewayService:
 
         try:
             gateway_statistic_send = 0
+            connectors_configuration_check_time = 0
             while not self.stopped:
                 cur_time = time()*1000
                 if not self.tb_client.is_connected() and self.__subscribed_to_rpc_topics:
@@ -187,12 +188,17 @@ class TBGatewayService:
                     summary_messages = self.__form_statistics()
                     # with self.__lock:
                     self.tb_client.client.send_telemetry(summary_messages)
-                    gateway_statistic_send = time()*1000
+                    gateway_statistic_send = time() * 1000
                     # self.__check_shared_attributes()
+
+                if cur_time - connectors_configuration_check_time > self.__config["thingsboard"].get("checkConnectorsConfigurationInSeconds", 60) * 1000:
+                    self.check_connector_configuration_updates()
+                    connectors_configuration_check_time = time() * 1000
 
                 if cur_time - self.__updates_check_time >= self.__updates_check_period_ms:
                     self.__updates_check_time = time()*1000
                     self.version = self.__updater.get_version()
+
         except KeyboardInterrupt:
             self.__stop_gateway()
         except Exception as e:
@@ -282,12 +288,16 @@ class TBGatewayService:
                 try:
                     connector_class = TBModuleLoader.import_module(connector["type"], self._default_connectors.get(connector["type"], connector.get("class")))
                     self._implemented_connectors[connector["type"]] = connector_class
-                    with open(self._config_dir + connector['configuration'], 'r', encoding="UTF-8") as conf_file:
+                    config_file_path = self._config_dir + connector['configuration']
+                    with open(config_file_path, 'r', encoding="UTF-8") as conf_file:
                         connector_conf = load(conf_file)
                         if not self.connectors_configs.get(connector['type']):
                             self.connectors_configs[connector['type']] = []
                         connector_conf["name"] = connector["name"]
-                        self.connectors_configs[connector['type']].append({"name": connector["name"], "config": {connector['configuration']: connector_conf}})
+                        self.connectors_configs[connector['type']].append({"name": connector["name"],
+                                                                           "config": {connector['configuration']: connector_conf},
+                                                                           "config_updated": stat(config_file_path),
+                                                                           "config_file_path": config_file_path})
                 except Exception as e:
                     log.error("Error on loading connector:")
                     log.exception(e)
@@ -317,6 +327,20 @@ class TBGatewayService:
                         log.exception(e)
                         if connector is not None:
                             connector.close()
+
+    def check_connector_configuration_updates(self):
+        configuration_changed = False
+        for connector_type in self.connectors_configs:
+            for connector_config in self.connectors_configs[connector_type]:
+                if stat(connector_config["config_file_path"]) != connector_config["config_updated"]:
+                    configuration_changed = True
+                    break
+            if configuration_changed:
+                break
+        if configuration_changed:
+            self.__close_connectors()
+            self._load_connectors()
+            self._connect_with_connectors()
 
     def send_to_storage(self, connector_name, data):
         if not connector_name == self.name:
