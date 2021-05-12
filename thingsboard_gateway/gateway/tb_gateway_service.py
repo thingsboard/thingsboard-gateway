@@ -585,6 +585,9 @@ class TBGatewayService:
                       }
         return result
 
+    def is_rpc_in_progress(self, topic):
+        return topic in self.__rpc_requests_in_progress
+
     def rpc_with_reply_processing(self, topic, content):
         req_id = self.__rpc_requests_in_progress[topic][0]["data"]["id"]
         device = self.__rpc_requests_in_progress[topic][0]["device"]

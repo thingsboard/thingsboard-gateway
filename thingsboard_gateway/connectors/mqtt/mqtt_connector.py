@@ -503,7 +503,8 @@ class MqttConnector(Connector, Thread):
 
         # Check if message topic exists in RPC handlers ----------------------------------------------------------------
         # The gateway is expecting for this message => no wildcards here, the topic must be evaluated as is
-        if message.topic in self.__gateway.rpc_requests_in_progress:
+
+        if self.__gateway.is_rpc_in_progress(message.topic):
             log.info("RPC response arrived. Forwarding it to thingsboard.")
             self.__gateway.rpc_with_reply_processing(message.topic, content)
             return None
