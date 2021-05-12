@@ -590,7 +590,6 @@ class TBGatewayService:
         device = self.__rpc_requests_in_progress[topic][0]["device"]
         log.info("Outgoing RPC. Device: %s, ID: %d", device, req_id)
         self.send_rpc_reply(device, req_id, content)
-        self.cancel_rpc_request(topic)
 
     def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None, quality_of_service=0):
         try:
