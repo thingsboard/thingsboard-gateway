@@ -504,6 +504,7 @@ class MqttConnector(Connector, Thread):
         # Check if message topic exists in RPC handlers ----------------------------------------------------------------
         # The gateway is expecting for this message => no wildcards here, the topic must be evaluated as is
         if message.topic in self.__gateway.rpc_requests_in_progress:
+            log.info("RPC response arrived. Forwarding it to thingsboard.")
             self.__gateway.rpc_with_reply_processing(message.topic, content)
             return None
 
@@ -602,5 +603,6 @@ class MqttConnector(Connector, Thread):
                         self.__log.exception(e)
 
     def rpc_cancel_processing(self, topic):
+        log.info("RPC canceled or terminated. Unsubscribing from %s", topic)
         self._client.unsubscribe(topic)
 
