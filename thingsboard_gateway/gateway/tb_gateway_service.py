@@ -613,7 +613,6 @@ class TBGatewayService:
     def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
         # Put request in outgoing RPC queue. It will be eventually dispatched.
         self.__rpc_register_queue.put({"topic": topic, "data": (content, timeout, cancel_method)}, False)
-        # self.__rpc_requests_in_progress[topic] = (content, timeout, cancel_method)
 
     def cancel_rpc_request(self, rpc_request):
         content = self.__rpc_requests_in_progress[rpc_request][0]
