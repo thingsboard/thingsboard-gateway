@@ -160,7 +160,7 @@ class RESTConnector(Connector, Thread):
                                     "request": regular_request}
                     with self._app.test_request_context():
                         attribute_update_request_thread = Thread(target=self.__send_request,
-                                                                 args=(request_dict, response_queue, log, regular_request),
+                                                                 args=(request_dict, response_queue, log),
                                                                  daemon=True,
                                                                  name="Attribute request to %s" % (converted_data["url"]))
                         attribute_update_request_thread.start()
@@ -184,9 +184,8 @@ class RESTConnector(Connector, Thread):
                                     "request": regular_request}
                     request_dict["converter"] = request_dict["config"].get("uplink_converter")
                     with self._app.test_request_context():
-                        from flask import request as flask_request
                         rpc_request_thread = Thread(target=self.__send_request,
-                                                    args=(request_dict, response_queue, log, flask_request),
+                                                    args=(request_dict, response_queue, log),
                                                     daemon=True,
                                                     name="RPC request to %s" % (converted_data["url"]))
                         rpc_request_thread.start()
@@ -226,7 +225,7 @@ class RESTConnector(Connector, Thread):
                                 }
                 requests_from_tb[request_section].append(request_dict)
 
-    def __send_request(self, request_dict, converter_queue, logger, request):
+    def __send_request(self, request_dict, converter_queue, logger):
         url = ""
         try:
             request_dict["next_time"] = time() + request_dict["config"].get("scanPeriod", 10)
