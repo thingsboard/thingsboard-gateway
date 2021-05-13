@@ -48,11 +48,8 @@ class TBUtility:
             got_attributes = False
             got_telemetry = False
 
-            if data.get("attributes") is not None:
-                for entry in data.get("attributes"):
-                    if entry.get("ts") is not None and len(entry.get("values")) > 0:
-                        got_attributes = True
-                        break
+            if data.get("attributes") is not None and len(data.get("attributes")) > 0:
+                got_attributes = True
 
             if data.get("telemetry") is not None:
                 for entry in data.get("telemetry"):
