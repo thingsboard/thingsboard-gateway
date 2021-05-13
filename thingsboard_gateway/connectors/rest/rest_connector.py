@@ -160,7 +160,7 @@ class RESTConnector(Connector, Thread):
                                     "request": regular_request}
                     with self._app.test_request_context():
                         attribute_update_request_thread = Thread(target=self.__send_request,
-                                                                 args=(request_dict, response_queue, log),
+                                                                 args=(request_dict, response_queue, log, regular_request),
                                                                  daemon=True,
                                                                  name="Attribute request to %s" % (converted_data["url"]))
                         attribute_update_request_thread.start()
