@@ -503,7 +503,9 @@ class MqttConnector(Connector, Thread):
 
         # Check if message topic exists in RPC handlers ----------------------------------------------------------------
         # The gateway is expecting for this message => no wildcards here, the topic must be evaluated as is
-        if message.topic in self.__gateway.rpc_requests_in_progress:
+
+        if self.__gateway.is_rpc_in_progress(message.topic):
+            log.info("RPC response arrived. Forwarding it to thingsboard.")
             self.__gateway.rpc_with_reply_processing(message.topic, content)
             return None
 
@@ -575,7 +577,7 @@ class MqttConnector(Connector, Thread):
                                                                     topic_for_subscribe,
                                                                     self.rpc_cancel_processing)
                         # Maybe we need to wait for the command to execute successfully before publishing the request.
-                        self._client.subscribe(topic_for_subscribe)
+                        self.__subscribe(topic_for_subscribe,  rpc_config.get("responseTopicQoS", 1))
                     else:
                         self.__log.error("Not found RPC response timeout in config, sending without waiting for response")
                 # Publish RPC request
@@ -602,5 +604,6 @@ class MqttConnector(Connector, Thread):
                         self.__log.exception(e)
 
     def rpc_cancel_processing(self, topic):
+        log.info("RPC canceled or terminated. Unsubscribing from %s", topic)
         self._client.unsubscribe(topic)
 

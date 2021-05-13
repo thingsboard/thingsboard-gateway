@@ -585,11 +585,14 @@ class TBGatewayService:
                       }
         return result
 
+    def is_rpc_in_progress(self, topic):
+        return topic in self.__rpc_requests_in_progress
+
     def rpc_with_reply_processing(self, topic, content):
         req_id = self.__rpc_requests_in_progress[topic][0]["data"]["id"]
         device = self.__rpc_requests_in_progress[topic][0]["device"]
+        log.info("Outgoing RPC. Device: %s, ID: %d", device, req_id)
         self.send_rpc_reply(device, req_id, content)
-        self.cancel_rpc_request(topic)
 
     def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None, quality_of_service=0):
         try:
@@ -611,8 +614,8 @@ class TBGatewayService:
             log.exception(e)
 
     def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
+        # Put request in outgoing RPC queue. It will be eventually dispatched.
         self.__rpc_register_queue.put({"topic": topic, "data": (content, timeout, cancel_method)}, False)
-        # self.__rpc_requests_in_progress[topic] = (content, timeout, cancel_method)
 
     def cancel_rpc_request(self, rpc_request):
         content = self.__rpc_requests_in_progress[rpc_request][0]
