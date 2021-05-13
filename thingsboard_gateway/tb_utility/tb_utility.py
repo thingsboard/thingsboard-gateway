@@ -60,7 +60,7 @@ class TBUtility:
                         got_telemetry = True
                         break
 
-            if got_attributes == False and got_telemetry == False:
+            if got_attributes is False and got_telemetry is False:
                 error = 'No telemetry and attributes in data: '
 
         if error is not None:
