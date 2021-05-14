@@ -85,7 +85,7 @@ class TBGatewayService:
         self.__rpc_register_queue = Queue(-1)
         self.__rpc_requests_in_progress = {}
         self.__connected_devices_file = "connected_devices.json"
-        self.tb_client = TBClient(self.__config["thingsboard"])
+        self.tb_client = TBClient(self.__config["thingsboard"], self._config_dir)
         self.tb_client.connect()
         self.subscribe_to_required_topics()
         self.__subscribed_to_rpc_topics = True
