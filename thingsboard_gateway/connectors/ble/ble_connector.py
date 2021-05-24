@@ -24,7 +24,7 @@ from bluepy.btle import BTLEDisconnectError, BTLEManagementError, BTLEGattError
 
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.ble.bytes_ble_uplink_converter import BytesBLEUplinkConverter
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
 
 class BLEConnector(Connector, Thread):
@@ -423,7 +423,7 @@ class BLEConnector(Connector, Thread):
                             converter = None
                             if type_section.get('converter') is not None:
                                 try:
-                                    module = TBUtility.check_and_import(self.__connector_type,
+                                    module = TBModuleLoader.import_module(self.__connector_type,
                                                                         type_section['converter'])
                                     if module is not None:
                                         log.debug('Custom converter for device %s - found!',
