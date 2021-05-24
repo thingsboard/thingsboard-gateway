@@ -40,6 +40,8 @@ class SNMPUplinkConverter(Converter):
                 result[config[0]].append({config[1]["key"]: data})
             elif isinstance(data, bytes):
                 result[config[0]].append({config[1]["key"]: data.decode("UTF-8")})
+            else:
+                result[config[0]].append({config[1]["key"]: data})
             log.debug(result)
         except Exception as e:
             log.exception(e)
