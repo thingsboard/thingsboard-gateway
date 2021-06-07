@@ -1,166 +1,314 @@
 {
   "server": {
     "type": "tcp",
-    "host": "127.0.0.1",
-    "port": 5020,
+    "host": "<IP ADDRESS OF MODBUS TCP SERVER>",
+    "port": 26,
     "timeout": 35,
     "method": "socket",
     "byteOrder": "BIG",
     "devices": [
       {
         "unitId": 1,
-        "deviceName": "Temp Sensor",
-        "attributesPollPeriod": 5000,
-        "timeseriesPollPeriod": 5000,
-        "sendDataOnlyOnChange": true,
+        "deviceName": "Inepro380CT2",
+        "attributesPollPeriod": 600000,
+        "timeseriesPollPeriod": 10000,
+        "sendDataOnlyOnChange": false,
         "attributes": [
           {
-            "tag": "string_read",
-            "type": "string",
-            "functionCode": 4,
-            "objectsCount": 4,
-            "address": 1
-          },
-          {
-            "tag": "bits_read",
-            "type": "bits",
-            "functionCode": 4,
-            "objectsCount": 1,
-            "address": 5
-          },
-          {
-            "tag": "8int_read",
-            "type": "8int",
-            "functionCode": 4,
-            "objectsCount": 1,
-            "address": 6
-          },
-          {
-            "tag": "16int_read",
-            "type": "16int",
-            "functionCode": 4,
-            "objectsCount": 1,
-            "address": 7
-          },
-          {
-            "tag": "32int_read_divider",
-            "type": "32int",
-            "functionCode": 4,
+            "tag": "SerialNumber",
+            "type": "32uint",
+            "functionCode": 3,
             "objectsCount": 2,
-            "address": 8,
-            "divider": 10
+            "address": 16384
           },
           {
-            "tag": "8int_read_multiplier",
-            "type": "8int",
-            "functionCode": 4,
-            "objectsCount": 1,
-            "address": 10,
-            "multiplier": 10
-          },
-          {
-            "tag": "32int_read",
-            "type": "32int",
-            "functionCode": 4,
+            "tag": "ModbusSlaveID",
+            "type": "16uint",
+            "functionCode": 3,
             "objectsCount": 2,
-            "address": 11
-          },
-          {
-            "tag": "64int_read",
-            "type": "64int",
-            "functionCode": 4,
-            "objectsCount": 4,
-            "address": 13
+            "address": 16387
           }
       ],
       "timeseries": [
           {
-            "tag": "8uint_read",
-            "type": "8uint",
-            "functionCode": 4,
-            "objectsCount": 1,
-            "address": 17
-          },
-          {
-            "tag": "16uint_read",
-            "type": "16uint",
-            "functionCode": 4,
-            "objectsCount": 2,
-            "address": 18
-          },
-          {
-            "tag": "32uint_read",
-            "type": "32uint",
-            "functionCode": 4,
-            "objectsCount": 4,
-            "address": 20
-          },
-          {
-            "tag": "64uint_read",
-            "type": "64uint",
-            "functionCode": 4,
-            "objectsCount": 1,
-            "address": 24
-          },
-          {
-            "tag": "16float_read",
-            "type": "16float",
-            "functionCode": 4,
-            "objectsCount": 1,
-            "address": 25
-          },
-          {
-            "tag": "32float_read",
+            "tag": "L1_Voltage",
             "type": "32float",
-            "functionCode": 4,
+            "functionCode": 3,
             "objectsCount": 2,
-            "address": 26
+            "address": 20482
           },
           {
-            "tag": "64float_read",
-            "type": "64float",
-            "functionCode": 4,
-            "objectsCount": 4,
-            "address": 28
-          }
-        ],
-        "attributeUpdates": [
-          {
-            "tag": "shared_attribute_write",
-            "type": "32int",
-            "functionCode": 6,
+            "tag": "L2_Voltage",
+            "type": "32float",
+            "functionCode": 3,
             "objectsCount": 2,
-            "address": 29
-          }
-        ],
-        "rpc": [
+            "address": 20484
+          },
           {
-            "tag": "setValue",
-            "type": "bits",
-            "functionCode": 5,
+            "tag": "L3_Voltage",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20486
+          },
+          {
+            "tag": "L1_Current",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20492
+          },
+          {
+            "tag": "L2_Current",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20494
+          },
+          {
+            "tag": "L3_Current",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20496
+          },
+          {
+            "tag": "TotalActivePower",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20498
+          },
+          {
+            "tag": "L1_ActivePower",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20500
+          },
+          {
+            "tag": "L2_ActivePower",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20502
+          },
+          {
+            "tag": "L3_ActivePower",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20504
+          },
+          {
+            "tag": "TotalReactivePower",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20506
+          },
+          {
+            "tag": "L1_ReactivePower",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20508
+          },
+          {
+            "tag": "L2_ReactivePower",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20510
+          },
+          {
+            "tag": "L3_ReactivePower",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20512
+          },
+          {
+            "tag": "TotalApparentPower",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20514
+          },
+          {
+            "tag": "L1_ApparentPower",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20516
+          },
+          {
+            "tag": "L2_ApparentPower",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20518
+          },
+          {
+            "tag": "L3_ApparentPower",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20520
+          },
+          {
+            "tag": "PowerFactor",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20522
+          },
+          {
+            "tag": "L1_PowerFactor",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20524
+          },
+          {
+            "tag": "L2_PowerFactor",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20526
+          },
+          {
+            "tag": "L3_PowerFactor",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 20528
+          },
+          {
+            "tag": "TotalActiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24576
+          },
+          {
+            "tag": "T1_TotalActiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24578
+          },
+          {
+            "tag": "T2_TotalActiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24580
+          },
+          {
+            "tag": "L1_TotalActiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24582
+          },
+          {
+            "tag": "L2_TotalActiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24584
+          },
+          {
+            "tag": "L3_TotalActiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24586
+          },
+          {
+            "tag": "ForwardActiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24588
+          },
+          {
+            "tag": "ReverseActiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24600
+          },
+          {
+            "tag": "TotalReactiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24612
+          },
+          {
+            "tag": "T1_TotalReactiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24614
+          },
+          {
+            "tag": "T2_TotalReactiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24616
+          },
+          {
+            "tag": "L1_TotalReactiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24618
+          },
+          {
+            "tag": "L2_TotalReactiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24620
+          },
+          {
+            "tag": "L3_TotalReactiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24622
+          },
+          {
+            "tag": "ForwardReactiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24624
+          },
+          {
+            "tag": "ReverseReactiveEnergy",
+            "type": "32float",
+            "functionCode": 3,
+            "objectsCount": 2,
+            "address": 24636
+          },
+          {
+            "tag": "Tariff",
+            "type": "16int",
+            "functionCode": 3,
             "objectsCount": 1,
-            "address": 31
+            "address": 24648
           },
           {
-            "tag": "getValue",
-            "type": "bits",
-            "functionCode": 1,
-            "objectsCount": 1,
-            "address": 31
-          },
-          {
-            "tag": "setCPUFanSpeed",
-            "type": "32int",
-            "functionCode": 16,
+            "tag": "RessetableDayCounter",
+            "type": "32float",
+            "functionCode": 3,
             "objectsCount": 2,
-            "address": 33
-          },
-          {
-            "tag":"getCPULoad",
-            "type": "32int",
-            "functionCode": 4,
-            "objectsCount": 2,
-            "address": 35
+            "address": 24649
           }
         ]
       }
