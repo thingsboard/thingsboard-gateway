@@ -22,8 +22,10 @@ fi
 if which pypy3compile >/dev/null 2>&1; then
 	pypy3compile -p python3-thingsboard-gateway  || true
 fi
+MERVIS_LIBS=/etc/mervis
 
 # End automatically added section
+sudo apt-get update
 echo "Installing jsonschema"
 sudo rm -rf /usr/lib/python3/dist-packages/jsonschema
 CURRENT_USER=$USER
@@ -40,9 +42,17 @@ sudo chown thingsboard_gateway:thingsboard_gateway /var/log/thingsboard-gateway/
 sudo chown thingsboard_gateway:thingsboard_gateway /var/lib/thingsboard_gateway/ -R
 sudo chown thingsboard_gateway:thingsboard_gateway /etc/thingsboard-gateway/ -R
 sudo sed -i 's/\.\/logs/\/var\/log\/thingsboard-gateway/g' /etc/thingsboard-gateway/config/logs.conf >> /etc/thingsboard-gateway/config/logs.conf
-echo "Installation completed"
-echo "Enabling daemon..."
+echo "Installing Mosquitto config"
+#sudo cp -a -r /etc/mosquitto/mosquitto.conf /etc/mosquitto/mosquitto.conf
+echo "Installation completed, Starting network setup..."
+read -e -p "Input desired ip address of this device: " -i "192.168.1.101" IP_ADDRESS
+read -e -p "Input desired subnet mask: " -i "255.255.255.0" SUBNET_MASK
+read -e -p "Input desired gateway ip address: " -i "192.168.1.1" GATEWAY_IP
+ls /etc/mervis/ > /dev/null && echo "\nStatic IP Address on interface eth0: $IP_ADDRESS mask $SUBNET_MASK gateway $GATEWAY_IP nameserver $GATEWAY_IP" || echo "\nMervis libs not found"
+sudo $MERVIS_LIBS/configure-enet default 'change card eth0 address 192.168.1.10' && sudo $MERVIS_LIBS/configure-enet default commit
+echo "Enabling daemons..."
 sudo pidof systemd && sudo systemctl enable thingsboard-gateway || echo "Systemctl not found"
-#echo "Daemon starting..."
+sudo pidof systemd && sudo systemctl enable mosquitto || echo 
+sudo pidof systemd && sudo systemctl start  mosquitto || echo 
 sudo pidof systemd && sudo systemctl start thingsboard-gateway || echo
-echo -e "\e[96mThingsboard Gateway \e[92mhas been installed. Have a nice day \e[93m\e[5m:)\e[25m\e[39m"
+echo -e "\e[96m myEnergyplan Gateway \e[92mhas been installed. Have a nice day \e[93m\e[5m:)\e[25m\e[39m"

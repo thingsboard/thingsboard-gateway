@@ -1,0 +1,8 @@
+Package: python3-thingsboard-gateway
+Version: 2.6
+Section: base
+Priority: optional
+Depends: mosquitto,python3-pip
+Architecture: arm64
+Maintainer: Samuel Ružek
+Description: Thingsboard IoT Gateway modified to fit the needs of project myEnergyplan
