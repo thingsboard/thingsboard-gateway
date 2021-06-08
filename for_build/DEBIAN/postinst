@@ -22,10 +22,8 @@ fi
 if which pypy3compile >/dev/null 2>&1; then
 	pypy3compile -p python3-thingsboard-gateway  || true
 fi
-MERVIS_LIBS=/etc/mervis
 
 # End automatically added section
-sudo apt-get update
 echo "Installing jsonschema"
 sudo rm -rf /usr/lib/python3/dist-packages/jsonschema
 CURRENT_USER=$USER
@@ -45,11 +43,24 @@ sudo sed -i 's/\.\/logs/\/var\/log\/thingsboard-gateway/g' /etc/thingsboard-gate
 echo "Installing Mosquitto config"
 #sudo cp -a -r /etc/mosquitto/mosquitto.conf /etc/mosquitto/mosquitto.conf
 echo "Installation completed, Starting network setup..."
+tee network-config.sh <<EOF 
+#!/bin/bash
+export IP_ADDRESS=192.168.
+export SUBNET_MASK
+export GATEWAY_IP
 read -e -p "Input desired ip address of this device: " -i "192.168.1.101" IP_ADDRESS
 read -e -p "Input desired subnet mask: " -i "255.255.255.0" SUBNET_MASK
 read -e -p "Input desired gateway ip address: " -i "192.168.1.1" GATEWAY_IP
+
 ls /etc/mervis/ > /dev/null || echo "\nMervis libs not found"
-sudo $MERVIS_LIBS/configure-enet default "change card eth0 address $IP_ADDRESS mask $SUBNET_MASK gateway $GATEWAY_IP nameserver $GATEWAY_IP" && sudo $MERVIS_LIBS/configure-enet default commit
+
+sudo /etc/mervis/configure-enet default 'change card eth0 address $IP_ADDRESS mask $SUBNET_MASK gateway $GATEWAY_IP nameserver $GATEWAY_IP' 
+sudo /etc/mervis/configure-enet default commit
+EOF
+sudo chmod +x ./network-config.sh
+sudo chown root:root ./network-config.sh
+
+sudo ./network-config.sh
 echo "Enabling daemons..."
 sudo pidof systemd && sudo systemctl enable thingsboard-gateway || echo "Systemctl not found"
 sudo pidof systemd && sudo systemctl enable mosquitto || echo 

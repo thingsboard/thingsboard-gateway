@@ -91,3 +91,4 @@ class ZbTasmotaConverter(MqttUplinkConverter):
         except Exception as e:
             log.exception('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
             log.exception(e)
+

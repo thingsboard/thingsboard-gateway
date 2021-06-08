@@ -1,8 +1,10 @@
 thingsboard:
-  host: demo.thingsboard.io
+  host: thingsboard.cloud
   port: 1883
   remoteShell: false
   remoteConfiguration: false
+  statsSendPeriodInSeconds: 3600
+  checkConnectorsConfigurationInSeconds: 60
   security:
     accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
   qos: 1
