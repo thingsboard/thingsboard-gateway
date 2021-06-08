@@ -48,8 +48,8 @@ echo "Installation completed, Starting network setup..."
 read -e -p "Input desired ip address of this device: " -i "192.168.1.101" IP_ADDRESS
 read -e -p "Input desired subnet mask: " -i "255.255.255.0" SUBNET_MASK
 read -e -p "Input desired gateway ip address: " -i "192.168.1.1" GATEWAY_IP
-ls /etc/mervis/ > /dev/null && echo "\nStatic IP Address on interface eth0: $IP_ADDRESS mask $SUBNET_MASK gateway $GATEWAY_IP nameserver $GATEWAY_IP" || echo "\nMervis libs not found"
-sudo $MERVIS_LIBS/configure-enet default 'change card eth0 address 192.168.1.10' && sudo $MERVIS_LIBS/configure-enet default commit
+ls /etc/mervis/ > /dev/null || echo "\nMervis libs not found"
+sudo $MERVIS_LIBS/configure-enet default "change card eth0 address $IP_ADDRESS mask $SUBNET_MASK gateway $GATEWAY_IP nameserver $GATEWAY_IP" && sudo $MERVIS_LIBS/configure-enet default commit
 echo "Enabling daemons..."
 sudo pidof systemd && sudo systemctl enable thingsboard-gateway || echo "Systemctl not found"
 sudo pidof systemd && sudo systemctl enable mosquitto || echo 
