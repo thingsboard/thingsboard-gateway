@@ -43,9 +43,9 @@ sudo sed -i 's/\.\/logs/\/var\/log\/thingsboard-gateway/g' /etc/thingsboard-gate
 echo "Installing Mosquitto config"
 #sudo cp -a -r /etc/mosquitto/mosquitto.conf /etc/mosquitto/mosquitto.conf
 echo "Installation completed, Starting network setup..."
-tee network-config.sh <<EOF 
+cat << EOF > network-config.sh
 #!/bin/bash
-export IP_ADDRESS=192.168.
+export IP_ADDRESS
 export SUBNET_MASK
 export GATEWAY_IP
 read -e -p "Input desired ip address of this device: " -i "192.168.1.101" IP_ADDRESS
@@ -54,7 +54,7 @@ read -e -p "Input desired gateway ip address: " -i "192.168.1.1" GATEWAY_IP
 
 ls /etc/mervis/ > /dev/null || echo "\nMervis libs not found"
 
-sudo /etc/mervis/configure-enet default 'change card eth0 address $IP_ADDRESS mask $SUBNET_MASK gateway $GATEWAY_IP nameserver $GATEWAY_IP' 
+sudo /etc/mervis/configure-enet default "change card eth0 address \$IP_ADDRESS mask \$SUBNET_MASK gateway \$GATEWAY_IP nameserver \$GATEWAY_IP" 
 sudo /etc/mervis/configure-enet default commit
 EOF
 sudo chmod +x ./network-config.sh
