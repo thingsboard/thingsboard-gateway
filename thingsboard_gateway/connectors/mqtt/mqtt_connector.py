@@ -323,11 +323,12 @@ class MqttConnector(Connector, Thread):
                 self.__log.info('"%s" subscription success to topic %s, subscription message id = %i',
                                 self.get_name(),
                                 self.__subscribes_sent.get(mid), mid)
-
-                if self.__subscribes_sent.get(mid) is not None:
-                    del self.__subscribes_sent[mid]
         except Exception as e:
             self.__log.exception(e)
+
+        # Success or not, remove this topic from the list of pending subscription requests
+        if self.__subscribes_sent.get(mid) is not None:
+            del self.__subscribes_sent[mid]
 
     def _on_message(self, client, userdata, message):
         self.statistics['MessagesReceived'] += 1
