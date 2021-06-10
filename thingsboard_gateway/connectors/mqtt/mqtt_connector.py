@@ -50,7 +50,7 @@ class MqttConnector(Connector, Thread):
 
         mandatory_keys = {
             "mapping": ['topicFilter', 'converter'],
-            "serverSideRpc": ['deviceNameFilter', 'methodFilter'],
+            "serverSideRpc": ['deviceNameFilter', 'methodFilter', 'requestTopicExpression', 'valueExpression'],
             "connectRequests": ['topicFilter'],
             "disconnectRequests": ['topicFilter'],
             "attributeRequests": ['topicFilter', 'topicExpression', 'valueExpression'],
