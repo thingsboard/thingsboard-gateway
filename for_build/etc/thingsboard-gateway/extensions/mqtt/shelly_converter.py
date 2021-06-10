@@ -31,14 +31,19 @@ class ShellyConverter(MqttUplinkConverter):
         deviceName = topicSplit[1]
 
         deviceConverter = deviceName.split("-")[0]
+        deviceMac = deviceName.split("-")[1]
         try:
             # Shellyht
             if deviceConverter == "shellyht":
+                log.debug("New Message! Selecting converter: %s" % deviceConverter)
                 # Get list of only the telemetry we want to post
                 #telemetryKeys = self.__config["extension-config"].keys()
 
                 # Get last identifier from topic to be able to compare against telemetryKeys
                 _topicTelemetry = topic.split("/")[-1] 
+
+                self.dict_result["attributes"] = []
+                self.dict_result["attributes"].append({"MAC": deviceMac})
 
                 self.dict_result["telemetry"] = [] # Telemetry template
                 self.dict_result["deviceType"] = self.__config["deviceTypeTopicExpression"] # pass from config
@@ -52,9 +57,13 @@ class ShellyConverter(MqttUplinkConverter):
             
             # Shellyem3 and Shellyem
             elif deviceConverter == "shellyem3" or deviceConverter == "shellyem":
+                log.debug("New Message! Selecting converter: %s" % deviceConverter)
 
                 _phase = topicSplit[3]
                 _elType = topicSplit[-1]
+
+                self.dict_result["attributes"] = []
+                self.dict_result["attributes"].append({"MAC": deviceMac})
 
                 self.dict_result["telemetry"] = []
                 self.dict_result["deviceType"] = self.__config["deviceTypeTopicExpression"] 
@@ -73,6 +82,10 @@ class ShellyConverter(MqttUplinkConverter):
 
             # Shelly1pm
             elif deviceConverter == "shelly1pm":
+                log.debug("New Message! Selecting converter: %s" % deviceConverter)
+
+                self.dict_result["attributes"] = []
+                self.dict_result["attributes"].append({"MAC": deviceMac})
 
                 self.dict_result["telemetry"] = []
                 self.dict_result["deviceType"] = self.__config["deviceTypeTopicExpression"] 
@@ -101,6 +114,10 @@ class ShellyConverter(MqttUplinkConverter):
 
             # Shelly2.5
             elif deviceConverter == "shellyswitch25":
+                log.debug("New Message! Selecting converter: %s" % deviceConverter)
+
+                self.dict_result["attributes"] = []
+                self.dict_result["attributes"].append({"MAC": deviceMac})
 
                 self.dict_result["telemetry"] = []
                 self.dict_result["deviceType"] = self.__config["deviceTypeTopicExpression"] 

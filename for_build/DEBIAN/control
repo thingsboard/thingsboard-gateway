@@ -2,7 +2,7 @@ Package: python3-thingsboard-gateway
 Version: 2.6
 Section: base
 Priority: optional
-Depends: mosquitto,python3-pip
+Depends: mosquitto,python3-pip,python3-simplejson,python3-jsonpath-rw,python3-paho-mqtt,python3-requests,vim
 Architecture: all
 Maintainer: Samuel Ružek
 Description: Thingsboard IoT Gateway modified to fit the needs of project myEnergyplan

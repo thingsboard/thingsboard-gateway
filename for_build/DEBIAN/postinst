@@ -32,6 +32,7 @@ sudo pip3 install --upgrade jsonschema==3.1.1
 sudo pip3 install --upgrade pyrsistent --progress-bar off -qqq || echo "OK"
 sudo pip3 install --upgrade importlib --progress-bar off -qqq || echo "OK"
 sudo pip3 install --upgrade importlib-metadata --progress-bar off -qqq || echo "OK"
+sudo pip3 install --upgrade PyYAML --progress-bar off -qqq || echo "OK"
 sudo cp -a -r /etc/thingsboard-gateway/extensions /var/lib/thingsboard_gateway/
 sudo rm -r /etc/thingsboard-gateway/extensions
 sudo usermod -a -G dialout $CURRENT_USER
