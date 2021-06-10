@@ -1,5 +1,5 @@
 thingsboard:
-  host: thingsboard.cloud
+  host: 194.182.67.73
   port: 1883
   remoteShell: false
   remoteConfiguration: false
@@ -9,14 +9,11 @@ thingsboard:
     accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
   qos: 1
 storage:
-  type: memory
-  read_records_count: 100
-  max_records_count: 100000
-#  type: file
-#  data_folder_path: ./data/
-#  max_file_count: 10
-#  max_read_records_count: 10
-#  max_records_per_file: 10000
+  type: file
+  data_folder_path: /etc/thingsboard-gateway/data/
+  max_file_count: 10
+  max_read_records_count: 10
+  max_records_per_file: 100000
 connectors:
   -
     name: MQTT Broker Connector
