@@ -63,6 +63,13 @@
       "topicFilter": "shellies/announce",
       "deviceNameJsonExpression": "${id}"
     }
+  ],
+  "serverSideRpc": [
+    {
+      "methodFilter": "setRelay",
+      "requestTopicExpression": "shellies/${deviceName}/relay/${params.relayId}/command",
+      "valueExpression": "${params.value}"
+    }
   ]
 }
 
