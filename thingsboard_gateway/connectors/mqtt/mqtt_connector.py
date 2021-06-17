@@ -590,8 +590,13 @@ class MqttConnector(Connector, Thread):
                     self.__subscribe(expected_response_topic,  rpc_config.get("responseTopicQoS", 1))
 
                     # Wait for subscription to be carried out
+                    sub_response_timeout = 10
+
                     while expected_response_topic in self.__subscribes_sent.values():
+                        sub_response_timeout -= 1
                         time.sleep(0.1)
+                        if sub_response_timeout == 0:
+                            break
 
                     # Ask the gateway to enqueue this as an RPC response
                     self.__gateway.register_rpc_request_timeout(content,
