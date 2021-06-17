@@ -591,7 +591,7 @@ class MqttConnector(Connector, Thread):
 
                     # Wait for subscription to be carried out
                     while expected_response_topic in self.__subscribes_sent.values():
-                        pass
+                        time.sleep(0.1)
 
                     # Ask the gateway to enqueue this as an RPC response
                     self.__gateway.register_rpc_request_timeout(content,
@@ -601,7 +601,7 @@ class MqttConnector(Connector, Thread):
 
                     # Wait for RPC to be successfully enqueued, which never fails.
                     while self.__gateway.is_rpc_in_progress(expected_response_topic):
-                        pass
+                        time.sleep(0.1)
 
                 elif expects_response and not defines_timeout:
                     self.__log.info("2-way RPC without timeout: treating as 1-way")
