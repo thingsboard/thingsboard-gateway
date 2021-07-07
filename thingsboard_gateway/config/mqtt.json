@@ -66,9 +66,10 @@
   ],
   "serverSideRpc": [
     {
+      "deviceNameFilter": ".*",
       "methodFilter": "setRelay",
-      "requestTopicExpression": "shellies/${deviceName}/relay/${params.relayId}/command",
-      "valueExpression": "${params.value}"
+      "requestTopicExpression": "shellies/${deviceName}/relay/${relayId}/command",
+      "valueExpression": "${value}"
     }
   ]
 }
