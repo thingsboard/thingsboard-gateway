@@ -329,6 +329,17 @@ class MqttConnector(Connector, Thread):
         except Exception as e:
             self.__log.exception(e)
 
+    def _save_converted_msg(self, converter, message, content) -> bool:
+        converted_content = converter.convert(message.topic, content)
+
+        if converted_content:
+            self.__gateway.send_to_storage(self.name, converted_content)
+            self.statistics['MessagesSent'] += 1
+            self.__log.debug("Successfully converted message from topic %s", message.topic)
+            return True
+
+        return False
+
     def _on_message(self, client, userdata, message):
         self.statistics['MessagesReceived'] += 1
         content = TBUtility.decode(message)
@@ -347,15 +358,18 @@ class MqttConnector(Connector, Thread):
                 available_converters = self.__mapping_sub_topics[topic]
                 for converter in available_converters:
                     try:
-                        converted_content = converter.convert(message.topic, content)
-
-                        if converted_content:
-                            request_handled = True
-                            self.__gateway.send_to_storage(self.name, converted_content)
-                            self.statistics['MessagesSent'] += 1
-                            self.__log.debug("Successfully converted message from topic %s", message.topic)
+                        if isinstance(content, list):
+                            for item in content:
+                                request_handled = self._save_converted_msg(converter, message, item)
+                                if not request_handled:
+                                    self.__log.error(
+                                        'Cannot find converter for the topic:"%s"! Client: %s, User data: %s',
+                                        message.topic,
+                                        str(client),
+                                        str(userdata))
                         else:
-                            continue
+                            request_handled = self._save_converted_msg(converter, message, content)
+
                     except Exception as e:
                         log.exception(e)
 
