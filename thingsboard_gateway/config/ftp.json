@@ -1,0 +1,10 @@
+{
+  "host": "192.168.1.90",
+  "port": 21,
+  "TLSSupport": false,
+  "security": {
+    "type": "basic",
+    "username": "admin",
+    "password": "admin"
+  }
+}
