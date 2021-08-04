@@ -121,7 +121,7 @@ class FTPConnector(Connector, Thread):
         return True
 
     def __get_files(self, ftp, paths, file_name, file_ext):
-        arr = []
+        kwargs = {}
         for item in paths:
             ftp.cwd(item)
 
@@ -130,17 +130,15 @@ class FTPConnector(Connector, Thread):
             for ff in folder_and_files:
                 if self.__is_file(ftp, ff):
                     if file_name == '*' and file_ext == '*':
-                        arr.append(item + '/' + ff)
+                        kwargs[ftp.voidcmd(f"MDTM {ff}")] = (item + '/' + ff)
                     elif file_ext != '*' and ff.split('.')[1] == file_ext:
-                        arr.append(item + '/' + ff)
+                        kwargs[ftp.voidcmd(f"MDTM {ff}")] = (item + '/' + ff)
                     elif file_name != '*' and ff.split('.')[0] == file_name:
-                        arr.append(item + '/' + ff)
+                        kwargs[ftp.voidcmd(f"MDTM {ff}")] = (item + '/' + ff)
 
-        # "path": "fol/*.pdf",
-        return arr
+        return [val for (_, val) in sorted(kwargs.items(), reverse=True)]
 
     def __process_paths(self, ftp):
-        print('----------------------------------------------------')
         final_arr = []
         current_dir = ftp.pwd()
 
