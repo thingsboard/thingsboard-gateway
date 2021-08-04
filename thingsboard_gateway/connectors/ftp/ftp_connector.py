@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+import os
 import time
 from queue import Queue
 from random import choice
@@ -20,7 +20,6 @@ from threading import Thread
 from ftplib import FTP, FTP_TLS
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
 try:
     from requests import Timeout, request
@@ -55,6 +54,7 @@ class FTPConnector(Connector, Thread):
         self.host = self.__config['host']
         self.port = self.__config.get('port', 21)
         self.__ftp = FTP_TLS if self.__tls_support else FTP
+        self.paths = [obj['path'] for obj in self.__config['paths']]
 
     def open(self):
         self.__stopped = False
@@ -64,6 +64,11 @@ class FTPConnector(Connector, Thread):
         try:
             with self.__ftp() as ftp:
                 self.__connect(ftp)
+                while True:
+                    time.sleep(.01)
+                    self.__process_paths(ftp)
+                    if self.__stopped:
+                        break
 
         except Exception as e:
             self.__log.exception(e)
@@ -94,8 +99,86 @@ class FTPConnector(Connector, Thread):
             self._connected = True
             self.__log.info('FTP connected')
 
-    def __process_paths(self):
-        pass
+    def __is_file(self, ftp, filename):
+        current = ftp.pwd()
+        try:
+            ftp.cwd(filename)
+        except Exception:
+            ftp.cwd(current)
+            return True
+        ftp.cwd(current)
+        return False
+
+    def __folder_exist(self, ftp, folder_name):
+        current = ftp.pwd()
+
+        try:
+            ftp.cwd(folder_name)
+        except Exception:
+            ftp.cwd(current)
+            return False
+        ftp.cwd(current)
+        return True
+
+    def __get_files(self, ftp, paths, file_name, file_ext):
+        arr = []
+        for item in paths:
+            ftp.cwd(item)
+
+            folder_and_files = ftp.nlst()
+
+            for ff in folder_and_files:
+                if self.__is_file(ftp, ff):
+                    if file_name == '*' and file_ext == '*':
+                        arr.append(item + '/' + ff)
+                    elif file_ext != '*' and ff.split('.')[1] == file_ext:
+                        arr.append(item + '/' + ff)
+                    elif file_name != '*' and ff.split('.')[0] == file_name:
+                        arr.append(item + '/' + ff)
+
+        # "path": "fol/*.pdf",
+        return arr
+
+    def __process_paths(self, ftp):
+        print('----------------------------------------------------')
+        final_arr = []
+        current_dir = ftp.pwd()
+
+        for path in self.paths:
+            dirname, basename = os.path.split(path)
+            filename, fileex = basename.split('.')
+
+            for (index, item) in enumerate(dirname.split('/')):
+                if item == '*':
+                    current = ftp.pwd()
+                    arr = []
+                    for x in final_arr:
+                        ftp.cwd(x)
+                        node_paths = ftp.nlst()
+
+                        for node in node_paths:
+                            if not self.__is_file(ftp, node):
+                                arr.append(ftp.pwd() + node)
+                        final_arr = arr
+                        ftp.cwd(current)
+                else:
+                    if len(final_arr) > 0:
+                        current = ftp.pwd()
+                        for (j, k) in enumerate(final_arr):
+                            ftp.cwd(k)
+                            if self.__folder_exist(ftp, item):
+                                final_arr[j] = str(final_arr[j]) + '/' + item
+                            else:
+                                final_arr = []  # TODO: uncomment it
+                            ftp.cwd(current)
+                    else:
+                        if self.__folder_exist(ftp, item):
+                            final_arr.append(item)
+
+            final_arr = self.__get_files(ftp, final_arr, filename, fileex)
+            print(final_arr)
+
+            ftp.cwd(current_dir)
 
     def close(self):
         self.__stopped = True
