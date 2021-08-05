@@ -5,12 +5,15 @@ from thingsboard_gateway.connectors.ftp.file import File
 
 
 class Path:
-    def __init__(self, path: str, with_sorting_files: bool, poll_period: int, read_mode: str, max_size: int):
+    def __init__(self, path: str, with_sorting_files: bool, poll_period: int, read_mode: str, max_size: int,
+                 delimiter: str, telemetry: list):
         self._path = path
         self._with_sorting_files = with_sorting_files
         self._poll_period = poll_period
         self._files: [File] = []
+        self._delimiter = delimiter
         self._last_polled_time = 0
+        self._telemetry = telemetry
         self.__read_mode = File.ReadMode[read_mode]
         self.__max_size = max_size
 
@@ -106,3 +109,11 @@ class Path:
     @property
     def files(self):
         return self._files
+
+    @property
+    def delimiter(self):
+        return self._delimiter
+
+    @property
+    def telemetry(self):
+        return self._telemetry

@@ -12,6 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from simplejson import dumps
+
 from thingsboard_gateway.connectors.ftp.ftp_converter import FTPConverter
 from thingsboard_gateway.connectors.converter import log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -22,6 +24,7 @@ class FTPUplinkConverter(FTPConverter):
         self.__config = config
 
     def convert(self, config, data):
+        data_types = {'attributes': 'attributes', 'timeseries': 'telemetry'}
         result = {
             'deviceName': None,
             'deviceType': None,
@@ -29,9 +32,12 @@ class FTPUplinkConverter(FTPConverter):
             'telemetry': []
         }
 
-        try:
-            information_types = {"attributes": "attributes", "timeseries": "telemetry"}
+        for data_type in data_types:
+            for information in self.__config[data_type]:
+                print(data.split(','))
+                # f = data.split(self.__config['delimiter'])
+                # print(f)
+                result[data_types[data_type]].append({'asd': 'asd'})
+                # f = []
 
-            return result
-        except Exception as e:
-            log.exception(e)
+        return result

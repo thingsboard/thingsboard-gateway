@@ -59,7 +59,7 @@ class FTPConnector(Connector, Thread):
         self.port = self.__config.get('port', 21)
         self.__ftp = FTP_TLS if self.__tls_support else FTP
         self.paths = [Path(path=obj['path'], with_sorting_files=True, poll_period=60, read_mode=obj['readMode'],
-                           max_size=obj['maxFileSize']) for obj
+                           max_size=obj['maxFileSize'], delimiter=obj['delimiter'], telemetry=obj['timeseries']) for obj
                       in self.__config['paths']]
         # self.paths = [obj['path'] for obj in self.__config['paths']]
 
@@ -114,6 +114,9 @@ class FTPConnector(Connector, Thread):
     def __process_paths(self, ftp):
         # TODO: call path on timer
         for path in self.paths:
+            configuration = {'delimiter': path.delimiter, 'deviceName': 'asd', 'deviceType': 'Device',
+                             'timeseries': path.telemetry, 'attributes': []}
+            converter = FTPUplinkConverter(configuration)  # TODO: change deviceName
             # TODO: check if to rescan path
             for file in path.files:
                 current_hash = file.get_current_hash(ftp)
@@ -125,9 +128,10 @@ class FTPConnector(Connector, Thread):
                         handle_stream = io.BytesIO()
                         ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
 
-                        for line in str(handle_stream.getvalue(), 'UTF-8').split(' '):
-                            print(line)
-
+                        converted_str = str(handle_stream.getvalue(), 'UTF-8').split('\n')
+                        for line in converted_str:
+                            converter.convert(None, line)
+                            # self.__gateway.send_to_storage(self.getName(), converted_data)
                         handle_stream.close()
                     else:
                         handle_stream = io.BytesIO()
