@@ -1,14 +1,18 @@
 import os
+
 from thingsboard_gateway.connectors.connector import log
+from thingsboard_gateway.connectors.ftp.file import File
 
 
 class Path:
-    def __init__(self, path: str, with_sorting_files: bool, poll_period: int):
+    def __init__(self, path: str, with_sorting_files: bool, poll_period: int, read_mode: str, max_size: int):
         self._path = path
         self._with_sorting_files = with_sorting_files
         self._poll_period = poll_period
-        self._files = []
+        self._files: [File] = []
         self._last_polled_time = 0
+        self.__read_mode = File.ReadMode[read_mode]
+        self.__max_size = max_size
 
     @staticmethod
     def __is_file(ftp, filename):
@@ -47,7 +51,11 @@ class Path:
                             file_name != '*' and cur_file_name == file_name):
                         kwargs[ftp.voidcmd(f"MDTM {ff}")] = (item + '/' + ff)
 
-        return [val for (_, val) in sorted(kwargs.items(), reverse=True)]
+        if self._with_sorting_files:
+            return [File(path_to_file=val, read_mode=self.__read_mode, max_size=self.__max_size) for (_, val) in
+                    sorted(kwargs.items(), reverse=True)]
+
+        return [File(path_to_file=val, read_mode=self.__read_mode, max_size=self.__max_size) for val in kwargs.values()]
 
     def find_files(self, ftp):
         final_arr = []
@@ -77,7 +85,7 @@ class Path:
                         if self.__folder_exist(ftp, item):
                             final_arr[j] = str(final_arr[j]) + '/' + item
                         else:
-                            final_arr = []  # TODO: uncomment it
+                            final_arr = []
                         ftp.cwd(current)
                 else:
                     if self.__folder_exist(ftp, item):
@@ -88,6 +96,13 @@ class Path:
         ftp.cwd(current_dir)
 
         log.debug(f'Find files {final_arr}')
-        print(final_arr)  # TODO: delete this
+
+        # TODO: delete for loop
+        for i in final_arr:
+            print(i)
 
         self._files = final_arr
+
+    @property
+    def files(self):
+        return self._files

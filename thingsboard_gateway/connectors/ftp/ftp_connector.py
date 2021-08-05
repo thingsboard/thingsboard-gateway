@@ -18,9 +18,12 @@ from random import choice
 from string import ascii_lowercase
 from threading import Thread
 from ftplib import FTP, FTP_TLS
+import io
 
 from thingsboard_gateway.connectors.ftp.path import Path
+from thingsboard_gateway.connectors.ftp.file import File
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.connectors.ftp.ftp_uplink_converter import FTPUplinkConverter
 
 try:
     from requests import Timeout, request
@@ -55,7 +58,9 @@ class FTPConnector(Connector, Thread):
         self.host = self.__config['host']
         self.port = self.__config.get('port', 21)
         self.__ftp = FTP_TLS if self.__tls_support else FTP
-        self.paths = [Path(path=obj['path'], with_sorting_files=True, poll_period=60) for obj in self.__config['paths']]
+        self.paths = [Path(path=obj['path'], with_sorting_files=True, poll_period=60, read_mode=obj['readMode'],
+                           max_size=obj['maxFileSize']) for obj
+                      in self.__config['paths']]
         # self.paths = [obj['path'] for obj in self.__config['paths']]
 
     def open(self):
@@ -66,9 +71,11 @@ class FTPConnector(Connector, Thread):
         try:
             with self.__ftp() as ftp:
                 self.__connect(ftp)
+
                 for path in self.paths:
                     path.find_files(ftp)
-                self.__process_paths()
+
+                self.__process_paths(ftp)
 
                 while True:
                     time.sleep(.01)
@@ -104,8 +111,37 @@ class FTPConnector(Connector, Thread):
             self._connected = True
             self.__log.info('FTP connected')
 
-    def __process_paths(self):
-        pass
+    def __process_paths(self, ftp):
+        # TODO: call path on timer
+        for path in self.paths:
+            # TODO: check if to rescan path
+            for file in path.files:
+                current_hash = file.get_current_hash(ftp)
+                if ((file.has_hash() and current_hash != file.hash) or not file.has_hash()) and file.check_size_limit(
+                        ftp):
+                    file.set_new_hash(current_hash)
+
+                    if file.read_mode == File.ReadMode.FULL:
+                        handle_stream = io.BytesIO()
+                        ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
+
+                        for line in str(handle_stream.getvalue(), 'UTF-8').split(' '):
+                            print(line)
+
+                        handle_stream.close()
+                    else:
+                        handle_stream = io.BytesIO()
+                        ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
+
+                        lines = str(handle_stream.getvalue(), 'UTF-8').split(' ')
+                        cursor = file.cursor or 0
+                        for (index, line) in enumerate(lines):
+                            if index >= cursor:
+                                if index + 1 == len(lines):
+                                    file.cursor = index
+                                print(line)
+
+                        handle_stream.close()
 
     def close(self):
         self.__stopped = True
