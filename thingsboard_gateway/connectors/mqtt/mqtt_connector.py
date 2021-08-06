@@ -147,9 +147,8 @@ class MqttConnector(Connector, Thread):
                             self.__log.error("Mandatory key '%s' missing from %s handler: %s",
                                              key, handler_flavor, simplejson.dumps(handler))
                     else:
-                        if not optional:
-                            self.__log.debug("Mandatory key '%s' found in %s handler: %s",
-                                             key, handler_flavor, simplejson.dumps(handler))
+                        self.__log.debug("Mandatory key '%s' found in %s handler: %s",
+                                         key, handler_flavor, simplejson.dumps(handler))
 
                 if discard:
                     self.__log.error("%s handler is missing some mandatory keys => rejected: %s",
