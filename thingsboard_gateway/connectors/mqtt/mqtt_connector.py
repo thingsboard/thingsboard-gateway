@@ -143,9 +143,8 @@ class MqttConnector(Connector, Thread):
                     if key not in handler:
                         # Will report all missing fields to user before discarding the entry => no break here
                         discard = True
-                        if not optional:
-                            self.__log.error("Mandatory key '%s' missing from %s handler: %s",
-                                             key, handler_flavor, simplejson.dumps(handler))
+                        self.__log.error("Mandatory key '%s' missing from %s handler: %s",
+                                         key, handler_flavor, simplejson.dumps(handler))
                     else:
                         self.__log.debug("Mandatory key '%s' found in %s handler: %s",
                                          key, handler_flavor, simplejson.dumps(handler))
