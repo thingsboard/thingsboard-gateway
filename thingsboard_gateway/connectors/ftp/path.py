@@ -6,7 +6,7 @@ from thingsboard_gateway.connectors.ftp.file import File
 
 class Path:
     def __init__(self, path: str, with_sorting_files: bool, poll_period: int, read_mode: str, max_size: int,
-                 delimiter: str, telemetry: list, device_name: str, device_type: str):
+                 delimiter: str, telemetry: list, device_name: str, device_type: str, attributes: list):
         self._path = path
         self._with_sorting_files = with_sorting_files
         self._poll_period = poll_period
@@ -14,6 +14,7 @@ class Path:
         self._delimiter = delimiter
         self._last_polled_time = 0
         self._telemetry = telemetry
+        self._attributes = attributes
         self._device_name = device_name
         self._device_type = device_type
         self.__read_mode = File.ReadMode[read_mode]
@@ -102,10 +103,6 @@ class Path:
 
         log.debug(f'Find files {final_arr}')
 
-        # TODO: delete for loop
-        for i in final_arr:
-            print(i)
-
         self._files = final_arr
 
     @property
@@ -127,3 +124,7 @@ class Path:
     @property
     def device_type(self):
         return self._device_type
+
+    @property
+    def attributes(self):
+        return self._attributes

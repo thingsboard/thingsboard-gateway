@@ -28,16 +28,20 @@ class FTPUplinkConverter(FTPConverter):
         get_device_type_from_data = False
         data_types = {'attributes': 'attributes', 'timeseries': 'telemetry'}
         result = {
-            'deviceName': self.__config.get('devicePatternName', None),
-            'deviceType': self.__config.get('devicePatternType', 'Device'),
+            'deviceName': None,
+            'deviceType': None,
             'attributes': [],
             'telemetry': []
         }
 
-        if '${' in result['deviceName'] and '}' in result['deviceName']:
+        if '${' in self.__config['devicePatternName'] and '}' in self.__config['devicePatternName']:
             get_device_name_from_data = True
-        if '${' in result['deviceType'] and '}' in result['deviceType']:
+        else:
+            result['deviceName'] = self.__config['devicePatternName']
+        if '${' in self.__config['devicePatternType'] and '}' in self.__config['devicePatternType']:
             get_device_type_from_data = True
+        else:
+            result['deviceType'] = self.__config['devicePatternType']
 
         try:
             for data_type in data_types:
@@ -59,10 +63,10 @@ class FTPUplinkConverter(FTPConverter):
                     })
 
                     if get_device_name_from_data:
-                        index = config['headers'].index(re.sub(r'[^\w]', '', result['deviceName']))
+                        index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternName']))
                         result['deviceName'] = arr[index]
                     if get_device_type_from_data:
-                        index = config['headers'].index(re.sub(r'[^\w]', '', result['deviceType']))
+                        index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternType']))
                         result['deviceType'] = arr[index]
 
         except Exception as e:

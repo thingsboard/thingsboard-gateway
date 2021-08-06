@@ -60,7 +60,8 @@ class FTPConnector(Connector, Thread):
         self.__ftp = FTP_TLS if self.__tls_support else FTP
         self.paths = [Path(path=obj['path'], with_sorting_files=True, poll_period=60, read_mode=obj['readMode'],
                            max_size=obj['maxFileSize'], delimiter=obj['delimiter'], telemetry=obj['timeseries'],
-                           device_name=obj['devicePatternName'], device_type=obj.get('devicePatternType', None)) for obj
+                           device_name=obj['devicePatternName'], device_type=obj.get('devicePatternType', 'Device'),
+                           attributes=obj['attributes']) for obj
                       in self.__config['paths']]
         # self.paths = [obj['path'] for obj in self.__config['paths']]
 
@@ -117,7 +118,7 @@ class FTPConnector(Connector, Thread):
         for path in self.paths:
             configuration = {'delimiter': path.delimiter, 'devicePatternName': path.device_name,
                              'devicePatternType': path.device_type,
-                             'timeseries': path.telemetry, 'attributes': []}
+                             'timeseries': path.telemetry, 'attributes': path.attributes}
             converter = FTPUplinkConverter(configuration)
             # TODO: check if to rescan path
             for file in path.files:
@@ -138,6 +139,8 @@ class FTPConnector(Connector, Thread):
                             else:
                                 converted_data = converter.convert(convert_conf, line)
                                 self.__gateway.send_to_storage(self.getName(), converted_data)
+                                self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+                                log.debug("Data to ThingsBoard: %s", converted_data)
                         handle_stream.close()
                     else:
                         handle_stream = io.BytesIO()
