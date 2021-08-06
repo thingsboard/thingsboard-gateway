@@ -3,10 +3,13 @@ import os
 from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.connectors.ftp.file import File
 
+COMPATIBLE_FILE_EXTENSIONS = ('json', 'txt', 'csv')
+
 
 class Path:
     def __init__(self, path: str, with_sorting_files: bool, poll_period: int, read_mode: str, max_size: int,
-                 delimiter: str, telemetry: list, device_name: str, device_type: str, attributes: list):
+                 delimiter: str, telemetry: list, device_name: str, device_type: str, attributes: list,
+                 txt_file_data_view: str):
         self._path = path
         self._with_sorting_files = with_sorting_files
         self._poll_period = poll_period
@@ -17,6 +20,7 @@ class Path:
         self._attributes = attributes
         self._device_name = device_name
         self._device_type = device_type
+        self._txt_file_data_view = txt_file_data_view
         self.__read_mode = File.ReadMode[read_mode]
         self.__max_size = max_size
 
@@ -52,8 +56,9 @@ class Path:
 
             for ff in folder_and_files:
                 cur_file_name, cur_file_ext = ff.split('.')
-                if self.__is_file(ftp, ff):
-                    if (file_name == '*' and file_ext == '*') or (file_ext != '*' and cur_file_ext == file_ext) or (
+                if cur_file_ext in COMPATIBLE_FILE_EXTENSIONS and self.__is_file(ftp, ff):
+                    if (file_name == '*' and file_ext == '*') or (
+                            file_ext != '*' and cur_file_ext == file_ext) or (
                             file_name != '*' and cur_file_name == file_name):
                         kwargs[ftp.voidcmd(f"MDTM {ff}")] = (item + '/' + ff)
 
@@ -128,3 +133,7 @@ class Path:
     @property
     def attributes(self):
         return self._attributes
+
+    @property
+    def txt_file_data_view(self):
+        return self._txt_file_data_view

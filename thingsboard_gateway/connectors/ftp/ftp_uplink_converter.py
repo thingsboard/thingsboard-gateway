@@ -23,7 +23,7 @@ class FTPUplinkConverter(FTPConverter):
     def __init__(self, config):
         self.__config = config
 
-    def convert(self, config, data):
+    def _convert_table_view_data(self, config, data):
         get_device_name_from_data = False
         get_device_type_from_data = False
         data_types = {'attributes': 'attributes', 'timeseries': 'telemetry'}
@@ -74,3 +74,14 @@ class FTPUplinkConverter(FTPConverter):
             log.exception(e)
 
         return result
+
+    def _convert_slices_view_data(self, config, data):
+        return
+
+    def convert(self, config, data):
+        if config['file_ext'] == 'csv' or (config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'TABLE'):  # TODO: add branch for TXT (not table view)
+            return self._convert_table_view_data(config, data)
+        elif config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'SLICED':  # TODO: change from str comparison to regex match
+            return self._convert_slices_view_data(config, data)
+        else:
+            raise Exception('Incorrect txt file data view mode')
