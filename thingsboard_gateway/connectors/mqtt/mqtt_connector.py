@@ -30,9 +30,9 @@ class MqttConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
 
-        self.__gateway = gateway                 # Reference to TB Gateway
-        self._connector_type = connector_type    # Should be "mqtt"
-        self.config = config                     # mqtt.json contents
+        self.__gateway = gateway  # Reference to TB Gateway
+        self._connector_type = connector_type  # Should be "mqtt"
+        self.config = config  # mqtt.json contents
 
         self.__log = log
         self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
@@ -55,7 +55,7 @@ class MqttConnector(Connector, Thread):
             "disconnectRequests": ['topicFilter'],
             "attributeRequests": ['topicFilter', 'topicExpression', 'valueExpression'],
             "attributeUpdates": ['deviceNameFilter', 'attributeFilter', 'topicExpression', 'valueExpression']
-            }
+        }
 
         # Mappings, i.e., telemetry/attributes-push handlers provided by user via configuration file
         self.load_handlers('mapping', mandatory_keys['mapping'], self.__mapping)
@@ -70,7 +70,8 @@ class MqttConnector(Connector, Thread):
         self.load_handlers('disconnectRequests', mandatory_keys['disconnectRequests'], self.__disconnect_requests)
 
         # Shared attributes direct requests, i.e., asking ThingsBoard for some shared attribute value
-        self.load_handlers('attributeRequests', mandatory_keys['attributeRequests'], self.__attribute_requests)
+        self.load_handlers('attributeRequests', mandatory_keys['attributeRequests'], self.__attribute_requests,
+                           optional=True)
 
         # Attributes updates requests, i.e., asking ThingsBoard to send updates about an attribute
         self.load_handlers('attributeUpdates', mandatory_keys['attributeUpdates'], self.__attribute_updates)
@@ -130,9 +131,10 @@ class MqttConnector(Connector, Thread):
         self.__stopped = False
         self.daemon = True
 
-    def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list):
+    def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list, optional=False):
         if handler_flavor not in self.config:
-            self.__log.error("'%s' section missing from configuration", handler_flavor)
+            if not optional:
+                self.__log.error("'%s' section missing from configuration", handler_flavor)
         else:
             for handler in self.config.get(handler_flavor):
                 discard = False
@@ -225,7 +227,7 @@ class MqttConnector(Connector, Thread):
             3: "server unavailable",
             4: "bad username or password",
             5: "not authorised",
-            }
+        }
 
         if result_code == 0:
             self._connected = True
@@ -253,7 +255,8 @@ class MqttConnector(Connector, Thread):
                     # Find and load required class
                     module = TBModuleLoader.import_module(self._connector_type, converter_class_name)
                     if module:
-                        self.__log.debug('Converter %s for topic %s - found!', converter_class_name, mapping["topicFilter"])
+                        self.__log.debug('Converter %s for topic %s - found!', converter_class_name,
+                                         mapping["topicFilter"])
                         converter = module(mapping)
                     else:
                         self.__log.error("Cannot find converter for %s topic", mapping["topicFilter"])
@@ -301,7 +304,8 @@ class MqttConnector(Connector, Thread):
 
         else:
             if result_code in result_codes:
-                self.__log.error("%s connection FAIL with error %s %s!", self.get_name(), result_code, result_codes[result_code])
+                self.__log.error("%s connection FAIL with error %s %s!", self.get_name(), result_code,
+                                 result_codes[result_code])
             else:
                 self.__log.error("%s connection FAIL with unknown error!", self.get_name())
 
@@ -405,7 +409,8 @@ class MqttConnector(Connector, Thread):
                 # Get device type (if any), either from topic or from content
                 if handler.get("deviceTypeTopicExpression"):
                     device_type_match = search(handler["deviceTypeTopicExpression"], message.topic)
-                    found_device_type = device_type_match.group(0) if device_type_match is not None else handler["deviceTypeTopicExpression"]
+                    found_device_type = device_type_match.group(0) if device_type_match is not None else handler[
+                        "deviceTypeTopicExpression"]
                 elif handler.get("deviceTypeJsonExpression"):
                     found_device_type = TBUtility.get_value(handler["deviceTypeJsonExpression"], content)
 
@@ -551,22 +556,23 @@ class MqttConnector(Connector, Thread):
                     for attribute_key in content["data"]:
                         if match(attribute_update["attributeFilter"], attribute_key):
                             try:
-                                topic = attribute_update["topicExpression"]\
-                                        .replace("${deviceName}", str(content["device"]))\
-                                        .replace("${attributeKey}", str(attribute_key))\
-                                        .replace("${attributeValue}", str(content["data"][attribute_key]))
+                                topic = attribute_update["topicExpression"] \
+                                    .replace("${deviceName}", str(content["device"])) \
+                                    .replace("${attributeKey}", str(attribute_key)) \
+                                    .replace("${attributeValue}", str(content["data"][attribute_key]))
                             except KeyError as e:
                                 log.exception("Cannot form topic, key %s - not found", e)
                                 raise e
                             try:
-                                data = attribute_update["valueExpression"]\
-                                        .replace("${attributeKey}", str(attribute_key))\
-                                        .replace("${attributeValue}", str(content["data"][attribute_key]))
+                                data = attribute_update["valueExpression"] \
+                                    .replace("${attributeKey}", str(attribute_key)) \
+                                    .replace("${attributeValue}", str(content["data"][attribute_key]))
                             except KeyError as e:
                                 log.exception("Cannot form topic, key %s - not found", e)
                                 raise e
                             self._client.publish(topic, data).wait_for_publish()
-                            self.__log.debug("Attribute Update data: %s for device %s to topic: %s", data, content["device"], topic)
+                            self.__log.debug("Attribute Update data: %s for device %s to topic: %s", data,
+                                             content["device"], topic)
                         else:
                             self.__log.error("Cannot find attributeName by filter in message with data: %s", content)
                 else:
@@ -601,7 +607,7 @@ class MqttConnector(Connector, Thread):
 
                     # Start listenting on the response topic
                     self.__log.info("Subscribing to: %s", expected_response_topic)
-                    self.__subscribe(expected_response_topic,  rpc_config.get("responseTopicQoS", 1))
+                    self.__subscribe(expected_response_topic, rpc_config.get("responseTopicQoS", 1))
 
                     # Wait for subscription to be carried out
                     sub_response_timeout = 10
@@ -614,9 +620,9 @@ class MqttConnector(Connector, Thread):
 
                     # Ask the gateway to enqueue this as an RPC response
                     self.__gateway.register_rpc_request_timeout(content,
-                                                                    timeout,
-                                                                    expected_response_topic,
-                                                                    self.rpc_cancel_processing)
+                                                                timeout,
+                                                                expected_response_topic,
+                                                                self.rpc_cancel_processing)
 
                     # Wait for RPC to be successfully enqueued, which never fails.
                     while self.__gateway.is_rpc_in_progress(expected_response_topic):
@@ -626,16 +632,16 @@ class MqttConnector(Connector, Thread):
                     self.__log.info("2-way RPC without timeout: treating as 1-way")
 
                 # Actually reach out for the device
-                request_topic = rpc_config.get("requestTopicExpression")\
-                    .replace("${deviceName}", str(content["device"]))\
-                    .replace("${methodName}", str(content["data"]["method"]))\
-                    .replace("${requestId}", str(content["data"]["id"]))\
+                request_topic = rpc_config.get("requestTopicExpression") \
+                    .replace("${deviceName}", str(content["device"])) \
+                    .replace("${methodName}", str(content["data"]["method"])) \
+                    .replace("${requestId}", str(content["data"]["id"])) \
                     .replace("${params}", simplejson.dumps(content["data"].get("params", "")))
 
-                data_to_send = rpc_config.get("valueExpression")\
-                    .replace("${deviceName}", str(content["device"]))\
-                    .replace("${methodName}", str(content["data"]["method"]))\
-                    .replace("${requestId}", str(content["data"]["id"]))\
+                data_to_send = rpc_config.get("valueExpression") \
+                    .replace("${deviceName}", str(content["device"])) \
+                    .replace("${methodName}", str(content["data"]["method"])) \
+                    .replace("${requestId}", str(content["data"]["id"])) \
                     .replace("${params}", simplejson.dumps(content["data"].get("params", "")))
 
                 try:
@@ -644,7 +650,8 @@ class MqttConnector(Connector, Thread):
 
                     if not expects_response or not defines_timeout:
                         self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
-                        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=True)
+                        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
+                                                      success_sent=True)
 
                     # Everything went out smoothly: RPC is served
                     return
@@ -657,4 +664,3 @@ class MqttConnector(Connector, Thread):
     def rpc_cancel_processing(self, topic):
         log.info("RPC canceled or terminated. Unsubscribing from %s", topic)
         self._client.unsubscribe(topic)
-
