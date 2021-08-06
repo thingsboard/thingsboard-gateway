@@ -53,7 +53,7 @@ class TBUtility:
 
             if data.get("telemetry") is not None:
                 for entry in data.get("telemetry"):
-                    if entry.get("ts") is not None and len(entry.get("values")) > 0:
+                    if (entry.get("ts") is not None and len(entry.get("values")) > 0) or entry.get("ts") is None:
                         got_telemetry = True
                         break
 
