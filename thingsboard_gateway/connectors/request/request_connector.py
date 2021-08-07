@@ -48,7 +48,7 @@ class RequestConnector(Connector, Thread):
                            'MessagesSent': 0}
         self.__rpc_requests = []
         self.__config = config
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.__gateway = gateway
         self.__security = HTTPBasicAuth(self.__config["security"]["username"], self.__config["security"]["password"]) if self.__config["security"]["type"] == "basic" else None
         self.__host = None
@@ -135,7 +135,7 @@ class RequestConnector(Connector, Thread):
                 log.debug(endpoint)
                 converter = None
                 if endpoint["converter"]["type"] == "custom":
-                    module = TBModuleLoader.import_module(self.__connector_type, endpoint["converter"]["extension"])
+                    module = TBModuleLoader.import_module(self._connector_type, endpoint["converter"]["extension"])
                     if module is not None:
                         log.debug('Custom converter for url %s - found!', endpoint["url"])
                         converter = module(endpoint)
