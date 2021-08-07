@@ -495,10 +495,11 @@ class TBGatewayService:
                               dumps(content))
             else:
                 try:
-                    method_split = content["method"].split('_')
+                    method_split = content["method"].split('_', 1)
                     module = None
                     if len(method_split) > 0:
                         module = method_split[0]
+                        content["method"] = method_split[1]
                     if module is not None:
                         result = None
                         if self.connectors_configs.get(module):
@@ -529,7 +530,7 @@ class TBGatewayService:
         arguments = content.get('params', {})
         if content.get("timeout") is not None:
             arguments.update({"timeout": content["timeout"]})
-        method_to_call = content["method"].replace("gateway_", "")
+        method_to_call = content["method"]
         result = None
         if self.__remote_shell is not None:
             method_function = self.__remote_shell.shell_commands.get(method_to_call, self.__gateway_rpc_methods.get(method_to_call))
