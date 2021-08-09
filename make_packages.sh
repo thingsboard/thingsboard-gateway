@@ -43,7 +43,7 @@ if [ "$1" != "only_clean" ] ; then
   python3 setup.py --command-packages=stdeb.command bdist_deb
   sudo find thingsboard_gateway/ -name "*.pyc" -exec rm -f {} \;
   # Adding the files, scripts and permissions
-  sudo cp -r for_build/etc deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
+  sudo cp -rL for_build/etc deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
   sudo cp -r for_build/var deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
   sudo cp -r -a for_build/DEBIAN deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
   sudo chown root:root deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/ -R

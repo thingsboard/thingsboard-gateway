@@ -32,7 +32,7 @@ if [ "$1" != "only_clean" ] ; then
   echo "Adding the files, scripts and permissions in the package"
   sudo cp -r thingsboard_gateway/extensions for_build/etc/thingsboard-gateway/
   sudo cp -r thingsboard_gateway/config for_build/etc/thingsboard-gateway/
-  sudo cp -r for_build/etc deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
+  sudo cp -rL for_build/etc deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
   sudo cp -r for_build/var deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
   sudo cp -r -a for_build/DEBIAN deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
   sudo chown root:root deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/ -R
