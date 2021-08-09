@@ -140,7 +140,7 @@ class FTPConnector(Connector, Thread):
                         convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
 
                         for (index, line) in enumerate(handled_str):
-                            if index == 0:
+                            if index == 0 and not path.txt_file_data_view == 'SLICED':
                                 convert_conf['headers'] = line.split(path.delimiter)
                             else:
                                 try:

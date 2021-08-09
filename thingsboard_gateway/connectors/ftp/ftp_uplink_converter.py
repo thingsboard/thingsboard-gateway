@@ -76,12 +76,41 @@ class FTPUplinkConverter(FTPConverter):
         return result
 
     def _convert_slices_view_data(self, config, data):
-        return
+        data_types = {'attributes': 'attributes', 'timeseries': 'telemetry'}
+        result = {
+            'deviceName': 'asd',
+            'deviceType': 'Device',
+            'attributes': [],
+            'telemetry': []
+        }
+
+        try:
+            for data_type in data_types:
+                for information in self.__config[data_type]:
+                    arr = data.split(self.__config['delimiter'])
+                    print(arr)
+
+                    first_index = information['value'][1:-1].split(':')[0] or 0
+                    last_index = information['value'][1:-1].split(':')[1] or len(arr)
+
+                    print(first_index, last_index)
+
+                    val = arr[first_index:last_index]
+                    print(val)
+
+                    result[data_types[data_type]].append({information['key']: val})
+                    print(result)
+        except Exception as e:
+            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
+            log.exception(e)
+
+        return result
 
     def convert(self, config, data):
-        if config['file_ext'] == 'csv' or (config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'TABLE'):  # TODO: add branch for TXT (not table view)
+        if config['file_ext'] == 'csv' or (config['file_ext'] == 'txt' and self.__config[
+            'txt_file_data_view'] == 'TABLE'):  # TODO: add branch for TXT (not table view)
             return self._convert_table_view_data(config, data)
-        elif config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'SLICED':  # TODO: change from str comparison to regex match
+        elif config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'SLICED':
             return self._convert_slices_view_data(config, data)
         else:
             raise Exception('Incorrect txt file data view mode')
