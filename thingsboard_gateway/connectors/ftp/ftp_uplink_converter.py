@@ -134,11 +134,16 @@ class FTPUplinkConverter(FTPConverter):
 
         return result
 
+    def _convert_json_file(self, config, data):
+        pass
+
     def convert(self, config, data):
         if config['file_ext'] == 'csv' or (
                 config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'TABLE'):
             return self._convert_table_view_data(config, data)
         elif config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'SLICED':
             return self._convert_slices_view_data(data)
+        elif config['file_ext'] == 'json':
+            return self._convert_json_file(config, data)
         else:
-            raise Exception('Incorrect txt file data view mode')
+            raise Exception('Incorrect file extension or file data view mode')

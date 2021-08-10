@@ -157,13 +157,24 @@ class FTPConnector(Connector, Thread):
                         ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
 
                         lines = str(handle_stream.getvalue(), 'UTF-8').split(' ')
+                        convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
+
                         cursor = file.cursor or 0
                         for (index, line) in enumerate(lines):
+                            if index == 0 and not path.txt_file_data_view == 'SLICED':
+                                convert_conf['headers'] = line.split(path.delimiter)
+
                             if index >= cursor:
                                 if index + 1 == len(lines):
                                     file.cursor = index
 
-                            # TODO: add convert function
+                                try:
+                                    converted_data = converter.convert(convert_conf, line)
+                                    self.__gateway.send_to_storage(self.getName(), converted_data)
+                                    self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+                                    log.debug("Data to ThingsBoard: %s", converted_data)
+                                except Exception as e:
+                                    log.error(e)
 
                         handle_stream.close()
 
