@@ -19,6 +19,7 @@ from string import ascii_lowercase
 from threading import Thread
 from ftplib import FTP, FTP_TLS
 import io
+import simplejson
 
 from thingsboard_gateway.connectors.ftp.path import Path
 from thingsboard_gateway.connectors.ftp.file import File
@@ -132,27 +133,44 @@ class FTPConnector(Connector, Thread):
                     file.set_new_hash(current_hash)
 
                     handle_stream = io.BytesIO()
+
                     ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
-                    handled_str = str(handle_stream.getvalue(), 'UTF-8').split('\n')
+
+                    handled_str = str(handle_stream.getvalue(), 'UTF-8')
+                    handled_array = handled_str.split('\n')
 
                     convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
 
-                    cursor = file.cursor or 0
-
-                    for (index, line) in enumerate(handled_str):
-                        if index == 0 and not path.txt_file_data_view == 'SLICED':
-                            convert_conf['headers'] = line.split(path.delimiter)
+                    if convert_conf['file_ext'] == 'json':
+                        json_data = simplejson.loads(handled_str)
+                        if isinstance(json_data, list):
+                            for obj in json_data:
+                                converted_data = converter.convert(convert_conf, obj)
+                                self.__gateway.send_to_storage(self.getName(), converted_data)
+                                self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+                                log.debug("Data to ThingsBoard: %s", converted_data)
                         else:
-                            if file.read_mode == File.ReadMode.PARTIAL and index >= cursor:
-                                converted_data = converter.convert(convert_conf, line)
-                                if index + 1 == len(handled_str):
-                                    file.cursor = index
-                            else:
-                                converted_data = converter.convert(convert_conf, line)
-
+                            converted_data = converter.convert(convert_conf, json_data)
                             self.__gateway.send_to_storage(self.getName(), converted_data)
                             self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                             log.debug("Data to ThingsBoard: %s", converted_data)
+                    else:
+                        cursor = file.cursor or 0
+
+                        for (index, line) in enumerate(handled_array):
+                            if index == 0 and not path.txt_file_data_view == 'SLICED':
+                                convert_conf['headers'] = line.split(path.delimiter)
+                            else:
+                                if file.read_mode == File.ReadMode.PARTIAL and index >= cursor:
+                                    converted_data = converter.convert(convert_conf, line)
+                                    if index + 1 == len(handled_array):
+                                        file.cursor = index
+                                else:
+                                    converted_data = converter.convert(convert_conf, line)
+
+                                self.__gateway.send_to_storage(self.getName(), converted_data)
+                                self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+                                log.debug("Data to ThingsBoard: %s", converted_data)
 
                     handle_stream.close()
 
