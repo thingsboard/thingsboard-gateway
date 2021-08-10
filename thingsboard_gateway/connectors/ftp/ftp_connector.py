@@ -63,7 +63,6 @@ class FTPConnector(Connector, Thread):
                            device_name=obj['devicePatternName'], device_type=obj.get('devicePatternType', 'Device'),
                            attributes=obj['attributes'], txt_file_data_view=obj['txtFileDataView']) for obj
                       in self.__config['paths']]
-        # self.paths = [obj['path'] for obj in self.__config['paths']]
 
     def open(self):
         self.__stopped = False
@@ -132,51 +131,30 @@ class FTPConnector(Connector, Thread):
                         ftp):
                     file.set_new_hash(current_hash)
 
-                    if file.read_mode == File.ReadMode.FULL:
-                        handle_stream = io.BytesIO()
-                        ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
-                        handled_str = str(handle_stream.getvalue(), 'UTF-8').split('\n')
+                    handle_stream = io.BytesIO()
+                    ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
+                    handled_str = str(handle_stream.getvalue(), 'UTF-8').split('\n')
 
-                        convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
+                    convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
 
-                        for (index, line) in enumerate(handled_str):
-                            if index == 0 and not path.txt_file_data_view == 'SLICED':
-                                convert_conf['headers'] = line.split(path.delimiter)
-                            else:
-                                try:
-                                    converted_data = converter.convert(convert_conf, line)
-                                    self.__gateway.send_to_storage(self.getName(), converted_data)
-                                    self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                                    log.debug("Data to ThingsBoard: %s", converted_data)
-                                except Exception as e:
-                                    log.error(e)
+                    cursor = file.cursor or 0
 
-                        handle_stream.close()
-                    else:
-                        handle_stream = io.BytesIO()
-                        ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
-
-                        lines = str(handle_stream.getvalue(), 'UTF-8').split(' ')
-                        convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
-
-                        cursor = file.cursor or 0
-                        for (index, line) in enumerate(lines):
-                            if index == 0 and not path.txt_file_data_view == 'SLICED':
-                                convert_conf['headers'] = line.split(path.delimiter)
-
-                            if index >= cursor:
-                                if index + 1 == len(lines):
+                    for (index, line) in enumerate(handled_str):
+                        if index == 0 and not path.txt_file_data_view == 'SLICED':
+                            convert_conf['headers'] = line.split(path.delimiter)
+                        else:
+                            if file.read_mode == File.ReadMode.PARTIAL and index >= cursor:
+                                converted_data = converter.convert(convert_conf, line)
+                                if index + 1 == len(handled_str):
                                     file.cursor = index
+                            else:
+                                converted_data = converter.convert(convert_conf, line)
 
-                                try:
-                                    converted_data = converter.convert(convert_conf, line)
-                                    self.__gateway.send_to_storage(self.getName(), converted_data)
-                                    self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                                    log.debug("Data to ThingsBoard: %s", converted_data)
-                                except Exception as e:
-                                    log.error(e)
+                            self.__gateway.send_to_storage(self.getName(), converted_data)
+                            self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+                            log.debug("Data to ThingsBoard: %s", converted_data)
 
-                        handle_stream.close()
+                    handle_stream.close()
 
     def close(self):
         self.__stopped = True

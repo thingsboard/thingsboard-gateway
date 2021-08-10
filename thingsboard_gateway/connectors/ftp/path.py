@@ -57,9 +57,10 @@ class Path:
             for ff in folder_and_files:
                 cur_file_name, cur_file_ext = ff.split('.')
                 if cur_file_ext in COMPATIBLE_FILE_EXTENSIONS and self.__is_file(ftp, ff):
-                    if (file_name == '*' and file_ext == '*') or (
-                            file_ext != '*' and cur_file_ext == file_ext) or (
-                            file_name != '*' and cur_file_name == file_name):
+                    if (file_name == '*' and file_ext == '*') or (file_ext != '*' and cur_file_ext == file_ext and (
+                            (file_name != '*' and file_name == cur_file_name) or file_name == '*')) or (
+                            file_name != '*' and cur_file_name == file_name and (
+                            (file_ext != '*' and file_ext == cur_file_ext) or file_ext == '*')):
                         kwargs[ftp.voidcmd(f"MDTM {ff}")] = (item + '/' + ff)
 
         if self._with_sorting_files:
