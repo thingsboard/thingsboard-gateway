@@ -11,6 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
 import re
 
 from simplejson import dumps
@@ -75,7 +76,10 @@ class FTPUplinkConverter(FTPConverter):
 
         return result
 
-    def _convert_slices_view_data(self, config, data):
+    def _convert_slices_view_data(self, data):
+        get_device_name_from_data = False
+        get_device_type_from_data = False
+
         data_types = {'attributes': 'attributes', 'timeseries': 'telemetry'}
         result = {
             'deviceName': 'asd',
@@ -84,22 +88,46 @@ class FTPUplinkConverter(FTPConverter):
             'telemetry': []
         }
 
+        if '[' in self.__config['devicePatternName'] and ']' in self.__config['devicePatternName']:
+            get_device_name_from_data = True
+        else:
+            result['deviceName'] = self.__config['devicePatternName']
+        if '[' in self.__config['devicePatternType'] and ']' in self.__config['devicePatternType']:
+            get_device_type_from_data = True
+        else:
+            result['deviceType'] = self.__config['devicePatternType']
+
         try:
             for data_type in data_types:
                 for information in self.__config[data_type]:
                     arr = data.split(self.__config['delimiter'])
-                    print(arr)
 
-                    first_index = information['value'][1:-1].split(':')[0] or 0
-                    last_index = information['value'][1:-1].split(':')[1] or len(arr)
+                    if '[' in information['value'] and ']' in information['value']:
+                        split_val_arr = information['value'][1:-1].split(':')
+                        first_val_index = split_val_arr[0] or 0
+                        last_val_index = split_val_arr[1] or len(arr)
 
-                    print(first_index, last_index)
+                        val = arr[int(first_val_index):int(last_val_index)][0]
+                    else:
+                        val = information['value']
 
-                    val = arr[first_index:last_index]
-                    print(val)
+                    if '[' in information['key'] and ']' in information['key']:
+                        split_key_arr = information['key'][1:-1].split(':')
+                        first_key_index = split_key_arr[0] or 0
+                        last_key_index = split_key_arr[1] or len(arr)
 
-                    result[data_types[data_type]].append({information['key']: val})
-                    print(result)
+                        key = arr[int(first_key_index):int(last_key_index)][0]
+                    else:
+                        key = information['key']
+
+                    result[data_types[data_type]].append({key: val})
+
+                    if get_device_name_from_data:
+                        if self.__config['devicePatternName'] == information['value']:
+                            result['deviceName'] = val
+                    if get_device_type_from_data:
+                        if self.__config['devicePatternType'] == information['value']:
+                            result['deviceType'] = val
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
@@ -107,10 +135,10 @@ class FTPUplinkConverter(FTPConverter):
         return result
 
     def convert(self, config, data):
-        if config['file_ext'] == 'csv' or (config['file_ext'] == 'txt' and self.__config[
-            'txt_file_data_view'] == 'TABLE'):  # TODO: add branch for TXT (not table view)
+        if config['file_ext'] == 'csv' or (
+                config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'TABLE'):
             return self._convert_table_view_data(config, data)
         elif config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'SLICED':
-            return self._convert_slices_view_data(config, data)
+            return self._convert_slices_view_data(data)
         else:
             raise Exception('Incorrect txt file data view mode')
