@@ -20,5 +20,4 @@ thingsboard_gateway/storage/data/
 /data/
 /logs/
 __pycache__
-/thingsboard_gateway/config/
 /venv/
