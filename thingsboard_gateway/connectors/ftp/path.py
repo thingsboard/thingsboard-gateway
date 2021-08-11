@@ -163,3 +163,15 @@ class Path:
     @property
     def txt_file_data_view(self):
         return self._txt_file_data_view
+
+    @property
+    def last_polled_time(self):
+        return self._last_polled_time
+
+    @property
+    def poll_period(self):
+        return self._poll_period
+
+    @last_polled_time.setter
+    def last_polled_time(self, value):
+        self._last_polled_time = value

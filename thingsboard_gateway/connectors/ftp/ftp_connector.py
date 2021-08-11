@@ -21,6 +21,7 @@ from ftplib import FTP, FTP_TLS
 import io
 import simplejson
 from re import fullmatch
+from timeit import default_timer as timer
 
 from thingsboard_gateway.connectors.ftp.path import Path
 from thingsboard_gateway.connectors.ftp.file import File
@@ -57,6 +58,7 @@ class FTPConnector(Connector, Thread):
         self.__attribute_updates = []
         self._connected = False
         self.__rpc_requests = []
+        self.start_time = timer()
         self.__fill_rpc_requests()
         self.host = self.__config['host']
         self.port = self.__config.get('port', 21)
@@ -90,10 +92,9 @@ class FTPConnector(Connector, Thread):
                 for path in self.paths:
                     path.find_files(ftp)
 
-                self.__process_paths(ftp)
-
                 while True:
                     sleep(.01)
+                    self.__process_paths(ftp)
                     if self.__stopped:
                         break
 
@@ -127,58 +128,60 @@ class FTPConnector(Connector, Thread):
             self.__log.info('Connected to FTP server')
 
     def __process_paths(self, ftp):
-        # TODO: call path on timer
         for path in self.paths:
-            configuration = path.config
-            converter = FTPUplinkConverter(configuration)
-            # TODO: check if to rescan path
-            for file in path.files:
-                current_hash = file.get_current_hash(ftp)
-                if ((file.has_hash() and current_hash != file.hash) or not file.has_hash()) and file.check_size_limit(
-                        ftp):
-                    file.set_new_hash(current_hash)
+            time_point = timer()
+            if time_point - path.last_polled_time >= path.poll_period or path.last_polled_time == 0:
+                configuration = path.config
+                converter = FTPUplinkConverter(configuration)
+                path.last_polled_time = time_point
+                # TODO: check if to rescan path
+                for file in path.files:
+                    current_hash = file.get_current_hash(ftp)
+                    if ((file.has_hash() and current_hash != file.hash) or not file.has_hash()) and file.check_size_limit(
+                            ftp):
+                        file.set_new_hash(current_hash)
 
-                    handle_stream = io.BytesIO()
+                        handle_stream = io.BytesIO()
 
-                    ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
+                        ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
 
-                    handled_str = str(handle_stream.getvalue(), 'UTF-8')
-                    handled_array = handled_str.split('\n')
+                        handled_str = str(handle_stream.getvalue(), 'UTF-8')
+                        handled_array = handled_str.split('\n')
 
-                    convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
+                        convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
 
-                    if convert_conf['file_ext'] == 'json':
-                        json_data = simplejson.loads(handled_str)
-                        if isinstance(json_data, list):
-                            for obj in json_data:
-                                converted_data = converter.convert(convert_conf, obj)
+                        if convert_conf['file_ext'] == 'json':
+                            json_data = simplejson.loads(handled_str)
+                            if isinstance(json_data, list):
+                                for obj in json_data:
+                                    converted_data = converter.convert(convert_conf, obj)
+                                    self.__gateway.send_to_storage(self.getName(), converted_data)
+                                    self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+                                    log.debug("Data to ThingsBoard: %s", converted_data)
+                            else:
+                                converted_data = converter.convert(convert_conf, json_data)
                                 self.__gateway.send_to_storage(self.getName(), converted_data)
                                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                                 log.debug("Data to ThingsBoard: %s", converted_data)
                         else:
-                            converted_data = converter.convert(convert_conf, json_data)
-                            self.__gateway.send_to_storage(self.getName(), converted_data)
-                            self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                            log.debug("Data to ThingsBoard: %s", converted_data)
-                    else:
-                        cursor = file.cursor or 0
+                            cursor = file.cursor or 0
 
-                        for (index, line) in enumerate(handled_array):
-                            if index == 0 and not path.txt_file_data_view == 'SLICED':
-                                convert_conf['headers'] = line.split(path.delimiter)
-                            else:
-                                if file.read_mode == File.ReadMode.PARTIAL and index >= cursor:
-                                    converted_data = converter.convert(convert_conf, line)
-                                    if index + 1 == len(handled_array):
-                                        file.cursor = index
+                            for (index, line) in enumerate(handled_array):
+                                if index == 0 and not path.txt_file_data_view == 'SLICED':
+                                    convert_conf['headers'] = line.split(path.delimiter)
                                 else:
-                                    converted_data = converter.convert(convert_conf, line)
+                                    if file.read_mode == File.ReadMode.PARTIAL and index >= cursor:
+                                        converted_data = converter.convert(convert_conf, line)
+                                        if index + 1 == len(handled_array):
+                                            file.cursor = index
+                                    else:
+                                        converted_data = converter.convert(convert_conf, line)
 
-                                self.__gateway.send_to_storage(self.getName(), converted_data)
-                                self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                                log.debug("Data to ThingsBoard: %s", converted_data)
+                                    self.__gateway.send_to_storage(self.getName(), converted_data)
+                                    self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+                                    log.debug("Data to ThingsBoard: %s", converted_data)
 
-                    handle_stream.close()
+                        handle_stream.close()
 
     def close(self):
         self.__stopped = True
