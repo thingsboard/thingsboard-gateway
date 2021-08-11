@@ -449,7 +449,7 @@ class OpcUaConnector(Thread, Connector):
                 log.error("Device node not found with expression: %s", TBUtility.get_value(device["deviceNodePattern"], get_tag=True))
         return result
 
-    def get_node_path(self, node:Node):
+    def get_node_path(self, node: Node):
         return '\\.'.join(node.get_browse_name().Name for node in node.get_path(200000))
 
     def __search_node(self, current_node, fullpath, search_method=False, result=None):
