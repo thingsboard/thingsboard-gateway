@@ -134,7 +134,10 @@ class FTPConnector(Connector, Thread):
                 configuration = path.config
                 converter = FTPUplinkConverter(configuration)
                 path.last_polled_time = time_point
-                # TODO: check if to rescan path
+
+                if '*' in path.path:
+                    path.find_files(ftp)
+
                 for file in path.files:
                     current_hash = file.get_current_hash(ftp)
                     if ((file.has_hash() and current_hash != file.hash) or not file.has_hash()) and file.check_size_limit(

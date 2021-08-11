@@ -169,6 +169,10 @@ class Path:
         return self._last_polled_time
 
     @property
+    def path(self):
+        return self._path
+
+    @property
     def poll_period(self):
         return self._poll_period
 
