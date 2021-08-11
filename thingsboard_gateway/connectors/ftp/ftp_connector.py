@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+import re
 from time import sleep
 from queue import Queue
 from random import choice
@@ -20,6 +20,7 @@ from threading import Thread
 from ftplib import FTP, FTP_TLS
 import io
 import simplejson
+from re import fullmatch
 
 from thingsboard_gateway.connectors.ftp.path import Path
 from thingsboard_gateway.connectors.ftp.file import File
@@ -42,7 +43,6 @@ class FTPConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.__log = log
-        self.__rpc_requests = []
         self.__config = config
         self.__connector_type = connector_type
         self.__gateway = gateway
@@ -56,6 +56,8 @@ class FTPConnector(Connector, Thread):
         self.__convert_queue = Queue(1000000)
         self.__attribute_updates = []
         self._connected = False
+        self.__rpc_requests = []
+        self.__fill_rpc_requests()
         self.host = self.__config['host']
         self.port = self.__config.get('port', 21)
         self.__ftp = FTP_TLS if self.__tls_support else FTP
@@ -66,7 +68,7 @@ class FTPConnector(Connector, Thread):
                 telemetry=obj['timeseries'],
                 device_name=obj['devicePatternName'],
                 attributes=obj['attributes'],
-                txt_file_data_view=obj['txtFileDataView'],
+                txt_file_data_view=obj.get('txtFileDataView', 'TABLE'),
                 with_sorting_files=obj.get('with_sorting_files', True),
                 poll_period=obj.get('pollPeriod', 60),
                 max_size=obj.get('maxFileSize', 5),
@@ -122,7 +124,7 @@ class FTPConnector(Connector, Thread):
             sleep(10)
         else:
             self._connected = True
-            self.__log.info('FTP connected')
+            self.__log.info('Connected to FTP server')
 
     def __process_paths(self, ftp):
         # TODO: call path on timer
@@ -188,7 +190,38 @@ class FTPConnector(Connector, Thread):
         return self._connected
 
     def on_attributes_update(self, content):
+        log.debug(content)
         pass
 
+    def __fill_rpc_requests(self):
+        for rpc_request in self.__config.get("serverSideRpc", []):
+            self.__rpc_requests.append(rpc_request)
+
     def server_side_rpc_handler(self, content):
-        pass
+        try:
+            for rpc_request in self.__rpc_requests:
+                if fullmatch(rpc_request['deviceNameFilter'], content['device']) and fullmatch(
+                        rpc_request['methodFilter'], content['data']['method']):
+                    with self.__ftp() as ftp:
+                        self.__connect(ftp)
+
+                        converted_data = None
+                        if content['data']['method'] == 'write':
+                            try:
+                                arr = re.sub("'", '', content['data']['params']).split(';')
+                                io_stream = io.BytesIO(str.encode(arr[1]))
+                                ftp.storbinary('STOR ' + arr[0], io_stream)
+                                io_stream.close()
+                            except Exception as e:
+                                log.error(e)
+                                converted_data = '{"error": "' + str(e) + '"}'
+                        else:
+                            handle_stream = io.BytesIO()
+                            ftp.retrbinary('RETR ' + content['data']['params'], handle_stream.write)
+                            converted_data = str(handle_stream.getvalue(), 'UTF-8')
+                            handle_stream.close()
+
+                        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
+                                                      success_sent=True, content=converted_data)
+        except Exception as e:
+            log.exception(e)
