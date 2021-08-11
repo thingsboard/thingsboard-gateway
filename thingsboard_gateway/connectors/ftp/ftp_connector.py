@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import time
+from time import sleep
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
@@ -46,8 +46,8 @@ class FTPConnector(Connector, Thread):
         self.__config = config
         self.__connector_type = connector_type
         self.__gateway = gateway
-        self.security = (self.__config["security"]["username"], self.__config["security"]["password"]) if \
-            self.__config["security"]["type"] == 'basic' else ('anonymous', 'anonymous@')
+        self.security = {**self.__config['security']} if self.__config['security']['type'] == 'basic' else {
+            'username': 'anonymous', "password": 'anonymous@'}
         self.__tls_support = self.__config.get("TLSSupport", False)
         self.setName(self.__config.get("name", "".join(choice(ascii_lowercase) for _ in range(5))))
         self.daemon = True
@@ -59,11 +59,22 @@ class FTPConnector(Connector, Thread):
         self.host = self.__config['host']
         self.port = self.__config.get('port', 21)
         self.__ftp = FTP_TLS if self.__tls_support else FTP
-        self.paths = [Path(path=obj['path'], with_sorting_files=True, poll_period=60, read_mode=obj['readMode'],
-                           max_size=obj['maxFileSize'], delimiter=obj['delimiter'], telemetry=obj['timeseries'],
-                           device_name=obj['devicePatternName'], device_type=obj.get('devicePatternType', 'Device'),
-                           attributes=obj['attributes'], txt_file_data_view=obj['txtFileDataView']) for obj
-                      in self.__config['paths']]
+        self.paths = [
+            Path(
+                path=obj['path'],
+                read_mode=obj['readMode'],
+                telemetry=obj['timeseries'],
+                device_name=obj['devicePatternName'],
+                attributes=obj['attributes'],
+                txt_file_data_view=obj['txtFileDataView'],
+                with_sorting_files=obj.get('with_sorting_files', True),
+                poll_period=obj.get('pollPeriod', 60),
+                max_size=obj.get('maxFileSize', 5),
+                delimiter=obj.get('delimiter', ','),
+                device_type=obj.get('devicePatternType', 'Device')
+            )
+            for obj in self.__config['paths']
+        ]
 
     def open(self):
         self.__stopped = False
@@ -80,7 +91,7 @@ class FTPConnector(Connector, Thread):
                 self.__process_paths(ftp)
 
                 while True:
-                    time.sleep(.01)
+                    sleep(.01)
                     if self.__stopped:
                         break
 
@@ -99,16 +110,16 @@ class FTPConnector(Connector, Thread):
             ftp.connect(self.host, self.port)
 
             if isinstance(ftp, FTP_TLS):
-                ftp.sendcmd('USER ' + self.security[0])
-                ftp.sendcmd('PASS ' + self.security[1])
+                ftp.sendcmd('USER ' + self.security['username'])
+                ftp.sendcmd('PASS ' + self.security['password'])
                 ftp.prot_p()
                 self.__log.info('Data protection level set to "private"')
             else:
-                ftp.login(self.security[0], self.security[1])
+                ftp.login(self.security['username'], self.security['password'])
 
         except Exception as e:
             self.__log.error(e)
-            time.sleep(10)
+            sleep(10)
         else:
             self._connected = True
             self.__log.info('FTP connected')
@@ -116,14 +127,7 @@ class FTPConnector(Connector, Thread):
     def __process_paths(self, ftp):
         # TODO: call path on timer
         for path in self.paths:
-            configuration = {
-                'delimiter': path.delimiter,
-                'devicePatternName': path.device_name,
-                'devicePatternType': path.device_type,
-                'timeseries': path.telemetry,
-                'attributes': path.attributes,
-                'txt_file_data_view': path.txt_file_data_view
-            }
+            configuration = path.config
             converter = FTPUplinkConverter(configuration)
             # TODO: check if to rescan path
             for file in path.files:
