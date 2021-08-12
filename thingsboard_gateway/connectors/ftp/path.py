@@ -13,10 +13,8 @@
 #     limitations under the License.
 
 import os
-import re
-from regex import fullmatch, compile
+from regex import compile
 
-from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.connectors.ftp.file import File
 
 COMPATIBLE_FILE_EXTENSIONS = ('json', 'txt', 'csv')
