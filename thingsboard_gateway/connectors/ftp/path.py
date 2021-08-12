@@ -21,9 +21,9 @@ COMPATIBLE_FILE_EXTENSIONS = ('json', 'txt', 'csv')
 
 
 class Path:
-    def __init__(self, path: str, with_sorting_files: bool, poll_period: int, read_mode: str, max_size: int,
-                 delimiter: str, telemetry: list, device_name: str, device_type: str, attributes: list,
-                 txt_file_data_view: str):
+    def __init__(self, path: str, delimiter: str, telemetry: list, device_name: str, attributes: list,
+                 txt_file_data_view: str, poll_period=60, with_sorting_files=True, device_type='Device', max_size=5,
+                 read_mode='FULL'):
         self._path = path
         self._with_sorting_files = with_sorting_files
         self._poll_period = poll_period
