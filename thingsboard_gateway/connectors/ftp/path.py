@@ -13,6 +13,8 @@
 #     limitations under the License.
 
 import os
+import re
+from regex import fullmatch, compile
 
 from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.connectors.ftp.file import File
@@ -63,6 +65,7 @@ class Path:
 
     def __get_files(self, ftp, paths, file_name, file_ext):
         kwargs = {}
+        pattern = compile(file_name.replace('*', '.*'))
         for item in paths:
             ftp.cwd(item)
 
@@ -70,11 +73,12 @@ class Path:
 
             for ff in folder_and_files:
                 cur_file_name, cur_file_ext = ff.split('.')
-                if cur_file_ext in COMPATIBLE_FILE_EXTENSIONS and self.__is_file(ftp, ff):
-                    if (file_name == '*' and file_ext == '*') or (file_ext != '*' and cur_file_ext == file_ext and (
-                            (file_name != '*' and file_name == cur_file_name) or file_name == '*')) or (
-                            file_name != '*' and cur_file_name == file_name and (
-                            (file_ext != '*' and file_ext == cur_file_ext) or file_ext == '*')):
+                if cur_file_ext in COMPATIBLE_FILE_EXTENSIONS and self.__is_file(ftp, ff) and ftp.size(ff):
+                    if (file_name == file_ext == '*') \
+                            or pattern.fullmatch(cur_file_name) \
+                            or (cur_file_ext == file_ext and file_name == cur_file_name) \
+                            or (file_name != '*' and cur_file_name == file_name and (
+                            file_ext == cur_file_ext or file_ext == '*')):
                         kwargs[ftp.voidcmd(f"MDTM {ff}")] = (item + '/' + ff)
 
         if self._with_sorting_files:
@@ -120,8 +124,6 @@ class Path:
         final_arr = self.__get_files(ftp, final_arr, filename, fileex)
 
         ftp.cwd(current_dir)
-
-        log.debug(f'Find files {final_arr}')
 
         self._files = final_arr
 
