@@ -287,6 +287,7 @@ class TBGatewayService:
         return self._config_dir
 
     def subscribe_to_required_topics(self):
+        self.tb_client.client.clean_device_sub_dict()
         self.tb_client.client.gw_set_server_side_rpc_request_handler(self._rpc_request_handler)
         self.tb_client.client.set_server_side_rpc_request_handler(self._rpc_request_handler)
         self.tb_client.client.subscribe_to_all_attributes(self._attribute_update_callback)

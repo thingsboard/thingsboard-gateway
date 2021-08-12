@@ -288,6 +288,9 @@ class TBDeviceMqttClient:
                 self.__device_sub_dict = {}
             self.__device_sub_dict = dict((k, v) for k, v in self.__device_sub_dict.items() if v)
 
+    def clean_device_sub_dict(self):
+        self.__device_sub_dict = {}
+
     def subscribe_to_all_attributes(self, callback):
         return self.subscribe_to_attribute("*", callback)
 
