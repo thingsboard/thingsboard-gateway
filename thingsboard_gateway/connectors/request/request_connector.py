@@ -50,7 +50,8 @@ class RequestConnector(Connector, Thread):
         self.__config = config
         self.__connector_type = connector_type
         self.__gateway = gateway
-        self.__security = HTTPBasicAuth(self.__config["security"]["username"], self.__config["security"]["password"]) if self.__config["security"]["type"] == "basic" else None
+        self.__security = HTTPBasicAuth(self.__config["security"]["username"], self.__config["security"]["password"]) if \
+        self.__config["security"]["type"] == "basic" else None
         self.__host = None
         self.__service_headers = {}
         if "http://" in self.__config["host"].lower() or "https://" in self.__config["host"].lower():
@@ -74,7 +75,9 @@ class RequestConnector(Connector, Thread):
             if self.__requests_in_progress:
                 for request in self.__requests_in_progress:
                     if time() >= request["next_time"]:
-                        thread = Thread(target=self.__send_request, args=(request, self.__convert_queue, log), daemon=True, name="Request to endpoint \'%s\' Thread" % (request["config"].get("url")))
+                        thread = Thread(target=self.__send_request, args=(request, self.__convert_queue, log),
+                                        daemon=True,
+                                        name="Request to endpoint \'%s\' Thread" % (request["config"].get("url")))
                         thread.start()
             else:
                 sleep(.1)
@@ -83,7 +86,8 @@ class RequestConnector(Connector, Thread):
     def on_attributes_update(self, content):
         try:
             for attribute_request in self.__attribute_updates:
-                if fullmatch(attribute_request["deviceNameFilter"], content["device"]) and fullmatch(attribute_request["attributeFilter"], list(content["data"].keys())[0]):
+                if fullmatch(attribute_request["deviceNameFilter"], content["device"]) and fullmatch(
+                        attribute_request["attributeFilter"], list(content["data"].keys())[0]):
                     converted_data = attribute_request["converter"].convert(attribute_request, content)
                     response_queue = Queue(1)
                     request_dict = {"config": {**attribute_request,
@@ -105,7 +109,8 @@ class RequestConnector(Connector, Thread):
     def server_side_rpc_handler(self, content):
         try:
             for rpc_request in self.__rpc_requests:
-                if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and fullmatch(rpc_request["methodFilter"], content["data"]["method"]):
+                if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and fullmatch(
+                        rpc_request["methodFilter"], content["data"]["method"]):
                     converted_data = rpc_request["converter"].convert(rpc_request, content)
                     response_queue = Queue(1)
                     request_dict = {"config": {**rpc_request,
@@ -121,8 +126,10 @@ class RequestConnector(Connector, Thread):
                     if not response_queue.empty():
                         response = response_queue.get_nowait()
                         log.debug(response)
-                        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], content=response[2])
-                    self.__gateway.send_rpc_reply(success_sent=True)
+                        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
+                                                      content=response[2])
+                    self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
+                                                  success_sent=True)
 
                     del response_queue
         except Exception as e:
@@ -140,7 +147,8 @@ class RequestConnector(Connector, Thread):
                         log.debug('Custom converter for url %s - found!', endpoint["url"])
                         converter = module(endpoint)
                     else:
-                        log.error("\n\nCannot find extension module for %s url.\nPlease check your configuration.\n", endpoint["url"])
+                        log.error("\n\nCannot find extension module for %s url.\nPlease check your configuration.\n",
+                                  endpoint["url"])
                 else:
                     converter = JsonRequestUplinkConverter(endpoint)
                 self.__requests_in_progress.append({"config": endpoint,
@@ -173,7 +181,8 @@ class RequestConnector(Connector, Thread):
         try:
             request["next_time"] = time() + request["config"].get("scanPeriod", 10)
             request_url_from_config = request["config"]["url"]
-            request_url_from_config = str('/' + request_url_from_config) if request_url_from_config[0] != '/' else request_url_from_config
+            request_url_from_config = str('/' + request_url_from_config) if request_url_from_config[
+                                                                                0] != '/' else request_url_from_config
             logger.debug(request_url_from_config)
             url = self.__host + request_url_from_config
             logger.debug(url)
@@ -228,9 +237,11 @@ class RequestConnector(Connector, Thread):
                             data_to_send[converted_data["deviceName"]] = converted_data
                         else:
                             if converted_data["telemetry"]:
-                                data_to_send[converted_data["deviceName"]]["telemetry"].append(converted_data["telemetry"][0])
+                                data_to_send[converted_data["deviceName"]]["telemetry"].append(
+                                    converted_data["telemetry"][0])
                             if converted_data["attributes"]:
-                                data_to_send[converted_data["deviceName"]]["attributes"].append(converted_data["attributes"][0])
+                                data_to_send[converted_data["deviceName"]]["attributes"].append(
+                                    converted_data["attributes"][0])
                     for device in data_to_send:
                         self.__gateway.send_to_storage(self.get_name(), data_to_send[device])
                         self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
@@ -257,5 +268,3 @@ class RequestConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
-
-
