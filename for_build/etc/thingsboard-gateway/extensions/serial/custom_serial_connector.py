@@ -1,4 +1,4 @@
-#     Copyright 2020. ThingsBoard
+#     Copyright 2021. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ from string import ascii_lowercase
 import serial
 
 from thingsboard_gateway.connectors.connector import Connector, log    # Import base class for connector and logger
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -94,7 +95,7 @@ class CustomSerialConnector(Thread, Connector):    # Define a connector class, i
             if devices_config is not None:
                 for device_config in devices_config:
                     if device_config.get('converter') is not None:
-                        converter = TBUtility.check_and_import(connector_type, device_config['converter'])
+                        converter = TBModuleLoader.import_module(connector_type, device_config['converter'])
                         self.__devices[device_config['name']] = {'converter': converter(device_config),
                                                                  'device_config': device_config}
                     else:

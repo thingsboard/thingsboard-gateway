@@ -13,6 +13,9 @@
         "attributesPollPeriod": 5000,
         "timeseriesPollPeriod": 5000,
         "sendDataOnlyOnChange": true,
+        "connectAttemptTimeMs": 5000,
+        "connectAttemptCount": 5,
+        "waitAfterFailedAttemptsMs": 300000,
         "attributes": [
           {
             "tag": "string_read",
