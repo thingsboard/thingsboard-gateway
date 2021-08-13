@@ -49,18 +49,6 @@ class Path:
         ftp.cwd(current)
         return False
 
-    @staticmethod
-    def __folder_exist(ftp, folder_name):
-        current = ftp.pwd()
-
-        try:
-            ftp.cwd(folder_name)
-        except Exception:
-            ftp.cwd(current)
-            return False
-        ftp.cwd(current)
-        return True
-
     def __get_files(self, ftp, paths, file_name, file_ext):
         kwargs = {}
         pattern = compile(file_name.replace('*', '.*'))
@@ -110,13 +98,13 @@ class Path:
                     current = ftp.pwd()
                     for (j, k) in enumerate(final_arr):
                         ftp.cwd(k)
-                        if self.__folder_exist(ftp, item):
+                        if not self.__is_file(ftp, item):
                             final_arr[j] = str(final_arr[j]) + '/' + item
                         else:
                             final_arr = []
                         ftp.cwd(current)
                 else:
-                    if self.__folder_exist(ftp, item):
+                    if not self.__is_file(ftp, item):
                         final_arr.append(item)
 
         final_arr = self.__get_files(ftp, final_arr, filename, fileex)

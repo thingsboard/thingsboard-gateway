@@ -25,26 +25,26 @@ class FTPUplinkConverter(FTPConverter):
     def __init__(self, config):
         self.__config = config
 
-    def _convert_table_view_data(self, config, data):
+    def _get_required_data(self, left_symbol, right_symbol):
+        dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
+        data_types = {"attributes": "attributes", "timeseries": "telemetry"}
         get_device_name_from_data = False
         get_device_type_from_data = False
-        data_types = {'attributes': 'attributes', 'timeseries': 'telemetry'}
-        result = {
-            'deviceName': None,
-            'deviceType': None,
-            'attributes': [],
-            'telemetry': []
-        }
 
-        if '${' in self.__config['devicePatternName'] and '}' in self.__config['devicePatternName']:
+        if left_symbol in self.__config['devicePatternName'] and right_symbol in self.__config['devicePatternName']:
             get_device_name_from_data = True
         else:
-            result['deviceName'] = self.__config['devicePatternName']
-        if '${' in self.__config['devicePatternType'] and '}' in self.__config['devicePatternType']:
+            dict_result['deviceName'] = self.__config['devicePatternName']
+        if left_symbol in self.__config['devicePatternType'] and right_symbol in self.__config['devicePatternType']:
             get_device_type_from_data = True
         else:
-            result['deviceType'] = self.__config['devicePatternType']
+            dict_result['deviceType'] = self.__config['devicePatternType']
 
+        return dict_result, data_types, get_device_name_from_data, get_device_type_from_data
+
+    def _convert_table_view_data(self, config, data):
+        dict_result, data_types, get_device_name_from_data, get_device_type_from_data = self._get_required_data('${',
+                                                                                                                '}')
         try:
             for data_type in data_types:
                 for information in self.__config[data_type]:
@@ -59,23 +59,23 @@ class FTPUplinkConverter(FTPConverter):
                     if '${' in information['value'] and '}' in information['value']:
                         val_index = config['headers'].index(re.sub(r'[^\w]', '', information['value']))
 
-                    result[data_types[data_type]].append({
+                    dict_result[data_types[data_type]].append({
                         arr[key_index] if isinstance(key_index, int) else key_index:
                             arr[val_index] if isinstance(val_index, int) else val_index
                     })
 
                     if get_device_name_from_data:
                         index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternName']))
-                        result['deviceName'] = arr[index]
+                        dict_result['deviceName'] = arr[index]
                     if get_device_type_from_data:
                         index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternType']))
-                        result['deviceType'] = arr[index]
+                        dict_result['deviceType'] = arr[index]
 
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
 
-        return result
+        return dict_result
 
     @staticmethod
     def _get_key_or_value(key, arr):
@@ -89,26 +89,8 @@ class FTPUplinkConverter(FTPConverter):
             return key
 
     def _convert_slices_view_data(self, data):
-        get_device_name_from_data = False
-        get_device_type_from_data = False
-
-        data_types = {'attributes': 'attributes', 'timeseries': 'telemetry'}
-        result = {
-            'deviceName': None,
-            'deviceType': None,
-            'attributes': [],
-            'telemetry': []
-        }
-
-        if '[' in self.__config['devicePatternName'] and ']' in self.__config['devicePatternName']:
-            get_device_name_from_data = True
-        else:
-            result['deviceName'] = self.__config['devicePatternName']
-        if '[' in self.__config['devicePatternType'] and ']' in self.__config['devicePatternType']:
-            get_device_type_from_data = True
-        else:
-            result['deviceType'] = self.__config['devicePatternType']
-
+        dict_result, data_types, get_device_name_from_data, get_device_type_from_data = self._get_required_data('[',
+                                                                                                                ']')
         try:
             for data_type in data_types:
                 for information in self.__config[data_type]:
@@ -117,23 +99,24 @@ class FTPUplinkConverter(FTPConverter):
                     val = self._get_key_or_value(information['value'], arr)
                     key = self._get_key_or_value(information['key'], arr)
 
-                    result[data_types[data_type]].append({key: val})
+                    dict_result[data_types[data_type]].append({key: val})
 
                     if get_device_name_from_data:
                         if self.__config['devicePatternName'] == information['value']:
-                            result['deviceName'] = val
+                            dict_result['deviceName'] = val
                     if get_device_type_from_data:
                         if self.__config['devicePatternType'] == information['value']:
-                            result['deviceType'] = val
+                            dict_result['deviceType'] = val
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
 
-        return result
+        return dict_result
 
     def _convert_json_file(self, data):
         data_types = {"attributes": "attributes", "timeseries": "telemetry"}
         dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
+
         try:
             if self.__config.get("devicePatternName") is not None:
                 dict_result["deviceName"] = TBUtility.get_value(self.__config.get("devicePatternName"), data,

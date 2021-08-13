@@ -212,8 +212,7 @@ class FTPConnector(Connector, Thread):
         try:
             for attribute_request in self.__attribute_updates:
                 if fullmatch(attribute_request["deviceNameFilter"], content["device"]):
-                    attribute_key = list(content['data'].keys())[0]
-                    attribute_value = list(content['data'].values())[0]
+                    attribute_key, attribute_value = content['data'].popitem()
 
                     path_str = attribute_request['path'].replace('${attributeKey}', attribute_key).replace(
                         '${attributeValue}', attribute_value)

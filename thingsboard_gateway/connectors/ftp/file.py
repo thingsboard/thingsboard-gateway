@@ -13,7 +13,7 @@
 #     limitations under the License.
 
 from enum import Enum
-import hashlib
+from zlib import crc32
 
 
 class File:
@@ -55,8 +55,7 @@ class File:
         return True if self._hash else False
 
     def get_current_hash(self, ftp):
-        return hashlib.sha256(
-            (ftp.voidcmd(f'MDTM {self._path_to_file}') + str(ftp.size(self.path_to_file))).encode('utf-8')).hexdigest()
+        return crc32((ftp.voidcmd(f'MDTM {self._path_to_file}') + str(ftp.size(self.path_to_file))).encode('utf-8'))
 
     def set_new_hash(self, file_hash):
         self._hash = file_hash
