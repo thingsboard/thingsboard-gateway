@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 import re
-from time import sleep
+from time import sleep, perf_counter as timer
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
@@ -21,7 +21,6 @@ from ftplib import FTP, FTP_TLS
 import io
 import simplejson
 from re import fullmatch
-from timeit import default_timer as timer
 
 from thingsboard_gateway.connectors.ftp.path import Path
 from thingsboard_gateway.connectors.ftp.file import File
