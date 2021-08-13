@@ -24,10 +24,10 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 class FTPUplinkConverter(FTPConverter):
     def __init__(self, config):
         self.__config = config
+        self.__data_types = {"attributes": "attributes", "timeseries": "telemetry"}
 
     def _get_required_data(self, left_symbol, right_symbol):
         dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
-        data_types = {"attributes": "attributes", "timeseries": "telemetry"}
         get_device_name_from_data = False
         get_device_type_from_data = False
 
@@ -40,13 +40,12 @@ class FTPUplinkConverter(FTPConverter):
         else:
             dict_result['deviceType'] = self.__config['devicePatternType']
 
-        return dict_result, data_types, get_device_name_from_data, get_device_type_from_data
+        return dict_result, get_device_name_from_data, get_device_type_from_data
 
     def _convert_table_view_data(self, config, data):
-        dict_result, data_types, get_device_name_from_data, get_device_type_from_data = self._get_required_data('${',
-                                                                                                                '}')
+        dict_result, get_device_name_from_data, get_device_type_from_data = self._get_required_data('${', '}')
         try:
-            for data_type in data_types:
+            for data_type in self.__data_types:
                 for information in self.__config[data_type]:
                     arr = data.split(self.__config['delimiter'])
 
@@ -59,7 +58,7 @@ class FTPUplinkConverter(FTPConverter):
                     if '${' in information['value'] and '}' in information['value']:
                         val_index = config['headers'].index(re.sub(r'[^\w]', '', information['value']))
 
-                    dict_result[data_types[data_type]].append({
+                    dict_result[self.__data_types[data_type]].append({
                         arr[key_index] if isinstance(key_index, int) else key_index:
                             arr[val_index] if isinstance(val_index, int) else val_index
                     })
@@ -89,17 +88,16 @@ class FTPUplinkConverter(FTPConverter):
             return key
 
     def _convert_slices_view_data(self, data):
-        dict_result, data_types, get_device_name_from_data, get_device_type_from_data = self._get_required_data('[',
-                                                                                                                ']')
+        dict_result, get_device_name_from_data, get_device_type_from_data = self._get_required_data('[', ']')
         try:
-            for data_type in data_types:
+            for data_type in self.__data_types:
                 for information in self.__config[data_type]:
                     arr = data.split(self.__config['delimiter'])
 
                     val = self._get_key_or_value(information['value'], arr)
                     key = self._get_key_or_value(information['key'], arr)
 
-                    dict_result[data_types[data_type]].append({key: val})
+                    dict_result[self.__data_types[data_type]].append({key: val})
 
                     if get_device_name_from_data:
                         if self.__config['devicePatternName'] == information['value']:
@@ -114,7 +112,6 @@ class FTPUplinkConverter(FTPConverter):
         return dict_result
 
     def _convert_json_file(self, data):
-        data_types = {"attributes": "attributes", "timeseries": "telemetry"}
         dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
 
         try:
@@ -131,8 +128,8 @@ class FTPUplinkConverter(FTPConverter):
             log.exception(e)
 
         try:
-            for datatype in data_types:
-                dict_result[data_types[datatype]] = []
+            for datatype in self.__data_types:
+                dict_result[self.__data_types[datatype]] = []
                 for datatype_config in self.__config.get(datatype, []):
                     value = TBUtility.get_value(datatype_config["value"], data, datatype_config["type"],
                                                 expression_instead_none=True)
@@ -153,11 +150,11 @@ class FTPUplinkConverter(FTPConverter):
                                                                       str(value)) if is_valid_value else value
                         if datatype == 'timeseries' and (
                                 data.get("ts") is not None or data.get("timestamp") is not None):
-                            dict_result[data_types[datatype]].append(
+                            dict_result[self.__data_types[datatype]].append(
                                 {"ts": data.get('ts', data.get('timestamp', int(time()))),
                                  'values': {full_key: full_value}})
                         else:
-                            dict_result[data_types[datatype]].append({full_key: full_value})
+                            dict_result[self.__data_types[datatype]].append({full_key: full_value})
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
             log.exception(e)
