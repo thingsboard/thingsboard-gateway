@@ -54,7 +54,8 @@ setup(
         'paho-mqtt',
         'PyYAML',
         'simplejson',
-        'requests'
+        'requests',
+        'environs'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={

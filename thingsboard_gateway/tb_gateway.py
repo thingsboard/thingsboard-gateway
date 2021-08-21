@@ -14,6 +14,12 @@
 
 from os import path, listdir, mkdir, curdir
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
+from _reloader import run_with_reloader
+import environs
+
+env = environs.Env()
+env.read_env('./config/.env')
+DEBUG = env.bool('DEBUG', False)
 
 
 def main():
@@ -27,4 +33,4 @@ def daemon():
 
 
 if __name__ == '__main__':
-    main()
+    run_with_reloader(main) if DEBUG else main()
