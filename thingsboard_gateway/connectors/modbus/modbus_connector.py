@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+import logging
 import time
 import threading
 from random import choice
@@ -53,8 +53,9 @@ class ModbusConnector(Connector, threading.Thread):
         self.__gateway = gateway
         self._connector_type = connector_type
         self.__config = config.get(CONFIG_SERVER_SECTION_PARAMETER)
+        self.__previous_master_config = dict()
         self.__current_master, self.__available_functions = self.__configure_master()
-        self.__default_config_parameters = [HOST_PARAMETER, 
+        self.__default_config_parameters = [HOST_PARAMETER,
                                             PORT_PARAMETER, 
                                             BAUDRATE_PARAMETER, 
                                             TIMEOUT_PARAMETER, 
@@ -66,7 +67,6 @@ class ModbusConnector(Connector, threading.Thread):
                                             TYPE_PARAMETER]
         self.__byte_order = self.__config.get(BYTE_ORDER_PARAMETER)
         self.__word_order = self.__config.get(WORD_ORDER_PARAMETER)
-        self.__configure_master()
         self.__devices = {}
         self.setName(self.__config.get("name", 'Modbus Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__load_converters()
@@ -83,7 +83,6 @@ class ModbusConnector(Connector, threading.Thread):
         log.info("Starting Modbus connector")
 
     def run(self):
-        self.__connect_to_current_master()
         self.__connected = True
 
         while True:
@@ -221,8 +220,8 @@ class ModbusConnector(Connector, threading.Thread):
         connect_attempt_count = 5
         connect_attempt_time_ms = 100
         wait_after_failed_attempts_ms = 300000
-        if device is None:
-            device = list(self.__devices.keys())[0]
+        # if device is None:
+        #     device = list(self.__devices.keys())[0]
         if self.__devices[device].get(MASTER_PARAMETER) is None:
             self.__devices[device][MASTER_PARAMETER], self.__devices[device][AVAILABLE_FUNCTIONS_PARAMETER] = self.__configure_master(
                 self.__devices[device][CONFIG_SECTION_PARAMETER])
@@ -262,35 +261,40 @@ class ModbusConnector(Connector, threading.Thread):
     def __configure_master(self, config=None):
         current_config = self.__config if config is None else config
 
-        host = current_config[HOST_PARAMETER] if current_config.get(HOST_PARAMETER) is not None else self.__config.get(HOST_PARAMETER, "localhost")
+        master_config = dict()
+        master_config["host"] = current_config[HOST_PARAMETER] if current_config.get(HOST_PARAMETER) is not None else self.__config.get(HOST_PARAMETER, "localhost")
         try:
-            port = int(current_config[PORT_PARAMETER]) if current_config.get(PORT_PARAMETER) is not None else self.__config.get(int(PORT_PARAMETER), 502)
+            master_config["port"] = int(current_config[PORT_PARAMETER]) if current_config.get(PORT_PARAMETER) is not None else self.__config.get(int(PORT_PARAMETER), 502)
         except ValueError:
-            port = current_config[PORT_PARAMETER] if current_config.get(PORT_PARAMETER) is not None else self.__config.get(PORT_PARAMETER, 502)
-        baudrate = current_config[BAUDRATE_PARAMETER] if current_config.get(BAUDRATE_PARAMETER) is not None else self.__config.get(BAUDRATE_PARAMETER, 19200)
-        timeout = current_config[TIMEOUT_PARAMETER] if current_config.get(TIMEOUT_PARAMETER) is not None else self.__config.get(TIMEOUT_PARAMETER, 35)
-        method = current_config[METHOD_PARAMETER] if current_config.get(METHOD_PARAMETER) is not None else self.__config.get(METHOD_PARAMETER, "rtu")
-        stopbits = current_config[STOPBITS_PARAMETER] if current_config.get(STOPBITS_PARAMETER) is not None else self.__config.get(STOPBITS_PARAMETER, Defaults.Stopbits)
-        bytesize = current_config[BYTESIZE_PARAMETER] if current_config.get(BYTESIZE_PARAMETER) is not None else self.__config.get(BYTESIZE_PARAMETER, Defaults.Bytesize)
-        parity = current_config[PARITY_PARAMETER] if current_config.get(PARITY_PARAMETER) is not None else self.__config.get(PARITY_PARAMETER, Defaults.Parity)
-        strict = current_config[STRICT_PARAMETER] if current_config.get(STRICT_PARAMETER) is not None else self.__config.get(STRICT_PARAMETER, True)
-        rtu = ModbusRtuFramer if current_config.get(METHOD_PARAMETER) == "rtu" or (
+            master_config["port"] = current_config[PORT_PARAMETER] if current_config.get(PORT_PARAMETER) is not None else self.__config.get(PORT_PARAMETER, 502)
+        master_config["baudrate"] = current_config[BAUDRATE_PARAMETER] if current_config.get(BAUDRATE_PARAMETER) is not None else self.__config.get(BAUDRATE_PARAMETER, 19200)
+        master_config["timeout"] = current_config[TIMEOUT_PARAMETER] if current_config.get(TIMEOUT_PARAMETER) is not None else self.__config.get(TIMEOUT_PARAMETER, 35)
+        master_config["method"] = current_config[METHOD_PARAMETER] if current_config.get(METHOD_PARAMETER) is not None else self.__config.get(METHOD_PARAMETER, "rtu")
+        master_config["stopbits"] = current_config[STOPBITS_PARAMETER] if current_config.get(STOPBITS_PARAMETER) is not None else self.__config.get(STOPBITS_PARAMETER, Defaults.Stopbits)
+        master_config["bytesize"] = current_config[BYTESIZE_PARAMETER] if current_config.get(BYTESIZE_PARAMETER) is not None else self.__config.get(BYTESIZE_PARAMETER, Defaults.Bytesize)
+        master_config["parity"] = current_config[PARITY_PARAMETER] if current_config.get(PARITY_PARAMETER) is not None else self.__config.get(PARITY_PARAMETER, Defaults.Parity)
+        master_config["strict"] = current_config[STRICT_PARAMETER] if current_config.get(STRICT_PARAMETER) is not None else self.__config.get(STRICT_PARAMETER, True)
+        master_config["rtu"] = ModbusRtuFramer if current_config.get(METHOD_PARAMETER) == "rtu" or (
                     current_config.get(METHOD_PARAMETER) is None and self.__config.get(METHOD_PARAMETER) == "rtu") else ModbusSocketFramer
-        if current_config.get(TYPE_PARAMETER) == 'tcp' or (current_config.get(TYPE_PARAMETER) is None and self.__config.get(TYPE_PARAMETER) == "tcp"):
-            master = ModbusTcpClient(host, port, rtu, timeout=timeout)
-        elif current_config.get(TYPE_PARAMETER) == 'udp' or (current_config.get(TYPE_PARAMETER) is None and self.__config.get(TYPE_PARAMETER) == "udp"):
-            master = ModbusUdpClient(host, port, rtu, timeout=timeout)
-        elif current_config.get(TYPE_PARAMETER) == 'serial' or (current_config.get(TYPE_PARAMETER) is None and self.__config.get(TYPE_PARAMETER) == "serial"):
-            master = ModbusSerialClient(method=method,
-                                        port=port,
-                                        timeout=timeout,
-                                        baudrate=baudrate,
-                                        stopbits=stopbits,
-                                        bytesize=bytesize,
-                                        parity=parity,
-                                        strict=strict)
+        if self.__previous_master_config != master_config:
+            self.__previous_master_config = master_config
+            if current_config.get(TYPE_PARAMETER) == 'tcp' or (current_config.get(TYPE_PARAMETER) is None and self.__config.get(TYPE_PARAMETER) == "tcp"):
+                master = ModbusTcpClient(master_config["host"], master_config["port"], master_config["rtu"], timeout=master_config["timeout"])
+            elif current_config.get(TYPE_PARAMETER) == 'udp' or (current_config.get(TYPE_PARAMETER) is None and self.__config.get(TYPE_PARAMETER) == "udp"):
+                master = ModbusUdpClient(master_config["host"], master_config["port"], master_config["rtu"], timeout=master_config["timeout"])
+            elif current_config.get(TYPE_PARAMETER) == 'serial' or (current_config.get(TYPE_PARAMETER) is None and self.__config.get(TYPE_PARAMETER) == "serial"):
+                master = ModbusSerialClient(method=master_config["method"],
+                                            port=master_config["port"],
+                                            timeout=master_config["timeout"],
+                                            baudrate=master_config["baudrate"],
+                                            stopbits=master_config["stopbits"],
+                                            bytesize=master_config["bytesize"],
+                                            parity=master_config["parity"],
+                                            strict=master_config["strict"])
+            else:
+                raise Exception("Invalid Modbus transport type.")
         else:
-            raise Exception("Invalid Modbus transport type.")
+            master = self.__current_master
         available_functions = {
             1: master.read_coils,
             2: master.read_discrete_inputs,
@@ -305,7 +309,8 @@ class ModbusConnector(Connector, threading.Thread):
 
     def __stop_connections_to_masters(self):
         for device in self.__devices:
-            self.__devices[device][MASTER_PARAMETER].close()
+            if self.__devices[device].get(MASTER_PARAMETER) is not None:
+                self.__devices[device][MASTER_PARAMETER].close()
 
     def __function_to_device(self, config, unit_id):
         function_code = config.get(FUNCTION_CODE_PARAMETER)
