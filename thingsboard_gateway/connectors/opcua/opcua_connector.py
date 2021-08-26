@@ -534,7 +534,7 @@ class OpcUaConnector(Thread, Connector):
             node_path = self.get_node_path(node)
             #node_path = '\\\\.'.join(char.split(":")[1] for char in node.get_path(200000, True))
             if config_path[-3:] != '\\.':
-                information_path = node_path + '\\\\.' + config_path.replace('\\', '\\\\')
+                information_path = (node_path + '\\.' + config_path).replace('\\', '\\\\')
             else:
                 information_path = node_path + config_path.replace('\\', '\\\\')
         else:
