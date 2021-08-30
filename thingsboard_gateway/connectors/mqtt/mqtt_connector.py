@@ -135,7 +135,7 @@ class MqttConnector(Connector, Thread):
         self.__msg_queue = Queue()
         self.__workers_thread_pool = []
         self.__max_msg_number_for_worker = config.get('maxMessageNumberPerWorker', 10)
-        self.__max_number_of_workers = config.get('maxNumberOfWorker', 100)
+        self.__max_number_of_workers = config.get('maxNumberOfWorkers', 100)
 
     def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list, optional=False):
         if handler_flavor not in self.config:

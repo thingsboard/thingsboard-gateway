@@ -5,7 +5,7 @@
     "port":1883,
     "clientId": "ThingsBoard_gateway",
     "maxMessageNumberPerWorker": 10,
-    "maxNumberOfWorker": 100,
+    "maxNumberOfWorkers": 100,
     "security": {
       "type": "basic",
       "username": "user",
