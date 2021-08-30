@@ -54,7 +54,7 @@ class EventStorageWriter:
                 self.buffered_writer = None
             try:
                 encoded = b64encode(msg.encode("utf-8"))
-                if not exists(self.settings.get_data_folder_path()+self.current_file):
+                if not exists(self.settings.get_data_folder_path() + self.current_file):
                     self.current_file = self.create_datafile()
                 self.buffered_writer = self.get_or_init_buffered_writer(self.current_file)
                 self.buffered_writer.write(encoded + linesep.encode('utf-8'))

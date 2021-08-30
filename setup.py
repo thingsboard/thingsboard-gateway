@@ -21,7 +21,7 @@ this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
-VERSION = "2.6"
+VERSION = "0.9"
 
 setup(
     version=VERSION,
@@ -40,12 +40,12 @@ setup(
               'thingsboard_gateway.connectors.mqtt', 'thingsboard_gateway.connectors.opcua', 'thingsboard_gateway.connectors.request',
               'thingsboard_gateway.connectors.modbus', 'thingsboard_gateway.connectors.can', 'thingsboard_gateway.connectors.bacnet',
               'thingsboard_gateway.connectors.bacnet.bacnet_utilities', 'thingsboard_gateway.connectors.odbc',
-              'thingsboard_gateway.connectors.rest', 'thingsboard_gateway.connectors.snmp',
+              'thingsboard_gateway.connectors.rest', 'thingsboard_gateway.connectors.snmp', 'thingsboard_gateway.connectors.ftp',
               'thingsboard_gateway.tb_utility', 'thingsboard_gateway.extensions',
               'thingsboard_gateway.extensions.mqtt', 'thingsboard_gateway.extensions.modbus', 'thingsboard_gateway.extensions.opcua',
               'thingsboard_gateway.extensions.ble', 'thingsboard_gateway.extensions.serial', 'thingsboard_gateway.extensions.request',
               'thingsboard_gateway.extensions.can', 'thingsboard_gateway.extensions.bacnet', 'thingsboard_gateway.extensions.odbc',
-              'thingsboard_gateway.extensions.rest',  'thingsboard_gateway.extensions.snmp'
+              'thingsboard_gateway.extensions.rest',  'thingsboard_gateway.extensions.snmp', 'thingsboard_gateway.extensions.ftp'
               ],
     install_requires=[
         'jsonpath-rw',
@@ -60,10 +60,4 @@ setup(
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'
-        ]},
-    package_data={
-        "*": ["config/*"]
-    })
-
-
-
+        ]})
