@@ -13,13 +13,14 @@
 #     limitations under the License.
 
 import simplejson
-import time
+from time import time, sleep
 import string
 import random
 from threading import Thread
 from re import match, fullmatch, search
 import ssl
 from paho.mqtt.client import Client
+from queue import Queue
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -131,6 +132,11 @@ class MqttConnector(Connector, Thread):
         self.__stopped = False
         self.daemon = True
 
+        self.__msg_queue = Queue()
+        self.__workers_thread_pool = []
+        self.__max_msg_number_for_worker = config.get('maxMessageNumberPerWorker', 10)
+        self.__max_number_of_workers = config.get('maxNumberOfWorkers', 100)
+
     def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list, optional=False):
         if handler_flavor not in self.config:
             if not optional:
@@ -181,12 +187,14 @@ class MqttConnector(Connector, Thread):
                 self.close()
             except Exception as e:
                 self.__log.exception(e)
+
         while True:
             if self.__stopped:
                 break
             elif not self._connected:
                 self.__connect()
-            time.sleep(.01)
+            self.__threads_manager()
+            sleep(.01)
 
     def __connect(self):
         while not self._connected and not self.__stopped:
@@ -195,10 +203,10 @@ class MqttConnector(Connector, Thread):
                                      self.__broker.get('port', 1883))
                 self._client.loop_start()
                 if not self._connected:
-                    time.sleep(1)
+                    sleep(1)
             except ConnectionRefusedError as e:
                 self.__log.error(e)
-                time.sleep(10)
+                sleep(10)
 
     def close(self):
         self.__stopped = True
@@ -334,16 +342,34 @@ class MqttConnector(Connector, Thread):
         if self.__subscribes_sent.get(mid) is not None:
             del self.__subscribes_sent[mid]
 
-    def _save_converted_msg(self, converter, message, content) -> bool:
-        converted_content = converter.convert(message.topic, content)
-
-        if converted_content:
-            self.__gateway.send_to_storage(self.name, converted_content)
-            self.statistics['MessagesSent'] += 1
-            self.__log.debug("Successfully converted message from topic %s", message.topic)
+    def put_data_to_convert(self, converter, message, content) -> bool:
+        if not self.__msg_queue.full():
+            self.__msg_queue.put((converter.convert, message.topic, content))
             return True
-
         return False
+
+    def _save_converted_msg(self, topic,  data):
+        self.__gateway.send_to_storage(self.name, data)
+        self.statistics['MessagesSent'] += 1
+        self.__log.debug("Successfully converted message from topic %s", topic)
+
+    def __threads_manager(self):
+        if len(self.__workers_thread_pool) == 0:
+            worker = MqttConnector.ConverterWorker("Main", self.__msg_queue, self._save_converted_msg)
+            self.__workers_thread_pool.append(worker)
+            worker.start()
+
+        number_of_needed_threads = round(self.__msg_queue.qsize() / self.__max_msg_number_for_worker, 0)
+        threads_count = len(self.__workers_thread_pool)
+        if number_of_needed_threads > threads_count < self.__max_number_of_workers:
+            thread = MqttConnector.ConverterWorker("Worker " + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)), self.__msg_queue, self._save_converted_msg)
+            self.__workers_thread_pool.append(thread)
+            thread.start()
+        elif number_of_needed_threads < threads_count and threads_count > 1:
+            worker: MqttConnector.ConverterWorker = self.__workers_thread_pool[-1]
+            if not worker.in_progress:
+                worker.stopped = True
+                self.__workers_thread_pool.remove(worker)
 
     def _on_message(self, client, userdata, message):
         self.statistics['MessagesReceived'] += 1
@@ -365,7 +391,7 @@ class MqttConnector(Connector, Thread):
                     try:
                         if isinstance(content, list):
                             for item in content:
-                                request_handled = self._save_converted_msg(converter, message, item)
+                                request_handled = self.put_data_to_convert(converter, message, item)
                                 if not request_handled:
                                     self.__log.error(
                                         'Cannot find converter for the topic:"%s"! Client: %s, User data: %s',
@@ -373,7 +399,7 @@ class MqttConnector(Connector, Thread):
                                         str(client),
                                         str(userdata))
                         else:
-                            request_handled = self._save_converted_msg(converter, message, content)
+                            request_handled = self.put_data_to_convert(converter, message, content)
 
                     except Exception as e:
                         log.exception(e)
@@ -603,7 +629,7 @@ class MqttConnector(Connector, Thread):
                         .replace("${requestId}", str(content["data"]["id"])) \
                         .replace("${params}", simplejson.dumps(content["data"].get("params", "")))
 
-                    timeout = time.time() * 1000 + rpc_config.get("responseTimeout")
+                    timeout = time() * 1000 + rpc_config.get("responseTimeout")
 
                     # Start listenting on the response topic
                     self.__log.info("Subscribing to: %s", expected_response_topic)
@@ -614,7 +640,7 @@ class MqttConnector(Connector, Thread):
 
                     while expected_response_topic in self.__subscribes_sent.values():
                         sub_response_timeout -= 1
-                        time.sleep(0.1)
+                        sleep(0.1)
                         if sub_response_timeout == 0:
                             break
 
@@ -626,7 +652,7 @@ class MqttConnector(Connector, Thread):
 
                     # Wait for RPC to be successfully enqueued, which never fails.
                     while self.__gateway.is_rpc_in_progress(expected_response_topic):
-                        time.sleep(0.1)
+                        sleep(0.1)
 
                 elif expects_response and not defines_timeout:
                     self.__log.info("2-way RPC without timeout: treating as 1-way")
@@ -664,3 +690,25 @@ class MqttConnector(Connector, Thread):
     def rpc_cancel_processing(self, topic):
         log.info("RPC canceled or terminated. Unsubscribing from %s", topic)
         self._client.unsubscribe(topic)
+
+    class ConverterWorker(Thread):
+        def __init__(self, name, incoming_queue, send_result):
+            super().__init__()
+            self.stopped = False
+            self.setName(name)
+            self.setDaemon(True)
+            self.__msg_queue = incoming_queue
+            self.in_progress = False
+            self.__send_result = send_result
+
+        def run(self):
+            while not self.stopped:
+                if not self.__msg_queue.empty():
+                    self.in_progress = True
+                    convert_function, config, incoming_data = self.__msg_queue.get()
+                    converted_data = convert_function(config, incoming_data)
+                    log.debug(converted_data)
+                    self.__send_result(config, converted_data)
+                    self.in_progress = False
+                else:
+                    sleep(.01)
