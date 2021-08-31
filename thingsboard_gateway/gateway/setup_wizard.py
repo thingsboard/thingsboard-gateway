@@ -1,4 +1,7 @@
 from __future__ import print_function, unicode_literals
+
+from os import path
+
 from PyInquirer import style_from_dict, Token, prompt
 from pyfiglet import Figlet
 from termcolor import colored
@@ -6,6 +9,13 @@ from prompt_toolkit.validation import ValidationError, Validator
 from re import compile, IGNORECASE
 from os.path import exists, splitext
 from yaml import safe_load, dump
+
+if exists('thingsboard_gateway/config/tb_gateway.yaml'):
+    CONFIG_PATH = 'thingsboard_gateway/config/tb_gateway.yaml'
+elif exists(path.dirname(path.abspath(__file__)) + '/config/tb_gateway.yaml'.replace('/', path.sep)):
+    CONFIG_PATH = path.dirname(path.abspath(__file__)) + '/config/tb_gateway.yaml'.replace('/', path.sep)
+elif exists("/etc/thingsboard-gateway/config/tb_gateway.yaml".replace('/', path.sep)):
+    CONFIG_PATH = "/etc/thingsboard-gateway/config/tb_gateway.yaml".replace('/', path.sep)
 
 style = style_from_dict({
     Token.Separator: '#cc5454',
@@ -77,13 +87,12 @@ class FileExtensionValidator(NotNullValidator):
 
 
 def generate_config_file(data: {str: str}) -> None:
-    print(data)
-    with open('thingsboard_gateway/config/tb_gateway.yaml', 'w') as file:
+    with open(CONFIG_PATH, 'w') as file:
         dump(data, file, default_flow_style=False, sort_keys=False)
 
 
 def read_config_file() -> {str: str}:
-    with open('thingsboard_gateway/config/tb_gateway.yaml', 'r') as file:
+    with open(CONFIG_PATH, 'r') as file:
         config_dict = safe_load(file)
 
     return config_dict
@@ -97,14 +106,14 @@ def main():
             {
                 'type': 'input',
                 'name': 'host',
-                'message': 'Thingsboard host:',
+                'message': 'ThingsBoard host:',
                 'default': default_config['thingsboard']['host'],
                 'validate': HostValidator
             },
             {
                 'type': 'input',
                 'name': 'port',
-                'message': 'Thingsboard port:',
+                'message': 'ThingsBoard port:',
                 'default': str(default_config['thingsboard']['port']),
                 'validate': PortValidator,
                 'filter': lambda val: int(val)
