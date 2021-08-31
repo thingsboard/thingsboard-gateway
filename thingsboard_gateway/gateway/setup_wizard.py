@@ -68,6 +68,14 @@ class PathValidator(Validator):
             raise ValidationError(message='File must be .pem extension!', cursor_position=len(document.text))
 
 
+class FileExtensionValidator(NotNullValidator):
+    def validate(self, document):
+        super(FileExtensionValidator, self).validate(document)
+
+        if document.text.split('.')[-1] != 'json':
+            raise ValidationError(message='File must be .json!', cursor_position=len(document.text))
+
+
 def generate_config_file(data: {str: str}) -> None:
     print(data)
     with open('thingsboard_gateway/config/tb_gateway.yaml', 'w') as file:
@@ -98,7 +106,8 @@ def main():
                 'name': 'port',
                 'message': 'Thingsboard port:',
                 'default': str(default_config['thingsboard']['port']),
-                'validate': PortValidator
+                'validate': PortValidator,
+                'filter': lambda val: int(val)
             },
             {
                 'type': 'confirm',
@@ -109,7 +118,7 @@ def main():
             {
                 'type': 'confirm',
                 'name': 'remoteConfiguration',
-                'message': 'Do you want to have access for remote configuration?',
+                'message': 'Do you want to enable remote configuration feature?',
                 'default': False
             },
             {
@@ -117,14 +126,16 @@ def main():
                 'name': 'statsSendPeriodInSeconds',
                 'message': 'Statistics will be send every (sec.):',
                 'default': str(default_config['thingsboard']['statsSendPeriodInSeconds']),
-                'validate': NumberValidator
+                'validate': NumberValidator,
+                'filter': lambda val: int(val)
             },
             {
                 'type': 'input',
                 'name': 'checkConnectorsConfigurationInSeconds',
                 'message': 'Connectors config files will check every (sec.):',
                 'default': str(default_config['thingsboard']['checkConnectorsConfigurationInSeconds']),
-                'validate': NumberValidator
+                'validate': NumberValidator,
+                'filter': lambda val: int(val)
             },
             {
                 'type': 'list',
@@ -194,6 +205,7 @@ def main():
                 'message': 'QoS:',
                 'validate': NumberValidator,
                 'default': str(default_config['thingsboard']['qos']),
+                'filter': lambda val: int(val)
             },
             {
                 'type': 'list',
@@ -216,14 +228,16 @@ def main():
                     'name': 'read_records_count',
                     'message': 'Count of messages to get from storage and send to ThingsBoard:',
                     'default': str(default_config['storage'].get('read_records_count', '')),
-                    'validate': NumberValidator
+                    'validate': NumberValidator,
+                    'filter': lambda val: int(val)
                 },
                 {
                     'type': 'input',
                     'name': 'max_records_count',
                     'message': 'Maximum count of data in storage before send to ThingsBoard:',
                     'default': str(default_config['storage'].get('max_records_count', '')),
-                    'validate': NumberValidator
+                    'validate': NumberValidator,
+                    'filter': lambda val: int(val)
                 }
             ]
         else:
@@ -240,21 +254,24 @@ def main():
                     'name': 'max_file_count',
                     'message': 'Maximum count of file that will be saved:',
                     'default': str(default_config['storage'].get('max_file_count', '')),
-                    'validate': NumberValidator
+                    'validate': NumberValidator,
+                    'filter': lambda val: int(val)
                 },
                 {
                     'type': 'input',
                     'name': 'max_read_records_count',
                     'message': 'Count of messages to get from storage and send to ThingsBoard:',
                     'default': str(default_config['storage'].get('max_read_records_count', '')),
-                    'validate': NumberValidator
+                    'validate': NumberValidator,
+                    'filter': lambda val: int(val)
                 },
                 {
                     'type': 'input',
                     'name': 'max_records_per_file',
                     'message': 'Maximum count of records that will be stored in one file:',
                     'default': str(default_config['storage'].get('max_records_per_file', '')),
-                    'validate': NumberValidator
+                    'validate': NumberValidator,
+                    'filter': lambda val: int(val)
                 }
             ]
 
@@ -319,9 +336,9 @@ def main():
                 },
                 {
                     'type': 'input',
-                    'name': 'config',
+                    'name': 'configuration',
                     'message': 'Config file of connector:',
-                    'validate': NotNullValidator
+                    'validate': FileExtensionValidator
                 }
             ]
             connector_answers = prompt(connector_questions, style=style)
