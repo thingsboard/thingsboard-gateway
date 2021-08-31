@@ -112,13 +112,13 @@ def main():
             {
                 'type': 'confirm',
                 'name': 'remoteShell',
-                'message': 'Do you want to have access from remote shell?',
+                'message': 'Do you want to have access from remote shell? (No)',
                 'default': False
             },
             {
                 'type': 'confirm',
                 'name': 'remoteConfiguration',
-                'message': 'Do you want to enable remote configuration feature?',
+                'message': 'Do you want to enable remote configuration feature? (No)',
                 'default': False
             },
             {
