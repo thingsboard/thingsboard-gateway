@@ -158,9 +158,10 @@ def main():
             }
         ]
 
-        f = Figlet(font='slant')
-        print(colored(f.renderText('TB IoT Gateway'), color='blue'))
-        print(colored('Welcome to ThingsBoard IoT Gateway Setup Wizard', 'blue'))
+        f = Figlet(font='small')
+        print(colored(f.renderText('ThingsBoard'), color= 'green', attrs=['bold']), sep='')
+        print(colored(f.renderText('IoT Gateway'), color='blue', attrs=['bold']))
+        print(colored('Welcome to ThingsBoard IoT Gateway configuration Wizard', 'cyan'))
         print(colored('Let\'s configure you Gateway by answering on questions below ⬇\n'))
 
         base_answers = prompt(base_questions, style=style)
