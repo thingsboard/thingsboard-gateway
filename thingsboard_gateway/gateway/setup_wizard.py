@@ -364,5 +364,5 @@ def main():
         print(colored('Something went wrong! Please try again.', color='red'))
         raise SystemExit
 
-
-main()
+if __name__ == '__main__':
+    main()
