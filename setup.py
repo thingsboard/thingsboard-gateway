@@ -54,10 +54,15 @@ setup(
         'paho-mqtt',
         'PyYAML',
         'simplejson',
-        'requests'
+        'requests',
+        'PyInquirer',
+        'pyfiglet',
+        'termcolor'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={
         'console_scripts': [
-            'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'
-        ]})
+            'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon',
+            'tb-gateway-configurator = thingsboard_gateway.gateway.setup_wizard:main'
+        ]
+    })
