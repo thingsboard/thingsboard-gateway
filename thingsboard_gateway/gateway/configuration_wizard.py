@@ -98,7 +98,7 @@ def read_config_file() -> {str: str}:
     return config_dict
 
 
-def main():
+def configure():
     try:
         default_config = read_config_file()
 
@@ -366,4 +366,4 @@ def main():
         raise SystemExit
 
 if __name__ == '__main__':
-    main()
+    configure()

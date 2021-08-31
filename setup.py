@@ -63,6 +63,6 @@ setup(
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon',
-            'tb-gateway-configurator = thingsboard_gateway.gateway.setup_wizard:main'
+            'tb-gateway-configurator = thingsboard_gateway.gateway.configuration_wizard:configure'
         ]
     })
