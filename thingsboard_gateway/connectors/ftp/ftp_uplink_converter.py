@@ -138,22 +138,21 @@ class FTPUplinkConverter(FTPConverter):
                     key = TBUtility.get_value(datatype_config["key"], data, datatype_config["type"],
                                               expression_instead_none=True)
                     key_tag = TBUtility.get_value(datatype_config["key"], data, get_tag=True)
-
-                    if ("${" not in str(value) and "}" not in str(value)) \
-                            and ("${" not in str(key) and "}" not in str(key)):
+                    if ("${" not in str(value) and "}" not in str(value)) and (
+                            "${" not in str(key) and "}" not in str(key)):
                         is_valid_key = isinstance(key, str) and "${" in datatype_config["key"] and "}" in \
                                        datatype_config["key"]
                         is_valid_value = isinstance(value, str) and "${" in datatype_config["value"] and "}" in \
                                          datatype_config["value"]
-                        full_key = datatype_config["key"].replace("${" + str(key_tag) + "}",
+                        full_key = datatype_config["key"].replace('${' + str(key_tag) + '}',
                                                                   str(key)) if is_valid_key else key_tag
-                        full_value = datatype_config["value"].replace("${" + str(value_tag) + "}",
+                        full_value = datatype_config["value"].replace('${' + str(value_tag) + '}',
                                                                       str(value)) if is_valid_value else value
-                        if datatype == "timeseries" and (
+                        if datatype == 'timeseries' and (
                                 data.get("ts") is not None or data.get("timestamp") is not None):
                             dict_result[self.__data_types[datatype]].append(
-                                {"ts": data.get("ts", data.get("timestamp", int(time()))),
-                                 "values": {full_key: full_value}})
+                                {"ts": data.get('ts', data.get('timestamp', int(time()))),
+                                 'values': {full_key: full_value}})
                         else:
                             dict_result[self.__data_types[datatype]].append({full_key: full_value})
         except Exception as e:
