@@ -97,7 +97,8 @@ class TBUtility:
         try:
             if isinstance(body, dict) and target_str.split()[0] in body:
                 if value_type.lower() == "string":
-                    full_value = expression[0: max(abs(p1 - 2), 0)] + body[target_str.split()[0]] + expression[p2 + 1:len(expression)]
+                    full_value = expression[0: max(p1 - 2, 0)] + body[target_str.split()[0]] + expression[
+                                                                                               p2 + 1:len(expression)]
                 else:
                     full_value = body.get(target_str.split()[0])
             elif isinstance(body, (dict, list)):
