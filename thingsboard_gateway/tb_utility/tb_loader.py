@@ -13,10 +13,10 @@
 #     limitations under the License.
 #
 
-from os import path, listdir
+from importlib.util import module_from_spec, spec_from_file_location
 from inspect import getmembers, isclass
-from importlib.util import spec_from_file_location, module_from_spec
 from logging import getLogger
+from os import listdir, path
 
 log = getLogger("service")
 

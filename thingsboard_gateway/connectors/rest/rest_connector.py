@@ -12,18 +12,17 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from time import sleep
-from threading import Thread
-from string import ascii_lowercase
-from random import choice
-from time import time
-from re import fullmatch
 from queue import Queue
-from simplejson import loads, JSONDecodeError
+from random import choice
+from re import fullmatch
+from string import ascii_lowercase
+from threading import Thread
+from time import sleep, time
+
+from simplejson import JSONDecodeError, loads
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-
 
 try:
     from requests import Timeout, request as regular_request
@@ -34,6 +33,7 @@ except ImportError:
 import requests
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException
+
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 
 try:
@@ -72,7 +72,7 @@ class RESTConnector(Connector, Thread):
         self._default_converters = {
             "uplink": "JsonRESTUplinkConverter",
             "downlink": "JsonRESTDownlinkConverter"
-        }
+            }
         self.__config = config
         self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
@@ -104,7 +104,7 @@ class RESTConnector(Connector, Thread):
         data_handlers = {
             "basic": BasicDataHandler,
             "anonymous": AnonymousDataHandler,
-        }
+            }
         for mapping in self.__config.get("mapping"):
             try:
                 security_type = "anonymous" if mapping.get("security") is None else mapping["security"]["type"].lower()
@@ -212,13 +212,15 @@ class RESTConnector(Connector, Thread):
         requests_from_tb = {
             "attributeUpdates": self.__attribute_updates,
             "serverSideRpc": self.__rpc_requests,
-        }
+            }
         for request_section in requests_from_tb:
             for request_config_object in self.__config.get(request_section, []):
                 uplink_converter = TBModuleLoader.import_module(self._connector_type,
-                                                                request_config_object.get("extension", self._default_converters["uplink"]))(request_config_object)
+                                                                request_config_object.get("extension", self._default_converters["uplink"]))(
+                    request_config_object)
                 downlink_converter = TBModuleLoader.import_module(self._connector_type,
-                                                                  request_config_object.get("extension", self._default_converters["downlink"]))(request_config_object)
+                                                                  request_config_object.get("extension", self._default_converters["downlink"]))(
+                    request_config_object)
                 request_dict = {**request_config_object,
                                 "uplink_converter": uplink_converter,
                                 "downlink_converter": downlink_converter,
@@ -255,7 +257,7 @@ class RESTConnector(Connector, Thread):
                 "verify": request_dict["config"].get("SSLVerify"),
                 "auth": security,
                 **data,
-            }
+                }
             logger.debug(url)
             if request_dict["config"].get("httpHeaders") is not None:
                 params["headers"] = request_dict["config"]["httpHeaders"]
@@ -334,8 +336,8 @@ class AnonymousDataHandler(Resource):
     def delete(self):
         return self.process_data(request)
 
-class BasicDataHandler(Resource):
 
+class BasicDataHandler(Resource):
     auth = HTTPBasicAuth()
 
     def __init__(self, send_to_storage, name, endpoint):

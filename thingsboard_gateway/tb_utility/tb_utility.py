@@ -12,10 +12,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from re import search
 from logging import getLogger
-from simplejson import dumps, loads, JSONDecodeError
+from re import search
+
 from jsonpath_rw import parse
+from simplejson import JSONDecodeError, dumps, loads
 
 log = getLogger("service")
 

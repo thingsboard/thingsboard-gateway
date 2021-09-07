@@ -13,7 +13,9 @@
 #     limitations under the License.
 
 from time import time
+
 from simplejson import dumps, loads
+
 from thingsboard_gateway.connectors.request.request_converter import RequestConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 

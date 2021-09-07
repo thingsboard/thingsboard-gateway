@@ -14,7 +14,7 @@
           "untilDelimiter": "\r"
         }
       ],
-      "attributes":[
+      "attributes": [
         {
           "key": "SerialNumber",
           "type": "string",

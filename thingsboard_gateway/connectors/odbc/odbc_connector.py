@@ -15,10 +15,11 @@
 from hashlib import sha1
 from os import path
 from pathlib import Path
-from time import sleep
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
+from time import sleep
+
 from simplejson import dumps, load
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader

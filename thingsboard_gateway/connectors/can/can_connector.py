@@ -15,13 +15,13 @@
 import re
 import sched
 import time
-from threading import Thread
 from copy import copy
 from random import choice
 from string import ascii_lowercase
+from threading import Thread
 
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
     from can import Notifier, BufferedReader, Message, CanError, ThreadSafeBus
@@ -132,7 +132,7 @@ class CanConnector(Connector, Thread):
         if rpc_config is None:
             if not self.__devices[content["device"]]["enableUnknownRpc"]:
                 log.warning("[%s] No configuration for '%s' RPC request (id=%s), ignore it",
-                         self.get_name(), content["data"]["method"], content["data"]["id"])
+                            self.get_name(), content["data"]["method"], content["data"]["id"])
                 return
             else:
                 rpc_config = {}
@@ -287,7 +287,7 @@ class CanConnector(Connector, Thread):
             "dataBefore": None,
             "dataAfter": None,
             "dataInHex": None
-        }
+            }
         for option_name, option_value in options.items():
             if option_name in rpc_params:
                 config[option_name] = rpc_params[option_name]
@@ -319,7 +319,7 @@ class CanConnector(Connector, Thread):
         data = self.__converters[parsing_conf["deviceName"]]["uplink"].convert(parsing_conf["configs"], message.data)
         if data is None or not data.get("attributes", []) and not data.get("telemetry", []):
             log.warning("[%s] Failed to process CAN message (id=%d,cmd_id=%s): data conversion failure",
-                     self.get_name(), message.arbitration_id, cmd_id)
+                        self.get_name(), message.arbitration_id, cmd_id)
             return
 
         self.__check_and_send(parsing_conf, data)
@@ -361,13 +361,13 @@ class CanConnector(Connector, Thread):
             "enabled": config.get("reconnect", self.DEFAULT_RECONNECT_STATE),
             "period": config.get("reconnectPeriod", self.DEFAULT_RECONNECT_PERIOD),
             "maxCount": config.get("reconnectCount", None)
-        }
+            }
 
         self.__bus_conf = {
             "interface": config.get("interface", "socketcan"),
             "channel": config.get("channel", "vcan0"),
             "backend": config.get("backend", {})
-        }
+            }
 
         for device_config in config.get("devices"):
             is_device_config_valid = False
@@ -512,7 +512,7 @@ class CanConnector(Connector, Thread):
                 "length": int(value_matches.group(2)),
                 "byteorder": value_matches.group(3) if value_matches.group(3) else self.DEFAULT_BYTEORDER,
                 "type": value_matches.group(4)
-            }
+                }
 
             if value_config["type"][0] == "i" or value_config["type"][0] == "l":
                 value_config["signed"] = value_matches.group(5) == "signed" if value_matches.group(5) \
@@ -528,7 +528,7 @@ class CanConnector(Connector, Thread):
                     "length": int(config["length"]),
                     "byteorder": config["byteorder"] if config.get("byteorder", "") else self.DEFAULT_BYTEORDER,
                     "type": config["type"]
-                }
+                    }
 
                 if value_config["type"][0] == "i" or value_config["type"][0] == "l":
                     value_config["signed"] = config.get("signed", self.DEFAULT_SIGNED_FLAG)
@@ -558,7 +558,7 @@ class CanConnector(Connector, Thread):
                 "length": int(cmd_matches.group(2)),
                 "byteorder": cmd_matches.group(3) if cmd_matches.group(3) else self.DEFAULT_BYTEORDER,
                 "value": int(cmd_matches.group(4))
-            }
+                }
         elif isinstance(config, dict):
             try:
                 return {
@@ -566,7 +566,7 @@ class CanConnector(Connector, Thread):
                     "length": int(config["length"]),
                     "byteorder": config["byteorder"] if config.get("byteorder", "") else self.DEFAULT_BYTEORDER,
                     "value": int(config["value"])
-                }
+                    }
             except (KeyError, ValueError) as e:
                 log.warning("[%s] Wrong command configuration: %s", self.get_name(), str(e))
                 return

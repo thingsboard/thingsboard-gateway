@@ -12,16 +12,17 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from os import remove, linesep
-from os.path import exists, dirname
-from re import findall
-from time import time, sleep
+from base64 import b64decode, b64encode
+from configparser import ConfigParser
 from logging import getLogger
 from logging.config import fileConfig
-from base64 import b64encode, b64decode
-from simplejson import dumps, loads, dump
+from os import linesep, remove
+from os.path import dirname, exists
+from re import findall
+from time import sleep, time
+
+from simplejson import dump, dumps, loads
 from yaml import safe_dump
-from configparser import ConfigParser
 
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -137,7 +138,8 @@ class RemoteConfigurator:
                             self.__gateway.connectors_configs[connector['type']] = []
                         self.__gateway.connectors_configs[connector['type']].append(
                             {"name": connector["name"], "config": {connector['configuration']: input_connector["config"]}})
-                        connector_class = TBModuleLoader.import_module(connector["type"], self.__gateway._default_connectors.get(connector["type"], connector.get("class")))
+                        connector_class = TBModuleLoader.import_module(connector["type"],
+                                                                       self.__gateway._default_connectors.get(connector["type"], connector.get("class")))
                         self.__gateway._implemented_connectors[connector["type"]] = connector_class
         except Exception as e:
             LOG.exception(e)
@@ -267,7 +269,7 @@ class RemoteConfigurator:
                     if not exists(dirname(path)):
                         raise FileNotFoundError
             with open(logs_conf_file_path, 'w', encoding="UTF-8") as logs:
-                logs.write(self.__new_logs_configuration.replace("NONE", "NOTSET")+"\r\n")
+                logs.write(self.__new_logs_configuration.replace("NONE", "NOTSET") + "\r\n")
             fileConfig(logs_config)
             LOG = getLogger('service')
             # self.__gateway.remote_handler.deactivate()
@@ -282,4 +284,3 @@ class RemoteConfigurator:
         except Exception as e:
             LOG.error("Remote logging configuration is wrong!")
             LOG.exception(e)
-

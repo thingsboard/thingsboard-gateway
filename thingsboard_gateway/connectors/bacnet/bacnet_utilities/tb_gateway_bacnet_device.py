@@ -13,7 +13,6 @@
 #     limitations under the License.
 
 from bacpypes.local.device import LocalDeviceObject
-from thingsboard_gateway.connectors.connector import log
 
 
 class TBBACnetDevice(LocalDeviceObject):

@@ -12,29 +12,29 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from sys import getsizeof, executable, argv
-from os import listdir, path, execv, pathsep, system, stat
-from time import time, sleep
 import logging
 import logging.config
 import logging.handlers
+from os import execv, listdir, path, pathsep, stat, system
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
-from threading import Thread, RLock
+from sys import argv, executable, getsizeof
+from threading import RLock, Thread
+from time import sleep, time
 
+from simplejson import dumps, load, loads
 from yaml import safe_load
-from simplejson import load, dumps, loads
 
-from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.tb_client import TBClient
-from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
-from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
-from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
+from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.tb_utility.tb_gateway_remote_configurator import RemoteConfigurator
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
+from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
 from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
+from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 log = logging.getLogger('service')
 main_handler = logging.handlers.MemoryHandler(-1)
@@ -51,7 +51,7 @@ DEFAULT_CONNECTORS = {
     "rest": "RESTConnector",
     "snmp": "SNMPConnector",
     "ftp": "FTPConnector"
-}
+    }
 
 
 class TBGatewayService:
@@ -108,14 +108,14 @@ class TBGatewayService:
         self._event_storage_types = {
             "memory": MemoryEventStorage,
             "file": FileEventStorage,
-        }
+            }
         self.__gateway_rpc_methods = {
             "ping": self.__rpc_ping,
             "stats": self.__form_statistics,
             "devices": self.__rpc_devices,
             "update": self.__rpc_update,
             "version": self.__rpc_version,
-        }
+            }
         self.__remote_shell = None
         if self.__config["thingsboard"].get("remoteShell"):
             log.warning("Remote shell is enabled. Please be carefully with this feature.")
@@ -126,7 +126,7 @@ class TBGatewayService:
         self.__rpc_sheduled_methods_functions = {
             "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
             "reboot": {"function": system, "arguments": ("reboot 0",)},
-        }
+            }
         self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"])
         self.connectors_configs = {}
         self.__remote_configurator = None

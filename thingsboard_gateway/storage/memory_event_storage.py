@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from queue import Queue, Full, Empty
+from queue import Empty, Full, Queue
 
 from thingsboard_gateway.storage.event_storage import EventStorage, log
 
@@ -44,5 +44,3 @@ class MemoryEventStorage(EventStorage):
 
     def event_pack_processing_done(self):
         self.__event_pack = []
-
-

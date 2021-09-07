@@ -12,11 +12,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from random import choice
-from threading import Thread
-from time import time, sleep
-from string import ascii_lowercase
 from queue import Queue
+from random import choice
+from string import ascii_lowercase
+from threading import Thread
+from time import sleep, time
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -78,7 +78,7 @@ class BACnetConnector(Thread, Connector):
             for device in self.__devices:
                 try:
                     if device.get("previous_check") is None or time() * 1000 - device["previous_check"] >= device[
-                            "poll_period"]:
+                        "poll_period"]:
                         for mapping_type in ["attributes", "telemetry"]:
                             for config in device[mapping_type]:
                                 if config.get("uplink_converter") is None or config.get("downlink_converter") is None:
@@ -88,7 +88,7 @@ class BACnetConnector(Thread, Connector):
                                     "mapping_type": mapping_type,
                                     "config": config,
                                     "callback": self.__bacnet_device_mapping_response_cb
-                                }
+                                    }
                                 self._application.do_read_property(**data_to_application)
                         device["previous_check"] = time() * 1000
                     else:
@@ -203,7 +203,7 @@ class BACnetConnector(Thread, Connector):
                                 "mapping_type": mapping_type,
                                 "config": config,
                                 "callback": self.__bacnet_device_mapping_response_cb
-                            }
+                                }
                             self._application.do_read_property(**data_to_application)
             except Exception as e:
                 log.exception(e)
@@ -255,7 +255,7 @@ class BACnetConnector(Thread, Connector):
                             "telemetry": device.get("timeseries", []),
                             "poll_period": device.get("pollPeriod", 5000),
                             "deviceName": device_name,
-                        }
+                            }
                         if config_address == data["address"] or \
                                 (config_address, GlobalBroadcast) or \
                                 (isinstance(config_address, LocalBroadcast) and isinstance(device["address"],
@@ -276,22 +276,22 @@ class BACnetConnector(Thread, Connector):
             kwarg_dict = {
                 "config": request,
                 "request_type": request["requestType"]
-            }
+                }
             request_config = {
                 "key": request["key"],
                 "iocb": (self._application.form_iocb, kwarg_dict),
                 "config": request
-            }
+                }
             result["attribute_updates"].append(request_config)
         for request in device.get("serverSideRpc", []):
             kwarg_dict = {
                 "config": request,
                 "request_type": request["requestType"]
-            }
+                }
             request_config = {
                 "method": request["method"],
                 "iocb": (self._application.form_iocb, kwarg_dict),
                 "config": request
-            }
+                }
             result["server_side_rpc"].append(request_config)
         return result

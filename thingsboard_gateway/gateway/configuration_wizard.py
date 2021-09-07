@@ -1,14 +1,14 @@
 from __future__ import print_function, unicode_literals
 
 from os import path
+from os.path import exists, splitext
+from re import IGNORECASE, compile
 
-from PyInquirer import style_from_dict, Token, prompt
+from PyInquirer import Token, prompt, style_from_dict
+from prompt_toolkit.validation import ValidationError, Validator
 from pyfiglet import Figlet
 from termcolor import colored
-from prompt_toolkit.validation import ValidationError, Validator
-from re import compile, IGNORECASE
-from os.path import exists, splitext
-from yaml import safe_load, dump
+from yaml import dump, safe_load
 
 if exists('thingsboard_gateway/config/tb_gateway.yaml'):
     CONFIG_PATH = 'thingsboard_gateway/config/tb_gateway.yaml'
@@ -25,7 +25,7 @@ style = style_from_dict({
     Token.Instruction: '',  # default
     Token.Answer: '#673ab7 bold',
     Token.Question: '',
-})
+    })
 
 
 class NotNullValidator(Validator):
@@ -109,7 +109,7 @@ def configure():
                 'message': 'ThingsBoard host:',
                 'default': default_config['thingsboard']['host'],
                 'validate': HostValidator
-            },
+                },
             {
                 'type': 'input',
                 'name': 'port',
@@ -117,19 +117,19 @@ def configure():
                 'default': str(default_config['thingsboard']['port']),
                 'validate': PortValidator,
                 'filter': lambda val: int(val)
-            },
+                },
             {
                 'type': 'confirm',
                 'name': 'remoteShell',
                 'message': 'Do you want to have access from remote shell? (No)',
                 'default': False
-            },
+                },
             {
                 'type': 'confirm',
                 'name': 'remoteConfiguration',
                 'message': 'Do you want to enable remote configuration feature? (No)',
                 'default': False
-            },
+                },
             {
                 'type': 'input',
                 'name': 'statsSendPeriodInSeconds',
@@ -137,7 +137,7 @@ def configure():
                 'default': str(default_config['thingsboard']['statsSendPeriodInSeconds']),
                 'validate': NumberValidator,
                 'filter': lambda val: int(val)
-            },
+                },
             {
                 'type': 'input',
                 'name': 'checkConnectorsConfigurationInSeconds',
@@ -145,7 +145,7 @@ def configure():
                 'default': str(default_config['thingsboard']['checkConnectorsConfigurationInSeconds']),
                 'validate': NumberValidator,
                 'filter': lambda val: int(val)
-            },
+                },
             {
                 'type': 'list',
                 'name': 'security',
@@ -154,12 +154,12 @@ def configure():
                     'Access Token (Basic Security)',
                     'TLS + Access Token (Advanced Security)',
                     'TLS + Private Key (Advanced Security)'
-                ]
-            }
-        ]
+                    ]
+                }
+            ]
 
         f = Figlet(font='small')
-        print(colored(f.renderText('ThingsBoard'), color= 'green', attrs=['bold']), sep='')
+        print(colored(f.renderText('ThingsBoard'), color='green', attrs=['bold']), sep='')
         print(colored(f.renderText('IoT Gateway'), color='blue', attrs=['bold']))
         print(colored('Welcome to ThingsBoard IoT Gateway configuration Wizard', 'cyan'))
         print(colored('Let\'s configure you Gateway by answering on questions below ⬇\n'))
@@ -172,16 +172,16 @@ def configure():
                 'name': 'accessToken',
                 'message': 'Your token:',
                 'validate': NotNullValidator
-            }
-        ]
+                }
+            ]
         tls = [
             {
                 'type': 'input',
                 'name': 'caCert',
                 'message': 'Path to your CA file (.pem):',
                 'validate': PathValidator
-            }
-        ]
+                }
+            ]
         tls_access_token_config = access_token_config + tls
         tls_private_key_config = [
                                      {
@@ -189,15 +189,15 @@ def configure():
                                          'name': 'privateKey',
                                          'message': 'Path to you private key file (.pem):',
                                          'validate': PathValidator
-                                     }
-                                 ] + tls + [
+                                         }
+                                     ] + tls + [
                                      {
                                          'type': 'input',
                                          'name': 'cert',
                                          'message': 'Path to your certificate file (.pem):',
                                          'validate': PathValidator
-                                     }
-                                 ]
+                                         }
+                                     ]
 
         if base_answers['security'] == 'Access Token (Basic Security)':
             security_questions = access_token_config
@@ -216,7 +216,7 @@ def configure():
                 'validate': NumberValidator,
                 'default': str(default_config['thingsboard']['qos']),
                 'filter': lambda val: int(val)
-            },
+                },
             {
                 'type': 'list',
                 'name': 'storage',
@@ -224,10 +224,10 @@ def configure():
                 'choices': [
                     'Memory',
                     'File storage'
-                ],
+                    ],
                 'filter': lambda val: val.lower() if val == 'Memory' else 'file'
-            }
-        ]
+                }
+            ]
 
         qos_and_storage_type_answers = prompt(qos_and_storage_type_question, style=style)
 
@@ -240,7 +240,7 @@ def configure():
                     'default': str(default_config['storage'].get('read_records_count', '')),
                     'validate': NumberValidator,
                     'filter': lambda val: int(val)
-                },
+                    },
                 {
                     'type': 'input',
                     'name': 'max_records_count',
@@ -248,8 +248,8 @@ def configure():
                     'default': str(default_config['storage'].get('max_records_count', '')),
                     'validate': NumberValidator,
                     'filter': lambda val: int(val)
-                }
-            ]
+                    }
+                ]
         else:
             storage_questions = [
                 {
@@ -258,7 +258,7 @@ def configure():
                     'message': 'Path to folder, that will contains data (Relative or Absolute):',
                     'default': str(default_config['storage'].get('data_folder_path', '')),
                     'validate': NotNullValidator
-                },
+                    },
                 {
                     'type': 'input',
                     'name': 'max_file_count',
@@ -266,7 +266,7 @@ def configure():
                     'default': str(default_config['storage'].get('max_file_count', '')),
                     'validate': NumberValidator,
                     'filter': lambda val: int(val)
-                },
+                    },
                 {
                     'type': 'input',
                     'name': 'max_read_records_count',
@@ -274,7 +274,7 @@ def configure():
                     'default': str(default_config['storage'].get('max_read_records_count', '')),
                     'validate': NumberValidator,
                     'filter': lambda val: int(val)
-                },
+                    },
                 {
                     'type': 'input',
                     'name': 'max_records_per_file',
@@ -282,8 +282,8 @@ def configure():
                     'default': str(default_config['storage'].get('max_records_per_file', '')),
                     'validate': NumberValidator,
                     'filter': lambda val: int(val)
-                }
-            ]
+                    }
+                ]
 
         storage_answers = prompt(storage_questions, style=style)
 
@@ -295,41 +295,41 @@ def configure():
                 'choices': [
                     {
                         'name': 'MQTT',
-                    },
+                        },
                     {
                         'name': 'FTP',
-                    },
+                        },
                     {
                         'name': 'Modbus',
-                    },
+                        },
                     {
                         'name': 'CAN',
-                    },
+                        },
                     {
                         'name': 'Bacnet',
-                    },
+                        },
                     {
                         'name': 'BLE',
-                    },
+                        },
                     {
                         'name': 'OPC-UA',
-                    },
+                        },
                     {
                         'name': 'ODBC',
-                    },
+                        },
                     {
                         'name': 'Request',
-                    },
+                        },
                     {
                         'name': 'REST',
-                    },
+                        },
                     {
                         'name': 'SNMP'
-                    }
-                ],
+                        }
+                    ],
                 'validate': lambda answer: 'You must choose at least one connector.' if len(answer) == 0 else True
-            }
-        ]
+                }
+            ]
 
         connectors_answers = prompt(connectors_questions, style=style)
 
@@ -343,14 +343,14 @@ def configure():
                     'name': 'name',
                     'message': 'Name of connector:',
                     'validate': NotNullValidator
-                },
+                    },
                 {
                     'type': 'input',
                     'name': 'configuration',
                     'message': 'Config file of connector:',
                     'validate': FileExtensionValidator
-                }
-            ]
+                    }
+                ]
             connector_answers = prompt(connector_questions, style=style)
             connectors_list.append({'type': connector.lower(), **connector_answers})
 
@@ -360,10 +360,11 @@ def configure():
                                 'qos': qos_and_storage_type_answers['qos']},
                 'storage': {'type': qos_and_storage_type_answers['storage'], **storage_answers},
                 'connectors': connectors_list
-            })
+                })
     except Exception:
         print(colored('Something went wrong! Please try again.', color='red'))
         raise SystemExit
+
 
 if __name__ == '__main__':
     configure()

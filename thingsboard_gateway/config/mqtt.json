@@ -1,8 +1,8 @@
 {
   "broker": {
-    "name":"Default Local Broker",
-    "host":"127.0.0.1",
-    "port":1883,
+    "name": "Default Local Broker",
+    "host": "127.0.0.1",
+    "port": 1883,
     "clientId": "ThingsBoard_gateway",
     "maxMessageNumberPerWorker": 10,
     "maxNumberOfWorkers": 100,
@@ -80,9 +80,9 @@
         "type": "custom",
         "extension": "CustomMqttUplinkConverter",
         "extension-config": {
-            "temperatureBytes" : 2,
-            "humidityBytes" :  2,
-            "batteryLevelBytes" : 1
+          "temperatureBytes": 2,
+          "humidityBytes": 2,
+          "batteryLevelBytes": 1
         }
       }
     }

@@ -12,9 +12,9 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import threading
 import time
 from queue import Queue
-import threading
 from random import choice
 from string import ascii_lowercase
 
@@ -215,7 +215,7 @@ class ModbusConnector(Connector, threading.Thread):
                                                                         self.__byte_order),
                         WORD_ORDER_PARAMETER: current_device_config.get(WORD_ORDER_PARAMETER,
                                                                         self.__word_order)
-                    }, device_responses))
+                        }, device_responses))
             except ConnectionException:
                 time.sleep(5)
                 log.error("Connection lost! Reconnecting...")
@@ -233,8 +233,8 @@ class ModbusConnector(Connector, threading.Thread):
                             DATA_PARAMETER: {
                                 RPC_METHOD_PARAMETER: attribute_updated,
                                 RPC_PARAMS_PARAMETER: content[DATA_PARAMETER][attribute_updated]
+                                }
                             }
-                        }
                         self.__process_rpc_request(to_process, attribute_updates_command_config)
         except Exception as e:
             log.exception(e)
@@ -351,7 +351,7 @@ class ModbusConnector(Connector, threading.Thread):
             6: master.write_register,
             15: master.write_coils,
             16: master.write_registers,
-        }
+            }
         return master, available_functions
 
     def __stop_connections_to_masters(self):

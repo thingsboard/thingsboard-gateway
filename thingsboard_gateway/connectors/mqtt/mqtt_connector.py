@@ -12,19 +12,20 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import simplejson
-from time import time, sleep
-import string
 import random
-from threading import Thread
-from re import match, fullmatch, search
 import ssl
-from paho.mqtt.client import Client
+import string
 from queue import Queue
+from re import fullmatch, match, search
+from threading import Thread
+from time import sleep, time
 
+import simplejson
+from paho.mqtt.client import Client
+
+from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.connectors.connector import Connector, log
 
 
 class MqttConnector(Connector, Thread):
@@ -56,7 +57,7 @@ class MqttConnector(Connector, Thread):
             "disconnectRequests": ['topicFilter'],
             "attributeRequests": ['topicFilter', 'topicExpression', 'valueExpression'],
             "attributeUpdates": ['deviceNameFilter', 'attributeFilter', 'topicExpression', 'valueExpression']
-        }
+            }
 
         # Mappings, i.e., telemetry/attributes-push handlers provided by user via configuration file
         self.load_handlers('mapping', mandatory_keys['mapping'], self.__mapping)
@@ -235,7 +236,7 @@ class MqttConnector(Connector, Thread):
             3: "server unavailable",
             4: "bad username or password",
             5: "not authorised",
-        }
+            }
 
         if result_code == 0:
             self._connected = True
@@ -348,7 +349,7 @@ class MqttConnector(Connector, Thread):
             return True
         return False
 
-    def _save_converted_msg(self, topic,  data):
+    def _save_converted_msg(self, topic, data):
         self.__gateway.send_to_storage(self.name, data)
         self.statistics['MessagesSent'] += 1
         self.__log.debug("Successfully converted message from topic %s", topic)
@@ -362,7 +363,8 @@ class MqttConnector(Connector, Thread):
         number_of_needed_threads = round(self.__msg_queue.qsize() / self.__max_msg_number_for_worker, 0)
         threads_count = len(self.__workers_thread_pool)
         if number_of_needed_threads > threads_count < self.__max_number_of_workers:
-            thread = MqttConnector.ConverterWorker("Worker " + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)), self.__msg_queue, self._save_converted_msg)
+            thread = MqttConnector.ConverterWorker("Worker " + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)), self.__msg_queue,
+                                                   self._save_converted_msg)
             self.__workers_thread_pool.append(thread)
             thread.start()
         elif number_of_needed_threads < threads_count and threads_count > 1:

@@ -12,15 +12,10 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.converter import Converter, log
+from thingsboard_gateway.connectors.converter import Converter
 
 
 class RESTConverter(Converter):
 
     def convert(self, config, data):
         pass
-
-
-
-
-

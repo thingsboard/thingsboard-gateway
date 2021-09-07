@@ -12,13 +12,13 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from threading import Thread
+from json import JSONDecodeError
 from queue import Queue
 from random import choice
-from string import ascii_lowercase
-from time import sleep, time
 from re import fullmatch
-from json import JSONDecodeError
+from string import ascii_lowercase
+from threading import Thread
+from time import sleep, time
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -195,7 +195,7 @@ class RequestConnector(Connector, Thread):
                 "verify": self.__ssl_verify,
                 "auth": self.__security,
                 "data": request["config"].get("data", {})
-            }
+                }
             logger.debug(url)
             if request["config"].get("httpHeaders") is not None:
                 params["headers"] = request["config"]["httpHeaders"]
@@ -256,7 +256,7 @@ class RequestConnector(Connector, Thread):
 
     def __add_ts(self, data):
         if data.get("ts") is None:
-            data["ts"] = time()*1000
+            data["ts"] = time() * 1000
 
     def __process_data(self):
         try:

@@ -12,7 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from os import path, listdir, mkdir, curdir
+from os import curdir, listdir, mkdir, path
+
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
 

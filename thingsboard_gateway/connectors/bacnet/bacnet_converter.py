@@ -12,8 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.converter import Converter, log
-
 
 class BACnetConverter:
     def __init__(self, config):
@@ -21,4 +19,3 @@ class BACnetConverter:
 
     def convert(self, config, data):
         pass
-
