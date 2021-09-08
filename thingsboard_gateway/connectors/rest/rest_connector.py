@@ -11,14 +11,15 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+import asyncio
 from queue import Queue
 from random import choice
 from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
-from time import sleep, time
+from time import time
 
+import aiohttp
 from simplejson import JSONDecodeError, loads
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -36,30 +37,13 @@ from requests.exceptions import RequestException
 
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 
+
 try:
-    from flask import Flask, jsonify, request
+    from aiohttp import web
 except ImportError:
-    print("Flask library not found - installing...")
-    TBUtility.install_package("flask")
-    from flask import Flask, jsonify, request
-try:
-    from flask_restful import reqparse, abort, Api, Resource
-except ImportError:
-    print("RESTFUL flask library not found - installing...")
-    TBUtility.install_package("Flask-restful")
-    from flask_restful import reqparse, abort, Api, Resource
-try:
-    from flask_httpauth import HTTPBasicAuth
-except ImportError:
-    print("HTTPAuth flask library not found - installing...")
-    TBUtility.install_package("Flask-httpauth")
-    from flask_httpauth import HTTPBasicAuth
-try:
-    from werkzeug.security import generate_password_hash, check_password_hash
-except ImportError:
-    print("Werkzeug flask library not found - installing...")
-    TBUtility.install_package("werkzeug")
-    from werkzeug.security import generate_password_hash, check_password_hash
+    print('AIOHTTP library not found - installing...')
+    TBUtility.install_package('aiohttp')
+    from aiohttp import web
 
 from thingsboard_gateway.connectors.connector import Connector, log
 
@@ -72,7 +56,7 @@ class RESTConnector(Connector, Thread):
         self._default_converters = {
             "uplink": "JsonRESTUplinkConverter",
             "downlink": "JsonRESTDownlinkConverter"
-            }
+        }
         self.__config = config
         self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
@@ -80,17 +64,13 @@ class RESTConnector(Connector, Thread):
         self.__gateway = gateway
         self.__USER_DATA = {}
         self.setName(config.get("name", 'REST Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
-
+        self._app = None
         self._connected = False
         self.__stopped = False
         self.daemon = True
-        self._app = Flask(self.get_name())
-        self._api = Api(self._app)
         self.__rpc_requests = []
         self.__attribute_updates = []
         self.__fill_requests_from_TB()
-        self.endpoints = self.load_endpoints()
-        self.load_handlers()
 
     def load_endpoints(self):
         endpoints = {}
@@ -104,7 +84,8 @@ class RESTConnector(Connector, Thread):
         data_handlers = {
             "basic": BasicDataHandler,
             "anonymous": AnonymousDataHandler,
-            }
+        }
+        handlers = []
         for mapping in self.__config.get("mapping"):
             try:
                 security_type = "anonymous" if mapping.get("security") is None else mapping["security"]["type"].lower()
@@ -112,29 +93,42 @@ class RESTConnector(Connector, Thread):
                     Users.add_user(mapping['endpoint'],
                                    mapping['security']['username'],
                                    mapping['security']['password'])
-                self._api.add_resource(data_handlers[security_type],
-                                       mapping['endpoint'],
-                                       endpoint=mapping['endpoint'],
-                                       resource_class_args=(self.collect_statistic_and_send,
-                                                            self.get_name(),
-                                                            self.endpoints[mapping["endpoint"]]))
+                # self._api.add_resource(data_handlers[security_type],
+                #                        mapping['endpoint'],
+                #                        endpoint=mapping['endpoint'],
+                #                        resource_class_args=(self.collect_statistic_and_send,
+                #                                             self.get_name(),
+                #                                             self.endpoints[mapping["endpoint"]]))
+                for http_method in mapping['HTTPMethods']:
+                    handler = data_handlers[security_type](self.collect_statistic_and_send, self.get_name(),
+                                                           self.endpoints[mapping["endpoint"]])
+                    handlers.append(web.route(http_method, mapping['endpoint'], handler))
             except Exception as e:
                 log.error("Error on creating handlers - %s", str(e))
+        self._app.add_routes(handlers)
 
     def open(self):
         self.__stopped = False
         self.start()
 
+    def __run_server(self):
+        self.endpoints = self.load_endpoints()
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError or ValueError:
+            loop = asyncio.new_event_loop()
+
+        asyncio.set_event_loop(loop)
+        self._app = web.Application(debug=True, loop=loop)
+        self.load_handlers()
+        web.run_app(self._app, host=self.__config['host'], port=self.__config['port'], handle_signals=False)
+
     def run(self):
         self._connected = True
-        try:
-            self._app.run(host=self.__config["host"], port=self.__config["port"])
 
-            while not self.__stopped:
-                if self.__stopped:
-                    break
-                else:
-                    sleep(.1)
+        try:
+            self.__run_server()
         except Exception as e:
             log.exception(e)
 
@@ -162,7 +156,8 @@ class RESTConnector(Connector, Thread):
                         attribute_update_request_thread = Thread(target=self.__send_request,
                                                                  args=(request_dict, response_queue, log),
                                                                  daemon=True,
-                                                                 name="Attribute request to %s" % (converted_data["url"]))
+                                                                 name="Attribute request to %s" % (
+                                                                     converted_data["url"]))
                         attribute_update_request_thread.start()
                         attribute_update_request_thread.join()
                     if not response_queue.empty():
@@ -197,7 +192,8 @@ class RESTConnector(Connector, Thread):
                                                       req_id=content["data"]["id"],
                                                       content=response[2])
                     else:
-                        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=True)
+                        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
+                                                      success_sent=True)
 
                     del response_queue
         except Exception as e:
@@ -212,14 +208,18 @@ class RESTConnector(Connector, Thread):
         requests_from_tb = {
             "attributeUpdates": self.__attribute_updates,
             "serverSideRpc": self.__rpc_requests,
-            }
+        }
         for request_section in requests_from_tb:
             for request_config_object in self.__config.get(request_section, []):
                 uplink_converter = TBModuleLoader.import_module(self._connector_type,
-                                                                request_config_object.get("extension", self._default_converters["uplink"]))(
+                                                                request_config_object.get("extension",
+                                                                                          self._default_converters[
+                                                                                              "uplink"]))(
                     request_config_object)
                 downlink_converter = TBModuleLoader.import_module(self._connector_type,
-                                                                  request_config_object.get("extension", self._default_converters["downlink"]))(
+                                                                  request_config_object.get("extension",
+                                                                                            self._default_converters[
+                                                                                                "downlink"]))(
                     request_config_object)
                 request_dict = {**request_config_object,
                                 "uplink_converter": uplink_converter,
@@ -257,7 +257,7 @@ class RESTConnector(Connector, Thread):
                 "verify": request_dict["config"].get("SSLVerify"),
                 "auth": security,
                 **data,
-                }
+            }
             logger.debug(url)
             if request_dict["config"].get("httpHeaders") is not None:
                 params["headers"] = request_dict["config"]["httpHeaders"]
@@ -296,99 +296,62 @@ class RESTConnector(Connector, Thread):
             logger.exception(e)
 
 
-class AnonymousDataHandler(Resource):
+class AnonymousDataHandler:
     def __init__(self, send_to_storage, name, endpoint):
-        super().__init__()
         self.send_to_storage = send_to_storage
         self.__name = name
         self.__endpoint = endpoint
 
-    def process_data(self, request):
-        if not request.json and not len(request.args):
-            abort(415)
+    async def __call__(self, request: web.Request):
+        json_data = await request.json()
+        if not json_data and not len(request.query):
+            return web.Response(status=415)
         endpoint_config = self.__endpoint['config']
         if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
-            abort(405)
+            return web.Response(status=405)
         try:
             log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
             converter = self.__endpoint['converter'](endpoint_config['converter'])
-            data = request.get_json() if request.json else dict(request.args)
+            data = json_data if json_data else dict(request.query)
             converted_data = converter.convert(config=endpoint_config['converter'], data=data)
             self.send_to_storage(self.__name, converted_data)
             log.info("CONVERTED_DATA: %r", converted_data)
-            return "OK", 200
+            return web.Response(status=200)
         except Exception as e:
             log.exception("Error while post to anonymous handler: %s", e)
-            return "", 500
-
-    def get(self):
-        return self.process_data(request)
-
-    def post(self):
-        return self.process_data(request)
-
-    def put(self):
-        return self.process_data(request)
-
-    def update(self):
-        return self.process_data(request)
-
-    def delete(self):
-        return self.process_data(request)
+            return web.Response(status=500)
 
 
-class BasicDataHandler(Resource):
-    auth = HTTPBasicAuth()
-
+class BasicDataHandler:
     def __init__(self, send_to_storage, name, endpoint):
-        super().__init__()
         self.send_to_storage = send_to_storage
         self.__name = name
         self.__endpoint = endpoint
 
-    @staticmethod
-    @auth.verify_password
-    def verify(username, password):
+    def verify(self, username, password):
         if not username and password:
             return False
-        return Users.validate_user_credentials(request.endpoint, username, password)
+        return Users.validate_user_credentials(self.__endpoint['config']['endpoint'], username, password)
 
-    def process_data(self, request):
-        if not request.json:
-            abort(415)
-        endpoint_config = self.__endpoint['config']
-        if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
-            abort(405)
-        try:
-            log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
-            converter = self.__endpoint['converter'](endpoint_config['converter'])
-            converted_data = converter.convert(config=endpoint_config['converter'], data=request.get_json())
-            self.send_to_storage(self.__name, converted_data)
-            log.info("CONVERTED_DATA: %r", converted_data)
-            return "OK", 200
-        except Exception as e:
-            log.exception("Error while post to basic handler: %s", e)
-            return "", 500
-
-    @auth.login_required
-    def get(self):
-        return self.process_data(request)
-
-    @auth.login_required
-    def post(self):
-        return self.process_data(request)
-
-    @auth.login_required
-    def put(self):
-        return self.process_data(request)
-
-    @auth.login_required
-    def update(self):
-        return self.process_data(request)
-
-    @auth.login_required
-    def delete(self):
-        return self.process_data(request)
+    async def __call__(self, request: web.Request):
+        auth = aiohttp.BasicAuth.decode(request.headers.get('Authorization'))
+        if self.verify(auth.login, auth.password):
+            json_data = await request.json()
+            if not json_data:
+                return web.Response(status=415)
+            endpoint_config = self.__endpoint['config']
+            if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
+                return web.Response(status=405)
+            try:
+                log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
+                converter = self.__endpoint['converter'](endpoint_config['converter'])
+                converted_data = converter.convert(config=endpoint_config['converter'], data=json_data)
+                self.send_to_storage(self.__name, converted_data)
+                log.info("CONVERTED_DATA: %r", converted_data)
+                return web.Response(status=200)
+            except Exception as e:
+                log.exception("Error while post to basic handler: %s", e)
+                return web.Response(status=500)
 
 
 class Users:
