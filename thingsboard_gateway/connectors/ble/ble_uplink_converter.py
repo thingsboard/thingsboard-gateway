@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.converter import Converter, abstractmethod
+from thingsboard_gateway.connectors.converter import Converter, abstractmethod, log
 
 
 class BLEUplinkConverter(Converter):
