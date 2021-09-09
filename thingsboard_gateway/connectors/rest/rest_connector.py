@@ -93,12 +93,6 @@ class RESTConnector(Connector, Thread):
                     Users.add_user(mapping['endpoint'],
                                    mapping['security']['username'],
                                    mapping['security']['password'])
-                # self._api.add_resource(data_handlers[security_type],
-                #                        mapping['endpoint'],
-                #                        endpoint=mapping['endpoint'],
-                #                        resource_class_args=(self.collect_statistic_and_send,
-                #                                             self.get_name(),
-                #                                             self.endpoints[mapping["endpoint"]]))
                 for http_method in mapping['HTTPMethods']:
                     handler = data_handlers[security_type](self.collect_statistic_and_send, self.get_name(),
                                                            self.endpoints[mapping["endpoint"]])
@@ -352,6 +346,8 @@ class BasicDataHandler:
             except Exception as e:
                 log.exception("Error while post to basic handler: %s", e)
                 return web.Response(status=500)
+
+        return web.Response(status=401)
 
 
 class Users:
