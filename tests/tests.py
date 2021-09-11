@@ -24,8 +24,7 @@ from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import 
 from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
 from thingsboard_gateway.connectors.ble.bytes_ble_uplink_converter import BytesBLEUplinkConverter
 from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
-from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
-from thingsboard_gateway.storage.file_event_storage import FileEventStorage
+
 
 logging.basicConfig(level=logging.ERROR,
                     format='%(asctime)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s',
@@ -383,62 +382,6 @@ class ConvertersTests(unittest.TestCase):
         converter = JsonRequestUplinkConverter(test_request_config)
         result = converter.convert(test_request_convert_config, test_request_body_to_convert)
         self.assertDictEqual(result, test_request_result)
-
-
-class TestStorage(unittest.TestCase):
-    def test_memory_storage(self):
-
-        test_size = randint(0, 100)
-
-        storage_test_config = {
-            "type": "memory",
-            "read_records_count": 10,
-            "max_records_count": test_size * 10
-        }
-        storage = MemoryEventStorage(storage_test_config)
-
-        for test_value in range(test_size * 10):
-            storage.put(test_value)
-
-        result = []
-        for _ in range(test_size):
-            result.append(storage.get_event_pack())
-            storage.event_pack_processing_done()
-        correct_result = [[item for item in range(pack * 10, (pack + 1) * 10)] for pack in range(test_size)]
-
-        self.assertListEqual(result, correct_result)
-
-    def test_file_storage(self):
-
-        storage_test_config = {"data_folder_path": "storage/data/",
-                               "max_file_count": 1000,
-                               "max_records_per_file": 10,
-                               "max_read_records_count": 10,
-                               "no_records_sleep_interval": 5000
-                               }
-
-        test_size = randint(0, storage_test_config["max_file_count"]-1)
-
-        storage = FileEventStorage(storage_test_config)
-
-        for test_value in range(test_size * 10):
-            storage.put(str(test_value))
-            sleep(.01)
-
-        result = []
-        for _ in range(test_size):
-            batch = storage.get_event_pack()
-            result.append(batch)
-            storage.event_pack_processing_done()
-
-        correct_result = [[str(x) for x in range(y * 10, (y + 1) * 10)] for y in range(test_size)]
-
-        print(result)
-        print(correct_result)
-        for file in listdir(storage_test_config["data_folder_path"]):
-            remove(storage_test_config["data_folder_path"]+"/"+file)
-        removedirs(storage_test_config["data_folder_path"])
-        self.assertListEqual(result, correct_result)
 
 
 if __name__ == '__main__':

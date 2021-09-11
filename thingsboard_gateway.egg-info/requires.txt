@@ -1,0 +1,7 @@
+PyYAML
+jsonpath-rw
+paho-mqtt
+pip
+regex
+requests
+simplejson

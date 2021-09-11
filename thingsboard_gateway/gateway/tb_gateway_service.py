@@ -4,7 +4,7 @@
 #     you may not use this file except in compliance with the License.
 #     You may obtain a copy of the License at
 #
-#         http://www.apache.org/licenses/LICENSE-2.0
+#         http:///www.apache.org/licenses/LICENSE-2.0
 #
 #     Unless required by applicable law or agreed to in writing, software
 #     distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from hashlib import sha1
 from sys import getsizeof, executable, argv
 from os import listdir, path, execv, pathsep, system, stat
 from time import time, sleep
@@ -21,7 +22,7 @@ import logging.handlers
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
-from threading import Thread, RLock
+from threading import Thread
 
 from yaml import safe_load
 from simplejson import load, dumps, loads
@@ -35,6 +36,14 @@ from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file_event_storage import FileEventStorage
 from thingsboard_gateway.tb_utility.tb_gateway_remote_configurator import RemoteConfigurator
 from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
+
+# New Storage
+from thingsboard_gateway.new_storage.storage_handler import StorageHandler
+from thingsboard_gateway.new_storage.database_action_type import DatabaseActionType
+from thingsboard_gateway.new_storage.database_request import DatabaseRequest
+
+
+
 
 log = logging.getLogger('service')
 main_handler = logging.handlers.MemoryHandler(-1)
@@ -57,13 +66,17 @@ DEFAULT_CONNECTORS = {
 class TBGatewayService:
     def __init__(self, config_file=None):
         self.stopped = False
-        self.__lock = RLock()
+        
+        # Open and read config
         if config_file is None:
             config_file = path.dirname(path.dirname(path.abspath(__file__))) + '/config/tb_gateway.yaml'.replace('/',
                                                                                                                  path.sep)
         with open(config_file) as general_config:
             self.__config = safe_load(general_config)
+
         self._config_dir = path.dirname(path.abspath(config_file)) + path.sep
+
+        # Initialize logging
         logging_error = None
         try:
             logging.config.fileConfig(self._config_dir + "logs.conf", disable_existing_loggers=False)
@@ -71,21 +84,24 @@ class TBGatewayService:
             logging_error = e
         global log
         log = logging.getLogger('service')
+
         log.info("Gateway starting...")
         self.__updater = TBUpdater()
         self.__updates_check_period_ms = 300000
         self.__updates_check_time = 0
         self.version = self.__updater.get_version()
         log.info("ThingsBoard IoT gateway version: %s", self.version["current_version"])
+
         self.available_connectors = {}
         self.__connector_incoming_messages = {}
-        self.__connected_devices = {}
         self.__saved_devices = {}
         self.__events = []
         self.name = ''.join(choice(ascii_lowercase) for _ in range(64))
         self.__rpc_register_queue = Queue(-1)
         self.__rpc_requests_in_progress = {}
         self.__connected_devices_file = "connected_devices.json"
+
+        # Initialize connection to TB cluster
         self.tb_client = TBClient(self.__config["thingsboard"], self._config_dir)
         self.tb_client.connect()
         self.subscribe_to_required_topics()
@@ -102,9 +118,11 @@ class TBGatewayService:
         self.main_handler.setTarget(self.remote_handler)
         self._default_connectors = DEFAULT_CONNECTORS
         self._implemented_connectors = {}
+
         self._event_storage_types = {
             "memory": MemoryEventStorage,
             "file": FileEventStorage,
+            "sqlite": StorageHandler,
         }
         self.__gateway_rpc_methods = {
             "ping": self.__rpc_ping,
@@ -112,6 +130,7 @@ class TBGatewayService:
             "devices": self.__rpc_devices,
             "update": self.__rpc_update,
             "version": self.__rpc_version,
+            "data": self.__rpc_data
         }
         self.__remote_shell = None
         if self.__config["thingsboard"].get("remoteShell"):
@@ -123,24 +142,41 @@ class TBGatewayService:
         self.__rpc_sheduled_methods_functions = {
             "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
             "reboot": {"function": system, "arguments": ("reboot 0",)},
-        }
-        self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"])
+            }
+        
+        # Initializes EventStorage
+        self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"]) 
+
         self.connectors_configs = {}
         self.__remote_configurator = None
         self.__request_config_after_connect = False
+
+        # load devices from file only if that storage method is used
+        if self.__config["storage"]["type"] == "sqlite":
+            self.__connected_devices = self._event_storage.connected_devices
+
+        else:
+            self.__connected_devices = {}
+            self.__load_persistent_devices()
+
+        # Initialize Connectors
         self.__init_remote_configuration()
         self._load_connectors()
         self._connect_with_connectors()
-        self.__load_persistent_devices()
+
         self._published_events = Queue(-1)
-        self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
-                                   name="Send data to Thingsboard Thread")
+
+
+        self.dataPackToCluster = {}
+        self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True, name="Send data to Thingsboard Thread")
         self._send_thread.start()
         log.info("Gateway started.")
 
         try:
             gateway_statistic_send = 0
             connectors_configuration_check_time = 0
+
+            # MAIN LOOP
             while not self.stopped:
                 cur_time = time() * 1000
                 if not self.tb_client.is_connected() and self.__subscribed_to_rpc_topics:
@@ -193,7 +229,6 @@ class TBGatewayService:
                 if cur_time - gateway_statistic_send > self.__config["thingsboard"].get("statsSendPeriodInSeconds",
                                                                                         3600) * 1000 and self.tb_client.is_connected():
                     summary_messages = self.__form_statistics()
-                    # with self.__lock:
                     self.tb_client.client.send_telemetry(summary_messages)
                     gateway_statistic_send = time() * 1000
                     # self.__check_shared_attributes()
@@ -229,6 +264,8 @@ class TBGatewayService:
         self.__updater.stop()
         log.info("Stopping...")
         self.__close_connectors()
+        if self.__config["storage"]["type"] == "sqlite":
+            self._event_storage.closeDB()
         log.info("The gateway has been stopped.")
         self.tb_client.disconnect()
         self.tb_client.stop()
@@ -367,7 +404,7 @@ class TBGatewayService:
             if not TBUtility.validate_converted_data(data):
                 log.error("Data from %s connector is invalid.", connector_name)
                 return None
-            if data["deviceName"] not in self.get_devices() and self.tb_client.is_connected():
+            if data["deviceName"] not in self.get_devices():
                 self.add_device(data["deviceName"],
                                 {"connector": self.available_connectors[connector_name]},
                                 device_type=data["deviceType"])
@@ -390,12 +427,23 @@ class TBGatewayService:
         else:
             data["telemetry"] = {"ts": int(time() * 1000), "values": telemetry}
 
-        json_data = dumps(data)
-        save_result = self._event_storage.put(json_data)
+        # Sqlite needs some data from the msg, before we store in DB
+        if self.__config["storage"]["type"] == "sqlite":
+
+            save_result = self._event_storage.put(data)
+
+        else:
+            json_data = dumps(data)
+            save_result = self._event_storage.put(json_data)
+
+
         if not save_result:
             log.error('Data from the device "%s" cannot be saved, connector name is %s.',
                       data["deviceName"],
                       connector_name)
+
+        # Send data to TB Cluster
+
 
     def check_size(self, size, devices_data_in_event_pack):
         if size >= 48000:
@@ -406,15 +454,38 @@ class TBGatewayService:
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
         log.debug("Send data Thread has been started successfully.")
+        disconnected = False
+        last_disconnect = None
         while True:
             try:
                 if self.tb_client.is_connected():
                     size = getsizeof(devices_data_in_event_pack)
                     events = []
-                    if self.__remote_configurator is None or not self.__remote_configurator.in_process:
-                        events = self._event_storage.get_event_pack()
+                    # Reconnected, start sending data to cluster
+                    if self.__config["storage"]["type"] == "sqlite":
+                        if disconnected and last_disconnect is not None:
+                            for device in self.__connected_devices:
+
+                                data_from_storage = self._event_storage.readFrom(device, last_disconnect)
+                                for singe_data in data_from_storage:
+                                    self._event_storage.readQueue.put(singe_data)
+
+                        # Reset data recovery upload signal
+                        disconnected = False
+
+                        for _ in range(self._event_storage.readQueue.qsize()):
+                            # readQueue.get() returns a json string
+                            events.append(self._event_storage.readQueue.get())
+
+                    # Cover Memory and File storage
+                    else:
+                        if self.__remote_configurator is None or not self.__remote_configurator.in_process:
+                            events = self._event_storage.get_event_pack() 
+
+                    
                     if events:
                         for event in events:
+                            log.debug("Reading events: %s" % str(events))
                             self.counter += 1
                             try:
                                 current_event = loads(event)
@@ -423,7 +494,7 @@ class TBGatewayService:
                                 continue
                             if not devices_data_in_event_pack.get(current_event["deviceName"]):
                                 devices_data_in_event_pack[current_event["deviceName"]] = {"telemetry": [],
-                                                                                           "attributes": {}}
+                                                                                        "attributes": {}}
                             if current_event.get("telemetry"):
                                 if isinstance(current_event["telemetry"], list):
                                     for item in current_event["telemetry"]:
@@ -479,7 +550,9 @@ class TBGatewayService:
                                     success = False
                                 sleep(.01)
                             if success:
-                                self._event_storage.event_pack_processing_done()
+                                log.info("Event pack successfuly sent!")
+                                if self.__config["storage"]["type"] != "sqlite":
+                                    self._event_storage.event_pack_processing_done()
                                 del devices_data_in_event_pack
                                 devices_data_in_event_pack = {}
                         else:
@@ -488,6 +561,9 @@ class TBGatewayService:
                         sleep(.01)
                 else:
                     sleep(.1)
+                    if not disconnected:
+                        last_disconnect = int(time() * 1000)
+                        disconnected = True
             except Exception as e:
                 log.exception(e)
                 sleep(1)
@@ -594,12 +670,28 @@ class TBGatewayService:
     @staticmethod
     def __rpc_ping(*args):
         return {"code": 200, "resp": "pong"}
+    
+    # Request data from gateway storage
+    # you have to specify timestamp to specify from when to start reading
+    # args: JSON{"deviceName": "<deviceName>", "ts": <timestamp>}
+    def __rpc_data(self, args):
+        arguments = loads(args)
+        log.debug(str(arguments))
+        _type = DatabaseActionType.READ_DEVICE
+        request = DatabaseRequest(_type, arguments)
+        self._event_storage.processQueue.put(request)
+        return {"code": 200, "resp": "Data from %s scheduled for upload" % arguments.get("deviceName")}
+        
+
 
     def __rpc_devices(self, *args):
         data_to_send = {}
         for device in self.__connected_devices:
             if self.__connected_devices[device]["connector"] is not None:
-                data_to_send[device] = self.__connected_devices[device]["connector"].get_name()
+                if isinstance(self.__connected_devices[device]["connector"], str):
+                    data_to_send[device] = self.__connected_devices[device]["connector"]
+                if isinstance(self.__connected_devices[device]["connector"], object):
+                    data_to_send[device] = self.__connected_devices[device]["connector"].get_name()
         return {"code": 200, "resp": data_to_send}
 
     def __rpc_update(self, *args):
@@ -693,28 +785,74 @@ class TBGatewayService:
             summary_messages.update(**telemetry)
         return summary_messages
 
+    # TODO: This needs a lot of clean up
     def add_device(self, device_name, content, device_type=None):
-        if device_name not in self.__saved_devices:
-            device_type = device_type if device_type is not None else 'default'
-            self.__connected_devices[device_name] = {**content, "device_type": device_type}
-            self.__saved_devices[device_name] = {**content, "device_type": device_type}
-            self.__save_persistent_devices()
-            self.tb_client.client.gw_connect_device(device_name, device_type)
 
-    def update_device(self, device_name, event, content):
-        if event == 'connector' and self.__connected_devices[device_name].get(event) != content:
-            self.__save_persistent_devices()
-        self.__connected_devices[device_name][event] = content
+        if self.__config["storage"]["type"] == "file":
+
+            if device_name not in self.__saved_devices:
+                device_type = device_type if device_type is not None else 'default'
+                self.__connected_devices[device_name] = {**content, "device_type": device_type}
+                self.__saved_devices[device_name] = {**content, "device_type": device_type}
+                self.__save_persistent_devices()
+                self.tb_client.client.gw_connect_device(device_name, device_type)
+
+        else:
+
+            if device_name not in self.__connected_devices:
+                log.info("Adding device: %s on connector: %s" % (device_name, str(content)))
+                device_type = device_type if device_type is not None else 'default'
+                # self.__connected_devices[device_name] = {**content, "device_type": device_type}
+
+                # Storage handler handles device connections
+                if isinstance(content, dict):
+                    log.debug("content is instance of Dict")
+                    self._event_storage.add_device(device_name, content.get("connector").get_name(), device_type)
+                elif isinstance(content, str):
+                    log.debug("content is instance of String")
+                    self._event_storage.add_device(device_name, content, device_type)
+                else:
+                    log.error("Cannot find connector name in content")
+                    log.exception()
+                
+                self.__connected_devices = self._event_storage.get_connected_devices()
+
+                # self.__save_persistent_devices()
+                self.tb_client.client.gw_connect_device(device_name, device_type)
+            else:
+                log.debug("Device: %s is already added!", device_name)
+
+    # DEPRACTED
+    
+    # def update_device(self, device_name, event, content):
+    #     if event == 'connector' and self.__connected_devices[device_name].get(event) != content:
+    #         # self.__save_persistent_devices()
+    #     self.__connected_devices[device_name][event] = content
 
     def del_device(self, device_name):
-        del self.__connected_devices[device_name]
-        del self.__saved_devices[device_name]
-        self.tb_client.client.gw_disconnect_device(device_name)
-        self.__save_persistent_devices()
+        if self.__config["storage"]["type"] == "sqlite":
+        
+            self._event_storage.del_device(device_name)
+            self.__connected_devices = self._event_storage.get_connected_devices()
+            self.tb_client.client.gw_disconnect_device(device_name)
+        
+        else:
+
+            del self.__connected_devices[device_name]
+            del self.__saved_devices[device_name]
+            self.tb_client.client.gw_disconnect_device(device_name)
+            self.__save_persistent_devices()
 
     def get_devices(self):
-        return self.__connected_devices
+        if self.__config["storage"]["type"] == "sqlite":
+            return self._event_storage.get_connected_devices()
+        else:
+            return self.__connected_devices
 
+
+    """
+    Used only in file base storage
+    """
     def __load_persistent_devices(self):
         devices = {}
         if self.__connected_devices_file in listdir(self._config_dir) and \
@@ -741,6 +879,10 @@ class TBGatewayService:
         else:
             log.debug("No device found in connected device file.")
             self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices
+    
+    """
+    THIS SHOULD NOT BE NEEDED
+    """
 
     def __save_persistent_devices(self):
         with open(self._config_dir + self.__connected_devices_file, 'w') as config_file:

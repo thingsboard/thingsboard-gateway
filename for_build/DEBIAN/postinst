@@ -37,34 +37,40 @@ sudo cp -a -r /etc/thingsboard-gateway/extensions /var/lib/thingsboard_gateway/
 sudo rm -r /etc/thingsboard-gateway/extensions
 sudo usermod -a -G dialout $CURRENT_USER
 sudo usermod -a -G thingsboard_gateway $CURRENT_USER
+sudo usermod -a -G dialout thingsboard_gateway
 sudo chown thingsboard_gateway:thingsboard_gateway /var/log/thingsboard-gateway/ -R
 sudo chown thingsboard_gateway:thingsboard_gateway /var/lib/thingsboard_gateway/ -R
 sudo chown thingsboard_gateway:thingsboard_gateway /etc/thingsboard-gateway/ -R
 sudo sed -i 's/\.\/logs/\/var\/log\/thingsboard-gateway/g' /etc/thingsboard-gateway/config/logs.conf >> /etc/thingsboard-gateway/config/logs.conf
 echo "Installing Mosquitto config"
 #sudo cp -a -r /etc/mosquitto/mosquitto.conf /etc/mosquitto/mosquitto.conf
-echo "Installation completed, Starting network setup..."
-cat << EOF > network-config.sh
-#!/bin/bash
-export IP_ADDRESS
-export SUBNET_MASK
-export GATEWAY_IP
-read -e -p "Input desired ip address of this device: " -i "192.168.1.101" IP_ADDRESS
-read -e -p "Input desired subnet mask: " -i "255.255.255.0" SUBNET_MASK
-read -e -p "Input desired gateway ip address: " -i "192.168.1.1" GATEWAY_IP
+[ ! -d /etc/mervis ] && echo "Mervis libs not found"
+if [ -d /etc/mervis ]
+then
+	echo "Installation completed, Starting network setup..."
+	cat << EOF > network-config.sh
+	#!/bin/bash
+	export IP_ADDRESS
+	export SUBNET_MASK
+	export GATEWAY_IP
+	read -p "Input desired ip address of this device: " -e -i "192.168.1.101" IP_ADDRESS
+	read -p "Input desired subnet mask: " -e -i "255.255.255.0" SUBNET_MASK
+	read -p "Input desired gateway ip address: " -e -i "192.168.1.1" GATEWAY_IP
 
-ls /etc/mervis/ > /dev/null || echo "\nMervis libs not found"
 
-sudo /etc/mervis/configure-enet default "change card eth0 address \$IP_ADDRESS mask \$SUBNET_MASK gateway \$GATEWAY_IP nameserver \$GATEWAY_IP" 
-sudo /etc/mervis/configure-enet default commit
+	sudo /etc/mervis/configure-enet default "change card eth0 address \$IP_ADDRESS mask \$SUBNET_MASK gateway \$GATEWAY_IP nameserver \$GATEWAY_IP" 
+	sudo /etc/mervis/configure-enet default commit
 EOF
+
 sudo chmod +x ./network-config.sh
 sudo chown root:root ./network-config.sh
 
-sudo ./network-config.sh
+sudo /bin/bash ./network-config.sh
+fi
+
 echo "Enabling daemons..."
 sudo pidof systemd && sudo systemctl enable thingsboard-gateway || echo "Systemctl not found"
 sudo pidof systemd && sudo systemctl enable mosquitto || echo 
 sudo pidof systemd && sudo systemctl start  mosquitto || echo 
 sudo pidof systemd && sudo systemctl start thingsboard-gateway || echo
-echo -e "\e[96m myEnergyplan Gateway \e[92mhas been installed. Have a nice day \e[93m\e[5m:)\e[25m\e[39m"
+echo -e "\e[96m STS Gateway \e[92mhas been installed. Have a nice day \e[93m\e[5m:)\e[25m\e[39m"

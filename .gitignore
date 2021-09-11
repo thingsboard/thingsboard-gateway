@@ -15,9 +15,10 @@ thingsboard_gateway/storage/data/
 /logs/
 /python3-thingsboard-gateway.deb
 /python3-thingsboard-gateway.rpm
-/thingsboard_gateway.egg-info/
 /docker/python3-thingsboard-gateway.deb
 /data/
+/tests/storage/data/
 /logs/
 __pycache__
 /venv/
+*.db

@@ -36,8 +36,9 @@ class EventStorageWriter:
         self.previous_file_records_count = [0]
         self.get_number_of_records_in_file(self.current_file)
 
-    def write(self, msg):
+    def write(self, msg) -> None:
         if len(self.files.data_files) <= self.settings.get_max_files_count():
+
             if self.current_file_records_count[0] >= self.settings.get_max_records_per_file() or not exists(self.settings.get_data_folder_path()+self.current_file):
                 try:
                     self.current_file = self.create_datafile()
@@ -52,6 +53,7 @@ class EventStorageWriter:
                 except IOError as e:
                     log.warning("Failed to close buffered writer! %s", e)
                 self.buffered_writer = None
+                
             try:
                 encoded = b64encode(msg.encode("utf-8"))
                 if not exists(self.settings.get_data_folder_path() + self.current_file):
