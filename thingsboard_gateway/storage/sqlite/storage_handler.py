@@ -1,11 +1,11 @@
 
 
 from importlib.abc import ExecutionLoader
-from thingsboard_gateway.new_storage.database import Database
+from thingsboard_gateway.storage.sqlite.database import Database
 from time import time, sleep
 from queue import Queue
-from thingsboard_gateway.new_storage.database_request import DatabaseRequest
-from thingsboard_gateway.new_storage.database_action_type import DatabaseActionType
+from thingsboard_gateway.storage.sqlite.database_request import DatabaseRequest
+from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActionType
 #
 #   No need to import DatabaseResponse, responses come to this component to be deconstructed
 #

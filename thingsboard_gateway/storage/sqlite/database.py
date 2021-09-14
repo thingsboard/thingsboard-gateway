@@ -1,13 +1,10 @@
-from thingsboard_gateway.new_storage.database_connector import DatabaseConnector
-from thingsboard_gateway.new_storage.database_request import DatabaseRequest
-from thingsboard_gateway.new_storage.database_response import DatabaseReponse
-from thingsboard_gateway.new_storage.database_action_type import DatabaseActionType
-from thingsboard_gateway.new_storage.storage_settings import StorageSettings
+from thingsboard_gateway.storage.sqlite.database_connector import DatabaseConnector
+from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActionType
+from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 from simplejson import dumps
 from time import time
 from datetime import datetime, timedelta
 from hashlib import sha1
-from sqlite3 import OperationalError
 from logging import getLogger
 
 log = getLogger("database")

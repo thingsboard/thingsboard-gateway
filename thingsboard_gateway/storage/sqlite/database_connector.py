@@ -1,5 +1,5 @@
 from sqlite3 import connect
-from thingsboard_gateway.new_storage.storage_settings import StorageSettings
+from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 
 
 from logging import getLogger

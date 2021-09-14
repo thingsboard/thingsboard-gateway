@@ -32,15 +32,15 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
 from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
-from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
-from thingsboard_gateway.storage.file_event_storage import FileEventStorage
+from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
+from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.tb_utility.tb_gateway_remote_configurator import RemoteConfigurator
 from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
 
 # New Storage
-from thingsboard_gateway.new_storage.storage_handler import StorageHandler
-from thingsboard_gateway.new_storage.database_action_type import DatabaseActionType
-from thingsboard_gateway.new_storage.database_request import DatabaseRequest
+from thingsboard_gateway.storage.sqlite.storage_handler import StorageHandler
+from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActionType
+from thingsboard_gateway.storage.sqlite.database_request import DatabaseRequest
 
 
 
@@ -880,9 +880,6 @@ class TBGatewayService:
             log.debug("No device found in connected device file.")
             self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices
     
-    """
-    THIS SHOULD NOT BE NEEDED
-    """
 
     def __save_persistent_devices(self):
         with open(self._config_dir + self.__connected_devices_file, 'w') as config_file:

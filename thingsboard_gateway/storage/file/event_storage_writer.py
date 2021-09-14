@@ -18,9 +18,9 @@ from io import BufferedWriter, FileIO
 from os import linesep, open as os_open, close as os_close, O_CREAT, O_EXCL
 from os.path import exists
 
-from thingsboard_gateway.storage.file_event_storage import log
-from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
+from thingsboard_gateway.storage.file.file_event_storage import log
+from thingsboard_gateway.storage.file.event_storage_files import EventStorageFiles
+from thingsboard_gateway.storage.file.file_event_storage_settings import FileEventStorageSettings
 
 class DataFileCountError(Exception):
     pass

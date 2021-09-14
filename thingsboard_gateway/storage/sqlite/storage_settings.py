@@ -16,7 +16,7 @@
 class StorageSettings:
     def __init__(self, config):
         self.data_folder_path = config.get("data_file_path", "./")
-        self.max_days_to_store_data = config.get("max_days_to_store_data", 14)
+        self.max_days_to_store_data = config.get("max_days_to_store_data", 7)
     def get_data_file_path(self):
         return self.data_folder_path
 
