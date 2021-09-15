@@ -27,12 +27,14 @@ from simplejson import dumps, load, loads
 from yaml import safe_load
 
 from thingsboard_gateway.gateway.tb_client import TBClient
-from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
-from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
-from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
+from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.tb_utility.tb_gateway_remote_configurator import RemoteConfigurator
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
+from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
 from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
+from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 # New Storage
 from thingsboard_gateway.storage.sqlite.storage_handler import StorageHandler

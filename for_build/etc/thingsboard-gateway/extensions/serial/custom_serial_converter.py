@@ -23,7 +23,7 @@ class CustomSerialUplinkConverter(Converter):
             'deviceType': config.get('deviceType', 'default'),
             'attributes': [],
             'telemetry': []
-        }
+            }
 
     def convert(self, config, data: bytes):
         keys = ['attributes', 'telemetry']
@@ -48,4 +48,3 @@ class CustomSerialUplinkConverter(Converter):
                     self.result_dict[key].append(converted_data)
         log.debug("Converted data: %s", self.result_dict)
         return self.result_dict
-
