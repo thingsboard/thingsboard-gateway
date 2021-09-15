@@ -13,17 +13,16 @@
 #     limitations under the License.
 
 import time
-from random import choice
 from pprint import pformat
-from threading import Thread
+from random import choice
 from string import ascii_lowercase
+from threading import Thread
 
 from bluepy import __path__ as bluepy_path
-from bluepy.btle import DefaultDelegate, Peripheral, Scanner, UUID, capitaliseName, BTLEInternalError
-from bluepy.btle import BTLEDisconnectError, BTLEManagementError, BTLEGattError
+from bluepy.btle import BTLEDisconnectError, BTLEGattError, BTLEInternalError, BTLEManagementError, DefaultDelegate, Peripheral, Scanner, UUID, capitaliseName
 
-from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.ble.bytes_ble_uplink_converter import BytesBLEUplinkConverter
+from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
 
@@ -262,7 +261,8 @@ class BLEConnector(Connector, Thread):
                             if method is None:
                                 log.error('Method not found in config: %s', pformat(configuration_section))
                                 continue
-                            characteristics_configs_for_processing_by_methods[method.upper()] = {"method": method, "characteristicUUID": characteristic_uuid_from_config}
+                            characteristics_configs_for_processing_by_methods[method.upper()] = {"method": method,
+                                                                                                 "characteristicUUID": characteristic_uuid_from_config}
                         for method in characteristics_configs_for_processing_by_methods:
                             data = self.__service_processing(device, characteristics_configs_for_processing_by_methods[method])
                             for section in self.__devices_around[device]['interest_uuid'][interest_char]:
@@ -424,7 +424,7 @@ class BLEConnector(Connector, Thread):
                             if type_section.get('converter') is not None:
                                 try:
                                     module = TBModuleLoader.import_module(self.__connector_type,
-                                                                        type_section['converter'])
+                                                                          type_section['converter'])
                                     if module is not None:
                                         log.debug('Custom converter for device %s - found!',
                                                   interest_device['MACAddress'])

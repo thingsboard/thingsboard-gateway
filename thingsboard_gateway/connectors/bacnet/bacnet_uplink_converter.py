@@ -13,10 +13,10 @@
 #     limitations under the License.
 
 from bacpypes.apdu import APDU, ReadPropertyACK
-from bacpypes.primitivedata import Tag
 from bacpypes.constructeddata import ArrayOf
+from bacpypes.primitivedata import Tag
+
 from thingsboard_gateway.connectors.bacnet.bacnet_converter import BACnetConverter, log
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class BACnetUplinkConverter(BACnetConverter):
@@ -57,5 +57,3 @@ class BACnetUplinkConverter(BACnetConverter):
             datatype = ArrayOf(datatype)
         value = apdu.propertyValue.cast_out(datatype)
         return value
-
-

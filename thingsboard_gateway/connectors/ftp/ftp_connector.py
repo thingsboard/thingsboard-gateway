@@ -11,21 +11,22 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+import io
 import re
-from time import sleep, perf_counter as timer
+from ftplib import FTP, FTP_TLS
 from queue import Queue
 from random import choice
+from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
-from ftplib import FTP, FTP_TLS
-import io
-import simplejson
-from re import fullmatch
+from time import perf_counter as timer, sleep
 
-from thingsboard_gateway.connectors.ftp.path import Path
+import simplejson
+
 from thingsboard_gateway.connectors.ftp.file import File
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.ftp.ftp_uplink_converter import FTPUplinkConverter
+from thingsboard_gateway.connectors.ftp.path import Path
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
     from requests import Timeout, request
@@ -76,9 +77,9 @@ class FTPConnector(Connector, Thread):
                 max_size=obj.get('maxFileSize', 5),
                 delimiter=obj.get('delimiter', ','),
                 device_type=obj.get('devicePatternType', 'Device')
-            )
+                )
             for obj in self.__config['paths']
-        ]
+            ]
 
     def open(self):
         self.__stopped = False

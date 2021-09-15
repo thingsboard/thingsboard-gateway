@@ -12,13 +12,13 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from threading import Thread
+from json import JSONDecodeError
 from queue import Queue
 from random import choice
-from string import ascii_lowercase
-from time import sleep, time
 from re import fullmatch
-from json import JSONDecodeError
+from string import ascii_lowercase
+from threading import Thread
+from time import sleep, time
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -51,7 +51,7 @@ class RequestConnector(Connector, Thread):
         self.__connector_type = connector_type
         self.__gateway = gateway
         self.__security = HTTPBasicAuth(self.__config["security"]["username"], self.__config["security"]["password"]) if \
-        self.__config["security"]["type"] == "basic" else None
+            self.__config["security"]["type"] == "basic" else None
         self.__host = None
         self.__service_headers = {}
         if "http://" in self.__config["host"].lower() or "https://" in self.__config["host"].lower():
@@ -195,7 +195,7 @@ class RequestConnector(Connector, Thread):
                 "verify": self.__ssl_verify,
                 "auth": self.__security,
                 "data": request["config"].get("data", {})
-            }
+                }
             logger.debug(url)
             if request["config"].get("httpHeaders") is not None:
                 params["headers"] = request["config"]["httpHeaders"]
@@ -210,8 +210,9 @@ class RequestConnector(Connector, Thread):
                         data_to_storage.append(response.content())
                     except JSONDecodeError:
                         data_to_storage.append(response.content())
+
                     if len(data_to_storage) == 3:
-                        converter_queue.put(data_to_storage)
+                        self.__convert_data(data_to_storage)
                         self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
             else:
                 logger.error("Request to URL: %s finished with code: %i", url, response.status_code)
@@ -225,34 +226,45 @@ class RequestConnector(Connector, Thread):
         except Exception as e:
             logger.exception(e)
 
+    def __convert_data(self, data):
+        try:
+            url, converter, data = data
+            data_to_send = {}
+
+            if isinstance(data, list):
+                for data_item in data:
+                    self.__add_ts(data_item)
+                    converted_data = converter.convert(url, data_item)
+
+                    if data_to_send.get(converted_data["deviceName"]) is None:
+                        data_to_send[converted_data["deviceName"]] = converted_data
+                    else:
+                        if converted_data["telemetry"]:
+                            data_to_send[converted_data["deviceName"]]["telemetry"].append(
+                                converted_data["telemetry"][0])
+                        if converted_data["attributes"]:
+                            data_to_send[converted_data["deviceName"]]["attributes"].append(
+                                converted_data["attributes"][0])
+            else:
+                self.__add_ts(data)
+                data_to_send = converter.convert(url, data)
+
+            self.__convert_queue.put(data_to_send)
+
+        except Exception as e:
+            log.exception(e)
+
+    def __add_ts(self, data):
+        if data.get("ts") is None:
+            data["ts"] = time() * 1000
+
     def __process_data(self):
         try:
             if not self.__convert_queue.empty():
-                url, converter, data = self.__convert_queue.get()
-                data_to_send = {}
-                if isinstance(data, list):
-                    for data_item in data:
-                        converted_data = converter.convert(url, data_item)
-                        if data_to_send.get(converted_data["deviceName"]) is None:
-                            data_to_send[converted_data["deviceName"]] = converted_data
-                        else:
-                            if converted_data["telemetry"]:
-                                data_to_send[converted_data["deviceName"]]["telemetry"].append(
-                                    converted_data["telemetry"][0])
-                            if converted_data["attributes"]:
-                                data_to_send[converted_data["deviceName"]]["attributes"].append(
-                                    converted_data["attributes"][0])
-                    for device in data_to_send:
-                        self.__gateway.send_to_storage(self.get_name(), data_to_send[device])
-                        self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
-                    log.debug(data_to_send)
-                else:
-                    data_to_send = converter.convert(url, data)
-                self.__gateway.send_to_storage(self.get_name(), data_to_send)
+                data = self.__convert_queue.get()
+                self.__gateway.send_to_storage(self.get_name(), data)
                 self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
-                log.debug(data_to_send)
-            else:
-                sleep(.01)
+
         except Exception as e:
             log.exception(e)
 

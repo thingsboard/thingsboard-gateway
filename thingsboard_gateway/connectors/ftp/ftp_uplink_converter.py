@@ -13,11 +13,12 @@
 #     limitations under the License.
 
 import re
-from simplejson import dumps
 from time import time
 
-from thingsboard_gateway.connectors.ftp.ftp_converter import FTPConverter
+from simplejson import dumps
+
 from thingsboard_gateway.connectors.converter import log
+from thingsboard_gateway.connectors.ftp.ftp_converter import FTPConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -61,7 +62,7 @@ class FTPUplinkConverter(FTPConverter):
                     dict_result[self.__data_types[data_type]].append({
                         arr[key_index] if isinstance(key_index, int) else key_index:
                             arr[val_index] if isinstance(val_index, int) else val_index
-                    })
+                        })
 
                     if get_device_name_from_data:
                         index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternName']))

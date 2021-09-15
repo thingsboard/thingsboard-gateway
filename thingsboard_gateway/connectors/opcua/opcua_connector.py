@@ -17,8 +17,9 @@ import time
 from concurrent.futures import CancelledError, TimeoutError as FuturesTimeoutError
 from copy import deepcopy
 from random import choice
-from threading import Thread
 from string import ascii_lowercase
+from threading import Thread
+
 import regex
 from simplejson import dumps
 
@@ -54,10 +55,10 @@ class OpcUaConnector(Thread, Connector):
                 log.error("deviceNodePattern in mapping: %s - not found, add property deviceNodePattern to processing this mapping",
                           dumps(mapping))
         if "opc.tcp" not in self.__server_conf.get("url"):
-            self.__opcua_url = "opc.tcp://"+self.__server_conf.get("url")
+            self.__opcua_url = "opc.tcp://" + self.__server_conf.get("url")
         else:
             self.__opcua_url = self.__server_conf.get("url")
-        self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
+        self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000) / 1000)
         if self.__server_conf["identity"].get("type") == "cert.PEM":
             try:
                 ca_cert = self.__server_conf["identity"].get("caCert")
@@ -68,7 +69,7 @@ class OpcUaConnector(Thread, Connector):
                 if cert is None or private_key is None:
                     log.exception("Error in ssl configuration - cert or privateKey parameter not found")
                     raise RuntimeError("Error in ssl configuration - cert or privateKey parameter not found")
-                security_string = policy+','+security_mode+','+cert+','+private_key
+                security_string = policy + ',' + security_mode + ',' + cert + ',' + private_key
                 if ca_cert is not None:
                     security_string = security_string + ',' + ca_cert
                 self.client.set_security_string(security_string)
@@ -132,7 +133,8 @@ class OpcUaConnector(Thread, Connector):
                     self.__initialize_client()
                     log.info("Reconnected to the OPC-UA server - %s", self.__server_conf.get("url"))
                 elif not self.__stopped:
-                    if self.__server_conf.get("disableSubscriptions", False) and time.time()*1000 - self.__previous_scan_time > self.__server_conf.get("scanPeriodInMillis", 60000):
+                    if self.__server_conf.get("disableSubscriptions", False) and time.time() * 1000 - self.__previous_scan_time > self.__server_conf.get(
+                            "scanPeriodInMillis", 60000):
                         self.scan_nodes_from_config()
                         self.__previous_scan_time = time.time() * 1000
                     # giusguerrini, 2020-09-24: Fix: flush event set and send all data to platform,
@@ -358,7 +360,8 @@ class OpcUaConnector(Thread, Connector):
                     for method in methods:
                         if method is not None:
                             node_method_name = method.get_display_name().Text
-                            self.__available_object_resources[device_info["deviceName"]]["methods"].append({node_method_name: method, "node": node, "arguments": method_object.get("arguments")})
+                            self.__available_object_resources[device_info["deviceName"]]["methods"].append(
+                                {node_method_name: method, "node": node, "arguments": method_object.get("arguments")})
                         else:
                             log.error("Node for method with path %s - NOT FOUND!", method_node_path)
         except Exception as e:
@@ -396,7 +399,7 @@ class OpcUaConnector(Thread, Connector):
                 name_expression = TBUtility.get_value(name_pattern_config, get_tag=True)
                 if "${" in name_pattern_config and "}" in name_pattern_config:
                     log.debug("Looking for device name")
-                    device_name_from_node=""
+                    device_name_from_node = ""
                     if name_expression == "$DisplayName":
                         device_name_from_node = device_node.get_display_name().Text
                     elif name_expression == "$BrowseName":
@@ -468,7 +471,7 @@ class OpcUaConnector(Thread, Connector):
             else:
                 fullpath_pattern = regex.compile(fullpath)
                 full1 = fullpath.replace('\\\\.', '.')
-                #current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
+                # current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
                 current_node_path = self.get_node_path(current_node)
                 # we are allways the parent
                 child_node_parent_class = current_node.get_node_class()
@@ -477,23 +480,23 @@ class OpcUaConnector(Thread, Connector):
                     new_node_class = child_node.get_node_class()
                     # this will not change you can do it outside th loop
                     # basis Description of node.get_parent() function, sometime child_node.get_parent() return None
-                    #new_parent = child_node.get_parent()
-                    #if (new_parent is None):
+                    # new_parent = child_node.get_parent()
+                    # if (new_parent is None):
                     #    child_node_parent_class = current_node.get_node_class()
-                    #else:
+                    # else:
                     #    child_node_parent_class = child_node.get_parent().get_node_class()
-                    #current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
-                    #new_node_path = '\\\\.'.join(char.split(":")[1] for char in child_node.get_path(200000, True))
+                    # current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
+                    # new_node_path = '\\\\.'.join(char.split(":")[1] for char in child_node.get_path(200000, True))
                     new_node_path = self.get_node_path(child_node)
                     if child_node_parent_class == ua.NodeClass.View and new_parent is not None:
                         parent_path = self.get_node_path(new_parent)
-                        #parent_path = '\\.'.join(char.split(":")[1] for char in new_parent.get_path(200000, True))
+                        # parent_path = '\\.'.join(char.split(":")[1] for char in new_parent.get_path(200000, True))
                         fullpath = fullpath.replace(current_node_path, parent_path)
                     nnp1 = new_node_path.replace('\\\\.', '.')
                     nnp2 = new_node_path.replace('\\\\', '\\')
                     if self.__show_map:
                         log.debug("SHOW MAP: Current node path: %s", new_node_path)
-                    regex_fullmatch = regex.fullmatch(fullpath_pattern,  nnp1) or \
+                    regex_fullmatch = regex.fullmatch(fullpath_pattern, nnp1) or \
                                       nnp2 == full1 or \
                                       nnp2 == fullpath or \
                                       nnp1 == full1
@@ -503,8 +506,8 @@ class OpcUaConnector(Thread, Connector):
                         result.append(child_node)
                     else:
                         regex_search = fullpath_pattern.fullmatch(nnp1, partial=True) or \
-                                          nnp2 in full1 or \
-                                          nnp1 in full1
+                                       nnp2 in full1 or \
+                                       nnp1 in full1
                         if regex_search:
                             if self.__show_map:
                                 log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path)
@@ -532,9 +535,9 @@ class OpcUaConnector(Thread, Connector):
             return config_path
         if re.search(r"^root", config_path.lower()) is None:
             node_path = self.get_node_path(node)
-            #node_path = '\\\\.'.join(char.split(":")[1] for char in node.get_path(200000, True))
+            # node_path = '\\\\.'.join(char.split(":")[1] for char in node.get_path(200000, True))
             if config_path[-3:] != '\\.':
-                information_path = node_path + '\\\\.' + config_path.replace('\\', '\\\\')
+                information_path = (node_path + '\\.' + config_path).replace('\\', '\\\\')
             else:
                 information_path = node_path + config_path.replace('\\', '\\\\')
         else:

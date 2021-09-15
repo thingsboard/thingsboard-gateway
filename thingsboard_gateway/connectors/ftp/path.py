@@ -13,6 +13,7 @@
 #     limitations under the License.
 
 import os
+
 from regex import compile
 
 from thingsboard_gateway.connectors.ftp.file import File
@@ -122,7 +123,7 @@ class Path:
             'timeseries': self.telemetry,
             'attributes': self.attributes,
             'txt_file_data_view': self.txt_file_data_view
-        }
+            }
 
     @property
     def files(self):

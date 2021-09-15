@@ -12,15 +12,16 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from time import time
 from base64 import b64encode
 from io import BufferedWriter, FileIO
-from os import linesep, open as os_open, close as os_close, O_CREAT, O_EXCL
+from os import O_CREAT, O_EXCL, close as os_close, linesep, open as os_open
 from os.path import exists
+from time import time
 
-from thingsboard_gateway.storage.file.file_event_storage import log
-from thingsboard_gateway.storage.file.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.file.file_event_storage_settings import FileEventStorageSettings
+from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
+from thingsboard_gateway.storage.file_event_storage import log
+from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
+
 
 class DataFileCountError(Exception):
     pass
@@ -36,10 +37,10 @@ class EventStorageWriter:
         self.previous_file_records_count = [0]
         self.get_number_of_records_in_file(self.current_file)
 
-    def write(self, msg) -> None:
+    def write(self, msg):
         if len(self.files.data_files) <= self.settings.get_max_files_count():
-
-            if self.current_file_records_count[0] >= self.settings.get_max_records_per_file() or not exists(self.settings.get_data_folder_path()+self.current_file):
+            if self.current_file_records_count[0] >= self.settings.get_max_records_per_file() or not exists(
+                    self.settings.get_data_folder_path() + self.current_file):
                 try:
                     self.current_file = self.create_datafile()
                     log.debug("FileStorage_writer -- Created new data file: %s", self.current_file)
@@ -53,7 +54,6 @@ class EventStorageWriter:
                 except IOError as e:
                     log.warning("Failed to close buffered writer! %s", e)
                 self.buffered_writer = None
-                
             try:
                 encoded = b64encode(msg.encode("utf-8"))
                 if not exists(self.settings.get_data_folder_path() + self.current_file):

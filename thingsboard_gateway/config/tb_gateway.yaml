@@ -13,8 +13,7 @@ storage:
   data_file_path: /etc/thingsboard-gateway/data.db
   max_days_to_store_data: 14
 connectors:
-  -
-    name: MQTT Broker Connector
+  - name: MQTT Broker Connector
     type: mqtt
     configuration: mqtt.json
 
@@ -71,6 +70,10 @@ connectors:
 #    name: SNMP Connector
 #    type: snmp
 #    configuration: snmp.json
+#  -
+#    name: FTP Connector
+#    type: ftp
+#    configuration: ftp.json
 #
 #  -
 #    name: Custom Serial Connector

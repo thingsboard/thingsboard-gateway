@@ -21,7 +21,7 @@ this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
-VERSION = "2.7.0"
+VERSION = "2.7"
 
 setup(
     version=VERSION,
@@ -35,7 +35,7 @@ setup(
     long_description_content_type="text/markdown",
     include_package_data=True,
     python_requires=">=3.5",
-    packages=['thingsboard_gateway', 'thingsboard_gateway.gateway', 'thingsboard_gateway.storage', 'thingsboard_gateway.new_storage',
+    packages=['thingsboard_gateway', 'thingsboard_gateway.gateway', 'thingsboard_gateway.storage',
               'thingsboard_gateway.tb_client', 'thingsboard_gateway.connectors', 'thingsboard_gateway.connectors.ble',
               'thingsboard_gateway.connectors.mqtt', 'thingsboard_gateway.connectors.opcua', 'thingsboard_gateway.connectors.request',
               'thingsboard_gateway.connectors.modbus', 'thingsboard_gateway.connectors.can', 'thingsboard_gateway.connectors.bacnet',
@@ -55,9 +55,14 @@ setup(
         'PyYAML',
         'simplejson',
         'requests',
+        'PyInquirer',
+        'pyfiglet',
+        'termcolor'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={
         'console_scripts': [
-            'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon'
-        ]})
+            'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon',
+            'tb-gateway-configurator = thingsboard_gateway.gateway.configuration_wizard:configure'
+        ]
+    })

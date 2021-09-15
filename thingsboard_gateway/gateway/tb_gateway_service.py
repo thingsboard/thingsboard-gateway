@@ -4,7 +4,7 @@
 #     you may not use this file except in compliance with the License.
 #     You may obtain a copy of the License at
 #
-#         http:///www.apache.org/licenses/LICENSE-2.0
+#         http://www.apache.org/licenses/LICENSE-2.0
 #
 #     Unless required by applicable law or agreed to in writing, software
 #     distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,23 +12,20 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from hashlib import sha1
-from sys import getsizeof, executable, argv
-from os import listdir, path, execv, pathsep, system, stat
-from time import time, sleep
 import logging
 import logging.config
 import logging.handlers
+from os import execv, listdir, path, pathsep, stat, system
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
-from threading import Thread
+from sys import argv, executable, getsizeof
+from threading import RLock, Thread
+from time import sleep, time
 
+from simplejson import dumps, load, loads
 from yaml import safe_load
-from simplejson import load, dumps, loads
 
-from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
 from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
@@ -60,7 +57,7 @@ DEFAULT_CONNECTORS = {
     "rest": "RESTConnector",
     "snmp": "SNMPConnector",
     "ftp": "FTPConnector"
-}
+    }
 
 
 class TBGatewayService:
@@ -75,8 +72,6 @@ class TBGatewayService:
             self.__config = safe_load(general_config)
 
         self._config_dir = path.dirname(path.abspath(config_file)) + path.sep
-
-        # Initialize logging
         logging_error = None
         try:
             logging.config.fileConfig(self._config_dir + "logs.conf", disable_existing_loggers=False)
@@ -117,6 +112,9 @@ class TBGatewayService:
         self.remote_handler = TBLoggerHandler(self)
         self.main_handler.setTarget(self.remote_handler)
         self._default_connectors = DEFAULT_CONNECTORS
+        self.__converted_data_queue = Queue()
+        self.__save_converted_data_thread = Thread(name="Save converted data", daemon=True, target=self.__send_to_storage)
+        self.__save_converted_data_thread.start()
         self._implemented_connectors = {}
 
         self._event_storage_types = {
@@ -165,10 +163,8 @@ class TBGatewayService:
         self._connect_with_connectors()
 
         self._published_events = Queue(-1)
-
-
-        self.dataPackToCluster = {}
-        self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True, name="Send data to Thingsboard Thread")
+        self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
+                                   name="Send data to Thingsboard Thread")
         self._send_thread.start()
         log.info("Gateway started.")
 
@@ -400,50 +396,51 @@ class TBGatewayService:
             self._connect_with_connectors()
 
     def send_to_storage(self, connector_name, data):
-        if not connector_name == self.name:
-            if not TBUtility.validate_converted_data(data):
-                log.error("Data from %s connector is invalid.", connector_name)
-                return None
-            if data["deviceName"] not in self.get_devices():
-                self.add_device(data["deviceName"],
-                                {"connector": self.available_connectors[connector_name]},
-                                device_type=data["deviceType"])
-            if not self.__connector_incoming_messages.get(connector_name):
-                self.__connector_incoming_messages[connector_name] = 0
-            else:
-                self.__connector_incoming_messages[connector_name] += 1
-        else:
-            data["deviceName"] = "currentThingsBoardGateway"
+        self.__converted_data_queue.put((connector_name, data), False)
 
-        telemetry = {}
-        telemetry_with_ts = []
-        for item in data["telemetry"]:
-            if item.get("ts") is None:
-                telemetry = {**telemetry, **item}
-            else:
-                telemetry_with_ts.append({"ts": item["ts"], "values": {**item["values"]}})
-        if telemetry_with_ts:
-            data["telemetry"] = telemetry_with_ts
-        else:
-            data["telemetry"] = {"ts": int(time() * 1000), "values": telemetry}
+    def __send_to_storage(self):
+        while True:
+            try:
+                if not self.__converted_data_queue.empty():
+                    connector_name, data = self.__converted_data_queue.get(False)
+                    if not connector_name == self.name:
+                        if not TBUtility.validate_converted_data(data):
+                            log.error("Data from %s connector is invalid.", connector_name)
+                            return None
+                        if data["deviceName"] not in self.get_devices() and self.tb_client.is_connected():
+                            self.add_device(data["deviceName"],
+                                            {"connector": self.available_connectors[connector_name]},
+                                            device_type=data["deviceType"])
+                        if not self.__connector_incoming_messages.get(connector_name):
+                            self.__connector_incoming_messages[connector_name] = 0
+                        else:
+                            self.__connector_incoming_messages[connector_name] += 1
+                    else:
+                        data["deviceName"] = "currentThingsBoardGateway"
 
-        # Sqlite needs some data from the msg, before we store in DB
-        if self.__config["storage"]["type"] == "sqlite":
+                    telemetry = {}
+                    telemetry_with_ts = []
+                    for item in data["telemetry"]:
+                        if item.get("ts") is None:
+                            telemetry = {**telemetry, **item}
+                        else:
+                            telemetry_with_ts.append({"ts": item["ts"], "values": {**item["values"]}})
+                    if telemetry_with_ts:
+                        data["telemetry"] = telemetry_with_ts
+                    else:
+                        data["telemetry"] = {"ts": int(time() * 1000), "values": telemetry}
 
-            save_result = self._event_storage.put(data)
-
-        else:
-            json_data = dumps(data)
-            save_result = self._event_storage.put(json_data)
-
-
-        if not save_result:
-            log.error('Data from the device "%s" cannot be saved, connector name is %s.',
-                      data["deviceName"],
-                      connector_name)
-
-        # Send data to TB Cluster
-
+                    if self.__config["storage"]["type"] != "sqlite": 
+                        json_data = dumps(data)
+                        save_result = self._event_storage.put(json_data)
+                    else:
+                        save_result = self._event_storage.put(data)
+                    if not save_result:
+                        log.error('Data from the device "%s" cannot be saved, connector name is %s.',
+                                  data["deviceName"],
+                                  connector_name)
+            except Exception as e:
+                log.error(e)
 
     def check_size(self, size, devices_data_in_event_pack):
         if size >= 48000:
@@ -688,10 +685,7 @@ class TBGatewayService:
         data_to_send = {}
         for device in self.__connected_devices:
             if self.__connected_devices[device]["connector"] is not None:
-                if isinstance(self.__connected_devices[device]["connector"], str):
-                    data_to_send[device] = self.__connected_devices[device]["connector"]
-                if isinstance(self.__connected_devices[device]["connector"], object):
-                    data_to_send[device] = self.__connected_devices[device]["connector"].get_name()
+                data_to_send[device] = self.__connected_devices[device]["connector"].get_name()
         return {"code": 200, "resp": data_to_send}
 
     def __rpc_update(self, *args):
@@ -785,7 +779,6 @@ class TBGatewayService:
             summary_messages.update(**telemetry)
         return summary_messages
 
-    # TODO: This needs a lot of clean up
     def add_device(self, device_name, content, device_type=None):
 
         if self.__config["storage"]["type"] == "file":

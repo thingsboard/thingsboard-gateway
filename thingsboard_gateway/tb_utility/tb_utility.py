@@ -12,10 +12,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from re import search
 from logging import getLogger
-from simplejson import dumps, loads, JSONDecodeError
+from re import search
+
 from jsonpath_rw import parse
+from simplejson import JSONDecodeError, dumps, loads
 
 log = getLogger("service")
 
@@ -97,7 +98,8 @@ class TBUtility:
         try:
             if isinstance(body, dict) and target_str.split()[0] in body:
                 if value_type.lower() == "string":
-                    full_value = expression[0: max(abs(p1 - 2), 0)] + body[target_str.split()[0]] + expression[p2 + 1:len(expression)]
+                    full_value = expression[0: max(p1 - 2, 0)] + body[target_str.split()[0]] + expression[
+                                                                                               p2 + 1:len(expression)]
                 else:
                     full_value = body.get(target_str.split()[0])
             elif isinstance(body, (dict, list)):

@@ -1,1 +1,0 @@
-thingsboard_gateway

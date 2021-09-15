@@ -13,9 +13,9 @@
 #     limitations under the License.
 #
 
-from os import getcwd, chdir
-from subprocess import Popen, PIPE, STDOUT, TimeoutExpired
 from logging import getLogger
+from os import chdir, getcwd
+from subprocess import PIPE, Popen, STDOUT, TimeoutExpired
 
 log = getLogger("service")
 
@@ -30,7 +30,7 @@ class RemoteShell:
             "sendCommand": self.send_command,
             "getCommandStatus": self.get_command_status,
             "terminateCommand": self.terminate_command,
-        }
+            }
         self.command_in_progress = None
         self.__previous_stdout = b""
         self.__previous_stderr = b""

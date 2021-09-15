@@ -13,8 +13,8 @@
 #     limitations under the License.
 
 from pymodbus.constants import Endian
-from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.exceptions import ModbusIOException
+from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.pdu import ExceptionResponse
 
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
@@ -25,7 +25,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
         self.__datatypes = {
             "timeseries": "telemetry",
             "attributes": "attributes"
-        }
+            }
         self.__result = {"deviceName": config.get("deviceName", "ModbusDevice %s" % (str(config["unitId"]))),
                          "deviceType": config.get("deviceType", "default")}
 
@@ -58,7 +58,8 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             result = result if byte_order.upper() == 'LITTLE' else result[::-1]
                             log.debug(result)
                             if configuration["type"].lower() == "bits":
-                                decoded_data = result[:configuration.get("objectsCount", configuration.get("registersCount", configuration.get("registerCount", 1)))]
+                                decoded_data = result[
+                                               :configuration.get("objectsCount", configuration.get("registersCount", configuration.get("registerCount", 1)))]
                                 if len(decoded_data) == 1 and isinstance(decoded_data, list):
                                     decoded_data = decoded_data[0]
                             else:
@@ -113,7 +114,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             '64int': decoder.decode_64bit_int,
             '64uint': decoder.decode_64bit_uint,
             '64float': decoder.decode_64bit_float,
-        }
+            }
 
         decoded = None
 
@@ -121,7 +122,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             decoded = decoder_functions[type_](objects_count * 2)
 
         elif lower_type == "bytes":
-            decoded = decoder_functions[type_](size=objects_count*2)
+            decoded = decoder_functions[type_](size=objects_count * 2)
 
         elif decoder_functions.get(lower_type) is not None:
             decoded = decoder_functions[lower_type]()
