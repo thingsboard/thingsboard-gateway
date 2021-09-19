@@ -15,8 +15,6 @@
 
 set -e
 
-sudo dpkg-reconfigure bash
-sudo dpkg-divert --add --package python3-thingsboard-gateway --rename --divert /etc/mosquitto/mosquitto.conf.old /etc/mosquitto/mosquitto.conf
 echo "Installing directory for configs..."
 sudo mkdir /etc/thingsboard-gateway || echo
 sudo adduser --system --gecos "ThingsBoard-Gateway Service" --disabled-password --group --home /var/lib/thingsboard_gateway thingsboard_gateway || echo "User exists"
