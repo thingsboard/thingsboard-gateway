@@ -1,5 +1,6 @@
 from thingsboard_gateway.storage.sqlite.database_connector import DatabaseConnector
 from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActionType
+from thingsboard_gateway.storage.sqlite.database_request import DatabaseRequest
 from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 from simplejson import dumps
 from time import time
@@ -33,7 +34,9 @@ class Database:
         self.readQueue = None
 
         # NOTE: Rename to self.processing
-        self.__writing = False
+        self.__processing = False
+
+        self.msg_counter = 0
             
     def add_new_connecting_device(self, deviceName=None, connector=None, deviceType=None):
 
@@ -158,17 +161,25 @@ class Database:
     def delete_old_storage_data(self):
         try:
             today = datetime.today()
-            older_than = timedelta(days=self.settings.get_max_days_to_store_data())
+            days_to_store_data = float(self.settings.get_max_days_to_store_data())
+            log.debug("days to store data: %s" % str(days_to_store_data))
+            older_than = timedelta(days=days_to_store_data)
 
             old_after = (today - older_than).timestamp() * 1000
 
             # get all device tables and for each delete older rows 
             # than config specifies
             device_tables = self.get_connected_devices()
-            log.debug(device_tables)
+            log.debug("Deleting data older than %d" % old_after)
             for device in device_tables:
-                self.cur.execute("DELETE FROM " + device + " WHERE timestamp <= " + str(old_after))
+                h = sha1()
+                h.update(bytes(device[0], 'utf-8'))
+
+                device_table = h.hexdigest()[:10].upper()
+                device_table = "_" + device_table
+                self.cur.execute("DELETE FROM " + device_table + " WHERE timestamp <= ?", [str(old_after)])
                 self.db.commit()
+                h = None
 
         except Exception as e:
             self.db.rollback()
@@ -179,8 +190,8 @@ class Database:
     def process(self):
         try:
             # Signalization so that we can spam call process()
-            if self.__writing == False:
-                self.__writing = True
+            if self.__processing == False:
+                self.__processing = True
                 while(self.processQueue.qsize() > 0):
                     
                     req = self.processQueue.get()
@@ -205,6 +216,19 @@ class Database:
                         self.db.commit()
 
                         self.readQueue.put(dumps(message))
+
+                        self.msg_counter += 1
+
+                        # We are checking old data every 100 messages
+                        # TODO: This could be adjustable value in config files
+                        if self.msg_counter >= 10:
+                            # Deleting old data base on how many days were defined in
+                            # tb_gateway.yaml config
+                            _type = DatabaseActionType.DELETE_OLD_DATA
+                            data = None
+                            req = DatabaseRequest(_type, data)
+                            self.processQueue.put(req)
+                            self.msg_counter = 0
 
                         continue
 
@@ -263,7 +287,11 @@ class Database:
                         data.connected_devices = devices
                         continue
 
-                self.__writing = False
+                    if req.type is DatabaseActionType.DELETE_OLD_DATA:
+                        self.delete_old_storage_data()
+                        continue
+
+                self.__processing = False
 
         except Exception as e:
             self.db.rollback()

@@ -21,5 +21,5 @@ class StorageSettings:
         return self.data_folder_path
 
     def get_max_days_to_store_data(self):
-        return self.get_max_days_to_store_data
+        return self.max_days_to_store_data
 
