@@ -9,18 +9,23 @@ thingsboard:
     accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
   qos: 1
 storage:
-  type: sqlite
-  data_file_path: /etc/thingsboard-gateway/data.db
-  max_days_to_store_data: 14
+  type: memory
+  read_records_count: 100
+  max_records_count: 100000
+  
+#  type: file
+#  data_folder_path: ./data/
+#  max_file_count: 10
+#  max_read_records_count: 10
+#  max_records_per_file: 10000
+
+#  type: sqlite
+#  data_file_path: /etc/thingsboard-gateway/data.db
+#  max_days_to_store_data: 14
 connectors:
   - name: MQTT Broker Connector
     type: mqtt
     configuration: mqtt.json
-
-#  - 
-#    name: Debug MQTT Connector
-#    type: mqtt
-#    configuration: mqtt_debug.json
 #  -
 #    name: Modbus Connector
 #    type: modbus
