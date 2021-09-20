@@ -14,6 +14,7 @@
 
 from thingsboard_gateway.connectors.converter import Converter, log
 
+
 class SNMPUplinkConverter(Converter):
     def __init__(self, config):
         self.__config = config
@@ -24,7 +25,7 @@ class SNMPUplinkConverter(Converter):
             "deviceType": self.__config["deviceType"],
             "attributes": [],
             "telemetry": []
-        }
+            }
         try:
             if isinstance(data, dict):
                 result[config[0]].append({config[1]["key"]: {str(k): str(v) for k, v in data.items()}})

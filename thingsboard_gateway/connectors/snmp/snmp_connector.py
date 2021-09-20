@@ -12,12 +12,12 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from random import choice
+from re import search
+from socket import gethostbyname
+from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time
-from random import choice
-from string import ascii_lowercase
-from socket import gethostbyname
-from re import search
 
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -48,7 +48,7 @@ class SNMPConnector(Connector, Thread):
         self._default_converters = {
             "uplink": "SNMPUplinkConverter",
             "downlink": "SNMPDownlinkConverter"
-        }
+            }
         self.__methods = ["get", "multiget", "getnext", "multigetnext", "walk", "multiwalk", "set", "multiset", "bulkget", "bulkwalk", "table", "bulktable"]
         self.__datatypes = ('attributes', 'telemetry')
 
@@ -61,7 +61,7 @@ class SNMPConnector(Connector, Thread):
         self._connected = True
         try:
             while not self.__stopped:
-                current_time = time()*1000
+                current_time = time() * 1000
                 for device in self.__devices:
                     try:
                         if device.get("previous_poll_time", 0) + device.get("pollPeriod", 10000) < current_time:
@@ -94,8 +94,10 @@ class SNMPConnector(Connector, Thread):
                         for attribute, value in content["data"]:
                             if search(attribute, attribute_request_config["attributeFilter"]):
                                 common_parameters = self.__get_common_parameters(device)
-                                result = self.__process_methods(attribute_request_config["method"], common_parameters, {**attribute_request_config, "value": value})
-                                log.debug("Received attribute update request for device \"%s\" with attribute \"%s\" and value \"%s\"", content["device"], attribute)
+                                result = self.__process_methods(attribute_request_config["method"], common_parameters,
+                                                                {**attribute_request_config, "value": value})
+                                log.debug("Received attribute update request for device \"%s\" with attribute \"%s\" and value \"%s\"", content["device"],
+                                          attribute)
                                 log.debug(result)
                                 log.debug(content)
         except Exception as e:
@@ -108,8 +110,10 @@ class SNMPConnector(Connector, Thread):
                     for rpc_request_config in device["serverSideRpcRequests"]:
                         if search(content["data"]["method"], rpc_request_config["requestFilter"]):
                             common_parameters = self.__get_common_parameters(device)
-                            result = self.__process_methods(rpc_request_config["method"], common_parameters, {**rpc_request_config, "value": content["data"]["params"]})
-                            log.debug("Received RPC request for device \"%s\" with command \"%s\" and value \"%s\"", content["device"], content["data"]["method"])
+                            result = self.__process_methods(rpc_request_config["method"], common_parameters,
+                                                            {**rpc_request_config, "value": content["data"]["params"]})
+                            log.debug("Received RPC request for device \"%s\" with command \"%s\" and value \"%s\"", content["device"],
+                                      content["data"]["method"])
                             log.debug(result)
                             log.debug(content)
                             self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], content=result)
@@ -205,8 +209,8 @@ class SNMPConnector(Connector, Thread):
             oids = oids if isinstance(oids, list) else list(oids)
             bulk_size = datatype_config.get("bulkSize", 10)
             response = {binded_var.oid: binded_var.value for binded_var in list(puresnmp.bulkwalk(**common_parameters,
-                                                                                bulk_size=bulk_size,
-                                                                                oids=oids))}
+                                                                                                  bulk_size=bulk_size,
+                                                                                                  oids=oids))}
         elif method == "table":
             oid = datatype_config["oid"]
             del common_parameters["timeout"]

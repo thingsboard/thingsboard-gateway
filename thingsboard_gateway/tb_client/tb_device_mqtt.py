@@ -16,11 +16,9 @@ import logging
 import queue
 import ssl
 import time
-from threading import RLock
-from threading import Thread
+from threading import RLock, Thread
 
 import paho.mqtt.client as paho
-
 from simplejson import dumps
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -43,7 +41,6 @@ class TBQoSException(Exception):
 
 
 class TBPublishInfo:
-
     TB_ERR_AGAIN = -1
     TB_ERR_SUCCESS = 0
     TB_ERR_NOMEM = 1
@@ -132,7 +129,7 @@ class TBDeviceMqttClient:
             3: "server unavailable",
             4: "bad username or password",
             5: "not authorised",
-        }
+            }
         if self.__connect_callback:
             time.sleep(.05)
             self.__connect_callback(client, userdata, flags, result_code, *extra_params)
@@ -215,7 +212,7 @@ class TBDeviceMqttClient:
                 res(content, None)
         elif message.topic.startswith(ATTRIBUTES_TOPIC_RESPONSE):
             with self._lock:
-                req_id = int(message.topic[len(ATTRIBUTES_TOPIC+"/response/"):])
+                req_id = int(message.topic[len(ATTRIBUTES_TOPIC + "/response/"):])
                 # pop callback and use it
                 callback = self._attr_request_dict.pop(req_id)
             callback(content, None)
@@ -287,6 +284,9 @@ class TBDeviceMqttClient:
             if subscription_id == '*':
                 self.__device_sub_dict = {}
             self.__device_sub_dict = dict((k, v) for k, v in self.__device_sub_dict.items() if v)
+
+    def clean_device_sub_dict(self):
+        self.__device_sub_dict = {}
 
     def subscribe_to_all_attributes(self, callback):
         return self.subscribe_to_attribute("*", callback)

@@ -44,4 +44,3 @@ class OdbcUplinkConverter(OdbcConverter):
             except Exception as e:
                 log.error("Failed to convert SQL data to TB format: %s", str(e))
         return converted_data
-

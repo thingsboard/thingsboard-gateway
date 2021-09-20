@@ -35,4 +35,3 @@ class FileEventStorageSettings:
 
     def get_max_read_records_count(self):
         return self.max_read_records_count
-

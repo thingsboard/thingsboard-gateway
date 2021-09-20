@@ -1,8 +1,10 @@
 thingsboard:
-  host: demo.thingsboard.io
+  host: thingsboard.cloud
   port: 1883
   remoteShell: false
   remoteConfiguration: false
+  statsSendPeriodInSeconds: 3600
+  checkConnectorsConfigurationInSeconds: 60
   security:
     accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
   qos: 1
@@ -16,8 +18,7 @@ storage:
 #  max_read_records_count: 10
 #  max_records_per_file: 10000
 connectors:
-  -
-    name: MQTT Broker Connector
+  - name: MQTT Broker Connector
     type: mqtt
     configuration: mqtt.json
 
@@ -70,6 +71,10 @@ connectors:
 #    name: SNMP Connector
 #    type: snmp
 #    configuration: snmp.json
+#  -
+#    name: FTP Connector
+#    type: ftp
+#    configuration: ftp.json
 #
 #  -
 #    name: Custom Serial Connector

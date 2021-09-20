@@ -1,14 +1,13 @@
 {
   "host": "127.0.0.1",
   "port": "5000",
-  "mapping":[
+  "mapping": [
     {
       "endpoint": "/device1",
       "HTTPMethods": [
         "POST"
       ],
-      "security":
-      {
+      "security": {
         "type": "basic",
         "username": "user",
         "password": "passwd"
@@ -44,8 +43,7 @@
         "GET",
         "POST"
       ],
-      "security":
-      {
+      "security": {
         "type": "anonymous"
       },
       "converter": {
@@ -78,8 +76,7 @@
       "HTTPMethods": [
         "POST"
       ],
-      "security":
-      {
+      "security": {
         "type": "anonymous"
       },
       "converter": {
@@ -89,37 +86,38 @@
         "extension": "CustomRestUplinkConverter",
         "extension-config": [
           {
-          "key": "Totaliser",
-          "datatype": "float",
-          "fromByte": 0,
-          "toByte": 4,
-          "byteorder": "big",
-          "signed": true,
-          "multiplier": 1
-          }]
+            "key": "Totaliser",
+            "datatype": "float",
+            "fromByte": 0,
+            "toByte": 4,
+            "byteorder": "big",
+            "signed": true,
+            "multiplier": 1
+          }
+        ]
       }
     }
   ],
   "attributeUpdates": [
-      {
-        "HTTPMethod": "POST",
-        "SSLVerify": false,
-        "httpHeaders": {
-          "CONTENT-TYPE": "application/json"
-        },
-        "security": {
-          "type": "basic",
-          "username": "user",
-          "password": "passwd"
-        },
-        "timeout": 0.5,
-        "tries": 3,
-        "allowRedirects": true,
-        "deviceNameFilter": ".*REST$",
-        "attributeFilter": "data",
-        "requestUrlExpression": "sensor/${deviceName}/${attributeKey}",
-        "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
-      }
+    {
+      "HTTPMethod": "POST",
+      "SSLVerify": false,
+      "httpHeaders": {
+        "CONTENT-TYPE": "application/json"
+      },
+      "security": {
+        "type": "basic",
+        "username": "user",
+        "password": "passwd"
+      },
+      "timeout": 0.5,
+      "tries": 3,
+      "allowRedirects": true,
+      "deviceNameFilter": ".*REST$",
+      "attributeFilter": "data",
+      "requestUrlExpression": "sensor/${deviceName}/${attributeKey}",
+      "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
+    }
   ],
   "serverSideRpc": [
     {

@@ -12,16 +12,17 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from io import BufferedReader, FileIO
-from os import remove, listdir
-from os.path import exists
-from time import sleep
 from base64 import b64decode
-from simplejson import load, JSONDecodeError, dumps
-from thingsboard_gateway.storage.file_event_storage import log
+from io import BufferedReader, FileIO
+from os import remove
+from os.path import exists
+
+from simplejson import JSONDecodeError, dumps, load
+
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
 from thingsboard_gateway.storage.event_storage_reader_pointer import EventStorageReaderPointer
+from thingsboard_gateway.storage.file_event_storage import log
+from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
 
 
 class EventStorageReader:
@@ -92,7 +93,7 @@ class EventStorageReader:
 
     def discard_batch(self):
         try:
-            if self.current_pos.get_line() >= self.settings.get_max_records_per_file()-1:
+            if self.current_pos.get_line() >= self.settings.get_max_records_per_file() - 1:
                 if self.buffered_reader is not None and not self.buffered_reader.closed:
                     self.buffered_reader.close()
             self.write_info_to_state_file(self.new_pos)

@@ -12,9 +12,9 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from sys import stdout
 import logging
 import logging.handlers
+from sys import stdout
 
 
 class TBLoggerHandler(logging.Handler):
@@ -63,13 +63,13 @@ class TBLoggerHandler(logging.Handler):
     @staticmethod
     def set_default_handler():
         logger_names = [
-                       'service',
-                       'storage',
-                       'extension',
-                       'converter',
-                       'connector',
-                       'tb_connection'
-                       ]
+            'service',
+            'storage',
+            'extension',
+            'converter',
+            'connector',
+            'tb_connection'
+            ]
         for logger_name in logger_names:
             logger = logging.getLogger(logger_name)
             handler = logging.StreamHandler(stdout)

@@ -14,11 +14,13 @@
 
 import os
 import time
+
 from simplejson import dump
+
 from thingsboard_gateway.storage.event_storage import EventStorage, log
 from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.event_storage_writer import EventStorageWriter, DataFileCountError
 from thingsboard_gateway.storage.event_storage_reader import EventStorageReader
+from thingsboard_gateway.storage.event_storage_writer import DataFileCountError, EventStorageWriter
 from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
 
 

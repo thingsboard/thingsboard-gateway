@@ -12,9 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from pymodbus.payload import BinaryPayloadBuilder
 from pymodbus.constants import Endian
-from struct import unpack, pack
+from pymodbus.payload import BinaryPayloadBuilder
 
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
 
@@ -52,7 +51,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         lower_type = config.get("type", config.get("tag", "error")).lower()
         if lower_type == "error":
             log.error('"type" and "tag" - not found in configuration.')
-        variable_size = config.get("objectsCount", config.get("registersCount",  config.get("registerCount", 1))) * 16
+        variable_size = config.get("objectsCount", config.get("registersCount", config.get("registerCount", 1))) * 16
         if lower_type in ["integer", "dword", "dword/integer", "word", "int"]:
             lower_type = str(variable_size) + "int"
             assert builder_functions.get(lower_type) is not None
@@ -67,7 +66,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             builder_functions[lower_type](float(value))
         elif lower_type in ["coil", "bits", "coils", "bit"]:
             assert builder_functions.get("bits") is not None
-            if variable_size/8 > 1.0:
+            if variable_size / 8 > 1.0:
                 builder_functions["bits"](value)
             else:
                 return bytes(int(value))
@@ -96,7 +95,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             if "Exception" in str(builder):
                 log.exception(builder)
                 builder = str(builder)
-            if variable_size<=16:
+            if variable_size <= 16:
                 if isinstance(builder, list) and len(builder) not in (8, 16, 32, 64):
                     builder = builder[0]
             else:

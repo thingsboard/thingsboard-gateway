@@ -14,6 +14,7 @@
 
 import logging
 import time
+
 from simplejson import dumps
 
 from thingsboard_gateway.tb_client.tb_device_mqtt import TBDeviceMqttClient
@@ -90,19 +91,19 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
             with self._lock:
                 # callbacks for everything
                 if self.__sub_dict.get("*|*"):
-                    for callback in self.__sub_dict["*|*"]:
-                        self.__sub_dict["*|*"][callback](content)
+                    for device in self.__sub_dict["*|*"]:
+                        self.__sub_dict["*|*"][device](content)
                 # callbacks for device. in this case callback executes for all attributes in message
                 target = content["device"] + "|*"
                 if self.__sub_dict.get(target):
-                    for callback in self.__sub_dict[target]:
-                        self.__sub_dict[target][callback](content)
+                    for device in self.__sub_dict[target]:
+                        self.__sub_dict[target][device](content)
                 # callback for atr. in this case callback executes for all attributes in message
                 targets = [content["device"] + "|" + attribute for attribute in content["data"]]
                 for target in targets:
                     if self.__sub_dict.get(target):
-                        for sub_id in self.__sub_dict[target]:
-                            self.__sub_dict[target][sub_id](content)
+                        for device in self.__sub_dict[target]:
+                            self.__sub_dict[target][device](content)
         elif message.topic == GATEWAY_RPC_TOPIC:
             if self.devices_server_side_rpc_request_handler:
                 self.devices_server_side_rpc_request_handler(self, content)
@@ -140,7 +141,8 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         return self.publish_data({device: telemetry}, GATEWAY_MAIN_TOPIC + "telemetry", quality_of_service, )
 
     def gw_connect_device(self, device_name, device_type):
-        info = self._client.publish(topic=GATEWAY_MAIN_TOPIC + "connect", payload=dumps({"device": device_name, "type": device_type}), qos=self.quality_of_service)
+        info = self._client.publish(topic=GATEWAY_MAIN_TOPIC + "connect", payload=dumps({"device": device_name, "type": device_type}),
+                                    qos=self.quality_of_service)
         self.__connected_devices.add(device_name)
         # if self.gateway:
         #     self.gateway.on_device_connected(device_name, self.__devices_server_side_rpc_request_handler)
@@ -170,10 +172,10 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
             self.__max_sub_id += 1
             key = device + "|" + attribute
             if key not in self.__sub_dict:
-                self.__sub_dict.update({key: {self.__max_sub_id: callback}})
+                self.__sub_dict.update({key: {device: callback}})
             else:
-                self.__sub_dict[key].update({self.__max_sub_id: callback})
-            log.info("Subscribed to %s with id %i", key, self.__max_sub_id)
+                self.__sub_dict[key].update({device: callback})
+            log.info("Subscribed to %s with id %i for device %s", key, self.__max_sub_id, device)
             return self.__max_sub_id
 
     def gw_unsubscribe(self, subscription_id):
@@ -181,7 +183,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
             for attribute in self.__sub_dict:
                 if self.__sub_dict[attribute].get(subscription_id):
                     del self.__sub_dict[attribute][subscription_id]
-                    log.info("Unsubscribed from %s, subscription id %i", attribute, subscription_id)
+                    log.info("Unsubscribed from %s, subscription id %r", attribute, subscription_id)
             if subscription_id == '*':
                 self.__sub_dict = {}
 

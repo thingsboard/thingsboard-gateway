@@ -12,11 +12,10 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import time
-import threading
 import logging
-from ssl import SSLContext, PROTOCOL_TLSv1_2, CERT_REQUIRED
-from os import path
+import threading
+import time
+from ssl import CERT_REQUIRED, PROTOCOL_TLSv1_2
 
 from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
 
@@ -60,7 +59,7 @@ class TBClient(threading.Thread):
             else:
                 self.client._client.tls_insecure_set(True)
         # if self.__tls and self.__ca_cert is None and self.__private_key is None and self.__cert is None:
-            # pylint: disable=protected-access
+        # pylint: disable=protected-access
         # Adding callbacks
         self.client._client._on_connect = self._on_connect
         self.client._client._on_disconnect = self._on_disconnect
@@ -148,4 +147,3 @@ class TBClient(threading.Thread):
                 self.__stopped = True
             except Exception as e:
                 log.exception(e)
-
