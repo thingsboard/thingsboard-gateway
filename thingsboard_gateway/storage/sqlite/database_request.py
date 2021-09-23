@@ -1,4 +1,4 @@
-#     Copyright 2020. ThingsBoard
+#     Copyright 2021. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -11,3 +11,19 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
+from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActionType
+
+
+class DatabaseRequest:
+    # Wrap data and write intention to better control
+    # Writes. They need to be atomic so we don't corrupt DB
+    def __init__(self, _type: DatabaseActionType, data):
+        self.type = _type
+        self.data = data
+
+    def get_type(self):
+        return self.type
+
+    def get_data(self):
+        return self.data

@@ -5,6 +5,9 @@ thingsboard_gateway/develop_tests/
 thingsboard_gateway/logs/*
 thingsboard_gateway/config/connected_devices.json
 thingsboard_gateway/storage/data/
+thingsboard_gateway.egg-info/
+.vscode/
+/debug_utils/
 .idea/
 /build/
 /deb_dist/
@@ -12,13 +15,14 @@ thingsboard_gateway/storage/data/
 /.mypy_cache/
 /thingsboard_gateway/storage/data_out/
 *.gz
+*.orig
 /logs/
 /python3-thingsboard-gateway.deb
 /python3-thingsboard-gateway.rpm
-/thingsboard_gateway.egg-info/
 /docker/python3-thingsboard-gateway.deb
 /data/
+/tests/storage/data/
 /logs/
 __pycache__
-/thingsboard_gateway/config/
 /venv/
+*.db

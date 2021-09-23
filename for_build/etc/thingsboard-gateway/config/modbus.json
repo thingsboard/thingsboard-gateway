@@ -75,8 +75,8 @@
             "objectsCount": 4,
             "address": 13
           }
-      ],
-      "timeseries": [
+        ],
+        "timeseries": [
           {
             "tag": "8uint_read",
             "type": "8uint",
@@ -159,7 +159,7 @@
             "address": 33
           },
           {
-            "tag":"getCPULoad",
+            "tag": "getCPULoad",
             "type": "32int",
             "functionCode": 4,
             "objectsCount": 2,
