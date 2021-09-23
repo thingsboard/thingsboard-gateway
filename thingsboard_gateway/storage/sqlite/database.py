@@ -1,12 +1,28 @@
-from thingsboard_gateway.storage.sqlite.database_connector import DatabaseConnector
-from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActionType
-from thingsboard_gateway.storage.sqlite.database_request import DatabaseRequest
-from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
+#     Copyright 2021. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
+from os.path import exists
 from simplejson import dumps
 from time import time
 from datetime import datetime, timedelta
 from hashlib import sha1
 from logging import getLogger
+
+from thingsboard_gateway.storage.sqlite.database_connector import DatabaseConnector
+from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActionType
+from thingsboard_gateway.storage.sqlite.database_request import DatabaseRequest
+from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 
 log = getLogger("database")
 
@@ -20,8 +36,14 @@ class Database:
         - delete data older than specified in config
         ------------- ALL OF THIS IN AN ATOMIC WAY ---------
     """
+
     def __init__(self, config):
         self.settings = StorageSettings(config)
+
+        if not exists(self.settings.data_folder_path):
+            with open(self.settings.data_folder_path, 'w'):
+                pass
+
         # Pass settings to connector
         self.db = DatabaseConnector(self.settings)
 
@@ -55,7 +77,9 @@ class Database:
             dataUploadedIndex = 0
 
             log.debug("Inserting new connecting device to DB")
-            self.cur.execute('''INSERT INTO connected_devices(deviceName,deviceType,connector,dataSavedIndex,dataUploadedIndex) VALUES(?,?,?,?,?);''',[deviceName,deviceType,connector_name,dataSavedIndex,dataUploadedIndex])
+            self.cur.execute(
+                '''INSERT INTO connected_devices(deviceName,deviceType,connector,dataSavedIndex,dataUploadedIndex) VALUES(?,?,?,?,?);''',
+                [deviceName, deviceType, connector_name, dataSavedIndex, dataUploadedIndex])
 
             self.db.commit()
 
@@ -78,6 +102,7 @@ class Database:
             - update device in database
             don't know why but its in legacy API
     """
+
     def update_device_data_index(self, deviceName, dataIndex):
         try:
             log.debug("Updating device %s storage data index to: %d" % (deviceName, dataIndex))
@@ -122,7 +147,8 @@ class Database:
             device_table = "_" + device_table
 
             self.cur.execute('''
-                CREATE TABLE IF NOT EXISTS ''' + device_table + ''' (dataIndex INTEGER PRIMARY KEY, timestamp INTEGER, message TEXT); ''')
+                CREATE TABLE IF NOT EXISTS ''' + device_table +
+                             ''' (dataIndex INTEGER PRIMARY KEY, timestamp INTEGER, message TEXT); ''')
 
             self.db.commit()
 
@@ -130,7 +156,6 @@ class Database:
             self.db.rollback()
             log.exception(e)
 
-    # DEPRECATED
     def get_all_tables(self):
         """
         Return list of all tables
@@ -207,9 +232,9 @@ class Database:
 
                         timestamp = message.get("ts", message.get("timestamp", int(time()) * 1000))
 
-
                         self.cur.execute('''
-                            INSERT INTO ''' + device_table + '''(timestamp, message) VALUES (?, ?);''',[timestamp, dumps(message)])
+                            INSERT INTO ''' + device_table + '''(timestamp, message) VALUES (?, ?);''',
+                                         [timestamp, dumps(message)])
 
                         self.db.commit()
 
@@ -217,9 +242,8 @@ class Database:
 
                         self.msg_counter += 1
 
-                        # We are checking old data every 100 messages
-                        # TODO: This could be adjustable value in config files
-                        if self.msg_counter >= 10:
+                        # We are checking old data every N messages
+                        if self.msg_counter >= self.settings.check_data_freshness_in_messages:
                             # Deleting old data base on how many days were defined in
                             # tb_gateway.yaml config
                             _type = DatabaseActionType.DELETE_OLD_DATA
@@ -231,7 +255,6 @@ class Database:
                         continue
 
                     if req.type is DatabaseActionType.WRITE_STORAGE_INDEX:
-
                         # 0 - deviceName
                         # 1 - storageIndex
                         data = req.get_data()
@@ -239,7 +262,8 @@ class Database:
                         log.debug("%s" % str(data))
                         # log.debug("Updating device %s storage data index to: %d" % (data[0], data[1]))
                         self.cur.execute('''
-                            UPDATE connected_devices SET dataSavedIndex = ?  WHERE deviceName = ?''', [data[1], data[0]])
+                            UPDATE connected_devices SET dataSavedIndex = ?  WHERE deviceName = ?''',
+                                         [data[1], data[0]])
 
                         self.db.commit()
                         continue
@@ -278,7 +302,8 @@ class Database:
 
                         devices = {}
                         for device in connected_devices_querry:
-                            devices[device[0]] = {"connector": device[2], "device_type": device[1], 'data_saved_index': device[3], 'data_uploaded_index': device[4]}
+                            devices[device[0]] = {"connector": device[2], "device_type": device[1],
+                                                  'data_saved_index': device[3], 'data_uploaded_index': device[4]}
                             log.debug("Appending device %s to return connected_devices" % device[0])
                         log.debug("Returning %s" % str(devices))
 
@@ -295,7 +320,6 @@ class Database:
             self.db.rollback()
             log.exception(e)
 
-    # TESTED
     def readAll(self, deviceName):
         try:
             h = sha1()
@@ -328,15 +352,11 @@ class Database:
             self.db.rollback()
             log.exception(e)
 
+    def setProcessQueue(self, process_queue):
+        self.processQueue = process_queue
 
-    def setProcessQueue(self, processQueue):
-        self.processQueue = processQueue
-
-    def setReadQueue(self, readQueue):
-        self.readQueue = readQueue
-
-    def is_writing(self):
-        return self.__writing
+    def setReadQueue(self, read_queue):
+        self.readQueue = read_queue
 
     def closeDB(self):
         self.db.close()

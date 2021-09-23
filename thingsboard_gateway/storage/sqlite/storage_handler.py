@@ -1,3 +1,17 @@
+#     Copyright 2021. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 from thingsboard_gateway.storage.sqlite.database import Database
 from queue import Queue
 from thingsboard_gateway.storage.sqlite.database_request import DatabaseRequest
@@ -17,9 +31,7 @@ class StorageHandler:
 
     def __init__(self, config):
         log.info("Sqlite Storage initializing...")
-        # TODO:
-        # Make a init function that checks if database file exists
-        # if it exists load connected devices from it
+
         self.db = Database(config)
 
         # We need queues to stay atomic when multiple connectors/Threads are
