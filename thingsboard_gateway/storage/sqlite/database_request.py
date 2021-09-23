@@ -1,11 +1,22 @@
+#     Copyright 2021. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
 
-from enum import Enum, auto
 from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActionType
 
 
 class DatabaseRequest:
-
-    # Wrap data and write intention to better controll
+    # Wrap data and write intention to better control
     # Writes. They need to be atomic so we don't corrupt DB
     def __init__(self, _type: DatabaseActionType, data):
         self.type = _type
@@ -16,4 +27,3 @@ class DatabaseRequest:
 
     def get_data(self):
         return self.data
-    

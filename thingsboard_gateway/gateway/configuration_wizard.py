@@ -158,9 +158,9 @@ def configure():
                 }
             ]
 
-        f = Figlet(font='small')
-        print(colored(f.renderText('ThingsBoard'), color='green', attrs=['bold']), sep='')
-        print(colored(f.renderText('IoT Gateway'), color='blue', attrs=['bold']))
+        f = Figlet(font='slant')
+        print(colored(f.renderText('ThingsBoard'), color='white'))
+        print(colored(f.renderText('IoT Gateway'), color='red'))
         print(colored('Welcome to ThingsBoard IoT Gateway configuration Wizard', 'cyan'))
         print(colored('Let\'s configure you Gateway by answering on questions below ⬇\n'))
 

@@ -1,8 +1,23 @@
+#     Copyright 2021. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 from enum import Enum, auto
 
+
 class DatabaseActionType(Enum):
-    WRITE_DATA_STORAGE = auto() # Writes do not require a response on the request
+    WRITE_DATA_STORAGE = auto()  # Writes do not require a response on the request
     WRITE_STORAGE_INDEX = auto()
-    READ_CONNECTED_DEVICES = auto() # Reads need response to get requested data
-    READ_DEVICE = auto() # RPC CALL
+    READ_CONNECTED_DEVICES = auto()  # Reads need response to get requested data
+    READ_DEVICE = auto()  # RPC CALL
     DELETE_OLD_DATA = auto()

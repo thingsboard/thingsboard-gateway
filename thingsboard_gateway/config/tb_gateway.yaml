@@ -1,5 +1,5 @@
 thingsboard:
-  host: my.energyplan.sk
+  host: thingsboard.cloud
   port: 1883
   remoteShell: false
   remoteConfiguration: false
@@ -12,20 +12,20 @@ storage:
   type: memory
   read_records_count: 100
   max_records_count: 100000
-  
 #  type: file
 #  data_folder_path: ./data/
 #  max_file_count: 10
 #  max_read_records_count: 10
 #  max_records_per_file: 10000
-
 #  type: sqlite
-#  data_file_path: /etc/thingsboard-gateway/data.db
+#  data_file_path: ./data/data.db
 #  max_days_to_store_data: 14
+#  check_data_freshness_in_messages: 10
 connectors:
   - name: MQTT Broker Connector
     type: mqtt
     configuration: mqtt.json
+
 #  -
 #    name: Modbus Connector
 #    type: modbus
