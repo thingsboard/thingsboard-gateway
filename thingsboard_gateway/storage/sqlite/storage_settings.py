@@ -17,9 +17,3 @@ class StorageSettings:
         self.data_folder_path = config.get("data_file_path", "./")
         self.max_days_to_store_data = config.get("max_days_to_store_data", 7)
         self.check_data_freshness_in_messages = config.get('check_data_freshness_in_messages', 10)
-
-    def get_data_file_path(self):
-        return self.data_folder_path
-
-    def get_max_days_to_store_data(self):
-        return self.max_days_to_store_data

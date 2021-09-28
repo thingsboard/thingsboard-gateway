@@ -21,9 +21,3 @@ class DatabaseRequest:
     def __init__(self, _type: DatabaseActionType, data):
         self.type = _type
         self.data = data
-
-    def get_type(self):
-        return self.type
-
-    def get_data(self):
-        return self.data

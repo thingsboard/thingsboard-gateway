@@ -12,7 +12,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from sqlite3 import connect
+import sqlite3
+from sqlite3 import connect, Connection
+from threading import RLock
+from typing import Optional
+
 from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 
 
@@ -23,8 +27,9 @@ log = getLogger("storage")
 
 class DatabaseConnector:
     def __init__(self, settings: StorageSettings):
-        self.data_file_path = settings.get_data_file_path()
-        self.connection = None
+        self.data_file_path = settings.data_folder_path
+        self.connection: Optional[Connection] = None
+        self.lock = RLock()
 
     def connect(self):
         """
@@ -41,8 +46,22 @@ class DatabaseConnector:
         """
         log.debug("Committing changes to DB")
         try:
-            self.connection.commit()
+            with self.lock:
+                self.connection.commit()
 
+        except Exception as e:
+            log.exception(e)
+
+    def execute(self, *args):
+        """
+        Execute changes
+        """
+        # log.debug("Execute %s to DB", str(args))
+        try:
+            with self.lock:
+                return self.connection.execute(*args)
+        except sqlite3.ProgrammingError:
+            pass
         except Exception as e:
             log.exception(e)
 
@@ -52,7 +71,8 @@ class DatabaseConnector:
         """
         log.debug("Rollback transaction")
         try:
-            self.connection.rollback()
+            with self.lock:
+                self.connection.rollback()
 
         except Exception as e:
             log.exception(e)
@@ -62,7 +82,8 @@ class DatabaseConnector:
         Closes database file
         """
         try:
-            self.connection.close()
+            with self.lock:
+                self.connection.close()
 
         except Exception as e:
             log.exception(e)
