@@ -4,7 +4,7 @@
     "url": "localhost:4840/freeopcua/server/",
     "timeoutInMillis": 5000,
     "scanPeriodInMillis": 5000,
-    "disableSubscriptions": false,
+    "disableSubscriptions":false,
     "subCheckPeriodInMillis": 100,
     "showMap": false,
     "security": "Basic128Rsa15",
@@ -34,10 +34,7 @@
         "rpc_methods": [
           {
             "method": "multiply",
-            "arguments": [
-              2,
-              4
-            ]
+            "arguments": [2, 4]
           }
         ],
         "attributes_updates": [

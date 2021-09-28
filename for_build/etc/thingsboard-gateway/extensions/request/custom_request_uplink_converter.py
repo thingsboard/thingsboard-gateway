@@ -16,8 +16,8 @@ import struct
 
 from simplejson import dumps
 
-from thingsboard_gateway.connectors.request.request_converter import RequestConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.connectors.request.request_converter import RequestConverter, log
 
 
 class CustomRequestUplinkConverter(RequestConverter):

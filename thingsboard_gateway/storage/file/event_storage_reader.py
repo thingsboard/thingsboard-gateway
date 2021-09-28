@@ -106,13 +106,6 @@ class EventStorageReader:
         try:
             if self.buffered_reader is None or self.buffered_reader.closed:
                 new_file_to_read_path = self.settings.get_data_folder_path() + pointer.get_file()
-                # if not exists(new_file_to_read_path):
-                #     next_file = self.get_next_file(self.files, self.new_pos)
-                #     if next_file is not None:
-                #         new_file_to_read_path = self.settings.get_data_folder_path() + next_file
-                #     else:
-                #         self.buffered_reader = None
-                #         return None
                 self.buffered_reader = BufferedReader(FileIO(new_file_to_read_path, 'r'))
                 lines_to_skip = pointer.get_line()
                 if lines_to_skip > 0:

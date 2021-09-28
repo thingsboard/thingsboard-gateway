@@ -34,7 +34,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     include_package_data=True,
-    python_requires=">=3.5",
+    python_requires=">=3.7",
     packages=['thingsboard_gateway', 'thingsboard_gateway.gateway', 'thingsboard_gateway.storage','thingsboard_gateway.storage.memory',
               'thingsboard_gateway.storage.file','thingsboard_gateway.storage.sqlite','thingsboard_gateway.tb_client',
               'thingsboard_gateway.connectors', 'thingsboard_gateway.connectors.ble',

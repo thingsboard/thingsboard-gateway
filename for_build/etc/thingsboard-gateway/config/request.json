@@ -121,19 +121,19 @@
     }
   ],
   "attributeUpdates": [
-    {
-      "httpMethod": "POST",
-      "httpHeaders": {
-        "CONTENT-TYPE": "application/json"
-      },
-      "timeout": 0.5,
-      "tries": 3,
-      "allowRedirects": true,
-      "deviceNameFilter": "SD.*",
-      "attributeFilter": "send_data",
-      "requestUrlExpression": "sensor/${deviceName}/${attributeKey}",
-      "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
-    }
+      {
+        "httpMethod": "POST",
+        "httpHeaders": {
+          "CONTENT-TYPE": "application/json"
+        },
+        "timeout": 0.5,
+        "tries": 3,
+        "allowRedirects": true,
+        "deviceNameFilter": "SD.*",
+        "attributeFilter": "send_data",
+        "requestUrlExpression": "sensor/${deviceName}/${attributeKey}",
+        "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
+      }
   ],
   "serverSideRpc": [
     {

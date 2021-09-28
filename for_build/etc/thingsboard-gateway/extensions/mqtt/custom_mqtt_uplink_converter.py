@@ -13,7 +13,6 @@
 #     limitations under the License.
 
 from simplejson import dumps
-
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
 
 
@@ -24,8 +23,7 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
 
     def convert(self, topic, body):
         try:
-            self.dict_result["deviceName"] = topic.split("/")[
-                -1]  # getting all data after last '/' symbol in this case: if topic = 'devices/temperature/sensor1' device name will be 'sensor1'.
+            self.dict_result["deviceName"] = topic.split("/")[-1] # getting all data after last '/' symbol in this case: if topic = 'devices/temperature/sensor1' device name will be 'sensor1'.
             self.dict_result["deviceType"] = "Thermostat"  # just hardcode this
             self.dict_result["telemetry"] = []  # template for telemetry array
             bytes_to_read = body.replace("0x", "")  # Replacing the 0x (if '0x' in body), needs for converting to bytearray
@@ -34,7 +32,7 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
                 for telemetry_key in self.__config["extension-config"]:  # Processing every telemetry key in config for extension
                     value = 0
                     for _ in range(self.__config["extension-config"][telemetry_key]):  # reading every value with value length from config
-                        value = value * 256 + converted_bytes.pop(0)  # process and remove byte from processing
+                        value = value*256 + converted_bytes.pop(0)  # process and remove byte from processing
                     telemetry_to_send = {telemetry_key.replace("Bytes", ""): value}  # creating telemetry data for sending into Thingsboard
                     self.dict_result["telemetry"].append(telemetry_to_send)  # adding data to telemetry array
             else:

@@ -1,8 +1,9 @@
 {
   "broker": {
     "name":"Default Local Broker",
-    "host":"192.168.1.100",
+    "host":"127.0.0.1",
     "port":1883,
+    "clientId": "ThingsBoard_gateway",
     "security": {
       "type": "basic",
       "username": "user",
@@ -22,6 +23,11 @@
             "type": "string",
             "key": "model",
             "value": "${sensorModel}"
+          },
+          {
+            "type": "string",
+            "key": "${sensorModel}",
+            "value": "on"
           }
         ],
         "timeseries": [

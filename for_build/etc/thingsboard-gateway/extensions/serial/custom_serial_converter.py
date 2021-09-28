@@ -23,7 +23,7 @@ class CustomSerialUplinkConverter(Converter):
             'deviceType': config.get('deviceType', 'default'),
             'attributes': [],
             'telemetry': []
-            }
+        }
 
     def convert(self, config, data: bytes):
         keys = ['attributes', 'telemetry']

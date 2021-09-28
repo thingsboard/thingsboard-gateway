@@ -37,8 +37,6 @@ from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 from thingsboard_gateway.storage.sqlite.storage_handler import StorageHandler
-from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActionType
-from thingsboard_gateway.storage.sqlite.database_request import DatabaseRequest
 
 log = logging.getLogger('service')
 main_handler = logging.handlers.MemoryHandler(-1)
@@ -55,7 +53,7 @@ DEFAULT_CONNECTORS = {
     "rest": "RESTConnector",
     "snmp": "SNMPConnector",
     "ftp": "FTPConnector"
-}
+    }
 
 
 class TBGatewayService:
@@ -136,13 +134,8 @@ class TBGatewayService:
         self.connectors_configs = {}
         self.__remote_configurator = None
         self.__request_config_after_connect = False
-
-        # if self.__config['storage']['type'] == 'sqlite':
-        #     self.__connected_devices = self._event_storage.connected_devices
-        # else:
         self.__connected_devices = {}
-        # self.__load_persistent_devices()
-
+        self.__load_persistent_devices()
         self.__init_remote_configuration()
         self._load_connectors()
         self._connect_with_connectors()
@@ -244,10 +237,7 @@ class TBGatewayService:
         self.__updater.stop()
         log.info("Stopping...")
         self.__close_connectors()
-
-        if self.__config['storage']['type'] == 'sqlite':
-            self._event_storage.close_db()
-
+        self._event_storage.stop()
         log.info("The gateway has been stopped.")
         self.tb_client.disconnect()
         self.tb_client.stop()
@@ -415,6 +405,7 @@ class TBGatewayService:
                         data["telemetry"] = telemetry_with_ts
                     else:
                         data["telemetry"] = {"ts": int(time() * 1000), "values": telemetry}
+
                     json_data = dumps(data)
                     save_result = self._event_storage.put(json_data)
                     if not save_result:
@@ -433,9 +424,6 @@ class TBGatewayService:
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
         log.debug("Send data Thread has been started successfully.")
-
-        # disconnected = False
-        # last_disconnect = None
 
         while not self.stopped:
             try:
@@ -630,17 +618,6 @@ class TBGatewayService:
     def __rpc_ping(*args):
         return {"code": 200, "resp": "pong"}
 
-    # Request data from gateway storage
-    # you have to specify timestamp to specify from when to start reading
-    # args: JSON{"deviceName": "<deviceName>", "ts": <timestamp>}
-    def __rpc_data(self, args):
-        arguments = loads(args)
-        log.debug(str(arguments))
-        _type = DatabaseActionType.READ_DEVICE
-        request = DatabaseRequest(_type, arguments)
-        self._event_storage.processQueue.put(request)
-        return {"code": 200, "resp": "Data from %s scheduled for upload" % arguments.get("deviceName")}
-
     def __rpc_devices(self, *args):
         data_to_send = {}
         for device in self.__connected_devices:
@@ -746,6 +723,11 @@ class TBGatewayService:
             self.__saved_devices[device_name] = {**content, "device_type": device_type}
             self.__save_persistent_devices()
             self.tb_client.client.gw_connect_device(device_name, device_type)
+
+    def update_device(self, device_name, event, content):
+        if event == 'connector' and self.__connected_devices[device_name].get(event) != content:
+            self.__save_persistent_devices()
+        self.__connected_devices[device_name][event] = content
 
     def del_device(self, device_name):
         del self.__connected_devices[device_name]

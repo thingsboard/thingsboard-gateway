@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-import sqlite3
+
 from time import time
 
 from thingsboard_gateway.storage.event_storage import EventStorage
@@ -47,17 +47,21 @@ class StorageHandler(EventStorage):
         log.info("Sqlite storage initialized!")
         self.delete_time_point = None
         self.last_read = time()
-        self.closed = False
+        self.stopped = False
 
     def get_event_pack(self):
-        self.delete_time_point = self.last_read
-        data_from_storage = self.read_data(self.last_read)
-        self.last_read = time()
+        if not self.stopped:
+            self.delete_time_point = self.last_read
+            data_from_storage = self.read_data(self.last_read)
+            self.last_read = time()
 
-        return [item[0] for item in data_from_storage or []]
+            return [item[0] for item in data_from_storage or []]
+        else:
+            return []
 
     def event_pack_processing_done(self):
-        self.delete_data(self.delete_time_point)
+        if not self.stopped:
+            self.delete_data(self.delete_time_point)
 
     def read_data(self, ts):
         return self.db.read_data(ts)
@@ -67,16 +71,19 @@ class StorageHandler(EventStorage):
 
     def put(self, message):
         try:
-            _type = DatabaseActionType.WRITE_DATA_STORAGE
-            request = DatabaseRequest(_type, message)
+            if not self.stopped:
+                _type = DatabaseActionType.WRITE_DATA_STORAGE
+                request = DatabaseRequest(_type, message)
 
-            log.info("Sending data to storage")
-            self.processQueue.put(request)
-            self.db.process()
-            return True
+                log.info("Sending data to storage")
+                self.processQueue.put(request)
+                self.db.process()
+                return True
+            else:
+                return False
         except Exception as e:
             log.exception(e)
 
-    def close_db(self):
+    def stop(self):
         self.db.closeDB()
-        self.closed = True
+        self.stopped = True
