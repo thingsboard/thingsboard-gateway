@@ -18,10 +18,10 @@ import time
 from simplejson import dump
 
 from thingsboard_gateway.storage.event_storage import EventStorage, log
-from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.event_storage_reader import EventStorageReader
-from thingsboard_gateway.storage.event_storage_writer import DataFileCountError, EventStorageWriter
-from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
+from thingsboard_gateway.storage.file.event_storage_files import EventStorageFiles
+from thingsboard_gateway.storage.file.event_storage_reader import EventStorageReader
+from thingsboard_gateway.storage.file.event_storage_writer import DataFileCountError, EventStorageWriter
+from thingsboard_gateway.storage.file.file_event_storage_settings import FileEventStorageSettings
 
 
 class FileEventStorage(EventStorage):
@@ -33,17 +33,22 @@ class FileEventStorage(EventStorage):
         self.state_file = self.event_storage_files.get_state_file()
         self.__writer = EventStorageWriter(self.event_storage_files, self.settings)
         self.__reader = EventStorageReader(self.event_storage_files, self.settings)
+        self.__stopped = False
 
     def put(self, event):
-        try:
-            self.__writer.write(event)
-        except DataFileCountError as e:
-            log.error(e)
-        except Exception as e:
-            log.exception(e)
-            return False
+        success = False
+        if not self.__stopped:
+            try:
+                self.__writer.write(event)
+            except DataFileCountError as e:
+                log.error(e)
+            except Exception as e:
+                log.exception(e)
+            else:
+                success = True
         else:
-            return True
+            log.error("Storage is closed!")
+        return success
 
     def get_event_pack(self):
         return self.__reader.read()
@@ -92,3 +97,7 @@ class FileEventStorage(EventStorage):
             return prefix + filename + '.txt'
         except IOError as e:
             log.error("Failed to create a new file! Error: %s", e)
+
+    def stop(self):
+        self.__stopped = True
+

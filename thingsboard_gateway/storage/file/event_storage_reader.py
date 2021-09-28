@@ -19,10 +19,10 @@ from os.path import exists
 
 from simplejson import JSONDecodeError, dumps, load
 
-from thingsboard_gateway.storage.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.event_storage_reader_pointer import EventStorageReaderPointer
-from thingsboard_gateway.storage.file_event_storage import log
-from thingsboard_gateway.storage.file_event_storage_settings import FileEventStorageSettings
+from thingsboard_gateway.storage.file.event_storage_files import EventStorageFiles
+from thingsboard_gateway.storage.file.event_storage_reader_pointer import EventStorageReaderPointer
+from thingsboard_gateway.storage.file.file_event_storage import log
+from thingsboard_gateway.storage.file.file_event_storage_settings import FileEventStorageSettings
 
 
 class EventStorageReader:
@@ -106,13 +106,6 @@ class EventStorageReader:
         try:
             if self.buffered_reader is None or self.buffered_reader.closed:
                 new_file_to_read_path = self.settings.get_data_folder_path() + pointer.get_file()
-                # if not exists(new_file_to_read_path):
-                #     next_file = self.get_next_file(self.files, self.new_pos)
-                #     if next_file is not None:
-                #         new_file_to_read_path = self.settings.get_data_folder_path() + next_file
-                #     else:
-                #         self.buffered_reader = None
-                #         return None
                 self.buffered_reader = BufferedReader(FileIO(new_file_to_read_path, 'r'))
                 lines_to_skip = pointer.get_line()
                 if lines_to_skip > 0:

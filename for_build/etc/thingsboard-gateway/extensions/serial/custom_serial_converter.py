@@ -48,4 +48,3 @@ class CustomSerialUplinkConverter(Converter):
                     self.result_dict[key].append(converted_data)
         log.debug("Converted data: %s", self.result_dict)
         return self.result_dict
-

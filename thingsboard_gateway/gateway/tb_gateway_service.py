@@ -27,14 +27,16 @@ from simplejson import dumps, load, loads
 from yaml import safe_load
 
 from thingsboard_gateway.gateway.tb_client import TBClient
-from thingsboard_gateway.storage.file_event_storage import FileEventStorage
-from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
+from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
+from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.tb_utility.tb_gateway_remote_configurator import RemoteConfigurator
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
 from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
 from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
+from thingsboard_gateway.storage.sqlite.storage_handler import StorageHandler
 
 log = logging.getLogger('service')
 main_handler = logging.handlers.MemoryHandler(-1)
@@ -108,6 +110,7 @@ class TBGatewayService:
         self._event_storage_types = {
             "memory": MemoryEventStorage,
             "file": FileEventStorage,
+            "sqlite": StorageHandler,
             }
         self.__gateway_rpc_methods = {
             "ping": self.__rpc_ping,
@@ -131,6 +134,8 @@ class TBGatewayService:
         self.connectors_configs = {}
         self.__remote_configurator = None
         self.__request_config_after_connect = False
+        self.__connected_devices = {}
+        self.__load_persistent_devices()
         self.__init_remote_configuration()
         self._load_connectors()
         self._connect_with_connectors()
@@ -232,6 +237,7 @@ class TBGatewayService:
         self.__updater.stop()
         log.info("Stopping...")
         self.__close_connectors()
+        self._event_storage.stop()
         log.info("The gateway has been stopped.")
         self.tb_client.disconnect()
         self.tb_client.stop()
@@ -418,21 +424,26 @@ class TBGatewayService:
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
         log.debug("Send data Thread has been started successfully.")
-        while True:
+
+        while not self.stopped:
             try:
                 if self.tb_client.is_connected():
                     size = getsizeof(devices_data_in_event_pack)
                     events = []
+
                     if self.__remote_configurator is None or not self.__remote_configurator.in_process:
                         events = self._event_storage.get_event_pack()
+
                     if events:
                         for event in events:
+                            log.debug("Reading events: %s" % str(events))
                             self.counter += 1
                             try:
                                 current_event = loads(event)
                             except Exception as e:
                                 log.exception(e)
                                 continue
+
                             if not devices_data_in_event_pack.get(current_event["deviceName"]):
                                 devices_data_in_event_pack[current_event["deviceName"]] = {"telemetry": [],
                                                                                            "attributes": {}}

@@ -12,29 +12,9 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from abc import ABC, abstractmethod
-from logging import getLogger
-
-log = getLogger("storage")
+from enum import Enum, auto
 
 
-class EventStorage(ABC):
+class DatabaseActionType(Enum):
+    WRITE_DATA_STORAGE = auto()  # Writes do not require a response on the request
 
-    @abstractmethod
-    def put(self, event):
-        pass
-
-    @abstractmethod
-    def get_event_pack(self):
-        # Returns max "10" events from pack
-        pass
-
-    @abstractmethod
-    def event_pack_processing_done(self):
-        # Indicates that events from previous "get_event_pack" may be cleared
-        pass
-
-    @abstractmethod
-    def stop(self):
-        # Stop the storage processing
-        pass
