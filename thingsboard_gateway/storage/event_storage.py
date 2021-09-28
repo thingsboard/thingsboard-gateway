@@ -33,3 +33,8 @@ class EventStorage(ABC):
     def event_pack_processing_done(self):
         # Indicates that events from previous "get_event_pack" may be cleared
         pass
+
+    @abstractmethod
+    def stop(self):
+        # Stop the storage processing
+        pass

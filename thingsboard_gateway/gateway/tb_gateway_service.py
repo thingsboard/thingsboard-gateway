@@ -437,7 +437,7 @@ class TBGatewayService:
         # disconnected = False
         # last_disconnect = None
 
-        while True:
+        while not self.stopped:
             try:
                 if self.tb_client.is_connected():
                     size = getsizeof(devices_data_in_event_pack)
