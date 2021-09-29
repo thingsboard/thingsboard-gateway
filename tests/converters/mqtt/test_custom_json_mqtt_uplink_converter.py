@@ -14,7 +14,7 @@
 
 import unittest
 
-from thingsboard_gateway.connectors.mqtt.custom_object_converter import CustomObjectConverter
+from thingsboard_gateway.extensions.mqtt.custom_json_mqtt_uplink_converter import CustomJsonMqttUplinkConverter
 
 
 class CustomObjectConverterTests(unittest.TestCase):
@@ -38,7 +38,7 @@ class CustomObjectConverterTests(unittest.TestCase):
             "int": 1,
             "double": 2.0
         }
-        converter = CustomObjectConverter({"converter": config})
+        converter = CustomJsonMqttUplinkConverter({"converter": config})
         result = converter.convert(config, data)
         expected = {
             'deviceName': 'Device Name',
@@ -71,7 +71,7 @@ class CustomObjectConverterTests(unittest.TestCase):
             "int": 1,
             "double": 2.0
         }
-        converter = CustomObjectConverter({"converter": config})
+        converter = CustomJsonMqttUplinkConverter({"converter": config})
         result = converter.convert(config, data)
         expected = {
             'deviceName': 'Device Name',
@@ -101,7 +101,7 @@ class CustomObjectConverterTests(unittest.TestCase):
             "int": 1,
             "double": 2.0
         }
-        converter = CustomObjectConverter({"converter": config})
+        converter = CustomJsonMqttUplinkConverter({"converter": config})
         result = converter.convert(config, data)
         expected = {
             'deviceName': 'Device Name',

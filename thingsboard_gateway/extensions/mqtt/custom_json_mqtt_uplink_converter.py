@@ -21,7 +21,10 @@ from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplink
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
-class CustomObjectConverter(MqttUplinkConverter):
+class CustomJsonMqttUplinkConverter(MqttUplinkConverter):
+    """
+    A modified version of JsonMqttUplinkConverter that supports convertation to JSON objects
+    """
     def __init__(self, config):
         self.__config = config.get('converter')
 
@@ -62,11 +65,11 @@ class CustomObjectConverter(MqttUplinkConverter):
             for datatype in datatypes:
                 dict_result[datatypes[datatype]] = []
                 for datatype_config in self.__config.get(datatype, []):
-                    full_key = self.__parse_single_value(datatype_config["key"], data, "string", is_key=True)
+                    full_key = self.__convert_to_single_value(datatype_config["key"], data, "string", is_key=True)
                     if datatype_config["type"] == "json":
-                        full_value = self.__parse_object_value(datatype_config["value"], data)
+                        full_value = self.__convert_to_object(datatype_config["value"], data)
                     else:
-                        full_value = self.__parse_single_value(datatype_config["value"], data, datatype_config["type"])
+                        full_value = self.__convert_to_single_value(datatype_config["value"], data, datatype_config["type"])
                     if datatype == 'timeseries' and (data.get("ts") is not None or data.get("timestamp") is not None):
                         dict_result[datatypes[datatype]].append(
                             {"ts": data.get('ts', data.get('timestamp', int(time()))), 'values': {full_key: full_value}})
@@ -77,7 +80,8 @@ class CustomObjectConverter(MqttUplinkConverter):
             log.exception(e)
         return dict_result
 
-    def __parse_single_value(self, expression, data, result_type, is_key = False):
+    @staticmethod
+    def __convert_to_single_value(expression, data, result_type, is_key=False):
         value = TBUtility.get_value(expression, data, result_type, expression_instead_none=True)
         value_tag = TBUtility.get_value(expression, data, result_type, get_tag=True)
         if "${" not in str(value) and "}" not in str(value):
@@ -87,12 +91,14 @@ class CustomObjectConverter(MqttUplinkConverter):
             return full_value
         return None
 
-    def __parse_object_value(self, expression, data):
+    @staticmethod
+    def __convert_to_object(expression, data):
         if not isinstance(expression, dict):
             raise RuntimeError(f"Cannot parse non-dict to an object. Got {type(expression)}")
         result_object = {}
         for (k, v) in expression.items():
-            key = self.__parse_single_value(k, data, "string", is_key=True)
-            value = self.__parse_object_value(v, data) if isinstance(v, dict) else self.__parse_single_value(v, data, "same")
+            key = CustomJsonMqttUplinkConverter.__convert_to_single_value(k, data, "string", is_key=True)
+            value = CustomJsonMqttUplinkConverter.__convert_to_object(v, data) if isinstance(v, dict) \
+                else CustomJsonMqttUplinkConverter.__convert_to_single_value(v, data, "same")
             result_object[key] = value
         return result_object
