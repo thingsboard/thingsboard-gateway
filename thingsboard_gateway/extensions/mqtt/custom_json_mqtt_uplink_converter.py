@@ -65,7 +65,7 @@ class CustomJsonMqttUplinkConverter(MqttUplinkConverter):
             for datatype in datatypes:
                 dict_result[datatypes[datatype]] = []
                 for datatype_config in self.__config.get(datatype, []):
-                    full_key = self.__convert_to_single_value(datatype_config["key"], data, "string", is_key=True)
+                    full_key = self.__convert_to_single_value(datatype_config["key"], data, datatype_config["type"], is_key=True)
                     if datatype_config["type"] == "json":
                         full_value = self.__convert_to_object(datatype_config["value"], data)
                     else:
@@ -83,7 +83,7 @@ class CustomJsonMqttUplinkConverter(MqttUplinkConverter):
     @staticmethod
     def __convert_to_single_value(expression, data, result_type, is_key=False):
         value = TBUtility.get_value(expression, data, result_type, expression_instead_none=True)
-        value_tag = TBUtility.get_value(expression, data, result_type, get_tag=True)
+        value_tag = TBUtility.get_value(expression, data, "string" if is_key else result_type, get_tag=True)
         if "${" not in str(value) and "}" not in str(value):
             is_valid_value = isinstance(value, str) and "${" in expression and "}" in expression
             fallback_value = value_tag if is_key else value
@@ -97,7 +97,7 @@ class CustomJsonMqttUplinkConverter(MqttUplinkConverter):
             raise RuntimeError(f"Cannot parse non-dict to an object. Got {type(expression)}")
         result_object = {}
         for (k, v) in expression.items():
-            key = CustomJsonMqttUplinkConverter.__convert_to_single_value(k, data, "string", is_key=True)
+            key = CustomJsonMqttUplinkConverter.__convert_to_single_value(k, data, "same", is_key=True)
             value = CustomJsonMqttUplinkConverter.__convert_to_object(v, data) if isinstance(v, dict) \
                 else CustomJsonMqttUplinkConverter.__convert_to_single_value(v, data, "same")
             result_object[key] = value
