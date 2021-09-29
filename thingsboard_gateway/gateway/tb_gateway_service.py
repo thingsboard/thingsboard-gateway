@@ -36,7 +36,7 @@ from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
 from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
-from thingsboard_gateway.storage.sqlite.storage_handler import StorageHandler
+from thingsboard_gateway.storage.sqlite.sqlite_event_storage import SQLiteEventStorage
 
 log = logging.getLogger('service')
 main_handler = logging.handlers.MemoryHandler(-1)
@@ -110,7 +110,7 @@ class TBGatewayService:
         self._event_storage_types = {
             "memory": MemoryEventStorage,
             "file": FileEventStorage,
-            "sqlite": StorageHandler,
+            "sqlite": SQLiteEventStorage,
             }
         self.__gateway_rpc_methods = {
             "ping": self.__rpc_ping,
