@@ -416,7 +416,7 @@ class TBGatewayService:
                 log.error(e)
 
     def check_size(self, size, devices_data_in_event_pack):
-        if size >= 48000:
+        if size >= self.__config["thingsboard"].get("maxPayloadSizeBytes", 4096):
             self.__send_data(devices_data_in_event_pack)
             size = 0
         return size
