@@ -27,7 +27,7 @@ from logging import getLogger
 log = getLogger("storage")
 
 
-class StorageHandler(EventStorage):
+class SQLiteEventStorage(EventStorage):
     """
     HIGH level api for thingsboard_gateway main loop
     """
