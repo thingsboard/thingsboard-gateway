@@ -29,6 +29,7 @@ from yaml import safe_load
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
+from thingsboard_gateway.storage.sqlite.sqlite_event_storage import SQLiteEventStorage
 from thingsboard_gateway.tb_utility.tb_gateway_remote_configurator import RemoteConfigurator
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
@@ -36,7 +37,6 @@ from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
 from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
-from thingsboard_gateway.storage.sqlite.sqlite_event_storage import SQLiteEventStorage
 
 log = logging.getLogger('service')
 main_handler = logging.handlers.MemoryHandler(-1)
@@ -428,7 +428,7 @@ class TBGatewayService:
         while not self.stopped:
             try:
                 if self.tb_client.is_connected():
-                    size = getsizeof(devices_data_in_event_pack)
+                    size = getsizeof(str(devices_data_in_event_pack))-2
                     events = []
 
                     if self.__remote_configurator is None or not self.__remote_configurator.in_process:
@@ -450,24 +450,24 @@ class TBGatewayService:
                             if current_event.get("telemetry"):
                                 if isinstance(current_event["telemetry"], list):
                                     for item in current_event["telemetry"]:
-                                        size += getsizeof(item)
+                                        size += getsizeof(str(item))-2
                                         size = self.check_size(size, devices_data_in_event_pack)
                                         devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(
                                             item)
                                 else:
-                                    size += getsizeof(current_event["telemetry"])
+                                    size += getsizeof(str(current_event["telemetry"]))-2
                                     size = self.check_size(size, devices_data_in_event_pack)
                                     devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(
                                         current_event["telemetry"])
                             if current_event.get("attributes"):
                                 if isinstance(current_event["attributes"], list):
                                     for item in current_event["attributes"]:
-                                        size += getsizeof(item)
+                                        size += getsizeof(str(item))-2
                                         size = self.check_size(size, devices_data_in_event_pack)
                                         devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(
                                             item.items())
                                 else:
-                                    size += getsizeof(current_event["attributes"].items())
+                                    size += getsizeof(str(current_event["attributes"].items()))-2
                                     size = self.check_size(size, devices_data_in_event_pack)
                                     devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(
                                         current_event["attributes"].items())
