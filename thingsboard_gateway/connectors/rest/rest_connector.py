@@ -11,6 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
 import asyncio
 from queue import Queue
 from random import choice
@@ -18,12 +19,17 @@ from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
 from time import time
+import ssl
+import os
 
-import aiohttp
 from simplejson import JSONDecodeError, loads
+import requests
+from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
+from requests.exceptions import RequestException
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.connectors.connector import Connector, log
 
 try:
     from requests import Timeout, request as regular_request
@@ -31,12 +37,6 @@ except ImportError:
     print("Requests library not found - installing...")
     TBUtility.install_package("requests")
     from requests import Timeout, request as regular_request
-import requests
-from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
-from requests.exceptions import RequestException
-
-requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
-
 
 try:
     from aiohttp import web
@@ -45,7 +45,7 @@ except ImportError:
     TBUtility.install_package('aiohttp')
     from aiohttp import web
 
-from thingsboard_gateway.connectors.connector import Connector, log
+requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 
 
 class RESTConnector(Connector, Thread):
@@ -115,8 +115,33 @@ class RESTConnector(Connector, Thread):
 
         asyncio.set_event_loop(loop)
         self._app = web.Application(debug=True, loop=loop)
+
+        ssl_context = None
+        cert = None
+        key = None
+        if self.__config['SSL']:
+            if not self.__config.get('security'):
+                if not os.path.exists('domain_srv.crt'):
+                    from thingsboard_gateway.connectors.rest.ssl_generator import SSLGenerator
+                    n = SSLGenerator(self.__config['host'])
+                    n.generate_certificate()
+
+                cert = 'domain_srv.crt'
+                key = 'domain_srv.key'
+            else:
+                try:
+                    cert = self.__config['security']['cert']
+                    key = self.__config['security']['key']
+                except KeyError as e:
+                    log.exception(e)
+                    log.error('Provide certificate and key path!')
+
+            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            ssl_context.load_cert_chain(cert, key)
+
         self.load_handlers()
-        web.run_app(self._app, host=self.__config['host'], port=self.__config['port'], handle_signals=False)
+        web.run_app(self._app, host=self.__config['host'], port=self.__config['port'], handle_signals=False,
+                    ssl_context=ssl_context)
 
     def run(self):
         self._connected = True
