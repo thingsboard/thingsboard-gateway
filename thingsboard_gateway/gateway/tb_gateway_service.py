@@ -89,6 +89,10 @@ class TBGatewayService:
         self.__rpc_requests_in_progress = {}
         self.__connected_devices_file = "connected_devices.json"
         self.tb_client = TBClient(self.__config["thingsboard"], self._config_dir)
+        try:
+            self.tb_client.disconnect()
+        except Exception as e:
+            log.exception(e)
         self.tb_client.connect()
         self.subscribe_to_required_topics()
         self.__subscribed_to_rpc_topics = True
