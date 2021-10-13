@@ -635,7 +635,6 @@ class MqttConnector(Connector, Thread):
 
                 # 2-way RPC setup
                 if expects_response and defines_timeout:
-                    # TODO: rewrite it
                     expected_response_topic = rpc_config["responseTopicExpression"] \
                         .replace("${deviceName}", str(content["device"])) \
                         .replace("${methodName}", str(content["data"]["method"])) \
