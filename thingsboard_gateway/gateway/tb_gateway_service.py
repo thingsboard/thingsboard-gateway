@@ -148,6 +148,7 @@ class TBGatewayService:
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
         self._send_thread.start()
+        self.__min_pack_send_delay_ms = self.__config['thingsboard'].get('minPackSendDelayMS', 500) / 1000.0
         log.info("Gateway started.")
 
         try:
@@ -441,6 +442,7 @@ class TBGatewayService:
                     if events:
                         for event in events:
                             log.debug("Reading events: %s" % str(events))
+
                             self.counter += 1
                             try:
                                 current_event = loads(event)
@@ -475,12 +477,16 @@ class TBGatewayService:
                                     size = self.check_size(size, devices_data_in_event_pack)
                                     devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(
                                         current_event["attributes"].items())
+
                         if devices_data_in_event_pack:
                             if not self.tb_client.is_connected():
                                 continue
                             while self.__rpc_reply_sent:
                                 sleep(.01)
+
                             self.__send_data(devices_data_in_event_pack)
+                            sleep(self.__min_pack_send_delay_ms)
+
                         if self.tb_client.is_connected() and (
                                 self.__remote_configurator is None or not self.__remote_configurator.in_process):
                             success = True

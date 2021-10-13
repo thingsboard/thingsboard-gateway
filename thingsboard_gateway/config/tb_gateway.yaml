@@ -4,6 +4,7 @@ thingsboard:
   remoteShell: false
   remoteConfiguration: false
   statsSendPeriodInSeconds: 3600
+  minPackSendDelayMS: 500
   checkConnectorsConfigurationInSeconds: 60
   security:
     accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
