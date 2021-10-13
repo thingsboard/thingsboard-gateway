@@ -198,12 +198,14 @@ class BACnetConnector(Thread, Connector):
                 if self._application.check_or_add(device):
                     for mapping_type in ["attributes", "timeseries"]:
                         for config in device[mapping_type]:
+                            if config.get("uplink_converter") is None or config.get("downlink_converter") is None:
+                                self.__load_converters(device)
                             data_to_application = {
                                 "device": device,
                                 "mapping_type": mapping_type,
                                 "config": config,
                                 "callback": self.__bacnet_device_mapping_response_cb
-                                }
+                            }
                             self._application.do_read_property(**data_to_application)
             except Exception as e:
                 log.exception(e)
@@ -219,11 +221,21 @@ class BACnetConnector(Thread, Connector):
         self.__gateway.send_to_storage(self.name, converted_data)
 
     def __bacnet_device_mapping_response_cb(self, iocb, callback_params):
-        converter = callback_params["config"]["uplink_converter"]
         mapping_type = callback_params["mapping_type"]
         config = callback_params["config"]
-
-        self.__convert_and_save_data_queue.put((converter, mapping_type, config, iocb))
+        converted_data = {}
+        converter = callback_params["config"].get("uplink_converter")
+        if converter is None:
+            for device in self.__devices:
+                self.__load_converters(device)
+            else:
+                converter = callback_params["config"].get("uplink_converter")
+        try:
+            converted_data = converter.convert((mapping_type, config),
+                                               iocb.ioResponse if iocb.ioResponse else iocb.ioError)
+        except Exception as e:
+            log.exception(e)
+        self.__gateway.send_to_storage(self.name, converted_data)
 
     def __load_converters(self, device):
         datatypes = ["attributes", "telemetry", "attribute_updates", "server_side_rpc"]
