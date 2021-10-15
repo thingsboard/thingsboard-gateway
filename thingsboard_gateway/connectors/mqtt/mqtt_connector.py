@@ -685,7 +685,7 @@ class MqttConnector(Connector, Thread):
                     self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
                     self._client.publish(request_topic, data_to_send)
 
-                    if expects_response or defines_timeout:
+                    if not expects_response or not defines_timeout:
                         self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
                         self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
                                                       success_sent=True)
