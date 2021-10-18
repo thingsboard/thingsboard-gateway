@@ -56,7 +56,7 @@ class JsonRequestDownlinkConverter(RequestConverter):
                 data_value = TBUtility.get_value(config.get('valueExpression'), data['data'], 'params',
                                                  expression_instead_none=True)
                 result['data'] = result["data"].replace(data_tag, str(data_value))
-            print('>>>>!!', result)
+
             return result
         except Exception as e:
             log.exception(e)
