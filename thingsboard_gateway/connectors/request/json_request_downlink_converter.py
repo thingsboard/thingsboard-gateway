@@ -12,9 +12,10 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from simplejson import dumps
+from urllib.parse import quote
 
 from thingsboard_gateway.connectors.request.request_converter import RequestConverter, log
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class JsonRequestDownlinkConverter(RequestConverter):
@@ -27,25 +28,35 @@ class JsonRequestDownlinkConverter(RequestConverter):
                 attribute_key = list(data["data"].keys())[0]
                 attribute_value = list(data["data"].values())[0]
 
-                result = {"url": self.__config["requestUrlExpression"].replace("${attributeKey}", attribute_key) \
-                    .replace("${attributeValue}", attribute_value) \
-                    .replace("${deviceName}", data["device"]),
-                          "data": self.__config["valueExpression"].replace("${attributeKey}", attribute_key) \
-                              .replace("${attributeValue}", attribute_value) \
-                              .replace("${deviceName}", data["device"])}
+                result = {
+                    "url": self.__config["requestUrlExpression"].replace("${attributeKey}", quote(attribute_key))
+                                                                .replace("${attributeValue}", quote(attribute_value))
+                                                                .replace("${deviceName}", quote(data["device"])),
+                    "data": self.__config["valueExpression"].replace("${attributeKey}", quote(attribute_key))
+                                                            .replace("${attributeValue}", quote(attribute_value))
+                                                            .replace("${deviceName}", quote(data["device"]))
+                }
             else:
                 request_id = str(data["data"]["id"])
                 method_name = data["data"]["method"]
-                params = dumps(data["data"]["params"]) or str(data["data"]["params"])
 
-                result = {"url": self.__config["requestUrlExpression"].replace("${requestId}", request_id) \
-                    .replace("${methodName}", method_name) \
-                    .replace("${params}", params) \
-                    .replace("${deviceName}", data["device"]),
-                          "data": self.__config["valueExpression"].replace("${requestId}", request_id) \
-                              .replace("${methodName}", method_name) \
-                              .replace("${params}", params) \
-                              .replace("${deviceName}", data["device"])}
+                result = {
+                    "url": self.__config["requestUrlExpression"].replace("${requestId}", request_id)
+                                                                .replace("${methodName}", method_name)
+                                                                .replace("${deviceName}", quote(data["device"])),
+                    "data": self.__config["valueExpression"].replace("${requestId}", request_id)
+                                                            .replace("${methodName}", method_name)
+                                                            .replace("${deviceName}", quote(data["device"]))
+                }
+
+                result['url'] = TBUtility.replace_params_tags(result['url'], data)
+
+                data_tag = '${' + TBUtility.get_value(config.get('valueExpression'), data['data'], 'params',
+                                                      get_tag=True) + '}'
+                data_value = TBUtility.get_value(config.get('valueExpression'), data['data'], 'params',
+                                                 expression_instead_none=True)
+                result['data'] = result["data"].replace(data_tag, str(data_value))
+            print('>>>>!!', result)
             return result
         except Exception as e:
             log.exception(e)
