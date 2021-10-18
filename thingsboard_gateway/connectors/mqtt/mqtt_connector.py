@@ -638,7 +638,7 @@ class MqttConnector(Connector, Thread):
                     expected_response_topic = rpc_config["responseTopicExpression"] \
                         .replace("${deviceName}", str(content["device"])) \
                         .replace("${methodName}", str(content["data"]["method"])) \
-                        .replace("${requestId}", str(content["data"]["id"])) \
+                        .replace("${requestId}", str(content["data"]["id"]))
 
                     expected_response_topic = self.replace_params_tags(expected_response_topic, content)
 
@@ -678,8 +678,13 @@ class MqttConnector(Connector, Thread):
 
                 request_topic = self.replace_params_tags(request_topic, content)
 
-                data_to_send = TBUtility.get_value(rpc_config.get('valueExpression'), content['data'], 'params',
-                                                   expression_instead_none=True)
+                data_to_send_tag = '${' + TBUtility.get_value(rpc_config.get('valueExpression'), content['data'],
+                                                              'params',
+                                                              get_tag=True) + '}'
+
+                data_to_send_value = TBUtility.get_value(rpc_config.get('valueExpression'), content['data'], 'params',
+                                                         expression_instead_none=True)
+                data_to_send = rpc_config.get('valueExpression').replace(data_to_send_tag, str(data_to_send_value))
 
                 try:
                     self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
