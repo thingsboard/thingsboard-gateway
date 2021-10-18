@@ -609,16 +609,6 @@ class MqttConnector(Connector, Thread):
         else:
             self.__log.error("Attribute updates config not found.")
 
-    @staticmethod
-    def replace_params_tags(text, data):
-        if '${' in text:
-            for item in text.split('/'):
-                if '${' in item:
-                    tag = '${' + TBUtility.get_value(item, data['data'], 'params', get_tag=True) + '}'
-                    value = TBUtility.get_value(item, data['data'], 'params', expression_instead_none=True)
-                    text = text.replace(tag, str(value))
-        return text
-
     def server_side_rpc_handler(self, content):
         self.__log.info("Incoming server-side RPC: %s", content)
 
@@ -640,7 +630,7 @@ class MqttConnector(Connector, Thread):
                         .replace("${methodName}", str(content["data"]["method"])) \
                         .replace("${requestId}", str(content["data"]["id"]))
 
-                    expected_response_topic = self.replace_params_tags(expected_response_topic, content)
+                    expected_response_topic = TBUtility.replace_params_tags(expected_response_topic, content)
 
                     timeout = time() * 1000 + rpc_config.get("responseTimeout")
 
@@ -676,7 +666,7 @@ class MqttConnector(Connector, Thread):
                     .replace("${methodName}", str(content["data"]["method"])) \
                     .replace("${requestId}", str(content["data"]["id"]))
 
-                request_topic = self.replace_params_tags(request_topic, content)
+                request_topic = TBUtility.replace_params_tags(request_topic, content)
 
                 data_to_send_tag = '${' + TBUtility.get_value(rpc_config.get('valueExpression'), content['data'],
                                                               'params',

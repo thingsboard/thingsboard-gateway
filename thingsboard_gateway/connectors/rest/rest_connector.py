@@ -39,11 +39,11 @@ except ImportError:
     from requests import Timeout, request as regular_request
 
 try:
-    from aiohttp import web
+    from aiohttp import web, BasicAuth
 except ImportError:
     print('AIOHTTP library not found - installing...')
     TBUtility.install_package('aiohttp')
-    from aiohttp import web
+    from aiohttp import web, BasicAuth
 
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 
@@ -171,14 +171,12 @@ class RESTConnector(Connector, Thread):
                     request_dict = {"config": {**attribute_request,
                                                **converted_data},
                                     "request": regular_request}
-                    with self._app.test_request_context():
-                        attribute_update_request_thread = Thread(target=self.__send_request,
+                    attribute_update_request_thread = Thread(target=self.__send_request,
                                                                  args=(request_dict, response_queue, log),
                                                                  daemon=True,
                                                                  name="Attribute request to %s" % (
                                                                      converted_data["url"]))
-                        attribute_update_request_thread.start()
-                        attribute_update_request_thread.join()
+                    attribute_update_request_thread.start()
                     if not response_queue.empty():
                         response = response_queue.get_nowait()
                         log.debug(response)
@@ -197,13 +195,11 @@ class RESTConnector(Connector, Thread):
                                                **converted_data},
                                     "request": regular_request}
                     request_dict["converter"] = request_dict["config"].get("uplink_converter")
-                    with self._app.test_request_context():
-                        rpc_request_thread = Thread(target=self.__send_request,
-                                                    args=(request_dict, response_queue, log),
-                                                    daemon=True,
-                                                    name="RPC request to %s" % (converted_data["url"]))
-                        rpc_request_thread.start()
-                        rpc_request_thread.join()
+                    rpc_request_thread = Thread(target=self.__send_request,
+                                                args=(request_dict, response_queue, log),
+                                                daemon=True,
+                                                name="RPC request to %s" % (converted_data["url"]))
+                    rpc_request_thread.start()
                     if not response_queue.empty():
                         response = response_queue.get_nowait()
                         log.debug(response)
@@ -353,7 +349,7 @@ class BasicDataHandler:
         return Users.validate_user_credentials(self.__endpoint['config']['endpoint'], username, password)
 
     async def __call__(self, request: web.Request):
-        auth = aiohttp.BasicAuth.decode(request.headers.get('Authorization'))
+        auth = BasicAuth.decode(request.headers.get('Authorization'))
         if self.verify(auth.login, auth.password):
             json_data = await request.json()
             if not json_data:
