@@ -145,3 +145,13 @@ class TBUtility:
                 except CalledProcessError:
                     result = check_call([executable, "-m", "pip", "install", package + installation_sign + version])
         return result
+
+    @staticmethod
+    def replace_params_tags(text, data):
+        if '${' in text:
+            for item in text.split('/'):
+                if '${' in item:
+                    tag = '${' + TBUtility.get_value(item, data['data'], 'params', get_tag=True) + '}'
+                    value = TBUtility.get_value(item, data['data'], 'params', expression_instead_none=True)
+                    text = text.replace(tag, str(value))
+        return text

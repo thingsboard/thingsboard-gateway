@@ -57,7 +57,7 @@ class MqttConnector(Connector, Thread):
             "disconnectRequests": ['topicFilter'],
             "attributeRequests": ['topicFilter', 'topicExpression', 'valueExpression'],
             "attributeUpdates": ['deviceNameFilter', 'attributeFilter', 'topicExpression', 'valueExpression']
-            }
+        }
 
         # Mappings, i.e., telemetry/attributes-push handlers provided by user via configuration file
         self.load_handlers('mapping', mandatory_keys['mapping'], self.__mapping)
@@ -236,7 +236,7 @@ class MqttConnector(Connector, Thread):
             3: "server unavailable",
             4: "bad username or password",
             5: "not authorised",
-            }
+        }
 
         if result_code == 0:
             self._connected = True
@@ -363,8 +363,9 @@ class MqttConnector(Connector, Thread):
         number_of_needed_threads = round(self.__msg_queue.qsize() / self.__max_msg_number_for_worker, 0)
         threads_count = len(self.__workers_thread_pool)
         if number_of_needed_threads > threads_count < self.__max_number_of_workers:
-            thread = MqttConnector.ConverterWorker("Worker " + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)), self.__msg_queue,
-                                                   self._save_converted_msg)
+            thread = MqttConnector.ConverterWorker(
+                "Worker " + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)), self.__msg_queue,
+                self._save_converted_msg)
             self.__workers_thread_pool.append(thread)
             thread.start()
         elif number_of_needed_threads < threads_count and threads_count > 1:
@@ -624,12 +625,12 @@ class MqttConnector(Connector, Thread):
 
                 # 2-way RPC setup
                 if expects_response and defines_timeout:
-
                     expected_response_topic = rpc_config["responseTopicExpression"] \
                         .replace("${deviceName}", str(content["device"])) \
                         .replace("${methodName}", str(content["data"]["method"])) \
-                        .replace("${requestId}", str(content["data"]["id"])) \
-                        .replace("${params}", simplejson.dumps(content["data"].get("params", "")))
+                        .replace("${requestId}", str(content["data"]["id"]))
+
+                    expected_response_topic = TBUtility.replace_params_tags(expected_response_topic, content)
 
                     timeout = time() * 1000 + rpc_config.get("responseTimeout")
 
@@ -660,17 +661,20 @@ class MqttConnector(Connector, Thread):
                     self.__log.info("2-way RPC without timeout: treating as 1-way")
 
                 # Actually reach out for the device
-                request_topic = rpc_config.get("requestTopicExpression") \
+                request_topic: str = rpc_config.get("requestTopicExpression") \
                     .replace("${deviceName}", str(content["device"])) \
                     .replace("${methodName}", str(content["data"]["method"])) \
-                    .replace("${requestId}", str(content["data"]["id"])) \
-                    .replace("${params}", simplejson.dumps(content["data"].get("params", "")))
+                    .replace("${requestId}", str(content["data"]["id"]))
 
-                data_to_send = rpc_config.get("valueExpression") \
-                    .replace("${deviceName}", str(content["device"])) \
-                    .replace("${methodName}", str(content["data"]["method"])) \
-                    .replace("${requestId}", str(content["data"]["id"])) \
-                    .replace("${params}", simplejson.dumps(content["data"].get("params", "")))
+                request_topic = TBUtility.replace_params_tags(request_topic, content)
+
+                data_to_send_tag = '${' + TBUtility.get_value(rpc_config.get('valueExpression'), content['data'],
+                                                              'params',
+                                                              get_tag=True) + '}'
+
+                data_to_send_value = TBUtility.get_value(rpc_config.get('valueExpression'), content['data'], 'params',
+                                                         expression_instead_none=True)
+                data_to_send = rpc_config.get('valueExpression').replace(data_to_send_tag, str(data_to_send_value))
 
                 try:
                     self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
