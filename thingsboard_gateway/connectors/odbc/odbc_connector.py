@@ -221,9 +221,9 @@ class OdbcConnector(Connector, Thread):
         # For some reason pyodbc.Cursor.rowcount may be 0 (sqlite) so use our own row counter
         row_count = 0
         for row in rows:
-            # log.debug("[%s] Fetch row: %s", self.get_name(), row)
-            row_count += 1
+            log.debug("[%s] Fetch row: %s", self.get_name(), row)
             self.__process_row(row)
+            row_count += 1
 
         self.__iterator["total"] += row_count
         log.info("[%s] Polling iteration finished. Processed rows: current %d, total %d",
@@ -240,6 +240,10 @@ class OdbcConnector(Connector, Thread):
             self.__converter.convert(self.__config["mapping"]["attributes"], data),
                        "telemetry": {} if "timeseries" not in self.__config["mapping"] else
                        self.__converter.convert(self.__config["mapping"]["timeseries"], data)}
+
+            if to_send['telemetry'].get('ts'):
+                to_send['ts'] = to_send['telemetry']['ts']
+                del to_send['telemetry']['ts']
 
             device_name = eval(self.__config["mapping"]["device"]["name"], globals(), data)
             if device_name not in self.__devices:
@@ -274,9 +278,10 @@ class OdbcConnector(Connector, Thread):
         if to_send["attributes"] or to_send["telemetry"]:
             to_send["deviceName"] = device_name
             to_send["deviceType"] = device_type
-
+            to_send['telemetry'] = {'values': new_data['telemetry'], 'ts': new_data.get('ts').timestamp()}
             log.debug("[%s] Pushing to TB server '%s' device data: %s", self.get_name(), device_name, to_send)
 
+            to_send['telemetry'] = [to_send['telemetry']]
             self.__gateway.send_to_storage(self.get_name(), to_send)
             self.statistics['MessagesSent'] += 1
         else:
