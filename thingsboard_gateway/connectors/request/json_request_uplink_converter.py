@@ -56,7 +56,7 @@ class JsonRequestUplinkConverter(RequestConverter):
                     datatype_object_config_value = TBUtility.get_value(datatype_object_config["value"], data,
                                                                        datatype_object_config["type"])
                     if datatype_object_config_key is not None and datatype_object_config_value is not None:
-                        if data.get("ts") is not None or data.get("timestamp") is not None:
+                        if datatype == "telemetry" and data.get("ts") is not None or data.get("timestamp") is not None:
                             dict_result[self.__datatypes[datatype]].append(
                                 {"ts": data.get('ts', data.get('timestamp', int(time()))),
                                  'values': {datatype_object_config_key: datatype_object_config_value}})
