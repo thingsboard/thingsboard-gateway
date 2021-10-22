@@ -72,8 +72,7 @@ class MqttConnector(Connector, Thread):
         self.load_handlers('disconnectRequests', mandatory_keys['disconnectRequests'], self.__disconnect_requests)
 
         # Shared attributes direct requests, i.e., asking ThingsBoard for some shared attribute value
-        self.load_handlers('attributeRequests', mandatory_keys['attributeRequests'], self.__attribute_requests,
-                           optional=True)
+        self.load_handlers('attributeRequests', mandatory_keys['attributeRequests'], self.__attribute_requests)
 
         # Attributes updates requests, i.e., asking ThingsBoard to send updates about an attribute
         self.load_handlers('attributeUpdates', mandatory_keys['attributeUpdates'], self.__attribute_updates)
@@ -138,10 +137,9 @@ class MqttConnector(Connector, Thread):
         self.__max_msg_number_for_worker = config.get('maxMessageNumberPerWorker', 10)
         self.__max_number_of_workers = config.get('maxNumberOfWorkers', 100)
 
-    def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list, optional=False):
+    def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list):
         if handler_flavor not in self.config:
-            if not optional:
-                self.__log.error("'%s' section missing from configuration", handler_flavor)
+            self.__log.error("'%s' section missing from configuration", handler_flavor)
         else:
             for handler in self.config.get(handler_flavor):
                 discard = False
@@ -310,7 +308,6 @@ class MqttConnector(Connector, Thread):
                 self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 1))
                 topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
                 self.__attribute_requests_sub_topics[topic_filter] = request
-
         else:
             if result_code in result_codes:
                 self.__log.error("%s connection FAIL with error %s %s!", self.get_name(), result_code,
@@ -539,7 +536,8 @@ class MqttConnector(Connector, Thread):
                             data,
                             found_attribute_name,
                             handler.get("topicExpression"),
-                            handler.get("valueExpression")))
+                            handler.get("valueExpression")),
+                        handler.get('retain', False))
 
                     break
 
@@ -562,7 +560,7 @@ class MqttConnector(Connector, Thread):
                          message.topic,
                          content)
 
-    def notify_attribute(self, incoming_data, attribute_name, topic_expression, value_expression):
+    def notify_attribute(self, incoming_data, attribute_name, topic_expression, value_expression, retain):
         if incoming_data.get("device") is None or incoming_data.get("value") is None:
             return
 
@@ -576,7 +574,7 @@ class MqttConnector(Connector, Thread):
         data = value_expression.replace("${attributeKey}", str(attribute_name)) \
             .replace("${attributeValue}", str(attribute_value))
 
-        self._client.publish(topic, data).wait_for_publish()
+        self._client.publish(topic, data, retain=retain).wait_for_publish()
 
     def on_attributes_update(self, content):
         if self.__attribute_updates:
@@ -599,7 +597,8 @@ class MqttConnector(Connector, Thread):
                             except KeyError as e:
                                 log.exception("Cannot form topic, key %s - not found", e)
                                 raise e
-                            self._client.publish(topic, data).wait_for_publish()
+                            self._client.publish(topic, data,
+                                                 retain=attribute_update.get('retain', False)).wait_for_publish()
                             self.__log.debug("Attribute Update data: %s for device %s to topic: %s", data,
                                              content["device"], topic)
                         else:
@@ -678,7 +677,7 @@ class MqttConnector(Connector, Thread):
 
                 try:
                     self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
-                    self._client.publish(request_topic, data_to_send)
+                    self._client.publish(request_topic, data_to_send, retain=rpc_config.get('retain', False))
 
                     if not expects_response or not defines_timeout:
                         self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
