@@ -7,7 +7,9 @@
     "maxMessageNumberPerWorker": 10,
     "maxNumberOfWorkers": 100,
     "security": {
-      "type": "anonymous"
+      "type": "basic",
+      "username": "user",
+      "password": "password"
     }
   },
   "mapping": [
@@ -126,13 +128,12 @@
     {
       "deviceNameFilter": ".*",
       "methodFilter": "echo",
-      "requestTopicExpression": "sensor/${deviceName}/request/${methodName}/${requestId}/${params}/${params.hum}",
-      "responseTopicExpression": "sensor/${deviceName}/response/${methodName}/${requestId}/${params}",
+      "requestTopicExpression": "sensor/${deviceName}/request/${methodName}/${requestId}",
+      "responseTopicExpression": "sensor/${deviceName}/response/${methodName}/${requestId}",
       "responseTimeout": 10000,
-      "valueExpression": "ZERO ${params.hum} ZERO"
+      "valueExpression": "${params}"
     },
     {
-      "retain": true,
       "deviceNameFilter": ".*",
       "methodFilter": "no-reply",
       "requestTopicExpression": "sensor/${deviceName}/request/${methodName}/${requestId}",
