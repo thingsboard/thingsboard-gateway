@@ -38,6 +38,11 @@
             "type": "double",
             "key": "humidity",
             "value": "${hum}"
+          },
+          {
+            "type": "string",
+            "key": "combine",
+            "value": "${hum}:${temp}"
           }
         ]
       }
