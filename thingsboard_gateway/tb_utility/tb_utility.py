@@ -13,7 +13,7 @@
 #     limitations under the License.
 
 from logging import getLogger
-from re import search
+from re import search, findall
 
 from jsonpath_rw import parse
 from simplejson import JSONDecodeError, dumps, loads
@@ -98,8 +98,9 @@ class TBUtility:
         try:
             if isinstance(body, dict) and target_str.split()[0] in body:
                 if value_type.lower() == "string":
-                    full_value = expression[0: max(p1 - 2, 0)] + body[target_str.split()[0]] + expression[
-                                                                                               p2 + 1:len(expression)]
+                    full_value = str(expression[0: max(p1 - 2, 0)]) + str(body[target_str.split()[0]]) + str(expression[
+                                                                                                             p2 + 1:len(
+                                                                                                                 expression)])
                 else:
                     full_value = body.get(target_str.split()[0])
             elif isinstance(body, (dict, list)):
@@ -119,6 +120,18 @@ class TBUtility:
         except Exception as e:
             log.exception(e)
         return full_value
+
+    @staticmethod
+    def get_values(expression, body=None, value_type="string", get_tag=False, expression_instead_none=False):
+        expression_arr = findall(r'\${[${A-Za-z0-9.^\][*]*}', expression)
+
+        values = [TBUtility.get_value(exp, body, value_type=value_type, get_tag=get_tag,
+                                      expression_instead_none=expression_instead_none) for exp in expression_arr]
+
+        if '${' not in expression:
+            values.append(expression)
+
+        return values
 
     @staticmethod
     def install_package(package, version="upgrade"):
