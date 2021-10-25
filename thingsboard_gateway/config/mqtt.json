@@ -7,9 +7,7 @@
     "maxMessageNumberPerWorker": 10,
     "maxNumberOfWorkers": 100,
     "security": {
-      "type": "basic",
-      "username": "user",
-      "password": "password"
+      "type": "anonymous"
     }
   },
   "mapping": [
@@ -107,8 +105,17 @@
       "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/disconnect)"
     }
   ],
+  "attributeRequests": [
+    {
+      "retain": false,
+      "topicFilter": "v1/devices/me/attributes/request",
+      "deviceNameTopicExpression": "${SerialNumber}",
+      "attributeNameJsonExpression": "${sensorModel}"
+    }
+  ],
   "attributeUpdates": [
     {
+      "retain": true,
       "deviceNameFilter": "SmartMeter.*",
       "attributeFilter": "uploadFrequency",
       "topicExpression": "sensor/${deviceName}/${attributeKey}",
@@ -119,12 +126,13 @@
     {
       "deviceNameFilter": ".*",
       "methodFilter": "echo",
-      "requestTopicExpression": "sensor/${deviceName}/request/${methodName}/${requestId}",
-      "responseTopicExpression": "sensor/${deviceName}/response/${methodName}/${requestId}",
+      "requestTopicExpression": "sensor/${deviceName}/request/${methodName}/${requestId}/${params}/${params.hum}",
+      "responseTopicExpression": "sensor/${deviceName}/response/${methodName}/${requestId}/${params}",
       "responseTimeout": 10000,
-      "valueExpression": "${params}"
+      "valueExpression": "ZERO ${params.hum} ZERO"
     },
     {
+      "retain": true,
       "deviceNameFilter": ".*",
       "methodFilter": "no-reply",
       "requestTopicExpression": "sensor/${deviceName}/request/${methodName}/${requestId}",

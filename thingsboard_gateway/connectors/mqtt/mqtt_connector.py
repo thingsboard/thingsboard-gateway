@@ -536,8 +536,8 @@ class MqttConnector(Connector, Thread):
                             data,
                             found_attribute_name,
                             handler.get("topicExpression"),
-                            handler.get("valueExpression")),
-                        handler.get('retain', False))
+                            handler.get("valueExpression"),
+                            handler.get('retain', False)))
 
                     break
 
