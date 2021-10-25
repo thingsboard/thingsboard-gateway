@@ -107,8 +107,17 @@
       "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/disconnect)"
     }
   ],
+  "attributeRequests": [
+    {
+      "retain": false,
+      "topicFilter": "v1/devices/me/attributes/request",
+      "deviceNameTopicExpression": "${SerialNumber}",
+      "attributeNameJsonExpression": "${sensorModel}"
+    }
+  ],
   "attributeUpdates": [
     {
+      "retain": true,
       "deviceNameFilter": "SmartMeter.*",
       "attributeFilter": "uploadFrequency",
       "topicExpression": "sensor/${deviceName}/${attributeKey}",
