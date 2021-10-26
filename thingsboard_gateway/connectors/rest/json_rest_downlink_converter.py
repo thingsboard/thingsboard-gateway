@@ -52,10 +52,6 @@ class JsonRESTDownlinkConverter(RESTConverter):
 
                 result['url'] = TBUtility.replace_params_tags(result['url'], data)
 
-                # data_tag = '${' + TBUtility.get_value(config.get('valueExpression'), data['data'], 'params',
-                #                                       get_tag=True) + '}'
-                # data_value = TBUtility.get_value(config.get('valueExpression'), data['data'], 'params',
-                #                                  expression_instead_none=True)
                 data_tags = TBUtility.get_values(config.get('valueExpression'), data['data'], 'params',
                                                  get_tag=True)
                 data_values = TBUtility.get_values(config.get('valueExpression'), data['data'], 'params',
