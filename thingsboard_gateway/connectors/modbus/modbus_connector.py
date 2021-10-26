@@ -315,6 +315,12 @@ class ModbusConnector(Connector, threading.Thread):
             PARITY_PARAMETER) is not None else self.__config.get(PARITY_PARAMETER, Defaults.Parity)
         master_config["strict"] = current_config[STRICT_PARAMETER] if current_config.get(
             STRICT_PARAMETER) is not None else self.__config.get(STRICT_PARAMETER, True)
+        master_config["retries"] = current_config[RETRIES_PARAMETER] if current_config.get(
+            RETRIES_PARAMETER) is not None else self.__config.get(RETRIES_PARAMETER, 3)
+        master_config["retry_on_empty"] = current_config[RETRY_ON_EMPTY_PARAMETER] if current_config.get(
+            RETRY_ON_EMPTY_PARAMETER) is not None else self.__config.get(RETRY_ON_EMPTY_PARAMETER, True)
+        master_config["retry_on_invalid"] = current_config[RETRY_ON_INVALID_PARAMETER] if current_config.get(
+            RETRY_ON_INVALID_PARAMETER) is not None else self.__config.get(RETRY_ON_INVALID_PARAMETER, True)
         master_config["rtu"] = ModbusRtuFramer if current_config.get(METHOD_PARAMETER) == "rtu" or (
                 current_config.get(METHOD_PARAMETER) is None and self.__config.get(
             METHOD_PARAMETER) == "rtu") else ModbusSocketFramer
@@ -323,16 +329,25 @@ class ModbusConnector(Connector, threading.Thread):
             if current_config.get(TYPE_PARAMETER) == 'tcp' or (
                     current_config.get(TYPE_PARAMETER) is None and self.__config.get(TYPE_PARAMETER) == "tcp"):
                 master = ModbusTcpClient(master_config["host"], master_config["port"], master_config["rtu"],
-                                         timeout=master_config["timeout"])
+                                         timeout=master_config["timeout"],
+                                         retry_on_empty=master_config["retry_on_empty"],
+                                         retry_on_invalid=master_config["retry_on_invalid"],
+                                         retries=master_config["retries"])
             elif current_config.get(TYPE_PARAMETER) == 'udp' or (
                     current_config.get(TYPE_PARAMETER) is None and self.__config.get(TYPE_PARAMETER) == "udp"):
                 master = ModbusUdpClient(master_config["host"], master_config["port"], master_config["rtu"],
-                                         timeout=master_config["timeout"])
+                                         timeout=master_config["timeout"],
+                                         retry_on_empty=master_config["retry_on_empty"],
+                                         retry_on_invalid=master_config["retry_on_invalid"],
+                                         retries=master_config["retries"])
             elif current_config.get(TYPE_PARAMETER) == 'serial' or (
                     current_config.get(TYPE_PARAMETER) is None and self.__config.get(TYPE_PARAMETER) == "serial"):
                 master = ModbusSerialClient(method=master_config["method"],
                                             port=master_config["port"],
                                             timeout=master_config["timeout"],
+                                            retry_on_empty=master_config["retry_on_empty"],
+                                            retry_on_invalid=master_config["retry_on_invalid"],
+                                            retries=master_config["retries"],
                                             baudrate=master_config["baudrate"],
                                             stopbits=master_config["stopbits"],
                                             bytesize=master_config["bytesize"],

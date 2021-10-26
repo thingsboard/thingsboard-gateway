@@ -6,6 +6,9 @@
     "timeout": 35,
     "method": "socket",
     "byteOrder": "BIG",
+    "retries": true,
+    "retryOnEmpty": true,
+    "retryOnInvalid": true,
     "devices": [
       {
         "unitId": 1,
