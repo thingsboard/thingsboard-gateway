@@ -342,7 +342,7 @@ class MqttConnector(Connector, Thread):
 
     def put_data_to_convert(self, converter, message, content) -> bool:
         if not self.__msg_queue.full():
-            self.__msg_queue.put((converter.convert, message.topic, content))
+            self.__msg_queue.put((converter.convert, message.topic, content), True, 100)
             return True
         return False
 
@@ -710,7 +710,7 @@ class MqttConnector(Connector, Thread):
             while not self.stopped:
                 if not self.__msg_queue.empty():
                     self.in_progress = True
-                    convert_function, config, incoming_data = self.__msg_queue.get()
+                    convert_function, config, incoming_data = self.__msg_queue.get(True, 100)
                     converted_data = convert_function(config, incoming_data)
                     log.debug(converted_data)
                     self.__send_result(config, converted_data)

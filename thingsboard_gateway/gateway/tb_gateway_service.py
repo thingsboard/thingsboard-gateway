@@ -377,13 +377,13 @@ class TBGatewayService:
             self._connect_with_connectors()
 
     def send_to_storage(self, connector_name, data):
-        self.__converted_data_queue.put((connector_name, data), False)
+        self.__converted_data_queue.put((connector_name, data), True, 100)
 
     def __send_to_storage(self):
         while True:
             try:
                 if not self.__converted_data_queue.empty():
-                    connector_name, data = self.__converted_data_queue.get(False)
+                    connector_name, data = self.__converted_data_queue.get(True, 100)
                     if not connector_name == self.name:
                         if not TBUtility.validate_converted_data(data):
                             log.error("Data from %s connector is invalid.", connector_name)
