@@ -15,6 +15,7 @@
 import logging
 import logging.handlers
 from sys import stdout
+from time import time
 
 
 class TBLoggerHandler(logging.Handler):
@@ -55,7 +56,7 @@ class TBLoggerHandler(logging.Handler):
     def handle(self, record):
         if self.activated:
             record = self.formatter.format(record)
-            self.__gateway.send_to_storage(self.__gateway.name, {"deviceName": self.__gateway.name, "telemetry": [{'LOGS': record}]})
+            self.__gateway.send_to_storage(self.__gateway.name, {"deviceName": self.__gateway.name, "telemetry": [{"ts": int(time()), "values":{'LOGS': record}}]})
 
     def deactivate(self):
         self.activated = False

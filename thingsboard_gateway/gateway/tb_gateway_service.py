@@ -441,8 +441,6 @@ class TBGatewayService:
 
                     if events:
                         for event in events:
-                            log.debug("Reading events: %s" % str(events))
-
                             self.counter += 1
                             try:
                                 current_event = loads(event)
