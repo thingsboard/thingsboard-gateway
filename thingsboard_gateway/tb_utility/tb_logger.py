@@ -54,7 +54,7 @@ class TBLoggerHandler(logging.Handler):
         self.activated = True
 
     def handle(self, record):
-        if self.activated:
+        if self.activated and not self.__gateway.stopped:
             record = self.formatter.format(record)
             self.__gateway.send_to_storage(self.__gateway.name, {"deviceName": self.__gateway.name, "telemetry": [{"ts": int(time()), "values":{'LOGS': record}}]})
 
