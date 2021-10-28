@@ -47,7 +47,7 @@ class BACnetConnector(Thread, Connector):
         self.__devices_address_name = {}
         self.__gateway = gateway
         self._application = TBBACnetApplication(self, self.__config)
-        self.__bacnet_core_thread = Thread(target=run, name="BACnet core thread")
+        self.__bacnet_core_thread = Thread(target=run, name="BACnet core thread", daemon=True, kwargs={"sigterm":None, "sigusr1":None})
         self.__bacnet_core_thread.start()
         self.__stopped = False
         self.__config_devices = self.__config["devices"]
