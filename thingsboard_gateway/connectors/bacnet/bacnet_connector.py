@@ -36,7 +36,7 @@ from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_ap
 
 class BACnetConnector(Thread, Connector):
     def __init__(self, gateway, config, connector_type):
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         super().__init__()
@@ -52,8 +52,8 @@ class BACnetConnector(Thread, Connector):
         self.__stopped = False
         self.__config_devices = self.__config["devices"]
         self.default_converters = {
-            "uplink_converter": TBModuleLoader.import_module(self.__connector_type, "BACnetUplinkConverter"),
-            "downlink_converter": TBModuleLoader.import_module(self.__connector_type, "BACnetDownlinkConverter")}
+            "uplink_converter": TBModuleLoader.import_module(self._connector_type, "BACnetUplinkConverter"),
+            "downlink_converter": TBModuleLoader.import_module(self._connector_type, "BACnetDownlinkConverter")}
         self.__request_functions = {"writeProperty": self._application.do_write_property,
                                     "readProperty": self._application.do_read_property,
                                     "risingEdge": self._application.do_binary_rising_edge}
@@ -244,7 +244,7 @@ class BACnetConnector(Thread, Connector):
                 try:
                     for converter_type in self.default_converters:
                         converter_object = self.default_converters[converter_type] if datatype_config.get(
-                            "class") is None else TBModuleLoader.import_module(self.__connector_type,
+                            "class") is None else TBModuleLoader.import_module(self._connector_type,
                                                                                device.get("class"))
                         datatype_config[converter_type] = converter_object(device)
                 except Exception as e:

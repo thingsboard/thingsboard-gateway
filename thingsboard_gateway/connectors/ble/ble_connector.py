@@ -29,7 +29,7 @@ from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 class BLEConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.__default_services = list(range(0x1800, 0x183A))
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
@@ -423,7 +423,7 @@ class BLEConnector(Connector, Thread):
                             converter = None
                             if type_section.get('converter') is not None:
                                 try:
-                                    module = TBModuleLoader.import_module(self.__connector_type,
+                                    module = TBModuleLoader.import_module(self._connector_type,
                                                                           type_section['converter'])
                                     if module is not None:
                                         log.debug('Custom converter for device %s - found!',

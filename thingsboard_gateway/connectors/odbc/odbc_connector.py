@@ -55,7 +55,7 @@ class OdbcConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.__gateway = gateway
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.__config = config
         self.__stopped = False
 
@@ -74,7 +74,7 @@ class OdbcConnector(Connector, Thread):
         self.__timeseries_columns = []
 
         self.__converter = OdbcUplinkConverter() if not self.__config.get("converter", "") else \
-            TBModuleLoader.import_module(self.__connector_type, self.__config["converter"])
+            TBModuleLoader.import_module(self._connector_type, self.__config["converter"])
 
         self.__configure_pyodbc()
         self.__parse_rpc_config()
@@ -252,7 +252,7 @@ class OdbcConnector(Connector, Thread):
 
             self.__iterator["value"] = getattr(row, self.__iterator["name"])
             self.__check_and_send(device_name,
-                                  self.__config["mapping"]["device"].get("type", self.__connector_type),
+                                  self.__config["mapping"]["device"].get("type", self._connector_type),
                                   to_send)
         except Exception as e:
             log.warning("[%s] Failed to process database row: %s", self.get_name(), str(e))
