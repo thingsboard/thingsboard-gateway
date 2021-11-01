@@ -69,7 +69,7 @@ class CanConnector(Connector, Thread):
         super().__init__()
         self.setName(config.get("name", 'CAN Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__gateway = gateway
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.__bus_conf = {}
         self.__bus = None
         self.__reconnect_count = 0
@@ -372,7 +372,7 @@ class CanConnector(Connector, Thread):
         for device_config in config.get("devices"):
             is_device_config_valid = False
             device_name = device_config["name"]
-            device_type = device_config.get("type", self.__connector_type)
+            device_type = device_config.get("type", self._connector_type)
             strict_eval = device_config.get("strictEval", self.DEFAULT_STRICT_EVAL_FLAG)
 
             self.__devices[device_name] = {}
@@ -580,11 +580,11 @@ class CanConnector(Connector, Thread):
             if need_uplink:
                 uplink = config.get("uplink")
                 return BytesCanUplinkConverter() if uplink is None \
-                    else TBModuleLoader.import_module(self.__connector_type, uplink)
+                    else TBModuleLoader.import_module(self._connector_type, uplink)
             else:
                 downlink = config.get("downlink")
                 return BytesCanDownlinkConverter() if downlink is None \
-                    else TBModuleLoader.import_module(self.__connector_type, downlink)
+                    else TBModuleLoader.import_module(self._connector_type, downlink)
 
 
 class Poller(Thread):
