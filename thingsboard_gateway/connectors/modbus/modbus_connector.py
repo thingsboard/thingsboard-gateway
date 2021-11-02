@@ -89,7 +89,7 @@ class ModbusConnector(Connector, threading.Thread):
         self.__connected = True
 
         while True:
-            time.sleep(.01)
+            time.sleep(.2)
             self.__process_devices()
 
             if not self.__data_to_convert_queue.empty():
@@ -287,7 +287,7 @@ class ModbusConnector(Connector, threading.Thread):
         if self.__devices[device][CONNECTION_ATTEMPT_PARAMETER] >= 0 and self.__current_master.is_socket_open():
             self.__devices[device][CONNECTION_ATTEMPT_PARAMETER] = 0
             self.__devices[device][LAST_CONNECTION_ATTEMPT_TIME_PARAMETER] = current_time
-            log.debug("Modbus connected to device %s.", device)
+            # log.debug("Modbus connected to device %s.", device)
 
     def __configure_master(self, config=None):
         current_config = self.__config if config is None else config

@@ -417,7 +417,8 @@ class TBGatewayService:
                         log.error('Data from the device "%s" cannot be saved, connector name is %s.',
                                   data["deviceName"],
                                   connector_name)
-                sleep(0.2)
+                else:
+                    sleep(0.2)
             except Exception as e:
                 log.error(e)
 

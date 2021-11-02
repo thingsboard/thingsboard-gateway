@@ -72,7 +72,7 @@ class SNMPConnector(Connector, Thread):
                 if self.__stopped:
                     break
                 else:
-                    sleep(.01)
+                    sleep(.2)
         except Exception as e:
             log.exception(e)
 
