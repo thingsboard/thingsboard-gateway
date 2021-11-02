@@ -63,7 +63,7 @@ class BLEConnector(Connector, Thread):
                 self.__get_services_and_chars()
                 self.__previous_read_time = time.time()
 
-            time.sleep(.1)
+            time.sleep(.2)
             if self.__stopped:
                 log.debug('STOPPED')
                 break

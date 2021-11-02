@@ -126,7 +126,7 @@ class OpcUaConnector(Thread, Connector):
         self.__initialize_client()
         while not self.__stopped:
             try:
-                time.sleep(.1)
+                time.sleep(.2)
                 self.__check_connection()
                 if not self.__connected and not self.__stopped:
                     self.client.connect()

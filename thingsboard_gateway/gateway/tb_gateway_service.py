@@ -195,7 +195,7 @@ class TBGatewayService:
                     self.__rpc_requests_in_progress = new_rpc_request_in_progress
                 else:
                     try:
-                        sleep(.1)
+                        sleep(0.2)
                     except Exception as e:
                         log.exception(e)
                         break
@@ -417,6 +417,8 @@ class TBGatewayService:
                         log.error('Data from the device "%s" cannot be saved, connector name is %s.',
                                   data["deviceName"],
                                   connector_name)
+                else:
+                    sleep(0.2)
             except Exception as e:
                 log.error(e)
 
@@ -480,7 +482,7 @@ class TBGatewayService:
                             if not self.tb_client.is_connected():
                                 continue
                             while self.__rpc_reply_sent:
-                                sleep(.01)
+                                sleep(.2)
 
                             self.__send_data(devices_data_in_event_pack)
                             sleep(self.__min_pack_send_delay_ms)
@@ -508,7 +510,7 @@ class TBGatewayService:
                                 except Exception as e:
                                     log.exception(e)
                                     success = False
-                                sleep(.01)
+                                sleep(0.2)
                             if success:
                                 self._event_storage.event_pack_processing_done()
                                 del devices_data_in_event_pack
@@ -516,9 +518,9 @@ class TBGatewayService:
                         else:
                             continue
                     else:
-                        sleep(.01)
+                        sleep(0.2)
                 else:
-                    sleep(.1)
+                    sleep(0.2)
             except Exception as e:
                 log.exception(e)
                 sleep(1)

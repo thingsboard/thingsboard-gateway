@@ -131,7 +131,7 @@ class TBDeviceMqttClient:
             5: "not authorised",
             }
         if self.__connect_callback:
-            time.sleep(.05)
+            time.sleep(.2)
             self.__connect_callback(client, userdata, flags, result_code, *extra_params)
         if result_code == 0:
             self.__is_connected = True
@@ -345,7 +345,7 @@ class TBDeviceMqttClient:
                         current_ts_in_millis = int(round(time.time() * 1000))
                         if current_ts_in_millis > item["ts"]:
                             break
-                        time.sleep(0.001)
+                        time.sleep(0.2)
                     with self._lock:
                         callback = None
                         if item.get("attribute_request_id"):
@@ -357,4 +357,4 @@ class TBDeviceMqttClient:
                     if callback is not None:
                         callback(None, TBTimeoutException("Timeout while waiting for a reply from ThingsBoard!"))
             else:
-                time.sleep(0.01)
+                time.sleep(0.2)

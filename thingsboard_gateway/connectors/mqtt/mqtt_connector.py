@@ -193,7 +193,7 @@ class MqttConnector(Connector, Thread):
             elif not self._connected:
                 self.__connect()
             self.__threads_manager()
-            sleep(.01)
+            sleep(.2)
 
     def __connect(self):
         while not self._connected and not self.__stopped:
@@ -719,4 +719,4 @@ class MqttConnector(Connector, Thread):
                     self.__send_result(config, converted_data)
                     self.in_progress = False
                 else:
-                    sleep(.01)
+                    sleep(.2)

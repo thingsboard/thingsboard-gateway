@@ -80,7 +80,7 @@ class RequestConnector(Connector, Thread):
                                         name="Request to endpoint \'%s\' Thread" % (request["config"].get("url")))
                         thread.start()
             else:
-                sleep(.1)
+                sleep(.2)
             self.__process_data()
 
     def on_attributes_update(self, content):

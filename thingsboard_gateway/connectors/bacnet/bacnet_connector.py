@@ -47,7 +47,8 @@ class BACnetConnector(Thread, Connector):
         self.__devices_address_name = {}
         self.__gateway = gateway
         self._application = TBBACnetApplication(self, self.__config)
-        self.__bacnet_core_thread = Thread(target=run, name="BACnet core thread", daemon=True, kwargs={"sigterm":None, "sigusr1":None})
+        self.__bacnet_core_thread = Thread(target=run, name="BACnet core thread", daemon=True,
+                                           kwargs={"sigterm": None, "sigusr1": None})
         self.__bacnet_core_thread.start()
         self.__stopped = False
         self.__config_devices = self.__config["devices"]
@@ -74,11 +75,11 @@ class BACnetConnector(Thread, Connector):
         log.debug("WhoIsRequest has been sent.")
         self.scan_network()
         while not self.__stopped:
-            sleep(.1)
+            sleep(.2)
             for device in self.__devices:
                 try:
                     if device.get("previous_check") is None or time() * 1000 - device["previous_check"] >= device[
-                        "poll_period"]:
+                            "poll_period"]:
                         for mapping_type in ["attributes", "telemetry"]:
                             for config in device[mapping_type]:
                                 if config.get("uplink_converter") is None or config.get("downlink_converter") is None:
@@ -88,11 +89,11 @@ class BACnetConnector(Thread, Connector):
                                     "mapping_type": mapping_type,
                                     "config": config,
                                     "callback": self.__bacnet_device_mapping_response_cb
-                                    }
+                                }
                                 self._application.do_read_property(**data_to_application)
                         device["previous_check"] = time() * 1000
                     else:
-                        sleep(.1)
+                        sleep(.2)
                 except Exception as e:
                     log.exception(e)
 
@@ -267,7 +268,7 @@ class BACnetConnector(Thread, Connector):
                             "telemetry": device.get("timeseries", []),
                             "poll_period": device.get("pollPeriod", 5000),
                             "deviceName": device_name,
-                            }
+                        }
                         if config_address == data["address"] or \
                                 (config_address, GlobalBroadcast) or \
                                 (isinstance(config_address, LocalBroadcast) and isinstance(device["address"],
@@ -288,22 +289,22 @@ class BACnetConnector(Thread, Connector):
             kwarg_dict = {
                 "config": request,
                 "request_type": request["requestType"]
-                }
+            }
             request_config = {
                 "key": request["key"],
                 "iocb": (self._application.form_iocb, kwarg_dict),
                 "config": request
-                }
+            }
             result["attribute_updates"].append(request_config)
         for request in device.get("serverSideRpc", []):
             kwarg_dict = {
                 "config": request,
                 "request_type": request["requestType"]
-                }
+            }
             request_config = {
                 "method": request["method"],
                 "iocb": (self._application.form_iocb, kwarg_dict),
                 "config": request
-                }
+            }
             result["server_side_rpc"].append(request_config)
         return result
