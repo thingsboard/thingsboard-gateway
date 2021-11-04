@@ -20,7 +20,6 @@ from random import choice
 from string import ascii_lowercase
 from threading import Thread
 
-import opcua
 import regex
 from simplejson import dumps
 
