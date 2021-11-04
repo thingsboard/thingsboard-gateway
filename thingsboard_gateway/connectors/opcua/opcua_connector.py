@@ -20,6 +20,7 @@ from random import choice
 from string import ascii_lowercase
 from threading import Thread
 
+import opcua
 import regex
 from simplejson import dumps
 
@@ -222,10 +223,58 @@ class OpcUaConnector(Thread, Connector):
     def server_side_rpc_handler(self, content):
         try:
             rpc_method = content["data"].get("method")
+
+            # firstly check if a method is not service
+            if rpc_method == 'set' or rpc_method == 'get':
+                args_list = content['data']['params'].split(';')
+                try:
+                    ns, i = [item.split('=')[-1] for item in args_list[0:2]]
+                except IndexError:
+                    log.error('Not enough arguments. Expected min 2.')
+                    self.__gateway.send_rpc_reply(content['device'],
+                                                  content['data']['id'],
+                                                  {content['data']['method']: 'Not enough arguments. Expected min 2.',
+                                                   'code': 400})
+
+                node_list = []
+                self.__search_node(current_node=content['device'], fullpath=f'ns={ns};i={i}', result=node_list)
+
+                node = None
+                try:
+                    node = node_list[0]
+                except IndexError:
+                    self.__gateway.send_rpc_reply(content['device'], content['data']['id'],
+                                                  {content['data']['method']: 'Node didn\'t find!',
+                                                   'code': 500})
+
+                if rpc_method == 'get':
+                    self.__gateway.send_rpc_reply(content['device'],
+                                                  content['data']['id'],
+                                                  {content['data']['method']: node.get_value(),
+                                                   'code': 200})
+                else:
+                    try:
+                        value = args_list[2].split('=')[-1]
+                        node.set_value(value)
+                        self.__gateway.send_rpc_reply(content['device'],
+                                                      content['data']['id'],
+                                                      {'success': 'true', 'code': 200})
+                    except ValueError:
+                        log.error('Method SET take three arguments!')
+                        self.__gateway.send_rpc_reply(content['device'],
+                                                      content['data']['id'],
+                                                      {'error': 'Method SET take three arguments!', 'code': 400})
+                    except ua.UaStatusCodeError:
+                        log.error('Write method doesn\'t allow!')
+                        self.__gateway.send_rpc_reply(content['device'],
+                                                      content['data']['id'],
+                                                      {'error': 'Write method doesn\'t allow!', 'code': 400})
+
             for method in self.__available_object_resources[content["device"]]['methods']:
                 if rpc_method is not None and method.get(rpc_method) is not None:
                     arguments_from_config = method["arguments"]
-                    arguments = content["data"].get("params") if content["data"].get("params") is not None else arguments_from_config
+                    arguments = content["data"].get("params") if content["data"].get(
+                        "params") is not None else arguments_from_config
                     try:
                         if isinstance(arguments, list):
                             result = method["node"].call_method(method[rpc_method], *arguments)
