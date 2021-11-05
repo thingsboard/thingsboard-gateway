@@ -225,9 +225,15 @@ class OpcUaConnector(Thread, Connector):
 
             # firstly check if a method is not service
             if rpc_method == 'set' or rpc_method == 'get':
-                args_list = content['data']['params'].split(';')
+                full_path = ''
+                args_list = []
                 try:
-                    ns, i = [item.split('=')[-1] for item in args_list[0:2]]
+                    args_list = content['data']['params'].split(';')
+
+                    if 'ns' in content['data']['params']:
+                        full_path = ';'.join([item for item in (args_list[0:-1] if rpc_method == 'set' else args_list)])
+                    else:
+                        full_path = args_list[0].split('=')[-1]
                 except IndexError:
                     log.error('Not enough arguments. Expected min 2.')
                     self.__gateway.send_rpc_reply(content['device'],
@@ -236,7 +242,7 @@ class OpcUaConnector(Thread, Connector):
                                                    'code': 400})
 
                 node_list = []
-                self.__search_node(current_node=content['device'], fullpath=f'ns={ns};i={i}', result=node_list)
+                self.__search_node(current_node=content['device'], fullpath=full_path, result=node_list)
 
                 node = None
                 try:
