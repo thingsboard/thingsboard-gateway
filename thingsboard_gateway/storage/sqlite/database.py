@@ -57,8 +57,7 @@ class Database(Thread):
         # Response Queue
         self.readQueue = None
 
-        # NOTE: Rename to self.processing
-        self.__processing = False
+        self.__stopped = False
 
         self.__last_msg_check = time()
 
@@ -86,8 +85,7 @@ class Database(Thread):
                 self.delete_data_lte(self.settings.messages_ttl_in_days)
 
             # Signalization so that we can spam call process()
-            if not self.__processing and self.processQueue:
-                self.__processing = True
+            if not self.__stopped and self.processQueue:
                 while self.processQueue.qsize() > 0:
 
                     req = self.processQueue.get()
@@ -103,8 +101,8 @@ class Database(Thread):
                                         [timestamp, message])
 
                         self.db.commit()
-
-                self.__processing = False
+            else:
+                log.error("Storage is closed!")
 
         except Exception as e:
             self.db.rollback()
