@@ -17,6 +17,7 @@ from pprint import pformat
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
+from copy import deepcopy
 
 from bluepy import __path__ as bluepy_path
 from bluepy.btle import BTLEDisconnectError, BTLEGattError, BTLEInternalError, BTLEManagementError, DefaultDelegate, Peripheral, Scanner, UUID, capitaliseName
@@ -271,7 +272,7 @@ class BLEConnector(Connector, Thread):
                                 self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                                 log.debug(data)
                                 log.debug(converted_data)
-                                self.__gateway.send_to_storage(self.get_name(), converted_data)
+                                self.__gateway.send_to_storage(self.get_name(), deepcopy(converted_data))
                                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
             except BTLEDisconnectError:
                 log.debug('Connection lost. Device %s', device)
@@ -315,7 +316,7 @@ class BLEConnector(Connector, Thread):
                     continue
         if converted_data is not None:
             # self.__gateway.add_device(converted_data["deviceName"], {"connector": self})
-            self.__gateway.send_to_storage(self.get_name(), converted_data)
+            self.__gateway.send_to_storage(self.get_name(), deepcopy(converted_data))
             self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
 
     def __check_and_reconnect(self, device):
