@@ -83,6 +83,6 @@ class SQLiteEventStorage(EventStorage):
             log.exception(e)
 
     def stop(self):
-        self.db.closeDB()
         self.stopped = True
         self.db.__stopped = True
+        self.db.closeDB()
