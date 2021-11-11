@@ -104,8 +104,6 @@ class Database(Thread):
 
                         self.db.commit()
 
-                    sleep(.2)
-
                 self.__processing = False
 
         except Exception as e:
