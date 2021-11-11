@@ -36,13 +36,8 @@ class SQLiteEventStorage(EventStorage):
         log.info("Sqlite Storage initializing...")
         log.info("Initializing read and process queues")
         self.processQueue = Queue(-1)
-        self.readQueue = Queue(-1)
-
         self.db = Database(config, self.processQueue)
-
-        self.db.setReadQueue(self.readQueue)
         self.db.setProcessQueue(self.processQueue)
-
         self.db.init_table()
         log.info("Sqlite storage initialized!")
         self.delete_time_point = None
@@ -64,7 +59,10 @@ class SQLiteEventStorage(EventStorage):
             self.delete_data(self.delete_time_point)
 
     def read_data(self, ts):
-        return self.db.read_data(ts)
+        self.db.__stopped = True
+        data = self.db.read_data(ts)
+        self.db.__stopped = False
+        return data
 
     def delete_data(self, ts):
         return self.db.delete_data(ts)

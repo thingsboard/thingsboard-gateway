@@ -50,12 +50,8 @@ class Database(Thread):
 
         self.db.connect()
 
-        # self.cur = self.db.get_cursor()
-
         # process Queue
         self.processQueue = processing_queue
-        # Response Queue
-        self.readQueue = None
 
         self.__stopped = False
 
@@ -135,9 +131,6 @@ class Database(Thread):
 
     def setProcessQueue(self, process_queue):
         self.processQueue = process_queue
-
-    def setReadQueue(self, read_queue):
-        self.readQueue = read_queue
 
     def closeDB(self):
         self.db.close()
