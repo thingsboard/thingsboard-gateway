@@ -20,6 +20,8 @@ storage:
 #  max_records_per_file: 10000
 #  type: sqlite
 #  data_file_path: ./data/data.db
+#  messages_ttl_check_in_hours: 1
+#  messages_ttl_in_days: 7
 connectors:
   - name: MQTT Broker Connector
     type: mqtt
