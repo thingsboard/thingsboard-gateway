@@ -55,7 +55,7 @@ class BLEConnector(Connector, Thread):
         self.daemon = True
 
     def run(self):
-        while True:
+        while not self.__stopped:
             if time.time() - self.__previous_scan_time >= self.__rescan_time != 0:
                 self.__scan_ble()
                 self.__previous_scan_time = time.time()
