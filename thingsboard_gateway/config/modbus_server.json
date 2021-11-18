@@ -1,0 +1,21 @@
+{
+  "server": {
+    "type": "tcp",
+    "vendorName": "Pymodbus",
+    "productCode": "",
+    "vendorUrl": "",
+    "productName": "",
+    "modelName": "",
+    "host": "127.0.0.1",
+    "port": 5020
+  },
+  "stores": [
+    {
+      "type": "string",
+      "tag": "cm",
+      "functionCode": 1,
+      "objectsCount": 17,
+      "address": 0
+    }
+  ]
+}
