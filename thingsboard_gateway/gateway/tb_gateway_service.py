@@ -598,8 +598,6 @@ class TBGatewayService:
     def __rpc_gateway_processing(self, request_id, content):
         log.info("Received RPC request to the gateway, id: %s, method: %s", str(request_id), content["method"])
         arguments = content.get('params', {})
-        if content.get("timeout") is not None:
-            arguments.update({"timeout": content["timeout"]})
         method_to_call = content["method"].replace("gateway_", "")
         result = None
         if self.__remote_shell is not None:
