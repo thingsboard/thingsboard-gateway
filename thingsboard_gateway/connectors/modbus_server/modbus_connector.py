@@ -1,4 +1,8 @@
-import threading
+import random
+import string
+from threading import Thread
+from queue import Queue
+from time import sleep, time
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector, log
@@ -18,40 +22,45 @@ except ImportError:
     TBUtility.install_package('pyserial')
     from pymodbus.constants import Defaults
 
-from pymodbus.device import ModbusDeviceIdentification
-from pymodbus.version import version
-from pymodbus.server.asynchronous import StartTcpServer, StartUdpServer, StopServer, _is_main_thread, StartSerialServer
-from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
-from pymodbus.datastore import ModbusSequentialDataBlock
-from pymodbus.transaction import (ModbusRtuFramer, ModbusAsciiFramer, ModbusBinaryFramer)
-
-MODBUS_SERVER_TYPE = {
-    'tcp': {
-        'function': StartTcpServer
-    },
-    'tcp_with_rtu_framer': {
-        'function': StartTcpServer,
-        'framer': ModbusRtuFramer
-    },
-    'udp': {
-        'function': StartUdpServer
-    },
-    'rtu': {
-        'function': StartSerialServer,
-        'framer': ModbusRtuFramer
-    },
-    'ASCII': {
-        'function': StartSerialServer,
-        'framer': ModbusAsciiFramer
-    },
-    'binary': {
-        'function': StartSerialServer,
-        'framer': ModbusBinaryFramer
-    }
-}
+from pymodbus.client.sync import ModbusTcpClient as ModbusClient
+from pymodbus.client.asynchronous import schedulers
 
 
-class ModbusServerConnector(Connector, threading.Thread):
+class Device(Thread):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.host = kwargs['host']
+        self.port = kwargs['port']
+        self.name = kwargs['deviceName']
+        self.unit_id = kwargs['unitId']
+        self.poll_period = kwargs['pollPeriod'] / 1000
+        self.attributes = kwargs['attributes']
+        self.timeseries = kwargs['timeseries']
+        self.callback = ModbusServerConnector.callback
+
+        self.last_polled_time = None
+        self.daemon = True
+
+        self.start()
+
+    def timer(self):
+        self.callback(self)
+        self.last_polled_time = time()
+
+        while True:
+            if time() - self.last_polled_time >= self.poll_period:
+                self.callback(self)
+                self.last_polled_time = time()
+
+            sleep(.2)
+
+    def run(self):
+        self.timer()
+
+
+class ModbusServerConnector(Connector, Thread):
+    process_requests = Queue(-1)
+
     def __init__(self, gateway, config, connector_type):
         self.statistics = {STATISTIC_MESSAGE_RECEIVED_PARAMETER: 0,
                            STATISTIC_MESSAGE_SENT_PARAMETER: 0}
@@ -60,56 +69,49 @@ class ModbusServerConnector(Connector, threading.Thread):
         self.__gateway = gateway
         self._connector_type = connector_type
 
-        self.__identity = ModbusDeviceIdentification()
-        self.__identity.VendorName = self.__config['server'].get('vendorName', '')
-        self.__identity.ProductCode = self.__config['server'].get('productCode', '')
-        self.__identity.VendorUrl = self.__config['server'].get('vendorUrl', '')
-        self.__identity.ProductName = self.__config['server'].get('productName', '')
-        self.__identity.ModelName = self.__config['server'].get('modelName', '')
-        self.__identity.MajorMinorRevision = version.short()
-
-        self.__store = ModbusSlaveContext()
-        self.__load_store()
-
-        self.__context = ModbusServerContext(slaves=self.__store, single=True)
-
-        MODBUS_SERVER_TYPE[
-            self.__config['server']['type']
-        ]['function'](self.__context,
-                      defer_reactor_run=True,
-                      identity=self.__identity,
-                      address=(self.__config['server'].get('address'), self.__config['server'].get('port')) if
-                      self.__config['server'].get('address') else None,
-                      port=self.__config['server'].get('port') if not self.__config['server'].get('address') else None,
-                      framer=MODBUS_SERVER_TYPE[self.__config['server']['type']].get('framer'))
-
         self.__connected = False
         self.__stopped = False
         self.daemon = True
 
+        self.__devices = []
+        self.load_devices()
+
     def close(self):
-        StopServer()
         self.__stopped = True
 
     def open(self):
         self.__stopped = False
         self.start()
-        log.info("Starting Modbus Server")
+        log.info("Starting Modbus Master")
 
     def run(self) -> None:
-        self.__connected = True
-        reactor.run(installSignalHandlers=_is_main_thread())
+        self.__stopped = False
 
-    def __load_store(self):
-        for store in self.__config['stores']:
-            self.__store.register(store['functionCode'], store['tag'],
-                                  ModbusSequentialDataBlock(store['address'], [0] * store['objectsCount']))
+        while True:
+            if not self.__stopped and not ModbusServerConnector.process_requests.empty():
+                thread = Thread(daemon=True, target=self.process_device)
+                thread.start()
+
+                sleep(.2)
 
     def get_name(self):
         return self.name
 
     def is_connected(self):
         return self.__connected
+
+    def load_devices(self):
+        self.__devices = [Device(**device) for device in self.__config.get('devices', [])]
+
+    @classmethod
+    def callback(cls, device: Device):
+        cls.process_requests.put(device)
+
+    def process_device(self):
+        device = ModbusServerConnector.process_requests.get()
+        client = ModbusClient(device.host, port=device.port)
+        if client.connect():
+            pass
 
     def on_attributes_update(self, content):
         pass

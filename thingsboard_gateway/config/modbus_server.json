@@ -1,21 +1,53 @@
 {
-  "server": {
-    "type": "tcp",
-    "vendorName": "Pymodbus",
-    "productCode": "",
-    "vendorUrl": "",
-    "productName": "",
-    "modelName": "",
-    "host": "127.0.0.1",
-    "port": 5020
+  "master": {
+    "type": "tcp"
   },
-  "stores": [
+  "devices": [
     {
-      "type": "string",
-      "tag": "cm",
-      "functionCode": 1,
-      "objectsCount": 17,
-      "address": 0
+      "unitId": 1,
+      "host": "127.0.0.1",
+      "port": "5020",
+      "deviceName": "Temp Sensor",
+      "pollPeriod": 5000,
+      "attributes": [
+        {
+          "tag": "A",
+          "type": "int",
+          "address": 4,
+          "objectsCount": 1
+        }
+      ],
+      "timeseries": [
+        {
+          "tag": "voltage",
+          "type": "int",
+          "address": 0,
+          "objectsCount": 1
+        }
+      ]
+    },
+    {
+      "unitId": 2,
+      "host": "127.0.0.1",
+      "port": "5021",
+      "deviceName": "Temp Sensor 111",
+      "pollPeriod": 5000,
+      "attributes": [
+        {
+          "tag": "A",
+          "type": "int",
+          "address": 4,
+          "objectsCount": 1
+        }
+      ],
+      "timeseries": [
+        {
+          "tag": "voltage",
+          "type": "int",
+          "address": 0,
+          "objectsCount": 1
+        }
+      ]
     }
   ]
 }
