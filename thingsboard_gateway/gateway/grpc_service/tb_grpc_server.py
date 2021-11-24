@@ -33,7 +33,6 @@ class TBGRPCServer(messages_pb2_grpc.TBGatewayProtoServiceServicer):
             read_task = asyncio.create_task(self.__read_task(context, request_iterator))
             await read_task
 
-    @classmethod
     @staticmethod
     def get_response(name):
         msg = FromServiceMessage()

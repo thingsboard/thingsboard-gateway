@@ -247,6 +247,7 @@ class TBGatewayService:
         self.stopped = True
         self.__updater.stop()
         log.info("Stopping...")
+        self.__grpc_manager.stop()
         self.__close_connectors()
         self._event_storage.stop()
         log.info("The gateway has been stopped.")
