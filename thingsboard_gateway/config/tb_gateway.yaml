@@ -22,6 +22,9 @@ storage:
 #  data_file_path: ./data/data.db
 #  messages_ttl_check_in_hours: 1
 #  messages_ttl_in_days: 7
+grpc:
+  enable: true
+  serverPort: 9595
 connectors:
   - name: MQTT Broker Connector
     type: mqtt

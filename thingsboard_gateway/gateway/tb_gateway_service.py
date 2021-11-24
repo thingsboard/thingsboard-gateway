@@ -26,6 +26,7 @@ from time import sleep, time
 from simplejson import dumps, load, loads
 from yaml import safe_load
 
+from thingsboard_gateway.gateway.grpc_service.tb_grpc_manager import TBGRPCServerManager
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
@@ -149,6 +150,11 @@ class TBGatewayService:
                                    name="Send data to Thingsboard Thread")
         self._send_thread.start()
         self.__min_pack_send_delay_ms = self.__config['thingsboard'].get('minPackSendDelayMS', 500) / 1000.0
+        self.__grpc_config = self.__config.get('grpc')
+        self.__grpc_manager = None
+        if self.__grpc_config is not None and self.__grpc_config.get("enabled"):
+            self.__grpc_manager = TBGRPCServerManager(self.__grpc_config)
+            self.__grpc_manager.set_gateway_read_callbacks(self.__register_connector, self.send_to_storage)
         log.info("Gateway started.")
 
         try:
@@ -309,6 +315,10 @@ class TBGatewayService:
 
     def __check_shared_attributes(self):
         self.tb_client.client.request_attributes(callback=self._attributes_parse)
+
+    def __register_connector(self, connector_name, connector_key):
+        # TODO IMPLEMENT
+        pass
 
     def _load_connectors(self):
         self.connectors_configs = {}
