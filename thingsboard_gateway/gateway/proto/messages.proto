@@ -141,8 +141,7 @@ message DisconnectMsg {
 }
 
 message RegisterConnectorMsg {
-  string connectorName = 1;
-  string connectorKey = 2;
+  string connectorKey = 1;
 }
 
 message UnregisterConnectorMsg {
@@ -150,7 +149,7 @@ message UnregisterConnectorMsg {
 }
 
 message ConnectorConfigurationMsg {
-  string name = 1;
+  string connectorName = 1;
   string configuration = 2;
 }
 

@@ -8,9 +8,8 @@ import thingsboard_gateway.gateway.proto.messages_pb2_grpc as messages_pb2_grpc
 
 
 class TBGRPCServer(messages_pb2_grpc.TBGatewayProtoServiceServicer):
-    def __init__(self, read_callback, write_callback):
+    def __init__(self, read_callback):
         self._read_callback = read_callback
-        self._write_callback = write_callback
         self.__write_queue = Queue()
 
     def write(self, msg: FromServiceMessage):

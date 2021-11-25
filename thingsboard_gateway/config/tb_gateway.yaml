@@ -23,7 +23,7 @@ storage:
 #  messages_ttl_check_in_hours: 1
 #  messages_ttl_in_days: 7
 grpc:
-  enable: true
+  enabled: false
   serverPort: 9595
 connectors:
   - name: MQTT Broker Connector
