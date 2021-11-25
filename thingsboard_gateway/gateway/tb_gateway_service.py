@@ -52,8 +52,7 @@ DEFAULT_CONNECTORS = {
     "odbc": "OdbcConnector",
     "rest": "RESTConnector",
     "snmp": "SNMPConnector",
-    "ftp": "FTPConnector",
-    "modbus_server": "ModbusServerConnector",
+    "ftp": "FTPConnector"
     }
 
 
