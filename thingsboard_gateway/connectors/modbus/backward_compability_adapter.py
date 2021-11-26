@@ -11,7 +11,6 @@ class BackwardCompatibilityAdapter:
 
     @staticmethod
     def __save_json_config_file(config):
-        print(dumps(config))
         with open('config/modbus_new.json', 'w') as file:
             file.writelines(dumps(config, sort_keys=True, indent='  ', separators=(',', ': ')))
 
