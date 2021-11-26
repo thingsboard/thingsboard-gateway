@@ -12,8 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import threading
-import time
+from threading import Thread
+from time import sleep, time
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
@@ -40,14 +40,12 @@ from pymodbus.exceptions import ConnectionException
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.modbus.constants import *
 from thingsboard_gateway.connectors.modbus.slave import Slave
+from thingsboard_gateway.connectors.modbus.backward_compability_adapter import BackwardCompatibilityAdapter
 
 CONVERTED_DATA_SECTIONS = [ATTRIBUTES_PARAMETER, TELEMETRY_PARAMETER]
 
 
-# TODO: optimize import
-
-
-class ModbusConnector(Connector, threading.Thread):
+class ModbusConnector(Connector, Thread):
     process_requests = Queue(-1)
 
     def __init__(self, gateway, config, connector_type):
@@ -56,7 +54,8 @@ class ModbusConnector(Connector, threading.Thread):
         super().__init__()
         self.__gateway = gateway
         self._connector_type = connector_type
-        self.__config = config
+        self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config)
+        self.__config = self.__backward_compatibility_adapter.convert()
         self.setName(self.__config.get("name", 'Modbus Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__connected = False
         self.__stopped = False
@@ -77,18 +76,18 @@ class ModbusConnector(Connector, threading.Thread):
 
         while True:
             if not self.__stopped and not ModbusConnector.process_requests.empty():
-                thread = threading.Thread(target=self.__process_slaves, daemon=True)
+                thread = Thread(target=self.__process_slaves, daemon=True)
                 thread.start()
 
             if self.__stopped:
                 break
 
-            time.sleep(.2)
+            sleep(.2)
 
     def __load_slaves(self):
         self.__slaves = [
             Slave(**{**device, 'connector': self, 'gateway': self.__gateway, 'callback': ModbusConnector.callback}) for
-            device in self.__config.get('master', {'salves': []}).get('slaves', [])]
+            device in self.__config.get('master', {'slaves': []}).get('slaves', [])]
 
     @classmethod
     def callback(cls, slave):
@@ -185,7 +184,7 @@ class ModbusConnector(Connector, threading.Thread):
                 }, device_responses))
 
         except ConnectionException:
-            time.sleep(5)
+            sleep(5)
             log.error("Connection lost! Reconnecting...")
         except Exception as e:
             log.exception(e)
@@ -212,7 +211,7 @@ class ModbusConnector(Connector, threading.Thread):
         if wait_after_failed_attempts_ms < 1000:
             wait_after_failed_attempts_ms = 1000
 
-        current_time = time.time() * 1000
+        current_time = time() * 1000
 
         if not device.config['master'].is_socket_open():
             if device.config['connection_attempt'] >= connect_attempt_count and current_time - device.config[

@@ -1,60 +1,8 @@
 {
-  "master": {
-    "slaves": [
-      {
-        "type": "tcp",
-        "host": "127.0.0.1",
-        "port": 5021,
-        "method": "socket",
-        "timeout": 1000,
-        "byteOrder": "BIG",
-        "unitId": 1,
-        "deviceName": "Temp Sensor",
-        "sendDataOnlyOnChange": false,
-        "pollPeriod": 20000,
-        "attributes": [
-          {
-            "tag": "A",
-            "type": "string",
-            "address": 4,
-            "functionCode": 4,
-            "objectsCount": 1
-          }
-        ],
-        "timeseries": [
-          {
-            "tag": "voltage",
-            "type": "string",
-            "address": 1,
-            "functionCode": 4,
-            "objectsCount": 1
-          }
-        ],
-        "attributeUpdates": [
-          {
-            "tag": "ATTR",
-            "type": "string",
-            "functionCode": 4,
-            "objectsCount": 1,
-            "address": 1
-          }
-        ],
-        "rpc": [
-          {
-            "tag": "getValue",
-            "type": "string",
-            "functionCode": 4,
-            "objectsCount": 1,
-            "address": 1
-          }
-        ]
-      }
-    ]
-  },
-  "slave": {
+  "server": {
     "type": "tcp",
     "host": "127.0.0.1",
-    "port": 5021,
+    "port": 5020,
     "timeout": 35,
     "method": "socket",
     "byteOrder": "BIG",
@@ -67,51 +15,137 @@
         "deviceName": "Temp Sensor",
         "attributesPollPeriod": 5000,
         "timeseriesPollPeriod": 5000,
-        "sendDataOnlyOnChange": false,
+        "sendDataOnlyOnChange": true,
         "connectAttemptTimeMs": 5000,
         "connectAttemptCount": 5,
         "waitAfterFailedAttemptsMs": 300000,
         "attributes": [
           {
-            "tag": "bits_read",
+            "tag": "string_read",
             "type": "string",
-            "functionCode": 4,
-            "objectsCount": 4,
-            "address": 0
-          },
-          {
-            "tag": "number",
-            "type": "int",
             "functionCode": 4,
             "objectsCount": 4,
             "address": 1
           },
           {
-            "tag": "boolean",
+            "tag": "bits_read",
             "type": "bits",
             "functionCode": 4,
+            "objectsCount": 1,
+            "address": 5
+          },
+          {
+            "tag": "8int_read",
+            "type": "8int",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 6
+          },
+          {
+            "tag": "16int_read",
+            "type": "16int",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 7
+          },
+          {
+            "tag": "32int_read_divider",
+            "type": "32int",
+            "functionCode": 4,
+            "objectsCount": 2,
+            "address": 8,
+            "divider": 10
+          },
+          {
+            "tag": "8int_read_multiplier",
+            "type": "8int",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 10,
+            "multiplier": 10
+          },
+          {
+            "tag": "32int_read",
+            "type": "32int",
+            "functionCode": 4,
+            "objectsCount": 2,
+            "address": 11
+          },
+          {
+            "tag": "64int_read",
+            "type": "64int",
+            "functionCode": 4,
             "objectsCount": 4,
-            "address": 2
+            "address": 13
           }
         ],
         "timeseries": [
+          {
+            "tag": "8uint_read",
+            "type": "8uint",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 17
+          },
+          {
+            "tag": "16uint_read",
+            "type": "16uint",
+            "functionCode": 4,
+            "objectsCount": 2,
+            "address": 18
+          },
+          {
+            "tag": "32uint_read",
+            "type": "32uint",
+            "functionCode": 4,
+            "objectsCount": 4,
+            "address": 20
+          },
+          {
+            "tag": "64uint_read",
+            "type": "64uint",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 24
+          },
+          {
+            "tag": "16float_read",
+            "type": "16float",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 25
+          },
+          {
+            "tag": "32float_read",
+            "type": "32float",
+            "functionCode": 4,
+            "objectsCount": 2,
+            "address": 26
+          },
+          {
+            "tag": "64float_read",
+            "type": "64float",
+            "functionCode": 4,
+            "objectsCount": 4,
+            "address": 28
+          }
         ],
         "attributeUpdates": [
           {
             "tag": "shared_attribute_write",
-            "type": "string",
-            "functionCode": 4,
-            "objectsCount": 4,
-            "address": 1
+            "type": "32int",
+            "functionCode": 6,
+            "objectsCount": 2,
+            "address": 29
           }
         ],
         "rpc": [
           {
             "tag": "setValue",
-            "type": "coil",
+            "type": "bits",
             "functionCode": 5,
             "objectsCount": 1,
-            "address": 2
+            "address": 31
           },
           {
             "tag": "getValue",

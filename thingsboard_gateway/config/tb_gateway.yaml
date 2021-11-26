@@ -37,9 +37,6 @@ connectors:
 #    type: modbus
 #    configuration: modbus_serial.json
 #
-#  - name: Modbus Server Connector
-#    type: modbus_server
-#    configuration: modbus_server.json
 #
 #  -
 #    name: OPC-UA Connector
