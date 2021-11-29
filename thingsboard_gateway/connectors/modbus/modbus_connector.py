@@ -34,7 +34,7 @@ from pymodbus.register_write_message import WriteMultipleRegistersResponse, Writ
 from pymodbus.register_read_message import ReadRegistersResponseBase
 from pymodbus.bit_read_message import ReadBitsResponseBase
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient
-from pymodbus.client.sync import ModbusRtuFramer, ModbusSocketFramer
+from pymodbus.client.sync import ModbusRtuFramer, ModbusSocketFramer, ModbusAsciiFramer
 from pymodbus.exceptions import ConnectionException
 
 from thingsboard_gateway.connectors.connector import Connector, log
@@ -43,6 +43,11 @@ from thingsboard_gateway.connectors.modbus.slave import Slave
 from thingsboard_gateway.connectors.modbus.backward_compability_adapter import BackwardCompatibilityAdapter
 
 CONVERTED_DATA_SECTIONS = [ATTRIBUTES_PARAMETER, TELEMETRY_PARAMETER]
+FRAMER_TYPE = {
+    'rtu': ModbusRtuFramer,
+    'socket': ModbusSocketFramer,
+    'ascii': ModbusAsciiFramer
+}
 
 
 class ModbusConnector(Connector, Thread):
@@ -215,7 +220,7 @@ class ModbusConnector(Connector, Thread):
 
         if not device.config['master'].is_socket_open():
             if device.config['connection_attempt'] >= connect_attempt_count and current_time - device.config[
-                    'last_connection_attempt_time'] >= wait_after_failed_attempts_ms:
+                'last_connection_attempt_time'] >= wait_after_failed_attempts_ms:
                 device.config['connection_attempt'] = 0
 
             while not device.config['master'].is_socket_open() \
@@ -239,7 +244,7 @@ class ModbusConnector(Connector, Thread):
     @staticmethod
     def __configure_master(config):
         current_config = config
-        current_config["rtu"] = ModbusRtuFramer if current_config['method'] == 'rtu' else ModbusSocketFramer
+        current_config["rtu"] = FRAMER_TYPE[current_config['method']]
 
         if current_config.get('type') == 'tcp':
             master = ModbusTcpClient(current_config["host"],
@@ -359,7 +364,7 @@ class ModbusConnector(Connector, Thread):
                 elif isinstance(device.config[RPC_SECTION], list):
                     for rpc_command_config in device.config[RPC_SECTION]:
                         if rpc_command_config[TAG_PARAMETER] == server_rpc_request[DATA_PARAMETER][
-                                RPC_METHOD_PARAMETER]:
+                            RPC_METHOD_PARAMETER]:
                             self.__process_rpc_request(server_rpc_request, rpc_command_config)
                             break
                 else:
