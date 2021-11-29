@@ -145,7 +145,7 @@ message RegisterConnectorMsg {
 }
 
 message UnregisterConnectorMsg {
-  string connectorName = 1;
+  string connectorKey = 1;
 }
 
 message ConnectorConfigurationMsg {

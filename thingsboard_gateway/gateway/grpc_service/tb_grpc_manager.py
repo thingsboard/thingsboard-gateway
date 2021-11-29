@@ -13,17 +13,19 @@
 #      limitations under the License.
 
 import asyncio
+from typing import Optional
+
 import grpc
 import logging
 from threading import Thread
 from time import sleep
 from enum import Enum
 from simplejson import dumps
+from thingsboard_gateway.gateway.grpc_service.grpc_connector import GrpcConnector
 
 from thingsboard_gateway.gateway.proto.messages_pb2_grpc import add_TBGatewayProtoServiceServicer_to_server
 from thingsboard_gateway.gateway.proto.messages_pb2 import *
 from thingsboard_gateway.gateway.grpc_service.tb_grpc_server import TBGRPCServer
-
 
 log = logging.getLogger('service')
 
@@ -41,6 +43,7 @@ class TBGRPCServerManager(Thread):
         self.setName("TB GRPC manager thread")
         self.__aio_server: grpc.aio.Server = None
         self.__register_connector = None
+        self.__unregister_connector = None
         self.__send_data_to_storage = None
         self._stopped = False
         self.__config = config
@@ -68,7 +71,7 @@ class TBGRPCServerManager(Thread):
         if msg.HasField("registerConnectorMsg"):
             self.__register_connector(context, msg.registerConnectorMsg.connectorKey)
         if msg.HasField("unregisterConnectorMsg"):
-            pass
+            self.__unregister_connector(context, msg.unregisterConnectorMsg.connectorKey)
         if msg.HasField("connectMsg"):
             pass
         if msg.HasField("disconnectMsg"):
@@ -102,8 +105,29 @@ class TBGRPCServerManager(Thread):
             msg = self.__grpc_server.get_response("FAILURE")
             self.__grpc_server.write(msg)
 
+    def unregister(self, unregistration_result: RegistrationStatus, context, connector: Optional[GrpcConnector]):
+        if unregistration_result == RegistrationStatus.SUCCESS:
+            connector_name = connector.get_name()
+            connector_session = self.__connectors_sessions.pop(connector_name)
+            msg = self.__grpc_server.get_response("SUCCESS")
+            self.__grpc_server.write(msg)
+        elif unregistration_result == RegistrationStatus.NOT_FOUND:
+            msg = self.__grpc_server.get_response("NOT_FOUND")
+            self.__grpc_server.write(msg)
+        elif unregistration_result == RegistrationStatus.FAILURE:
+            msg = self.__grpc_server.get_response("FAILURE")
+            self.__grpc_server.write(msg)
+
     async def serve(self):
-        self.__aio_server = grpc.aio.server()
+        self.__aio_server = grpc.aio.server(
+            options=(
+                ('grpc.keepalive_time_ms', 10000),
+                ('grpc.keepalive_timeout_ms', 5000),
+                ('grpc.keepalive_permit_without_calls', True),
+                ('grpc.http2.max_pings_without_data', 0),
+                ('grpc.http2.min_time_between_pings_ms', 10000),
+                ('grpc.http2.min_ping_interval_without_data_ms', 5000),
+            ))
         add_TBGatewayProtoServiceServicer_to_server(self.__grpc_server, self.__aio_server)
         self.__aio_server.add_insecure_port("[::]:%s" % (self.__grpc_port,))
         await self.__aio_server.start()
@@ -115,9 +139,10 @@ class TBGRPCServerManager(Thread):
             loop = asyncio.get_event_loop()
             loop.create_task(self.__aio_server.stop(True))
 
-    def set_gateway_read_callbacks(self, register, send_data_to_storage):
-        self.__register_connector = register
-        self.__send_data_to_storage = send_data_to_storage
+    def set_gateway_read_callbacks(self, registeration_cb, unregistration_cb, send_data_cb):
+        self.__register_connector = registeration_cb
+        self.__unregister_connector = unregistration_cb
+        self.__send_data_to_storage = send_data_cb
 
 
 if __name__ == '__main__':

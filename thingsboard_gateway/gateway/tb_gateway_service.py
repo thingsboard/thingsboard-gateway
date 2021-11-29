@@ -24,7 +24,7 @@ from sys import argv, executable, getsizeof
 from threading import RLock, Thread
 from time import sleep, time
 
-from simplejson import dumps, load, loads
+from simplejson import dumps, load, loads, JSONDecodeError
 from yaml import safe_load
 
 from thingsboard_gateway.gateway.grpc_service.tb_grpc_manager import TBGRPCServerManager, RegistrationStatus
@@ -156,7 +156,7 @@ class TBGatewayService:
         self.__grpc_connectors = {}
         if self.__grpc_config is not None and self.__grpc_config.get("enabled"):
             self.__grpc_manager = TBGRPCServerManager(self.__grpc_config)
-            self.__grpc_manager.set_gateway_read_callbacks(self.__register_connector, self.send_to_storage)
+            self.__grpc_manager.set_gateway_read_callbacks(self.__register_connector, self.__unregister_connector, self.send_to_storage)
         self._load_connectors()
         self._connect_with_connectors()
         self.__load_persistent_devices()
@@ -334,12 +334,27 @@ class TBGatewayService:
             connector.setName(target_connector['name'])
             self.available_connectors[connector.get_name()] = connector
             self.__grpc_manager.registration_finished(RegistrationStatus.SUCCESS, context, target_connector)
+            log.info("GRPC connector with key %s registered with name %s", connector_key, connector.get_name())
         elif self.__grpc_connectors.get(connector_key) is not None:
             self.__grpc_manager.registration_finished(RegistrationStatus.FAILURE, context, None)
             log.error("GRPC connector with key: %s - already registered!", connector_key)
         else:
             self.__grpc_manager.registration_finished(RegistrationStatus.NOT_FOUND, context, None)
             log.error("GRPC configuration for connector with key: %s - not found", connector_key)
+
+    def __unregister_connector(self, context, connector_key):
+        if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key]['name'] in self.available_connectors:
+            connector_name = self.__grpc_connectors[connector_key]['name']
+            target_connector: GrpcConnector = self.available_connectors.pop(connector_name)
+            target_connector.close()
+            self.__grpc_manager.unregister(RegistrationStatus.SUCCESS, context, target_connector)
+            log.info("GRPC connector with key %s and name %s - unregistered", connector_key, target_connector.get_name())
+        elif self.__grpc_connectors.get(connector_key) is not None:
+            self.__grpc_manager.unregister(RegistrationStatus.NOT_FOUND, context, None)
+            log.error("GRPC connector with key: %s - is not registered!", connector_key)
+        else:
+            self.__grpc_manager.unregister(RegistrationStatus.FAILURE, context, None)
+            log.error("GRPC configuration for connector with key: %s - not found in configuration and not registered", connector_key)
 
     def _load_connectors(self):
         self.connectors_configs = {}
@@ -367,17 +382,26 @@ class TBGatewayService:
                             connector_persistent_key = connector['key']
                         log.info("Connector key for GRPC connector with name [%s] is: [%s]", connector['name'], connector_persistent_key)
                     config_file_path = self._config_dir + connector['configuration']
+                    connector_conf_file_data = ''
                     with open(config_file_path, 'r', encoding="UTF-8") as conf_file:
-                        connector_conf = load(conf_file)
-                        if not self.connectors_configs.get(connector['type']):
-                            self.connectors_configs[connector['type']] = []
-                        if connector['type'] != 'grpc':
-                            connector_conf["name"] = connector['name']
-                        self.connectors_configs[connector['type']].append({"name": connector['name'],
-                                                                           "config": {connector['configuration']: connector_conf} if connector['type'] != 'grpc' else connector_conf,
-                                                                           "config_updated": stat(config_file_path),
-                                                                           "config_file_path": config_file_path,
-                                                                           "grpc_key": connector_persistent_key})
+                        connector_conf_file_data = conf_file.read()
+
+                    connector_conf = connector_conf_file_data
+                    try:
+                        connector_conf = loads(connector_conf_file_data)
+                    except JSONDecodeError as e:
+                        log.debug(e)
+                        log.warning("Cannot parse connector configuration as a JSON, it will be passed as a string.")
+
+                    if not self.connectors_configs.get(connector['type']):
+                        self.connectors_configs[connector['type']] = []
+                    if connector['type'] != 'grpc' and isinstance(connector_conf, dict):
+                        connector_conf["name"] = connector['name']
+                    self.connectors_configs[connector['type']].append({"name": connector['name'],
+                                                                       "config": {connector['configuration']: connector_conf} if connector['type'] != 'grpc' else connector_conf,
+                                                                       "config_updated": stat(config_file_path),
+                                                                       "config_file_path": config_file_path,
+                                                                       "grpc_key": connector_persistent_key})
                 except Exception as e:
                     log.exception("Error on loading connector: %r", e)
             if connectors_persistent_keys:
