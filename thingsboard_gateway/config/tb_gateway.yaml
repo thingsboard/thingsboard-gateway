@@ -37,6 +37,7 @@ connectors:
 #    type: modbus
 #    configuration: modbus_serial.json
 #
+#
 #  -
 #    name: OPC-UA Connector
 #    type: opcua
