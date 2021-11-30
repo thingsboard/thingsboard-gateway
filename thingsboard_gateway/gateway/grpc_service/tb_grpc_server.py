@@ -1,18 +1,17 @@
-import grpc
 import asyncio
-from queue import Queue
-from time import sleep
+from threading import Thread
+from queue import SimpleQueue
 
-from thingsboard_gateway.gateway.proto.messages_pb2 import *
 import thingsboard_gateway.gateway.proto.messages_pb2_grpc as messages_pb2_grpc
+from thingsboard_gateway.gateway.proto.messages_pb2 import *
 
 
 class TBGRPCServer(messages_pb2_grpc.TBGatewayProtoServiceServicer):
     def __init__(self, read_callback):
         self._read_callback = read_callback
-        self.__write_queue = Queue()
+        self.__write_queue = SimpleQueue()
 
-    def write(self, msg: FromServiceMessage):
+    def write(self, context, msg: FromServiceMessage):
         self.__write_queue.put(msg, True, 100)
 
     async def __read_task(self, context, request_iter):
@@ -23,7 +22,17 @@ class TBGRPCServer(messages_pb2_grpc.TBGatewayProtoServiceServicer):
     async def __write_task(context, msg: FromServiceMessage):
         await context.write(msg)
 
-    async def stream(self, request_iterator, context):
+    async def stream(self,
+                     request_iterator,
+                     context,
+                     options=(),
+                     channel_credentials=None,
+                     call_credentials=None,
+                     insecure=False,
+                     compression=None,
+                     wait_for_ready=None,
+                     timeout=None,
+                     metadata=None):
         if not self.__write_queue.empty():
             data_to_send = self.__write_queue.get_nowait()
             write_task = asyncio.create_task(self.__write_task(context, data_to_send))

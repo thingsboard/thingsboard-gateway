@@ -15,22 +15,22 @@
 import logging
 import logging.config
 import logging.handlers
-from hashlib import md5
 from os import execv, listdir, path, pathsep, stat, system
-from queue import Queue
+from queue import SimpleQueue
 from random import choice
 from string import ascii_lowercase, hexdigits
 from sys import argv, executable, getsizeof
 from threading import RLock, Thread
 from time import sleep, time
 
-from simplejson import dumps, load, loads, JSONDecodeError
+from simplejson import JSONDecodeError, dumps, load, loads
 from yaml import safe_load
 
-from thingsboard_gateway.gateway.grpc_service.tb_grpc_manager import TBGRPCServerManager, RegistrationStatus
+from thingsboard_gateway.gateway.grpc_service.tb_grpc_manager import TBGRPCServerManager, Status
 from thingsboard_gateway.gateway.grpc_service.grpc_connector import GrpcConnector
 from thingsboard_gateway.gateway.tb_client import TBClient
-from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME
+from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME
+from thingsboard_gateway.gateway.constant_enums import DeviceActions
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.sqlite.sqlite_event_storage import SQLiteEventStorage
@@ -71,6 +71,12 @@ class TBGatewayService:
     def __init__(self, config_file=None):
         self.stopped = False
         self.__lock = RLock()
+        self.async_device_actions = {
+            DeviceActions.CONNECT: self.add_device,
+            DeviceActions.DISCONNECT: self.del_device
+            }
+        self.__async_device_actions_queue = SimpleQueue()
+        self.__process_async_actions_thread = Thread(target=self.__process_async_device_actions, name="Async device actions processing thread", daemon=True)
         if config_file is None:
             config_file = path.dirname(path.dirname(path.abspath(__file__))) + '/config/tb_gateway.yaml'.replace('/',
                                                                                                                  path.sep)
@@ -96,7 +102,7 @@ class TBGatewayService:
         self.__saved_devices = {}
         self.__events = []
         self.name = ''.join(choice(ascii_lowercase) for _ in range(64))
-        self.__rpc_register_queue = Queue(-1)
+        self.__rpc_register_queue = SimpleQueue()
         self.__rpc_requests_in_progress = {}
         self.tb_client = TBClient(self.__config["thingsboard"], self._config_dir)
         try:
@@ -117,7 +123,7 @@ class TBGatewayService:
         self.remote_handler = TBLoggerHandler(self)
         self.main_handler.setTarget(self.remote_handler)
         self._default_connectors = DEFAULT_CONNECTORS
-        self.__converted_data_queue = Queue()
+        self.__converted_data_queue = SimpleQueue()
         self.__save_converted_data_thread = Thread(name="Save converted data", daemon=True, target=self.__send_to_storage)
         self.__save_converted_data_thread.start()
         self._implemented_connectors = {}
@@ -139,8 +145,8 @@ class TBGatewayService:
             self.__remote_shell = RemoteShell(platform=self.__updater.get_platform(),
                                               release=self.__updater.get_release())
         self.__rpc_remote_shell_command_in_progress = None
-        self.__sheduled_rpc_calls = []
-        self.__rpc_sheduled_methods_functions = {
+        self.__scheduled_rpc_calls = []
+        self.__rpc_scheduled_methods_functions = {
             "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
             "reboot": {"function": system, "arguments": ("reboot 0",)},
             }
@@ -155,12 +161,13 @@ class TBGatewayService:
         self.__grpc_manager = None
         self.__grpc_connectors = {}
         if self.__grpc_config is not None and self.__grpc_config.get("enabled"):
-            self.__grpc_manager = TBGRPCServerManager(self.__grpc_config)
+            self.__process_async_actions_thread.start()
+            self.__grpc_manager = TBGRPCServerManager(self, self.__grpc_config)
             self.__grpc_manager.set_gateway_read_callbacks(self.__register_connector, self.__unregister_connector, self.send_to_storage)
         self._load_connectors()
         self._connect_with_connectors()
         self.__load_persistent_devices()
-        self._published_events = Queue(-1)
+        self._published_events = SimpleQueue()
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
         self._send_thread.start()
@@ -180,11 +187,11 @@ class TBGatewayService:
                                         device_type=self.__saved_devices[device]["device_type"])
                     self.subscribe_to_required_topics()
                     self.__subscribed_to_rpc_topics = True
-                if self.__sheduled_rpc_calls:
-                    for rpc_call_index in range(len(self.__sheduled_rpc_calls)):
-                        rpc_call = self.__sheduled_rpc_calls[rpc_call_index]
+                if self.__scheduled_rpc_calls:
+                    for rpc_call_index in range(len(self.__scheduled_rpc_calls)):
+                        rpc_call = self.__scheduled_rpc_calls[rpc_call_index]
                         if cur_time > rpc_call[0]:
-                            rpc_call = self.__sheduled_rpc_calls.pop(rpc_call_index)
+                            rpc_call = self.__scheduled_rpc_calls.pop(rpc_call_index)
                             result = None
                             try:
                                 result = rpc_call[1]["function"](*rpc_call[1]["arguments"])
@@ -333,13 +340,13 @@ class TBGatewayService:
             connector = GrpcConnector(self, target_connector['config'], context)
             connector.setName(target_connector['name'])
             self.available_connectors[connector.get_name()] = connector
-            self.__grpc_manager.registration_finished(RegistrationStatus.SUCCESS, context, target_connector)
+            self.__grpc_manager.registration_finished(Status.SUCCESS, context, target_connector)
             log.info("GRPC connector with key %s registered with name %s", connector_key, connector.get_name())
         elif self.__grpc_connectors.get(connector_key) is not None:
-            self.__grpc_manager.registration_finished(RegistrationStatus.FAILURE, context, None)
+            self.__grpc_manager.registration_finished(Status.FAILURE, context, None)
             log.error("GRPC connector with key: %s - already registered!", connector_key)
         else:
-            self.__grpc_manager.registration_finished(RegistrationStatus.NOT_FOUND, context, None)
+            self.__grpc_manager.registration_finished(Status.NOT_FOUND, context, None)
             log.error("GRPC configuration for connector with key: %s - not found", connector_key)
 
     def __unregister_connector(self, context, connector_key):
@@ -347,13 +354,13 @@ class TBGatewayService:
             connector_name = self.__grpc_connectors[connector_key]['name']
             target_connector: GrpcConnector = self.available_connectors.pop(connector_name)
             target_connector.close()
-            self.__grpc_manager.unregister(RegistrationStatus.SUCCESS, context, target_connector)
+            self.__grpc_manager.unregister(Status.SUCCESS, context, target_connector)
             log.info("GRPC connector with key %s and name %s - unregistered", connector_key, target_connector.get_name())
         elif self.__grpc_connectors.get(connector_key) is not None:
-            self.__grpc_manager.unregister(RegistrationStatus.NOT_FOUND, context, None)
+            self.__grpc_manager.unregister(Status.NOT_FOUND, context, None)
             log.error("GRPC connector with key: %s - is not registered!", connector_key)
         else:
-            self.__grpc_manager.unregister(RegistrationStatus.FAILURE, context, None)
+            self.__grpc_manager.unregister(Status.FAILURE, context, None)
             log.error("GRPC configuration for connector with key: %s - not found in configuration and not registered", connector_key)
 
     def _load_connectors(self):
@@ -678,10 +685,10 @@ class TBGatewayService:
         else:
             log.info("Remote shell is disabled.")
             method_function = self.__gateway_rpc_methods.get(method_to_call)
-        if method_function is None and method_to_call in self.__rpc_sheduled_methods_functions:
+        if method_function is None and method_to_call in self.__rpc_scheduled_methods_functions:
             seconds_to_restart = arguments * 1000 if arguments and arguments != '{}' else 0
-            self.__sheduled_rpc_calls.append(
-                [time() * 1000 + seconds_to_restart, self.__rpc_sheduled_methods_functions[method_to_call]])
+            self.__scheduled_rpc_calls.append(
+                [time() * 1000 + seconds_to_restart, self.__rpc_scheduled_methods_functions[method_to_call]])
             log.info("Gateway %s scheduled in %i seconds", method_to_call, seconds_to_restart / 1000)
             result = {"success": True}
         elif method_function is None:
@@ -797,6 +804,13 @@ class TBGatewayService:
             summary_messages.update(**telemetry)
         return summary_messages
 
+    def add_device_async(self, data):
+        if data['deviceName'] not in self.__saved_devices:
+            self.__async_device_actions_queue.put((DeviceActions.CONNECT, data))
+            return Status.SUCCESS
+        else:
+            return Status.FAILURE
+
     def add_device(self, device_name, content, device_type=None):
         if device_name not in self.__saved_devices:
             device_type = device_type if device_type is not None else 'default'
@@ -810,6 +824,9 @@ class TBGatewayService:
             self.__save_persistent_devices()
         self.__connected_devices[device_name][event] = content
 
+    def del_device_async(self, data):
+        self.__async_device_actions_queue.put((DeviceActions.DISCONNECT, data))
+
     def del_device(self, device_name):
         del self.__connected_devices[device_name]
         del self.__saved_devices[device_name]
@@ -818,6 +835,17 @@ class TBGatewayService:
 
     def get_devices(self):
         return self.__connected_devices
+
+    def __process_async_device_actions(self):
+        while not self.stopped:
+            if not self.__async_device_actions_queue.empty():
+                action, data = self.__async_device_actions_queue.get()
+                if action == DeviceActions.CONNECT:
+                    self.add_device(data['deviceName'], {CONNECTOR_PARAMETER: self.available_connectors[data['name']]}, data.get('deviceType'))
+                elif action == DeviceActions.DISCONNECT:
+                    self.del_device(data['deviceName'])
+            else:
+                sleep(.2)
 
     def __load_persistent_connector_keys(self):
         persistent_keys = {}
