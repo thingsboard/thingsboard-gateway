@@ -138,7 +138,6 @@ class TBGatewayService:
         self.connectors_configs = {}
         self.__remote_configurator = None
         self.__request_config_after_connect = False
-        self.__connected_devices = {}
         self.__load_persistent_devices()
         self.__init_remote_configuration()
         self._load_connectors()
@@ -724,7 +723,7 @@ class TBGatewayService:
             summary_messages.update(**telemetry)
         return summary_messages
 
-    def add_device(self, device_name, content, device_type=None):
+    def add_device(self, device_name, content, device_type):
         if device_name not in self.__saved_devices:
             device_type = device_type if device_type is not None else 'default'
             self.__connected_devices[device_name] = {**content, "device_type": device_type}
@@ -763,9 +762,17 @@ class TBGatewayService:
             log.debug("Loaded devices:\n %s", devices)
             for device_name in devices:
                 try:
-                    if self.available_connectors.get(devices[device_name]):
+                    if not isinstance(devices[device_name], tuple):
+                        open(self._config_dir + self.__connected_devices_file, 'w').close()
+                        log.debug("Old connected_devices file, new file will be created")
+                        return
+                    if self.available_connectors.get(devices[device_name][0]):
                         self.__connected_devices[device_name] = {
-                            "connector": self.available_connectors[devices[device_name]]}
+                            "connector": self.available_connectors[devices[device_name][0]],
+                            "device_type": devices[device_name][1]}
+                        self.__saved_devices[device_name] = {
+                            "connector": self.available_connectors[devices[device_name][0]],
+                            "device_type": devices[device_name][1]}
                 except Exception as e:
                     log.exception(e)
                     continue
@@ -779,7 +786,7 @@ class TBGatewayService:
                 data_to_save = {}
                 for device in self.__connected_devices:
                     if self.__connected_devices[device]["connector"] is not None:
-                        data_to_save[device] = self.__connected_devices[device]["connector"].get_name()
+                        data_to_save[device] = (self.__connected_devices[device]["connector"].get_name(), self.__connected_devices[device]["device_type"])
                 config_file.write(dumps(data_to_save, indent=2, sort_keys=True))
             except Exception as e:
                 log.exception(e)
