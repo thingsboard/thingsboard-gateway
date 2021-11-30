@@ -18,6 +18,8 @@ from queue import Queue
 from random import choice
 from string import ascii_lowercase
 
+from twisted.internet.iocpreactor import reactor
+
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 # Try import Pymodbus library or install it and import
@@ -36,6 +38,11 @@ from pymodbus.bit_read_message import ReadBitsResponseBase
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient
 from pymodbus.client.sync import ModbusRtuFramer, ModbusSocketFramer, ModbusAsciiFramer
 from pymodbus.exceptions import ConnectionException
+from pymodbus.server.asynchronous import StartTcpServer, StartUdpServer, StartSerialServer
+from pymodbus.device import ModbusDeviceIdentification
+from pymodbus.version import version
+from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
+from pymodbus.datastore import ModbusSparseDataBlock
 
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.modbus.constants import *
@@ -47,6 +54,17 @@ FRAMER_TYPE = {
     'rtu': ModbusRtuFramer,
     'socket': ModbusSocketFramer,
     'ascii': ModbusAsciiFramer
+}
+SLAVE_TYPE = {
+    'tcp': StartTcpServer,
+    'udp': StartUdpServer,
+    'serial': StartSerialServer
+}
+FUNCTION_TYPE = {
+    'coils_initializer': 'ci',
+    'holding_registers': 'hr',
+    'input_registers': 'ir',
+    'discrete_inputs': 'di'
 }
 
 
@@ -69,6 +87,9 @@ class ModbusConnector(Connector, Thread):
         self.__slaves = []
         self.__load_slaves()
 
+        if self.__config.get('slave'):
+            self.__configure_and_run_slave(self.__config['slave'])
+
     def is_connected(self):
         return self.__connected
 
@@ -88,6 +109,38 @@ class ModbusConnector(Connector, Thread):
                 break
 
             sleep(.2)
+
+    @staticmethod
+    def __configure_and_run_slave(config):
+        identity = None
+        if config.get('identity'):
+            identity = ModbusDeviceIdentification()
+            identity.VendorName = config['identity'].get('vendorName', '')
+            identity.ProductCode = config['identity'].get('productCode', '')
+            identity.VendorUrl = config['identity'].get('vendorUrl', '')
+            identity.ProductName = config['identity'].get('productName', '')
+            identity.ModelName = config['identity'].get('ModelName', '')
+            identity.MajorMinorRevision = version.short()
+
+        registers = {}
+        for value in config.get('values', []):
+            for function in value['functions']:
+                modbus_inner_function = FUNCTION_TYPE[function]
+                if not registers.get(modbus_inner_function):
+                    registers[modbus_inner_function] = {}
+
+                registers[modbus_inner_function][value['address']] = value['value']
+
+        blocks = {}
+        for (key, items) in registers.items():
+            blocks[key] = ModbusSparseDataBlock(items)
+
+        context = ModbusServerContext(slaves=ModbusSlaveContext(**blocks), single=True)
+        SLAVE_TYPE[config['type']](context, identity=identity, defer_reactor_run=True,
+                                   address=(config['host'], config['port']) if config.get(
+                                       type) == 'tcp' or 'udp' else None,
+                                   port=config.get('port') if config.get('type') == 'serial' else None)
+        reactor.start()
 
     def __load_slaves(self):
         self.__slaves = [
@@ -145,6 +198,7 @@ class ModbusConnector(Connector, Thread):
     def close(self):
         self.__stopped = True
         self.__stop_connections_to_masters()
+        reactor.stop()
         log.info('%s has been stopped.', self.get_name())
 
     def get_name(self):

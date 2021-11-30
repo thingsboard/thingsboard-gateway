@@ -171,5 +171,40 @@
         ]
       }
     ]
+  },
+  "slave": {
+    "type": "tcp",
+    "host": "127.0.0.1",
+    "port": 5020,
+    "method": "socket",
+    "identity": {
+      "vendorName": "",
+      "productCode": "",
+      "vendorUrl": "",
+      "productName": "",
+      "modelName": ""
+    },
+    "values": [
+      {
+        "functions": [
+          "holding_registers",
+          "input_registers",
+          "discrete_inputs",
+          "coils_initializer"
+        ],
+        "address": 1,
+        "value": 12
+      },
+      {
+        "functions": [
+          "holding_registers",
+          "input_registers",
+          "discrete_inputs",
+          "coils_initializer"
+        ],
+        "address": 2,
+        "value": 15
+      }
+    ]
   }
 }

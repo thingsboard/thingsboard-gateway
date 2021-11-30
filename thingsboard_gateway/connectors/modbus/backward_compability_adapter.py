@@ -48,7 +48,7 @@ class BackwardCompatibilityAdapter:
 
             slaves.append(slave)
 
-        result_dict = {'master': {'slaves': slaves}}
+        result_dict = {'master': {'slaves': slaves}, 'slave': self.__config.get('slave')}
         self.__save_json_config_file(result_dict)
 
         return result_dict
