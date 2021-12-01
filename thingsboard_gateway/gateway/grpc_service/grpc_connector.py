@@ -14,11 +14,13 @@
 
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.gateway.grpc_service.tb_grpc_manager import TBGRPCServerManager
 
 
 class GrpcConnector(Connector):
-    def __init__(self, gateway, config, context):
+    def __init__(self, gateway, config, tb_grpc_server_manager: TBGRPCServerManager):
         self.name = None
+        self.__server_manager = tb_grpc_server_manager
 
     def setName(self, name):
         self.name = name

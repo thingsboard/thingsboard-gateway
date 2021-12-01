@@ -337,7 +337,7 @@ class TBGatewayService:
     def __register_connector(self, context, connector_key):
         if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key]['name'] not in self.available_connectors:
             target_connector = self.__grpc_connectors.get(connector_key)
-            connector = GrpcConnector(self, target_connector['config'], context)
+            connector = GrpcConnector(self, target_connector['config'], self.__grpc_manager)
             connector.setName(target_connector['name'])
             self.available_connectors[connector.get_name()] = connector
             self.__grpc_manager.registration_finished(Status.SUCCESS, context, target_connector)
@@ -457,7 +457,12 @@ class TBGatewayService:
             self._connect_with_connectors()
 
     def send_to_storage(self, connector_name, data):
-        self.__converted_data_queue.put((connector_name, data), True, 100)
+        try:
+            self.__converted_data_queue.put((connector_name, data), True, 100)
+            return Status.SUCCESS
+        except Exception as e:
+            log.exception("Cannot put converted data!", e)
+            return Status.FAILURE
 
     def __send_to_storage(self):
         while True:
@@ -825,7 +830,11 @@ class TBGatewayService:
         self.__connected_devices[device_name][event] = content
 
     def del_device_async(self, data):
-        self.__async_device_actions_queue.put((DeviceActions.DISCONNECT, data))
+        if data['deviceName'] in self.__saved_devices:
+            self.__async_device_actions_queue.put((DeviceActions.DISCONNECT, data))
+            return Status.SUCCESS
+        else:
+            return Status.FAILURE
 
     def del_device(self, device_name):
         del self.__connected_devices[device_name]

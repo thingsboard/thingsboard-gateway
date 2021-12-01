@@ -77,9 +77,19 @@ class TBGRPCServerManager(Thread):
             if msg.HasField("response"):
                 pass
             if msg.HasField("gatewayTelemetryMsg"):
-                pass
+                data = self.__uplink_converter.convert(UplinkMessageType.GatewayTelemetryMsg, msg.gatewayTelemetryMsg)
+                result_status = self.__gateway.send_to_storage(self.sessions[context.peer()]['name'], data)
+                outgoing_message = self.__downlink_converter.convert([DownlinkMessageType.Response], result_status)
+                if not outgoing_message:
+                    log.error("Cannot convert outgoing message!")
+                self.__grpc_server.write(context, outgoing_message)
             if msg.HasField("gatewayAttributesMsg"):
-                pass
+                data = self.__uplink_converter.convert(UplinkMessageType.GatewayAttributesMsg, msg.gatewayAttributesMsg)
+                result_status = self.__gateway.send_to_storage(self.sessions[context.peer()]['name'], data)
+                outgoing_message = self.__downlink_converter.convert([DownlinkMessageType.Response], result_status)
+                if not outgoing_message:
+                    log.error("Cannot convert outgoing message!")
+                self.__grpc_server.write(context, outgoing_message)
             if msg.HasField("gatewayClaimMsg"):
                 pass
             if msg.HasField("registerConnectorMsg"):
@@ -95,7 +105,13 @@ class TBGRPCServerManager(Thread):
                     log.error("Cannot convert outgoing message!")
                 self.__grpc_server.write(context, outgoing_message)
             if msg.HasField("disconnectMsg"):
-                pass
+                data = self.__uplink_converter.convert(UplinkMessageType.DisconnectMsg, msg.connectMsg)
+                data['name'] = self.sessions[context.peer()]['name']
+                result_status = self.__gateway.del_device_async(data)
+                outgoing_message = self.__downlink_converter.convert([DownlinkMessageType.Response], result_status)
+                if not outgoing_message:
+                    log.error("Cannot convert outgoing message!")
+                self.__grpc_server.write(context, outgoing_message)
             if msg.HasField("gatewayRpcResponseMsg"):
                 pass
             if msg.HasField("gatewayAttributeRequestMsg"):
