@@ -24,5 +24,10 @@ Follow instructions [here](https://www.zigbee2mqtt.io/guide/adapters/#recommende
 To set up zigbee2mqtt, follow the instructions as laid out in the [official documentation](https://www.zigbee2mqtt.io/guide/installation/01_linux.html)
 
 * In addition to the required steps, follow the steps as laid out in "(Optional) Running as a daemon with systemctl" to run zigbee2mqtt as a service in the background
+
+Pair your ZigBee devices by following the steps as laid out [here](https://www.zigbee2mqtt.io/guide/usage/pairing_devices.html)
+
+Update the [test Python script](./zigbee2mqtt/test_mqtt.py) with any updated information (access tokens, zigbee2mqtt topics, etc.) and run the script by executing:
+* `python ./zigbee2mqtt/test_mqtt.py`
 ## LoRa
 Coming soon...
