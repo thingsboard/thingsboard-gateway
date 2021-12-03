@@ -100,7 +100,7 @@ class ModbusConnector(Connector, Thread):
                                          daemon=True, name='Gateway as a slave')
             self.__slave_thread.start()
 
-            if self.__config['slave'].get('sendDataToThingsBoard', False):
+            if config['slave'].get('sendDataToThingsBoard', False):
                 self.__modify_main_config()
 
         self.__slaves = []
@@ -143,7 +143,7 @@ class ModbusConnector(Connector, Thread):
             values = {}
             converter = BytesModbusDownlinkConverter({})
             for item in value:
-                for section in ('attributes', 'timeseries'):
+                for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
                     for val in item[section]:
                         function_code = FUNCTION_CODE_WRITE[key][0] if val['objectsCount'] <= 1 else \
                             FUNCTION_CODE_WRITE[key][1]
@@ -171,9 +171,12 @@ class ModbusConnector(Connector, Thread):
 
         for (register, reg_values) in values.items():
             for value in reg_values:
-                for section in ('attributes', 'timeseries'):
-                    device[section] = [{**item, 'functionCode': FUNCTION_CODE_READ[register]} for item in
-                                       value.get(section, [])]
+                for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
+                    if not device.get(section):
+                        device[section] = []
+
+                    for item in value.get(section, []):
+                        device[section].append({**item, 'functionCode': FUNCTION_CODE_READ[register]})
 
         self.__config['master']['slaves'].append(device)
 
@@ -309,7 +312,7 @@ class ModbusConnector(Connector, Thread):
 
         if not device.config['master'].is_socket_open():
             if device.config['connection_attempt'] >= connect_attempt_count and current_time - device.config[
-                    'last_connection_attempt_time'] >= wait_after_failed_attempts_ms:
+                'last_connection_attempt_time'] >= wait_after_failed_attempts_ms:
                 device.config['connection_attempt'] = 0
 
             while not device.config['master'].is_socket_open() \
