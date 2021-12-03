@@ -26,7 +26,7 @@ class BackwardCompatibilityAdapter:
     @staticmethod
     def __save_json_config_file(config):
         with open('config/modbus_new.json', 'w') as file:
-            file.writelines(dumps(config, sort_keys=True, indent='  ', separators=(',', ': ')))
+            file.writelines(dumps(config, sort_keys=False, indent='  ', separators=(',', ': ')))
 
     def convert(self):
         if not self.__config.get('server'):
@@ -48,7 +48,7 @@ class BackwardCompatibilityAdapter:
 
             slaves.append(slave)
 
-        result_dict = {'master': {'slaves': slaves}}
+        result_dict = {'master': {'slaves': slaves}, 'slave': self.__config.get('slave')}
         self.__save_json_config_file(result_dict)
 
         return result_dict

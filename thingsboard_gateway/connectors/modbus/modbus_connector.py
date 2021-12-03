@@ -36,17 +36,44 @@ from pymodbus.bit_read_message import ReadBitsResponseBase
 from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient
 from pymodbus.client.sync import ModbusRtuFramer, ModbusSocketFramer, ModbusAsciiFramer
 from pymodbus.exceptions import ConnectionException
+from pymodbus.server.asynchronous import StartTcpServer, StartUdpServer, StartSerialServer, StopServer
+from pymodbus.device import ModbusDeviceIdentification
+from pymodbus.version import version
+from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
+from pymodbus.datastore import ModbusSparseDataBlock
 
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.modbus.constants import *
 from thingsboard_gateway.connectors.modbus.slave import Slave
 from thingsboard_gateway.connectors.modbus.backward_compability_adapter import BackwardCompatibilityAdapter
+from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 
 CONVERTED_DATA_SECTIONS = [ATTRIBUTES_PARAMETER, TELEMETRY_PARAMETER]
 FRAMER_TYPE = {
     'rtu': ModbusRtuFramer,
     'socket': ModbusSocketFramer,
     'ascii': ModbusAsciiFramer
+}
+SLAVE_TYPE = {
+    'tcp': StartTcpServer,
+    'udp': StartUdpServer,
+    'serial': StartSerialServer
+}
+FUNCTION_TYPE = {
+    'coils_initializer': 'ci',
+    'holding_registers': 'hr',
+    'input_registers': 'ir',
+    'discrete_inputs': 'di'
+}
+FUNCTION_CODE_WRITE = {
+    'holding_registers': (6, 16),
+    'coils_initializer': (5, 15)
+}
+FUNCTION_CODE_READ = {
+    'holding_registers': 3,
+    'coils_initializer': 1,
+    'input_registers': 4,
+    'discrete_inputs': 2
 }
 
 
@@ -59,12 +86,22 @@ class ModbusConnector(Connector, Thread):
         super().__init__()
         self.__gateway = gateway
         self._connector_type = connector_type
+
         self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config)
         self.__config = self.__backward_compatibility_adapter.convert()
+
         self.setName(self.__config.get("name", 'Modbus Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__connected = False
         self.__stopped = False
         self.daemon = True
+
+        if self.__config.get('slave'):
+            self.__slave_thread = Thread(target=self.__configure_and_run_slave, args=(self.__config['slave'],),
+                                         daemon=True, name='Gateway as a slave')
+            self.__slave_thread.start()
+
+            if config['slave'].get('sendDataToThingsBoard', False):
+                self.__modify_main_config()
 
         self.__slaves = []
         self.__load_slaves()
@@ -88,6 +125,60 @@ class ModbusConnector(Connector, Thread):
                 break
 
             sleep(.2)
+
+    @staticmethod
+    def __configure_and_run_slave(config):
+        identity = None
+        if config.get('identity'):
+            identity = ModbusDeviceIdentification()
+            identity.VendorName = config['identity'].get('vendorName', '')
+            identity.ProductCode = config['identity'].get('productCode', '')
+            identity.VendorUrl = config['identity'].get('vendorUrl', '')
+            identity.ProductName = config['identity'].get('productName', '')
+            identity.ModelName = config['identity'].get('ModelName', '')
+            identity.MajorMinorRevision = version.short()
+
+        blocks = {}
+        for (key, value) in config.get('values').items():
+            values = {}
+            converter = BytesModbusDownlinkConverter({})
+            for item in value:
+                for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
+                    for val in item[section]:
+                        function_code = FUNCTION_CODE_WRITE[key][0] if val['objectsCount'] <= 1 else \
+                            FUNCTION_CODE_WRITE[key][1]
+                        converted_value = converter.convert(
+                            {**val,
+                             'device': config.get('deviceName', 'Gateway'), 'functionCode': function_code,
+                             'byteOrder': config['byteOrder']},
+                            {'data': {'params': val['value']}})
+                        values[val['address']] = converted_value
+
+            blocks[FUNCTION_TYPE[key]] = ModbusSparseDataBlock(values)
+
+        context = ModbusServerContext(slaves=ModbusSlaveContext(**blocks), single=True)
+        SLAVE_TYPE[config['type']](context, identity=identity,
+                                   address=(config.get('host'), config.get('port')) if (
+                                           config['type'] == 'tcp' or 'udp') else None,
+                                   port=config.get('port') if config['type'] == 'serial' else None,
+                                   framer=FRAMER_TYPE[config['method']])
+
+    def __modify_main_config(self):
+        config = self.__config['slave']
+
+        values = config.pop('values')
+        device = config
+
+        for (register, reg_values) in values.items():
+            for value in reg_values:
+                for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
+                    if not device.get(section):
+                        device[section] = []
+
+                    for item in value.get(section, []):
+                        device[section].append({**item, 'functionCode': FUNCTION_CODE_READ[register]})
+
+        self.__config['master']['slaves'].append(device)
 
     def __load_slaves(self):
         self.__slaves = [
@@ -145,6 +236,7 @@ class ModbusConnector(Connector, Thread):
     def close(self):
         self.__stopped = True
         self.__stop_connections_to_masters()
+        StopServer()
         log.info('%s has been stopped.', self.get_name())
 
     def get_name(self):
