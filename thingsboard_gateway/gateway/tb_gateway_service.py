@@ -24,6 +24,7 @@ from threading import RLock, Thread
 from time import sleep, time
 
 from simplejson import dumps, load, loads
+from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME
 from yaml import safe_load
 
 from thingsboard_gateway.gateway.tb_client import TBClient
@@ -87,7 +88,6 @@ class TBGatewayService:
         self.name = ''.join(choice(ascii_lowercase) for _ in range(64))
         self.__rpc_register_queue = Queue(-1)
         self.__rpc_requests_in_progress = {}
-        self.__connected_devices_file = "connected_devices.json"
         self.tb_client = TBClient(self.__config["thingsboard"], self._config_dir)
         try:
             self.tb_client.disconnect()
@@ -747,15 +747,15 @@ class TBGatewayService:
 
     def __load_persistent_devices(self):
         devices = {}
-        if self.__connected_devices_file in listdir(self._config_dir) and \
-                path.getsize(self._config_dir + self.__connected_devices_file) > 0:
+        if CONNECTED_DEVICES_FILENAME in listdir(self._config_dir) and \
+                path.getsize(self._config_dir + CONNECTED_DEVICES_FILENAME) > 0:
             try:
-                with open(self._config_dir + self.__connected_devices_file) as devices_file:
+                with open(self._config_dir + CONNECTED_DEVICES_FILENAME) as devices_file:
                     devices = load(devices_file)
             except Exception as e:
                 log.exception(e)
         else:
-            connected_devices_file = open(self._config_dir + self.__connected_devices_file, 'w')
+            connected_devices_file = open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w')
             connected_devices_file.close()
 
         if devices is not None:
@@ -763,7 +763,7 @@ class TBGatewayService:
             for device_name in devices:
                 try:
                     if not isinstance(devices[device_name], tuple):
-                        open(self._config_dir + self.__connected_devices_file, 'w').close()
+                        open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w').close()
                         log.debug("Old connected_devices file, new file will be created")
                         return
                     if self.available_connectors.get(devices[device_name][0]):
@@ -781,7 +781,7 @@ class TBGatewayService:
             self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices
 
     def __save_persistent_devices(self):
-        with open(self._config_dir + self.__connected_devices_file, 'w') as config_file:
+        with open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w') as config_file:
             try:
                 data_to_save = {}
                 for device in self.__connected_devices:
