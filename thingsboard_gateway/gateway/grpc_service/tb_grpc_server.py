@@ -12,7 +12,7 @@ class TBGRPCServer(messages_pb2_grpc.TBGatewayProtoServiceServicer):
         self.__write_queue = SimpleQueue()
 
     def write(self, context, msg: FromServiceMessage):
-        self.__write_queue.put(msg, True, 100)
+        self.__write_queue.put(msg, True, 10)
 
     async def __read_task(self, context, request_iter):
         async for msg in request_iter:

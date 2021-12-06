@@ -26,12 +26,9 @@ GATEWAY_ATTRIBUTES_RESPONSE_TOPIC = "v1/gateway/attributes/response"
 GATEWAY_MAIN_TOPIC = "v1/gateway/"
 GATEWAY_RPC_TOPIC = "v1/gateway/rpc"
 GATEWAY_RPC_RESPONSE_TOPIC = "v1/gateway/rpc/response"
+GATEWAY_CLAIMING_TOPIC = "v1/gateway/claim"
 
 log = logging.getLogger("tb_connection")
-
-
-class TBGatewayAPI:
-    pass
 
 
 class TBGatewayMqttClient(TBDeviceMqttClient):
@@ -199,4 +196,15 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         info = self._client.publish(GATEWAY_RPC_TOPIC,
                                     dumps({"device": device, "id": req_id, "data": resp}),
                                     qos=quality_of_service)
+        return info
+
+    def gw_claim(self, device_name, secret_key, duration, claiming_request=None):
+        if claiming_request is None:
+            claiming_request = {
+                device_name: {
+                    "secretKey": secret_key,
+                    "durationMs": duration
+                    }
+                }
+        info = self._client.publish(GATEWAY_CLAIMING_TOPIC, dumps(claiming_request), qos=self.quality_of_service)
         return info

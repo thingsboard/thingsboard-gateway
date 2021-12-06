@@ -63,4 +63,8 @@ class GrpcDownlinkConverter(Converter):
 
     @staticmethod
     def __convert_unregister_connector_msg(basic_msg, msg):
-        pass
+        if msg is None:
+            msg = b''
+        unreg_msg = UnregisterConnectorMsg()
+        unreg_msg.connectorKey = msg
+        basic_msg.unregisterConnectorMsg.MergeFrom(unreg_msg)

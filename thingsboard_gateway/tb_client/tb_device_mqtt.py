@@ -29,6 +29,7 @@ ATTRIBUTES_TOPIC = 'v1/devices/me/attributes'
 ATTRIBUTES_TOPIC_REQUEST = 'v1/devices/me/attributes/request/'
 ATTRIBUTES_TOPIC_RESPONSE = 'v1/devices/me/attributes/response/'
 TELEMETRY_TOPIC = 'v1/devices/me/telemetry'
+CLAIMING_TOPIC = 'v1/devices/me/claim'
 log = logging.getLogger("tb_connection")
 
 
@@ -358,3 +359,11 @@ class TBDeviceMqttClient:
                         callback(None, TBTimeoutException("Timeout while waiting for a reply from ThingsBoard!"))
             else:
                 time.sleep(0.2)
+
+    def claim(self, secret_key, duration=30000):
+        claiming_request = {
+            "secretKey": secret_key,
+            "durationMs": duration
+            }
+        info = TBPublishInfo(self._client.publish(CLAIMING_TOPIC, dumps(claiming_request), qos=self.quality_of_service))
+        return info
