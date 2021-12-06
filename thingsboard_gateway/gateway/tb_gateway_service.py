@@ -138,6 +138,7 @@ class TBGatewayService:
         self.connectors_configs = {}
         self.__remote_configurator = None
         self.__request_config_after_connect = False
+        self.__connected_devices = {}
         self.__load_persistent_devices()
         self.__init_remote_configuration()
         self._load_connectors()
