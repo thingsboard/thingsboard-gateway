@@ -24,6 +24,7 @@ from threading import RLock, Thread
 from time import sleep, time
 
 from simplejson import JSONDecodeError, dumps, load, loads
+from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME
 from yaml import safe_load
 
 from thingsboard_gateway.gateway.constant_enums import DeviceActions
@@ -898,7 +899,7 @@ class TBGatewayService:
             for device_name in devices:
                 try:
                     if not isinstance(devices[device_name], tuple):
-                        open(self._config_dir + self.__connected_devices_file, 'w').close()
+                        open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w').close()
                         log.debug("Old connected_devices file, new file will be created")
                         return
                     if self.available_connectors.get(devices[device_name][0]):
