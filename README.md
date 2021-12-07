@@ -8,6 +8,17 @@ To connect with ThingsBoard, the gateways utilize an open-source software stack 
 Follow the instructions [here](https://thingsboard.io/docs/iot-gateway/getting-started/) to configure the gateway and the instructions [here](https://thingsboard.io/docs/iot-gateway/install/source-installation/) to install the gateway from source.
 
 **NOTE:** Skip "Step 2" of the source install instructions. There is no need to clone from the official repository as the source code already lives in [thingsboard-gateway](./thingsboard-gateway)
+
+## Git Setup
+1. `sudo apt install git` - Install git onto the gateway
+2. `ssh-keygen` - Generate an ssh key
+    * You do not need to enter a passphrase or specify an alternate location to store the key - simply leave the prompts blank and hit enter. However, take note of the location the prompt says the key will be saved to (ex.: /home/pi/.ssh/id_rsa.pub)
+3. On GitHub, go to your [settings](https://github.com/settings) and select "SSH and GPG keys"
+4. Select the green "New SSH Key" button
+5. Give the key a title of your choice (ex.:VarIoT Board)
+6. `cat [KEY LOCATION]/id_rsa.pub` - Print your ssh key to the command line
+7. Copy the result of the above command, paste it into "Key" on GitHub, and save
+8. `git clone git@github.com:drexelwireless/thingsboard-gateway.git` - Clone the repository
 ## BLE
 Coming soon...
 

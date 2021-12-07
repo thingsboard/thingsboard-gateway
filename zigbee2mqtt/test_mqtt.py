@@ -6,7 +6,7 @@ MOTION_ACCESS_TOKEN = "UIjn08YIkHjfE4jzF8N3"
 
 # The callback for when the client receives a CONNACK response from the server
 def on_connect_local_temp(client, userdata, flags, rc):
-    print("Connected with result code "+str(rc))
+    print("Temperature Connected with result code "+str(rc))
 
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
@@ -14,7 +14,7 @@ def on_connect_local_temp(client, userdata, flags, rc):
 
 # The callback for when the client receives a CONNACK response from the server
 def on_connect_local_motion(client, userdata, flags, rc):
-    print("Connected with result code "+str(rc))
+    print("Motion Connected with result code "+str(rc))
 
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
@@ -40,7 +40,7 @@ local_client_temp.connect("localhost", 1883, 60)
 local_client_motion = mqtt.Client()
 local_client_motion.on_connect = on_connect_local_motion
 local_client_motion.on_message = on_message_motion
-local_client_temp.connect("localhost", 1883, 60)
+local_client_motion.connect("localhost", 1883, 60)
 
 temp_thingsboard_client = mqtt.Client()
 temp_thingsboard_client.username_pw_set(TEMP_ACCESS_TOKEN)
