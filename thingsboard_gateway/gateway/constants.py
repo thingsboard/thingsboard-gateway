@@ -27,6 +27,8 @@ CONFIG_SECTION_PARAMETER = "config"
 CONFIG_SERVER_SECTION_PARAMETER = "server"
 CONFIG_DEVICES_SECTION_PARAMETER = "devices"
 
+CONNECTED_DEVICES_FILENAME = "connected_devices.json"
+
 # Data parameter constants
 
 DEVICE_SECTION_PARAMETER = "device"
