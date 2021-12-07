@@ -1,51 +1,44 @@
-# ThingsBoard IoT Gateway  
+# Campus-Scale IoT Gateway Components
+This repository contains the necessary instructions and components to set up a gateway within the Campus-Scale IoT infrastruture
 
-The Thingsboard **IoT Gateway** is an open-source solution that allows you to integrate devices connected to legacy and third-party systems with Thingsboard.  
+## Initialize Gateway
 
-Thingsboard is an open-source IoT platform for data collection, processing, visualization, and device management. See [**What is Thingsboard?**](https://thingsboard.io/docs/getting-started-guides/what-is-thingsboard/) if you are new platform user.  
+To connect with ThingsBoard, the gateways utilize an open-source software stack called ThingsBoard gateway, the source code for which can be found in [thingsboard-gateway](./thingsboard-gateway)
 
-[**What is ThingsBoard IoT Gateway?**](https://thingsboard.io/docs/iot-gateway/what-is-iot-gateway/)  
-[**Getting started with ThingsBoard IoT Gateway**](https://thingsboard.io/docs/iot-gateway/getting-started/)
+Follow the instructions [here](https://thingsboard.io/docs/iot-gateway/getting-started/) to configure the gateway and the instructions [here](https://thingsboard.io/docs/iot-gateway/install/source-installation/) to install the gateway from source.
 
-[![**What is ThingsBoard IoT Gateway?**](https://thingsboard.io/images/gateway/python-gateway-animd-ab-ff.svg)](https://thingsboard.io/docs/iot-gateway/what-is-iot-gateway/)
+**NOTE:** Skip "Step 2" of the source install instructions. There is no need to clone from the official repository as the source code already lives in [thingsboard-gateway](./thingsboard-gateway)
 
-### Gateway features
+## Git Setup
+1. `sudo apt install git` - Install git onto the gateway
+2. `ssh-keygen` - Generate an ssh key
+    * You do not need to enter a passphrase or specify an alternate location to store the key - simply leave the prompts blank and hit enter. However, take note of the location the prompt says the key will be saved to (ex.: /home/pi/.ssh/id_rsa.pub)
+3. On GitHub, go to your [settings](https://github.com/settings) and select "SSH and GPG keys"
+4. Select the green "New SSH Key" button
+5. Give the key a title of your choice (ex.:VarIoT Board)
+6. `cat [KEY LOCATION]/id_rsa.pub` - Print your ssh key to the command line
+7. Copy the result of the above command, paste it into "Key" on GitHub, and save
+8. `git clone git@github.com:drexelwireless/thingsboard-gateway.git` - Clone the repository
+## BLE
+Coming soon...
 
-Thingsboard IoT Gateway provides following features:  
+## WiFi
+Coming soon...
 
- - [**OPC-UA** connector](https://thingsboard.io/docs/iot-gateway/config/opc-ua/) to collect data from devices that are connected to OPC-UA servers.
- - [**MQTT** connector](https://thingsboard.io/docs/iot-gateway/config/mqtt/) to collect data that is published to external MQTT brokers. 
- - [**Modbus** connector](https://thingsboard.io/docs/iot-gateway/config/modbus/) to collect data from Modbus servers and slaves.
- - [**BLE** connector](https://thingsboard.io/docs/iot-gateway/config/ble/) to collect data from BLE devices.
- - [**Request** connector](https://thingsboard.io/docs/iot-gateway/config/request/) to collect data from HTTP API.
- - [**CAN** connector](https://thingsboard.io/docs/iot-gateway/config/can/) to collect data using CAN protocol.
- - [**BACnet** connector](https://thingsboard.io/docs/iot-gateway/config/bacnet/) to collect data from devices using BACnet protocol.
- - [**ODBC** connector](https://thingsboard.io/docs/iot-gateway/config/odbc/) to collect data from ODBC databases.
- - [**Custom** connector](https://thingsboard.io/docs/iot-gateway/custom/) to collect data from custom protocols.
- - **Persistence** of collected data to guarantee data delivery in case of network and hardware failures.
- - **Automatic reconnect** to Thingsboard cluster.
- - Simple yet powerful **mapping** of incoming data and messages **to unified format**.
- - [Remote logging feature](https://thingsboard.io/docs/iot-gateway/guides/how-to-enable-remote-logging/) to monitor the gateway status through the ThingsBoard WEB interface.
- - [RPC gateway methods](https://thingsboard.io/docs/iot-gateway/guides/how-to-use-gateway-rpc-methods/) to control and get information from the gateway through ThingsBoard WEB interface.
-  
-### Architecture  
+## ZigBee
+### Hardware:
+* Texas Instruments LAUNCHXL-CC1352P-2
 
-The IoT Gateway is built on top of **Python**, however is different from similar projects that leverage OSGi technology.
-The idea is distantly similar to microservices architecture.  
-The gateway supports custom connectors to connect to new devices or servers and custom converters for processing data from devices.  
-Especially, when we are talking about language APIs and existing libraries to work with serial ports, GPIOs, I2C, and new modules and sensors that are released every day.  
+Follow instructions [here](https://www.zigbee2mqtt.io/guide/adapters/#recommended) under the aforementioned hardware to set the development board up as a ZigBee coordinator
 
-The Gateway provides simple integration APIs, and encapsulates common Thingsboard related tasks: device provisioning, local data persistence and delivery, message converters and other.  
-For processing data from devices you also can write custom converter, it will receive information from device and send it to converter to convert to unified format before sending it to the ThingsBoard cluster.  
+### Software:
+To set up zigbee2mqtt, follow the instructions as laid out in the [official documentation](https://www.zigbee2mqtt.io/guide/installation/01_linux.html)
 
-## Support
+* In addition to the required steps, follow the steps as laid out in "(Optional) Running as a daemon with systemctl" to run zigbee2mqtt as a service in the background
 
- - [Community chat](https://gitter.im/thingsboard/chat)
- - [Q&A forum](https://groups.google.com/forum/#!forum/thingsboard)
- - [Stackoverflow](http://stackoverflow.com/questions/tagged/thingsboard)
- 
-**Don't forget to star the repository to show your ❤️ and support.**
+Pair your ZigBee devices by following the steps as laid out [here](https://www.zigbee2mqtt.io/guide/usage/pairing_devices.html)
 
-## Licenses
-
-This project is released under [Apache 2.0 License](./LICENSE).
+Update the [test Python script](./zigbee2mqtt/test_mqtt.py) with any updated information (access tokens, zigbee2mqtt topics, etc.) and run the script by executing:
+* `python ./zigbee2mqtt/test_mqtt.py`
+## LoRa
+Coming soon...
