@@ -13,7 +13,6 @@
 #      limitations under the License.
 
 from thingsboard_gateway.connectors.converter import Converter, log
-from thingsboard_gateway.gateway.constant_enums import UplinkMessageType
 from thingsboard_gateway.gateway.proto.messages_pb2 import ConnectMsg, DisconnectMsg, GatewayAttributesMsg, GatewayAttributesRequestMsg, GatewayClaimMsg, \
     GatewayRpcResponseMsg, GatewayTelemetryMsg, KeyValueProto, KeyValueType, Response
 
@@ -21,22 +20,22 @@ from thingsboard_gateway.gateway.proto.messages_pb2 import ConnectMsg, Disconnec
 class GrpcUplinkConverter(Converter):
     def __init__(self):
         self.__conversion_methods = {
-            UplinkMessageType.Response: self.__convert_response_msg,
-            UplinkMessageType.GatewayTelemetryMsg: self.__convert_gateway_telemetry_msg,
-            UplinkMessageType.GatewayAttributesMsg: self.__convert_gateway_attributes_msg,
-            UplinkMessageType.GatewayClaimMsg: self.__convert_gateway_claim_msg,
-            UplinkMessageType.ConnectMsg: self.__convert_connect_msg,
-            UplinkMessageType.DisconnectMsg: self.__convert_disconnect_msg,
-            UplinkMessageType.GatewayRpcResponseMsg: self.__convert_gateway_rpc_response_msg,
-            UplinkMessageType.GatewayAttributesRequestMsg: self.__convert_gateway_attributes_request_msg
+            Response.DESCRIPTOR: self.__convert_response_msg,
+            GatewayTelemetryMsg.DESCRIPTOR: self.__convert_gateway_telemetry_msg,
+            GatewayAttributesMsg.DESCRIPTOR: self.__convert_gateway_attributes_msg,
+            GatewayClaimMsg.DESCRIPTOR: self.__convert_gateway_claim_msg,
+            ConnectMsg.DESCRIPTOR: self.__convert_connect_msg,
+            DisconnectMsg.DESCRIPTOR: self.__convert_disconnect_msg,
+            GatewayRpcResponseMsg.DESCRIPTOR: self.__convert_gateway_rpc_response_msg,
+            GatewayAttributesRequestMsg.DESCRIPTOR: self.__convert_gateway_attributes_request_msg
             }
 
     def convert(self, config, data):
         try:
-            if self.__conversion_methods.get(config) is not None:
-                return self.__conversion_methods[config](data)
+            if self.__conversion_methods.get(data.DESCRIPTOR) is not None:
+                return self.__conversion_methods[data.DESCRIPTOR](data)
             else:
-                log.error("[GRPC] unknown uplink message type: %r", config)
+                log.error("[GRPC] unknown uplink message descriptor: %r", data.DESCRIPTOR)
                 return {}
         except Exception as e:
             log.exception("[GRPC] ", e)

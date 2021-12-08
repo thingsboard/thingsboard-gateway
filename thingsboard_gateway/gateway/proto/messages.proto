@@ -5,10 +5,12 @@ package messages;
 
 message Response {
   ResponseStatus status = 1;
+  FromServiceMessage serviceMessage = 2;
+  FromConnectorMessage connectorMessage = 3;
 }
 
 service TBGatewayProtoService {
-    rpc stream(stream FromConnectorMessage) returns (stream FromServiceMessage);
+    rpc stream(FromConnectorMessage) returns (FromServiceMessage);
 }
 
 message FromConnectorMessage {

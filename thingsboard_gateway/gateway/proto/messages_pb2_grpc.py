@@ -14,7 +14,7 @@ class TBGatewayProtoServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.stream = channel.stream_stream(
+        self.stream = channel.unary_unary(
                 '/messages.TBGatewayProtoService/stream',
                 request_serializer=messages__pb2.FromConnectorMessage.SerializeToString,
                 response_deserializer=messages__pb2.FromServiceMessage.FromString,
@@ -24,7 +24,7 @@ class TBGatewayProtoServiceStub(object):
 class TBGatewayProtoServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def stream(self, request_iterator, context):
+    def stream(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -33,7 +33,7 @@ class TBGatewayProtoServiceServicer(object):
 
 def add_TBGatewayProtoServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'stream': grpc.stream_stream_rpc_method_handler(
+            'stream': grpc.unary_unary_rpc_method_handler(
                     servicer.stream,
                     request_deserializer=messages__pb2.FromConnectorMessage.FromString,
                     response_serializer=messages__pb2.FromServiceMessage.SerializeToString,
@@ -49,7 +49,7 @@ class TBGatewayProtoService(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def stream(request_iterator,
+    def stream(request,
             target,
             options=(),
             channel_credentials=None,
@@ -59,7 +59,7 @@ class TBGatewayProtoService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.stream_stream(request_iterator, target, '/messages.TBGatewayProtoService/stream',
+        return grpc.experimental.unary_unary(request, target, '/messages.TBGatewayProtoService/stream',
             messages__pb2.FromConnectorMessage.SerializeToString,
             messages__pb2.FromServiceMessage.FromString,
             options, channel_credentials,

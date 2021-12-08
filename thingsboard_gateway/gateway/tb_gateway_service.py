@@ -332,33 +332,33 @@ class TBGatewayService:
     def __check_shared_attributes(self):
         self.tb_client.client.request_attributes(callback=self._attributes_parse)
 
-    def __register_connector(self, context, connector_key):
+    def __register_connector(self, session_id, connector_key):
         if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key]['name'] not in self.available_connectors:
             target_connector = self.__grpc_connectors.get(connector_key)
             connector = GrpcConnector(self, target_connector['config'], self.__grpc_manager)
             connector.setName(target_connector['name'])
             self.available_connectors[connector.get_name()] = connector
-            self.__grpc_manager.registration_finished(Status.SUCCESS, context, target_connector)
+            self.__grpc_manager.registration_finished(Status.SUCCESS, session_id, target_connector)
             log.info("GRPC connector with key %s registered with name %s", connector_key, connector.get_name())
         elif self.__grpc_connectors.get(connector_key) is not None:
-            self.__grpc_manager.registration_finished(Status.FAILURE, context, None)
+            self.__grpc_manager.registration_finished(Status.FAILURE, session_id, None)
             log.error("GRPC connector with key: %s - already registered!", connector_key)
         else:
-            self.__grpc_manager.registration_finished(Status.NOT_FOUND, context, None)
+            self.__grpc_manager.registration_finished(Status.NOT_FOUND, session_id, None)
             log.error("GRPC configuration for connector with key: %s - not found", connector_key)
 
-    def __unregister_connector(self, context, connector_key):
+    def __unregister_connector(self, session_id, connector_key):
         if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key]['name'] in self.available_connectors:
             connector_name = self.__grpc_connectors[connector_key]['name']
             target_connector: GrpcConnector = self.available_connectors.pop(connector_name)
             target_connector.close()
-            self.__grpc_manager.unregister(Status.SUCCESS, context, target_connector)
+            self.__grpc_manager.unregister(Status.SUCCESS, session_id, target_connector)
             log.info("GRPC connector with key %s and name %s - unregistered", connector_key, target_connector.get_name())
         elif self.__grpc_connectors.get(connector_key) is not None:
-            self.__grpc_manager.unregister(Status.NOT_FOUND, context, None)
+            self.__grpc_manager.unregister(Status.NOT_FOUND, session_id, None)
             log.error("GRPC connector with key: %s - is not registered!", connector_key)
         else:
-            self.__grpc_manager.unregister(Status.FAILURE, context, None)
+            self.__grpc_manager.unregister(Status.FAILURE, session_id, None)
             log.error("GRPC configuration for connector with key: %s - not found in configuration and not registered", connector_key)
 
     def _load_connectors(self):
@@ -471,13 +471,14 @@ class TBGatewayService:
                     data_array = event if isinstance(event, list) else [event]
                     for data in data_array:
                         if not connector_name == self.name:
+                            device_type_is_required = True
                             if data.get('deviceType') is None and data['deviceName'] in self.get_devices():
-                                data['deviceType'] = self.get_devices()[data['deviceName']].get('device_type', "default")
+                                device_type_is_required = False
                             if 'telemetry' not in data:
                                 data['telemetry'] = []
                             if 'attributes' not in data:
                                 data['attributes'] = []
-                            if not TBUtility.validate_converted_data(data):
+                            if not TBUtility.validate_converted_data(data, device_type_is_required):
                                 log.error("Data from %s connector is invalid.", connector_name)
                                 continue
                             if data["deviceName"] not in self.get_devices() and self.tb_client.is_connected():
@@ -898,7 +899,7 @@ class TBGatewayService:
             log.debug("Loaded devices:\n %s", devices)
             for device_name in devices:
                 try:
-                    if not isinstance(devices[device_name], tuple):
+                    if not isinstance(devices[device_name], list):
                         open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w').close()
                         log.debug("Old connected_devices file, new file will be created")
                         return

@@ -21,7 +21,7 @@ from time import sleep
 import grpc
 from simplejson import dumps
 
-from thingsboard_gateway.gateway.constant_enums import DownlinkMessageType, UplinkMessageType
+from thingsboard_gateway.gateway.constant_enums import DownlinkMessageType
 from thingsboard_gateway.gateway.grpc_service.grpc_downlink_converter import GrpcDownlinkConverter
 from thingsboard_gateway.gateway.grpc_service.grpc_uplink_converter import GrpcUplinkConverter
 from thingsboard_gateway.gateway.grpc_service.tb_grpc_server import TBGRPCServer
@@ -63,102 +63,110 @@ class TBGRPCServerManager(Thread):
         while not self._stopped:
             sleep(.01)
 
-    def incoming_messages_cb(self, context, msg: FromConnectorMessage):
-        log.debug("Connected client with peer address: %s", context.peer())
-        if context.peer() not in self.sessions:
-            self.sessions[context.peer()] = {"context": context}
-        else:
-            log.debug("Existing client context is: %s", self.sessions[context.peer()])
+    def incoming_messages_cb(self, session_id, msg: FromConnectorMessage):
+        log.debug("Connected client with identifier: %s", session_id)
+        # if session_id not in self.sessions:
+        #     self.sessions[session_id] = {"context": context}
+        # else:
+        #     log.debug("Existing client context is: %s", self.sessions[session_id])
+        #     self.sessions[session_id]["context"] = context
         log.debug("[GRPC] incoming message: %s", msg)
         try:
             outgoing_message = None
+            downlink_converter_config = {"message_type": [DownlinkMessageType.Response], "additional_message": msg}
             if msg.HasField("registerConnectorMsg"):
-                self.__register_connector(context, msg.registerConnectorMsg.connectorKey)
+                self.__register_connector(session_id, msg.registerConnectorMsg.connectorKey)
                 outgoing_message = True
             elif msg.HasField("unregisterConnectorMsg"):
-                self.__unregister_connector(context, msg.unregisterConnectorMsg.connectorKey)
+                self.__unregister_connector(session_id, msg.unregisterConnectorMsg.connectorKey)
                 outgoing_message = True
-            elif self.sessions[context.peer()].get('name') is not None:
+            elif self.sessions.get(session_id) is not None and self.sessions[session_id].get('name') is not None:
                 if msg.HasField("response"):
-                    pass
+                    if msg.response.ByteSize() == 0:
+                        outgoing_message = True
                 if msg.HasField("gatewayTelemetryMsg"):
-                    data = self.__uplink_converter.convert(UplinkMessageType.GatewayTelemetryMsg, msg.gatewayTelemetryMsg)
-                    result_status = self.__gateway.send_to_storage(self.sessions[context.peer()]['name'], data)
-                    outgoing_message = self.__downlink_converter.convert([DownlinkMessageType.Response], result_status)
+                    data = self.__uplink_converter.convert(None, msg.gatewayTelemetryMsg)
+                    result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], data)
+                    outgoing_message = True
                 if msg.HasField("gatewayAttributesMsg"):
-                    data = self.__uplink_converter.convert(UplinkMessageType.GatewayAttributesMsg, msg.gatewayAttributesMsg)
-                    result_status = self.__gateway.send_to_storage(self.sessions[context.peer()]['name'], data)
-                    outgoing_message = self.__downlink_converter.convert([DownlinkMessageType.Response], result_status)
+                    data = self.__uplink_converter.convert(None, msg.gatewayAttributesMsg)
+                    result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], data)
+                    outgoing_message = True
                 if msg.HasField("gatewayClaimMsg"):
-                    data = self.__uplink_converter.convert(UplinkMessageType.GatewayClaimMsg, msg.gatewayAttributesMsg)
-                    result_status = self.__gateway.send_to_storage(self.sessions[context.peer()]['name'], data)
-                    outgoing_message = self.__downlink_converter.convert([DownlinkMessageType.Response], result_status)
+                    message_for_conversion = msg.gatewayClaimMsg
+                    data = self.__uplink_converter.convert(None, message_for_conversion)
+                    result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], data)
+                    outgoing_message = self.__downlink_converter.convert(downlink_converter_config, result_status)
                 if msg.HasField("connectMsg"):
-                    data = self.__uplink_converter.convert(UplinkMessageType.ConnectMsg, msg.connectMsg)
-                    data['name'] = self.sessions[context.peer()]['name']
+                    message_for_conversion = msg.connectMsg
+                    data = self.__uplink_converter.convert(None, message_for_conversion)
+                    data['name'] = self.sessions[session_id]['name']
                     result_status = self.__gateway.add_device_async(data)
-                    outgoing_message = self.__downlink_converter.convert([DownlinkMessageType.Response], result_status)
+                    outgoing_message = self.__downlink_converter.convert(downlink_converter_config, result_status)
                 if msg.HasField("disconnectMsg"):
-                    data = self.__uplink_converter.convert(UplinkMessageType.DisconnectMsg, msg.connectMsg)
-                    data['name'] = self.sessions[context.peer()]['name']
+                    message_for_conversion = msg.disconnectMsg
+                    data = self.__uplink_converter.convert(None, message_for_conversion)
+                    data['name'] = self.sessions[session_id]['name']
                     result_status = self.__gateway.del_device_async(data)
-                    outgoing_message = self.__downlink_converter.convert([DownlinkMessageType.Response], result_status)
+                    outgoing_message = self.__downlink_converter.convert(downlink_converter_config, result_status)
                 if msg.HasField("gatewayRpcResponseMsg"):
                     pass
                 if msg.HasField("gatewayAttributeRequestMsg"):
                     pass
             else:
-                outgoing_message = self.__downlink_converter.convert([DownlinkMessageType.UnregisterConnectorMsg], None)
+                outgoing_message = self.__downlink_converter.convert(downlink_converter_config, Status.FAILURE)
             if outgoing_message is None:
                 log.debug("Cannot convert outgoing message!")
             elif isinstance(outgoing_message, FromServiceMessage):
-                self.__grpc_server.write(context, outgoing_message)
+                self.__grpc_server.write(session_id, outgoing_message)
         except ValueError as e:
             log.error("Received unknown GRPC message!", e)
 
     def write(self, connector_name, msg: FromServiceMessage):
         log.debug("[GRPC] outgoing message: %s", msg)
-        grpc_client_peer = self.__connectors_sessions.get(connector_name)
+        session_id = self.__connectors_sessions.get(connector_name)
 
-        if grpc_client_peer is not None:
-            grpc_session = self.sessions[grpc_client_peer]
-            self.__grpc_server.write(grpc_session['context'], msg)
+        if session_id is not None:
+            self.__grpc_server.write(session_id, msg)
         else:
             log.warning("Cannot write to connector with name %s, session is not found. Client is not registered!", connector_name)
 
-    def registration_finished(self, registration_result: Status, context, connector_configuration):
+    def registration_finished(self, registration_result: Status, session_id, connector_configuration):
+        additional_message = FromConnectorMessage()
+        additional_message.registerConnectorMsg.MergeFrom(RegisterConnectorMsg())
         if registration_result == Status.SUCCESS:
             connector_name = connector_configuration['name']
-            self.sessions[context.peer()].update({"config": connector_configuration,
-                                                  "name": connector_name})
-            self.__connectors_sessions[connector_name] = context.peer()
-            msg = self.__grpc_server.get_response("SUCCESS")
+            self.sessions[session_id] = {"config": connector_configuration, "name": connector_name}
+            self.__connectors_sessions[connector_name] = session_id
+            msg = self.__grpc_server.get_response("SUCCESS", additional_message)
             configuration_msg = ConnectorConfigurationMsg()
             configuration_msg.connectorName = connector_name
             configuration_msg.configuration = dumps(connector_configuration['config'])
             msg.connectorConfigurationMsg.MergeFrom(configuration_msg)
-            self.__grpc_server.write(context, msg)
+            self.__grpc_server.write(session_id, msg)
             log.debug('Connector "%s" configuration sent!', connector_name)
         elif registration_result == Status.NOT_FOUND:
-            msg = self.__grpc_server.get_response("NOT_FOUND")
-            self.__grpc_server.write(context, msg)
+            msg = self.__grpc_server.get_response("NOT_FOUND", additional_message)
+            self.__grpc_server.write(session_id, msg)
         elif registration_result == Status.FAILURE:
-            msg = self.__grpc_server.get_response("FAILURE")
-            self.__grpc_server.write(context, msg)
+            msg = self.__grpc_server.get_response("FAILURE", additional_message)
+            self.__grpc_server.write(session_id, msg)
 
-    def unregister(self, unregistration_result: Status, context, connector):
+    def unregister(self, unregistration_result: Status, session_id, connector):
+        additional_message = FromConnectorMessage()
+        additional_message.unregisterConnectorMsg.MergeFrom(UnregisterConnectorMsg())
         if unregistration_result == Status.SUCCESS:
             connector_name = connector.get_name()
-            grpc_client_peer = self.__connectors_sessions.pop(connector_name)
-            connector_session = self.sessions.pop(grpc_client_peer)
-            msg = self.__grpc_server.get_response("SUCCESS")
-            self.__grpc_server.write(context, msg)
+            connector_session_id = self.__connectors_sessions.pop(connector_name)
+            del self.sessions[connector_session_id]
+            msg = self.__grpc_server.get_response("SUCCESS", additional_message)
+            self.__grpc_server.write(session_id, msg)
         elif unregistration_result == Status.NOT_FOUND:
-            msg = self.__grpc_server.get_response("NOT_FOUND")
-            self.__grpc_server.write(context, msg)
+            msg = self.__grpc_server.get_response("NOT_FOUND", additional_message)
+            self.__grpc_server.write(session_id, msg)
         elif unregistration_result == Status.FAILURE:
-            msg = self.__grpc_server.get_response("FAILURE")
-            self.__grpc_server.write(context, msg)
+            msg = self.__grpc_server.get_response("FAILURE", additional_message)
+            self.__grpc_server.write(session_id, msg)
 
     async def serve(self, config):
         self.__aio_server = grpc.aio.server(

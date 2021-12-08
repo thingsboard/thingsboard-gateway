@@ -18,7 +18,6 @@ from thingsboard_gateway.gateway.proto.messages_pb2 import *
 
 
 class GrpcDownlinkConverter(Converter):
-
     def __init__(self):
         self.__conversion_methods = {
             DownlinkMessageType.Response: self.__convert_response_msg,
@@ -32,37 +31,46 @@ class GrpcDownlinkConverter(Converter):
     def convert(self, config, msg):
         try:
             basic_msg = FromServiceMessage()
-            if not isinstance(config, list):
-                config = [config]
-            for conf in config:
-                self.__conversion_methods[conf](basic_msg, msg)
+            message_types = config.get("message_type")
+            additional_message = config.get("additional_message")
+            if not isinstance(message_types, list):
+                message_types = [message_types]
+            for message_type in message_types:
+                self.__conversion_methods[message_type](basic_msg, msg, additional_message)
             return basic_msg
         except Exception as e:
             log.exception("[GRPC] ", e)
             return None
 
     @staticmethod
-    def __convert_response_msg(basic_msg, msg):
+    def __convert_response_msg(basic_msg, msg, additional_message):
+        if additional_message is not None:
+            if additional_message.HasField('gatewayTelemetryMsg'):
+                additional_message.gatewayTelemetryMsg.MergeFrom(GatewayTelemetryMsg())
+            elif additional_message.HasField("gatewayAttributesMsg"):
+                additional_message.gatewayTelemetryMsg.MergeFrom(GatewayTelemetryMsg())
+            else:
+                basic_msg.response.connectorMessage.MergeFrom(additional_message)
         basic_msg.response.status = ResponseStatus.Value(msg.name)
 
     @staticmethod
-    def __convert_connector_configuration_msg(basic_msg, msg):
+    def __convert_connector_configuration_msg(basic_msg, msg, additional_data=None):
         pass
 
     @staticmethod
-    def __convert_gateway_attribute_update_notification_msg(basic_msg, msg):
+    def __convert_gateway_attribute_update_notification_msg(basic_msg, msg, additional_data=None):
         pass
 
     @staticmethod
-    def __convert_gateway_attribute_response_msg(basic_msg, msg):
+    def __convert_gateway_attribute_response_msg(basic_msg, msg, additional_data=None):
         pass
 
     @staticmethod
-    def __convert_gateway_device_rpc_request_msg(basic_msg, msg):
+    def __convert_gateway_device_rpc_request_msg(basic_msg, msg, additional_data=None):
         pass
 
     @staticmethod
-    def __convert_unregister_connector_msg(basic_msg, msg):
+    def __convert_unregister_connector_msg(basic_msg, msg, additional_data=None):
         if msg is None:
             msg = b''
         unreg_msg = UnregisterConnectorMsg()

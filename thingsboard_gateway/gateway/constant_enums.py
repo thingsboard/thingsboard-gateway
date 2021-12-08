@@ -28,16 +28,3 @@ class DownlinkMessageType(Enum):
     GatewayAttributeResponseMsg = 3,
     GatewayDeviceRpcRequestMsg = 4,
     UnregisterConnectorMsg = 5
-
-
-class UplinkMessageType(Enum):
-    Response = 0,
-    GatewayTelemetryMsg = 1,
-    GatewayAttributesMsg = 2,
-    GatewayClaimMsg = 3,
-    RegisterConnectorMsg = 4,
-    UnregisterConnectorMsg = 5,
-    ConnectMsg = 6,
-    DisconnectMsg = 7,
-    GatewayRpcResponseMsg = 8,
-    GatewayAttributesRequestMsg = 9

@@ -38,11 +38,11 @@ class TBUtility:
         return content
 
     @staticmethod
-    def validate_converted_data(data):
+    def validate_converted_data(data, device_type_is_required=True):
         error = None
         if error is None and not data.get("deviceName"):
             error = 'deviceName is empty in data: '
-        if error is None and not data.get("deviceType"):
+        if device_type_is_required and error is None and not data.get("deviceType"):
             error = 'deviceType is empty in data: '
 
         if error is None:
