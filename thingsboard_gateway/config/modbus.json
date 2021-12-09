@@ -14,8 +14,6 @@
         "pollPeriod": 5000,
         "unitId": 1,
         "deviceName": "Temp Sensor",
-        "attributesPollPeriod": 5000,
-        "timeseriesPollPeriod": 5000,
         "sendDataOnlyOnChange": true,
         "connectAttemptTimeMs": 5000,
         "connectAttemptCount": 5,
