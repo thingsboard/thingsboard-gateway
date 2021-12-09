@@ -11,6 +11,10 @@
 #      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
+from time import time
+from typing import Union
+
+from simplejson import dumps
 
 from thingsboard_gateway.connectors.converter import Converter, log
 from thingsboard_gateway.gateway.constant_enums import DownlinkMessageType
@@ -59,7 +63,19 @@ class GrpcDownlinkConverter(Converter):
 
     @staticmethod
     def __convert_gateway_attribute_update_notification_msg(basic_msg, msg, additional_data=None):
-        pass
+        ts = int(time()*1000)
+        gw_attr_upd_notify_msg = GatewayAttributeUpdateNotificationMsg()
+        gw_attr_upd_notify_msg.deviceName = msg['device']
+        attr_notify_msg = AttributeUpdateNotificationMsg()
+        for shared_attribute in msg['data']:
+            ts_kv_proto = TsKvProto()
+            ts_kv_proto.ts = ts
+            kv = GrpcDownlinkConverter.__get_key_value_proto_value(shared_attribute, msg['data'][shared_attribute])
+            ts_kv_proto.kv.MergeFrom(kv)
+            attr_notify_msg.sharedUpdated.extend([ts_kv_proto])
+        gw_attr_upd_notify_msg.notificationMsg.MergeFrom(attr_notify_msg)
+        basic_msg.gatewayAttributeUpdateNotificationMsg.MergeFrom(gw_attr_upd_notify_msg)
+        return basic_msg
 
     @staticmethod
     def __convert_gateway_attribute_response_msg(basic_msg, msg, additional_data=None):
@@ -67,7 +83,19 @@ class GrpcDownlinkConverter(Converter):
 
     @staticmethod
     def __convert_gateway_device_rpc_request_msg(basic_msg, msg, additional_data=None):
-        pass
+        msg_data = msg['data']
+        gw_to_device_rpc = GatewayDeviceRpcRequestMsg()
+        gw_to_device_rpc.deviceName = msg['device']
+        rpc_request_msg = ToDeviceRpcRequestMsg()
+        rpc_request_msg.requestId = msg_data['id']
+        rpc_request_msg.methodName = msg_data['method']
+        if isinstance(msg_data['params'], dict):
+            rpc_request_msg.params = dumps(msg_data['params'])
+        else:
+            rpc_request_msg.params = str(msg_data['params'])
+        gw_to_device_rpc.rpcRequestMsg.MergeFrom(rpc_request_msg)
+        basic_msg.gatewayDeviceRpcRequestMsg.MergeFrom(gw_to_device_rpc)
+        return basic_msg
 
     @staticmethod
     def __convert_unregister_connector_msg(basic_msg, msg, additional_data=None):
@@ -76,3 +104,24 @@ class GrpcDownlinkConverter(Converter):
         unreg_msg = UnregisterConnectorMsg()
         unreg_msg.connectorKey = msg
         basic_msg.unregisterConnectorMsg.MergeFrom(unreg_msg)
+
+    @staticmethod
+    def __get_key_value_proto_value(key: str, value: Union[str, bool, int, float, dict]) -> KeyValueProto:
+        key_value_proto = KeyValueProto()
+        key_value_proto.key = key
+        if isinstance(value, bool):
+            key_value_proto.type = KeyValueType.BOOLEAN
+            key_value_proto.bool_v = value
+        elif isinstance(value, int):
+            key_value_proto.type = KeyValueType.LONG_V
+            key_value_proto.long_v = value
+        elif isinstance(value, float):
+            key_value_proto.type = KeyValueType.DOUBLE_V
+            key_value_proto.double_v = value
+        elif isinstance(value, str):
+            key_value_proto.type = KeyValueType.STRING_V
+            key_value_proto.string_v = value
+        elif isinstance(value, dict):
+            key_value_proto.type = KeyValueType.JSON_V
+            key_value_proto.json_v = dumps(value)
+        return key_value_proto

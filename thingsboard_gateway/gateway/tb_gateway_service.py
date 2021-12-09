@@ -24,7 +24,6 @@ from threading import RLock, Thread
 from time import sleep, time
 
 from simplejson import JSONDecodeError, dumps, load, loads
-from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME
 from yaml import safe_load
 
 from thingsboard_gateway.gateway.constant_enums import DeviceActions
@@ -335,7 +334,7 @@ class TBGatewayService:
     def __register_connector(self, session_id, connector_key):
         if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key]['name'] not in self.available_connectors:
             target_connector = self.__grpc_connectors.get(connector_key)
-            connector = GrpcConnector(self, target_connector['config'], self.__grpc_manager)
+            connector = GrpcConnector(self, target_connector['config'], self.__grpc_manager, session_id)
             connector.setName(target_connector['name'])
             self.available_connectors[connector.get_name()] = connector
             self.__grpc_manager.registration_finished(Status.SUCCESS, session_id, target_connector)
@@ -471,14 +470,11 @@ class TBGatewayService:
                     data_array = event if isinstance(event, list) else [event]
                     for data in data_array:
                         if not connector_name == self.name:
-                            device_type_is_required = True
-                            if data.get('deviceType') is None and data['deviceName'] in self.get_devices():
-                                device_type_is_required = False
                             if 'telemetry' not in data:
                                 data['telemetry'] = []
                             if 'attributes' not in data:
                                 data['attributes'] = []
-                            if not TBUtility.validate_converted_data(data, device_type_is_required):
+                            if not TBUtility.validate_converted_data(data):
                                 log.error("Data from %s connector is invalid.", connector_name)
                                 continue
                             if data["deviceName"] not in self.get_devices() and self.tb_client.is_connected():

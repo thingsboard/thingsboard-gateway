@@ -1,5 +1,6 @@
 from queue import SimpleQueue
 from threading import RLock, Thread
+from time import sleep
 
 import thingsboard_gateway.gateway.proto.messages_pb2_grpc as messages_pb2_grpc
 from thingsboard_gateway.gateway.proto.messages_pb2 import *
@@ -40,6 +41,8 @@ class TBGRPCServer(messages_pb2_grpc.TBGatewayProtoServiceServicer):
             if not self.__read_queue.empty():
                 context, request = self.__read_queue.get()
                 self._read_callback(context, request)
+            else:
+                sleep(.2)
 
     @staticmethod
     def get_response(status, connector_message):
