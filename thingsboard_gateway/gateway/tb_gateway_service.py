@@ -15,6 +15,7 @@
 import logging
 import logging.config
 import logging.handlers
+from copy import deepcopy
 from os import execv, listdir, path, pathsep, stat, system
 from queue import SimpleQueue
 from random import choice
@@ -350,7 +351,6 @@ class TBGatewayService:
         if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key]['name'] in self.available_connectors:
             connector_name = self.__grpc_connectors[connector_key]['name']
             target_connector: GrpcConnector = self.available_connectors.pop(connector_name)
-            target_connector.close()
             self.__grpc_manager.unregister(Status.SUCCESS, session_id, target_connector)
             log.info("GRPC connector with key %s and name %s - unregistered", connector_key, target_connector.get_name())
         elif self.__grpc_connectors.get(connector_key) is not None:
@@ -477,6 +477,14 @@ class TBGatewayService:
                             if not TBUtility.validate_converted_data(data):
                                 log.error("Data from %s connector is invalid.", connector_name)
                                 continue
+                            if data.get('deviceType') is None:
+                                device_name = data['deviceName']
+                                if self.__connected_devices.get(device_name) is not None:
+                                    data["deviceType"] = self.__connected_devices[device_name]['device_type']
+                                elif self.__saved_devices.get(device_name) is not None:
+                                    data["deviceType"] = self.__saved_devices[device_name]['device_type']
+                                else:
+                                    data["deviceType"] = "default"
                             if data["deviceName"] not in self.get_devices() and self.tb_client.is_connected():
                                 self.add_device(data["deviceName"],
                                                 {"connector": self.available_connectors[connector_name]},
@@ -488,34 +496,75 @@ class TBGatewayService:
                         else:
                             data["deviceName"] = "currentThingsBoardGateway"
 
-                        telemetry = {}
-                        telemetry_with_ts = []
-                        for item in data["telemetry"]:
-                            if item.get("ts") is None:
-                                telemetry = {**telemetry, **item}
-                            else:
-                                telemetry_with_ts.append({"ts": item["ts"], "values": {**item["values"]}})
-                        if telemetry_with_ts:
-                            data["telemetry"] = telemetry_with_ts
-                        elif len(data['telemetry']) > 0:
-                            data["telemetry"] = {"ts": int(time() * 1000), "values": telemetry}
+                        data = self.__convert_telemetry_to_ts(data)
 
-                        json_data = dumps(data)
-                        save_result = self._event_storage.put(json_data)
-                        if not save_result:
-                            log.error('Data from the device "%s" cannot be saved, connector name is %s.',
-                                      data["deviceName"],
-                                      connector_name)
+                        max_data_size = self.__config["thingsboard"].get("maxPayloadSizeBytes", 1024)
+                        if self.__get_data_size(data) >= max_data_size:
+                            adopted_data = {"deviceName": data['deviceName'],
+                                            "deviceType": data['deviceType'],
+                                            "attributes": {},
+                                            "telemetry": []}
+                            for attribute in data['attributes']:
+                                adopted_data_size = self.__get_data_size(adopted_data)
+                                if adopted_data_size >= max_data_size:
+                                    self.__send_data_pack_to_storage(adopted_data, connector_name)
+                                    adopted_data['attributes'] = {}
+                                adopted_data['attributes'].update({attribute: data['attributes'][attribute]})
+                            for ts_kv_list in data['telemetry']:
+                                ts = ts_kv_list['ts']
+                                for kv in ts_kv_list['values']:
+                                    adopted_data_size = self.__get_data_size(adopted_data)
+                                    if adopted_data_size >= max_data_size:
+                                        self.__send_data_pack_to_storage(adopted_data, connector_name)
+                                        adopted_data['telemetry'] = []
+                                    if len(adopted_data['telemetry']) == 0:
+                                        adopted_data['telemetry'] = [{'ts': ts, 'values': {kv: ts_kv_list['values'][kv]}}]
+                                    else:
+                                        for adopted_kv in adopted_data['telemetry']:
+                                            if adopted_kv['ts'] == ts:
+                                                adopted_kv['values'].update({kv: ts_kv_list['values'][kv]})
+
+                        else:
+                            self.__send_data_pack_to_storage(data, connector_name)
+
                 else:
                     sleep(0.2)
             except Exception as e:
                 log.error(e)
 
-    def check_size(self, size, devices_data_in_event_pack):
-        if size >= self.__config["thingsboard"].get("maxPayloadSizeBytes", 4096):
+    @staticmethod
+    def __get_data_size(data: dict):
+        return getsizeof(str(data))
+
+    @staticmethod
+    def __convert_telemetry_to_ts(data):
+        telemetry = {}
+        telemetry_with_ts = []
+        for item in data["telemetry"]:
+            if item.get("ts") is None:
+                telemetry = {**telemetry, **item}
+            else:
+                telemetry_with_ts.append({"ts": item["ts"], "values": {**item["values"]}})
+        if telemetry_with_ts:
+            data["telemetry"] = telemetry_with_ts
+        elif len(data['telemetry']) > 0:
+            data["telemetry"] = {"ts": int(time() * 1000), "values": telemetry}
+        return data
+
+    def __send_data_pack_to_storage(self, data, connector_name):
+        json_data = dumps(data)
+        save_result = self._event_storage.put(json_data)
+        if not save_result:
+            log.error('Data from the device "%s" cannot be saved, connector name is %s.',
+                      data["deviceName"],
+                      connector_name)
+
+    def check_size(self, devices_data_in_event_pack):
+        if self.__get_data_size(devices_data_in_event_pack) >= self.__config["thingsboard"].get("maxPayloadSizeBytes", 1024):
             self.__send_data(devices_data_in_event_pack)
-            size = 0
-        return size
+            for device in devices_data_in_event_pack:
+                devices_data_in_event_pack[device]["telemetry"] = []
+                devices_data_in_event_pack[device]["attributes"] = {}
 
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
@@ -524,7 +573,7 @@ class TBGatewayService:
         while not self.stopped:
             try:
                 if self.tb_client.is_connected():
-                    size = getsizeof(str(devices_data_in_event_pack)) - 2
+                    size = self.__get_data_size(devices_data_in_event_pack) - 2
                     events = []
 
                     if self.__remote_configurator is None or not self.__remote_configurator.in_process:
@@ -545,34 +594,28 @@ class TBGatewayService:
                             if current_event.get("telemetry"):
                                 if isinstance(current_event["telemetry"], list):
                                     for item in current_event["telemetry"]:
-                                        size += getsizeof(str(item)) - 2
-                                        size = self.check_size(size, devices_data_in_event_pack)
+                                        self.check_size(devices_data_in_event_pack)
                                         devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(
                                             item)
                                 else:
-                                    size += getsizeof(str(current_event["telemetry"])) - 2
-                                    size = self.check_size(size, devices_data_in_event_pack)
+                                    self.check_size(devices_data_in_event_pack)
                                     devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(
                                         current_event["telemetry"])
                             if current_event.get("attributes"):
                                 if isinstance(current_event["attributes"], list):
                                     for item in current_event["attributes"]:
-                                        size += getsizeof(str(item)) - 2
-                                        size = self.check_size(size, devices_data_in_event_pack)
+                                        self.check_size(devices_data_in_event_pack)
                                         devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(
                                             item.items())
                                 else:
-                                    size += getsizeof(str(current_event["attributes"].items())) - 2
-                                    size = self.check_size(size, devices_data_in_event_pack)
+                                    self.check_size(devices_data_in_event_pack)
                                     devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(
                                         current_event["attributes"].items())
-
                         if devices_data_in_event_pack:
                             if not self.tb_client.is_connected():
                                 continue
                             while self.__rpc_reply_sent:
                                 sleep(.2)
-
                             self.__send_data(devices_data_in_event_pack)
                             sleep(self.__min_pack_send_delay_ms)
 
@@ -600,7 +643,7 @@ class TBGatewayService:
                                     log.exception(e)
                                     success = False
                                 sleep(0.2)
-                            if success:
+                            if success and self.tb_client.is_connected():
                                 self._event_storage.event_pack_processing_done()
                                 del devices_data_in_event_pack
                                 devices_data_in_event_pack = {}

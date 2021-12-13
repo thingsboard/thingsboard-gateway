@@ -98,8 +98,3 @@ connectors:
 #    configuration: custom_serial.json
 #    class: CustomSerialConnector
 #
-#  -
-#    name: GRPC test
-#    key: auto
-#    type: grpc
-#    configuration: test_grpc.json

@@ -14,7 +14,7 @@
 
 import logging
 import threading
-import time
+from time import time, sleep
 from ssl import CERT_REQUIRED, PROTOCOL_TLSv1_2
 
 from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
@@ -129,15 +129,15 @@ class TBClient(threading.Thread):
                         pass
                     except Exception as e:
                         log.exception(e)
-                time.sleep(1)
+                sleep(1)
         except Exception as e:
             log.exception(e)
-            time.sleep(10)
+            sleep(10)
 
         while not self.__stopped:
             try:
                 if not self.__stopped:
-                    time.sleep(.2)
+                    sleep(.2)
                 else:
                     break
             except KeyboardInterrupt:

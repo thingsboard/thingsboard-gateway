@@ -104,6 +104,7 @@ class GrpcDownlinkConverter(Converter):
         unreg_msg = UnregisterConnectorMsg()
         unreg_msg.connectorKey = msg
         basic_msg.unregisterConnectorMsg.MergeFrom(unreg_msg)
+        return basic_msg
 
     @staticmethod
     def __get_key_value_proto_value(key: str, value: Union[str, bool, int, float, dict]) -> KeyValueProto:
