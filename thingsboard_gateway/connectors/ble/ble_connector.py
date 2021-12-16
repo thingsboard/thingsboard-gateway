@@ -29,7 +29,6 @@ except ImportError:
 
 from thingsboard_gateway.connectors.ble.bytes_ble_uplink_converter import BytesBLEUplinkConverter
 from thingsboard_gateway.connectors.connector import Connector, log
-from thingsboard_gateway.connectors.modbus.constants import *
 from thingsboard_gateway.connectors.ble.device import Device
 
 
@@ -37,8 +36,8 @@ class BLEConnector(Connector, Thread):
     process_data = Queue(-1)
 
     def __init__(self, gateway, config, connector_type):
-        self.statistics = {STATISTIC_MESSAGE_RECEIVED_PARAMETER: 0,
-                           STATISTIC_MESSAGE_SENT_PARAMETER: 0}
+        self.statistics = {'MessagesReceived': 0,
+                           'MessagesSent': 0}
         super().__init__()
         self._connector_type = connector_type
         self.__gateway = gateway
