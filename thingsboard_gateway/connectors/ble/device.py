@@ -90,8 +90,8 @@ class Device(Thread):
             if time() - self.last_polled_time >= self.poll_period:
                 self.last_polled_time = time()
                 await self.__process_self()
-
-            await asyncio.sleep(.2)
+            else:
+                await asyncio.sleep(.2)
 
     async def notify_callback(self, sender: int, data: bytearray):
         not_converted_data = {'telemetry': [], 'attributes': []}
@@ -111,8 +111,6 @@ class Device(Thread):
                     }
 
                     self.callback(data_for_converter)
-
-                    return
 
     async def notify(self, char_id):
         await self.client.start_notify(char_id, self.notify_callback)
