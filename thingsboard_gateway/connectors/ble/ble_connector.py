@@ -356,7 +356,11 @@ class BLEConnector(Connector, Thread):
             if characteristic_processing_conf.get('method', '_').upper().split()[0] == "READ":
                 if characteristic.supportsRead():
                     self.__check_and_reconnect(device)
-                    data = characteristic.read()
+                    try:
+                        data = characteristic.read()
+                    except BrokenPipeError:
+                        self.__check_and_reconnect(device)
+                        data = characteristic.read()
                     log.debug(data)
                 else:
                     log.error('This characteristic doesn\'t support "READ" method.')

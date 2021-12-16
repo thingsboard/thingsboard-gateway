@@ -119,7 +119,7 @@ class RESTConnector(Connector, Thread):
         ssl_context = None
         cert = None
         key = None
-        if self.__config['SSL']:
+        if self.__config.get('SSL', False):
             if not self.__config.get('security'):
                 if not os.path.exists('domain_srv.crt'):
                     from thingsboard_gateway.connectors.rest.ssl_generator import SSLGenerator
