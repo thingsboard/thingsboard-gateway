@@ -1,5 +1,6 @@
 {
   "name": "BLE Connector",
+  "passiveScanMode": true,
   "showMap": false,
   "scanner": {
     "timeout": 10000,
