@@ -11,6 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
 import asyncio
 from time import sleep
 from random import choice
@@ -120,7 +121,7 @@ class BLEConnector(Connector, Thread):
             if converted_data is not None:
                 self.__gateway.send_to_storage(self.get_name(), converted_data)
                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                log.debug('Data to ThingsBoard %s', converted_data)
+                log.info('Data to ThingsBoard %s', converted_data)
         except Exception as e:
             log.exception(e)
 
