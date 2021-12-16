@@ -261,40 +261,48 @@ class TBGatewayService:
         try:
             log.debug("Received data: %s", content)
             if content is not None:
-                shared_attributes = content.get("shared")
-                client_attributes = content.get("client")
-                new_configuration = shared_attributes.get(
-                    "configuration") if shared_attributes is not None and shared_attributes.get(
-                    "configuration") is not None else content.get("configuration")
-                if new_configuration is not None and self.__remote_configurator is not None:
-                    try:
-                        confirmed = self.__remote_configurator.process_configuration(new_configuration)
-                        # if confirmed:
-                        # self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
-                        #                            name="Send data to Thingsboard Thread")
-                        # self._send_thread.start()
-                        self.__remote_configurator.send_current_configuration()
-                    except Exception as e:
-                        log.exception(e)
-                remote_logging_level = shared_attributes.get(
-                    'RemoteLoggingLevel') if shared_attributes is not None else content.get("RemoteLoggingLevel")
-                if remote_logging_level == 'NONE':
-                    self.remote_handler.deactivate()
-                    log.info('Remote logging has being deactivated.')
-                elif remote_logging_level is not None:
-                    if self.remote_handler.current_log_level != remote_logging_level or not self.remote_handler.activated:
-                        self.main_handler.setLevel(remote_logging_level)
-                        self.remote_handler.activate(remote_logging_level)
-                        log.info('Remote logging has being updated. Current logging level is: %s ',
-                                 remote_logging_level)
-                if shared_attributes is not None:
+                shared_attributes = content.get("shared", {})
+                client_attributes = content.get("client", {})
+                if shared_attributes or client_attributes:
+                    self.__process_attributes_response(shared_attributes, client_attributes)
+                else:
+                    self.__process_attribute_update(content)
+
+                if shared_attributes:
                     log.debug("Shared attributes received (%s).",
                               ", ".join([attr for attr in shared_attributes.keys()]))
-                if client_attributes is not None:
+                if client_attributes:
                     log.debug("Client attributes received (%s).",
                               ", ".join([attr for attr in client_attributes.keys()]))
         except Exception as e:
             log.exception(e)
+
+    def __process_attribute_update(self, content):
+        self.__process_remote_logging_update(content.get("RemoteLoggingLevel"))
+        self.__process_remote_configuration(content.get("configuration"))
+
+    def __process_attributes_response(self, shared_attributes, client_attributes):
+        self.__process_remote_logging_update(shared_attributes.get('RemoteLoggingLevel'))
+        self.__process_remote_configuration(shared_attributes.get("configuration"))
+
+    def __process_remote_logging_update(self, remote_logging_level):
+        if remote_logging_level == 'NONE':
+            self.remote_handler.deactivate()
+            log.info('Remote logging has being deactivated.')
+        elif remote_logging_level is not None:
+            if self.remote_handler.current_log_level != remote_logging_level or not self.remote_handler.activated:
+                self.main_handler.setLevel(remote_logging_level)
+                self.remote_handler.activate(remote_logging_level)
+                log.info('Remote logging has being updated. Current logging level is: %s ',
+                         remote_logging_level)
+
+    def __process_remote_configuration(self, new_configuration):
+        if new_configuration is not None and self.__remote_configurator is not None:
+            try:
+                self.__remote_configurator.process_configuration(new_configuration)
+                self.__remote_configurator.send_current_configuration()
+            except Exception as e:
+                log.exception(e)
 
     def get_config_path(self):
         return self._config_dir
