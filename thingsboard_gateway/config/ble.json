@@ -1,14 +1,18 @@
 {
   "name": "BLE Connector",
-  "rescanIntervalSeconds": 100,
-  "checkIntervalSeconds": 100,
-  "scanTimeSeconds": 5,
   "passiveScanMode": true,
+  "showMap": false,
+  "scanner": {
+    "timeout": 10000,
+    "deviceName": "Device name"
+  },
   "devices": [
     {
       "name": "Temperature and humidity sensor",
       "MACAddress": "4C:65:A8:DF:85:C0",
-      "addrType": "public",
+      "pollPeriod": 500000,
+      "showMap": false,
+      "timeout": 10000,
       "telemetry": [
         {
           "key": "temperature",
@@ -28,8 +32,8 @@
       "attributes": [
         {
           "key": "name",
-          "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB",
           "method": "read",
+          "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB",
           "byteFrom": 0,
           "byteTo": -1
         }
@@ -46,6 +50,17 @@
           "withResponse": true,
           "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB",
           "methodProcessing": "read"
+        },
+        {
+          "methodRPC": "rpcMethod2",
+          "withResponse": true,
+          "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB",
+          "methodProcessing": "write"
+        },
+        {
+          "methodRPC": "rpcMethod3",
+          "withResponse": true,
+          "methodProcessing": "scan"
         }
       ]
     }
