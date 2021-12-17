@@ -83,6 +83,7 @@ class TBGatewayService:
         self.available_connectors = {}
         self.__connector_incoming_messages = {}
         self.__connected_devices = {}
+        self.__renamed_devices = {}
         self.__saved_devices = {}
         self.__events = []
         self.name = ''.join(choice(ascii_lowercase) for _ in range(64))
@@ -280,10 +281,14 @@ class TBGatewayService:
     def __process_attribute_update(self, content):
         self.__process_remote_logging_update(content.get("RemoteLoggingLevel"))
         self.__process_remote_configuration(content.get("configuration"))
+        self.__process_deleted_gateway_devices(content.get("deletedGatewayDevices"))
+        self.__process_renamed_gateway_devices(content.get("renamedGatewayDevices"))
 
     def __process_attributes_response(self, shared_attributes, client_attributes):
         self.__process_remote_logging_update(shared_attributes.get('RemoteLoggingLevel'))
         self.__process_remote_configuration(shared_attributes.get("configuration"))
+        self.__process_deleted_gateway_devices(shared_attributes.get("deletedGatewayDevices"))
+        self.__process_renamed_gateway_devices(shared_attributes.get("renamedGatewayDevices"))
 
     def __process_remote_logging_update(self, remote_logging_level):
         if remote_logging_level == 'NONE':
@@ -295,6 +300,26 @@ class TBGatewayService:
                 self.remote_handler.activate(remote_logging_level)
                 log.info('Remote logging has being updated. Current logging level is: %s ',
                          remote_logging_level)
+
+    def __process_deleted_gateway_devices(self, deleted_devices):
+        if deleted_devices:
+            log.debug("Received deleted gateway devices notification: %s", deleted_devices)
+            devices_list_changed = False
+            for device in deleted_devices:
+                if device in self.__connected_devices:
+                    del self.__connected_devices[device]
+                    log.debug("Device %s - was removed", device)
+                    devices_list_changed = True
+            if devices_list_changed:
+                self.__save_persistent_devices()
+                self.__load_persistent_devices()
+
+    def __process_renamed_gateway_devices(self, renamed_devices):
+        if renamed_devices:
+            log.debug("Received renamed gateway devices notification: %s", renamed_devices)
+            self.__renamed_devices = renamed_devices
+            self.__save_persistent_devices()
+            self.__load_persistent_devices()
 
     def __process_remote_configuration(self, new_configuration):
         if new_configuration is not None and self.__remote_configurator is not None:
@@ -535,12 +560,13 @@ class TBGatewayService:
     def __send_data(self, devices_data_in_event_pack):
         try:
             for device in devices_data_in_event_pack:
+                final_device_name = device if self.__renamed_devices.get(device) is None else self.__renamed_devices[device]
                 if devices_data_in_event_pack[device].get("attributes"):
                     if device == self.name or device == "currentThingsBoardGateway":
                         self._published_events.put(
                             self.tb_client.client.send_attributes(devices_data_in_event_pack[device]["attributes"]))
                     else:
-                        self._published_events.put(self.tb_client.client.gw_send_attributes(device,
+                        self._published_events.put(self.tb_client.client.gw_send_attributes(final_device_name,
                                                                                             devices_data_in_event_pack[
                                                                                                 device]["attributes"]))
                 if devices_data_in_event_pack[device].get("telemetry"):
@@ -548,7 +574,7 @@ class TBGatewayService:
                         self._published_events.put(
                             self.tb_client.client.send_telemetry(devices_data_in_event_pack[device]["telemetry"]))
                     else:
-                        self._published_events.put(self.tb_client.client.gw_send_telemetry(device,
+                        self._published_events.put(self.tb_client.client.gw_send_telemetry(final_device_name,
                                                                                            devices_data_in_event_pack[
                                                                                                device]["telemetry"]))
                 devices_data_in_event_pack[device] = {"telemetry": [], "attributes": {}}
