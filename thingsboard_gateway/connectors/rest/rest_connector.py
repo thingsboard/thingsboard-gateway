@@ -108,7 +108,7 @@ class RESTConnector(Connector, Thread):
     def __run_server(self):
         self.endpoints = self.load_endpoints()
 
-        self._app = web.Application(debug=True)
+        self._app = web.Application(debug=self.__config.get('debugMode', False))
 
         ssl_context = None
         cert = None
