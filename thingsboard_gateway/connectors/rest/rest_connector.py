@@ -108,13 +108,7 @@ class RESTConnector(Connector, Thread):
     def __run_server(self):
         self.endpoints = self.load_endpoints()
 
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError or ValueError:
-            loop = asyncio.new_event_loop()
-
-        asyncio.set_event_loop(loop)
-        self._app = web.Application(debug=True, loop=loop)
+        self._app = web.Application(debug=True)
 
         ssl_context = None
         cert = None
