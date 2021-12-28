@@ -166,10 +166,10 @@ class RESTConnector(Connector, Thread):
                                                **converted_data},
                                     "request": regular_request}
                     attribute_update_request_thread = Thread(target=self.__send_request,
-                                                                 args=(request_dict, response_queue, log),
-                                                                 daemon=True,
-                                                                 name="Attribute request to %s" % (
-                                                                     converted_data["url"]))
+                                                             args=(request_dict, response_queue, log),
+                                                             daemon=True,
+                                                             name="Attribute request to %s" % (
+                                                                 converted_data["url"]))
                     attribute_update_request_thread.start()
                     if not response_queue.empty():
                         response = response_queue.get_nowait()
@@ -184,27 +184,18 @@ class RESTConnector(Connector, Thread):
                 if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and \
                         fullmatch(rpc_request["methodFilter"], content["data"]["method"]):
                     converted_data = rpc_request["downlink_converter"].convert(rpc_request, content)
-                    response_queue = Queue(1)
+
                     request_dict = {"config": {**rpc_request,
                                                **converted_data},
                                     "request": regular_request}
                     request_dict["converter"] = request_dict["config"].get("uplink_converter")
-                    rpc_request_thread = Thread(target=self.__send_request,
-                                                args=(request_dict, response_queue, log),
-                                                daemon=True,
-                                                name="RPC request to %s" % (converted_data["url"]))
-                    rpc_request_thread.start()
-                    if not response_queue.empty():
-                        response = response_queue.get_nowait()
-                        log.debug(response)
-                        self.__gateway.send_rpc_reply(device=content["device"],
-                                                      req_id=content["data"]["id"],
-                                                      content=response[2])
-                    else:
-                        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                                      success_sent=True)
 
-                    del response_queue
+                    response = self.__send_request(request_dict, Queue(1), log, with_queue=False)
+
+                    log.debug('Response from RPC request: %s', response)
+                    self.__gateway.send_rpc_reply(device=content["device"],
+                                                  req_id=content["data"]["id"],
+                                                  content=response[2] if response and len(response) >= 3 else response)
         except Exception as e:
             log.exception(e)
 
@@ -236,20 +227,25 @@ class RESTConnector(Connector, Thread):
                                 }
                 requests_from_tb[request_section].append(request_dict)
 
-    def __send_request(self, request_dict, converter_queue, logger):
+    def __send_request(self, request_dict, converter_queue, logger, with_queue=True):
         url = ""
         try:
             request_dict["next_time"] = time() + request_dict["config"].get("scanPeriod", 10)
+
             if str(request_dict["config"]["url"]).lower().startswith("http"):
                 url = request_dict["config"]["url"]
             else:
                 url = "http://" + request_dict["config"]["url"]
+
             logger.debug(url)
             security = None
+
             if request_dict["config"]["security"]["type"].lower() == "basic":
                 security = HTTPBasicAuthRequest(request_dict["config"]["security"]["username"],
                                                 request_dict["config"]["security"]["password"])
-            request_timeout = request_dict["config"].get("timeout", 1)
+
+            request_timeout = request_dict["config"].get("timeout")
+
             try:
                 if request_dict["config"].get("data") and \
                         (isinstance(request_dict["config"]["data"], str) and loads(request_dict["config"]["data"])):
@@ -258,6 +254,7 @@ class RESTConnector(Connector, Thread):
                     data = {"data": request_dict["config"].get("data")}
             except JSONDecodeError:
                 data = {"data": request_dict.get("data")}
+
             params = {
                 "method": request_dict["config"].get("HTTPMethod", "GET"),
                 "url": url,
@@ -268,22 +265,25 @@ class RESTConnector(Connector, Thread):
                 **data,
             }
             logger.debug(url)
+
             if request_dict["config"].get("httpHeaders") is not None:
                 params["headers"] = request_dict["config"]["httpHeaders"]
+
             logger.debug("Request to %s will be sent", url)
             response = request_dict["request"](**params)
             data_to_storage = [url, request_dict["config"]["uplink_converter"]]
+
             if response and response.ok:
-                if not converter_queue.full():
-                    try:
-                        data_to_storage.append(response.json())
-                    except UnicodeDecodeError:
-                        data_to_storage.append(response.content)
-                    except JSONDecodeError:
-                        data_to_storage.append(response.content)
-                    if len(data_to_storage) == 3:
-                        converter_queue.put(data_to_storage)
-                        self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
+                try:
+                    data_to_storage.append(response.json())
+                except UnicodeDecodeError:
+                    data_to_storage.append(response.content)
+                except JSONDecodeError:
+                    data_to_storage.append(response.content)
+
+                if len(data_to_storage) == 3 and with_queue and not converter_queue.full():
+                    converter_queue.put(data_to_storage)
+                    self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
             else:
                 logger.error("Request to URL: %s finished with code: %i. Cat information: http://http.cat/%i",
                              url,
@@ -291,8 +291,14 @@ class RESTConnector(Connector, Thread):
                              response.status_code)
                 logger.debug("Response: %r", response.text)
                 data_to_storage.append({"error": response.reason, "code": response.status_code})
-                converter_queue.put(data_to_storage)
+
+                if with_queue:
+                    converter_queue.put(data_to_storage)
+
                 self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
+
+            if not with_queue:
+                return data_to_storage
 
         except Timeout:
             logger.error("Timeout error on request %s.", url)
