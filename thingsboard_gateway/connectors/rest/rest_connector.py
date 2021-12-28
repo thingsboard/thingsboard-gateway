@@ -18,7 +18,7 @@ from random import choice
 from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
-from time import time, sleep
+from time import time
 import ssl
 import os
 
