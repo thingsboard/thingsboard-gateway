@@ -46,9 +46,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
                     if configuration.get("wordOrder"):
                         word_order = configuration["wordOrder"]
                     elif config.get("wordOrder"):
-                        word_order = config.get("wordOrder", "BIG")
+                        word_order = config.get("wordOrder", "LITTLE")
                     else:
-                        word_order = "BIG"
+                        word_order = "LITTLE"
                     endian_order = Endian.Little if byte_order.upper() == "LITTLE" else Endian.Big
                     word_endian_order = Endian.Little if word_order.upper() == "LITTLE" else Endian.Big
                     decoded_data = None
