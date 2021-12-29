@@ -27,8 +27,10 @@ except ImportError:
     print("Modbus library not found - installing...")
     TBUtility.install_package("pymodbus", ">=2.3.0")
     TBUtility.install_package('pyserial')
+    TBUtility.install_package('twisted')
     from pymodbus.constants import Defaults
 
+from twisted.internet import reactor
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
 from pymodbus.register_read_message import ReadRegistersResponseBase
@@ -236,7 +238,8 @@ class ModbusConnector(Connector, Thread):
     def close(self):
         self.__stopped = True
         self.__stop_connections_to_masters()
-        StopServer()
+        if reactor.running:
+            StopServer()
         log.info('%s has been stopped.', self.get_name())
 
     def get_name(self):
@@ -312,7 +315,7 @@ class ModbusConnector(Connector, Thread):
 
         if not device.config['master'].is_socket_open():
             if device.config['connection_attempt'] >= connect_attempt_count and current_time - device.config[
-                'last_connection_attempt_time'] >= wait_after_failed_attempts_ms:
+                    'last_connection_attempt_time'] >= wait_after_failed_attempts_ms:
                 device.config['connection_attempt'] = 0
 
             while not device.config['master'].is_socket_open() \
@@ -456,7 +459,7 @@ class ModbusConnector(Connector, Thread):
                 elif isinstance(device.config[RPC_SECTION], list):
                     for rpc_command_config in device.config[RPC_SECTION]:
                         if rpc_command_config[TAG_PARAMETER] == server_rpc_request[DATA_PARAMETER][
-                            RPC_METHOD_PARAMETER]:
+                                RPC_METHOD_PARAMETER]:
                             self.__process_rpc_request(server_rpc_request, rpc_command_config)
                             break
                 else:
@@ -479,9 +482,12 @@ class ModbusConnector(Connector, Thread):
             self.__connect_to_current_master(device)
 
             if rpc_command_config.get(FUNCTION_CODE_PARAMETER) in (5, 6, 15, 16):
-                rpc_command_config[PAYLOAD_PARAMETER] = device.config[
-                    DOWNLINK_PREFIX + CONVERTER_PARAMETER].convert(
-                    rpc_command_config, content)
+                converted_data = device.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER].convert(rpc_command_config,
+                                                                                              content)
+                try:
+                    rpc_command_config[PAYLOAD_PARAMETER] = converted_data[0]
+                except IndexError:
+                    rpc_command_config[PAYLOAD_PARAMETER] = converted_data
 
             try:
                 response = self.__function_to_device(device, rpc_command_config)
