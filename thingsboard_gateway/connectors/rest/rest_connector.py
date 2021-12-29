@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import asyncio
 from queue import Queue
 from random import choice
 from re import fullmatch
@@ -22,7 +21,7 @@ from time import time
 import ssl
 import os
 
-from simplejson import JSONDecodeError, loads
+from simplejson import JSONDecodeError
 import requests
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException
@@ -135,7 +134,7 @@ class RESTConnector(Connector, Thread):
 
         self.load_handlers()
         web.run_app(self._app, host=self.__config['host'], port=self.__config['port'], handle_signals=False,
-                    ssl_context=ssl_context)
+                    ssl_context=ssl_context, reuse_port=self.__config['port'], reuse_address=self.__config['host'])
 
     def run(self):
         self._connected = True
@@ -246,15 +245,7 @@ class RESTConnector(Connector, Thread):
 
             request_timeout = request_dict["config"].get("timeout")
 
-            try:
-                if request_dict["config"].get("data") and \
-                        (isinstance(request_dict["config"]["data"], str) and loads(request_dict["config"]["data"])):
-                    data = {"json": loads(request_dict["config"]["data"])}
-                else:
-                    data = {"data": request_dict["config"].get("data")}
-            except JSONDecodeError:
-                data = {"data": request_dict.get("data")}
-
+            data = {"data": request_dict["config"]["data"]}
             params = {
                 "method": request_dict["config"].get("HTTPMethod", "GET"),
                 "url": url,
