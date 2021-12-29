@@ -147,10 +147,13 @@ class TBGatewayService:
                                               release=self.__updater.get_release())
         self.__rpc_remote_shell_command_in_progress = None
         self.__scheduled_rpc_calls = []
+        self.__rpc_processing_queue = SimpleQueue()
         self.__rpc_scheduled_methods_functions = {
             "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
             "reboot": {"function": system, "arguments": ("reboot 0",)},
             }
+        self.__rpc_processing_thread = Thread(target=self.__send_rpc_reply_processing, daemon=True, name="RPC processing thread")
+        self.__rpc_processing_thread.start()
         self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"])
         self.connectors_configs = {}
         self.__remote_configurator = None
@@ -832,6 +835,17 @@ class TBGatewayService:
 
     def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None,
                        quality_of_service=0):
+        self.__rpc_processing_queue.put((device, req_id, content, success_sent, wait_for_publish, quality_of_service))
+
+    def __send_rpc_reply_processing(self):
+        while not self.stopped:
+            if not self.__rpc_processing_queue.empty():
+                args = self.__rpc_processing_queue.get()
+                self.__send_rpc_reply(*args)
+            else:
+                sleep(.1)
+
+    def __send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None, quality_of_service=0):
         try:
             self.__rpc_reply_sent = True
             rpc_response = {"success": False}

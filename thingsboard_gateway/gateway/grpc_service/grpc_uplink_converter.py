@@ -84,11 +84,13 @@ class GrpcUplinkConverter(Converter):
     def __convert_disconnect_msg(msg: DisconnectMsg):
         return {"deviceName": msg.deviceName}
 
-    def __convert_gateway_rpc_response_msg(self, msg: GatewayRpcResponseMsg):
-        pass
+    @staticmethod
+    def __convert_gateway_rpc_response_msg(msg: GatewayRpcResponseMsg):
+        return {"deviceName": msg.deviceName, "id": msg.id, "data": msg.data}
 
-    def __convert_gateway_attributes_request_msg(self, msg: GatewayAttributesRequestMsg):
-        pass
+    @staticmethod
+    def __convert_gateway_attributes_request_msg(msg: GatewayAttributesRequestMsg):
+        return {"id": msg.id, "deviceName": msg.deviceName, "client": msg.client, "keys": msg.keys}
 
     @staticmethod
     def get_value(msg: KeyValueProto):
