@@ -245,9 +245,7 @@ class RESTConnector(Connector, Thread):
 
             request_timeout = request_dict["config"].get("timeout")
 
-            request_data = request_dict["config"]["data"]
-            data = {"json" if isinstance(request_data, str) else "data": request_data}
-
+            data = {"data": request_dict["config"]["data"]}
             params = {
                 "method": request_dict["config"].get("HTTPMethod", "GET"),
                 "url": url,
