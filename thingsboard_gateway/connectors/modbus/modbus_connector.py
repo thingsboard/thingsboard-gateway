@@ -18,8 +18,6 @@ from queue import Queue
 from random import choice
 from string import ascii_lowercase
 
-from twisted.internet import reactor
-
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 # Try import Pymodbus library or install it and import
@@ -32,6 +30,7 @@ except ImportError:
     TBUtility.install_package('twisted')
     from pymodbus.constants import Defaults
 
+from twisted.internet import reactor
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
 from pymodbus.register_read_message import ReadRegistersResponseBase
