@@ -22,7 +22,7 @@ from time import time
 import ssl
 import os
 
-from simplejson import JSONDecodeError, loads
+from simplejson import JSONDecodeError, loads, dumps
 import requests
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException
@@ -247,13 +247,9 @@ class RESTConnector(Connector, Thread):
             request_timeout = request_dict["config"].get("timeout")
 
             try:
-                if request_dict["config"].get("data") and \
-                        (isinstance(request_dict["config"]["data"], str) and loads(request_dict["config"]["data"])):
-                    data = {"json": loads(request_dict["config"]["data"])}
-                else:
-                    data = {"data": request_dict["config"].get("data")}
+                data = {"json": dumps(request_dict["config"]["data"])}
             except JSONDecodeError:
-                data = {"data": request_dict.get("data")}
+                data = {"data": request_dict["config"].get("data")}
 
             params = {
                 "method": request_dict["config"].get("HTTPMethod", "GET"),
