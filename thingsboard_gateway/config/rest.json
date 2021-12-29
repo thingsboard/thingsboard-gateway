@@ -137,7 +137,7 @@
       "responseTimeout": 1,
       "HTTPMethod": "GET",
       "valueExpression": "${params}",
-      "timeout": 0.5,
+      "timeout": 10.0,
       "tries": 3,
       "httpHeaders": {
         "Content-Type": "application/json"
@@ -154,6 +154,9 @@
       "valueExpression": "${params}",
       "httpHeaders": {
         "Content-Type": "application/json"
+      },
+      "security": {
+        "type": "anonymous"
       }
     }
   ]
