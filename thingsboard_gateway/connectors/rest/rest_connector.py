@@ -18,7 +18,7 @@ from random import choice
 from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
-from time import time
+from time import time, sleep
 import ssl
 import os
 
@@ -135,7 +135,7 @@ class RESTConnector(Connector, Thread):
 
         self.load_handlers()
         web.run_app(self._app, host=self.__config['host'], port=self.__config['port'], handle_signals=False,
-                    ssl_context=ssl_context)
+                    ssl_context=ssl_context, reuse_port=self.__config['port'], reuse_address=self.__config['host'])
 
     def run(self):
         self._connected = True
