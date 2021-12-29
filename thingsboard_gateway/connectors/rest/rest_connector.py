@@ -12,17 +12,16 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import asyncio
 from queue import Queue
 from random import choice
 from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
-from time import time, sleep
+from time import time
 import ssl
 import os
 
-from simplejson import JSONDecodeError, loads, dumps
+from simplejson import JSONDecodeError
 import requests
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException
@@ -246,10 +245,8 @@ class RESTConnector(Connector, Thread):
 
             request_timeout = request_dict["config"].get("timeout")
 
-            try:
-                data = {"json": dumps(request_dict["config"]["data"])}
-            except JSONDecodeError:
-                data = {"data": request_dict["config"].get("data")}
+            request_data = request_dict["config"]["data"]
+            data = {"json" if isinstance(request_data, str) else "data": request_data}
 
             params = {
                 "method": request_dict["config"].get("HTTPMethod", "GET"),
