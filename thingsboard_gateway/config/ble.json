@@ -32,7 +32,7 @@
           "key": "name",
           "method": "read",
           "characteristicUUID": "00002A00-0000-1000-8000-00805F9B34FB",
-          "valueExpression": "[0:2]cm [2:]A All values: [:]"
+          "valueExpression": "[0:2]cm [2:]A"
         },
         {
           "key": "values",
