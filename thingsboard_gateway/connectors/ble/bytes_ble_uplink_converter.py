@@ -25,6 +25,7 @@
 #     limitations under the License.
 
 from pprint import pformat
+from re import findall
 
 from thingsboard_gateway.connectors.ble.ble_uplink_converter import BLEUplinkConverter, log
 
@@ -46,22 +47,30 @@ class BytesBLEUplinkConverter(BLEUplinkConverter):
 
             for section in ('telemetry', 'attributes'):
                 for item in data[section]:
-                    byte_from = item['byteFrom']
-                    byte_to = item['byteTo']
-
                     try:
-                        byte_to = byte_to if byte_to != -1 else len(data)
-                        converted_data = item['data'][byte_from:byte_to]
+                        expression_arr = findall(r'\[[^\s][0-9:]*]', item['valueExpression'])
+                        converted_data = item['valueExpression']
 
-                        try:
-                            converted_data = converted_data.replace(b"\x00", b'').decode('UTF-8')
-                        except UnicodeDecodeError:
-                            converted_data = str(converted_data)
+                        for exp in expression_arr:
+                            indexes = exp[1:-1].split(':')
+
+                            data_to_replace = ''
+                            if len(indexes) == 2:
+                                from_index, to_index = indexes
+                                concat_arr = item['data'][
+                                             int(from_index) if from_index != '' else None:int(
+                                                 to_index) if to_index != '' else None]
+                                for sub_item in concat_arr:
+                                    data_to_replace += str(sub_item)
+                            else:
+                                data_to_replace += str(item['data'][int(indexes[0])])
+
+                            converted_data = converted_data.replace(exp, data_to_replace)
 
                         if item.get('key') is not None:
                             self.dict_result[section].append({item['key']: converted_data})
                         else:
-                            log.error('Key for %s not found in config: %s', config['type'], config['section_config'])
+                            log.error('Key for %s not found in config: %s', config['type'], config[section])
                     except Exception as e:
                         log.error('\nException caught when processing data for %s\n\n', pformat(config))
                         log.exception(e)
