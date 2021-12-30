@@ -168,3 +168,7 @@ class TBUtility:
                     value = TBUtility.get_value(item, data['data'], 'params', expression_instead_none=True)
                     text = text.replace(tag, str(value))
         return text
+
+    @staticmethod
+    def get_dict_key_by_value(dictionary: dict, value):
+        return list(dictionary.values())[list(dictionary.values()).index(value)]
