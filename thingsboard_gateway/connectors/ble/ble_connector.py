@@ -27,7 +27,6 @@ except ImportError:
     print("BLE library not found - installing...")
     TBUtility.install_package("bleak")
 
-from thingsboard_gateway.connectors.ble.bytes_ble_uplink_converter import BytesBLEUplinkConverter
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.ble.device import Device
 
@@ -112,9 +111,10 @@ class BLEConnector(Connector, Thread):
         device_config = BLEConnector.process_data.get()
         data = device_config.pop('data')
         config = device_config.pop('config')
+        converter = device_config.pop('converter')
 
         try:
-            converter = BytesBLEUplinkConverter(device_config)
+            converter = converter(device_config)
             converted_data = converter.convert(config, data)
             self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
             log.debug(converted_data)
