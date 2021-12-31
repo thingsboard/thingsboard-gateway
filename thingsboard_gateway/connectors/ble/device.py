@@ -50,6 +50,7 @@ class Device(Thread):
         self.device_type = config.get('deviceType', 'default')
         self.timeout = config.get('timeout', 10000) / 1000
         self.show_map = config.get('showMap', False)
+        self.__connector_type = config['connector_type']
 
         self.daemon = True
 
@@ -90,7 +91,7 @@ class Device(Thread):
 
     def __load_converter(self):
         converter_class_name = self.config['extension']
-        module = TBModuleLoader.import_module('ble', converter_class_name)
+        module = TBModuleLoader.import_module(self.__connector_type, converter_class_name)
 
         if module:
             log.debug('Converter %s for device %s - found!', converter_class_name, self.name)

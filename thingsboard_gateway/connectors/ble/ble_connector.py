@@ -73,8 +73,8 @@ class BLEConnector(Connector, Thread):
                 log.info(device)
 
     def __configure_and_load_devices(self):
-        self.__devices = [Device({**device, 'callback': BLEConnector.callback}) for device in
-                          self.__config.get('devices', [])]
+        self.__devices = [Device({**device, 'callback': BLEConnector.callback, 'connector_type': self._connector_type})
+                          for device in self.__config.get('devices', [])]
 
     def open(self):
         self.__stopped = False
