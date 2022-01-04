@@ -24,7 +24,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         self.__config = config
 
     def convert(self, config, data):
-        byte_order_str = config.get("byteOrder", "BIG")
+        byte_order_str = config.get("byteOrder", "LITTLE")
         word_order_str = config.get("wordOrder", "LITTLE")
         byte_order = Endian.Big if byte_order_str.upper() == "BIG" else Endian.Little
         word_order = Endian.Big if word_order_str.upper() == "BIG" else Endian.Little

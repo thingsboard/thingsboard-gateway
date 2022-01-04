@@ -139,6 +139,8 @@ class TBGatewayService:
             "devices": self.__rpc_devices,
             "update": self.__rpc_update,
             "version": self.__rpc_version,
+            "device_renamed": self.__process_renamed_gateway_devices,
+            "device_deleted": self.__process_deleted_gateway_devices,
             }
         self.__remote_shell = None
         if self.__config["thingsboard"].get("remoteShell"):
@@ -307,14 +309,10 @@ class TBGatewayService:
     def __process_attribute_update(self, content):
         self.__process_remote_logging_update(content.get("RemoteLoggingLevel"))
         self.__process_remote_configuration(content.get("configuration"))
-        self.__process_deleted_gateway_devices(content.get("deletedGatewayDevices"))
-        self.__process_renamed_gateway_devices(content.get("renamedGatewayDevices"))
 
     def __process_attributes_response(self, shared_attributes, client_attributes):
         self.__process_remote_logging_update(shared_attributes.get('RemoteLoggingLevel'))
         self.__process_remote_configuration(shared_attributes.get("configuration"))
-        self.__process_deleted_gateway_devices(shared_attributes.get("deletedGatewayDevices"))
-        self.__process_renamed_gateway_devices(shared_attributes.get("renamedGatewayDevices"))
 
     def __process_remote_logging_update(self, remote_logging_level):
         if remote_logging_level == 'NONE':
@@ -327,25 +325,31 @@ class TBGatewayService:
                 log.info('Remote logging has being updated. Current logging level is: %s ',
                          remote_logging_level)
 
-    def __process_deleted_gateway_devices(self, deleted_devices):
-        if deleted_devices:
-            log.debug("Received deleted gateway devices notification: %s", deleted_devices)
-            devices_list_changed = False
-            for device in deleted_devices:
-                if device in self.__connected_devices:
-                    del self.__connected_devices[device]
-                    log.debug("Device %s - was removed", device)
-                    devices_list_changed = True
-            if devices_list_changed:
-                self.__save_persistent_devices()
-                self.__load_persistent_devices()
+    def __process_deleted_gateway_devices(self, deleted_device_name: str):
+        log.info("Received deleted gateway device notification: %s", deleted_device_name)
+        if deleted_device_name in list(self.__renamed_devices.values()):
+            first_device_name = TBUtility.get_dict_key_by_value(self.__renamed_devices, deleted_device_name)
+            del self.__renamed_devices[first_device_name]
+            deleted_device_name = first_device_name
+            log.debug("Current renamed_devices dict: %s", self.__renamed_devices)
+        if deleted_device_name in self.__connected_devices:
+            del self.__connected_devices[deleted_device_name]
+            log.debug("Device %s - was removed", deleted_device_name)
+        self.__save_persistent_devices()
+        self.__load_persistent_devices()
 
-    def __process_renamed_gateway_devices(self, renamed_devices):
-        if renamed_devices:
-            log.debug("Received renamed gateway devices notification: %s", renamed_devices)
-            self.__renamed_devices = renamed_devices
-            self.__save_persistent_devices()
-            self.__load_persistent_devices()
+    def __process_renamed_gateway_devices(self, renamed_device: dict):
+        log.info("Received renamed gateway device notification: %s", renamed_device)
+        old_device_name, new_device_name = renamed_device.popitem()
+        if old_device_name in list(self.__renamed_devices.values()):
+            device_name_key = TBUtility.get_dict_key_by_value(self.__renamed_devices, old_device_name)
+        else:
+            device_name_key = new_device_name
+        self.__renamed_devices[device_name_key] = new_device_name
+
+        self.__save_persistent_devices()
+        self.__load_persistent_devices()
+        log.debug("Current renamed_devices dict: %s", self.__renamed_devices)
 
     def __process_remote_configuration(self, new_configuration):
         if new_configuration is not None and self.__remote_configurator is not None:
@@ -991,12 +995,14 @@ class TBGatewayService:
                         log.debug("Old connected_devices file, new file will be created")
                         return
                     if self.available_connectors.get(devices[device_name][0]):
-                        self.__connected_devices[device_name] = {
+                        device_data_to_save = {
                             "connector": self.available_connectors[devices[device_name][0]],
                             "device_type": devices[device_name][1]}
-                        self.__saved_devices[device_name] = {
-                            "connector": self.available_connectors[devices[device_name][0]],
-                            "device_type": devices[device_name][1]}
+                        if len(devices[device_name] > 2) and device_name not in self.__renamed_devices:
+                            new_device_name = devices[device_name][2]
+                            self.__renamed_devices[device_name] = new_device_name
+                        self.__connected_devices[device_name] = device_data_to_save
+                        self.__saved_devices[device_name] = device_data_to_save
                 except Exception as e:
                     log.exception(e)
                     continue
@@ -1005,12 +1011,14 @@ class TBGatewayService:
             self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices
 
     def __save_persistent_devices(self):
+        data_to_save = {}
+        for device in self.__connected_devices:
+            if self.__connected_devices[device]["connector"] is not None:
+                data_to_save[device] = [self.__connected_devices[device]["connector"].get_name(), self.__connected_devices[device]["device_type"]]
+                if device in self.__renamed_devices:
+                    data_to_save[device].append(self.__renamed_devices.get(device))
         with open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w') as config_file:
             try:
-                data_to_save = {}
-                for device in self.__connected_devices:
-                    if self.__connected_devices[device]["connector"] is not None:
-                        data_to_save[device] = (self.__connected_devices[device]["connector"].get_name(), self.__connected_devices[device]["device_type"])
                 config_file.write(dumps(data_to_save, indent=2, sort_keys=True))
             except Exception as e:
                 log.exception(e)

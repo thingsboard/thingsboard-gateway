@@ -32,11 +32,13 @@ import asyncio
 from bleak import BleakClient
 
 from thingsboard_gateway.connectors.connector import log
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
 MAC_ADDRESS_FORMAT = {
     'Darwin': '-',
     'other': ':'
 }
+DEFAULT_CONVERTER_CLASS_NAME = 'BytesBLEUplinkConverter'
 
 
 class Device(Thread):
@@ -48,6 +50,7 @@ class Device(Thread):
         self.device_type = config.get('deviceType', 'default')
         self.timeout = config.get('timeout', 10000) / 1000
         self.show_map = config.get('showMap', False)
+        self.__connector_type = config['connector_type']
 
         self.daemon = True
 
@@ -61,6 +64,7 @@ class Device(Thread):
 
         self.poll_period = config.get('pollPeriod', 5000) / 1000
         self.config = {
+            'extension': config.get('extension', DEFAULT_CONVERTER_CLASS_NAME),
             'telemetry': config.get('telemetry', []),
             'attributes': config.get('attributes', []),
             'attributeUpdates': config.get('attributeUpdates', []),
@@ -70,6 +74,9 @@ class Device(Thread):
         self.last_polled_time = 0
 
         self.notifying_chars = []
+
+        self.__converter = None
+        self.__load_converter()
 
         self.start()
 
@@ -81,6 +88,17 @@ class Device(Thread):
             raise ValueError(f'Mac-address is invalid for {os_name} os')
 
         return mac_address.upper()
+
+    def __load_converter(self):
+        converter_class_name = self.config['extension']
+        module = TBModuleLoader.import_module(self.__connector_type, converter_class_name)
+
+        if module:
+            log.debug('Converter %s for device %s - found!', converter_class_name, self.name)
+            self.__converter = module
+        else:
+            log.error("Cannot find converter for %s device", self.name)
+            self.stopped = True
 
     async def timer(self):
         await self.__process_self()
@@ -103,6 +121,7 @@ class Device(Thread):
                     data_for_converter = {
                         'deviceName': self.name,
                         'deviceType': self.device_type,
+                        'converter': self.__converter,
                         'config': {
                             'attributes': self.config['attributes'],
                             'telemetry': self.config['telemetry']
@@ -133,6 +152,7 @@ class Device(Thread):
             data_for_converter = {
                 'deviceName': self.name,
                 'deviceType': self.device_type,
+                'converter': self.__converter,
                 'config': {
                     'attributes': self.config['attributes'],
                     'telemetry': self.config['telemetry']
