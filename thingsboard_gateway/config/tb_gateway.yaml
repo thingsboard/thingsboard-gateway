@@ -47,7 +47,6 @@ connectors:
 #    type: modbus
 #    configuration: modbus_serial.json
 #
-#
 #  -
 #    name: OPC-UA Connector
 #    type: opcua
@@ -87,10 +86,15 @@ connectors:
 #    name: SNMP Connector
 #    type: snmp
 #    configuration: snmp.json
+#
 #  -
 #    name: FTP Connector
 #    type: ftp
 #    configuration: ftp.json
+#
+#
+# ========= Customization ==========
+#
 #
 #  -
 #    name: Custom Serial Connector
@@ -98,3 +102,8 @@ connectors:
 #    configuration: custom_serial.json
 #    class: CustomSerialConnector
 #
+#  -
+#    name: GRPC Connector 1
+#    key: auto
+#    type: grpc
+#    configuration: grpc_connector_1.json
