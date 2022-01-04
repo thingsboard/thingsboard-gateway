@@ -998,7 +998,7 @@ class TBGatewayService:
                         device_data_to_save = {
                             "connector": self.available_connectors[devices[device_name][0]],
                             "device_type": devices[device_name][1]}
-                        if len(devices[device_name] > 2) and device_name not in self.__renamed_devices:
+                        if len(devices[device_name]) > 2 and device_name not in self.__renamed_devices:
                             new_device_name = devices[device_name][2]
                             self.__renamed_devices[device_name] = new_device_name
                         self.__connected_devices[device_name] = device_data_to_save
