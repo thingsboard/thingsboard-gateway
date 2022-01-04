@@ -140,6 +140,14 @@ def configure():
                 },
             {
                 'type': 'input',
+                'name': 'minPackSendDelayMS',
+                'message': 'Minimal delay between sending messages (milliseconds):',
+                'default': str(default_config['thingsboard']['minPackSendDelayMS']),
+                'validate': NumberValidator,
+                'filter': lambda val: int(val)
+                },
+            {
+                'type': 'input',
                 'name': 'checkConnectorsConfigurationInSeconds',
                 'message': 'Connectors config files will check every (sec.):',
                 'default': str(default_config['thingsboard']['checkConnectorsConfigurationInSeconds']),
@@ -155,6 +163,12 @@ def configure():
                     'TLS + Access Token (Advanced Security)',
                     'TLS + Private Key (Advanced Security)'
                     ]
+                },
+            {
+                'type': 'confirm',
+                'name': 'grpc-enabled',
+                'message': 'Do you want to enable GRPC API on your gateway?',
+                'default': False
                 }
             ]
 
@@ -207,6 +221,62 @@ def configure():
             security_questions = tls_private_key_config
 
         security_answers = prompt(security_questions, style=style)
+
+        grpc_enabled = base_answers.pop('grpc-enabled')
+
+        if grpc_enabled:
+            grpc_api_questions = [
+                {
+                    'name': 'serverPort',
+                    'default': 9595,
+                    'message': '[GRPC] Please set port for GRPC server:',
+                    'validate': NumberValidator,
+                    'filter': lambda val: int(val)
+                    },
+                {
+                    'name': 'keepaliveTimeMs',
+                    'default': 10000,
+                    'message': '[GRPC] Keep alive period:',
+                    'validate': NumberValidator,
+                    'filter': lambda val: int(val)
+                    },
+                {
+                    'name': 'keepaliveTimeoutMs',
+                    'default': 5000,
+                    'message': '[GRPC] Keep alive timeout',
+                    'validate': NumberValidator,
+                    'filter': lambda val: int(val)
+                    },
+                {
+                    'name': 'keepalivePermitWithoutCalls',
+                    'default': True,
+                    'message': '[GRPC] Allow send pings from clients without calls:'
+                    },
+                {
+                    'name': 'maxPingsWithoutData',
+                    'default': 0,
+                    'message': '[GRPC] Maximal count of pings without data from client to server:',
+                    'validate': NumberValidator,
+                    'filter': lambda val: int(val)
+                    },
+                {
+                    'name': 'minTimeBetweenPingsMs',
+                    'default': 10000,
+                    'message': '[GRPC] Minimal period between ping messages:',
+                    'validate': NumberValidator,
+                    'filter': lambda val: int(val)
+                    },
+                {
+                    'name': 'minPingIntervalWithoutDataMs',
+                    'default': 5000,
+                    'message': '[GRPC] Minimal period between ping messages without data:',
+                    'validate': NumberValidator,
+                    'filter': lambda val: int(val)
+                    },
+                ]
+            grpc_api_answers = prompt(grpc_api_questions, style=style)
+        else:
+            grpc_api_answers = default_config.get('grpc', {})
 
         qos_and_storage_type_question = [
             {
@@ -359,11 +429,12 @@ def configure():
                 'thingsboard': {**base_answers, 'security': security_answers,
                                 'qos': qos_and_storage_type_answers['qos']},
                 'storage': {'type': qos_and_storage_type_answers['storage'], **storage_answers},
+                'grpc': {'enabled': grpc_enabled, **grpc_api_answers},
                 'connectors': connectors_list
                 })
-    except Exception:
+    except Exception as e:
         print(colored('Something went wrong! Please try again.', color='red'))
-        raise SystemExit
+        raise e
 
 
 if __name__ == '__main__':
