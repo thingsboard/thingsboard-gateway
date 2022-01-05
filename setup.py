@@ -59,7 +59,9 @@ setup(
         'requests',
         'PyInquirer',
         'pyfiglet',
-        'termcolor'
+        'termcolor',
+        'grpcio',
+        'protobuf'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={

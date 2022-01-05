@@ -339,17 +339,20 @@ class TBGatewayService:
         self.__load_persistent_devices()
 
     def __process_renamed_gateway_devices(self, renamed_device: dict):
-        log.info("Received renamed gateway device notification: %s", renamed_device)
-        old_device_name, new_device_name = renamed_device.popitem()
-        if old_device_name in list(self.__renamed_devices.values()):
-            device_name_key = TBUtility.get_dict_key_by_value(self.__renamed_devices, old_device_name)
-        else:
-            device_name_key = new_device_name
-        self.__renamed_devices[device_name_key] = new_device_name
+        if self.__config.get('handleDeviceRenaming', True):
+            log.info("Received renamed gateway device notification: %s", renamed_device)
+            old_device_name, new_device_name = renamed_device.popitem()
+            if old_device_name in list(self.__renamed_devices.values()):
+                device_name_key = TBUtility.get_dict_key_by_value(self.__renamed_devices, old_device_name)
+            else:
+                device_name_key = new_device_name
+            self.__renamed_devices[device_name_key] = new_device_name
 
-        self.__save_persistent_devices()
-        self.__load_persistent_devices()
-        log.debug("Current renamed_devices dict: %s", self.__renamed_devices)
+            self.__save_persistent_devices()
+            self.__load_persistent_devices()
+            log.debug("Current renamed_devices dict: %s", self.__renamed_devices)
+        else:
+            log.debug("Received renamed device notification %r, but device renaming handle is disabled", renamed_device)
 
     def __process_remote_configuration(self, new_configuration):
         if new_configuration is not None and self.__remote_configurator is not None:
