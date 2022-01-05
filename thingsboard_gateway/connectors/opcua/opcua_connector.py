@@ -436,7 +436,8 @@ class OpcUaConnector(Thread, Connector):
                     self.__search_node(node, attribute_path, result=attribute_nodes)
                     for attribute_node in attribute_nodes:
                         if attribute_node is not None:
-                            self.__available_object_resources[device_name]["variables"].append({attribute_update["attributeOnThingsBoard"]: attribute_node})
+                            if self.get_node_path(attribute_node) ==  attribute_path:
+                                self.__available_object_resources[device_name]["variables"].append({attribute_update["attributeOnThingsBoard"]: attribute_node})
                         else:
                             log.error("Attribute update node with path \"%s\" - NOT FOUND!", attribute_path)
         except Exception as e:
