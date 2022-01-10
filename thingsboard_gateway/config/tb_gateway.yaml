@@ -6,6 +6,7 @@ thingsboard:
   statsSendPeriodInSeconds: 3600
   minPackSendDelayMS: 0
   checkConnectorsConfigurationInSeconds: 60
+  handleDeviceRenaming: true
   security:
     accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
   qos: 1

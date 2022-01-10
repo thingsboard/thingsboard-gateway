@@ -1,4 +1,4 @@
-FROM python:3.7-slim
+FROM python:3.9-slim
 ADD ./ /
 RUN echo '#Main start script\n\
 CONF_FOLDER="./thingsboard_gateway/config"\n\
@@ -19,8 +19,8 @@ ENV PATH="/root/.local/bin:$PATH"
 ENV configs /thingsboard_gateway/config
 ENV extensions /thingsboard_gateway/extensions
 ENV logs /thingsboard_gateway/logs
-RUN apt-get update && apt-get install gcc -y
-RUN pip3 install importlib_metadata --user
-RUN mkdir -p /default-config/config /default-config/extensions/ && cp -r /thingsboard_gateway/config/* /default-config/config/ && cp -r /thingsboard_gateway/extensions/* /default-config/extensions
+RUN apt-get update && apt-get install gcc python3-dev build-essential protobuf-compiler -y
+RUN python3 -m pip install --upgrade pip --user && python3 -m pip install --upgrade setuptools && pip3 install importlib_metadata --user
+RUN python /setup.py install && mkdir -p /default-config/config /default-config/extensions/ && cp -r /thingsboard_gateway/config/* /default-config/config/ && cp -r /thingsboard_gateway/extensions/* /default-config/extensions
 VOLUME ["${configs}", "${extensions}", "${logs}"]
 CMD [ "/bin/sh", "./start-gateway.sh" ]
