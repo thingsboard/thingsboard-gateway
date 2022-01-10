@@ -1,9 +1,11 @@
 {
   "broker": {
-    "name":"Default Local Broker",
-    "host":"127.0.0.1",
-    "port":1883,
+    "name": "Default Local Broker",
+    "host": "127.0.0.1",
+    "port": 1883,
     "clientId": "ThingsBoard_gateway",
+    "maxMessageNumberPerWorker": 10,
+    "maxNumberOfWorkers": 100,
     "security": {
       "type": "basic",
       "username": "user",
@@ -40,6 +42,11 @@
             "type": "double",
             "key": "humidity",
             "value": "${hum}"
+          },
+          {
+            "type": "string",
+            "key": "combine",
+            "value": "${hum}:${temp}"
           }
         ]
       }
@@ -78,9 +85,9 @@
         "type": "custom",
         "extension": "CustomMqttUplinkConverter",
         "extension-config": {
-            "temperatureBytes" : 2,
-            "humidityBytes" :  2,
-            "batteryLevelBytes" : 1
+          "temperatureBytes": 2,
+          "humidityBytes": 2,
+          "batteryLevelBytes": 1
         }
       }
     }
@@ -105,8 +112,17 @@
       "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/disconnect)"
     }
   ],
+  "attributeRequests": [
+    {
+      "retain": false,
+      "topicFilter": "v1/devices/me/attributes/request",
+      "deviceNameTopicExpression": "${SerialNumber}",
+      "attributeNameJsonExpression": "${sensorModel}"
+    }
+  ],
   "attributeUpdates": [
     {
+      "retain": true,
       "deviceNameFilter": "SmartMeter.*",
       "attributeFilter": "uploadFrequency",
       "topicExpression": "sensor/${deviceName}/${attributeKey}",

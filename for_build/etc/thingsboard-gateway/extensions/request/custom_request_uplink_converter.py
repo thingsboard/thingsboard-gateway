@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@ import struct
 
 from simplejson import dumps
 
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.request.request_converter import RequestConverter, log
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class CustomRequestUplinkConverter(RequestConverter):

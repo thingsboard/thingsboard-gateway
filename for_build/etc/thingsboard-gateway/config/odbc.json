@@ -47,7 +47,11 @@
       "procedureOne",
       {
         "name": "procedureTwo",
-        "args": [ "One", 2, 3.0 ]
+        "args": [
+          "One",
+          2,
+          3.0
+        ]
       }
     ]
   }

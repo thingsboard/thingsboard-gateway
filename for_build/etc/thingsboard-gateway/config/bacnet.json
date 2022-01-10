@@ -1,9 +1,9 @@
 {
   "general": {
     "objectName": "TB_gateway",
-    "address": "192.168.188.181:1052",
+    "address": "0.0.0.0:47808",
     "objectIdentifier": 599,
-    "maxApduLengthAccepted": 1024,
+    "maxApduLengthAccepted": 1476,
     "segmentationSupported": "segmentedBoth",
     "vendorIdentifier": 15
   },
@@ -11,7 +11,7 @@
     {
       "deviceName": "BACnet Device ${objectName}",
       "deviceType": "default",
-      "address": "192.168.188.181:10520",
+      "address": "192.168.2.110:47808",
       "pollPeriod": 10000,
       "attributes": [
         {

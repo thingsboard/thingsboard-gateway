@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -268,7 +268,8 @@ class TBGatewayService:
         self.stopped = True
         self.__updater.stop()
         log.info("Stopping...")
-        self.__grpc_manager.stop()
+        if self.__grpc_manager is not None:
+            self.__grpc_manager.stop()
         self.__close_connectors()
         self._event_storage.stop()
         log.info("The gateway has been stopped.")
