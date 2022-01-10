@@ -21,7 +21,7 @@ this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
-VERSION = "3.0"
+VERSION = "3.0.1"
 
 setup(
     version=VERSION,
@@ -59,7 +59,9 @@ setup(
         'requests',
         'PyInquirer',
         'pyfiglet',
-        'termcolor'
+        'termcolor',
+        'grpcio',
+        'protobuf'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={
