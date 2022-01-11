@@ -179,7 +179,7 @@
     "deviceName": "Modbus Slave Example",
     "deviceType": "default",
     "pollPeriod": 5000,
-    "sendDataToThingsBoard": true,
+    "sendDataToThingsBoard": false,
     "byteOrder": "BIG",
     "unitId": 0,
     "values": {
