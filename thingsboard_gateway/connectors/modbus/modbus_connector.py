@@ -146,7 +146,7 @@ class ModbusConnector(Connector, Thread):
             converter = BytesModbusDownlinkConverter({})
             for item in value:
                 for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
-                    for val in item[section]:
+                    for val in item.get(section, []):
                         function_code = FUNCTION_CODE_WRITE[key][0] if val['objectsCount'] <= 1 else \
                             FUNCTION_CODE_WRITE[key][1]
                         converted_value = converter.convert(
@@ -154,7 +154,7 @@ class ModbusConnector(Connector, Thread):
                              'device': config.get('deviceName', 'Gateway'), 'functionCode': function_code,
                              'byteOrder': config['byteOrder']},
                             {'data': {'params': val['value']}})
-                        values[val['address']] = converted_value
+                        values[val['address'] + 1] = converted_value
 
             blocks[FUNCTION_TYPE[key]] = ModbusSparseDataBlock(values)
 

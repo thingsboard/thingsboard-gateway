@@ -176,10 +176,10 @@
     "host": "127.0.0.1",
     "port": 5026,
     "method": "socket",
-    "deviceName": "Gateway",
+    "deviceName": "Modbus Slave Example",
     "deviceType": "default",
     "pollPeriod": 5000,
-    "sendDataToThingsBoard": false,
+    "sendDataToThingsBoard": true,
     "byteOrder": "BIG",
     "unitId": 0,
     "values": {
