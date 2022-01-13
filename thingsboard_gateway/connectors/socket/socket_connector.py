@@ -140,6 +140,7 @@ class SocketConnector(Connector, Thread):
 
                 try:
                     device_config = {
+                        'encoding': device.get('encoding', 'utf-8').lower(),
                         'telemetry': device.get('telemetry', []),
                         'attributes': device.get('attributes', [])
                     }
@@ -197,7 +198,8 @@ class SocketConnector(Connector, Thread):
                 for attribute_update in content['data']:
                     if attribute_update_config['attributeOnThingsBoard'] == attribute_update:
                         address, port = device['address'].split(':')
-                        converted_data = bytes(str(content['data'][attribute_update]), encoding='utf8')
+                        encoding = device.get('encoding', 'utf-8').lower()
+                        converted_data = bytes(str(content['data'][attribute_update]), encoding=encoding)
                         self.__write_value_via_tcp(address, port, converted_data)
         except IndexError:
             self.__log.error('Device not found')
@@ -214,7 +216,8 @@ class SocketConnector(Connector, Thread):
                         result = None
 
                         address, port = device['address'].split(':')
-                        converted_data = bytes(str(content['data']['params']), encoding='utf8')
+                        encoding = device.get('encoding', 'utf-8').lower()
+                        converted_data = bytes(str(content['data']['params']), encoding=encoding)
 
                         if rpc_method.upper() == 'WRITE':
                             if self.__socket_type == 'TCP':

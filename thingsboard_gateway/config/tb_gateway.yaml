@@ -93,10 +93,10 @@ connectors:
 #    type: ftp
 #    configuration: ftp.json
 #
-#-
-#  name: Socket TCP/UDP Connector
-#  type: socket
-#  configuration: socket.json
+#  -
+#    name: Socket TCP/UDP Connector
+#    type: socket
+#    configuration: socket.json
 #
 # ========= Customization ==========
 #

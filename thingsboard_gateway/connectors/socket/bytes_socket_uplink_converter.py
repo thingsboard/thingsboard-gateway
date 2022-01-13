@@ -41,7 +41,7 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
                         converted_data = data[byte_from:byte_to]
 
                         try:
-                            converted_data = converted_data.replace(b"\x00", b'').decode('UTF-8')
+                            converted_data = converted_data.replace(b"\x00", b'').decode(config['encoding'])
                         except UnicodeDecodeError:
                             converted_data = str(converted_data)
 

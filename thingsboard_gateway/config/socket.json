@@ -9,6 +9,7 @@
       "address": "127.0.0.1:50001",
       "deviceName": "Device Example",
       "deviceType": "default",
+      "encoding": "utf-8",
       "telemetry": [
         {
           "key": "temp",
@@ -35,6 +36,7 @@
       ],
       "attributeUpdates": [
         {
+          "encoding": "utf-16",
           "attributeOnThingsBoard": "sharedName"
         }
       ],
@@ -42,7 +44,8 @@
         {
           "methodRPC": "rpcMethod1",
           "withResponse": true,
-          "methodProcessing": "write"
+          "methodProcessing": "write",
+          "encoding": "utf-8"
         }
       ]
     }
