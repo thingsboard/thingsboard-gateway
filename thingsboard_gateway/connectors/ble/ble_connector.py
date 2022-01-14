@@ -87,15 +87,8 @@ class BLEConnector(Connector, Thread):
     def run(self):
         self.__connected = True
 
-        while True:
-            if not self.__stopped and not BLEConnector.process_data.empty():
-                thread = Thread(target=self.__process_data, daemon=True)
-                thread.start()
-
-                if self.__stopped:
-                    break
-
-                sleep(.2)
+        thread = Thread(target=self.__process_data, daemon=True, name='BLE Process Data Thread')
+        thread.start()
 
     def close(self):
         self.__stopped = True
@@ -108,23 +101,27 @@ class BLEConnector(Connector, Thread):
         return self.__connected
 
     def __process_data(self):
-        device_config = BLEConnector.process_data.get()
-        data = device_config.pop('data')
-        config = device_config.pop('config')
-        converter = device_config.pop('converter')
+        while not self.__stopped:
+            if not BLEConnector.process_data.empty():
+                device_config = BLEConnector.process_data.get()
+                data = device_config.pop('data')
+                config = device_config.pop('config')
+                converter = device_config.pop('converter')
 
-        try:
-            converter = converter(device_config)
-            converted_data = converter.convert(config, data)
-            self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
-            log.debug(converted_data)
+                try:
+                    converter = converter(device_config)
+                    converted_data = converter.convert(config, data)
+                    self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
+                    log.debug(converted_data)
 
-            if converted_data is not None:
-                self.__gateway.send_to_storage(self.get_name(), converted_data)
-                self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                log.info('Data to ThingsBoard %s', converted_data)
-        except Exception as e:
-            log.exception(e)
+                    if converted_data is not None:
+                        self.__gateway.send_to_storage(self.get_name(), converted_data)
+                        self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+                        log.info('Data to ThingsBoard %s', converted_data)
+                except Exception as e:
+                    log.exception(e)
+            else:
+                sleep(.2)
 
     def on_attributes_update(self, content):
         try:
