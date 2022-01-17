@@ -11,26 +11,3 @@
 #      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
-
-from enum import Enum
-
-
-class DeviceActions(Enum):
-    UNKNOWN = 0,
-    CONNECT = 1,
-    DISCONNECT = 2
-
-
-class DownlinkMessageType(Enum):
-    Response = 0,
-    ConnectorConfigurationMsg = 1,
-    GatewayAttributeUpdateNotificationMsg = 2,
-    GatewayAttributeResponseMsg = 3,
-    GatewayDeviceRpcRequestMsg = 4,
-    UnregisterConnectorMsg = 5
-
-
-class Status(Enum):
-    FAILURE = 1,
-    NOT_FOUND = 2,
-    SUCCESS = 3

@@ -14,14 +14,13 @@
 
 import asyncio
 import logging
-from enum import Enum
 from threading import Thread
 from time import sleep
 
 import grpc
 from simplejson import dumps
 
-from thingsboard_gateway.gateway.constant_enums import DownlinkMessageType
+from thingsboard_gateway.gateway.constant_enums import DownlinkMessageType, Status
 from thingsboard_gateway.gateway.grpc_service.grpc_downlink_converter import GrpcDownlinkConverter
 from thingsboard_gateway.gateway.grpc_service.grpc_uplink_converter import GrpcUplinkConverter
 from thingsboard_gateway.gateway.grpc_service.tb_grpc_server import TBGRPCServer
@@ -29,12 +28,6 @@ from thingsboard_gateway.gateway.proto.messages_pb2 import *
 from thingsboard_gateway.gateway.proto.messages_pb2_grpc import add_TBGatewayProtoServiceServicer_to_server
 
 log = logging.getLogger('grpc')
-
-
-class Status(Enum):
-    FAILURE = 1,
-    NOT_FOUND = 2,
-    SUCCESS = 3
 
 
 DEFAULT_STATISTICS_DICT = {"MessagesReceived": 0, "MessagesSent": 0}

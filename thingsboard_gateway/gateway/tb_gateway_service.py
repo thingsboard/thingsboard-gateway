@@ -29,8 +29,6 @@ from yaml import safe_load
 
 from thingsboard_gateway.gateway.constant_enums import DeviceActions
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME
-from thingsboard_gateway.gateway.grpc_service.grpc_connector import GrpcConnector
-from thingsboard_gateway.gateway.grpc_service.tb_grpc_manager import Status, TBGRPCServerManager
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
@@ -41,6 +39,14 @@ from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
 from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
 from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
+GRPC_LOADED = False
+try:
+    from thingsboard_gateway.gateway.grpc_service.grpc_connector import GrpcConnector
+    from thingsboard_gateway.gateway.grpc_service.tb_grpc_manager import TBGRPCServerManager
+    GRPC_LOADED = True
+except ImportError:
+    print("Cannot load GRPC connector!")
 
 log = logging.getLogger('service')
 main_handler = logging.handlers.MemoryHandler(-1)
@@ -166,7 +172,7 @@ class TBGatewayService:
         self.__grpc_config = self.__config.get('grpc')
         self.__grpc_manager = None
         self.__grpc_connectors = {}
-        if self.__grpc_config is not None and self.__grpc_config.get("enabled"):
+        if GRPC_LOADED and self.__grpc_config is not None and self.__grpc_config.get("enabled"):
             self.__process_async_actions_thread.start()
             self.__grpc_manager = TBGRPCServerManager(self, self.__grpc_config)
             self.__grpc_manager.set_gateway_read_callbacks(self.__register_connector, self.__unregister_connector)
