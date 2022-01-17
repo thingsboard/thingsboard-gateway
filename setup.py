@@ -62,7 +62,8 @@ setup(
         'pyfiglet',
         'termcolor',
         'grpcio',
-        'protobuf'
+        'protobuf',
+        'cachetools'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={
