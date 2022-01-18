@@ -27,7 +27,7 @@ from time import sleep, time
 from simplejson import JSONDecodeError, dumps, load, loads
 from yaml import safe_load
 
-from thingsboard_gateway.gateway.constant_enums import DeviceActions
+from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
