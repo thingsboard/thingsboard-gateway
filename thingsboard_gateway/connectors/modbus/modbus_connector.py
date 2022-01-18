@@ -178,7 +178,8 @@ class ModbusConnector(Connector, Thread):
                         device[section] = []
 
                     for item in value.get(section, []):
-                        device[section].append({**item, 'functionCode': FUNCTION_CODE_READ[register]})
+                        device[section].append({**item, 'functionCode': FUNCTION_CODE_READ[
+                            register] if section not in ('attributeUpdates', 'rpc') else item['functionCode']})
 
         self.__config['master']['slaves'].append(device)
 
@@ -433,6 +434,8 @@ class ModbusConnector(Connector, Thread):
                                 RPC_PARAMS_PARAMETER: content[DATA_PARAMETER][attribute_updated]
                             }
                         }
+                        attribute_updates_command_config['byteOrder'] = device.byte_order or 'LITTLE'
+                        attribute_updates_command_config['wordOrder'] = device.word_order or 'LITTLE'
                         self.__process_rpc_request(to_process, attribute_updates_command_config)
         except Exception as e:
             log.exception(e)
@@ -486,7 +489,7 @@ class ModbusConnector(Connector, Thread):
                                                                                               content)
                 try:
                     rpc_command_config[PAYLOAD_PARAMETER] = converted_data[0]
-                except IndexError:
+                except IndexError and TypeError:
                     rpc_command_config[PAYLOAD_PARAMETER] = converted_data
 
             try:
