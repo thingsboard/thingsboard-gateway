@@ -436,7 +436,8 @@ class ModbusConnector(Connector, Thread):
                         }
                         attribute_updates_command_config['byteOrder'] = device.byte_order or 'LITTLE'
                         attribute_updates_command_config['wordOrder'] = device.word_order or 'LITTLE'
-                        self.__process_rpc_request(to_process, attribute_updates_command_config)
+                        self.__process_request(to_process, attribute_updates_command_config,
+                                               request_type='attributeUpdates')
         except Exception as e:
             log.exception(e)
 
@@ -457,13 +458,13 @@ class ModbusConnector(Connector, Thread):
                         server_rpc_request[DATA_PARAMETER][RPC_METHOD_PARAMETER])
 
                     if rpc_command_config is not None:
-                        self.__process_rpc_request(server_rpc_request, rpc_command_config)
+                        self.__process_request(server_rpc_request, rpc_command_config)
 
                 elif isinstance(device.config[RPC_SECTION], list):
                     for rpc_command_config in device.config[RPC_SECTION]:
                         if rpc_command_config[TAG_PARAMETER] == server_rpc_request[DATA_PARAMETER][
                                 RPC_METHOD_PARAMETER]:
-                            self.__process_rpc_request(server_rpc_request, rpc_command_config)
+                            self.__process_request(server_rpc_request, rpc_command_config)
                             break
                 else:
                     log.error("Received rpc request, but method %s not found in config for %s.",
@@ -478,7 +479,8 @@ class ModbusConnector(Connector, Thread):
         except Exception as e:
             log.exception(e)
 
-    def __process_rpc_request(self, content, rpc_command_config):
+    def __process_request(self, content, rpc_command_config, request_type='RPC'):
+        log.debug('Processing %s request', request_type)
         if rpc_command_config is not None:
             device = tuple(filter(lambda slave: slave.name == content[DEVICE_SECTION_PARAMETER], self.__slaves))[0]
             rpc_command_config[UNIT_ID_PARAMETER] = device.config['unitId']
@@ -509,7 +511,8 @@ class ModbusConnector(Connector, Thread):
                             WORD_ORDER_PARAMETER: device.word_order
                             },
                     data=to_converter)
-                log.debug("Received RPC method: %s, result: %r", content[DATA_PARAMETER][RPC_METHOD_PARAMETER],
+                log.debug("Received %s method: %s, result: %r", request_type,
+                          content[DATA_PARAMETER][RPC_METHOD_PARAMETER],
                           response)
             elif isinstance(response, (WriteMultipleRegistersResponse,
                                        WriteMultipleCoilsResponse,
