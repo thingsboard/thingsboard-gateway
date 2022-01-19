@@ -14,6 +14,7 @@
       "showMap": false,
       "timeout": 10000,
       "connectRetry": 5,
+      "connectRetryInSeconds": 0,
       "telemetry": [
         {
           "key": "temperature",

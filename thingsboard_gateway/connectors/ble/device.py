@@ -50,6 +50,7 @@ class Device(Thread):
         self.device_type = config.get('deviceType', 'default')
         self.timeout = config.get('timeout', 10000) / 1000
         self.connect_retry = config.get('connectRetry', 5)
+        self.connect_retry_in_seconds = config.get('connectRetryInSeconds', 0)
         self.show_map = config.get('showMap', False)
         self.__connector_type = config['connector_type']
 
@@ -129,6 +130,7 @@ class Device(Thread):
                         self.stopped = True
                         raise ConnectionError
 
+                    sleep(self.connect_retry_in_seconds)
                     sleep(.2)
 
     async def notify_callback(self, sender: int, data: bytearray):
