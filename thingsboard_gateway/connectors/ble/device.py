@@ -49,6 +49,7 @@ class Device(Thread):
         self.name = config['name']
         self.device_type = config.get('deviceType', 'default')
         self.timeout = config.get('timeout', 10000) / 1000
+        self.connect_retry = config.get('connectRetry', 5)
         self.show_map = config.get('showMap', False)
         self.__connector_type = config['connector_type']
 
@@ -119,8 +120,14 @@ class Device(Thread):
                 except Exception as err:
                     log.exception(err)
 
+                connect_try = 0
                 while not self.stopped and not self.client.is_connected:
                     await self.connect_to_device()
+
+                    connect_try += 1
+                    if connect_try == self.connect_retry and not self.client.is_connected:
+                        self.stopped = True
+                        raise ConnectionError
 
                     sleep(.2)
 
@@ -158,7 +165,7 @@ class Device(Thread):
                         data = await self.client.read_gatt_char(char_id)
                         not_converted_data[section].append({'data': data, **item})
                     except BleakError as e:
-                        log.error(e)
+                        log.exception(e)
                 elif item['method'] == 'notify' and char_id not in self.notifying_chars:
                     try:
                         self.__set_char_handle(item, char_id)
