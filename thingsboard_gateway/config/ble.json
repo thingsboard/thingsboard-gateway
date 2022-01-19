@@ -15,6 +15,7 @@
       "timeout": 10000,
       "connectRetry": 5,
       "connectRetryInSeconds": 0,
+      "waitAfterConnectRetries": 10,
       "telemetry": [
         {
           "key": "temperature",

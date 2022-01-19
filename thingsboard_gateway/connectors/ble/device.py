@@ -51,6 +51,7 @@ class Device(Thread):
         self.timeout = config.get('timeout', 10000) / 1000
         self.connect_retry = config.get('connectRetry', 5)
         self.connect_retry_in_seconds = config.get('connectRetryInSeconds', 0)
+        self.wait_after_connect_retries = config.get('waitAfterConnectRetries', 0)
         self.show_map = config.get('showMap', False)
         self.__connector_type = config['connector_type']
 
@@ -126,9 +127,8 @@ class Device(Thread):
                     await self.connect_to_device()
 
                     connect_try += 1
-                    if connect_try == self.connect_retry and not self.client.is_connected:
-                        self.stopped = True
-                        raise ConnectionError
+                    if connect_try == self.connect_retry:
+                        sleep(self.wait_after_connect_retries)
 
                     sleep(self.connect_retry_in_seconds)
                     sleep(.2)
