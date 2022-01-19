@@ -105,11 +105,24 @@ class Device(Thread):
         self.last_polled_time = time()
 
         while True:
-            if time() - self.last_polled_time >= self.poll_period:
-                self.last_polled_time = time()
-                await self.__process_self()
-            else:
-                await asyncio.sleep(.2)
+            try:
+                if time() - self.last_polled_time >= self.poll_period:
+                    self.last_polled_time = time()
+                    await self.__process_self()
+                else:
+                    await asyncio.sleep(.2)
+            except Exception as e:
+                log.exception(e)
+
+                try:
+                    await self.client.disconnect()
+                except Exception as err:
+                    log.exception(err)
+
+                while not self.stopped and not self.client.is_connected:
+                    await self.connect_to_device()
+
+                    sleep(.2)
 
     async def notify_callback(self, sender: int, data: bytearray):
         not_converted_data = {'telemetry': [], 'attributes': []}
@@ -151,7 +164,7 @@ class Device(Thread):
                         self.__set_char_handle(item, char_id)
                         self.notifying_chars.append(char_id)
                         await self.notify(char_id)
-                    except BleakError:
+                    except BleakError as e:
                         log.error(e)
 
         if len(not_converted_data['telemetry']) > 0 or len(not_converted_data['attributes']) > 0:
@@ -176,6 +189,7 @@ class Device(Thread):
 
     async def connect_to_device(self):
         try:
+            log.info('Trying to connect to %s with %s MAC address', self.name, self.mac_address)
             await self.client.connect(timeout=self.timeout)
         except Exception as e:
             log.error(e)
