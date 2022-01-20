@@ -49,6 +49,9 @@ class Device(Thread):
         self.name = config['name']
         self.device_type = config.get('deviceType', 'default')
         self.timeout = config.get('timeout', 10000) / 1000
+        self.connect_retry = config.get('connectRetry', 5)
+        self.connect_retry_in_seconds = config.get('connectRetryInSeconds', 0)
+        self.wait_after_connect_retries = config.get('waitAfterConnectRetries', 0)
         self.show_map = config.get('showMap', False)
         self.__connector_type = config['connector_type']
 
@@ -105,11 +108,30 @@ class Device(Thread):
         self.last_polled_time = time()
 
         while True:
-            if time() - self.last_polled_time >= self.poll_period:
-                self.last_polled_time = time()
-                await self.__process_self()
-            else:
-                await asyncio.sleep(.2)
+            try:
+                if time() - self.last_polled_time >= self.poll_period:
+                    self.last_polled_time = time()
+                    await self.__process_self()
+                else:
+                    await asyncio.sleep(.2)
+            except Exception as e:
+                log.exception(e)
+
+                try:
+                    await self.client.disconnect()
+                except Exception as err:
+                    log.exception(err)
+
+                connect_try = 0
+                while not self.stopped and not self.client.is_connected:
+                    await self.connect_to_device()
+
+                    connect_try += 1
+                    if connect_try == self.connect_retry:
+                        sleep(self.wait_after_connect_retries)
+
+                    sleep(self.connect_retry_in_seconds)
+                    sleep(.2)
 
     async def notify_callback(self, sender: int, data: bytearray):
         not_converted_data = {'telemetry': [], 'attributes': []}
@@ -145,13 +167,13 @@ class Device(Thread):
                         data = await self.client.read_gatt_char(char_id)
                         not_converted_data[section].append({'data': data, **item})
                     except BleakError as e:
-                        log.error(e)
+                        log.exception(e)
                 elif item['method'] == 'notify' and char_id not in self.notifying_chars:
                     try:
                         self.__set_char_handle(item, char_id)
                         self.notifying_chars.append(char_id)
                         await self.notify(char_id)
-                    except BleakError:
+                    except BleakError as e:
                         log.error(e)
 
         if len(not_converted_data['telemetry']) > 0 or len(not_converted_data['attributes']) > 0:
@@ -176,6 +198,7 @@ class Device(Thread):
 
     async def connect_to_device(self):
         try:
+            log.info('Trying to connect to %s with %s MAC address', self.name, self.mac_address)
             await self.client.connect(timeout=self.timeout)
         except Exception as e:
             log.error(e)
