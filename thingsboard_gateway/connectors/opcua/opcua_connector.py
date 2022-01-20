@@ -61,26 +61,9 @@ class OpcUaConnector(Thread, Connector):
             self.__opcua_url = self.__server_conf.get("url")
         self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000) / 1000)
         if self.__server_conf["identity"].get("type") == "cert.PEM":
-            try:
-                ca_cert = self.__server_conf["identity"].get("caCert")
-                private_key = self.__server_conf["identity"].get("privateKey")
-                cert = self.__server_conf["identity"].get("cert")
-                security_mode = self.__server_conf["identity"].get("mode", "SignAndEncrypt")
-                policy = self.__server_conf["security"]
-                if cert is None or private_key is None:
-                    log.exception("Error in ssl configuration - cert or privateKey parameter not found")
-                    raise RuntimeError("Error in ssl configuration - cert or privateKey parameter not found")
-                security_string = policy + ',' + security_mode + ',' + cert + ',' + private_key
-                if ca_cert is not None:
-                    security_string = security_string + ',' + ca_cert
-                self.client.set_security_string(security_string)
-
-            except Exception as e:
-                log.exception(e)
+            self.__set_auth_settings_by_cert()
         if self.__server_conf["identity"].get("username"):
-            self.client.set_user(self.__server_conf["identity"].get("username"))
-            if self.__server_conf["identity"].get("password"):
-                self.client.set_password(self.__server_conf["identity"].get("password"))
+            self.__set_auth_settings_by_username()
 
         self.setName(self.__server_conf.get("name", 'OPC-UA ' + ''.join(choice(ascii_lowercase) for _ in range(5))) + " Connector")
         self.__opcua_nodes = {}
@@ -157,10 +140,39 @@ class OpcUaConnector(Thread, Connector):
                 log.error("Connection failed on connection to OPC-UA server with url %s",
                           self.__server_conf.get("url"))
                 log.exception(e)
+
                 self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000) / 1000)
+                if self.__server_conf["identity"].get("type") == "cert.PEM":
+                    self.__set_auth_settings_by_cert()
+                if self.__server_conf["identity"].get("username"):
+                    self.__set_auth_settings_by_username()
+
                 self._subscribed = {}
                 self.__available_object_resources = {}
                 time.sleep(10)
+
+    def __set_auth_settings_by_cert(self):
+        try:
+            ca_cert = self.__server_conf["identity"].get("caCert")
+            private_key = self.__server_conf["identity"].get("privateKey")
+            cert = self.__server_conf["identity"].get("cert")
+            security_mode = self.__server_conf["identity"].get("mode", "SignAndEncrypt")
+            policy = self.__server_conf["security"]
+            if cert is None or private_key is None:
+                log.exception("Error in ssl configuration - cert or privateKey parameter not found")
+                raise RuntimeError("Error in ssl configuration - cert or privateKey parameter not found")
+            security_string = policy + ',' + security_mode + ',' + cert + ',' + private_key
+            if ca_cert is not None:
+                security_string = security_string + ',' + ca_cert
+            self.client.set_security_string(security_string)
+
+        except Exception as e:
+            log.exception(e)
+
+    def __set_auth_settings_by_username(self):
+        self.client.set_user(self.__server_conf["identity"].get("username"))
+        if self.__server_conf["identity"].get("password"):
+            self.client.set_password(self.__server_conf["identity"].get("password"))
 
     def __check_connection(self):
         try:
