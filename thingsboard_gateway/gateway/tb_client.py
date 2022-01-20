@@ -14,7 +14,7 @@
 
 import logging
 import threading
-from time import time, sleep
+from time import sleep
 from ssl import CERT_REQUIRED, PROTOCOL_TLSv1_2
 
 from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
@@ -27,6 +27,7 @@ class TBClient(threading.Thread):
         super().__init__()
         self.setName('Connection thread.')
         self.daemon = True
+        self.__config_folder_path = config_folder_path
         self.__config = config
         self.__host = config["host"]
         self.__port = config.get("port", 1883)
@@ -45,9 +46,9 @@ class TBClient(threading.Thread):
             self.__token = str(credentials["accessToken"])
         self.client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self, quality_of_service=self.__default_quality_of_service)
         if self.__tls:
-            self.__ca_cert = config_folder_path + credentials.get("caCert") if credentials.get("caCert") is not None else None
-            self.__private_key = config_folder_path + credentials.get("privateKey") if credentials.get("privateKey") is not None else None
-            self.__cert = config_folder_path + credentials.get("cert") if credentials.get("cert") is not None else None
+            self.__ca_cert = self.__config_folder_path + credentials.get("caCert") if credentials.get("caCert") is not None else None
+            self.__private_key = self.__config_folder_path + credentials.get("privateKey") if credentials.get("privateKey") is not None else None
+            self.__cert = self.__config_folder_path + credentials.get("cert") if credentials.get("cert") is not None else None
             self.client._client.tls_set(ca_certs=self.__ca_cert,
                                         certfile=self.__cert,
                                         keyfile=self.__private_key,
@@ -144,3 +145,6 @@ class TBClient(threading.Thread):
                 self.__stopped = True
             except Exception as e:
                 log.exception(e)
+
+    def get_config_folder_path(self):
+        return self.__config_folder_path

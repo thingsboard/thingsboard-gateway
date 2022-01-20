@@ -197,7 +197,7 @@ class RemoteConfigurator:
             self.__old_tb_client.unsubscribe('*')
             self.__old_tb_client.stop()
             self.__old_tb_client.disconnect()
-            self.__gateway.tb_client = TBClient(self.__new_general_configuration_file["thingsboard"])
+            self.__gateway.tb_client = TBClient(self.__new_general_configuration_file["thingsboard"], self.__old_tb_client.get_config_folder_path())
             self.__gateway.tb_client.connect()
             connection_state = False
             while time() * 1000 - apply_start < self.__apply_timeout * 1000 and not connection_state:
