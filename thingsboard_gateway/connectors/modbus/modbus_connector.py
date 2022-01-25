@@ -27,8 +27,13 @@ except ImportError:
     print("Modbus library not found - installing...")
     TBUtility.install_package("pymodbus", ">=2.3.0")
     TBUtility.install_package('pyserial')
-    TBUtility.install_package('twisted')
     from pymodbus.constants import Defaults
+
+try:
+    from twisted.internet import reactor
+except ImportError:
+    TBUtility.install_package('twisted')
+    from twisted.internet import reactor
 
 from twisted.internet import reactor
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
