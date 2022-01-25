@@ -29,7 +29,7 @@ from platform import system
 from time import time, sleep
 import asyncio
 
-from bleak import BleakClient, BleakError
+from bleak import BleakClient
 
 from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -74,7 +74,7 @@ class Device(Thread):
             'serverSideRpc': config.get('serverSideRpc', [])
         }
         self.callback = config['callback']
-        self.last_polled_time = 0
+        self.last_polled_time = self.poll_period + 1
 
         self.notifying_chars = []
 
@@ -104,9 +104,6 @@ class Device(Thread):
             self.stopped = True
 
     async def timer(self):
-        await self.__process_self()
-        self.last_polled_time = time()
-
         while True:
             try:
                 if time() - self.last_polled_time >= self.poll_period:
@@ -114,8 +111,8 @@ class Device(Thread):
                     await self.__process_self()
                 else:
                     await asyncio.sleep(.2)
-            except Exception as e:
-                log.exception(e)
+            except Exception:
+                log.error('Problem with connection')
 
                 try:
                     await self.client.disconnect()
@@ -163,18 +160,12 @@ class Device(Thread):
                 char_id = item['characteristicUUID']
 
                 if item['method'] == 'read':
-                    try:
-                        data = await self.client.read_gatt_char(char_id)
-                        not_converted_data[section].append({'data': data, **item})
-                    except BleakError as e:
-                        log.exception(e)
+                    data = await self.client.read_gatt_char(char_id)
+                    not_converted_data[section].append({'data': data, **item})
                 elif item['method'] == 'notify' and char_id not in self.notifying_chars:
-                    try:
-                        self.__set_char_handle(item, char_id)
-                        self.notifying_chars.append(char_id)
-                        await self.notify(char_id)
-                    except BleakError as e:
-                        log.error(e)
+                    self.__set_char_handle(item, char_id)
+                    self.notifying_chars.append(char_id)
+                    await self.notify(char_id)
 
         if len(not_converted_data['telemetry']) > 0 or len(not_converted_data['attributes']) > 0:
             data_for_converter = {
