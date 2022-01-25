@@ -94,7 +94,7 @@ class ModbusConnector(Connector, Thread):
         self.__gateway = gateway
         self._connector_type = connector_type
 
-        self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config)
+        self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config, gateway.config_dir)
         self.__config = self.__backward_compatibility_adapter.convert()
 
         self.setName(self.__config.get("name", 'Modbus Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))

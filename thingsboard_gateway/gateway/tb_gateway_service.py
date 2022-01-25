@@ -263,6 +263,10 @@ class TBGatewayService:
             log.info("The gateway has been stopped.")
             self.tb_client.stop()
 
+    @property
+    def config_dir(self):
+        return self._config_dir
+
     def __close_connectors(self):
         for current_connector in self.available_connectors:
             try:
