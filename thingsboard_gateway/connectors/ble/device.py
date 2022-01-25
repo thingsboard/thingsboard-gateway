@@ -33,6 +33,7 @@ from bleak import BleakClient
 
 from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
+from thingsboard_gateway.connectors.ble.error_handler import ErrorHandler
 
 MAC_ADDRESS_FORMAT = {
     'Darwin': '-',
@@ -111,8 +112,9 @@ class Device(Thread):
                     await self.__process_self()
                 else:
                     await asyncio.sleep(.2)
-            except Exception:
+            except Exception as e:
                 log.error('Problem with connection')
+                log.debug(e)
 
                 try:
                     await self.client.disconnect()
@@ -160,12 +162,28 @@ class Device(Thread):
                 char_id = item['characteristicUUID']
 
                 if item['method'] == 'read':
-                    data = await self.client.read_gatt_char(char_id)
-                    not_converted_data[section].append({'data': data, **item})
+                    try:
+                        data = await self.client.read_gatt_char(char_id)
+                        not_converted_data[section].append({'data': data, **item})
+                    except Exception as e:
+                        error = ErrorHandler(e)
+                        if error.is_char_not_found() or error.is_operation_not_supported():
+                            log.error(e)
+                            pass
+                        else:
+                            raise e
                 elif item['method'] == 'notify' and char_id not in self.notifying_chars:
-                    self.__set_char_handle(item, char_id)
-                    self.notifying_chars.append(char_id)
-                    await self.notify(char_id)
+                    try:
+                        self.__set_char_handle(item, char_id)
+                        self.notifying_chars.append(char_id)
+                        await self.notify(char_id)
+                    except Exception as e:
+                        error = ErrorHandler(e)
+                        if error.is_char_not_found() or error.is_operation_not_supported():
+                            log.error(e)
+                            pass
+                        else:
+                            raise e
 
         if len(not_converted_data['telemetry']) > 0 or len(not_converted_data['attributes']) > 0:
             data_for_converter = {
