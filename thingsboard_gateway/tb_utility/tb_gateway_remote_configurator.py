@@ -62,8 +62,9 @@ class RemoteConfigurator:
                 self.__new_general_configuration_file = self.__new_configuration.get("thingsboard")
                 
                 # To maintain RemoteShell status
-                old_general_configuration = loads(b64decode(self.__old_configuration))
-                if old_general_configuration.get("thingsboard").get("thingsboard").get("remoteShell"):
+                if not isinstance(self.__old_configuration, dict):
+                    self.__old_configuration = loads(b64decode(self.__old_configuration))
+                if self.__old_configuration.get("thingsboard").get("thingsboard").get("remoteShell"):
                     self.__new_configuration["thingsboard"]["thingsboard"]["remoteShell"] = True
                     
                 self.__new_logs_configuration = b64decode(self.__new_general_configuration_file.pop("logs")).decode('UTF-8').replace('}}', '\n')
