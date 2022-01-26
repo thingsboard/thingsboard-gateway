@@ -546,6 +546,7 @@ class TBGatewayService:
                                 self.__connector_incoming_messages[connector_name] += 1
                         else:
                             data["deviceName"] = "currentThingsBoardGateway"
+                            data['deviceType'] = "gateway"
 
                         data = self.__convert_telemetry_to_ts(data)
 

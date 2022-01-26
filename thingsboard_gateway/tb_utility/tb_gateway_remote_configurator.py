@@ -16,7 +16,7 @@ from base64 import b64decode, b64encode
 from configparser import ConfigParser
 from logging import getLogger
 from logging.config import fileConfig
-from os import linesep, remove
+from os import linesep, remove, stat
 from os.path import dirname, exists
 from re import findall
 from time import sleep, time
@@ -60,6 +60,12 @@ class RemoteConfigurator:
                 self.__new_configuration = loads(decoded_configuration)
                 self.__old_connectors_configs = self.__gateway.connectors_configs
                 self.__new_general_configuration_file = self.__new_configuration.get("thingsboard")
+                
+                # To maintain RemoteShell status
+                old_general_configuration = loads(b64decode(self.__old_configuration))
+                if old_general_configuration.get("thingsboard").get("thingsboard").get("remoteShell"):
+                    self.__new_configuration["thingsboard"]["thingsboard"]["remoteShell"] = True
+                    
                 self.__new_logs_configuration = b64decode(self.__new_general_configuration_file.pop("logs")).decode('UTF-8').replace('}}', '\n')
                 if self.__old_configuration != decoded_configuration:
                     LOG.info("Remote configuration received: \n %s", decoded_configuration)
@@ -136,8 +142,14 @@ class RemoteConfigurator:
                     if input_connector['name'] == connector['name']:
                         if not self.__gateway.connectors_configs.get(connector['type']):
                             self.__gateway.connectors_configs[connector['type']] = []
+                        config_file_path = self.__gateway.get_config_path + connector['configuration']
+                        # Create the configuration json file if not exists
+                        open(config_file_path, 'w')
                         self.__gateway.connectors_configs[connector['type']].append(
-                            {"name": connector["name"], "config": {connector['configuration']: input_connector["config"]}})
+                            {"name": connector["name"], 
+                            "config": {connector['configuration']: input_connector["config"]},
+                            "config_updated": stat(config_file_path),
+                            "config_file_path": config_file_path})
                         connector_class = TBModuleLoader.import_module(connector["type"],
                                                                        self.__gateway._default_connectors.get(connector["type"], connector.get("class")))
                         self.__gateway._implemented_connectors[connector["type"]] = connector_class
