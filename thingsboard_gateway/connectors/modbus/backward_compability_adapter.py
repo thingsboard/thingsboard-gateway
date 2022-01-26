@@ -11,8 +11,6 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-from os import path
-from os.path import exists
 
 from simplejson import dumps
 
@@ -22,13 +20,11 @@ from thingsboard_gateway.connectors.connector import log
 class BackwardCompatibilityAdapter:
     config_files_count = 1
     CONFIG_PATH = None
-    if exists('config/'):
-        CONFIG_PATH = 'config/'
-    elif exists("/etc/thingsboard-gateway/config/".replace('/', path.sep)):
-        CONFIG_PATH = "/etc/thingsboard-gateway/config/".replace('/', path.sep)
 
-    def __init__(self, config):
+    def __init__(self, config, config_dir):
         self.__config = config
+        self.__config_dir = config_dir
+        BackwardCompatibilityAdapter.CONFIG_PATH = self.__config_dir
         self.__keys = ['host', 'port', 'type', 'method', 'timeout', 'byteOrder', 'wordOrder', 'retries', 'retryOnEmpty',
                        'retryOnInvalid', 'baudrate']
 
@@ -46,7 +42,8 @@ class BackwardCompatibilityAdapter:
 
         log.warning(
             'You are using old configuration structure for Modbus connector. It will be DEPRECATED in the future '
-            'version! New config file "modbus_new.json" was generated in config/ folder. Please, use it.')
+            'version! New config file "modbus_new.json" was generated in %s folder. Please, use it.', self.CONFIG_PATH)
+        log.warning('You have to manually connect the new generated config file to tb_gateway.yaml!')
 
         slaves = []
         for device in self.__config['server'].get('devices', []):
