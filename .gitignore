@@ -22,4 +22,3 @@ thingsboard_gateway/storage/data/
 __pycache__
 /thingsboard_gateway/config/
 /venv/
-thingsboard_gateway/config/logs.conf
