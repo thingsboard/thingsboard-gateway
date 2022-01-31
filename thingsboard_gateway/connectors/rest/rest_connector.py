@@ -21,7 +21,6 @@ from time import time
 import ssl
 import os
 
-import aiohttp.multipart
 from simplejson import JSONDecodeError
 import requests
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
