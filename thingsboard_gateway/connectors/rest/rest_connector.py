@@ -322,7 +322,10 @@ class BaseDataHandler:
             json_data = await request.json()
         except json.decoder.JSONDecodeError:
             data = await request.post()
-            json_data = json.dumps(dict(data))
+            if len(data):
+                json_data = json.dumps(dict(data))
+            else:
+                json_data = await request.text()
 
         return json_data
 
