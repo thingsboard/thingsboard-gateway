@@ -358,7 +358,7 @@ class BasicDataHandler(BaseDataHandler):
     async def __call__(self, request: web.Request):
         auth = BasicAuth.decode(request.headers.get('Authorization'))
         if self.verify(auth.login, auth.password):
-            json_data = await request.json()
+            json_data = await self._convert_data_from_request(request)
             if not json_data:
                 return web.Response(status=415)
             endpoint_config = self.endpoint['config']
