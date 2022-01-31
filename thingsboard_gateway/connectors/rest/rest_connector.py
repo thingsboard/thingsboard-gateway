@@ -318,16 +318,21 @@ class BaseDataHandler:
 
     @staticmethod
     async def _convert_data_from_request(request):
-        try:
-            json_data = await request.json()
-        except json.decoder.JSONDecodeError:
-            data = await request.post()
-            if len(data):
-                json_data = json.dumps(dict(data))
-            else:
-                json_data = await request.text()
+        if request.method == 'GET':
+            params = request.query
 
-        return json_data
+            return dict(params)
+        else:
+            try:
+                json_data = await request.json()
+            except json.decoder.JSONDecodeError:
+                data = await request.post()
+                if len(data):
+                    json_data = dict(data)
+                else:
+                    json_data = await request.text()
+
+            return json_data
 
 
 class AnonymousDataHandler(BaseDataHandler):
