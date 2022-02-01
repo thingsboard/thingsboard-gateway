@@ -17,5 +17,5 @@ from thingsboard_gateway.connectors.converter import Converter, abstractmethod, 
 
 class OpcUaConverter(Converter):
     @abstractmethod
-    def convert(self, config, data):
+    def convert(self, config, val, data = None):
         pass

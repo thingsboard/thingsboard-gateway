@@ -627,7 +627,7 @@ class SubHandler(object):
         try:
             log.debug("Python: New data change event on node %s, with val: %s and data %s", node, val, str(data))
             subscription = self.connector.subscribed[node]
-            converted_data = subscription["converter"].convert((subscription["config_path"], subscription["path"]), val)
+            converted_data = subscription["converter"].convert((subscription["config_path"], subscription["path"]), val, data)
             self.connector.statistics['MessagesReceived'] = self.connector.statistics['MessagesReceived'] + 1
             self.connector.data_to_send.append(converted_data)
             self.connector.statistics['MessagesSent'] = self.connector.statistics['MessagesSent'] + 1
