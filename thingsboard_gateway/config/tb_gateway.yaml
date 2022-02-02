@@ -9,8 +9,8 @@ thingsboard:
   handleDeviceRenaming: true
   checkingDeviceActivity:
     checkDeviceInactivity: true
-    inactivityTimeoutSeconds: 50
-    inactivityCheckPeriodSeconds: 1
+    inactivityTimeoutSeconds: 120
+    inactivityCheckPeriodSeconds: 10
   security:
     accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
   qos: 1
