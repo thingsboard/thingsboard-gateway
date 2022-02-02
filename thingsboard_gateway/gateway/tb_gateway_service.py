@@ -179,8 +179,8 @@ class TBGatewayService:
         self._connect_with_connectors()
         self.__load_persistent_devices()
 
-        self.__devices_idle_checker = self.__config['thingsboard'].get('devicesInactivityTimeChecker', {})
-        self.__check_devices_idle = self.__devices_idle_checker.get('checkDevicesInactivityTime', False)
+        self.__devices_idle_checker = self.__config['thingsboard'].get('checkingDeviceActivity', {})
+        self.__check_devices_idle = self.__devices_idle_checker.get('checkDeviceInactivity', False)
         if self.__check_devices_idle:
             thread = Thread(name='Checking devices idle time', target=self.__check_devices_idle_time, daemon=True)
             thread.start()
@@ -1054,8 +1054,8 @@ class TBGatewayService:
             log.debug("Saved connected devices.")
 
     def __check_devices_idle_time(self):
-        check_devices_idle_every_sec = self.__devices_idle_checker.get('checkDevicesInactivityTimeEverySec', 1)
-        disconnect_device_after_idle = self.__devices_idle_checker.get('deviceInactivityTimeout', 50)
+        check_devices_idle_every_sec = self.__devices_idle_checker.get('inactivityCheckPeriodSeconds', 1)
+        disconnect_device_after_idle = self.__devices_idle_checker.get('inactivityTimeoutSeconds', 50)
 
         while True:
             for_deleting = []
