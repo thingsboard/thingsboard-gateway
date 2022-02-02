@@ -8,7 +8,7 @@ thingsboard:
   checkConnectorsConfigurationInSeconds: 60
   handleDeviceRenaming: true
   checkingDeviceActivity:
-    checkDeviceInactivity: true
+    checkDeviceInactivity: false
     inactivityTimeoutSeconds: 120
     inactivityCheckPeriodSeconds: 10
   security:
