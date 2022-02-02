@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-from datetime import datetime
+
 import logging
 import logging.config
 import logging.handlers
@@ -723,7 +723,7 @@ class TBGatewayService:
                     device]
 
                 if self.__check_devices_idle:
-                    self.__connected_devices[final_device_name]['last_receiving_data'] = datetime.now().timestamp()
+                    self.__connected_devices[final_device_name]['last_receiving_data'] = time()
 
                 if devices_data_in_event_pack[device].get("attributes"):
                     if device == self.name or device == "currentThingsBoardGateway":
@@ -960,11 +960,10 @@ class TBGatewayService:
             return Status.FAILURE
 
     def del_device(self, device_name):
-        result = self.tb_client.client.gw_disconnect_device(device_name)
-        if result.rc == 0:
-            self.__connected_devices.pop(device_name)
-            self.__saved_devices.pop(device_name)
-            self.__save_persistent_devices()
+        self.tb_client.client.gw_disconnect_device(device_name)
+        self.__connected_devices.pop(device_name)
+        self.__saved_devices.pop(device_name)
+        self.__save_persistent_devices()
 
     def get_devices(self):
         return self.__connected_devices
@@ -1060,7 +1059,7 @@ class TBGatewayService:
         while True:
             for_deleting = []
             for (device_name, device) in self.__connected_devices.items():
-                ts = datetime.now().timestamp()
+                ts = time()
 
                 if not device.get('last_receiving_data'):
                     device['last_receiving_data'] = ts
