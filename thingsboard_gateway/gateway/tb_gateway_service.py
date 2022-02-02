@@ -179,8 +179,8 @@ class TBGatewayService:
         self._connect_with_connectors()
         self.__load_persistent_devices()
 
-        self.__devices_idle_checker = self.__config['thingsboard'].get('checkingDevicesIdle', {})
-        self.__check_devices_idle = self.__devices_idle_checker.get('checkDevicesIdle', False)
+        self.__devices_idle_checker = self.__config['thingsboard'].get('devicesInactivityTimeChecker', {})
+        self.__check_devices_idle = self.__devices_idle_checker.get('checkDevicesInactivityTime', False)
         if self.__check_devices_idle:
             thread = Thread(name='Checking devices idle time', target=self.__check_devices_idle_time, daemon=True)
             thread.start()
@@ -555,6 +555,9 @@ class TBGatewayService:
                             data["deviceName"] = "currentThingsBoardGateway"
                             data['deviceType'] = "gateway"
 
+                        if self.__check_devices_idle:
+                            self.__connected_devices[data['deviceName']]['last_receiving_data'] = time()
+
                         data = self.__convert_telemetry_to_ts(data)
 
                         max_data_size = self.__config["thingsboard"].get("maxPayloadSizeBytes", 1024)
@@ -721,9 +724,6 @@ class TBGatewayService:
             for device in devices_data_in_event_pack:
                 final_device_name = device if self.__renamed_devices.get(device) is None else self.__renamed_devices[
                     device]
-
-                if self.__check_devices_idle:
-                    self.__connected_devices[final_device_name]['last_receiving_data'] = time()
 
                 if devices_data_in_event_pack[device].get("attributes"):
                     if device == self.name or device == "currentThingsBoardGateway":
@@ -1035,26 +1035,27 @@ class TBGatewayService:
             self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices
 
     def __save_persistent_devices(self):
-        data_to_save = {}
-        for device in self.__connected_devices:
-            if self.__connected_devices[device]["connector"] is not None:
-                data_to_save[device] = [self.__connected_devices[device]["connector"].get_name(),
-                                        self.__connected_devices[device]["device_type"]]
+        with self.__lock:
+            data_to_save = {}
+            for device in self.__connected_devices:
+                if self.__connected_devices[device]["connector"] is not None:
+                    data_to_save[device] = [self.__connected_devices[device]["connector"].get_name(),
+                                            self.__connected_devices[device]["device_type"]]
 
-                if device in self.__renamed_devices:
-                    data_to_save[device].append(self.__renamed_devices.get(device))
+                    if device in self.__renamed_devices:
+                        data_to_save[device].append(self.__renamed_devices.get(device))
 
-        with open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w') as config_file:
-            try:
-                config_file.write(dumps(data_to_save, indent=2, sort_keys=True))
-            except Exception as e:
-                log.exception(e)
+            with open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w') as config_file:
+                try:
+                    config_file.write(dumps(data_to_save, indent=2, sort_keys=True))
+                except Exception as e:
+                    log.exception(e)
 
-        log.debug("Saved connected devices.")
+            log.debug("Saved connected devices.")
 
     def __check_devices_idle_time(self):
-        check_devices_idle_every_sec = self.__devices_idle_checker.get('checkDevicesIdleEverySec', 1)
-        disconnect_device_after_idle = self.__devices_idle_checker.get('disconnectDeviceAfterIdleTimeInSec', 50)
+        check_devices_idle_every_sec = self.__devices_idle_checker.get('checkDevicesInactivityTimeEverySec', 1)
+        disconnect_device_after_idle = self.__devices_idle_checker.get('deviceInactivityTimeout', 50)
 
         while True:
             for_deleting = []
@@ -1071,7 +1072,8 @@ class TBGatewayService:
 
             for device_name in for_deleting:
                 self.del_device(device_name)
-                log.debug('Delete device %s for the reason of (idle time > %s) or unsuccessful previous try.',
+
+                log.debug('Delete device %s for the reason of idle time > %s.',
                           device_name,
                           disconnect_device_after_idle)
 

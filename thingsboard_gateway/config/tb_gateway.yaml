@@ -7,10 +7,10 @@ thingsboard:
   minPackSendDelayMS: 0
   checkConnectorsConfigurationInSeconds: 60
   handleDeviceRenaming: true
-  checkingDevicesIdle:
-    checkDevicesIdle: false
-    disconnectDeviceAfterIdleTimeInSec: 50
-    checkDevicesIdleEverySec: 1
+  devicesInactivityTimeChecker:
+    checkDevicesInactivityTime: true
+    deviceInactivityTimeout: 50
+    checkDevicesInactivityTimeEverySec: 1
   security:
     accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
   qos: 1
