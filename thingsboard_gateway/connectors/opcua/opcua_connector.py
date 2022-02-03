@@ -363,10 +363,18 @@ class OpcUaConnector(Thread, Connector):
         information_types = {"attributes": "attributes", "timeseries": "telemetry"}
         for information_type in information_types:
             for information in device_info["configuration"][information_type]:
-                information_key = information["key"]
+
                 config_path = TBUtility.get_value(information["path"], get_tag=True)
                 information_path = self._check_path(config_path, device_info["deviceNode"])
                 information["path"] = '${%s}' % information_path
+
+                # Use Node name if param "key" not found in config
+                if not information.get('key'):
+                    information['key'] = information_path.split('.')[-1]
+                    information_key = information['key']
+                else:
+                    information_key = information['key']
+
                 information_nodes = []
                 self.__search_node(device_info["deviceNode"], information_path, result=information_nodes)
                 for information_node in information_nodes:
