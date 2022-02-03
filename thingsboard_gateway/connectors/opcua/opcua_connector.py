@@ -363,19 +363,26 @@ class OpcUaConnector(Thread, Connector):
         information_types = {"attributes": "attributes", "timeseries": "telemetry"}
         for information_type in information_types:
             for information in device_info["configuration"][information_type]:
-                information_key = information["key"]
                 config_path = TBUtility.get_value(information["path"], get_tag=True)
                 information_path = self._check_path(config_path, device_info["deviceNode"])
                 information["path"] = '${%s}' % information_path
                 information_nodes = []
                 self.__search_node(device_info["deviceNode"], information_path, result=information_nodes)
+
                 for information_node in information_nodes:
                     if information_node is not None:
+                        # Use Node name if param "key" not found in config
+                        if not information.get('key'):
+                            information['key'] = information_node.get_browse_name().Name
+
+                        information_key = information['key']
+
                         try:
                             information_value = information_node.get_value()
                         except:
                             log.error("Err get_value: %s", str(information_node))
                             continue
+
                         log.debug("Node for %s \"%s\" with path: %s - FOUND! Current values is: %s",
                                   information_type,
                                   information_key,
@@ -397,15 +404,18 @@ class OpcUaConnector(Thread, Connector):
                                                              "config_path": config_path}
                         if not device_info.get(information_types[information_type]):
                             device_info[information_types[information_type]] = []
+
                         converted_data = converter.convert((config_path, information_path), information_value)
                         self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                         self.data_to_send.append(converted_data)
                         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                         log.debug("Data to ThingsBoard: %s", converted_data)
+
                         if not self.__server_conf.get("disableSubscriptions", False):
                             sub_nodes.append(information_node)
                     else:
                         log.error("Node for %s \"%s\" with path %s - NOT FOUND!", information_type, information_key, information_path)
+
         if not self.__server_conf.get("disableSubscriptions", False):
             if self.__sub is None:
                 self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500),
