@@ -374,9 +374,8 @@ class OpcUaConnector(Thread, Connector):
                         # Use Node name if param "key" not found in config
                         if not information.get('key'):
                             information['key'] = information_node.get_browse_name().Name
-                            information_key = information['key']
-                        else:
-                            information_key = information['key']
+
+                        information_key = information['key']
 
                         try:
                             information_value = information_node.get_value()
