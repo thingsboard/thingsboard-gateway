@@ -143,7 +143,7 @@ class RemoteConfigurator:
                     if input_connector['name'] == connector['name']:
                         if not self.__gateway.connectors_configs.get(connector['type']):
                             self.__gateway.connectors_configs[connector['type']] = []
-                        config_file_path = self.__gateway.get_config_path + connector['configuration']
+                        config_file_path = self.__gateway.get_config_path() + connector['configuration']
                         # Create the configuration json file if not exists
                         open(config_file_path, 'w')
                         self.__gateway.connectors_configs[connector['type']].append(
