@@ -10,7 +10,8 @@
     {
       "endpoint": "/device1",
       "HTTPMethods": [
-        "POST"
+        "POST",
+        "GET"
       ],
       "security": {
         "type": "basic",

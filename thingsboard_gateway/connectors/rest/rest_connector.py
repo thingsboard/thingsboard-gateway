@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+import json
 from queue import Queue
 from random import choice
 from re import fullmatch
@@ -302,25 +302,54 @@ class RESTConnector(Connector, Thread):
             logger.exception(e)
 
 
-class AnonymousDataHandler:
+class BaseDataHandler:
     def __init__(self, send_to_storage, name, endpoint):
         self.send_to_storage = send_to_storage
         self.__name = name
         self.__endpoint = endpoint
 
+    @property
+    def name(self):
+        return self.__name
+
+    @property
+    def endpoint(self):
+        return self.__endpoint
+
+    @staticmethod
+    async def _convert_data_from_request(request):
+        if request.method == 'GET':
+            params = request.query
+
+            return dict(params)
+        else:
+            try:
+                json_data = await request.json()
+            except json.decoder.JSONDecodeError:
+                data = await request.post()
+                if len(data):
+                    json_data = dict(data)
+                else:
+                    json_data = await request.text()
+
+            return json_data
+
+
+class AnonymousDataHandler(BaseDataHandler):
     async def __call__(self, request: web.Request):
-        json_data = await request.json()
+        json_data = await self._convert_data_from_request(request)
+
         if not json_data and not len(request.query):
             return web.Response(status=415)
-        endpoint_config = self.__endpoint['config']
+        endpoint_config = self.endpoint['config']
         if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
             return web.Response(status=405)
         try:
             log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
-            converter = self.__endpoint['converter'](endpoint_config['converter'])
+            converter = self.endpoint['converter'](endpoint_config['converter'])
             data = json_data if json_data else dict(request.query)
             converted_data = converter.convert(config=endpoint_config['converter'], data=data)
-            self.send_to_storage(self.__name, converted_data)
+            self.send_to_storage(self.name, converted_data)
             log.info("CONVERTED_DATA: %r", converted_data)
             return web.Response(status=200)
         except Exception as e:
@@ -328,31 +357,26 @@ class AnonymousDataHandler:
             return web.Response(status=500)
 
 
-class BasicDataHandler:
-    def __init__(self, send_to_storage, name, endpoint):
-        self.send_to_storage = send_to_storage
-        self.__name = name
-        self.__endpoint = endpoint
-
+class BasicDataHandler(BaseDataHandler):
     def verify(self, username, password):
         if not username and password:
             return False
-        return Users.validate_user_credentials(self.__endpoint['config']['endpoint'], username, password)
+        return Users.validate_user_credentials(self.endpoint['config']['endpoint'], username, password)
 
     async def __call__(self, request: web.Request):
         auth = BasicAuth.decode(request.headers.get('Authorization'))
         if self.verify(auth.login, auth.password):
-            json_data = await request.json()
+            json_data = await self._convert_data_from_request(request)
             if not json_data:
                 return web.Response(status=415)
-            endpoint_config = self.__endpoint['config']
+            endpoint_config = self.endpoint['config']
             if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
                 return web.Response(status=405)
             try:
                 log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
-                converter = self.__endpoint['converter'](endpoint_config['converter'])
+                converter = self.endpoint['converter'](endpoint_config['converter'])
                 converted_data = converter.convert(config=endpoint_config['converter'], data=json_data)
-                self.send_to_storage(self.__name, converted_data)
+                self.send_to_storage(self.name, converted_data)
                 log.info("CONVERTED_DATA: %r", converted_data)
                 return web.Response(status=200)
             except Exception as e:

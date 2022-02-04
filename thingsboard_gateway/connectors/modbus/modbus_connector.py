@@ -67,7 +67,7 @@ SLAVE_TYPE = {
     'serial': StartSerialServer
 }
 FUNCTION_TYPE = {
-    'coils_initializer': 'ci',
+    'coils_initializer': 'co',
     'holding_registers': 'hr',
     'input_registers': 'ir',
     'discrete_inputs': 'di'
@@ -157,7 +157,7 @@ class ModbusConnector(Connector, Thread):
                         converted_value = converter.convert(
                             {**val,
                              'device': config.get('deviceName', 'Gateway'), 'functionCode': function_code,
-                             'byteOrder': config['byteOrder']},
+                             'byteOrder': config['byteOrder'], 'wordOrder': config['wordOrder']},
                             {'data': {'params': val['value']}})
                         values[val['address'] + 1] = converted_value
 
@@ -405,13 +405,13 @@ class ModbusConnector(Connector, Thread):
                                                                                           config.get("registersCount",
                                                                                                      config.get(
                                                                                                          "registerCount",
-                                                                                                         1))),
+                                                                                                         1))) * 8,
                                                                          unit=device.config['unitId'])
-        elif function_code in (5, 6):
-            result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
+        elif function_code in (5, 15):
+            result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER] * 8,
                                                                          value=config[PAYLOAD_PARAMETER],
                                                                          unit=device.config['unitId'])
-        elif function_code in (15, 16):
+        elif function_code in (6, 16):
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          values=config[PAYLOAD_PARAMETER],
                                                                          unit=device.config['unitId'])
@@ -491,13 +491,16 @@ class ModbusConnector(Connector, Thread):
             rpc_command_config[UNIT_ID_PARAMETER] = device.config['unitId']
             self.__connect_to_current_master(device)
 
-            if rpc_command_config.get(FUNCTION_CODE_PARAMETER) in (5, 6, 15, 16):
-                converted_data = device.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER].convert(rpc_command_config,
-                                                                                              content)
+            converted_data = device.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER].convert(rpc_command_config,
+                                                                                          content)
+
+            if rpc_command_config.get(FUNCTION_CODE_PARAMETER) in (6, 16):
                 try:
                     rpc_command_config[PAYLOAD_PARAMETER] = converted_data[0]
                 except IndexError and TypeError:
                     rpc_command_config[PAYLOAD_PARAMETER] = converted_data
+            elif rpc_command_config.get(FUNCTION_CODE_PARAMETER) in (5, 15):
+                rpc_command_config[PAYLOAD_PARAMETER] = converted_data
 
             try:
                 response = self.__function_to_device(device, rpc_command_config)

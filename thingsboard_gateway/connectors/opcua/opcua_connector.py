@@ -59,20 +59,14 @@ class OpcUaConnector(Thread, Connector):
             self.__opcua_url = "opc.tcp://" + self.__server_conf.get("url")
         else:
             self.__opcua_url = self.__server_conf.get("url")
-        self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000) / 1000)
-        if self.__server_conf["identity"].get("type") == "cert.PEM":
-            self.__set_auth_settings_by_cert()
-        if self.__server_conf["identity"].get("username"):
-            self.__set_auth_settings_by_username()
+
+        self.client = None
+        self.__connected = False
 
         self.setName(self.__server_conf.get("name", 'OPC-UA ' + ''.join(choice(ascii_lowercase) for _ in range(5))) + " Connector")
-        self.__opcua_nodes = {}
-        self._subscribed = {}
-        self.__sub = None
         self.__sub_handler = SubHandler(self)
         self.data_to_send = []
         self.__stopped = False
-        self.__connected = False
         self.daemon = True
 
     def is_connected(self):
@@ -83,17 +77,48 @@ class OpcUaConnector(Thread, Connector):
         self.start()
         log.info("Starting OPC-UA Connector")
 
-    def run(self):
-        while not self.__connected:
+    def __create_client(self):
+        if self.client:
+            try:
+                # Always try to disconnect to release resource on client and server side!
+                self.client.disconnect()
+            except:
+                pass
+            self.client = None
+
+        self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000) / 1000)
+        if self.__server_conf["identity"].get("type") == "cert.PEM":
+            self.__set_auth_settings_by_cert()
+        if self.__server_conf["identity"].get("username"):
+            self.__set_auth_settings_by_username()
+
+        self.__available_object_resources = {}
+        self.__opcua_nodes = {}
+        self._subscribed = {}
+        self.__sub = None
+        self.__connected = False
+
+    def __connect(self):
+        self.__create_client()
+
+        while not self.__connected and not self.__stopped:
             try:
                 self.client.connect()
                 try:
                     self.client.load_type_definitions()
                 except Exception as e:
-                    log.debug(e)
-                    log.debug("Error on loading type definitions.")
+                    log.error("Error on loading type definitions:")
+                    log.error(e)
                 log.debug(self.client.get_namespace_array()[-1])
                 log.debug(self.client.get_namespace_index(self.client.get_namespace_array()[-1]))
+
+                self.__initialize_client()
+
+                if not self.__server_conf.get("disableSubscriptions", False):
+                    self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
+
+                self.__connected = True
+                log.info("OPC-UA connector %s connected to server %s", self.get_name(), self.__server_conf.get("url"))
             except ConnectionRefusedError:
                 log.error("Connection refused on connection to OPC-UA server with url %s", self.__server_conf.get("url"))
                 time.sleep(10)
@@ -104,18 +129,14 @@ class OpcUaConnector(Thread, Connector):
                 log.debug("error on connection to OPC-UA server.")
                 log.error(e)
                 time.sleep(10)
-            else:
-                self.__connected = True
-                log.info("OPC-UA connector %s connected to server %s", self.get_name(), self.__server_conf.get("url"))
-        self.__initialize_client()
+
+    def run(self):
         while not self.__stopped:
             try:
                 time.sleep(.2)
                 self.__check_connection()
                 if not self.__connected and not self.__stopped:
-                    self.client.connect()
-                    self.__initialize_client()
-                    log.info("Reconnected to the OPC-UA server - %s", self.__server_conf.get("url"))
+                    self.__connect()
                 elif not self.__stopped:
                     if self.__server_conf.get("disableSubscriptions", False) and time.time() * 1000 - self.__previous_scan_time > self.__server_conf.get(
                             "scanPeriodInMillis", 60000):
@@ -141,14 +162,6 @@ class OpcUaConnector(Thread, Connector):
                           self.__server_conf.get("url"))
                 log.exception(e)
 
-                self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000) / 1000)
-                if self.__server_conf["identity"].get("type") == "cert.PEM":
-                    self.__set_auth_settings_by_cert()
-                if self.__server_conf["identity"].get("username"):
-                    self.__set_auth_settings_by_username()
-
-                self._subscribed = {}
-                self.__available_object_resources = {}
                 time.sleep(10)
 
     def __set_auth_settings_by_cert(self):
@@ -176,42 +189,31 @@ class OpcUaConnector(Thread, Connector):
 
     def __check_connection(self):
         try:
-            node = self.client.get_root_node()
-            node.get_children()
-            if not self.__server_conf.get("disableSubscriptions", False) and (not self.__connected or not self.subscribed):
-                self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
-            self.__connected = True
+            if self.client:
+                node = self.client.get_root_node()
+                node.get_children()
+            else:
+                self.__connected = False
         except ConnectionRefusedError:
             self.__connected = False
-            self._subscribed = {}
-            self.__available_object_resources = {}
-            self.__sub = None
         except OSError:
             self.__connected = False
-            self._subscribed = {}
-            self.__available_object_resources = {}
-            self.__sub = None
         except FuturesTimeoutError:
             self.__connected = False
-            self._subscribed = {}
-            self.__available_object_resources = {}
-            self.__sub = None
         except AttributeError:
             self.__connected = False
-            self._subscribed = {}
-            self.__available_object_resources = {}
-            self.__sub = None
         except Exception as e:
             self.__connected = False
-            self._subscribed = {}
-            self.__available_object_resources = {}
-            self.__sub = None
             log.exception(e)
 
     def close(self):
         self.__stopped = True
-        if self.__connected:
-            self.client.disconnect()
+        if self.client:
+            try:
+                # Always try to disconnect to release resource on client and server side!
+                self.client.disconnect()
+            except:
+                pass
         self.__connected = False
         log.info('%s has been stopped.', self.get_name())
 
@@ -361,19 +363,26 @@ class OpcUaConnector(Thread, Connector):
         information_types = {"attributes": "attributes", "timeseries": "telemetry"}
         for information_type in information_types:
             for information in device_info["configuration"][information_type]:
-                information_key = information["key"]
                 config_path = TBUtility.get_value(information["path"], get_tag=True)
                 information_path = self._check_path(config_path, device_info["deviceNode"])
                 information["path"] = '${%s}' % information_path
                 information_nodes = []
                 self.__search_node(device_info["deviceNode"], information_path, result=information_nodes)
+
                 for information_node in information_nodes:
                     if information_node is not None:
+                        # Use Node name if param "key" not found in config
+                        if not information.get('key'):
+                            information['key'] = information_node.get_browse_name().Name
+
+                        information_key = information['key']
+
                         try:
                             information_value = information_node.get_value()
                         except:
                             log.error("Err get_value: %s", str(information_node))
                             continue
+
                         log.debug("Node for %s \"%s\" with path: %s - FOUND! Current values is: %s",
                                   information_type,
                                   information_key,
@@ -395,15 +404,18 @@ class OpcUaConnector(Thread, Connector):
                                                              "config_path": config_path}
                         if not device_info.get(information_types[information_type]):
                             device_info[information_types[information_type]] = []
+
                         converted_data = converter.convert((config_path, information_path), information_value)
                         self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                         self.data_to_send.append(converted_data)
                         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                         log.debug("Data to ThingsBoard: %s", converted_data)
+
                         if not self.__server_conf.get("disableSubscriptions", False):
                             sub_nodes.append(information_node)
                     else:
                         log.error("Node for %s \"%s\" with path %s - NOT FOUND!", information_type, information_key, information_path)
+
         if not self.__server_conf.get("disableSubscriptions", False):
             if self.__sub is None:
                 self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500),
@@ -627,7 +639,7 @@ class SubHandler(object):
         try:
             log.debug("Python: New data change event on node %s, with val: %s and data %s", node, val, str(data))
             subscription = self.connector.subscribed[node]
-            converted_data = subscription["converter"].convert((subscription["config_path"], subscription["path"]), val)
+            converted_data = subscription["converter"].convert((subscription["config_path"], subscription["path"]), val, data)
             self.connector.statistics['MessagesReceived'] = self.connector.statistics['MessagesReceived'] + 1
             self.connector.data_to_send.append(converted_data)
             self.connector.statistics['MessagesSent'] = self.connector.statistics['MessagesSent'] + 1
