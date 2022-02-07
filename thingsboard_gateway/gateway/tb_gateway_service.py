@@ -429,9 +429,15 @@ class TBGatewayService:
                         log.error("Cannot load connector with name: %s and type grpc. GRPC server is disabled!", connector['name'])
                         continue
                     if connector['type'] != "grpc":
-                        connector_class = TBModuleLoader.import_module(connector['type'],
-                                                                       self._default_connectors.get(connector['type'],
-                                                                                                    connector.get('class')))
+                        # TODO: check if GRPC active and is GRPC connector implementation
+                        if self.__grpc_manager.is_alive():
+                            module_name = f'Grpc{self._default_connectors.get(connector["type"], connector.get("class"))}'
+                            connector_class = TBModuleLoader.import_module(connector['type'], module_name)
+                        else:
+                            connector_class = TBModuleLoader.import_module(connector['type'],
+                                                                           self._default_connectors.get(
+                                                                               connector['type'],
+                                                                               connector.get('class')))
                         self._implemented_connectors[connector['type']] = connector_class
                     elif connector['type'] == "grpc":
                         if connector.get('key') == "auto":
@@ -477,7 +483,8 @@ class TBGatewayService:
     def _connect_with_connectors(self):
         for connector_type in self.connectors_configs:
             for connector_config in self.connectors_configs[connector_type]:
-                if connector_type.lower() != 'grpc':
+                if connector_type.lower() != 'grpc' and 'Grpc' not in self._implemented_connectors[
+                        connector_type.lower()].__name__:
                     for config in connector_config["config"]:
                         connector = None
                         try:
