@@ -493,15 +493,16 @@ class ModbusConnector(Connector, Thread):
             rpc_command_config[WORD_ORDER_PARAMETER] = device.config.get("wordOrder", "LITTLE")
             self.__connect_to_current_master(device)
 
-            converted_data = device.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER].convert(rpc_command_config,
-                                                                                          content)
-
             if rpc_command_config.get(FUNCTION_CODE_PARAMETER) in (6, 16):
+                converted_data = device.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER].convert(rpc_command_config,
+                                                                                              content)
                 try:
                     rpc_command_config[PAYLOAD_PARAMETER] = converted_data[0]
                 except IndexError and TypeError:
                     rpc_command_config[PAYLOAD_PARAMETER] = converted_data
             elif rpc_command_config.get(FUNCTION_CODE_PARAMETER) in (5, 15):
+                converted_data = device.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER].convert(rpc_command_config,
+                                                                                              content)
                 rpc_command_config[PAYLOAD_PARAMETER] = converted_data
 
             try:
