@@ -405,13 +405,13 @@ class ModbusConnector(Connector, Thread):
                                                                                           config.get("registersCount",
                                                                                                      config.get(
                                                                                                          "registerCount",
-                                                                                                         1))) * 8,
+                                                                                                         1))),
                                                                          unit=device.config['unitId'])
-        elif function_code in (5, 15):
-            result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER] * 8,
+        elif function_code in (5, 6):
+            result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          value=config[PAYLOAD_PARAMETER],
                                                                          unit=device.config['unitId'])
-        elif function_code in (6, 16):
+        elif function_code in (15, 16):
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          values=config[PAYLOAD_PARAMETER],
                                                                          unit=device.config['unitId'])
@@ -489,6 +489,8 @@ class ModbusConnector(Connector, Thread):
         if rpc_command_config is not None:
             device = tuple(filter(lambda slave: slave.name == content[DEVICE_SECTION_PARAMETER], self.__slaves))[0]
             rpc_command_config[UNIT_ID_PARAMETER] = device.config['unitId']
+            rpc_command_config[BYTE_ORDER_PARAMETER] = device.config.get("byteOrder", "LITTLE")
+            rpc_command_config[WORD_ORDER_PARAMETER] = device.config.get("wordOrder", "LITTLE")
             self.__connect_to_current_master(device)
 
             converted_data = device.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER].convert(rpc_command_config,
