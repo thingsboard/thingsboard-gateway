@@ -117,9 +117,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
         decoded = None
 
-        if lower_type == 'bits':
-            decoded = decoder_functions[type_]()
-            decoded += decoder_functions[type_]()
+        if lower_type in ['bit','bits']:
+            decoded_lastbyte= decoder_functions[type_]()
+            decoded= decoder_functions[type_]()
+            decoded+=decoded_lastbyte
 
         elif lower_type == "string":
             decoded = decoder_functions[type_](objects_count * 2)
