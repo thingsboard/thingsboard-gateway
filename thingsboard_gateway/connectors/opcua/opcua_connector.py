@@ -228,7 +228,11 @@ class OpcUaConnector(Thread, Connector):
                     for variable in server_variables:
                         if attribute == variable:
                             try:
-                                server_variables[variable].set_value(content["data"][variable])
+                                if ( isinstance(content["data"][variable], int) ):
+                                    dv = ua.DataValue(ua.Variant(content["data"][variable], server_variables[variable].get_data_type_as_variant_type()))
+                                    server_variables[variable].set_value(dv)
+                                else:
+                                    server_variables[variable].set_value(content["data"][variable])
                             except Exception:
                                 server_variables[variable].set_attribute(ua.AttributeIds.Value, ua.DataValue(content["data"][variable]))
         except Exception as e:
