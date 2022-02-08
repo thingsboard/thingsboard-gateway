@@ -399,7 +399,15 @@ class ModbusConnector(Connector, Thread):
     def __function_to_device(device, config):
         function_code = config.get('functionCode')
         result = None
-        if function_code in (1, 2, 3, 4):
+        if function_code == 1:
+            result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
+                                                                         count=config.get(OBJECTS_COUNT_PARAMETER,
+                                                                                          config.get("registersCount",
+                                                                                                     config.get(
+                                                                                                         "registerCount",
+                                                                                                         1))) * 8,
+                                                                         unit=device.config['unitId'])
+        elif function_code in (2, 3, 4):
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          count=config.get(OBJECTS_COUNT_PARAMETER,
                                                                                           config.get("registersCount",
@@ -407,11 +415,11 @@ class ModbusConnector(Connector, Thread):
                                                                                                          "registerCount",
                                                                                                          1))),
                                                                          unit=device.config['unitId'])
-        elif function_code in (5, 6):
+        elif function_code in (5, 15):
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          value=config[PAYLOAD_PARAMETER],
-                                                                         unit=device.config['unitId'])
-        elif function_code in (15, 16):
+                                                                         unit=device.config['unitId'] * 8)
+        elif function_code in (6, 16):
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          values=config[PAYLOAD_PARAMETER],
                                                                          unit=device.config['unitId'])
