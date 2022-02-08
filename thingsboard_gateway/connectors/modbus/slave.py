@@ -39,6 +39,8 @@ class Slave(Thread):
             'type': kwargs['type'],
             'host': kwargs.get('host'),
             'port': kwargs['port'],
+            'byteOrder': kwargs['byteOrder'],
+            'wordOrder': kwargs['wordOrder'],
             'timeout': kwargs.get('timeout', 35),
             'stopbits': kwargs.get('stopbits', Defaults.Stopbits),
             'bytesize': kwargs.get('bytesize', Defaults.Bytesize),
