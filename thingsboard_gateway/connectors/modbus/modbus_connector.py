@@ -415,11 +415,15 @@ class ModbusConnector(Connector, Thread):
                                                                                                          "registerCount",
                                                                                                          1))),
                                                                          unit=device.config['unitId'])
-        elif function_code in (5, 15):
+        elif function_code == 5:
+            result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER] * 8,
+                                                                         value=config[PAYLOAD_PARAMETER],
+                                                                         unit=device.config['unitId'])
+        elif function_code == 6:
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          value=config[PAYLOAD_PARAMETER],
-                                                                         unit=device.config['unitId'] * 8)
-        elif function_code in (6, 16):
+                                                                         unit=device.config['unitId'])
+        elif function_code in (15, 16):
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          values=config[PAYLOAD_PARAMETER],
                                                                          unit=device.config['unitId'])
