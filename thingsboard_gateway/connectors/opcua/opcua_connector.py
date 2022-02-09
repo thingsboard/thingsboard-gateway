@@ -33,6 +33,13 @@ except ImportError:
     print("OPC-UA library not found")
     TBUtility.install_package("opcua")
     from opcua import Client, ua
+
+try:   
+    from opcua.crypto import uacrypto
+except ImportError: 
+    TBUtility.install_package("cryptography")
+    from opcua.crypto import uacrypto
+
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
 
