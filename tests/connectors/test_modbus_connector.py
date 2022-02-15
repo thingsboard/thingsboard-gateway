@@ -31,7 +31,7 @@ class ModbusConnectorTestsBase(unittest.TestCase):
             sleep(1)  # some time to init
 
 
-class ModbusTests(ModbusConnectorTestsBase):
+class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
     def test_read_input_registers(self):
         self._create_connector('modbus_attributes.json')
         client = ModbusClient('localhost', port=5021)
@@ -50,7 +50,8 @@ class ModbusTests(ModbusConnectorTestsBase):
                 {'address': item['address'], 'objectsCount': item['objectsCount'],
                  'functionCode': 4}).registers)
 
-        self.assertEqual(modbus_client_results, modbus_connector_results)
+        for ir, ir1 in zip(modbus_client_results, modbus_connector_results):
+            self.assertEqual(ir, ir1)
 
     def test_read_holding_registers(self):
         self._create_connector('modbus_attributes.json')
@@ -70,7 +71,8 @@ class ModbusTests(ModbusConnectorTestsBase):
                 {'address': item['address'], 'objectsCount': item['objectsCount'],
                  'functionCode': 3}).registers)
 
-        self.assertEqual(modbus_client_results, modbus_connector_results)
+        for hr, hr1 in zip(modbus_client_results, modbus_connector_results):
+            self.assertEqual(hr, hr1)
 
     def test_read_discrete_inputs(self):
         self._create_connector('modbus_attributes.json')
@@ -90,7 +92,8 @@ class ModbusTests(ModbusConnectorTestsBase):
                 {'address': item['address'], 'objectsCount': item['objectsCount'],
                  'functionCode': 2}).bits)
 
-        self.assertEqual(modbus_client_results, modbus_connector_results)
+        for rd, rd1 in zip(modbus_client_results, modbus_connector_results):
+            self.assertEqual(rd, rd1)
 
     def test_read_coils_inputs(self):
         self._create_connector('modbus_attributes.json')
@@ -115,6 +118,98 @@ class ModbusTests(ModbusConnectorTestsBase):
 
         for rc, rc1 in zip(modbus_client_results, modbus_connector_results):
             self.assertEqual(rc, rc1)
+
+
+class ModbusConnectorRpcTest(ModbusConnectorTestsBase):
+    def test_write_type_rpc(self):
+        self._create_connector('modbus_rpc.json')
+        client = ModbusClient('localhost', port=5021)
+
+        with open(self.CONFIG_PATH + 'modbus_rpc.json') as config_file:
+            rpc_list = load(config_file)['master']['slaves'][0]['rpc']
+
+        for rpc in rpc_list:
+            first_value = client.read_input_registers(rpc['address'], rpc['objectsCount'], unit=0x01).registers
+            test_rpc = {
+                'device': 'MASTER Temp Sensor',
+                'data': {
+                    'id': 12,
+                    'method': rpc['tag'],
+                    'params': rpc['params']
+                }
+            }
+            self.connector.server_side_rpc_handler(test_rpc)
+            sleep(1)
+
+            last_value = client.read_input_registers(rpc['address'], rpc['objectsCount'], unit=0x01).registers
+            self.assertNotEqual(first_value, last_value)
+
+        client.close()
+
+    def test_deny_unknown_rpc(self):
+        self._create_connector('modbus_rpc.json')
+        client = ModbusClient('localhost', port=5021)
+        first_value = client.read_input_registers(0, 2, unit=0x01).registers
+        rpc = {
+            'device': 'MASTER Temp Sensor',
+            'data': {
+                'id': 12,
+                'method': 'setUnknown',
+                'params': '1234'
+            }
+        }
+        self.connector.server_side_rpc_handler(rpc)
+        sleep(1)
+
+        last_value = client.read_input_registers(0, 2, unit=0x01).registers
+        self.assertEqual(first_value, last_value)
+        client.close()
+
+
+class ModbusConnectorAttributeUpdatesTest(ModbusConnectorTestsBase):
+    def test_attribute_updates(self):
+        self._create_connector('modbus_attribute_updates.json')
+        client = ModbusClient('localhost', port=5021)
+
+        with open(self.CONFIG_PATH + 'modbus_attribute_updates.json') as config_file:
+            attribute_updates_list = load(config_file)['master']['slaves'][0]['attributeUpdates']
+
+        for attribute_updates in attribute_updates_list:
+            first_value = client.read_input_registers(attribute_updates['address'], attribute_updates['objectsCount'],
+                                                      unit=0x01).registers
+            test_attribute_update = {
+                'device': 'MASTER Temp Sensor',
+                'data': {
+                    attribute_updates['tag']: attribute_updates['params']
+                }
+            }
+            self.connector.on_attributes_update(test_attribute_update)
+            sleep(1)
+
+            last_value = client.read_input_registers(attribute_updates['address'], attribute_updates['objectsCount'],
+                                                     unit=0x01).registers
+            self.assertNotEqual(first_value, last_value)
+
+        client.close()
+
+    def test_deny_unknown_attribute_update(self):
+        self._create_connector('modbus_attribute_updates.json')
+        client = ModbusClient('localhost', port=5021)
+        first_value = client.read_input_registers(0, 2, unit=0x01).registers
+
+        test_attribute_update = {
+            'device': 'MASTER Temp Sensor',
+            'data': {
+                'test_attribute': 'qwer'
+            }
+        }
+
+        self.connector.on_attributes_update(test_attribute_update)
+        sleep(1)
+
+        last_value = client.read_input_registers(0, 2, unit=0x01).registers
+        self.assertEqual(first_value, last_value)
+        client.close()
 
 
 if __name__ == '__main__':
