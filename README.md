@@ -41,4 +41,21 @@ Pair your ZigBee devices by following the steps as laid out [here](https://www.z
 Update the [test Python script](./zigbee2mqtt/test_mqtt.py) with any updated information (access tokens, zigbee2mqtt topics, etc.) and run the script by executing:
 * `python ./zigbee2mqtt/test_mqtt.py`
 ## LoRa
-Coming soon...
+## Hardware:
+
+## Software:
+Reference Documentation:
+- Rak Wireless GitHub Repository: https://github.com/RAKWireless/rak_common_for_gateway#readme
+- RAK 2245 Pi Hat Quick Start Guide: https://docs.rakwireless.com/Product-Categories/WisLink/RAK2245-Pi-HAT/Quickstart/
+
+1. `sudo raspi-config` - Enter Raspberry Pi settings, select "Interfacing Options"
+    - Enable SPI interface
+    - Enable i2C interface
+    - Disable login shell over serial
+    - Enable serial port hardware
+2. `git clone https://github.com/RAKWireless/rak_common_for_gateway.git ~/rak_common_for_gateway` - Clone the RAK Wireless Gateway Software
+3. `cd ~/rak_common_for_gateway` - Move into the Rak software directory
+4. `sudo ./install.h` - Install the RAK gateway software
+    a. When prompted, select `RAK2245` as the gateway model
+5. Reboot the gateway
+6. `sudo raspi-config` - Enter gateway configuration
