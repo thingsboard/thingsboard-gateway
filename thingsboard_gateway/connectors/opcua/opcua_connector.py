@@ -94,6 +94,10 @@ class OpcUaConnector(Thread, Connector):
             self.client = None
 
         self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000) / 1000)
+
+        if self.__server_conf.get('uri'):
+            self.client.application_uri = self.__server_conf['uri']
+
         if self.__server_conf["identity"].get("type") == "cert.PEM":
             self.__set_auth_settings_by_cert()
         if self.__server_conf["identity"].get("username"):
