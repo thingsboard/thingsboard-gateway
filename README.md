@@ -41,9 +41,9 @@ Pair your ZigBee devices by following the steps as laid out [here](https://www.z
 Update the [test Python script](./zigbee2mqtt/test_mqtt.py) with any updated information (access tokens, zigbee2mqtt topics, etc.) and run the script by executing:
 * `python ./zigbee2mqtt/test_mqtt.py`
 ## LoRa
-## Hardware:
+### Hardware:
 
-## Software:
+### Software:
 Reference Documentation:
 - Rak Wireless GitHub Repository: https://github.com/RAKWireless/rak_common_for_gateway#readme
 - RAK 2245 Pi Hat Quick Start Guide: https://docs.rakwireless.com/Product-Categories/WisLink/RAK2245-Pi-HAT/Quickstart/
