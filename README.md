@@ -58,4 +58,4 @@ Reference Documentation:
 4. `sudo ./install.h` - Install the RAK gateway software
     a. When prompted, select `RAK2245` as the gateway model
 5. Reboot the gateway
-6. `sudo raspi-config` - Enter gateway configuration
+6. `sudo gateway-config` - Enter gateway configuration
