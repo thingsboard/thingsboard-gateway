@@ -186,6 +186,12 @@ class OpcUaConnector(Thread, Connector):
                 security_string = security_string + ',' + ca_cert
             self.client.set_security_string(security_string)
 
+            try:
+                self.client.application_uri = self.__server_conf['identity']['application_uri']
+            except KeyError:
+                log.exception('Error in ssl configuration - application_uri parameter not found')
+                raise RuntimeError('Error in ssl configuration - application_uri parameter not found')
+
         except Exception as e:
             log.exception(e)
 
