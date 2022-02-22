@@ -31,11 +31,11 @@ class JsonRESTDownlinkConverter(RESTConverter):
                 result = {
                     "url": self.__config["requestUrlExpression"]
                         .replace("${attributeKey}", quote(attribute_key))
-                        .replace("${attributeValue}", quote(attribute_value))
+                        .replace("${attributeValue}", quote(str(attribute_value)))
                         .replace("${deviceName}", quote(data["device"])),
                     "data": self.__config["valueExpression"]
                         .replace("${attributeKey}", quote(attribute_key))
-                        .replace("${attributeValue}", quote(attribute_value))
+                        .replace("${attributeValue}", quote(str(attribute_value)))
                         .replace("${deviceName}", quote(data["device"]))}
             else:
                 rest_id = str(data["data"]["id"])
