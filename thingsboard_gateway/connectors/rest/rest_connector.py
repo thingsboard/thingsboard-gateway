@@ -75,7 +75,8 @@ class RESTConnector(Connector, Thread):
         endpoints = {}
         for mapping in self.__config.get("mapping"):
             converter = TBModuleLoader.import_module(self._connector_type,
-                                                     mapping.get("extension", self._default_converters["uplink"]))
+                                                     mapping['converter'].get("extension",
+                                                                              self._default_converters["uplink"]))
             endpoints.update({mapping['endpoint']: {"config": mapping, "converter": converter}})
         return endpoints
 
