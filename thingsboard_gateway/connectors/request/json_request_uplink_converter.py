@@ -37,7 +37,7 @@ class JsonRequestUplinkConverter(RequestConverter):
                 device_name_tags = TBUtility.get_values(self.__config['converter'].get("deviceNameJsonExpression"),
                                                         data, get_tag=True)
                 device_name_values = TBUtility.get_values(self.__config['converter'].get("deviceNameJsonExpression"),
-                                                          data, get_tag=True)
+                                                          data, get_tag=False)
                 dict_result["deviceName"] = self.__config['converter'].get("deviceNameJsonExpression")
                 for (device_name_tag, device_name_value) in zip(device_name_tags, device_name_values):
                     is_valid_key = "${" in self.__config['converter'].get("deviceNameJsonExpression") and "}" in \
