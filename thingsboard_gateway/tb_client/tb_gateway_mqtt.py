@@ -91,6 +91,8 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                     for device in self.__sub_dict["*|*"]:
                         self.__sub_dict["*|*"][device](content)
                 # callbacks for device. in this case callback executes for all attributes in message
+                if content.get("device") is None:
+                    return
                 target = content["device"] + "|*"
                 if self.__sub_dict.get(target):
                     for device in self.__sub_dict[target]:
