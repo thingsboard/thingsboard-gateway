@@ -567,11 +567,12 @@ class TBGatewayService:
                                             "attributes": {},
                                             "telemetry": []}
                             for attribute in data['attributes']:
-                                adopted_data_size = self.__get_data_size(adopted_data)
-                                if adopted_data_size >= max_data_size:
-                                    self.__send_data_pack_to_storage(adopted_data, connector_name)
-                                    adopted_data['attributes'] = {}
-                                adopted_data['attributes'].update({attribute: data['attributes'][attribute]})
+                                for (key, value) in attribute.items():
+                                    adopted_data_size = self.__get_data_size(adopted_data)
+                                    if adopted_data_size >= max_data_size:
+                                        self.__send_data_pack_to_storage(adopted_data, connector_name)
+                                        adopted_data['attributes'] = {}
+                                    adopted_data['attributes'].update({key: value})
                             for ts_kv_list in data['telemetry']:
                                 ts = ts_kv_list['ts']
                                 for kv in ts_kv_list['values']:
