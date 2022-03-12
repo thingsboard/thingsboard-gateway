@@ -21,7 +21,7 @@ this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
-VERSION = "2.8"
+VERSION = "3.0.1"
 
 setup(
     version=VERSION,
@@ -35,9 +35,10 @@ setup(
     long_description_content_type="text/markdown",
     include_package_data=True,
     python_requires=">=3.7",
-    packages=['thingsboard_gateway', 'thingsboard_gateway.gateway', 'thingsboard_gateway.storage','thingsboard_gateway.storage.memory',
-              'thingsboard_gateway.storage.file','thingsboard_gateway.storage.sqlite','thingsboard_gateway.tb_client',
-              'thingsboard_gateway.connectors', 'thingsboard_gateway.connectors.ble',
+    packages=['thingsboard_gateway', 'thingsboard_gateway.gateway', 'thingsboard_gateway.gateway.proto', 'thingsboard_gateway.gateway.grpc_service',
+              'thingsboard_gateway.storage', 'thingsboard_gateway.storage.memory',
+              'thingsboard_gateway.storage.file', 'thingsboard_gateway.storage.sqlite', 'thingsboard_gateway.tb_client',
+              'thingsboard_gateway.connectors', 'thingsboard_gateway.connectors.ble', 'thingsboard_gateway.connectors.socket',
               'thingsboard_gateway.connectors.mqtt', 'thingsboard_gateway.connectors.opcua', 'thingsboard_gateway.connectors.request',
               'thingsboard_gateway.connectors.modbus', 'thingsboard_gateway.connectors.can', 'thingsboard_gateway.connectors.bacnet',
               'thingsboard_gateway.connectors.bacnet.bacnet_utilities', 'thingsboard_gateway.connectors.odbc',
@@ -46,7 +47,8 @@ setup(
               'thingsboard_gateway.extensions.mqtt', 'thingsboard_gateway.extensions.modbus', 'thingsboard_gateway.extensions.opcua',
               'thingsboard_gateway.extensions.ble', 'thingsboard_gateway.extensions.serial', 'thingsboard_gateway.extensions.request',
               'thingsboard_gateway.extensions.can', 'thingsboard_gateway.extensions.bacnet', 'thingsboard_gateway.extensions.odbc',
-              'thingsboard_gateway.extensions.rest',  'thingsboard_gateway.extensions.snmp', 'thingsboard_gateway.extensions.ftp'
+              'thingsboard_gateway.extensions.rest',  'thingsboard_gateway.extensions.snmp', 'thingsboard_gateway.extensions.ftp',
+              'thingsboard_gateway.extensions.socket',
               ],
     install_requires=[
         'jsonpath-rw',
@@ -58,7 +60,10 @@ setup(
         'requests',
         'PyInquirer',
         'pyfiglet',
-        'termcolor'
+        'termcolor',
+        'grpcio',
+        'protobuf',
+        'cachetools'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={

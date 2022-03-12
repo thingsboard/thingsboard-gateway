@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -13,10 +13,11 @@
 #     limitations under the License.
 
 from os.path import exists
-from time import time
+from time import time, sleep
 from logging import getLogger
 from threading import Thread
 from queue import Queue
+import datetime
 
 from thingsboard_gateway.storage.sqlite.database_connector import DatabaseConnector
 from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActionType
@@ -49,15 +50,12 @@ class Database(Thread):
 
         self.db.connect()
 
-        # self.cur = self.db.get_cursor()
-
         # process Queue
         self.processQueue = processing_queue
-        # Response Queue
-        self.readQueue = None
 
-        # NOTE: Rename to self.processing
-        self.__processing = False
+        self.__stopped = False
+
+        self.__last_msg_check = time()
 
         self.msg_counter = 0
         self.start()
@@ -74,11 +72,16 @@ class Database(Thread):
         while True:
             self.process()
 
+            sleep(.2)
+
     def process(self):
         try:
+            if time() - self.__last_msg_check >= self.settings.messages_ttl_check_in_hours:
+                self.__last_msg_check = time()
+                self.delete_data_lte(self.settings.messages_ttl_in_days)
+
             # Signalization so that we can spam call process()
-            if not self.__processing and self.processQueue:
-                self.__processing = True
+            if not self.__stopped and self.processQueue:
                 while self.processQueue.qsize() > 0:
 
                     req = self.processQueue.get()
@@ -94,8 +97,8 @@ class Database(Thread):
                                         [timestamp, message])
 
                         self.db.commit()
-
-                self.__processing = False
+            else:
+                log.error("Storage is closed!")
 
         except Exception as e:
             self.db.rollback()
@@ -117,11 +120,17 @@ class Database(Thread):
             self.db.rollback()
             log.exception(e)
 
+    def delete_data_lte(self, days):
+        try:
+            ts = (datetime.datetime.now() - datetime.timedelta(days=days)).timestamp()
+            data = self.db.execute('''DELETE FROM messages WHERE timestamp <= ? ;''', [ts])
+            return data
+        except Exception as e:
+            self.db.rollback()
+            log.exception(e)
+
     def setProcessQueue(self, process_queue):
         self.processQueue = process_queue
-
-    def setReadQueue(self, read_queue):
-        self.readQueue = read_queue
 
     def closeDB(self):
         self.db.close()

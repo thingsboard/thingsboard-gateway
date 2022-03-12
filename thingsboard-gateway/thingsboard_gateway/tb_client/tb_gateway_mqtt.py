@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -26,12 +26,9 @@ GATEWAY_ATTRIBUTES_RESPONSE_TOPIC = "v1/gateway/attributes/response"
 GATEWAY_MAIN_TOPIC = "v1/gateway/"
 GATEWAY_RPC_TOPIC = "v1/gateway/rpc"
 GATEWAY_RPC_RESPONSE_TOPIC = "v1/gateway/rpc/response"
+GATEWAY_CLAIMING_TOPIC = "v1/gateway/claim"
 
 log = logging.getLogger("tb_connection")
-
-
-class TBGatewayAPI:
-    pass
 
 
 class TBGatewayMqttClient(TBDeviceMqttClient):
@@ -57,7 +54,7 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
             self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_TOPIC, qos=1)[1])] = GATEWAY_RPC_TOPIC
             # self._gw_subscriptions[int(self._client.subscribe(GATEWAY_RPC_RESPONSE_TOPIC)[1])] = GATEWAY_RPC_RESPONSE_TOPIC
 
-    def _on_subscribe(self, client, userdata, mid, granted_qos):
+    def _on_subscribe(self, client, userdata, mid, reasoncodes, properties=None):
         subscription = self._gw_subscriptions.get(mid)
         if subscription is not None:
             if mid == 128:
@@ -94,6 +91,8 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                     for device in self.__sub_dict["*|*"]:
                         self.__sub_dict["*|*"][device](content)
                 # callbacks for device. in this case callback executes for all attributes in message
+                if content.get("device") is None:
+                    return
                 target = content["device"] + "|*"
                 if self.__sub_dict.get(target):
                     for device in self.__sub_dict[target]:
@@ -152,7 +151,8 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
     def gw_disconnect_device(self, device_name):
         info = self._client.publish(topic=GATEWAY_MAIN_TOPIC + "disconnect", payload=dumps({"device": device_name}),
                                     qos=self.quality_of_service)
-        self.__connected_devices.remove(device_name)
+        if device_name in self.__connected_devices:
+            self.__connected_devices.remove(device_name)
         # if self.gateway:
         #     self.gateway.on_device_disconnected(self, device_name)
         log.debug("Disconnected device %s", device_name)
@@ -199,4 +199,15 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
         info = self._client.publish(GATEWAY_RPC_TOPIC,
                                     dumps({"device": device, "id": req_id, "data": resp}),
                                     qos=quality_of_service)
+        return info
+
+    def gw_claim(self, device_name, secret_key, duration, claiming_request=None):
+        if claiming_request is None:
+            claiming_request = {
+                device_name: {
+                    "secretKey": secret_key,
+                    "durationMs": duration
+                    }
+                }
+        info = self._client.publish(GATEWAY_CLAIMING_TOPIC, dumps(claiming_request), qos=self.quality_of_service)
         return info

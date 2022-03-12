@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 import logging
 import logging.handlers
 from sys import stdout
+from time import time
 
 
 class TBLoggerHandler(logging.Handler):
@@ -53,9 +54,9 @@ class TBLoggerHandler(logging.Handler):
         self.activated = True
 
     def handle(self, record):
-        if self.activated:
+        if self.activated and not self.__gateway.stopped:
             record = self.formatter.format(record)
-            self.__gateway.send_to_storage(self.__gateway.name, {"deviceName": self.__gateway.name, "telemetry": [{'LOGS': record}]})
+            self.__gateway.send_to_storage(self.__gateway.name, {"deviceName": self.__gateway.name, "telemetry": [{"ts": int(time()*1000), "values":{'LOGS': record}}]})
 
     def deactivate(self):
         self.activated = False

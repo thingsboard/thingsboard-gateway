@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ class SNMPConnector(Connector, Thread):
                 if self.__stopped:
                     break
                 else:
-                    sleep(.01)
+                    sleep(.2)
         except Exception as e:
             log.exception(e)
 

@@ -12,7 +12,7 @@ Create description about your issue, and your actions to solve it.
 
 
 **Configuration** (Attach your configuration file)
-**Notate: Remove Access token from file if you wanna attach tb_gateway.yaml**
+**Notate: Remove Access token from file if you want to attach a tb_gateway.yaml**
 
 
 **Connector name (If you need help with some connector/converter):**
@@ -29,6 +29,6 @@ KeyError: 'deviceName'
 
 
 **Versions (please complete the following information):**
- - OS: [e.g. Ubuntu 18.04]
- - Thingsboard IoT Gateway version [e.g. 2.2.4]
- - Python version[e.g. 3.7]
+ - OS: [e.g. Ubuntu 20.04]
+ - Thingsboard IoT Gateway version [e.g. 3.0.1]
+ - Python version[e.g. 3.9]
