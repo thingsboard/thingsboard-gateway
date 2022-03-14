@@ -573,19 +573,20 @@ class TBGatewayService:
                                         self.__send_data_pack_to_storage(adopted_data, connector_name)
                                         adopted_data['attributes'] = {}
                                     adopted_data['attributes'].update({key: value})
-                            for ts_kv_list in data['telemetry']:
-                                ts = ts_kv_list['ts']
-                                for kv in ts_kv_list['values']:
-                                    adopted_data_size = self.__get_data_size(adopted_data)
-                                    if adopted_data_size >= max_data_size:
-                                        self.__send_data_pack_to_storage(adopted_data, connector_name)
-                                        adopted_data['telemetry'] = []
-                                    if len(adopted_data['telemetry']) == 0:
-                                        adopted_data['telemetry'] = [{'ts': ts, 'values': {kv: ts_kv_list['values'][kv]}}]
-                                    else:
-                                        for adopted_kv in adopted_data['telemetry']:
-                                            if adopted_kv['ts'] == ts:
-                                                adopted_kv['values'].update({kv: ts_kv_list['values'][kv]})
+
+                            ts_kv_list = data['telemetry']
+                            ts = ts_kv_list['ts']
+                            for kv in ts_kv_list['values']:
+                                adopted_data_size = self.__get_data_size(adopted_data)
+                                if adopted_data_size >= max_data_size:
+                                    self.__send_data_pack_to_storage(adopted_data, connector_name)
+                                    adopted_data['telemetry'] = []
+                                if len(adopted_data['telemetry']) == 0:
+                                    adopted_data['telemetry'] = [{'ts': ts, 'values': {kv: ts_kv_list['values'][kv]}}]
+                                else:
+                                    for adopted_kv in adopted_data['telemetry']:
+                                        if adopted_kv['ts'] == ts:
+                                            adopted_kv['values'].update({kv: ts_kv_list['values'][kv]})
 
                         else:
                             self.__send_data_pack_to_storage(data, connector_name)
