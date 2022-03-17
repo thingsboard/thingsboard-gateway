@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -15,5 +15,5 @@
 class StorageSettings:
     def __init__(self, config):
         self.data_folder_path = config.get("data_file_path", "./")
-        self.max_days_to_store_data = config.get("max_days_to_store_data", 7)
-        self.check_data_freshness_in_messages = config.get('check_data_freshness_in_messages', 10)
+        self.messages_ttl_check_in_hours = config.get('messages_ttl_check_in_hours', 1) * 3600
+        self.messages_ttl_in_days = config.get('messages_ttl_in_days', 7)

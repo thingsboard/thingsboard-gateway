@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ class RequestConnector(Connector, Thread):
                            'MessagesSent': 0}
         self.__rpc_requests = []
         self.__config = config
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.__gateway = gateway
         self.__security = HTTPBasicAuth(self.__config["security"]["username"], self.__config["security"]["password"]) if \
             self.__config["security"]["type"] == "basic" else None
@@ -80,7 +80,7 @@ class RequestConnector(Connector, Thread):
                                         name="Request to endpoint \'%s\' Thread" % (request["config"].get("url")))
                         thread.start()
             else:
-                sleep(.1)
+                sleep(.2)
             self.__process_data()
 
     def on_attributes_update(self, content):
@@ -142,7 +142,7 @@ class RequestConnector(Connector, Thread):
                 log.debug(endpoint)
                 converter = None
                 if endpoint["converter"]["type"] == "custom":
-                    module = TBModuleLoader.import_module(self.__connector_type, endpoint["converter"]["extension"])
+                    module = TBModuleLoader.import_module(self._connector_type, endpoint["converter"]["extension"])
                     if module is not None:
                         log.debug('Custom converter for url %s - found!', endpoint["url"])
                         converter = module(endpoint)

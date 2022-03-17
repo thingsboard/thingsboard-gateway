@@ -1,14 +1,18 @@
 {
   "host": "127.0.0.1",
   "port": "5000",
-  "mapping":[
+  "SSL": false,
+  "security": {
+    "cert": "~/ssl/cert.pem",
+    "key": "~/ssl/key.pem"
+  },
+  "mapping": [
     {
       "endpoint": "/device1",
       "HTTPMethods": [
         "POST"
       ],
-      "security":
-      {
+      "security": {
         "type": "basic",
         "username": "user",
         "password": "passwd"
@@ -34,6 +38,11 @@
             "type": "double",
             "key": "humidity",
             "value": "${hum}"
+          },
+          {
+            "type": "string",
+            "key": "combine",
+            "value": "${hum}:${temp}"
           }
         ]
       }
@@ -44,8 +53,7 @@
         "GET",
         "POST"
       ],
-      "security":
-      {
+      "security": {
         "type": "anonymous"
       },
       "converter": {
@@ -78,8 +86,7 @@
       "HTTPMethods": [
         "POST"
       ],
-      "security":
-      {
+      "security": {
         "type": "anonymous"
       },
       "converter": {
@@ -89,37 +96,38 @@
         "extension": "CustomRestUplinkConverter",
         "extension-config": [
           {
-          "key": "Totaliser",
-          "datatype": "float",
-          "fromByte": 0,
-          "toByte": 4,
-          "byteorder": "big",
-          "signed": true,
-          "multiplier": 1
-          }]
+            "key": "Totaliser",
+            "datatype": "float",
+            "fromByte": 0,
+            "toByte": 4,
+            "byteorder": "big",
+            "signed": true,
+            "multiplier": 1
+          }
+        ]
       }
     }
   ],
   "attributeUpdates": [
-      {
-        "HTTPMethod": "POST",
-        "SSLVerify": false,
-        "httpHeaders": {
-          "CONTENT-TYPE": "application/json"
-        },
-        "security": {
-          "type": "basic",
-          "username": "user",
-          "password": "passwd"
-        },
-        "timeout": 0.5,
-        "tries": 3,
-        "allowRedirects": true,
-        "deviceNameFilter": ".*REST$",
-        "attributeFilter": "data",
-        "requestUrlExpression": "sensor/${deviceName}/${attributeKey}",
-        "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
-      }
+    {
+      "HTTPMethod": "POST",
+      "SSLVerify": false,
+      "httpHeaders": {
+        "CONTENT-TYPE": "application/json"
+      },
+      "security": {
+        "type": "basic",
+        "username": "user",
+        "password": "passwd"
+      },
+      "timeout": 0.5,
+      "tries": 3,
+      "allowRedirects": true,
+      "deviceNameFilter": ".*REST$",
+      "attributeFilter": "data",
+      "requestUrlExpression": "sensor/${deviceName}/${attributeKey}",
+      "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
+    }
   ],
   "serverSideRpc": [
     {
@@ -129,7 +137,7 @@
       "responseTimeout": 1,
       "HTTPMethod": "GET",
       "valueExpression": "${params}",
-      "timeout": 0.5,
+      "timeout": 10.0,
       "tries": 3,
       "httpHeaders": {
         "Content-Type": "application/json"
@@ -146,6 +154,9 @@
       "valueExpression": "${params}",
       "httpHeaders": {
         "Content-Type": "application/json"
+      },
+      "security": {
+        "type": "anonymous"
       }
     }
   ]

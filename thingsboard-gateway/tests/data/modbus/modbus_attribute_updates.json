@@ -1,0 +1,103 @@
+{
+  "master": {
+    "slaves": [
+      {
+        "host": "127.0.0.1",
+        "port": 5021,
+        "type": "tcp",
+        "method": "socket",
+        "timeout": 35,
+        "byteOrder": "LITTLE",
+        "wordOrder": "LITTLE",
+        "retries": true,
+        "retryOnEmpty": true,
+        "retryOnInvalid": true,
+        "pollPeriod": 5000,
+        "unitId": 1,
+        "deviceName": "MASTER Temp Sensor",
+        "sendDataOnlyOnChange": false,
+        "connectAttemptTimeMs": 5000,
+        "connectAttemptCount": 5,
+        "waitAfterFailedAttemptsMs": 300000,
+        "attributes": [
+          {
+            "tag": "string_read",
+            "type": "string",
+            "functionCode": 4,
+            "objectsCount": 2,
+            "address": 0
+          }
+        ],
+        "timeseries": [],
+        "attributeUpdates": [
+          {
+            "tag": "shared_attribute_write",
+            "type": "string",
+            "functionCode": 16,
+            "objectsCount": 2,
+            "address": 0,
+            "params": "qwer"
+          },
+          {
+            "tag": "setBits",
+            "type": "bits",
+            "functionCode": 6,
+            "objectsCount": 1,
+            "address": 2,
+            "params": "10"
+          },
+          {
+            "tag": "set8Int",
+            "type": "8int",
+            "functionCode": 6,
+            "objectsCount": 1,
+            "address": 3,
+            "params": 11
+          },
+          {
+            "tag": "set8Uint",
+            "type": "8uint",
+            "functionCode": 6,
+            "objectsCount": 1,
+            "address": 4,
+            "params": 11
+          },
+          {
+            "tag": "set16int",
+            "type": "16int",
+            "functionCode": 6,
+            "objectsCount": 1,
+            "address": 5,
+            "params": 400
+          },
+          {
+            "tag": "set16Uint",
+            "type": "16uint",
+            "functionCode": 6,
+            "objectsCount": 1,
+            "address": 6,
+            "params": 400
+          },
+          {
+            "tag": "set32Int",
+            "type": "32int",
+            "functionCode": 16,
+            "objectsCount": 2,
+            "address": 7,
+            "params": 12344044
+          },
+          {
+            "tag": "64int_read",
+            "type": "64int",
+            "functionCode": 16,
+            "objectsCount": 4,
+            "address": 17,
+            "params": 12344135464567
+          }
+        ],
+        "rpc": []
+      }
+    ]
+  },
+  "slave": null
+}

@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -46,25 +46,24 @@ class BytesModbusUplinkConverter(ModbusConverter):
                     if configuration.get("wordOrder"):
                         word_order = configuration["wordOrder"]
                     elif config.get("wordOrder"):
-                        word_order = config.get("wordOrder", "BIG")
+                        word_order = config.get("wordOrder", "LITTLE")
                     else:
-                        word_order = "BIG"
+                        word_order = "LITTLE"
                     endian_order = Endian.Little if byte_order.upper() == "LITTLE" else Endian.Big
                     word_endian_order = Endian.Little if word_order.upper() == "LITTLE" else Endian.Big
                     decoded_data = None
                     if not isinstance(response, ModbusIOException) and not isinstance(response, ExceptionResponse):
-                        if configuration["functionCode"] in [1, 2]:
-                            result = response.bits
-                            result = result if byte_order.upper() == 'LITTLE' else result[::-1]
-                            log.debug(result)
-                            if configuration["type"].lower() == "bits":
-                                decoded_data = result[
-                                               :configuration.get("objectsCount", configuration.get("registersCount", configuration.get("registerCount", 1)))]
-                                if len(decoded_data) == 1 and isinstance(decoded_data, list):
-                                    decoded_data = decoded_data[0]
-                            else:
-                                decoded_data = result[0]
-                        elif configuration["functionCode"] in [3, 4]:
+                        if configuration["functionCode"] == 1:
+                            decoder = None
+                            coils = response.bits
+                            try:
+                                decoder = BinaryPayloadDecoder.fromCoils(coils, byteorder=endian_order, wordorder=word_endian_order)
+                            except TypeError:
+                                decoder = BinaryPayloadDecoder.fromCoils(coils, wordorder=word_endian_order)
+                            assert decoder is not None
+
+                            decoded_data = decoder.decode_bits()[0]
+                        elif configuration["functionCode"] in [2, 3, 4]:
                             decoder = None
                             registers = response.registers
                             log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))
@@ -118,7 +117,12 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
         decoded = None
 
-        if lower_type == "string":
+        if lower_type in ['bit','bits']:
+            decoded_lastbyte= decoder_functions[type_]()
+            decoded= decoder_functions[type_]()
+            decoded+=decoded_lastbyte
+
+        elif lower_type == "string":
             decoded = decoder_functions[type_](objects_count * 2)
 
         elif lower_type == "bytes":

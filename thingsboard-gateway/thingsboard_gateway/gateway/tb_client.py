@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 import logging
 import threading
-import time
+from time import sleep
 from ssl import CERT_REQUIRED, PROTOCOL_TLSv1_2
 
 from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
@@ -27,6 +27,7 @@ class TBClient(threading.Thread):
         super().__init__()
         self.setName('Connection thread.')
         self.daemon = True
+        self.__config_folder_path = config_folder_path
         self.__config = config
         self.__host = config["host"]
         self.__port = config.get("port", 1883)
@@ -45,20 +46,17 @@ class TBClient(threading.Thread):
             self.__token = str(credentials["accessToken"])
         self.client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self, quality_of_service=self.__default_quality_of_service)
         if self.__tls:
-            self.__ca_cert = config_folder_path + credentials.get("caCert") if credentials.get("caCert") is not None else None
-            self.__private_key = config_folder_path + credentials.get("privateKey") if credentials.get("privateKey") is not None else None
-            self.__cert = config_folder_path + credentials.get("cert") if credentials.get("cert") is not None else None
+            self.__ca_cert = self.__config_folder_path + credentials.get("caCert") if credentials.get("caCert") is not None else None
+            self.__private_key = self.__config_folder_path + credentials.get("privateKey") if credentials.get("privateKey") is not None else None
+            self.__cert = self.__config_folder_path + credentials.get("cert") if credentials.get("cert") is not None else None
             self.client._client.tls_set(ca_certs=self.__ca_cert,
                                         certfile=self.__cert,
                                         keyfile=self.__private_key,
                                         tls_version=PROTOCOL_TLSv1_2,
                                         cert_reqs=CERT_REQUIRED,
                                         ciphers=None)
-            if (self.__ca_cert is not None and (self.__private_key is not None or self.__cert is not None)) or credentials.get("insecure", False):
-                self.client._client.tls_insecure_set(False)
-            else:
+            if credentials.get("insecure", False):
                 self.client._client.tls_insecure_set(True)
-        # if self.__tls and self.__ca_cert is None and self.__private_key is None and self.__cert is None:
         # pylint: disable=protected-access
         # Adding callbacks
         self.client._client._on_connect = self._on_connect
@@ -132,18 +130,21 @@ class TBClient(threading.Thread):
                         pass
                     except Exception as e:
                         log.exception(e)
-                time.sleep(1)
+                sleep(1)
         except Exception as e:
             log.exception(e)
-            time.sleep(10)
+            sleep(10)
 
         while not self.__stopped:
             try:
                 if not self.__stopped:
-                    time.sleep(.1)
+                    sleep(.2)
                 else:
                     break
             except KeyboardInterrupt:
                 self.__stopped = True
             except Exception as e:
                 log.exception(e)
+
+    def get_config_folder_path(self):
+        return self.__config_folder_path

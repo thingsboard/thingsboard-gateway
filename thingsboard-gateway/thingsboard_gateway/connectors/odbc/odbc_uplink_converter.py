@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -43,4 +43,8 @@ class OdbcUplinkConverter(OdbcConverter):
                               type(config_item))
             except Exception as e:
                 log.error("Failed to convert SQL data to TB format: %s", str(e))
+
+        if data.get('ts'):
+            converted_data['ts'] = data.get('ts')
+
         return converted_data

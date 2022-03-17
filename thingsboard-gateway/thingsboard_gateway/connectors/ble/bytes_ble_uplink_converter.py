@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #     limitations under the License.
 
 from pprint import pformat
+from re import findall
 
 from thingsboard_gateway.connectors.ble.ble_uplink_converter import BLEUplinkConverter, log
 
@@ -32,39 +33,50 @@ from thingsboard_gateway.connectors.ble.ble_uplink_converter import BLEUplinkCon
 class BytesBLEUplinkConverter(BLEUplinkConverter):
     def __init__(self, config):
         self.__config = config
-        self.dict_result = {"deviceName": config.get('name', config['MACAddress']),
-                            "deviceType": config.get('deviceType', 'BLEDevice'),
-                            "telemetry": [],
-                            "attributes": []
+        self.dict_result = {"deviceName": config['deviceName'],
+                            "deviceType": config['deviceType']
                             }
 
     def convert(self, config, data):
+        if data is None:
+            return {}
+
         try:
-            if config.get('clean', True):
-                self.dict_result["telemetry"] = []
-                self.dict_result["attributes"] = []
-            try:
-                byte_from = config['section_config'].get('byteFrom')
-                byte_to = config['section_config'].get('byteTo')
-                try:
-                    if data is None:
-                        return {}
-                    byte_to = byte_to if byte_to != -1 else len(data)
-                    converted_data = data[byte_from: byte_to]
+            self.dict_result["telemetry"] = []
+            self.dict_result["attributes"] = []
+
+            for section in ('telemetry', 'attributes'):
+                for item in data[section]:
                     try:
-                        converted_data = converted_data.replace(b"\x00", b'').decode('UTF-8')
-                    except UnicodeDecodeError:
-                        converted_data = str(converted_data)
-                    if config['section_config'].get('key') is not None:
-                        self.dict_result[config['type']].append({config['section_config'].get('key'): converted_data})
-                    else:
-                        log.error('Key for %s not found in config: %s', config['type'], config['section_config'])
-                except Exception as e:
-                    log.error('\nException catched when processing data for %s\n\n', pformat(config))
-                    log.exception(e)
-            except Exception as e:
-                log.exception(e)
+                        expression_arr = findall(r'\[[^\s][0-9:]*]', item['valueExpression'])
+                        converted_data = item['valueExpression']
+
+                        for exp in expression_arr:
+                            indexes = exp[1:-1].split(':')
+
+                            data_to_replace = ''
+                            if len(indexes) == 2:
+                                from_index, to_index = indexes
+                                concat_arr = item['data'][
+                                             int(from_index) if from_index != '' else None:int(
+                                                 to_index) if to_index != '' else None]
+                                for sub_item in concat_arr:
+                                    data_to_replace += str(sub_item)
+                            else:
+                                data_to_replace += str(item['data'][int(indexes[0])])
+
+                            converted_data = converted_data.replace(exp, data_to_replace)
+
+                        if item.get('key') is not None:
+                            self.dict_result[section].append({item['key']: converted_data})
+                        else:
+                            log.error('Key for %s not found in config: %s', config['type'], config[section])
+                    except Exception as e:
+                        log.error('\nException caught when processing data for %s\n\n', pformat(config))
+                        log.exception(e)
+
         except Exception as e:
             log.exception(e)
+
         log.debug(self.dict_result)
         return self.dict_result

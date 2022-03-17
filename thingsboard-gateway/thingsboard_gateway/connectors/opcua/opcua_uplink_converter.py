@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 #     limitations under the License.
 
 from re import fullmatch
+from time import time
+from datetime import timezone
 
 from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -22,7 +24,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
     def __init__(self, config):
         self.__config = config
 
-    def convert(self, config, data):
+    def convert(self, config, val, data = None):
         device_name = self.__config["deviceName"]
         result = {"deviceName": device_name,
                   "deviceType": self.__config.get("deviceType", "OPC-UA Device"),
@@ -41,7 +43,19 @@ class OpcUaUplinkConverter(OpcUaConverter):
                     else:
                         config_information = config.replace('\\\\', '\\')
                     if path == config_information or fullmatch(path, config_information) or path.replace('\\\\', '\\') == config_information:
-                        result[information_types[information_type]].append({information["key"]: information["path"].replace("${" + path + "}", str(data))})
+                        full_key = information["key"]
+                        full_value = information["path"].replace("${"+path+"}", str(val))
+                        if information_type == 'timeseries' and data is not None:
+                            # Note: SourceTimestamp and ServerTimestamp may be naive datetime objects, hence for the timestamp() the tz must first be overwritten to UTC (which it is according to the spec)
+                            if data.monitored_item.Value.SourceTimestamp is not None:
+                                timestamp = int(data.monitored_item.Value.SourceTimestamp.replace(tzinfo=timezone.utc).timestamp()*1000)
+                            elif data.monitored_item.Value.ServerTimestamp is not None:
+                                timestamp = int(data.monitored_item.Value.ServerTimestamp.replace(tzinfo=timezone.utc).timestamp()*1000)
+                            else:
+                                timestamp = int(time()*1000)
+                            result[information_types[information_type]].append({"ts": timestamp, 'values': {full_key: full_value}})
+                        else:
+                            result[information_types[information_type]].append({full_key: full_value})
             return result
         except Exception as e:
             log.exception(e)

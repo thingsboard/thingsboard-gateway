@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 #     limitations under the License.
 
 from logging import getLogger
-from re import search
+from re import search, findall
 
 from jsonpath_rw import parse
 from simplejson import JSONDecodeError, dumps, loads
@@ -42,8 +42,6 @@ class TBUtility:
         error = None
         if error is None and not data.get("deviceName"):
             error = 'deviceName is empty in data: '
-        if error is None and not data.get("deviceType"):
-            error = 'deviceType is empty in data: '
 
         if error is None:
             got_attributes = False
@@ -98,8 +96,9 @@ class TBUtility:
         try:
             if isinstance(body, dict) and target_str.split()[0] in body:
                 if value_type.lower() == "string":
-                    full_value = expression[0: max(p1 - 2, 0)] + body[target_str.split()[0]] + expression[
-                                                                                               p2 + 1:len(expression)]
+                    full_value = str(expression[0: max(p1 - 2, 0)]) + str(body[target_str.split()[0]]) + str(expression[
+                                                                                                             p2 + 1:len(
+                                                                                                                 expression)])
                 else:
                     full_value = body.get(target_str.split()[0])
             elif isinstance(body, (dict, list)):
@@ -119,6 +118,18 @@ class TBUtility:
         except Exception as e:
             log.exception(e)
         return full_value
+
+    @staticmethod
+    def get_values(expression, body=None, value_type="string", get_tag=False, expression_instead_none=False):
+        expression_arr = findall(r'\$\{[${A-Za-z0-9.^\]\[*_]*\}', expression)
+
+        values = [TBUtility.get_value(exp, body, value_type=value_type, get_tag=get_tag,
+                                      expression_instead_none=expression_instead_none) for exp in expression_arr]
+
+        if '${' not in expression:
+            values.append(expression)
+
+        return values
 
     @staticmethod
     def install_package(package, version="upgrade"):
@@ -155,3 +166,7 @@ class TBUtility:
                     value = TBUtility.get_value(item, data['data'], 'params', expression_instead_none=True)
                     text = text.replace(tag, str(value))
         return text
+
+    @staticmethod
+    def get_dict_key_by_value(dictionary: dict, value):
+        return list(dictionary.values())[list(dictionary.values()).index(value)]

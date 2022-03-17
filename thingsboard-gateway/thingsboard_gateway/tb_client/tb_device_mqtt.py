@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 import logging
 import queue
 import ssl
-import time
+from time import sleep, time
 from threading import RLock, Thread
 
 import paho.mqtt.client as paho
@@ -29,6 +29,7 @@ ATTRIBUTES_TOPIC = 'v1/devices/me/attributes'
 ATTRIBUTES_TOPIC_REQUEST = 'v1/devices/me/attributes/request/'
 ATTRIBUTES_TOPIC_RESPONSE = 'v1/devices/me/attributes/response/'
 TELEMETRY_TOPIC = 'v1/devices/me/telemetry'
+CLAIMING_TOPIC = 'v1/devices/me/claim'
 log = logging.getLogger("tb_connection")
 
 
@@ -76,7 +77,7 @@ class TBPublishInfo:
 
 class TBDeviceMqttClient:
     def __init__(self, host, port=1883, token=None, quality_of_service=None):
-        self._client = paho.Client()
+        self._client = paho.Client(protocol=4)
         self.quality_of_service = quality_of_service if quality_of_service is not None else 1
         self.__host = host
         self.__port = port
@@ -131,7 +132,7 @@ class TBDeviceMqttClient:
             5: "not authorised",
             }
         if self.__connect_callback:
-            time.sleep(.05)
+            sleep(.2)
             self.__connect_callback(client, userdata, flags, result_code, *extra_params)
         if result_code == 0:
             self.__is_connected = True
@@ -316,7 +317,7 @@ class TBDeviceMqttClient:
             tmp = tmp[:len(tmp) - 1]
             msg.update({"sharedKeys": tmp})
 
-        ts_in_millis = int(round(time.time() * 1000))
+        ts_in_millis = int(time() * 1000)
 
         attr_request_number = self._add_attr_request_callback(callback)
 
@@ -342,10 +343,10 @@ class TBDeviceMqttClient:
                 item = self.__timeout_queue.get_nowait()
                 if item is not None:
                     while not self.stopped:
-                        current_ts_in_millis = int(round(time.time() * 1000))
+                        current_ts_in_millis = int(time() * 1000)
                         if current_ts_in_millis > item["ts"]:
                             break
-                        time.sleep(0.001)
+                        sleep(0.2)
                     with self._lock:
                         callback = None
                         if item.get("attribute_request_id"):
@@ -357,4 +358,12 @@ class TBDeviceMqttClient:
                     if callback is not None:
                         callback(None, TBTimeoutException("Timeout while waiting for a reply from ThingsBoard!"))
             else:
-                time.sleep(0.01)
+                sleep(0.2)
+
+    def claim(self, secret_key, duration=30000):
+        claiming_request = {
+            "secretKey": secret_key,
+            "durationMs": duration
+            }
+        info = TBPublishInfo(self._client.publish(CLAIMING_TOPIC, dumps(claiming_request), qos=self.quality_of_service))
+        return info

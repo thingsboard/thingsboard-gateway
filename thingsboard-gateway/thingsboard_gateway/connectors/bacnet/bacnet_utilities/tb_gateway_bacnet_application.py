@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ from bacpypes.core import deferred
 from bacpypes.iocb import IOCB
 from bacpypes.object import get_datatype
 from bacpypes.pdu import Address, GlobalBroadcast
-from bacpypes.primitivedata import Null, ObjectIdentifier
+from bacpypes.primitivedata import Null, ObjectIdentifier, Atomic, Integer, Real, Unsigned
 
 from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_device import TBBACnetDevice
 from thingsboard_gateway.connectors.connector import log
@@ -201,6 +201,16 @@ class TBBACnetApplication(BIPSimpleApplication):
             datatype = get_datatype(object_id.value[0], property_id, vendor)
             if (isinstance(value, str) and value.lower() == 'null') or value is None:
                 value = Null()
+            elif issubclass(datatype, Atomic):
+                if datatype is Integer:
+                    value = int(value)
+                elif datatype is Real:
+                    value = float(value)
+                elif datatype is Unsigned:
+                    value = int(value)
+                value = datatype(value)
+            elif not isinstance(value, datatype):
+                log.error("invalid result datatype, expecting %s" % (datatype.__name__,))
             request = WritePropertyRequest(
                 objectIdentifier=object_id,
                 propertyIdentifier=property_id
@@ -208,8 +218,7 @@ class TBBACnetApplication(BIPSimpleApplication):
             request.pduDestination = address
             request.propertyValue = Any()
             try:
-                value = datatype(value)
-                request.propertyValue = Any(value)
+                request.propertyValue.cast_in(value)
             except AttributeError as e:
                 log.debug(e)
             except Exception as error:

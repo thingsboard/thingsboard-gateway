@@ -36,6 +36,11 @@
             "key": "Maintainer",
             "type": "string",
             "value": "${Developer}"
+          },
+          {
+            "key": "combine",
+            "type": "string",
+            "value": "${Developer}:${hum}"
           }
         ]
       }

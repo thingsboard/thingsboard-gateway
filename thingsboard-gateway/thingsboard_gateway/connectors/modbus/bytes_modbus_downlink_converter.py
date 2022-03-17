@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         self.__config = config
 
     def convert(self, config, data):
-        byte_order_str = config.get("byteOrder", "BIG")
+        byte_order_str = config.get("byteOrder", "LITTLE")
         word_order_str = config.get("wordOrder", "LITTLE")
         byte_order = Endian.Big if byte_order_str.upper() == "BIG" else Endian.Little
         word_order = Endian.Big if word_order_str.upper() == "BIG" else Endian.Little
@@ -48,10 +48,13 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             value = data["data"]["params"]
         else:
             value = config.get("value", 0)
+
         lower_type = config.get("type", config.get("tag", "error")).lower()
+
         if lower_type == "error":
             log.error('"type" and "tag" - not found in configuration.')
         variable_size = config.get("objectsCount", config.get("registersCount", config.get("registerCount", 1))) * 16
+
         if lower_type in ["integer", "dword", "dword/integer", "word", "int"]:
             lower_type = str(variable_size) + "int"
             assert builder_functions.get(lower_type) is not None
@@ -67,7 +70,8 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         elif lower_type in ["coil", "bits", "coils", "bit"]:
             assert builder_functions.get("bits") is not None
             if variable_size / 8 > 1.0:
-                builder_functions["bits"](value)
+                builder_functions["bits"](bytes(value, encoding='UTF-8')) if isinstance(value, str) else \
+                    builder_functions["bits"]([int(x) for x in bin(value)[2:]])
             else:
                 return bytes(int(value))
         elif lower_type in ["string"]:
@@ -100,7 +104,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
                     builder = builder[0]
             else:
                 if isinstance(builder, list) and len(builder) not in (2, 4):
-                    log.warning("There is a problem with the value builder. Only the firt register is written.")
+                    log.warning("There is a problem with the value builder. Only the first register is written.")
                     builder = builder[0]
             return builder
         log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter", config["device"])
