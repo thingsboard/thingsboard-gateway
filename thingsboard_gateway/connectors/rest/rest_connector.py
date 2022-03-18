@@ -355,19 +355,18 @@ class BaseDataHandler:
 
     def get_response(self):
         if self.response_expected:
-            if self.success_response:
-                return web.Response(body=str(self.success_response) if self.success_response else None, status=200)
-            else:
-                time_point = time()
-                while not time() - time_point >= self.endpoint['config'].get('response', {}).get('timeout', 120):
-                    if not BaseDataHandler.responses_queue.empty():
-                        response = BaseDataHandler.responses_queue.get()
-                        return web.Response(body=str(response), status=200)
+            time_point = time()
+            while not time() - time_point >= self.endpoint['config'].get('response', {}).get('timeout', 120):
+                if not BaseDataHandler.responses_queue.empty():
+                    response = BaseDataHandler.responses_queue.get()
+                    return web.Response(body=str(response), status=200)
 
-                    sleep(.2)
+                sleep(.2)
 
-                return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
-                                    status=408)
+            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                status=408)
+
+        return web.Response(body=str(self.success_response) if self.success_response else None, status=200)
 
 
 class AnonymousDataHandler(BaseDataHandler):
@@ -375,11 +374,13 @@ class AnonymousDataHandler(BaseDataHandler):
         json_data = await self._convert_data_from_request(request)
 
         if not json_data and not len(request.query):
-            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None, status=415)
+            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                status=415)
 
         endpoint_config = self.endpoint['config']
         if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
-            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None, status=405)
+            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                status=405)
 
         try:
             log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
@@ -410,12 +411,14 @@ class BasicDataHandler(BaseDataHandler):
             json_data = await self._convert_data_from_request(request)
 
             if not json_data:
-                return web.Response(body=self.unsuccessful_response, status=415)
+                return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                    status=415)
 
             endpoint_config = self.endpoint['config']
 
             if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
-                return web.Response(body=self.unsuccessful_response, status=405)
+                return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                    status=405)
 
             try:
                 log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
@@ -430,9 +433,10 @@ class BasicDataHandler(BaseDataHandler):
                 return self.get_response()
             except Exception as e:
                 log.exception("Error while post to basic handler: %s", e)
-                return web.Response(body=self.unsuccessful_response, status=500)
+                return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                    status=500)
 
-        return web.Response(body=self.unsuccessful_response, status=401)
+        return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None, status=401)
 
 
 class Users:
