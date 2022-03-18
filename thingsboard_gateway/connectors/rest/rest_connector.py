@@ -17,7 +17,7 @@ from random import choice
 from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
-from time import time
+from time import time, sleep
 import ssl
 import os
 
@@ -175,6 +175,13 @@ class RESTConnector(Connector, Thread):
                         response = response_queue.get_nowait()
                         log.debug(response)
                     del response_queue
+
+            # ONLY if initialized "response" section for endpoint
+            # check if attribute update relates to some responseAttribute
+            for endpoint in self.__config['mapping']:
+                response_attribute = endpoint.get('response', {}).get('responseAttribute')
+                if list(content['data'].keys())[0] == response_attribute:
+                    BaseDataHandler.responses_queue.put(content['data'][response_attribute])
         except Exception as e:
             log.exception(e)
 
@@ -304,10 +311,16 @@ class RESTConnector(Connector, Thread):
 
 
 class BaseDataHandler:
+    responses_queue = Queue()
+
     def __init__(self, send_to_storage, name, endpoint):
         self.send_to_storage = send_to_storage
         self.__name = name
         self.__endpoint = endpoint
+
+        self.success_response = self.__endpoint['config'].get('response', {}).get('successResponse')
+        self.unsuccessful_response = self.__endpoint['config'].get('response', {}).get('unsuccessfulResponse')
+        self.response_expected = self.__endpoint['config'].get('response', {}).get('responseExpected', False)
 
     @property
     def name(self):
@@ -335,27 +348,55 @@ class BaseDataHandler:
 
             return json_data
 
+    @staticmethod
+    def modify_data_for_remote_response(data, modify):
+        if modify:
+            data['attributes'].append({'responseExpected': True})
+
+    def get_response(self):
+        if self.response_expected:
+            time_point = time()
+            while not time() - time_point >= self.endpoint['config'].get('response', {}).get('timeout', 120):
+                if not BaseDataHandler.responses_queue.empty():
+                    response = BaseDataHandler.responses_queue.get()
+                    return web.Response(body=str(response), status=200)
+
+                sleep(.2)
+
+            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                status=408)
+
+        return web.Response(body=str(self.success_response) if self.success_response else None, status=200)
+
 
 class AnonymousDataHandler(BaseDataHandler):
     async def __call__(self, request: web.Request):
         json_data = await self._convert_data_from_request(request)
 
         if not json_data and not len(request.query):
-            return web.Response(status=415)
+            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                status=415)
+
         endpoint_config = self.endpoint['config']
         if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
-            return web.Response(status=405)
+            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                status=405)
+
         try:
             log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
             converter = self.endpoint['converter'](endpoint_config['converter'])
             data = json_data if json_data else dict(request.query)
             converted_data = converter.convert(config=endpoint_config['converter'], data=data)
+
+            self.modify_data_for_remote_response(converted_data, self.response_expected)
+
             self.send_to_storage(self.name, converted_data)
             log.info("CONVERTED_DATA: %r", converted_data)
-            return web.Response(status=200)
+
+            return self.get_response()
         except Exception as e:
             log.exception("Error while post to anonymous handler: %s", e)
-            return web.Response(status=500)
+            return web.Response(body=str(self.success_response) if self.success_response else None, status=500)
 
 
 class BasicDataHandler(BaseDataHandler):
@@ -368,23 +409,34 @@ class BasicDataHandler(BaseDataHandler):
         auth = BasicAuth.decode(request.headers.get('Authorization'))
         if self.verify(auth.login, auth.password):
             json_data = await self._convert_data_from_request(request)
+
             if not json_data:
-                return web.Response(status=415)
+                return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                    status=415)
+
             endpoint_config = self.endpoint['config']
+
             if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
-                return web.Response(status=405)
+                return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                    status=405)
+
             try:
                 log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
                 converter = self.endpoint['converter'](endpoint_config['converter'])
                 converted_data = converter.convert(config=endpoint_config['converter'], data=json_data)
+
+                self.modify_data_for_remote_response(converted_data, self.response_expected)
+
                 self.send_to_storage(self.name, converted_data)
                 log.info("CONVERTED_DATA: %r", converted_data)
-                return web.Response(status=200)
+
+                return self.get_response()
             except Exception as e:
                 log.exception("Error while post to basic handler: %s", e)
-                return web.Response(status=500)
+                return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                    status=500)
 
-        return web.Response(status=401)
+        return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None, status=401)
 
 
 class Users:
