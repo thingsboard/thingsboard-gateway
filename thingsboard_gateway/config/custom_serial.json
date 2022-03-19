@@ -1,11 +1,11 @@
 {
   "name": "Custom serial connector",
+  "port": "/dev/ttyUSB0",
+  "baudrate": 9600,
   "devices": [
     {
       "name": "CustomSerialDevice1",
       "type": "default",
-      "port": "/dev/ttyUSB0",
-      "baudrate": 9600,
       "converter": "CustomSerialUplinkConverter",
       "telemetry": [
         {
