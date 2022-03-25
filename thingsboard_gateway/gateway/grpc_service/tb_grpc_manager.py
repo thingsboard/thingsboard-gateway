@@ -57,7 +57,7 @@ class TBGRPCServerManager(Thread):
         log.info("GRPC server started.")
         asyncio.run(self.serve(self.__config), debug=True)
         while not self._stopped:
-            sleep(.01)
+            sleep(.2)
 
     def incoming_messages_cb(self, session_id, msg: FromConnectorMessage):
         log.debug("Connected client with identifier: %s", session_id)
