@@ -453,8 +453,10 @@ class TBGatewayService:
                         continue
 
                     if connector['type'] != "grpc":
-                        module_name = f'Grpc{self._default_connectors.get(connector["type"], connector.get("class"))}'
-                        connector_class = TBModuleLoader.import_module(connector['type'], module_name)
+                        connector_class = None
+                        if connector.get('useGRPC', True):
+                            module_name = f'Grpc{self._default_connectors.get(connector["type"], connector.get("class"))}'
+                            connector_class = TBModuleLoader.import_module(connector['type'], module_name)
 
                         if self.__grpc_manager and self.__grpc_manager.is_alive() and connector_class:
                             connector_persistent_key = self._generate_persistent_key(connector,
