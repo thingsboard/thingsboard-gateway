@@ -67,6 +67,7 @@ class RESTConnector(Connector, Thread):
         self._connected = False
         self.__stopped = False
         self.daemon = True
+        self.__attribute_type = {}
         self.__rpc_requests = []
         self.__attribute_updates = []
         self.__fill_requests_from_TB()
@@ -78,6 +79,22 @@ class RESTConnector(Connector, Thread):
                                                      mapping['converter'].get("extension",
                                                                               self._default_converters["uplink"]))
             endpoints.update({mapping['endpoint']: {"config": mapping, "converter": converter}})
+
+        # configuring Attribute Request endpoints
+        if len(self.__config.get('attributeRequests', [])):
+            self.__attribute_type = {
+                'client': self.__gateway.tb_client.client.gw_request_client_attributes,
+                'shared': self.__gateway.tb_client.client.gw_request_shared_attributes
+            }
+
+            for attr in self.__config['attributeRequests']:
+                config = {
+                    'type': 'attributeRequest',
+                    'function': self.__attribute_type[attr['type']],
+                    'config': attr,
+                }
+                endpoints.update({attr['endpoint']: config})
+
         return endpoints
 
     def load_handlers(self):
@@ -86,7 +103,8 @@ class RESTConnector(Connector, Thread):
             "anonymous": AnonymousDataHandler,
         }
         handlers = []
-        for mapping in self.__config.get("mapping"):
+        mappings = self.__config.get("mapping", []) + self.__config.get('attributeRequests', [])
+        for mapping in mappings:
             try:
                 security_type = "anonymous" if mapping.get("security") is None else mapping["security"]["type"].lower()
                 if security_type != "anonymous":
@@ -312,6 +330,7 @@ class RESTConnector(Connector, Thread):
 
 class BaseDataHandler:
     responses_queue = Queue()
+    response_attribute_request = Queue()
 
     def __init__(self, send_to_storage, name, endpoint):
         self.send_to_storage = send_to_storage
@@ -368,6 +387,60 @@ class BaseDataHandler:
 
         return web.Response(body=str(self.success_response) if self.success_response else None, status=200)
 
+    def process_attribute_request(self, data):
+        if self.processed_attribute_request(data):
+            time_point = time()
+            while not time() - time_point >= self.endpoint['config']['timeout']:
+                if not BaseDataHandler.response_attribute_request.empty():
+                    return web.Response(body=BaseDataHandler.response_attribute_request.get())
+
+                sleep(.2)
+
+            return web.Response(status=408)
+
+    @staticmethod
+    def attribute_request_callback(content, _):
+        BaseDataHandler.response_attribute_request.put(str(content))
+
+    def processed_attribute_request(self, data):
+        if self.__endpoint.get('type') == 'attributeRequest':
+            device_name_tags = TBUtility.get_values(self.__endpoint['config'].get("deviceNameExpression"), data,
+                                                    get_tag=True)
+            device_name_values = TBUtility.get_values(self.__endpoint['config'].get("deviceNameExpression"), data,
+                                                      expression_instead_none=True)
+
+            device_name = self.__endpoint['config'].get("deviceNameExpression")
+            for (device_name_tag, device_name_value) in zip(device_name_tags, device_name_values):
+                is_valid_key = "${" in self.__endpoint['config'].get("deviceNameExpression") and "}" in \
+                               self.__endpoint['config'].get("deviceNameExpression")
+                device_name = device_name.replace('${' + str(device_name_tag) + '}',
+                                                  str(device_name_value)) \
+                    if is_valid_key else device_name_tag
+
+            if not device_name or device_name == '':
+                return False
+
+            attribute_name_tags = TBUtility.get_values(self.__endpoint['config'].get("attributeNameExpression"), data,
+                                                       get_tag=True)
+            attribute_name_values = TBUtility.get_values(self.__endpoint['config'].get("attributeNameExpression"), data,
+                                                         expression_instead_none=True)
+
+            attribute_name = self.__endpoint['config'].get("attributeNameExpression")
+            for (attribute_name_tag, attribute_name_value) in zip(attribute_name_tags, attribute_name_values):
+                is_valid_key = "${" in self.__endpoint['config'].get("attributeNameExpression") and "}" in \
+                               self.__endpoint['config'].get("attributeNameExpression")
+                attribute_name = attribute_name.replace('${' + str(attribute_name_tag) + '}',
+                                                        str(attribute_name_value)) \
+                    if is_valid_key else attribute_name_tag
+
+            if not attribute_name or attribute_name == '':
+                return False
+
+            self.__endpoint['function'](device_name, [attribute_name], self.attribute_request_callback)
+            return True
+
+        return False
+
 
 class AnonymousDataHandler(BaseDataHandler):
     async def __call__(self, request: web.Request):
@@ -382,10 +455,16 @@ class AnonymousDataHandler(BaseDataHandler):
             return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
                                 status=405)
 
+        data = json_data if json_data else dict(request.query)
+
+        # check if request is Attribute Request type
+        result = self.process_attribute_request(data)
+        if isinstance(result, web.Response):
+            return result
+
         try:
             log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
             converter = self.endpoint['converter'](endpoint_config['converter'])
-            data = json_data if json_data else dict(request.query)
             converted_data = converter.convert(config=endpoint_config['converter'], data=data)
 
             self.modify_data_for_remote_response(converted_data, self.response_expected)
@@ -420,10 +499,17 @@ class BasicDataHandler(BaseDataHandler):
                 return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
                                     status=405)
 
+            data = json_data if json_data else dict(request.query)
+
+            # check if request is Attribute Request type
+            result = self.process_attribute_request(data)
+            if isinstance(result, web.Response):
+                return result
+
             try:
                 log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
                 converter = self.endpoint['converter'](endpoint_config['converter'])
-                converted_data = converter.convert(config=endpoint_config['converter'], data=json_data)
+                converted_data = converter.convert(config=endpoint_config['converter'], data=data)
 
                 self.modify_data_for_remote_response(converted_data, self.response_expected)
 
