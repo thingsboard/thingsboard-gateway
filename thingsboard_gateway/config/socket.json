@@ -34,6 +34,13 @@
           "byteTo": 4
         }
       ],
+      "attributeRequests": [
+        {
+          "type": "shared",
+          "requestExpression": "${[0:3]==atr}",
+          "attributeNameExpression": "[3:]"
+        }
+      ],
       "attributeUpdates": [
         {
           "encoding": "utf-16",
