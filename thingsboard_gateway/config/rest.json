@@ -12,8 +12,7 @@
       "HTTPMethods": [
         "POST"
       ],
-      "security":
-      {
+      "security": {
         "type": "anonymous"
       },
       "converter": {
@@ -52,8 +51,7 @@
         "GET",
         "POST"
       ],
-      "security":
-      {
+      "security": {
         "type": "anonymous"
       },
       "converter": {
@@ -86,8 +84,7 @@
       "HTTPMethods": [
         "POST"
       ],
-      "security":
-      {
+      "security": {
         "type": "anonymous"
       },
       "converter": {
@@ -97,35 +94,51 @@
         "extension": "CustomRestUplinkConverter",
         "extension-config": [
           {
-          "key": "Totaliser",
-          "datatype": "float",
-          "fromByte": 0,
-          "toByte": 4,
-          "byteorder": "big",
-          "signed": true,
-          "multiplier": 1
-          }]
+            "key": "Totaliser",
+            "datatype": "float",
+            "fromByte": 0,
+            "toByte": 4,
+            "byteorder": "big",
+            "signed": true,
+            "multiplier": 1
+          }
+        ]
       }
     }
   ],
+  "attributeRequests": [
+    {
+      "endpoint": "/sharedAttributes",
+      "type": "shared",
+      "HTTPMethods": [
+        "POST"
+      ],
+      "security": {
+        "type": "anonymous"
+      },
+      "timeout": 10.0,
+      "deviceNameExpression": "${deviceName}",
+      "attributeNameExpression": "${attribute}"
+    }
+  ],
   "attributeUpdates": [
-      {
-        "HTTPMethod": "POST",
-        "SSLVerify": false,
-        "httpHeaders": {
-          "CONTENT-TYPE": "application/json"
-        },
-        "security": {
-          "type": "anonymous"
-        },
-        "timeout": 0.5,
-        "tries": 3,
-        "allowRedirects": true,
-        "deviceNameFilter": "SN.*",
-        "attributeFilter": ".*",
-        "requestUrlExpression": "http://127.0.0.1:5001/",
-        "valueExpression": "{\"deviceName\":\"${deviceName}\",\"${attributeKey}\":\"${attributeValue}\"}"
-      }
+    {
+      "HTTPMethod": "POST",
+      "SSLVerify": false,
+      "httpHeaders": {
+        "CONTENT-TYPE": "application/json"
+      },
+      "security": {
+        "type": "anonymous"
+      },
+      "timeout": 0.5,
+      "tries": 3,
+      "allowRedirects": true,
+      "deviceNameFilter": "SN.*",
+      "attributeFilter": ".*",
+      "requestUrlExpression": "http://127.0.0.1:5001/",
+      "valueExpression": "{\"deviceName\":\"${deviceName}\",\"${attributeKey}\":\"${attributeValue}\"}"
+    }
   ],
   "serverSideRpc": [
     {
