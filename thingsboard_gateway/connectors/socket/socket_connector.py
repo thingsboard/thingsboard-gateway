@@ -23,10 +23,6 @@ from time import sleep
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
-# ATTRIBUTES_TYPE = {
-#     'client': 'client_keys',
-#     'shared': 'shared_keys'
-# }
 SOCKET_TYPE = {
     'TCP': socket.SOCK_STREAM,
     'UDP': socket.SOCK_DGRAM
@@ -240,6 +236,7 @@ class SocketConnector(Connector, Thread):
             else:
                 data = data[int(indexes[0])]
 
+        self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
         self.__attribute_type[attr['type']](device_name, [data.decode('utf-8')], self.__attribute_request_callback)
 
     def __attribute_request_callback(self, response, _):
@@ -257,6 +254,7 @@ class SocketConnector(Connector, Thread):
             self.__write_value_via_tcp(address, port, converted_value)
         else:
             self.__write_value_via_udp(address, port, converted_value)
+        self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
 
     def close(self):
         self.__stopped = True

@@ -48,13 +48,16 @@ requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 
 
 class RESTConnector(Connector, Thread):
-
     def __init__(self, gateway, config, connector_type):
         super().__init__()
         self.__log = log
         self._default_converters = {
             "uplink": "JsonRESTUplinkConverter",
             "downlink": "JsonRESTDownlinkConverter"
+        }
+        self._events_type = {
+            'STATISTICS_MESSAGE_RECEIVED': self.statistic_message_received,
+            'STATISTICS_MESSAGE_SEND': self.statistic_message_send
         }
         self.__config = config
         self._connector_type = connector_type
@@ -113,7 +116,8 @@ class RESTConnector(Connector, Thread):
                                    mapping['security']['password'])
                 for http_method in mapping['HTTPMethods']:
                     handler = data_handlers[security_type](self.collect_statistic_and_send, self.get_name(),
-                                                           self.endpoints[mapping["endpoint"]])
+                                                           self.endpoints[mapping["endpoint"]],
+                                                           provider=self.__event_provider)
                     handlers.append(web.route(http_method, mapping['endpoint'], handler))
             except Exception as e:
                 log.error("Error on creating handlers - %s", str(e))
@@ -224,6 +228,18 @@ class RESTConnector(Connector, Thread):
         except Exception as e:
             log.exception(e)
 
+    def __event_provider(self, event_type):
+        try:
+            self._events_type[event_type]()
+        except KeyError:
+            self.__log.error('Unresolved event type')
+
+    def statistic_message_received(self):
+        self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
+
+    def statistic_message_send(self):
+        self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
+
     def collect_statistic_and_send(self, connector_name, data):
         self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
         self.__gateway.send_to_storage(connector_name, data)
@@ -332,10 +348,11 @@ class BaseDataHandler:
     responses_queue = Queue()
     response_attribute_request = Queue()
 
-    def __init__(self, send_to_storage, name, endpoint):
+    def __init__(self, send_to_storage, name, endpoint, provider=None):
         self.send_to_storage = send_to_storage
         self.__name = name
         self.__endpoint = endpoint
+        self.__provider = provider
 
         self.success_response = self.__endpoint['config'].get('response', {}).get('successResponse')
         self.unsuccessful_response = self.__endpoint['config'].get('response', {}).get('unsuccessfulResponse')
@@ -392,6 +409,7 @@ class BaseDataHandler:
             time_point = time()
             while not time() - time_point >= self.endpoint['config']['timeout']:
                 if not BaseDataHandler.response_attribute_request.empty():
+                    self.__provider('STATISTICS_MESSAGE_SEND')
                     return web.Response(body=BaseDataHandler.response_attribute_request.get())
 
                 sleep(.2)
@@ -437,6 +455,7 @@ class BaseDataHandler:
                 return False
 
             self.__endpoint['function'](device_name, [attribute_name], self.attribute_request_callback)
+            self.__provider('STATISTICS_MESSAGE_RECEIVED')
             return True
 
         return False
