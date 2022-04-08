@@ -674,9 +674,12 @@ class MqttConnector(Connector, Thread):
                                                            'params',
                                                            expression_instead_none=True)
 
-                data_to_send = rpc_config.get('valueExpression')
-                for (tag, value) in zip(data_to_send_tags, data_to_send_values):
-                    data_to_send = data_to_send.replace('${' + tag + '}', str(value))
+                if len(data_to_send_tags) == 1 and len(data_to_send_values) == 1:
+                    data_to_send = simplejson.dumps(data_to_send_values[0])
+                else:
+                    data_to_send = rpc_config.get('valueExpression')
+                    for (tag, value) in zip(data_to_send_tags, data_to_send_values):
+                        data_to_send = data_to_send.replace('${' + tag + '}', str(value))
 
                 try:
                     self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
