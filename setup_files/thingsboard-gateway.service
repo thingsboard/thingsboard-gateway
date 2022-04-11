@@ -1,0 +1,9 @@
+[Unit]
+Description=ThingsBoard Gateway
+
+[Service]
+ExecStart=/usr/bin/python
+/home/pi/thingsboard-gateway/thingsboard-gateway/thingsboard_gateway/tb_gateway.py
+
+[Install]
+WantedBy=multi-user.target
