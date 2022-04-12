@@ -2,7 +2,7 @@ ZigBee Gateway Setup
 ====================
 
 NOTE: Many of these instructions are lifted from the
-`official zigbee2mqtt setup instructions <https://www.zigbee2mqtt.io/guide/getting-started/>`_ and
+`official Zigbee2MQTT setup instructions <https://www.zigbee2mqtt.io/guide/getting-started/>`_ and
 consolidated here.
 
 Hardware Setup
@@ -33,4 +33,6 @@ coordinator firmware. This should be done from your laptop/desktop/ a system sep
 Software Setup
 --------------
 
-#.
+#. Follow the instructions as-described in the Linux Zigbee2MQTT Setup Instructions.
+
+   * Be sure to follow the *(Optional) Running as a daemon with systemctl* instructions as well so that Zigbee2MQTT starts up when the gateway does.
