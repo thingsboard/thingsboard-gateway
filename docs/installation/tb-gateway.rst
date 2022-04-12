@@ -1,9 +1,12 @@
 Install ThingsBoard Gateway from Source
 =======================================
 
-Generate an SSH Key
--------------------
-#. Generate ssh key on pi using ssh-keygen
+Generate an SSH Key to Clone the GItHub Repository
+--------------------------------------------------
+#. :code:`cd ~` - Move to the home directory of the gateway
+#. :code:`ssh-keygen` - Generate an SSH key
+
+   * You don't need to enter any special configuration values for your SSH key if prompted. Simply  press **Enter** for each prompt until the command has finished running.
 #. :code:`cd .ssh` - Visit the directory where your SSH key can now be found
 #. :code:`cat id_rsa.pub` - Display the public key. Copy it.
 #. Go to the `GitHub <https://github.com/>`_ and log in with the account associated with the gateway repository
@@ -13,7 +16,8 @@ Generate an SSH Key
 Running ThingsBoard Gateway
 ---------------------------
 #. :code:`cd ~` - Move to the home directory of the gateway
-#. Follow the steps laid out in the `ThingsBoard Gateway Source Installation Instructions <https://thingsboard.io/docs/iot-gateway/install/source-installation/>`_
+#. Follow the steps laid out in the `ThingsBoard Gateway Source Installation Instructions <https://thingsboard.io/docs/iot-gateway/install/source-installation/>`_.
+Make sure to note the below special instructions in place of those found on ThingsBoard:
 
    * Step 2 - Instead perform :code:`git clone --single-branch --branch thingsboard-master git@github.com:drexelwireless/thingsboard-gateway.git`
    * Step 4 - Be sure to use :code:`sudo python3 setup.py install` instead

@@ -7,12 +7,18 @@ Welcome to VarIoT's documentation!
 ==================================
 
 .. toctree::
-   :maxdepth: 3
-   :caption: Contents:
+   :maxdepth: 5
+   :caption: Setup:
 
    installation/index
    protocols/index
+
+.. toctree::
+   :maxdepth: 5
+   :caption: Developers:
+
    data_manipulation/index
+   remote_gateway_development/index
 
 
 Indices and tables
