@@ -15,7 +15,7 @@ Running ThingsBoard Gateway
 #. :code:`cd ~` - Move to the home directory of the gateway
 #. Follow the steps laid out in the `ThingsBoard Gateway Source Installation Instructions <https://thingsboard.io/docs/iot-gateway/install/source-installation/>`_
 
-   * Step 2 - Instead perform :code:`git clone git@github.com:drexelwireless/thingsboard-gateway.git`
+   * Step 2 - Instead perform :code:`git clone --single-branch --branch thingsboard-master git@github.com:drexelwireless/thingsboard-gateway.git`
    * Step 4 - Be sure to use :code:`sudo python3 setup.py install` instead
 #. In order to run your gateway from the source, you need to add :code:`thingsboard-gateway.service` in :code:`/etc/systemd/system directory`
 
