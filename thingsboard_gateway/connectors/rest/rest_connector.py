@@ -21,7 +21,7 @@ from time import time, sleep
 import ssl
 import os
 
-from simplejson import JSONDecodeError
+from simplejson import JSONDecodeError, dumps
 import requests
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException
@@ -418,7 +418,7 @@ class BaseDataHandler:
 
     @staticmethod
     def attribute_request_callback(content, _):
-        BaseDataHandler.response_attribute_request.put(str(content))
+        BaseDataHandler.response_attribute_request.put(dumps(content))
 
     def processed_attribute_request(self, data):
         if self.__endpoint.get('type') == 'attributeRequest':
@@ -438,23 +438,15 @@ class BaseDataHandler:
             if not device_name or device_name == '':
                 return False
 
-            attribute_name_tags = TBUtility.get_values(self.__endpoint['config'].get("attributeNameExpression"), data,
-                                                       get_tag=True)
-            attribute_name_values = TBUtility.get_values(self.__endpoint['config'].get("attributeNameExpression"), data,
-                                                         expression_instead_none=True)
+            found_attribute_names = list(filter(lambda x: x is not None,
+                                                TBUtility.get_values(
+                                                    self.__endpoint['config'].get("attributeNameExpression"),
+                                                    data)))
 
-            attribute_name = self.__endpoint['config'].get("attributeNameExpression")
-            for (attribute_name_tag, attribute_name_value) in zip(attribute_name_tags, attribute_name_values):
-                is_valid_key = "${" in self.__endpoint['config'].get("attributeNameExpression") and "}" in \
-                               self.__endpoint['config'].get("attributeNameExpression")
-                attribute_name = attribute_name.replace('${' + str(attribute_name_tag) + '}',
-                                                        str(attribute_name_value)) \
-                    if is_valid_key else attribute_name_tag
-
-            if not attribute_name or attribute_name == '':
+            if found_attribute_names is None:
                 return False
 
-            self.__endpoint['function'](device_name, [attribute_name], self.attribute_request_callback)
+            self.__endpoint['function'](device_name, found_attribute_names, self.attribute_request_callback)
             self.__provider('STATISTICS_MESSAGE_RECEIVED')
             return True
 
