@@ -20,6 +20,8 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep
 
+from simplejson import dumps
+
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
@@ -43,6 +45,7 @@ class SocketConnector(Connector, Thread):
         self.daemon = True
         self.__stopped = False
         self._connected = False
+        self.__bind = False
         self.__socket_type = config['type'].upper()
         self.__socket_address = config['address']
         self.__socket_port = config['port']
@@ -135,7 +138,14 @@ class SocketConnector(Connector, Thread):
         converting_thread = Thread(target=self.__process_data, daemon=True, name='Converter Thread')
         converting_thread.start()
 
-        self.__socket.bind((self.__socket_address, self.__socket_port))
+        while not self.__bind:
+            try:
+                self.__socket.bind((self.__socket_address, self.__socket_port))
+            except OSError:
+                log.error('Address already in use. Reconnecting...')
+                sleep(3)
+            else:
+                self.__bind = True
 
         if self.__socket_type == 'TCP':
             self.__socket.listen(5)
@@ -182,6 +192,7 @@ class SocketConnector(Connector, Thread):
                     self.__log.error('Can\'t convert data from %s:%s - not in config file', address, port)
 
                 # check data for attribute requests
+                is_attribute_request = False
                 attr_requests = device.get('attributeRequests', [])
                 if len(attr_requests):
                     for attr in attr_requests:
@@ -195,9 +206,11 @@ class SocketConnector(Connector, Thread):
                                 equal = data[int(attr['requestIndex'])]
 
                         if attr['requestEqual'] == equal.decode('utf-8'):
+                            is_attribute_request = True
                             self.__process_attribute_request(device['deviceName'], attr, data)
 
-                    continue
+                    if is_attribute_request:
+                        continue
 
                 self.__convert_data(device, data)
 
@@ -228,16 +241,27 @@ class SocketConnector(Connector, Thread):
 
     def __process_attribute_request(self, device_name, attr, data):
         expression_arr = findall(r'\[[^\s][0-9:]*]', attr['attributeNameExpression'])
+
+        found_attributes = []
         if expression_arr:
-            indexes = expression_arr[0][1:-1].split(':')
-            if len(indexes) == 2:
-                from_index, to_index = indexes
-                data = data[int(from_index) if from_index != '' else None:int(to_index) if to_index != '' else None]
-            else:
-                data = data[int(indexes[0])]
+            for exp in expression_arr:
+                indexes = exp[1:-1].split(':')
+
+                try:
+                    if len(indexes) == 2:
+                        from_index, to_index = indexes
+                        attribute = data[int(from_index) if from_index != '' else None:int(
+                            to_index) if to_index != '' else None]
+                    else:
+                        attribute = data[int(indexes[0])]
+
+                    found_attributes.append(attribute.decode('utf-8'))
+                except IndexError:
+                    self.__log.error('Data length not valid due to attributeNameExpression')
+                    return
 
         self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
-        self.__attribute_type[attr['type']](device_name, [data.decode('utf-8')], self.__attribute_request_callback)
+        self.__attribute_type[attr['type']](device_name, found_attributes, self.__attribute_request_callback)
 
     def __attribute_request_callback(self, response, _):
         device = response.get('device')
@@ -247,8 +271,8 @@ class SocketConnector(Connector, Thread):
         device = tuple(filter(lambda item: item['deviceName'] == device, self.__config['devices']))[0]
         address, port = device['address'].split(':')
 
-        value = response.get('value')
-        converted_value = bytes(str(value), encoding='utf-8')
+        value = response.get('value') or response.get('values')
+        converted_value = bytes(dumps(value), encoding='utf-8')
 
         if self.__socket_type == 'TCP':
             self.__write_value_via_tcp(address, port, converted_value)
