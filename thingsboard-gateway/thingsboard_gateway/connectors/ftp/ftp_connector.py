@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ class FTPConnector(Connector, Thread):
                            'MessagesSent': 0}
         self.__log = log
         self.__config = config
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.__gateway = gateway
         self.security = {**self.__config['security']} if self.__config['security']['type'] == 'basic' else {
             'username': 'anonymous', "password": 'anonymous@'}
@@ -94,7 +94,7 @@ class FTPConnector(Connector, Thread):
                     path.find_files(ftp)
 
                 while True:
-                    sleep(.01)
+                    sleep(.2)
                     self.__process_paths(ftp)
                     if self.__stopped:
                         break
@@ -262,7 +262,8 @@ class FTPConnector(Connector, Thread):
                 if fullmatch(rpc_request['deviceNameFilter'], content['device']) and fullmatch(
                         rpc_request['methodFilter'], content['data']['method']):
                     with self.__ftp() as ftp:
-                        self.__connect(ftp)
+                        if not self._connected:
+                            self.__connect(ftp)
 
                         converted_data = None
                         success_sent = None

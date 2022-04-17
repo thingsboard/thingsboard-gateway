@@ -4,6 +4,7 @@ thingsboard:
   remoteShell: false
   remoteConfiguration: false
   statsSendPeriodInSeconds: 3600
+  minPackSendDelayMS: 0
   checkConnectorsConfigurationInSeconds: 60
   security:
     accessToken: PUT_YOUR_GW_ACCESS_TOKEN_HERE
@@ -17,8 +18,22 @@ storage:
 #  max_file_count: 10
 #  max_read_records_count: 10
 #  max_records_per_file: 10000
+#  type: sqlite
+#  data_file_path: ./data/data.db
+#  messages_ttl_check_in_hours: 1
+#  messages_ttl_in_days: 7
+grpc:
+  enabled: false
+  serverPort: 9595
+  keepaliveTimeMs: 10000
+  keepaliveTimeoutMs: 5000
+  keepalivePermitWithoutCalls: true
+  maxPingsWithoutData: 0
+  minTimeBetweenPingsMs: 10000
+  minPingIntervalWithoutDataMs: 5000
 connectors:
-  - name: MQTT Broker Connector
+  -
+    name: MQTT Broker Connector
     type: mqtt
     configuration: mqtt.json
 
@@ -71,13 +86,24 @@ connectors:
 #    name: SNMP Connector
 #    type: snmp
 #    configuration: snmp.json
+#
 #  -
 #    name: FTP Connector
 #    type: ftp
 #    configuration: ftp.json
+#
+#
+# ========= Customization ==========
+#
 #
 #  -
 #    name: Custom Serial Connector
 #    type: serial
 #    configuration: custom_serial.json
 #    class: CustomSerialConnector
+#
+#  -
+#    name: GRPC Connector 1
+#    key: auto
+#    type: grpc
+#    configuration: grpc_connector_1.json

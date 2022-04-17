@@ -1,4 +1,4 @@
-#      Copyright 2021. ThingsBoard
+#      Copyright 2022. ThingsBoard
 #
 #      Licensed under the Apache License, Version 2.0 (the "License");
 #      you may not use this file except in compliance with the License.
@@ -58,6 +58,10 @@ BYTESIZE_PARAMETER = "bytesize"
 PARITY_PARAMETER = "parity"
 STRICT_PARAMETER = "strict"
 TYPE_PARAMETER = "type"
+
+RETRIES_PARAMETER = "retries"
+RETRY_ON_EMPTY_PARAMETER = "retryOnEmpty"
+RETRY_ON_INVALID_PARAMETER = "retryOnInvalid"
 
 PAYLOAD_PARAMETER = "payload"
 TAG_PARAMETER = "tag"

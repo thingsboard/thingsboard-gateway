@@ -1,4 +1,4 @@
-#     Copyright 2021. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ class FTPUplinkConverter(FTPConverter):
                     dict_result[self.__data_types[data_type]].append({
                         arr[key_index] if isinstance(key_index, int) else key_index:
                             arr[val_index] if isinstance(val_index, int) else val_index
-                        })
+                    })
 
                     if get_device_name_from_data:
                         index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternName']))
@@ -117,13 +117,35 @@ class FTPUplinkConverter(FTPConverter):
 
         try:
             if self.__config.get("devicePatternName") is not None:
-                dict_result["deviceName"] = TBUtility.get_value(self.__config.get("devicePatternName"), data,
-                                                                expression_instead_none=True)
+                device_name_tags = TBUtility.get_values(self.__config.get("devicePatternName"), data,
+                                                        get_tag=True)
+                device_name_values = TBUtility.get_values(self.__config.get("devicePatternName"), data,
+                                                          expression_instead_none=True)
+
+                dict_result["deviceName"] = self.__config.get("devicePatternName")
+                for (device_name_tag, device_name_value) in zip(device_name_tags, device_name_values):
+                    is_valid_key = "${" in self.__config.get("devicePatternName") and "}" in \
+                                   self.__config.get("devicePatternName")
+                    dict_result['deviceName'] = dict_result['deviceName'].replace('${' + str(device_name_tag) + '}',
+                                                                                  str(device_name_value)) \
+                        if is_valid_key else device_name_tag
+
             else:
                 log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
+
             if self.__config.get("devicePatternType") is not None:
-                dict_result["deviceType"] = TBUtility.get_value(self.__config.get("devicePatternType"), data,
-                                                                expression_instead_none=True)
+                device_type_tags = TBUtility.get_values(self.__config.get("devicePatternType"), data,
+                                                        get_tag=True)
+                device_type_values = TBUtility.get_values(self.__config.get("devicePatternType"), data,
+                                                          expression_instead_none=True)
+                dict_result["deviceType"] = self.__config.get("devicePatternType")
+
+                for (device_type_tag, device_type_value) in zip(device_type_tags, device_type_values):
+                    is_valid_key = "${" in self.__config.get("devicePatternType") and "}" in \
+                                   self.__config.get("devicePatternType")
+                    dict_result["deviceType"] = dict_result["deviceType"].replace('${' + str(device_type_tag) + '}',
+                                                                                  str(device_type_value)) \
+                        if is_valid_key else device_type_tag
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
             log.exception(e)
@@ -131,31 +153,39 @@ class FTPUplinkConverter(FTPConverter):
         try:
             for datatype in self.__data_types:
                 dict_result[self.__data_types[datatype]] = []
+
                 for datatype_config in self.__config.get(datatype, []):
-                    value = TBUtility.get_value(datatype_config["value"], data, datatype_config["type"],
+                    values = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
+                                                  expression_instead_none=True)
+                    values_tags = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
+                                                       get_tag=True)
+
+                    keys = TBUtility.get_values(datatype_config["key"], data, datatype_config["type"],
                                                 expression_instead_none=True)
-                    value_tag = TBUtility.get_value(datatype_config["value"], data, datatype_config["type"],
-                                                    get_tag=True)
-                    key = TBUtility.get_value(datatype_config["key"], data, datatype_config["type"],
-                                              expression_instead_none=True)
-                    key_tag = TBUtility.get_value(datatype_config["key"], data, get_tag=True)
-                    if ("${" not in str(value) and "}" not in str(value)) and (
-                            "${" not in str(key) and "}" not in str(key)):
-                        is_valid_key = isinstance(key, str) and "${" in datatype_config["key"] and "}" in \
+                    keys_tags = TBUtility.get_values(datatype_config["key"], data, get_tag=True)
+
+                    full_key = datatype_config["key"]
+                    for (key, key_tag) in zip(keys, keys_tags):
+                        is_valid_key = "${" in datatype_config["key"] and "}" in \
                                        datatype_config["key"]
-                        is_valid_value = isinstance(value, str) and "${" in datatype_config["value"] and "}" in \
+                        full_key = full_key.replace('${' + str(key_tag) + '}',
+                                                    str(key)) if is_valid_key else key_tag
+
+                    full_value = datatype_config["value"]
+                    for (value, value_tag) in zip(values, values_tags):
+                        is_valid_value = "${" in datatype_config["value"] and "}" in \
                                          datatype_config["value"]
-                        full_key = datatype_config["key"].replace('${' + str(key_tag) + '}',
-                                                                  str(key)) if is_valid_key else key_tag
-                        full_value = datatype_config["value"].replace('${' + str(value_tag) + '}',
-                                                                      str(value)) if is_valid_value else value
-                        if datatype == 'timeseries' and (
-                                data.get("ts") is not None or data.get("timestamp") is not None):
-                            dict_result[self.__data_types[datatype]].append(
-                                {"ts": data.get('ts', data.get('timestamp', int(time()))),
-                                 'values': {full_key: full_value}})
-                        else:
-                            dict_result[self.__data_types[datatype]].append({full_key: full_value})
+
+                        full_value = full_value.replace('${' + str(value_tag) + '}',
+                                                        str(value)) if is_valid_value else str(value)
+
+                    if datatype == 'timeseries' and (
+                            data.get("ts") is not None or data.get("timestamp") is not None):
+                        dict_result[self.__data_types[datatype]].append(
+                            {"ts": data.get('ts', data.get('timestamp', int(time()))),
+                             'values': {full_key: full_value}})
+                    else:
+                        dict_result[self.__data_types[datatype]].append({full_key: full_value})
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
             log.exception(e)

@@ -1,4 +1,4 @@
-#      Copyright 2021. ThingsBoard
+#      Copyright 2022. ThingsBoard
 #  #
 #      Licensed under the Apache License, Version 2.0 (the "License");
 #      you may not use this file except in compliance with the License.
@@ -26,6 +26,9 @@ DOWNLINK_PREFIX = "downlink_"
 CONFIG_SECTION_PARAMETER = "config"
 CONFIG_SERVER_SECTION_PARAMETER = "server"
 CONFIG_DEVICES_SECTION_PARAMETER = "devices"
+
+CONNECTED_DEVICES_FILENAME = "connected_devices.json"
+PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME = "persistent_keys.json"
 
 # Data parameter constants
 
