@@ -19,6 +19,7 @@ Welcome to VarIoT's documentation!
 
    data_manipulation/index
    remote_gateway_development/index
+   flask_portal/index
 
 
 Indices and tables
