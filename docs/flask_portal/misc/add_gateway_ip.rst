@@ -1,3 +1,5 @@
+.. _add-gateway-ip-address:
+
 Add Gateway IP Address
 ======================
 

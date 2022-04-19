@@ -1,5 +1,5 @@
 Installation of Flask Web Portal
-==========================
+================================
 
 Here you will find instructions on how to install Flask web portal.
 
