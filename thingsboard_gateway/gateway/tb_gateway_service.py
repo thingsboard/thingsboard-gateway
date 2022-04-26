@@ -18,7 +18,11 @@ import logging.handlers
 import subprocess
 from copy import deepcopy
 from os import execv, listdir, path, pathsep, stat, system
-from queue import SimpleQueue
+from queue import Empty as EmptyQueueException
+try:
+    from queue import SimpleQueue
+except ImportError:
+    from queue import Queue as SimpleQueue
 from random import choice
 from string import ascii_lowercase, hexdigits
 from sys import argv, executable, getsizeof
