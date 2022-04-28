@@ -496,7 +496,11 @@ class BasicDataHandler(BaseDataHandler):
         return Users.validate_user_credentials(self.endpoint['config']['endpoint'], username, password)
 
     async def __call__(self, request: web.Request):
-        auth = BasicAuth.decode(request.headers.get('Authorization'))
+        if request.headers.get('Authorization') is None:
+            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                status=401)
+
+        auth = BasicAuth.decode(request.headers['Authorization'])
         if self.verify(auth.login, auth.password):
             json_data = await self._convert_data_from_request(request)
 
