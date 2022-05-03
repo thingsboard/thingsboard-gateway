@@ -8,3 +8,4 @@ Here you will find instructions on how to configure each gateway to use a suppor
    :caption: Contents:
 
    zigbee
+   wifi
