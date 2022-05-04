@@ -439,7 +439,7 @@ class CanConnector(Connector, Thread):
                                     self.get_name(), tb_key, config_key, )
                         continue
 
-                    if msg_config.get("command", "") and node_id not in self.__commands:
+                    if msg_config.get("command", ""):
                         cmd_config = self.__parse_command_config(msg_config["command"])
                         if cmd_config is None:
                             log.warning("[%s] Ignore '%s' %s configuration: wrong command configuration",
@@ -447,7 +447,12 @@ class CanConnector(Connector, Thread):
                             continue
 
                         cmd_id = cmd_config["value"]
-                        self.__commands[node_id] = cmd_config
+
+                        if node_id not in self.__commands:
+                            self.__commands[node_id] = cmd_config
+                        else:
+                            # TODO: warn user if previous cmd_config differs from current cmd_config
+                            pass
                     else:
                         cmd_id = self.NO_CMD_ID
                         self.__commands[node_id] = None
