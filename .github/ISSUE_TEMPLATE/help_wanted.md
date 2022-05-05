@@ -3,7 +3,7 @@ name: Help wanted
 about: If you have some issues with configuration
 title: "[HELP]"
 labels: help wanted
-assignees: zbeacon
+assignees: imbeacon, samson0v
 
 ---
 
