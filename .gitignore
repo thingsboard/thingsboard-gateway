@@ -23,3 +23,4 @@ __pycache__
 /thingsboard_gateway/config/
 /venv/
 /docs/_build/*
+.vscode/*

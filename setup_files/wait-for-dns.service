@@ -1,0 +1,8 @@
+[Unit]
+Description=Wait for DNS
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'while ! host variot.ece.drexel.edu; do sleep 1; done'

@@ -23,7 +23,7 @@ Install ThingsBoard Gateway
 #. In order to run your gateway from the source, copy :code:`thingsboard-gateway.service` to the :code:`/etc/systemd/system` directory
    
    * Move to the directory the service file will live in: :code:`cd /etc/systemd/system`
-   * Copy the service file to the current directory: :code:`cp ~/setup_files/thingsboard-gateway.service .` <-- the period here is important
+   * Copy the service files to the current directory: :code:`cp ~/setup_files/*.service .` <-- the period here is important
 #. Notify the system that daemons were changed: :code:`sudo systemctl daemon-reload`
 
 Create Gateway Device
@@ -48,6 +48,7 @@ Configure ThingsBoard Gateway
 Run ThingsBoard Gateway
 -----------------------
 #. Start the ThingsBoard service: :code:`sudo service thingsboard-gateway start`
+#. Enable the Thingsboard service on start-up: :code:`sudo systemctl enable thingsboard-gateway.service`
 #. Check the service status: :code:`sudo service thingsboard-gateway status` (Press q to return to the prompt)
    
    The ouput should look like the following:

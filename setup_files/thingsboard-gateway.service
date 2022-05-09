@@ -1,8 +1,11 @@
 [Unit]
 Description=ThingsBoard Gateway
+After=network-online.target wait-for-dns.service
+Wants=network-online.target wait-for-dns.service
 
 [Service]
-ExecStart=/usr/bin/python /home/pi/thingsboard-gateway/thingsboard-gateway/thingsboard_gateway/tb_gateway.py
+ExecStart=/usr/bin/python3 /home/pi/thingsboard-gateway/thingsboard-gateway/thingsboard_gateway/tb_gateway.py
+ExecStopPost=/home/pi/thingsboard-gateway/setup_files/bluetooth-kill.sh
 
 [Install]
 WantedBy=multi-user.target
