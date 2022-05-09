@@ -15,9 +15,12 @@
 import socket
 from queue import Queue
 from random import choice
+from re import findall
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep
+
+from simplejson import dumps
 
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -42,6 +45,7 @@ class SocketConnector(Connector, Thread):
         self.daemon = True
         self.__stopped = False
         self._connected = False
+        self.__bind = False
         self.__socket_type = config['type'].upper()
         self.__socket_address = config['address']
         self.__socket_port = config['port']
@@ -63,6 +67,16 @@ class SocketConnector(Connector, Thread):
                 {'deviceName': device['deviceName'],
                  'deviceType': device.get('deviceType', 'default')}) if module else None
             device['converter'] = converter
+
+            # validate attributeRequests requestExpression
+            attr_requests = device.get('attributeRequests', [])
+            device['attributeRequests'] = self.__validate_attr_requests(attr_requests)
+            if len(device['attributeRequests']):
+                self.__attribute_type = {
+                    'client': self.__gateway.tb_client.client.gw_request_client_attributes,
+                    'shared': self.__gateway.tb_client.client.gw_request_shared_attributes
+                }
+
             converted_devices[address] = device
 
         return converted_devices
@@ -78,6 +92,42 @@ class SocketConnector(Connector, Thread):
         log.error("Cannot find converter for %s device", self.name)
         return None
 
+    def __validate_attr_requests(self, attr_requests):
+        validated_attrs = []
+        for attr in attr_requests:
+            valid_attr = False
+            if attr['requestExpression'] != '':
+                if '${' in attr['requestExpression'] and '}' in attr['requestExpression']:
+                    if '==' in attr['requestExpression']:
+                        expression_arr = findall(r'\[[^\s][0-9:]*]', attr['requestExpression'])
+                        if expression_arr:
+                            indexes = expression_arr[0][1:-1].split(':')
+                            if len(indexes) == 2:
+                                from_index, to_index = indexes
+                                attr['requestIndexFrom'] = from_index
+                                attr['requestIndexTo'] = to_index
+                            else:
+                                attr['requestIndex'] = int(indexes[0])
+
+                            attr['haveIndex'] = True
+                            try:
+                                attr['requestEqual'] = attr['requestExpression'].split('==')[-1][:-1]
+                            except IndexError:
+                                self.__log.error(f'{attr["requestExpression"]} not valid. Index out of range.')
+                                continue
+
+                            valid_attr = True
+                            validated_attrs.append(attr)
+                else:
+                    valid_attr = True
+                    attr['haveIndex'] = False
+                    validated_attrs.append(attr)
+
+            if not valid_attr:
+                self.__log.error(f'{attr["requestExpression"]} not valid expression')
+
+        return validated_attrs
+
     def open(self):
         self.__stopped = False
         self.start()
@@ -85,10 +135,17 @@ class SocketConnector(Connector, Thread):
     def run(self):
         self._connected = True
 
-        converting_thread = Thread(target=self.__convert_data, daemon=True, name='Converter Thread')
+        converting_thread = Thread(target=self.__process_data, daemon=True, name='Converter Thread')
         converting_thread.start()
 
-        self.__socket.bind((self.__socket_address, self.__socket_port))
+        while not self.__bind:
+            try:
+                self.__socket.bind((self.__socket_address, self.__socket_port))
+            except OSError:
+                log.error('Address already in use. Reconnecting...')
+                sleep(3)
+            else:
+                self.__bind = True
 
         if self.__socket_type == 'TCP':
             self.__socket.listen(5)
@@ -125,7 +182,7 @@ class SocketConnector(Connector, Thread):
         self.__connections.pop(address)
         self.__log.debug('Connection %s closed', address)
 
-    def __convert_data(self):
+    def __process_data(self):
         while not self.__stopped:
             if not self.__converting_requests.empty():
                 (address, port), data = self.__converting_requests.get()
@@ -134,28 +191,94 @@ class SocketConnector(Connector, Thread):
                 if not device:
                     self.__log.error('Can\'t convert data from %s:%s - not in config file', address, port)
 
-                converter = device['converter']
-                if not converter:
-                    self.__log.error('Converter not found for %s:%s', address, port)
+                # check data for attribute requests
+                is_attribute_request = False
+                attr_requests = device.get('attributeRequests', [])
+                if len(attr_requests):
+                    for attr in attr_requests:
+                        equal = data
+                        if attr['haveIndex']:
+                            if attr.get('requestIndexFrom') and attr.get('requestIndexTo'):
+                                index_from = int(attr['requestIndexFrom']) if attr['requestIndexFrom'] != '' else None
+                                index_to = int(attr['requestIndexTo']) if attr['requestIndexTo'] != '' else None
+                                equal = data[index_from:index_to]
+                            else:
+                                equal = data[int(attr['requestIndex'])]
 
-                try:
-                    device_config = {
-                        'encoding': device.get('encoding', 'utf-8').lower(),
-                        'telemetry': device.get('telemetry', []),
-                        'attributes': device.get('attributes', [])
-                    }
-                    converted_data = converter.convert(device_config, data)
+                        if attr['requestEqual'] == equal.decode('utf-8'):
+                            is_attribute_request = True
+                            self.__process_attribute_request(device['deviceName'], attr, data)
 
-                    self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
+                    if is_attribute_request:
+                        continue
 
-                    if converted_data is not None:
-                        self.__gateway.send_to_storage(self.get_name(), converted_data)
-                        self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                        log.info('Data to ThingsBoard %s', converted_data)
-                except Exception as e:
-                    self.__log.exception(e)
+                self.__convert_data(device, data)
 
             sleep(.2)
+
+    def __convert_data(self, device, data):
+        address, port = device['address'].split(':')
+        converter = device['converter']
+        if not converter:
+            self.__log.error('Converter not found for %s:%s', address, port)
+
+        try:
+            device_config = {
+                'encoding': device.get('encoding', 'utf-8').lower(),
+                'telemetry': device.get('telemetry', []),
+                'attributes': device.get('attributes', [])
+            }
+            converted_data = converter.convert(device_config, data)
+
+            self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
+
+            if converted_data is not None:
+                self.__gateway.send_to_storage(self.get_name(), converted_data)
+                self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+                log.info('Data to ThingsBoard %s', converted_data)
+        except Exception as e:
+            self.__log.exception(e)
+
+    def __process_attribute_request(self, device_name, attr, data):
+        expression_arr = findall(r'\[[^\s][0-9:]*]', attr['attributeNameExpression'])
+
+        found_attributes = []
+        if expression_arr:
+            for exp in expression_arr:
+                indexes = exp[1:-1].split(':')
+
+                try:
+                    if len(indexes) == 2:
+                        from_index, to_index = indexes
+                        attribute = data[int(from_index) if from_index != '' else None:int(
+                            to_index) if to_index != '' else None]
+                    else:
+                        attribute = data[int(indexes[0])]
+
+                    found_attributes.append(attribute.decode('utf-8'))
+                except IndexError:
+                    self.__log.error('Data length not valid due to attributeNameExpression')
+                    return
+
+        self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
+        self.__attribute_type[attr['type']](device_name, found_attributes, self.__attribute_request_callback)
+
+    def __attribute_request_callback(self, response, _):
+        device = response.get('device')
+        if not device:
+            self.__log.error('Attribute request does\'t return device name')
+
+        device = tuple(filter(lambda item: item['deviceName'] == device, self.__config['devices']))[0]
+        address, port = device['address'].split(':')
+
+        value = response.get('value') or response.get('values')
+        converted_value = bytes(dumps(value), encoding='utf-8')
+
+        if self.__socket_type == 'TCP':
+            self.__write_value_via_tcp(address, port, converted_value)
+        else:
+            self.__write_value_via_udp(address, port, converted_value)
+        self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
 
     def close(self):
         self.__stopped = True

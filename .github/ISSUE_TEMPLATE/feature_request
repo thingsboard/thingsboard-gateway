@@ -1,0 +1,15 @@
+---
+name: Feature request
+about: If you have some suggestion about improvemnts or optimization
+title: "[Feature]"
+labels: feature
+assignees: imbeacon, samson0v
+
+---
+
+**Describe the feature**
+Create a description of your idea and describe use cases where this feature can be useful.
+
+
+**Connector name (If you want to improve some connector/converter):**
+[e.g. MQTT Connector]

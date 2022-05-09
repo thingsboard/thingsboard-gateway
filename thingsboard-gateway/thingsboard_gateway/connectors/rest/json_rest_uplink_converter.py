@@ -67,12 +67,12 @@ class JsonRESTUplinkConverter(RESTConverter):
                 dict_result[datatypes[datatype]] = []
                 for datatype_config in self.__config.get(datatype, []):
                     values = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
-                                                  expression_instead_none=True)
+                                                  expression_instead_none=False)
                     values_tags = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
                                                        get_tag=True)
 
                     keys = TBUtility.get_values(datatype_config["key"], data, datatype_config["type"],
-                                                expression_instead_none=True)
+                                                expression_instead_none=False)
                     keys_tags = TBUtility.get_values(datatype_config["key"], data, get_tag=True)
 
                     full_key = datatype_config['key']
@@ -90,13 +90,14 @@ class JsonRESTUplinkConverter(RESTConverter):
                         full_value = full_value.replace('${' + str(value_tag) + '}',
                                                         str(value)) if is_valid_value else value
 
-                    if datatype == 'timeseries' and (
-                            data.get("ts") is not None or data.get("timestamp") is not None):
-                        dict_result[datatypes[datatype]].append(
-                            {"ts": data.get('ts', data.get('timestamp', int(time()))),
-                             'values': {full_key: full_value}})
-                    else:
-                        dict_result[datatypes[datatype]].append({full_key: full_value})
+                    if full_key != 'None' and full_value != 'None':
+                        if datatype == 'timeseries' and (
+                                data.get("ts") is not None or data.get("timestamp") is not None):
+                            dict_result[datatypes[datatype]].append(
+                                {"ts": data.get('ts', data.get('timestamp', int(time()))),
+                                 'values': {full_key: full_value}})
+                        else:
+                            dict_result[datatypes[datatype]].append({full_key: full_value})
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
             log.exception(e)

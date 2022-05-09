@@ -22,6 +22,7 @@ log = getLogger("service")
 
 EXTENSIONS_FOLDER = '/extensions'.replace('/', path.sep)
 CONNECTORS_FOLDER = '/connectors'.replace('/', path.sep)
+GRPC_CONNECTORS_FOLDER = '/grpc_connectors'.replace('/', path.sep)
 DEB_INSTALLATION_EXTENSION_PATH = '/var/lib/thingsboard_gateway/extensions'.replace('/', path.sep)
 
 
@@ -38,6 +39,7 @@ class TBModuleLoader:
             TBModuleLoader.PATHS.append(DEB_INSTALLATION_EXTENSION_PATH)
         TBModuleLoader.PATHS.append(root_path + EXTENSIONS_FOLDER)
         TBModuleLoader.PATHS.append(root_path + CONNECTORS_FOLDER)
+        TBModuleLoader.PATHS.append(root_path + GRPC_CONNECTORS_FOLDER)
 
     @staticmethod
     def import_module(extension_type, module_name):

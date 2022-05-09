@@ -17,11 +17,11 @@ from random import choice
 from re import fullmatch
 from string import ascii_lowercase
 from threading import Thread
-from time import time
+from time import time, sleep
 import ssl
 import os
 
-from simplejson import JSONDecodeError
+from simplejson import JSONDecodeError, dumps
 import requests
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException
@@ -48,13 +48,16 @@ requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 
 
 class RESTConnector(Connector, Thread):
-
     def __init__(self, gateway, config, connector_type):
         super().__init__()
         self.__log = log
         self._default_converters = {
             "uplink": "JsonRESTUplinkConverter",
             "downlink": "JsonRESTDownlinkConverter"
+        }
+        self._events_type = {
+            'STATISTICS_MESSAGE_RECEIVED': self.statistic_message_received,
+            'STATISTICS_MESSAGE_SEND': self.statistic_message_send
         }
         self.__config = config
         self._connector_type = connector_type
@@ -67,6 +70,7 @@ class RESTConnector(Connector, Thread):
         self._connected = False
         self.__stopped = False
         self.daemon = True
+        self.__attribute_type = {}
         self.__rpc_requests = []
         self.__attribute_updates = []
         self.__fill_requests_from_TB()
@@ -78,6 +82,22 @@ class RESTConnector(Connector, Thread):
                                                      mapping['converter'].get("extension",
                                                                               self._default_converters["uplink"]))
             endpoints.update({mapping['endpoint']: {"config": mapping, "converter": converter}})
+
+        # configuring Attribute Request endpoints
+        if len(self.__config.get('attributeRequests', [])):
+            self.__attribute_type = {
+                'client': self.__gateway.tb_client.client.gw_request_client_attributes,
+                'shared': self.__gateway.tb_client.client.gw_request_shared_attributes
+            }
+
+            for attr in self.__config['attributeRequests']:
+                config = {
+                    'type': 'attributeRequest',
+                    'function': self.__attribute_type[attr['type']],
+                    'config': attr,
+                }
+                endpoints.update({attr['endpoint']: config})
+
         return endpoints
 
     def load_handlers(self):
@@ -86,7 +106,8 @@ class RESTConnector(Connector, Thread):
             "anonymous": AnonymousDataHandler,
         }
         handlers = []
-        for mapping in self.__config.get("mapping"):
+        mappings = self.__config.get("mapping", []) + self.__config.get('attributeRequests', [])
+        for mapping in mappings:
             try:
                 security_type = "anonymous" if mapping.get("security") is None else mapping["security"]["type"].lower()
                 if security_type != "anonymous":
@@ -95,7 +116,8 @@ class RESTConnector(Connector, Thread):
                                    mapping['security']['password'])
                 for http_method in mapping['HTTPMethods']:
                     handler = data_handlers[security_type](self.collect_statistic_and_send, self.get_name(),
-                                                           self.endpoints[mapping["endpoint"]])
+                                                           self.endpoints[mapping["endpoint"]],
+                                                           provider=self.__event_provider)
                     handlers.append(web.route(http_method, mapping['endpoint'], handler))
             except Exception as e:
                 log.error("Error on creating handlers - %s", str(e))
@@ -175,6 +197,13 @@ class RESTConnector(Connector, Thread):
                         response = response_queue.get_nowait()
                         log.debug(response)
                     del response_queue
+
+            # ONLY if initialized "response" section for endpoint
+            # check if attribute update relates to some responseAttribute
+            for endpoint in self.__config['mapping']:
+                response_attribute = endpoint.get('response', {}).get('responseAttribute')
+                if list(content['data'].keys())[0] == response_attribute:
+                    BaseDataHandler.responses_queue.put(content['data'][response_attribute])
         except Exception as e:
             log.exception(e)
 
@@ -198,6 +227,18 @@ class RESTConnector(Connector, Thread):
                                                   content=response[2] if response and len(response) >= 3 else response)
         except Exception as e:
             log.exception(e)
+
+    def __event_provider(self, event_type):
+        try:
+            self._events_type[event_type]()
+        except KeyError:
+            self.__log.error('Unresolved event type')
+
+    def statistic_message_received(self):
+        self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
+
+    def statistic_message_send(self):
+        self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
 
     def collect_statistic_and_send(self, connector_name, data):
         self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
@@ -304,10 +345,18 @@ class RESTConnector(Connector, Thread):
 
 
 class BaseDataHandler:
-    def __init__(self, send_to_storage, name, endpoint):
+    responses_queue = Queue()
+    response_attribute_request = Queue()
+
+    def __init__(self, send_to_storage, name, endpoint, provider=None):
         self.send_to_storage = send_to_storage
         self.__name = name
         self.__endpoint = endpoint
+        self.__provider = provider
+
+        self.success_response = self.__endpoint['config'].get('response', {}).get('successResponse')
+        self.unsuccessful_response = self.__endpoint['config'].get('response', {}).get('unsuccessfulResponse')
+        self.response_expected = self.__endpoint['config'].get('response', {}).get('responseExpected', False)
 
     @property
     def name(self):
@@ -335,27 +384,109 @@ class BaseDataHandler:
 
             return json_data
 
+    @staticmethod
+    def modify_data_for_remote_response(data, modify):
+        if modify:
+            data['attributes'].append({'responseExpected': True})
+
+    def get_response(self):
+        if self.response_expected:
+            time_point = time()
+            while not time() - time_point >= self.endpoint['config'].get('response', {}).get('timeout', 120):
+                if not BaseDataHandler.responses_queue.empty():
+                    response = BaseDataHandler.responses_queue.get()
+                    return web.Response(body=str(response), status=200)
+
+                sleep(.2)
+
+            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                status=408)
+
+        return web.Response(body=str(self.success_response) if self.success_response else None, status=200)
+
+    def process_attribute_request(self, data):
+        if self.processed_attribute_request(data):
+            time_point = time()
+            while not time() - time_point >= self.endpoint['config']['timeout']:
+                if not BaseDataHandler.response_attribute_request.empty():
+                    self.__provider('STATISTICS_MESSAGE_SEND')
+                    return web.Response(body=BaseDataHandler.response_attribute_request.get())
+
+                sleep(.2)
+
+            return web.Response(status=408)
+
+    @staticmethod
+    def attribute_request_callback(content, _):
+        BaseDataHandler.response_attribute_request.put(dumps(content))
+
+    def processed_attribute_request(self, data):
+        if self.__endpoint.get('type') == 'attributeRequest':
+            device_name_tags = TBUtility.get_values(self.__endpoint['config'].get("deviceNameExpression"), data,
+                                                    get_tag=True)
+            device_name_values = TBUtility.get_values(self.__endpoint['config'].get("deviceNameExpression"), data,
+                                                      expression_instead_none=True)
+
+            device_name = self.__endpoint['config'].get("deviceNameExpression")
+            for (device_name_tag, device_name_value) in zip(device_name_tags, device_name_values):
+                is_valid_key = "${" in self.__endpoint['config'].get("deviceNameExpression") and "}" in \
+                               self.__endpoint['config'].get("deviceNameExpression")
+                device_name = device_name.replace('${' + str(device_name_tag) + '}',
+                                                  str(device_name_value)) \
+                    if is_valid_key else device_name_tag
+
+            if not device_name or device_name == '':
+                return False
+
+            found_attribute_names = list(filter(lambda x: x is not None,
+                                                TBUtility.get_values(
+                                                    self.__endpoint['config'].get("attributeNameExpression"),
+                                                    data)))
+
+            if found_attribute_names is None:
+                return False
+
+            self.__endpoint['function'](device_name, found_attribute_names, self.attribute_request_callback)
+            self.__provider('STATISTICS_MESSAGE_RECEIVED')
+            return True
+
+        return False
+
 
 class AnonymousDataHandler(BaseDataHandler):
     async def __call__(self, request: web.Request):
         json_data = await self._convert_data_from_request(request)
 
         if not json_data and not len(request.query):
-            return web.Response(status=415)
+            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                status=415)
+
         endpoint_config = self.endpoint['config']
         if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
-            return web.Response(status=405)
+            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                status=405)
+
+        data = json_data if json_data else dict(request.query)
+
+        # check if request is Attribute Request type
+        result = self.process_attribute_request(data)
+        if isinstance(result, web.Response):
+            return result
+
         try:
             log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
             converter = self.endpoint['converter'](endpoint_config['converter'])
-            data = json_data if json_data else dict(request.query)
             converted_data = converter.convert(config=endpoint_config['converter'], data=data)
+
+            self.modify_data_for_remote_response(converted_data, self.response_expected)
+
             self.send_to_storage(self.name, converted_data)
             log.info("CONVERTED_DATA: %r", converted_data)
-            return web.Response(status=200)
+
+            return self.get_response()
         except Exception as e:
             log.exception("Error while post to anonymous handler: %s", e)
-            return web.Response(status=500)
+            return web.Response(body=str(self.success_response) if self.success_response else None, status=500)
 
 
 class BasicDataHandler(BaseDataHandler):
@@ -365,26 +496,48 @@ class BasicDataHandler(BaseDataHandler):
         return Users.validate_user_credentials(self.endpoint['config']['endpoint'], username, password)
 
     async def __call__(self, request: web.Request):
-        auth = BasicAuth.decode(request.headers.get('Authorization'))
+        if request.headers.get('Authorization') is None:
+            return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                status=401)
+
+        auth = BasicAuth.decode(request.headers['Authorization'])
         if self.verify(auth.login, auth.password):
             json_data = await self._convert_data_from_request(request)
+
             if not json_data:
-                return web.Response(status=415)
+                return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                    status=415)
+
             endpoint_config = self.endpoint['config']
+
             if request.method.upper() not in [method.upper() for method in endpoint_config['HTTPMethods']]:
-                return web.Response(status=405)
+                return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                    status=405)
+
+            data = json_data if json_data else dict(request.query)
+
+            # check if request is Attribute Request type
+            result = self.process_attribute_request(data)
+            if isinstance(result, web.Response):
+                return result
+
             try:
                 log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
                 converter = self.endpoint['converter'](endpoint_config['converter'])
-                converted_data = converter.convert(config=endpoint_config['converter'], data=json_data)
+                converted_data = converter.convert(config=endpoint_config['converter'], data=data)
+
+                self.modify_data_for_remote_response(converted_data, self.response_expected)
+
                 self.send_to_storage(self.name, converted_data)
                 log.info("CONVERTED_DATA: %r", converted_data)
-                return web.Response(status=200)
+
+                return self.get_response()
             except Exception as e:
                 log.exception("Error while post to basic handler: %s", e)
-                return web.Response(status=500)
+                return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
+                                    status=500)
 
-        return web.Response(status=401)
+        return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None, status=401)
 
 
 class Users:
