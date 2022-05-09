@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+from time import time
 from hashlib import sha1
 from os import path
 from pathlib import Path
@@ -278,7 +278,9 @@ class OdbcConnector(Connector, Thread):
         if to_send["attributes"] or to_send["telemetry"]:
             to_send["deviceName"] = device_name
             to_send["deviceType"] = device_type
-            to_send['telemetry'] = {'values': new_data['telemetry'], 'ts': new_data.get('ts').timestamp()}
+
+            to_send['telemetry'] = {'ts': new_data.get('ts', int(time()) * 1000), 'values': new_data['telemetry']}
+
             log.debug("[%s] Pushing to TB server '%s' device data: %s", self.get_name(), device_name, to_send)
 
             to_send['telemetry'] = [to_send['telemetry']]
