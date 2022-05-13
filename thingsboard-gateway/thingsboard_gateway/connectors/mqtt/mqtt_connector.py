@@ -502,7 +502,7 @@ class MqttConnector(Connector, Thread):
                     handler = self.__attribute_requests_sub_topics[topic]
 
                     found_device_name = None
-                    found_attribute_name = None
+                    found_attribute_names = None
 
                     # Get device name, either from topic or from content
                     if handler.get("deviceNameTopicExpression"):
@@ -516,25 +516,27 @@ class MqttConnector(Connector, Thread):
                     if handler.get("attributeNameTopicExpression"):
                         attribute_name_match = search(handler["attributeNameTopicExpression"], message.topic)
                         if attribute_name_match is not None:
-                            found_attribute_name = attribute_name_match.group(0)
+                            found_attribute_names = attribute_name_match.group(0)
                     elif handler.get("attributeNameJsonExpression"):
-                        found_attribute_name = TBUtility.get_value(handler["attributeNameJsonExpression"], content)
+                        found_attribute_names = list(filter(lambda x: x is not None,
+                                                            TBUtility.get_values(handler["attributeNameJsonExpression"],
+                                                                                 content)))
 
                     if found_device_name is None:
                         self.__log.error("Device name missing from attribute request")
                         continue
 
-                    if found_attribute_name is None:
+                    if found_attribute_names is None:
                         self.__log.error("Attribute name missing from attribute request")
                         continue
 
-                    self.__log.info("Will retrieve attribute %s of %s", found_attribute_name, found_device_name)
+                    self.__log.info("Will retrieve attribute %s of %s", found_attribute_names, found_device_name)
                     self.__gateway.tb_client.client.gw_request_shared_attributes(
                         found_device_name,
-                        [found_attribute_name],
+                        found_attribute_names,
                         lambda data, *args: self.notify_attribute(
                             data,
-                            found_attribute_name,
+                            found_attribute_names,
                             handler.get("topicExpression"),
                             handler.get("valueExpression"),
                             handler.get('retain', False)))
@@ -561,18 +563,21 @@ class MqttConnector(Connector, Thread):
                          content)
 
     def notify_attribute(self, incoming_data, attribute_name, topic_expression, value_expression, retain):
-        if incoming_data.get("device") is None or incoming_data.get("value") is None:
+        if incoming_data.get("device") is None or incoming_data.get("value", incoming_data.get('values')) is None:
             return
 
         device_name = incoming_data.get("device")
-        attribute_value = incoming_data.get("value")
+        attribute_values = incoming_data.get('value') or incoming_data.get('values')
 
         topic = topic_expression \
             .replace("${deviceName}", str(device_name)) \
             .replace("${attributeKey}", str(attribute_name))
 
-        data = value_expression.replace("${attributeKey}", str(attribute_name)) \
-            .replace("${attributeValue}", str(attribute_value))
+        if len(attribute_name) <= 1:
+            data = value_expression.replace("${attributeKey}", str(attribute_name[0])) \
+                .replace("${attributeValue}", str(attribute_values))
+        else:
+            data = simplejson.dumps(attribute_values)
 
         self._client.publish(topic, data, retain=retain).wait_for_publish()
 
@@ -676,7 +681,7 @@ class MqttConnector(Connector, Thread):
 
                 data_to_send = rpc_config.get('valueExpression')
                 for (tag, value) in zip(data_to_send_tags, data_to_send_values):
-                    data_to_send = data_to_send.replace('${' + tag + '}', str(value))
+                    data_to_send = data_to_send.replace('${' + tag + '}', simplejson.dumps(value))
 
                 try:
                     self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)

@@ -1,11 +1,11 @@
-Wifi Router Setup
+Wi-Fi Router Setup
 ====================
+
 The idea with the WiFI protocol is to be able to provide WiFi to the various devices that will be connected to the VarIoT gateway, this in turn will allow the WiFi devices to get internet and post to the ThingsBoard dashboard directly. If you turn your Raspberry Pi into a wireless access point, you can make it act as a router.
 
 Simply put it involves using Raspbian and installing a couple packages that give the Pi the ability to do router-like things like assign IP addresses to devices that connect to it.
 
-
-Installation Guide
+Installation
 --------------
 1. Install and update Raspbian
 
@@ -16,113 +16,119 @@ Installation Guide
 
 * **If you get an upgrade**, It’s a good idea to reboot with sudo reboot.
 
-2. Install hostapd and dnsmasq
+2. Install hostapd and iptables
 
-:code:`sudo apt-get install hostapd`
+:code:`sudo apt-get install hostapd isc-dhcp-server`
 
 * hostapd is the package that lets you create a wireless hotspot using a Raspberry Pi
 
-:code:`sudo apt-get install dnsmasq`
+:code:`sudo apt-get install iptables-persistent`
 
-* dnsmasq is an easy-to-use DHCP and DNS server
+* Nice iptables manager!
 
-* **Hit y to continue for both**
+* **Hit y to continue for both and then Yes to both on the configuration**
 
-3. Turn the programs off before any changes are made to configuration files
+3. Set up DHCP server
 
-.. code-block:: sh
-  sudo systemctl stop hostapd
-  sudo systemctl stop dnsmasq
-
-4. Configure a static IP for the wlan0 interface
-
-* Will have to ask the Drexel Tech Team for them to assure we can provision other IPs the importance will be seen in later steps
-* For this purpose here, replace IP addresses: 192.168.###.### with your own.
-* Open dhcpcd configuration file :code:`sudo nano /etc/dhcpcd.conf`
-* In the file, add the following lines to the end, assure the last 2 lines are in the order seen:
-
+* Next we will edit **/etc/dhcp/dhcpd.conf**, a file that sets up our DHCP server - this allows wifi connections to automatically get IP addresses, DNS, etc.
+* Run this command to edit the file: :code:`sudo nano /etc/dhcp/dhcpd.conf`
+* Find the lines that say:
 .. code-block:: sh
 
-  interface wlan0
-  static ip_address=192.168.0.10/24
-  denyinterfaces eth0
-  denyinterfaces wlan0
+  option domain-name "example.org";
+  option domain-name-servers ns1.example.org, ns2.example.org;
 
-* After that, press Ctrl+X, then Y, then Enter to save the file and exit the editor.
-
-5. Configure the DHCP server (dnsmasq)
-
-* The DHCP server is used to dynamically distribute network configuration parameters, such as IP addresses, for interfaces and services. In this case to provision a new IP address for every new device added to the system.
-* dnsmasq’s default configuration file contains a lot of unnecessary information, so it’s easier to start from scratch. 
-* Rename the default configuration file and write a new one:
-
-:code:`sudo mv /etc/dnsmasq.conf /etc/dnsmasq.conf.orig`
-:code:`sudo nano /etc/dnsmasq.conf`
-
-* You’ll be editing a new file now, this is the config file that dnsmasq will use.Type these lines into your new configuration file:
-
+* Change them by adding a # in the beginning so they are commented out
+* Next find the lines that say:
 .. code-block:: sh
 
+  # If this DHCP server is the official DHCP server for the local
+  # network, the authoritative directive should be uncommented.
+  #authoritative;
+
+* Then remove the # in front of authoritative. After this we will be adding the following lines to the bottom of the document
+.. code-block:: sh
+  
+  subnet 192.168.XXX.0 netmask 255.255.255.0 {
+	  range 192.168.XXX.10 192.168.XXX.50;
+	  option broadcast-address 192.168.XXX.255;
+	  option routers 192.168.XXX.1;
+	  default-lease-time 600;
+	  max-lease-time 7200;
+	  option domain-name "local";
+	  option domain-name-servers 8.8.8.8, 8.8.4.4;
+  }
+  
+* Where XXX is any number you would like to choose as long as it's between 0-255
+* Save the file by typing in Control-X then Y then return. Run: :code:`sudo nano /etc/default/isc-dhcp-server`
+* Scroll down to INTERFACES="" and update it to say INTERFACES="wlan0". It may say INTERFACESv4 and v6 - in this case add wlan0 to both close and save the file
+
+4.Set up wlan0 for static IP
+
+* Next we will set up the wlan0 connection to be static and incoming. Run :code:`sudo nano /etc/network/interfaces` to edit the file
+* Find the line auto wlan0 and add a # in front of the line, and in front of every line afterwards. If you don't have that line, just make sure it looks like the screenshot below in the end! Basically just remove any old wlan0 configuration settings, we'll be changing them up
+* **IF THE FILE IS EMPTY DO NOT WORRY** Just add the following lines at the end of it:
+.. code-block:: sh
+  
+  auto lo
+  iface lo inet loopback
+  iface eth0 inet dhcp
+  allow-hotplug wlan0
+  iface wlan0 inet static
+    address 192.168.XXX.1
+    netmask 255.255.255.0
+    
+* Save the file (Control+X,  then Y )
+* Assign a static IP address to the wifi adapter by running:  :code:`sudo ifconfig wlan0 192.168.XXX.1`
+
+5. Configure Access Point
+* Now we can configure the access point details. We will set up a password-protected network so only people with the password can connect.
+* Create a new file by running :code:`sudo nano /etc/hostapd/hostapd.conf`
+* The next lines will be placed and can change the text after ssid= to another name, that will be the network broadcast name. The password can be changed with the text after wpa_passphrase=
+
+.. code-block:: sh
+  
   interface=wlan0
-  dhcp-range=192.168.0.11,192.168.0.30,255.255.255.0,24h
-
-* The lines we added mean that we’re going to provide IP addresses between 192.168.0.11 and 192.168.0.30 for the wlan0 interface.
-
-6. Configure the access point host software (hostapd)
-
-* Now we will edit the hostapd configuration file: :code:`sudo nano /etc/hostapd/hostapd.conf`
-* In the new file add the following:
-
-.. code-block:: sh
-
-  interface=wlan0
-  bridge=br0  
+  ssid=NETWORK_NAME
+  country_code=US
   hw_mode=g
-  channel=7
-  wmm_enabled=0
+  channel=6
   macaddr_acl=0
   auth_algs=1
   ignore_broadcast_ssid=0
   wpa=2
+  wpa_passphrase=PASWORD_NAME
   wpa_key_mgmt=WPA-PSK
-  wpa_pairwise=TKIP
-  rsn_pairwise=CCMP
-  ssid=**NETWORK**
-  wpa_passphrase=**PASSWORD**
+  wpa_pairwise=CCMP
+  wpa_group_rekey=86400
+  ieee80211n=1
+  wme_enabled=1
+  
+* Save as usual. Make sure each line has no extra spaces or tabs at the end or beginning.
+* Now we will tell the Pi where to find this configuration file. Run: :code:`sudo nano /etc/default/hostapd`
+* Find the line #DAEMON_CONF="" and edit it so it says DAEMON_CONF="/etc/hostapd/hostapd.conf"
+* Don't forget to remove the # in front to activate it! Then save the file
+* Likewise, run sudo nano /etc/init.d/hostapd and find the line DAEMON_CONF= and change it to DAEMON_CONF=/etc/hostapd/hostapd.conf
 
-* Where NETWORK and PASSWORD are your own names you must create for the PI, this is what will appear to others and your devices
-* Now we need to show the system this file: :code:`sudo nano /etc/default/hostapd`
-* In this file, find the line that says :code:`#DAEMON_CONF=””`, delete that # and put the path to our config file in the quotes, so that it looks like this: :code:`DAEMON_CONF="/etc/hostapd/hostapd.conf"`
+6.Configure Network Address Translation
 
-7. Set up traffic forwarding
-
-* When you connect to your Pi, it will forward the traffic over your Ethernet cable. So we’re going to have wlan0 forward via Ethernet cable to your modem. This involves editing another config file:
-:code:`sudo nano /etc/sysctl.conf`
-* Find this line: :code:`#net.ipv4.ip_forward=1`
-* Delete the #, so it looks like this: :code:`net.ipv4.ip_forward=1`
-
-8. Add a new iptables rule
-
-* Add IP masquerading for outbound traffic on eth0 using iptables: :code:`sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE`
-* Save the table: :code:`sudo sh -c "iptables-save > /etc/iptables.ipv4.nat"`
-* To load the rule on boot, we need to edit the file /etc/rc.local and add the following line just above the line exit 0: :code:`iptables-restore < /etc/iptables.ipv4.nat`
-
-9. Enable internet connection
-
-* Now the Pi is set up to be an access point but we still need to enable the internet on it by building a bridge between wlan0 and eth0 interfaces. Otherwise devices will connect but not be able to access the internet.
-* Install the following package: :code:`sudo apt-get install bridge-utils`
-* Add a new bridge (called br0): :code:`sudo brctl addbr br0`
-* Connect eth0 interface to bridge just created: :code:`sudo brctl addif br0 eth0`
-* Edit the interfaces file: :code:`sudo nano /etc/network/interfaces`
-* Add the following lines at the end of the file:
-
+* Setting up NAT will allow multiple clients to connect to the WiFi and have all the data 'tunneled' through the single Ethernet IP. (But you should do it even if only one client is going to connect). Run :code:`sudo nano /etc/sysctl.conf`
+* Scroll to the bottom and add net.ipv4.ip_forward=1 on a new line. Save the file. This will start IP forwarding on boot up
+* Also run :code:`sudo sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"` to activate it immediately
+* Run the following commands to create the network translation between the ethernet port eth0 and the wifi port wlan0
 .. code-block:: sh
+  
+  sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+  sudo iptables -A FORWARD -i eth0 -o wlan0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+  sudo iptables -A FORWARD -i wlan0 -o eth0 -j ACCEPT
 
-  auto br0
-  iface br0 inet manual
-  bridge_ports eth0 wlan0
+* You can check to see what's in the tables with
+.. code-block:: sh
+  
+  sudo iptables -t nat -S
+  sudo iptables -S
 
-10. Reboot
-
-* Restart the Pi to save all settings and configurations files to go into effect: :code:`sudo reboot`
-* The Pi is now a Wireless Access Point
+* To make this happen on reboot (so you don't have to type it every time) run :code:`sudo sh -c "iptables-save > /etc/iptables/rules.v4"`
+* The iptables-persistent tool you installed at the beginning will automatically reload the configuration on boot for you.
+* Finally we can test the access point host! Run: :code:`sudo /usr/sbin/hostapd /etc/hostapd/hostapd.conf`
+* To manually run hostapd with our configuration file. You should see it set up and use wlan0 then you can check with another wifi computer that you see your SSID show up. If so, you have successfully set up the access point.

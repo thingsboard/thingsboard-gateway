@@ -116,8 +116,10 @@
     {
       "retain": false,
       "topicFilter": "v1/devices/me/attributes/request",
-      "deviceNameTopicExpression": "${SerialNumber}",
-      "attributeNameJsonExpression": "${sensorModel}"
+      "deviceNameJsonExpression": "${serialNumber}",
+      "attributeNameJsonExpression": "${versionAttribute}, ${pduAttribute}",
+      "topicExpression": "devices/${deviceName}/attrs",
+      "valueExpression": "${attributeKey}: ${attributeValue}"
     }
   ],
   "attributeUpdates": [
