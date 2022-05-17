@@ -1,0 +1,26 @@
+[
+  {
+    "command": ["/bin/sh", "-c", "ps -A -o cpu,%mem | awk '{cpu += $1}END{print cpu}'"],
+    "attributeOnGateway": "CPU"
+  },
+  {
+    "command": ["/bin/sh", "-c", "ps -A -o %cpu,%mem | awk '{mem += $2}END{print mem}'"],
+    "attributeOnGateway": "Memory"
+  },
+  {
+    "command": ["/bin/sh", "-c", "ipconfig getifaddr en0"],
+    "attributeOnGateway": "IP address"
+  },
+  {
+    "command": ["/bin/sh", "-c", "sw_vers -productName"],
+    "attributeOnGateway": "OS"
+  },
+  {
+    "command": ["/bin/sh", "-c", "uptime"],
+    "attributeOnGateway": "Uptime"
+  },
+  {
+    "command": ["/bin/sh", "-c", "system_profiler SPUSBDataType"],
+    "attributeOnGateway": "USBs"
+  }
+]

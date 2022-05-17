@@ -32,6 +32,7 @@ from yaml import safe_load
 from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
@@ -68,6 +69,11 @@ DEFAULT_CONNECTORS = {
     "snmp": "SNMPConnector",
     "ftp": "FTPConnector",
     "socket": "SocketConnector"
+}
+
+DEFAULT_STATISTIC = {
+    'enable': True,
+    'statsSendPeriodInSeconds': 3600
 }
 
 
@@ -193,6 +199,12 @@ class TBGatewayService:
             thread.start()
             log.info('Start checking devices idle time')
 
+        self.__statistics = self.__config['thingsboard'].get('statistics', DEFAULT_STATISTIC)
+        if self.__statistics['enable'] and self.__statistics.get('configuration'):
+            statistics_config_path = self._config_dir + self.__statistics['configuration']
+            self.__statistics_service = StatisticsService(statistics_config_path,
+                                                          self.__statistics['statsSendPeriodInSeconds'], self, log)
+
         self._published_events = SimpleQueue()
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
@@ -252,8 +264,8 @@ class TBGatewayService:
                     self.__request_config_after_connect = True
                     self.__check_shared_attributes()
 
-                if cur_time - gateway_statistic_send > self.__config["thingsboard"].get("statsSendPeriodInSeconds",
-                                                                                        3600) * 1000 and self.tb_client.is_connected():
+                if cur_time - gateway_statistic_send > self.__statistics[
+                        'statsSendPeriodInSeconds'] * 1000 and self.tb_client.is_connected():
                     summary_messages = self.__form_statistics()
                     # with self.__lock:
                     self.tb_client.client.send_telemetry(summary_messages)
@@ -290,6 +302,7 @@ class TBGatewayService:
         self.stopped = True
         self.__updater.stop()
         log.info("Stopping...")
+        self.__statistics_service.stop()
         if self.__grpc_manager is not None:
             self.__grpc_manager.stop()
         self.__close_connectors()
