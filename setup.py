@@ -39,7 +39,7 @@ setup(
               'thingsboard_gateway.storage', 'thingsboard_gateway.storage.memory',
               'thingsboard_gateway.storage.file', 'thingsboard_gateway.storage.sqlite', 'thingsboard_gateway.tb_client',
               'thingsboard_gateway.connectors', 'thingsboard_gateway.connectors.ble', 'thingsboard_gateway.connectors.socket',
-              'thingsboard_gateway.connectors.mqtt',  'thingsboard_gateway.connectors.opcua-asyncio',
+              'thingsboard_gateway.connectors.mqtt',  'thingsboard_gateway.connectors.opcua_asyncio', 'thingsboard_gateway.extensions.opcua_asyncio',
               'thingsboard_gateway.connectors.opcua', 'thingsboard_gateway.connectors.request',
               'thingsboard_gateway.connectors.modbus', 'thingsboard_gateway.connectors.can', 'thingsboard_gateway.connectors.bacnet',
               'thingsboard_gateway.connectors.bacnet.bacnet_utilities', 'thingsboard_gateway.connectors.odbc',
