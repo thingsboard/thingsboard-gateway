@@ -18,7 +18,7 @@ except ImportError:
     import asyncua
 
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
-        SecurityPolicyBasic128Rsa15
+    SecurityPolicyBasic128Rsa15
 
 DEFAULT_UPLINK_CONVERTER = 'OpcUaUplinkConverter'
 
@@ -194,6 +194,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
             nodes = []
             if self.is_regex_pattern(device['deviceNodePattern']):
                 nodes = await self.find_nodes(device['deviceNodePattern'], nodes=[], final=[])
+                device['device_nodes'] = nodes
 
             # check if device name is regexp
             device_names = []
@@ -293,20 +294,6 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
 
             sleep(.2)
 
-    async def __write_value(self, path, value, result={}):
-        try:
-            var = self.__client.get_node(path.replace('\\.', '.'))
-            await var.write_value(value)
-        except Exception as e:
-            result['error'] = e.__str__()
-
-    async def __read_value(self, path, result={}):
-        try:
-            var = self.__client.get_node(path)
-            result['value'] = await var.read_value()
-        except Exception as e:
-            result['error'] = e.__str__()
-
     def on_attributes_update(self, content):
         self.__log.debug(content)
         try:
@@ -364,9 +351,63 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                 self.__gateway.send_rpc_reply(content['device'],
                                               content['data']['id'],
                                               {content['data']['method']: result})
+            else:
+                for device in self.__validated_nodes:
+                    if content['device'] in device.get('device_names', []) or device['deviceNamePattern'] == content[
+                            'device']:
+                        for rpc in device['rpc_methods']:
+                            if rpc['method'] == content["data"]['method']:
+                                arguments_from_config = rpc["arguments"]
+                                arguments = content["data"].get("params") if content["data"].get(
+                                    "params") is not None else arguments_from_config
+
+                                try:
+                                    result = {}
+                                    for node_path in device['device_nodes']:
+                                        task = self.__loop.create_task(self.__call_method(node_path, arguments, result))
+
+                                        while not task.done():
+                                            sleep(.2)
+
+                                    self.__gateway.send_rpc_reply(content["device"],
+                                                                  content["data"]["id"],
+                                                                  {content["data"]["method"]: result, "code": 200})
+                                    log.debug("method %s result is: %s", rpc['method'], result)
+                                except Exception as e:
+                                    log.exception(e)
+                                    self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+                                                                  {"error": str(e), "code": 500})
+                            else:
+                                log.error("Method %s not found for device %s", rpc_method, content["device"])
+                                self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+                                                              {"error": "%s - Method not found" % rpc_method,
+                                                               "code": 404})
+                    else:
+                        pass
 
         except Exception as e:
             self.__log.exception(e)
+
+    async def __write_value(self, path, value, result={}):
+        try:
+            var = self.__client.get_node(path.replace('\\.', '.'))
+            await var.write_value(value)
+        except Exception as e:
+            result['error'] = e.__str__()
+
+    async def __read_value(self, path, result={}):
+        try:
+            var = self.__client.get_node(path)
+            result['value'] = await var.read_value()
+        except Exception as e:
+            result['error'] = e.__str__()
+
+    async def __call_method(self, path, arguments, result={}):
+        try:
+            var = self.__client.get_node(path)
+            result['result'] = await var.call_method(*arguments)
+        except Exception as e:
+            result['error'] = e.__str__()
 
 
 class SubHandler:
