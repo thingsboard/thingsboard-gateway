@@ -17,7 +17,16 @@ except ImportError:
     TBUtility.install_package("asyncua")
     import asyncua
 
+from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
+        SecurityPolicyBasic128Rsa15
+
 DEFAULT_UPLINK_CONVERTER = 'OpcUaUplinkConverter'
+
+SECURITY_POLICIES = {
+    "Basic128Rsa15": SecurityPolicyBasic128Rsa15,
+    "Basic256": SecurityPolicyBasic256,
+    "Basic256Sha256": SecurityPolicyBasic256Sha256,
+}
 
 
 class OpcUaConnectorAsyncIO(Connector, Thread):
@@ -92,9 +101,15 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         self.__loop.run_until_complete(self.start_client())
 
     async def start_client(self):
-        async with asyncua.Client(url=self.__opcua_url,
-                                  timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000) as client:
-            self.__client = client
+        self.__client = asyncua.Client(url=self.__opcua_url,
+                                       timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
+
+        if self.__server_conf.get("type") == "cert.PEM":
+            await self.__set_auth_settings_by_cert()
+        if self.__server_conf["identity"].get("username"):
+            self.__set_auth_settings_by_username()
+
+        async with self.__client:
             self.__connected = True
 
             await self.__validate_nodes()
@@ -107,6 +122,31 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                 await asyncio.sleep(.2)
 
         self.__connected = False
+
+    async def __set_auth_settings_by_cert(self):
+        try:
+            ca_cert = self.__server_conf["identity"].get("caCert")
+            private_key = self.__server_conf["identity"].get("privateKey")
+            cert = self.__server_conf["identity"].get("cert")
+            policy = self.__server_conf["security"]
+
+            if cert is None or private_key is None:
+                log.exception("Error in ssl configuration - cert or privateKey parameter not found")
+                raise RuntimeError("Error in ssl configuration - cert or privateKey parameter not found")
+
+            await self.__client.set_security(
+                SECURITY_POLICIES[policy],
+                certificate=cert,
+                private_key=private_key,
+                server_certificate=ca_cert
+            )
+        except Exception as e:
+            self.__log.exception(e)
+
+    def __set_auth_settings_by_username(self):
+        self.__client.set_user(self.__server_conf["identity"].get("username"))
+        if self.__server_conf["identity"].get("password"):
+            self.__client.set_password(self.__server_conf["identity"].get("password"))
 
     def __load_converter(self, device):
         converter_class_name = device.get('converter', DEFAULT_UPLINK_CONVERTER)
@@ -122,26 +162,6 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
     @staticmethod
     def is_regex_pattern(pattern):
         return not re.fullmatch(pattern, pattern)
-
-    # async def find_nodes(self, node_pattern, current_parent_node=None, level=0, nodes=[], final=[]):
-    #     node_list = node_pattern.split('.')
-    #     if level <= len(node_list):
-    #         if level == 0:
-    #             current_parent_node = self.__client.nodes.root
-    #
-    #         for node in await current_parent_node.get_children():
-    #             child_node = await node.read_browse_name()
-    #             try:
-    #                 if re.match(node_list[level], child_node.Name):
-    #                     if level == len(node_list) - 1:
-    #                         final.append(f'{child_node.NamespaceIndex}:{child_node.Name}')
-    #                     else:
-    #                         nodes.append(f'{child_node.NamespaceIndex}:{child_node.Name}')
-    #                         await self.find_nodes(node_pattern, current_parent_node=node, level=level + 1, nodes=nodes)
-    #             except IndexError:
-    #                 continue
-    #
-    #     return [[i, x] for x in final for i in nodes]
 
     async def find_nodes(self, node_pattern, current_parent_node=None, level=0, nodes=None, final=None):
         node_list = node_pattern.split('.')
