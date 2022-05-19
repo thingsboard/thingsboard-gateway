@@ -60,6 +60,7 @@ DEFAULT_CONNECTORS = {
     "mqtt": "MqttConnector",
     "modbus": "ModbusConnector",
     "opcua": "OpcUaConnector",
+    "opcua_asyncio": "OpcUaConnectorAsyncIO",
     "ble": "BLEConnector",
     "request": "RequestConnector",
     "can": "CanConnector",
