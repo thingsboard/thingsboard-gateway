@@ -7,6 +7,7 @@ from time import sleep, time
 from queue import Queue
 
 from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.opcua_asyncio.device import Device
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -58,7 +59,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         self.__stopped = False
         self.daemon = True
 
-        self.__validated_nodes = {}
+        self.__validated_nodes = []
         self.__subscriptions = []
         self.__last_poll = 0
 
@@ -189,98 +190,77 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
 
     async def __validate_nodes(self):
         for device in self.__server_conf.get('mapping', []):
-            self.__validated_nodes[device['deviceNamePattern']] = {**device}
+            nodes = await self.find_nodes(device['deviceNodePattern'], nodes=[], final=[])
 
-            nodes = []
-            if self.is_regex_pattern(device['deviceNodePattern']):
-                nodes = await self.find_nodes(device['deviceNodePattern'], nodes=[], final=[])
-                device['device_nodes'] = nodes
-
-            # check if device name is regexp
             device_names = []
-            if self.is_regex_pattern(device['deviceNamePattern']):
-                device_name_nodes = await self.find_nodes(device['deviceNamePattern'], nodes=[], final=[])
+            device_name_nodes = await self.find_nodes(device['deviceNamePattern'], nodes=[], final=[])
 
-                for node in device_name_nodes:
+            for node in device_name_nodes:
+                try:
                     var = await self.__client.nodes.root.get_child(node)
                     value = await var.read_value()
                     device_names.append(value)
+                except Exception as e:
+                    self.__log.exception(e)
+                    continue
 
-            for section in ('attributes', 'timeseries'):
-                for node_config in device.get(section, []):
-                    try:
-                        if child_nodes := re.search(r"(ns=\d*;[isgb]=.*\d)", node_config['path']):
-                            for child in child_nodes.groups():
-                                self.__validated_nodes[device['deviceNamePattern']][section][
-                                    device[section].index(node_config)]['node_paths'] = [{'path': child}]
-                        elif child_nodes := re.search(r"\${([A-Za-z.:\d]*)}", node_config['path']):
-                            for child in child_nodes.groups():
-                                if nodes:
-                                    self.__validated_nodes[device['deviceNamePattern']][section][
-                                        device[section].index(node_config)]['node_paths'] = [
-                                        {'path': [*device_node, *child.split('.')]} for device_node in nodes]
-                                    device['device_names'] = device_names
-                                else:
-                                    device_node_path = device["deviceNodePattern"].replace("\\.", ".")
-                                    self.__validated_nodes[device['deviceNamePattern']][section][
-                                        device[section].index(node_config)]['node_paths'] = [
-                                        {'path': [f'{device_node_path}.{item}' for item in child.split('.')]}]
-
-                    except KeyError as e:
-                        self.__log.error('Invalid config for %s (key %s not found)', device, e)
-
-            converter = self.__load_converter(device)
-            self.__validated_nodes[device['deviceNamePattern']]['converter'] = converter(device)
-            self.__validated_nodes[device['deviceNamePattern']]['converter_for_sub'] = converter(device)
+            for device_name in device_names:
+                for node in nodes:
+                    converter = self.__load_converter(device)
+                    device_config = {**device, 'device_name': device_name}
+                    self.__validated_nodes.append(
+                        Device(path=node, name=device_name, config=device_config, converter=converter(device_config),
+                               converter_for_sub=converter(device_config) if not self.__server_conf.get(
+                                   'disableSubscriptions',
+                                   False) else None))
 
     def __convert_sub_data(self):
         while not self.__stopped:
             if not OpcUaConnectorAsyncIO.SUB_DATA_TO_CONVERT.empty():
                 sub_node, data = OpcUaConnectorAsyncIO.SUB_DATA_TO_CONVERT.get()
 
-                for (_, device) in self.__validated_nodes.items():
+                for device in self.__validated_nodes:
                     for section in ('attributes', 'timeseries'):
-                        for node in device.get(section, []):
+                        for node in device.values.get(section, []):
                             if node.get('id') == sub_node.__str__():
-                                device['converter_for_sub'].convert(config={'section': section, 'key': node['key']},
-                                                                    val=data.monitored_item.Value)
-                                converter_data = device['converter_for_sub'].get_data()
+                                device.converter_for_sub.convert(config={'section': section, 'key': node['key']},
+                                                                 val=data.monitored_item.Value)
+                                converter_data = device.converter_for_sub.get_data()
 
                                 if converter_data:
                                     OpcUaConnectorAsyncIO.DATA_TO_SEND.put(*converter_data)
-                                    device['converter'].clear_data()
+                                    device.converter_for_sub.clear_data()
             sleep(.2)
 
     async def __poll_nodes(self):
-        for (_, device) in self.__validated_nodes.items():
+        for device in self.__validated_nodes:
             for section in ('attributes', 'timeseries'):
-                for node in device.get(section, []):
-                    for (index, path) in enumerate(node.get('node_paths', [])):
-                        if not path.get('invalid', False):
-                            try:
-                                var = await self.__client.nodes.root.get_child(path['path'])
-                                value = await var.read_data_value()
+                for node in device.values.get(section, []):
+                    if not node.get('invalid', False):
+                        try:
+                            var = await self.__client.nodes.root.get_child(node['path'])
+                            value = await var.read_data_value()
 
-                                device['converter'].convert(config={'section': section, 'key': node['key']}, val=value)
-                            except Exception as e:
-                                self.__log.exception(e)
-                                path['invalid'] = True
-                            else:
-                                if not self.__server_conf.get('disableSubscriptions', False) and not node.get('sub_on',
-                                                                                                              False):
-                                    handler = SubHandler()
-                                    sub = await self.__client.create_subscription(10, handler)
-                                    handle = await sub.subscribe_data_change(var)
-                                    node['sub_on'] = True
-                                    node['id'] = f'ns={var.nodeid.NamespaceIndex};i={var.nodeid.Identifier}'
-                                    self.__subscriptions.append((sub, handle))
-                                    path['invalid'] = False
+                            device.converter.convert(config={'section': section, 'key': node['key']}, val=value)
+                        except Exception as e:
+                            self.__log.exception(e)
+                            node['invalid'] = True
+                        else:
+                            if not self.__server_conf.get('disableSubscriptions', False) and not node.get('sub_on',
+                                                                                                          False):
+                                handler = SubHandler()
+                                sub = await self.__client.create_subscription(10, handler)
+                                handle = await sub.subscribe_data_change(var)
+                                node['sub_on'] = True
+                                node['id'] = f'ns={var.nodeid.NamespaceIndex};i={var.nodeid.Identifier}'
+                                self.__subscriptions.append((sub, handle))
+                                node['invalid'] = False
 
-            converter_data = device['converter'].get_data()
+            converter_data = device.converter.get_data()
             if converter_data:
                 OpcUaConnectorAsyncIO.DATA_TO_SEND.put(*converter_data)
 
-                device['converter'].clear_data()
+                device.converter.clear_data()
 
     def __send_data(self):
         while not self.__stopped:
@@ -297,17 +277,16 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
     def on_attributes_update(self, content):
         self.__log.debug(content)
         try:
-            for device in self.__server_conf['mapping']:
-                if re.fullmatch(device['deviceNamePattern'], content['device']):
-                    for (key, value) in content['data'].items():
-                        for attr_update in device['attributes_updates']:
-                            if attr_update['attributeOnThingsBoard'] == key:
-                                for section in ('attributes', 'timeseries'):
-                                    for node in device[section]:
-                                        for path in node.get('node_paths', []):
-                                            if not path['invalid'] and path.get('id') and re.fullmatch(
-                                                    attr_update['attributeOnDevice'], path['path']):
-                                                self.__loop.create_task(self.__write_value(path['id'], value))
+            device = tuple(filter(lambda i: i.name == content['device'], self.__validated_nodes))[0]
+
+            for (key, value) in content['data'].items():
+                for attr_update in device.config['attributes_updates']:
+                    if attr_update['attributeOnThingsBoard'] == key:
+                        for section in ('attributes', 'timeseries'):
+                            for node in device.values[section]:
+                                if re.fullmatch(attr_update['attributeOnDevice'],
+                                                '.'.join(device.path) + f'.{node["path"]}'):
+                                    self.__loop.create_task(self.__write_value(node['id'], value))
 
         except Exception as e:
             self.__log.exception(e)
@@ -352,38 +331,34 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                                               content['data']['id'],
                                               {content['data']['method']: result})
             else:
-                for device in self.__validated_nodes:
-                    if content['device'] in device.get('device_names', []) or device['deviceNamePattern'] == content[
-                            'device']:
-                        for rpc in device['rpc_methods']:
-                            if rpc['method'] == content["data"]['method']:
-                                arguments_from_config = rpc["arguments"]
-                                arguments = content["data"].get("params") if content["data"].get(
-                                    "params") is not None else arguments_from_config
+                device = tuple(filter(lambda i: i.name == content['device'], self.__validated_nodes))[0]
 
-                                try:
-                                    result = {}
-                                    for node_path in device['device_nodes']:
-                                        task = self.__loop.create_task(self.__call_method(node_path, arguments, result))
+                for rpc in device.config['rpc_methods']:
+                    if rpc['method'] == content["data"]['method']:
+                        arguments_from_config = rpc["arguments"]
+                        arguments = content["data"].get("params") if content["data"].get(
+                            "params") is not None else arguments_from_config
 
-                                        while not task.done():
-                                            sleep(.2)
+                        try:
+                            result = {}
+                            task = self.__loop.create_task(self.__call_method(device.path, arguments, result))
 
-                                    self.__gateway.send_rpc_reply(content["device"],
-                                                                  content["data"]["id"],
-                                                                  {content["data"]["method"]: result, "code": 200})
-                                    log.debug("method %s result is: %s", rpc['method'], result)
-                                except Exception as e:
-                                    log.exception(e)
-                                    self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                                  {"error": str(e), "code": 500})
-                            else:
-                                log.error("Method %s not found for device %s", rpc_method, content["device"])
-                                self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                              {"error": "%s - Method not found" % rpc_method,
-                                                               "code": 404})
+                            while not task.done():
+                                sleep(.2)
+
+                            self.__gateway.send_rpc_reply(content["device"],
+                                                          content["data"]["id"],
+                                                          {content["data"]["method"]: result, "code": 200})
+                            log.debug("method %s result is: %s", rpc['method'], result)
+                        except Exception as e:
+                            log.exception(e)
+                            self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+                                                          {"error": str(e), "code": 500})
                     else:
-                        pass
+                        log.error("Method %s not found for device %s", rpc_method, content["device"])
+                        self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+                                                      {"error": "%s - Method not found" % rpc_method,
+                                                       "code": 404})
 
         except Exception as e:
             self.__log.exception(e)

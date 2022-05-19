@@ -14,7 +14,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
     def __init__(self, config):
         self.__config = config
         self.data = {
-            'deviceName': self.__config['deviceNamePattern'],
+            'deviceName': self.__config['device_name'],
             'deviceType': 'default',
             'attributes': [],
             'telemetry': [],
@@ -22,23 +22,26 @@ class OpcUaUplinkConverter(OpcUaConverter):
 
     def clear_data(self):
         self.data = {
-            'deviceName': self.__config['deviceNamePattern'],
+            'deviceName': self.__config['device_name'],
             'deviceType': 'default',
             'attributes': [],
             'telemetry': [],
         }
 
     def get_data(self):
-        data_list = []
-        device_names = self.__config.get('device_names')
-        if device_names:
-            for device in device_names:
-                self.data['deviceName'] = device
-                data_list.append(self.data)
+        if len(self.data['attributes']) or len(self.data['telemetry']):
+            data_list = []
+            device_names = self.__config.get('device_names')
+            if device_names:
+                for device in device_names:
+                    self.data['deviceName'] = device
+                    data_list.append(self.data)
 
-            return data_list
+                return data_list
 
-        return [self.data]
+            return [self.data]
+
+        return None
 
     def convert(self, config, val):
         if not val:
