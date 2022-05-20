@@ -3,7 +3,10 @@ thingsboard:
   port: 1883
   remoteShell: false
   remoteConfiguration: false
-  statsSendPeriodInSeconds: 3600
+  statistics:
+    enable: true
+    statsSendPeriodInSeconds: 3600
+    configuration: statistics.json
   minPackSendDelayMS: 0
   checkConnectorsConfigurationInSeconds: 60
   handleDeviceRenaming: true
@@ -55,6 +58,11 @@ connectors:
 #  -
 #    name: OPC-UA Connector
 #    type: opcua
+#    configuration: opcua.json
+#
+#  -
+#    name: OPC-UA Connector
+#    type: opcua_asyncio
 #    configuration: opcua.json
 #
 #  -
