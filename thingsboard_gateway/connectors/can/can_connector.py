@@ -439,7 +439,7 @@ class CanConnector(Connector, Thread):
                                     self.get_name(), tb_key, config_key, )
                         continue
 
-                    if msg_config.get("command", ""):
+                    if msg_config.get("command"):
                         cmd_config = self.__parse_command_config(msg_config["command"])
                         if cmd_config is None:
                             log.warning("[%s] Ignore '%s' %s configuration: wrong command configuration",
@@ -451,8 +451,14 @@ class CanConnector(Connector, Thread):
                         if node_id not in self.__commands:
                             self.__commands[node_id] = cmd_config
                         else:
-                            # TODO: warn user if previous cmd_config differs from current cmd_config
-                            pass
+                            prev_cmd_config = self.__commands[node_id]
+                            if cmd_config["start"] != prev_cmd_config["start"] or \
+                                    cmd_config["length"] != prev_cmd_config["length"] or \
+                                    cmd_config["byteorder"] != prev_cmd_config["byteorder"]:
+                                log.warning("[%s] Ignore '%s' %s configuration: "
+                                            "another command configuration already added for arbitration_id %d",
+                                            self.get_name(), tb_key, config_key, node_id)
+                                continue
                     else:
                         cmd_id = self.NO_CMD_ID
                         self.__commands[node_id] = None
