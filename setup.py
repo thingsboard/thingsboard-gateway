@@ -46,6 +46,7 @@ setup(
               'thingsboard_gateway.connectors.rest', 'thingsboard_gateway.connectors.snmp', 'thingsboard_gateway.connectors.ftp',
               'thingsboard_gateway.tb_utility', 'thingsboard_gateway.extensions',
               'thingsboard_gateway.extensions.mqtt', 'thingsboard_gateway.extensions.modbus', 'thingsboard_gateway.extensions.opcua',
+              'thingsboard_gateway.extensions.opcua',
               'thingsboard_gateway.extensions.ble', 'thingsboard_gateway.extensions.serial', 'thingsboard_gateway.extensions.request',
               'thingsboard_gateway.extensions.can', 'thingsboard_gateway.extensions.bacnet', 'thingsboard_gateway.extensions.odbc',
               'thingsboard_gateway.extensions.rest',  'thingsboard_gateway.extensions.snmp', 'thingsboard_gateway.extensions.ftp',
