@@ -7,6 +7,7 @@ Installation Guide
 1. Install linux and python libraries
 
 .. code-block:: sh
+
     sudo apt-get install -y libglib2.0-dev zlib1g-dev
     sudo pip3 install bleak
 
@@ -14,6 +15,7 @@ JSON File Configuration Guide
 --------------
 1. Navigate and open ble.json file with text editor
 .. code-block:: sh
+    
     cd ThingsBoard/
     nano ble.json
 
