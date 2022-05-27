@@ -67,16 +67,17 @@ This is sample basic configuration JSON file for BLE.
     }
 
 2. Edit device object
-Enter the ``SENSOR_NAME`` name of device, in double quotes, as you want it to appear in Thingsboard
-Enter the hardware BLE mac address of the device 
+Enter the name of device where ``SENSOR_NAME`` is, in double quotes, as you want it to appear in Thingsboard
+Enter the BLE hardware  mac address of the device in ``MAC_ADDRESS``
 
 3. Telemetry
 All four fields in telemetry, key, method, characteristicUUID, and valueExpression, need to be filled out.
 
-Key is the name of the telemetry that will be shown in thingsboard.
-Method is how the gateway will retrieve  the data. (read, write, or notify)
-CharacteristicUUID is the UUID where the telemetry is store on the senor.
-ValueExpression is how the byte data from the senor will be displayed in thingsboard. This is similar  to python.
+Key or ``TELEMETRY_NAME`` is the name of the telemetry that will be shown in thingsboard.
+``METHOD`` is how the gateway will retrieve  the data. (read, write, or notify)
+CharacteristicUUID or ``UUID`` is the UUID where the telemetry is store on the senor.
+``VALUE_EXPRESSION`` is how the byte data from the senor will be displayed in thingsboard. This is similar to python.
+* ("[0:1]", "[:]", "[0, 1, 2, 3]")
 
 
 Web Portal Configuration Guide
