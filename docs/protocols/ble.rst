@@ -85,7 +85,7 @@ This is sample basic configuration JSON file for BLE.
 Web Portal Configuration Guide
 --------------
 
-mac address
+The other way to connect a BLE senors is to use our `VarIoT web portal <http://variot.ece.drexel.edu:5500/>`. The same information will be needed as in the JSON configuration method, however this is a more friendly GUI way.
 
 
 
