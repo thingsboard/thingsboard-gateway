@@ -73,11 +73,11 @@ Enter the BLE hardware  mac address of the device in ``MAC_ADDRESS``
 3. Telemetry
 All four fields in telemetry, key, method, characteristicUUID, and valueExpression, need to be filled out.
 
-Key or ``TELEMETRY_NAME`` is the name of the telemetry that will be shown in thingsboard.
-``METHOD`` is how the gateway will retrieve  the data. (read, write, or notify)
-CharacteristicUUID or ``UUID`` is the UUID where the telemetry is store on the senor.
-``VALUE_EXPRESSION`` is how the byte data from the senor will be displayed in thingsboard. This is similar to python.
-* ("[0:1]", "[:]", "[0, 1, 2, 3]")
+* Key or ``TELEMETRY_NAME`` is the name of the telemetry that will be shown in thingsboard.
+* ``METHOD`` is how the gateway will retrieve  the data. (read, write, or notify)
+* CharacteristicUUID or ``UUID`` is the UUID where the telemetry is store on the senor.
+* ``VALUE_EXPRESSION`` is how the byte data from the senor will be displayed in thingsboard. This is similar to python.
+    * ("[0:1]", "[:]", "[0, 1, 2, 3]")
 
 
 Web Portal Configuration Guide
