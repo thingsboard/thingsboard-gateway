@@ -23,6 +23,8 @@ The process for connecting each LoRa sensor will likely be different. Before pur
 proven documentation on how to both connect the sensor to a ChirpStack application and decode the data into usable
 values.
 
+#. To see an example of how to connect a LoRa sensor to ChirpStack, please reference page 47 and onwards `of this SenseCAP sensor guide <../_static/Guide-for-SenseCAP-Adaption-to-3rd-Party-Gateways-Servers-V1.2.pdf>`_
+
 #. To connect the sensor to ThingsBoard, follow the instructions as laid on in ChirpStack's `official ThingsBoard Integration documentation <https://www.chirpstack.io/project/guides/thingsboard/#integrate-chirpstack-application-server-with-thingsboard>`_.
 
 #. To create a rule chain to decode the data values sent to ThingsBoard, follow the instructions as laid out in `ThingsBoard's official documentation on how to transform incoming telemetry <https://thingsboard.io/docs/user-guide/rule-engine-2-0/tutorials/transform-incoming-telemetry/>`_.
