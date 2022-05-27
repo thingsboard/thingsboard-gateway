@@ -87,5 +87,14 @@ Web Portal Configuration Guide
 
 The other way to connect a BLE senors is to use our `VarIoT web portal <http://variot.ece.drexel.edu:5500/>`_. The same information will be needed as in the JSON configuration method, however this is a more friendly GUI way.
 
-
-
+#. Once at the VarIoT portal, login and click ``Add Device``.
+#. Select the gateway you want to add the BLE sensor too from the drop down.
+#. Type in senor name in the ``Device name`` field and select the BLE protocol from the dropdown.
+#. When ``Bluetooth`` is selected ``MAC Address`` and ``Attribute UUID`` will appear. Enter the device's BLE hardware MAC address for the MAC address and ``00002a00-0000-1000-8000-00805f9b34fb`` for the Attribute UUID.
+#. Enter number of telemetry UUIDs you will be using then click ``Next``.
+    * Number of differnet UUIDs to collect telemetry from.
+#. On the next page fill in the ``Telemetry UUID```, ``Telemetry key``, ``Telemetry value expression``. and ``Telemetry method``.
+    * ``Telemetry UUID`` is the UUID address where the telemetry is located on the sensor.
+    * ``Telemetry key`` is the name for the telemetry how it will be displayed in thingsboard.
+    * ``Telemetry value expression`` is the python bracket represtention of how you want to show the bytes in the dashboard.
+    * ``Telemetry method`` is how the gateway will retrieve  the data. (read, write, or notify)
