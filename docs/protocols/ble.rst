@@ -71,6 +71,7 @@ This is sample basic configuration JSON file for BLE.
 * Enter the BLE hardware  mac address of the device in ``MAC_ADDRESS``
 
 3. Telemetry
+
 **All four fields in telemetry, key, method, characteristicUUID, and valueExpression, need to be filled out.**
 
 * Key or ``TELEMETRY_NAME`` is the name of the telemetry that will be shown in thingsboard.
