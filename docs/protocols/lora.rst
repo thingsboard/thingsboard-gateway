@@ -24,3 +24,5 @@ proven documentation on how to both connect the sensor to a ChirpStack applicati
 values.
 
 #. To connect the sensor to ThingsBoard, follow the instructions as laid on in ChirpStack's `official ThingsBoard Integration documentation <https://www.chirpstack.io/project/guides/thingsboard/#integrate-chirpstack-application-server-with-thingsboard>`_.
+
+#. To create a rule chain to decode the data values sent to ThingsBoard, follow the instructions as laid out in `ThingsBoard's official documentation on how to transform incoming telemetry <https://thingsboard.io/docs/user-guide/rule-engine-2-0/tutorials/transform-incoming-telemetry/>`_.
