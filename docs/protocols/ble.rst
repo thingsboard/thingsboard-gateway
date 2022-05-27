@@ -67,6 +67,7 @@ This is sample basic configuration JSON file for BLE.
     }
 
 2. Edit device object
+
 * Enter the name of device where ``SENSOR_NAME`` is, in double quotes, as you want it to appear in Thingsboard
 * Enter the BLE hardware  mac address of the device in ``MAC_ADDRESS``
 
