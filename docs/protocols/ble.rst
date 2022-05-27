@@ -21,7 +21,7 @@ JSON File Configuration Guide
     nano ble.json
 
 This is sample basic configuration JSON file for BLE.
-.. code-block:: JSON
+.. code-block:: sh
 
     {
   "name": "BLE Connector",
