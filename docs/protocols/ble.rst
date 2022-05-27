@@ -5,6 +5,7 @@ BLE Setup
 Installation Guide
 --------------
 1. Install linux and python libraries
+
 .. code-block:: sh
     sudo apt-get install -y libglib2.0-dev zlib1g-dev
     sudo pip3 install bleak
