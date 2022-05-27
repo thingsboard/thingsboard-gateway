@@ -93,8 +93,9 @@ The other way to connect a BLE senors is to use our `VarIoT web portal <http://v
 #. When ``Bluetooth`` is selected ``MAC Address`` and ``Attribute UUID`` will appear. Enter the device's BLE hardware MAC address for the MAC address and ``00002a00-0000-1000-8000-00805f9b34fb`` for the Attribute UUID.
 #. Enter number of telemetry UUIDs you will be using then click ``Next``.
     * Number of differnet UUIDs to collect telemetry from.
-#. On the next page fill in the ``Telemetry UUID```, ``Telemetry key``, ``Telemetry value expression``. and ``Telemetry method``.
+#. On the next page fill in the ``Telemetry UUID``, ``Telemetry key``, ``Telemetry value expression``. and ``Telemetry method``.
     * ``Telemetry UUID`` is the UUID address where the telemetry is located on the sensor.
     * ``Telemetry key`` is the name for the telemetry how it will be displayed in thingsboard.
     * ``Telemetry value expression`` is the python bracket represtention of how you want to show the bytes in the dashboard.
     * ``Telemetry method`` is how the gateway will retrieve  the data. (read, write, or notify)
+#. When complete submit form.
