@@ -21,49 +21,49 @@ JSON File Configuration Guide
     nano ble.json
 
 This is sample basic configuration JSON file for BLE.
-.. code-block:: sh
+.. code-block:: JSON
 
     {
-  "name": "BLE Connector",
-  "passiveScanMode": true,
-  "showMap": false,
-  "scanner": {
-    "timeout": 10000
-  },
-  "devices": [
-    {
-      "name": "SENSOR_NAME",
-      "MACAddress": "MAC_ADDRESS",
-      "pollPeriod": 10000,
-      "showMap": false,
-      "timeout": 10000,
-      "telemetry": [
+    "name": "BLE Connector",
+    "passiveScanMode": true,
+    "showMap": false,
+    "scanner": {
+        "timeout": 10000
+    },
+    "devices": [
         {
-          "key": "TELEMETRY_NAME",
-          "method": "METHOD",
-          "characteristicUUID": "UUID",
-          "valueExpression": "VALUE_EXPRESSION"
+        "name": "SENSOR_NAME",
+        "MACAddress": "MAC_ADDRESS",
+        "pollPeriod": 10000,
+        "showMap": false,
+        "timeout": 10000,
+        "telemetry": [
+            {
+            "key": "TELEMETRY_NAME",
+            "method": "METHOD",
+            "characteristicUUID": "UUID",
+            "valueExpression": "VALUE_EXPRESSION"
+            }
+        ],
+        "attributes": [
+            {
+            "key": "Device Name",
+            "method": "read",
+            "characteristicUUID": "00002a00-0000-1000-8000-00805f9b34fb",
+            "valueExpression": "[:]"
+            }
+        ],
+        "attributeUpdates": [
+            {
+            }
+        ],
+        "serverSideRpc": [
+            {
+            }
+        ]
         }
-      ],
-      "attributes": [
-        {
-          "key": "Device Name",
-          "method": "read",
-          "characteristicUUID": "00002a00-0000-1000-8000-00805f9b34fb",
-          "valueExpression": "[:]"
-        }
-      ],
-      "attributeUpdates": [
-        {
-        }
-      ],
-      "serverSideRpc": [
-        {
-        }
-      ]
+    ]
     }
-  ]
-}
 
 2. Edit device object
 Enter the ``SENSOR_NAME`` name of device, in double quotes, as you want it to appear in Thingsboard
