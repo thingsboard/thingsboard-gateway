@@ -20,6 +20,7 @@ JSON File Configuration Guide
     cd thingsboard-gateway/thingsboard-gateway/thingsboard_gateway/config/
     nano ble.json
 
+This is sample basic configuration JSON file for BLE.
 .. code-block:: JSON
 
     {
@@ -31,17 +32,17 @@ JSON File Configuration Guide
   },
   "devices": [
     {
-      "name": "PulseSensor",
-      "MACAddress": "00:a0:50:c8:36:ab",
+      "name": "SENSOR_NAME",
+      "MACAddress": "MAC_ADDRESS",
       "pollPeriod": 10000,
       "showMap": false,
       "timeout": 10000,
       "telemetry": [
         {
-          "key": "data_4",
-          "method": "notify",
-          "characteristicUUID": "49535343-1e4d-4bd9-ba61-23c647249616",
-          "valueExpression": "[0], [1], [2], [3], [4]"
+          "key": "TELEMETRY_NAME",
+          "method": "METHOD",
+          "characteristicUUID": "UUID",
+          "valueExpression": "VALUE_EXPRESSION"
         }
       ],
       "attributes": [
@@ -65,7 +66,7 @@ JSON File Configuration Guide
 }
 
 2. Edit device object
-Enter the name of device, in double quotes, as you want it to appear in Thingsboard
+Enter the ``SENSOR_NAME`` name of device, in double quotes, as you want it to appear in Thingsboard
 Enter the hardware BLE mac address of the device 
 
 3. Telemetry
