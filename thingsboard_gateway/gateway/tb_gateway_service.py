@@ -642,7 +642,7 @@ class TBGatewayService:
 
                             # First, loop through the attributes
                             for attribute in data['attributes']:
-                                adopted_data['attributes'].update({attribute: data['attributes'][attribute]})
+                                adopted_data['attributes'].update(attribute)
                                 adopted_data_size = self.__get_data_size(adopted_data)
                                 if adopted_data_size >= max_data_size:
                                     # We have surpassed the max_data_size, so send what we have and clear attributes
@@ -650,7 +650,8 @@ class TBGatewayService:
                                     adopted_data['attributes'] = {}
                             
                             # Now, loop through telemetry. Possibly have some unsent attributes that have been adopted.
-                            for ts_kv_list in data['telemetry']:
+                            telemetry = data['telemetry'] if isinstance(data['telemetry'], list) else [data['telemetry']]
+                            for ts_kv_list in telemetry:
                                 ts = ts_kv_list['ts']
                                 for kv in ts_kv_list['values']:
                                     if len(adopted_data['telemetry']) == 0:
