@@ -148,8 +148,9 @@ class SNMPConnector(Connector, Thread):
                     return
                 except Exception as e:
                     log.exception(e)
-                if isinstance(converted_data, dict) and (converted_data.get("attributes") or converted_data.get("telemetry")):
-                    self.collect_statistic_and_send(self.get_name(), converted_data)
+
+        if isinstance(converted_data, dict) and (converted_data.get("attributes") or converted_data.get("telemetry")):
+            self.collect_statistic_and_send(self.get_name(), converted_data)
 
     @staticmethod
     def __process_methods(method, common_parameters, datatype_config):
