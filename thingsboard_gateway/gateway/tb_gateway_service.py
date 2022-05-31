@@ -634,23 +634,26 @@ class TBGatewayService:
 
                         max_data_size = self.__config["thingsboard"].get("maxPayloadSizeBytes", 1024)
                         if self.__get_data_size(data) >= max_data_size:
+                            # Data is too large, so we will attempt to send in pieces
                             adopted_data = {"deviceName": data['deviceName'],
                                             "deviceType": data['deviceType'],
                                             "attributes": {},
                                             "telemetry": []}
+
+                            # First, loop through the attributes
                             for attribute in data['attributes']:
+                                adopted_data['attributes'].update(attribute)
                                 adopted_data_size = self.__get_data_size(adopted_data)
                                 if adopted_data_size >= max_data_size:
+                                    # We have surpassed the max_data_size, so send what we have and clear attributes
                                     self.__send_data_pack_to_storage(adopted_data, connector_name)
                                     adopted_data['attributes'] = {}
-                                adopted_data['attributes'].update({attribute: data['attributes'][attribute]})
-                            for ts_kv_list in data['telemetry']:
+                            
+                            # Now, loop through telemetry. Possibly have some unsent attributes that have been adopted.
+                            telemetry = data['telemetry'] if isinstance(data['telemetry'], list) else [data['telemetry']]
+                            for ts_kv_list in telemetry:
                                 ts = ts_kv_list['ts']
                                 for kv in ts_kv_list['values']:
-                                    adopted_data_size = self.__get_data_size(adopted_data)
-                                    if adopted_data_size >= max_data_size:
-                                        self.__send_data_pack_to_storage(adopted_data, connector_name)
-                                        adopted_data['telemetry'] = []
                                     if len(adopted_data['telemetry']) == 0:
                                         adopted_data['telemetry'] = [
                                             {'ts': ts, 'values': {kv: ts_kv_list['values'][kv]}}]
@@ -658,6 +661,21 @@ class TBGatewayService:
                                         for adopted_kv in adopted_data['telemetry']:
                                             if adopted_kv['ts'] == ts:
                                                 adopted_kv['values'].update({kv: ts_kv_list['values'][kv]})
+
+                                    adopted_data_size = self.__get_data_size(adopted_data)
+                                    if adopted_data_size >= max_data_size:
+                                        # we have surpassed the max_data_size, so send what we have and clear attributes and telemetry
+                                        self.__send_data_pack_to_storage(adopted_data, connector_name)
+                                        adopted_data['telemetry'] = []
+                                        adopted_data['attributes'] = {}
+
+                            # It is possible that we get here and have some telemetry or attributes not yet sent, so check for that.
+                            if len(adopted_data['telemetry']) > 0 or len(adopted_data['attributes']) > 0:
+                                self.__send_data_pack_to_storage(adopted_data, connector_name)
+                                
+                                # technically unnecessary to clear here, but leaving for consistency.
+                                adopted_data['telemetry'] = []
+                                adopted_data['attributes'] = {}
 
                         else:
                             self.__send_data_pack_to_storage(data, connector_name)
