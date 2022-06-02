@@ -69,7 +69,8 @@ DEFAULT_CONNECTORS = {
     "rest": "RESTConnector",
     "snmp": "SNMPConnector",
     "ftp": "FTPConnector",
-    "socket": "SocketConnector"
+    "socket": "SocketConnector",
+    "xmpp": "XMPPConnector",
 }
 
 DEFAULT_STATISTIC = {
