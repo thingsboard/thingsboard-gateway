@@ -15,7 +15,7 @@
 from thingsboard_gateway.connectors.converter import Converter, abstractmethod, log
 
 
-class XMPPConnector(Converter):
+class XmppConverter(Converter):
     @abstractmethod
     def convert(self, config, val):
         pass
