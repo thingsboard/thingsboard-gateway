@@ -110,6 +110,11 @@ connectors:
 #    type: socket
 #    configuration: socket.json
 #
+#  -
+#    name: XMPP Connector
+#    type: xmpp
+#    configuration: xmpp.json
+#
 # ========= Customization ==========
 #
 #
