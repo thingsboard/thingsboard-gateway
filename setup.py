@@ -63,7 +63,7 @@ setup(
         'PyInquirer',
         'pyfiglet',
         'termcolor',
-        'grpcio',
+        'grpcio<=1.43.0',
         'protobuf',
         'cachetools'
     ],
