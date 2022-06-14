@@ -202,6 +202,7 @@ class TBGatewayService:
             log.info('Start checking devices idle time')
 
         self.__statistics = self.__config['thingsboard'].get('statistics', DEFAULT_STATISTIC)
+        self.__statistics_service = None
         if self.__statistics['enable'] and self.__statistics.get('configuration'):
             statistics_config_path = self._config_dir + self.__statistics['configuration']
             self.__statistics_service = StatisticsService(statistics_config_path,
@@ -304,7 +305,10 @@ class TBGatewayService:
         self.stopped = True
         self.__updater.stop()
         log.info("Stopping...")
-        self.__statistics_service.stop()
+
+        if self.__statistics_service:
+            self.__statistics_service.stop()
+
         if self.__grpc_manager is not None:
             self.__grpc_manager.stop()
         self.__close_connectors()
