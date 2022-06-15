@@ -80,6 +80,11 @@ class TBGRPCServerManager(Thread):
                 if msg.HasField("response"):
                     if msg.response.ByteSize() == 0:
                         outgoing_message = True
+                if msg.HasField("connectorGetConnectedDevicesMsg"):
+                    connector_name = list(self.__connectors_sessions.keys())[list(self.__connectors_sessions.values()).index(session_id)]
+                    connected_devices = self.__get_connector_devices(connector_name)
+                    downlink_converter_config = {"message_type": [DownlinkMessageType.ConnectorGetConnectedDevicesResponseMsg], "additional_message": connected_devices}
+                    outgoing_message = self.__downlink_converter.convert(downlink_converter_config, None)
                 if msg.HasField("gatewayTelemetryMsg"):
                     data = self.__convert_with_uplink_converter(msg.gatewayTelemetryMsg)
                     result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], data)
@@ -208,6 +213,9 @@ class TBGRPCServerManager(Thread):
         if self.__aio_server is not None:
             loop = asyncio.get_event_loop()
             loop.create_task(self.__aio_server.stop(True))
+
+    def __get_connector_devices(self, connector_name: str):
+        return self.__gateway.get_devices(connector_name)
 
     def set_gateway_read_callbacks(self, registration_cb, unregistration_cb):
         self.__register_connector = registration_cb

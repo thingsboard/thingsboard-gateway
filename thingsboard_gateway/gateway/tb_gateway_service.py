@@ -530,8 +530,8 @@ class TBGatewayService:
     def _connect_with_connectors(self):
         for connector_type in self.connectors_configs:
             for connector_config in self.connectors_configs[connector_type]:
-                if connector_type.lower() != 'grpc' and 'Grpc' not in self._implemented_connectors[
-                        connector_type.lower()].__name__:
+                if connector_type.lower() != 'grpc' and (self._implemented_connectors.get(connector_type.lower()) is not None and
+                        'Grpc' not in self._implemented_connectors[connector_type.lower()].__name__):
                     for config in connector_config["config"]:
                         connector = None
                         try:
@@ -554,21 +554,21 @@ class TBGatewayService:
                                 connector.close()
                 else:
                     self.__grpc_connectors.update({connector_config['grpc_key']: connector_config})
+                    if connector_type.lower() != 'grpc':
+                        connector_dir_abs = "/".join(self._config_dir.split("/")[:-2])
+                        connector_file_name = f'{connector_type}_connector.py'
+                        connector_abs_path = f'{connector_dir_abs}/grpc_connectors/{connector_type}/{connector_file_name}'
+                        connector_config_json = simplejson.dumps({
+                            **connector_config,
+                            'gateway': {
+                                'host': 'localhost',
+                                'port': self.__config['grpc']['serverPort']
+                            }
+                        })
 
-                    connector_dir_abs = "/".join(self._config_dir.split("/")[:-2])
-                    connector_file_name = f'{connector_type}_connector.py'
-                    connector_abs_path = f'{connector_dir_abs}/grpc_connectors/{connector_type}/{connector_file_name}'
-                    connector_config_json = simplejson.dumps({
-                        **connector_config,
-                        'gateway': {
-                            'host': 'localhost',
-                            'port': self.__config['grpc']['serverPort']
-                        }
-                    })
-
-                    thread = Thread(target=self._run_connector, args=(connector_abs_path, connector_config_json,),
-                                    daemon=True, name='Separate DRPC Connector')
-                    thread.start()
+                        thread = Thread(target=self._run_connector, args=(connector_abs_path, connector_config_json,),
+                                        daemon=True, name='Separate DRPC Connector')
+                        thread.start()
 
     def _run_connector(self, connector_abs_path, connector_config_json):
         subprocess.run(['python3', connector_abs_path, connector_config_json, self._config_dir],
@@ -1063,8 +1063,10 @@ class TBGatewayService:
         self.__saved_devices.pop(device_name)
         self.__save_persistent_devices()
 
-    def get_devices(self):
-        return self.__connected_devices
+    def get_devices(self, connector_name: str = None):
+        return self.__connected_devices if connector_name is None else {device_name: self.__connected_devices[device_name]["device_type"] for device_name in self.__connected_devices.keys() if self.__connected_devices[device_name].get("connector") is not None and
+                                                                           self.__connected_devices[device_name]["connector"].get_name() == connector_name}
+
 
     def __process_async_device_actions(self):
         while not self.stopped:

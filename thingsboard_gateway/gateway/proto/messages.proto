@@ -24,6 +24,7 @@ message FromConnectorMessage {
   DisconnectMsg disconnectMsg = 8;
   GatewayRpcResponseMsg gatewayRpcResponseMsg = 9;
   GatewayAttributesRequestMsg gatewayAttributeRequestMsg = 10;
+  ConnectorGetConnectedDevicesMsg connectorGetConnectedDevicesMsg = 11;
 }
 
 message FromServiceMessage {
@@ -33,8 +34,10 @@ message FromServiceMessage {
   GatewayAttributeResponseMsg gatewayAttributeResponseMsg = 4;
   GatewayDeviceRpcRequestMsg gatewayDeviceRpcRequestMsg = 5;
   UnregisterConnectorMsg unregisterConnectorMsg = 6;
+  ConnectorGetConnectedDevicesResponseMsg connectorGetConnectedDevicesResponseMsg = 7;
 }
 
+// Enums
 
 enum ResponseStatus {
   UNKNOWN = 0;
@@ -50,6 +53,36 @@ enum KeyValueType {
   STRING_V = 3;
   JSON_V = 4;
 }
+
+// Service connector messages
+
+message RegisterConnectorMsg {
+  string connectorKey = 1;
+}
+
+message UnregisterConnectorMsg {
+  string connectorKey = 1;
+}
+
+message ConnectorConfigurationMsg {
+  string connectorName = 1;
+  string configuration = 2;
+}
+
+message ConnectorGetConnectedDevicesMsg {
+  string connectorKey = 1;
+}
+
+message ConnectorGetConnectedDevicesResponseMsg {
+  repeated ConnectorDeviceInfo connectorDevices = 1;
+}
+
+message ConnectorDeviceInfo {
+  string deviceName = 1;
+  string deviceType = 2;
+}
+
+// Device messages
 
 message KeyValueProto {
   string key = 1;
@@ -142,19 +175,6 @@ message DisconnectMsg {
   string deviceName = 1;
 }
 
-message RegisterConnectorMsg {
-  string connectorKey = 1;
-}
-
-message UnregisterConnectorMsg {
-  string connectorKey = 1;
-}
-
-message ConnectorConfigurationMsg {
-  string connectorName = 1;
-  string configuration = 2;
-}
-
 message ConnectMsg {
   string deviceName = 1;
   string deviceType = 2;
@@ -174,6 +194,8 @@ message ClaimDeviceMsg {
   string deviceName = 1;
   ClaimDevice claimRequest = 2;
 }
+
+// Gateway messages
 
 message GatewayTelemetryMsg {
   repeated TelemetryMsg msg = 1;
