@@ -414,9 +414,14 @@ class TBGatewayService:
         self.tb_client.client.subscribe_to_all_attributes(self._attribute_update_callback)
         self.tb_client.client.gw_subscribe_to_all_attributes(self._attribute_update_callback)
 
+    def request_device_attributes(self, device_name, shared_keys, client_keys, callback):
+        if client_keys is not None:
+            self.tb_client.client.gw_request_client_attributes(device_name, client_keys, callback)
+        if shared_keys is not None:
+            self.tb_client.client.gw_request_shared_attributes(device_name, shared_keys, callback)
+
     def __check_shared_attributes(self):
         self.tb_client.client.request_attributes(callback=self._attributes_parse)
-
     def __register_connector(self, session_id, connector_key):
         if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key][
                 'name'] not in self.available_connectors:

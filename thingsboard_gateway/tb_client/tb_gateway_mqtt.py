@@ -81,7 +81,11 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                 req_id = content["id"]
                 # pop callback and use it
                 if self._attr_request_dict[req_id]:
-                    self._attr_request_dict.pop(req_id)(content, None)
+                    callback = self._attr_request_dict.pop(req_id)
+                    if isinstance(callback, tuple):
+                        callback[0](content, None, callback[1])
+                    else:
+                        callback(content, None)
                 else:
                     log.error("Unable to find callback to process attributes response from TB")
         elif message.topic == GATEWAY_ATTRIBUTES_TOPIC:
