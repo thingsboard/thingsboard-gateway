@@ -248,7 +248,8 @@ class OdbcConnector(Connector, Thread):
             device_name = eval(self.__config["mapping"]["device"]["name"], globals(), data)
             if device_name not in self.__devices:
                 self.__devices[device_name] = {"attributes": {}, "telemetry": {}}
-                self.__gateway.add_device(device_name, {"connector": self})
+                self.__gateway.add_device(device_name, {"connector": self},
+                                          device_type=self.__config["mapping"]["device"].get("type", "default"))
 
             self.__iterator["value"] = getattr(row, self.__iterator["name"])
             self.__check_and_send(device_name,
