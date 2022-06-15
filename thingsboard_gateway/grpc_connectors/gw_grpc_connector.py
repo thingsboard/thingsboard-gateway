@@ -40,6 +40,8 @@ class GwGrpcConnector(Thread):
         self.__connector_name = None
         self.__received_configuration = None
         self.__registration_request_sent = False
+        self.__connected_devices_requested = False
+        self.__connected_devices_info = {}
         if self.connection_config is None:
             return
         self._grpc_client = GrpcClient(self.__on_connect,
@@ -98,15 +100,18 @@ class GwGrpcConnector(Thread):
 
     def _incoming_messages_callback(self, data):
         if data.HasField('response'):
-            if data.response.HasField('connectorMessage') and data.response.connectorMessage.HasField('registerConnectorMsg'):
-                log.debug("Received response for registration message.")
-                if data.response.status == ResponseStatus.SUCCESS:
-                    pass
-                elif data.response.status == ResponseStatus.FAILURE and not self.registered:
-                    self.__unregister_message_to_gateway()
-                    self.__registration_request_sent = False
-            if data.response.HasField('connectorMessage') and data.response.connectorMessage.HasField('unregisterConnectorMsg'):
-                log.debug("Received response for unregistration message.")
+            if data.response.HasField('connectorMessage'):
+                if data.response.connectorMessage.HasField('registerConnectorMsg'):
+                    log.debug("Received response for registration message.")
+                    if data.response.status == ResponseStatus.SUCCESS:
+                        pass
+                    elif data.response.status == ResponseStatus.FAILURE and not self.registered:
+                        self.__unregister_message_to_gateway()
+                        self.__registration_request_sent = False
+                if data.response.connectorMessage.HasField('unregisterConnectorMsg'):
+                    log.debug("Received response for unregistration message.")
+                if data.response.connectorMessage.HasField('connectorGetConnectedDevicesMsg'):
+                    self.__connected_devices_requested = False
         if data.HasField("gatewayAttributeUpdateNotificationMsg"):
             log.debug(data.gatewayAttributeUpdateNotificationMsg)
             self.on_attributes_update(data.gatewayAttributeUpdateNotificationMsg)
@@ -126,6 +131,10 @@ class GwGrpcConnector(Thread):
             log.info("Connector %s connected to ThingsBoard IoT gateway", self.__connector_name)
             log.debug("Configuration - received.")
             log.debug(self.__received_configuration)
+            if data.HasField('connectorGetConnectedDevicesResponseMsg'):
+                log.debug("Received response with connected device infos.")
+                log.debug(data.connectorGetConnectedDevicesResponseMsg)
+                self.__connected_devices_info = data.connectorGetConnectedDevicesResponseMsg
 
     def __request_data(self):
         self._grpc_client.send_get_data_message()
@@ -143,6 +152,16 @@ class GwGrpcConnector(Thread):
             self._grpc_client.send_service_message(message_to_gateway)
             log.debug("Sending registration message.")
             self.__registration_request_sent = True
+
+    def get_connected_devices(self):
+        if self.registered and not self.__connected_devices_requested:
+            message_to_gateway = GrpcMsgCreator.create_get_connected_devices_msg(
+                self.connection_config['gateway']['connectorKey'])
+            self._grpc_client.send_service_message(message_to_gateway)
+            log.debug("Sending get devices message.")
+            self.__connected_devices_requested = True
+        else:
+            log.debug("Cannot request connected devices.")
 
     def __unregister_message_to_gateway(self):
         message_to_gateway = GrpcMsgCreator.create_unregister_connector_msg(

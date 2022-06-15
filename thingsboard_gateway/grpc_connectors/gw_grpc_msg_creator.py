@@ -209,6 +209,15 @@ class GrpcMsgCreator:
         return basic_message
 
     @staticmethod
+    def create_get_connected_devices_msg(connector_key: str, basic_message=None):
+        is_not_none(connector_key)
+        basic_message = GrpcMsgCreator.get_basic_message(basic_message)
+        get_connected_devices_msg = ConnectorGetConnectedDevicesMsg()
+        get_connected_devices_msg.connectorKey = connector_key
+        basic_message.connectorGetConnectedDevicesMsg.MergeFrom(get_connected_devices_msg)
+        return basic_message
+
+    @staticmethod
     def create_device_connected_msg(device_name, device_type="default", basic_message=None):
         is_not_none(device_name)
         basic_message = GrpcMsgCreator.get_basic_message(basic_message)
