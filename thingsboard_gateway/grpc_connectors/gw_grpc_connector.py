@@ -110,6 +110,8 @@ class GwGrpcConnector(Thread):
                         self.__registration_request_sent = False
                 if data.response.connectorMessage.HasField('unregisterConnectorMsg'):
                     log.debug("Received response for unregistration message.")
+                if data.response.connectorMessage.HasField('connectorGetConnectedDevicesMsg'):
+                    self.__connected_devices_requested = False
         if data.HasField("gatewayAttributeUpdateNotificationMsg"):
             log.debug(data.gatewayAttributeUpdateNotificationMsg)
             self.on_attributes_update(data.gatewayAttributeUpdateNotificationMsg)
@@ -152,12 +154,14 @@ class GwGrpcConnector(Thread):
             self.__registration_request_sent = True
 
     def get_connected_devices(self):
-        if self.registered:
+        if self.registered and not self.__connected_devices_requested:
             message_to_gateway = GrpcMsgCreator.create_get_connected_devices_msg(
                 self.connection_config['gateway']['connectorKey'])
             self._grpc_client.send_service_message(message_to_gateway)
             log.debug("Sending get devices message.")
             self.__connected_devices_requested = True
+        else:
+            log.debug("Cannot request connected devices.")
 
     def __unregister_message_to_gateway(self):
         message_to_gateway = GrpcMsgCreator.create_unregister_connector_msg(
