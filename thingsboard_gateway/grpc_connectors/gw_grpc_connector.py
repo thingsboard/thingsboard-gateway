@@ -42,6 +42,7 @@ class GwGrpcConnector(Thread):
         self.__registration_request_sent = False
         self.__connected_devices_requested = False
         self.__connected_devices_info = {}
+        self.__attributes_request_id_counter = 0
         if self.connection_config is None:
             return
         self._grpc_client = GrpcClient(self.__on_connect,
@@ -116,7 +117,8 @@ class GwGrpcConnector(Thread):
             log.debug(data.gatewayAttributeUpdateNotificationMsg)
             self.on_attributes_update(data.gatewayAttributeUpdateNotificationMsg)
         if data.HasField("gatewayAttributeResponseMsg"):
-            pass
+            log.debug(data.gatewayAttributeResponseMsg)
+            self.on_attributes_update(data.gatewayAttributeResponseMsg)
         if data.HasField("gatewayDeviceRpcRequestMsg"):
             log.debug(data.gatewayDeviceRpcRequestMsg)
             self.server_side_rpc_handler(data.gatewayDeviceRpcRequestMsg)
@@ -138,6 +140,15 @@ class GwGrpcConnector(Thread):
 
     def __request_data(self):
         self._grpc_client.send_get_data_message()
+
+    def request_device_attributes(self, device, keys, client_scope=False):
+        if self.registered:
+            self.__attributes_request_id_counter = self.__attributes_request_id_counter + 1
+            message_to_gateway = GrpcMsgCreator.create_attributes_request_connector_msg(device, keys, client_scope,
+                                                                                        self.__attributes_request_id_counter)
+            log.debug("Sending request attributes message for device %s with keys: %r, and %s scope", device, keys,
+                      "CLIENT" if client_scope else "SHARED")
+            self._grpc_client.send_service_message(message_to_gateway)
 
     def __send_response(self, status: Union[Status, None]):
         if status is None:
