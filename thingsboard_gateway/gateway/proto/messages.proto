@@ -112,21 +112,6 @@ message PostAttributeMsg {
   repeated KeyValueProto kv = 1;
 }
 
-message GetAttributeRequestMsg {
-  int32 requestId = 1;
-  repeated string clientAttributeNames = 2;
-  repeated string sharedAttributeNames = 3;
-  bool onlyShared = 4;
-}
-
-message GetAttributeResponseMsg {
-  int32 requestId = 1;
-  repeated TsKvProto clientAttributeList = 2;
-  repeated TsKvProto sharedAttributeList = 3;
-  string error = 5;
-  bool sharedStateMsg = 6;
-}
-
 message AttributeUpdateNotificationMsg {
   repeated TsKvProto sharedUpdated = 1;
   repeated string sharedDeleted = 2;
@@ -217,7 +202,7 @@ message GatewayRpcResponseMsg {
 
 message GatewayAttributeResponseMsg {
   string deviceName = 1;
-  GetAttributeResponseMsg responseMsg = 2;
+  GatewayAttributesResponseMsg responseMsg = 2;
 }
 
 message GatewayAttributeUpdateNotificationMsg {
@@ -235,4 +220,11 @@ message GatewayAttributesRequestMsg {
   string deviceName = 2;
   bool client = 3;
   repeated string keys = 4;
+}
+
+message GatewayAttributesResponseMsg {
+  int32 requestId = 1;
+  repeated KeyValueProto clientAttributeList = 2;
+  repeated KeyValueProto sharedAttributeList = 3;
+  string error = 5;
 }
