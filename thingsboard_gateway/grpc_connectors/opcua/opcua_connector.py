@@ -48,7 +48,7 @@ class GrpcOpcUaConnector(GwGrpcConnector):
     def __init__(self, connector_config: str, config_dir_path: str):
         super().__init__(connector_config, config_dir_path)
         self.__config = self.connection_config['config'][list(self.connection_config['config'].keys())[0]]
-        self._connector_type = 'socket'
+        self._connector_type = 'opcua'
         self.setName(
             self.__config.get("name", 'MQTT Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
