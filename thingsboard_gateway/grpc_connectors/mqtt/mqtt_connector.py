@@ -25,7 +25,6 @@ from simplejson import dumps
 from thingsboard_gateway.connectors.mqtt.mqtt_connector import MqttConnector
 from thingsboard_gateway.grpc_connectors.gw_grpc_connector import GwGrpcConnector, log
 from thingsboard_gateway.grpc_connectors.gw_grpc_msg_creator import GrpcMsgCreator
-from thingsboard_gateway.grpc_connectors.gw_msg_callbacks import GwMsgCallbacks
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
