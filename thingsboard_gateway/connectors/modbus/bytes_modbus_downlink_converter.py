@@ -99,13 +99,18 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             if "Exception" in str(builder):
                 log.exception(builder)
                 builder = str(builder)
-            if variable_size <= 16:
-                if isinstance(builder, list) and len(builder) not in (8, 16, 32, 64):
+            # if function_code is 5 , is useing first coils value 
+            if function_code == 5:
+                if isinstance(builder, list):
                     builder = builder[0]
             else:
-                if isinstance(builder, list) and len(builder) not in (2, 4):
-                    log.warning("There is a problem with the value builder. Only the first register is written.")
-                    builder = builder[0]
+                if variable_size <= 16:
+                    if isinstance(builder, list) and len(builder) not in (8, 16, 32, 64):
+                        builder = builder[0]
+                else:
+                    if isinstance(builder, list) and len(builder) not in (2, 4):
+                        log.warning("There is a problem with the value builder. Only the first register is written.")
+                        builder = builder[0]
             return builder
         log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter", config["device"])
         return None

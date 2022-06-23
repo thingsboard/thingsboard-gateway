@@ -53,7 +53,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
                     word_endian_order = Endian.Little if word_order.upper() == "LITTLE" else Endian.Big
                     decoded_data = None
                     if not isinstance(response, ModbusIOException) and not isinstance(response, ExceptionResponse):
-                        if configuration["functionCode"] == 1:
+                        if configuration["functionCode"] in [1,2] :
                             decoder = None
                             coils = response.bits
                             try:
@@ -62,8 +62,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
                                 decoder = BinaryPayloadDecoder.fromCoils(coils, wordorder=word_endian_order)
                             assert decoder is not None
 
-                            decoded_data = decoder.decode_bits()[0]
-                        elif configuration["functionCode"] in [2, 3, 4]:
+                            #decoded_data = decoder.decode_bits()[0]
+                            decoded_data = self.__decode_from_registers(decoder, configuration)
+                        elif configuration["functionCode"] in [3, 4]:
                             decoder = None
                             registers = response.registers
                             log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))

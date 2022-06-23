@@ -400,12 +400,21 @@ class ModbusConnector(Connector, Thread):
         function_code = config.get('functionCode')
         result = None
         if function_code == 1:
+            #why count * 8 ? in my Modbus device one coils is 1bit, tow coils is 2bit,if * 8 can not read right coils 
+            # result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
+            #                                                              count=config.get(OBJECTS_COUNT_PARAMETER,
+            #                                                                               config.get("registersCount",
+            #                                                                                          config.get(
+            #                                                                                              "registerCount",
+            #                                                                                              1))) * 8,
+            #                                                              unit=device.config['unitId'])
+
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          count=config.get(OBJECTS_COUNT_PARAMETER,
                                                                                           config.get("registersCount",
                                                                                                      config.get(
                                                                                                          "registerCount",
-                                                                                                         1))) * 8,
+                                                                                                         1))),
                                                                          unit=device.config['unitId'])
         elif function_code in (2, 3, 4):
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
