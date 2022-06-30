@@ -425,7 +425,7 @@ class ModbusConnector(Connector, Thread):
                                                                                                          1))),
                                                                          unit=device.config['unitId'])
         elif function_code == 5:
-            result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER] * 8,
+            result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          value=config[PAYLOAD_PARAMETER],
                                                                          unit=device.config['unitId'])
         elif function_code == 6:
