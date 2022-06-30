@@ -491,7 +491,10 @@ class TBGatewayService:
                                                                                connector['type'],
                                                                                connector.get('class')))
 
-                        self._implemented_connectors[connector['type']] = connector_class
+                        if connector_class is None:
+                            log.warning("Connector implementation not found for %s", connector["name"])
+                        else:
+                            self._implemented_connectors[connector['type']] = connector_class
                     elif connector['type'] == "grpc":
                         if connector.get('key') == "auto":
                             self._generate_persistent_key(connector, connectors_persistent_keys)
@@ -535,13 +538,12 @@ class TBGatewayService:
     def _connect_with_connectors(self):
         for connector_type in self.connectors_configs:
             for connector_config in self.connectors_configs[connector_type]:
-                if connector_type.lower() != 'grpc' and (self._implemented_connectors.get(connector_type.lower()) is not None and
-                        'Grpc' not in self._implemented_connectors[connector_type.lower()].__name__):
-                    for config in connector_config["config"]:
-                        connector = None
-                        try:
-                            if connector_config["config"][config] is not None:
-                                if self._implemented_connectors[connector_type]:
+                if self._implemented_connectors.get(connector_type.lower()) is not None:
+                    if connector_type.lower() != 'grpc' and 'Grpc' not in self._implemented_connectors[connector_type.lower()].__name__:
+                        for config in connector_config["config"]:
+                            connector = None
+                            try:
+                                if connector_config["config"][config] is not None:
                                     connector = self._implemented_connectors[connector_type](self,
                                                                                              connector_config["config"][
                                                                                                  config],
@@ -550,30 +552,28 @@ class TBGatewayService:
                                     self.available_connectors[connector.get_name()] = connector
                                     connector.open()
                                 else:
-                                    log.warning("Connector implementation not found for %s", connector_config["name"])
-                            else:
-                                log.info("Config not found for %s", connector_type)
-                        except Exception as e:
-                            log.exception(e)
-                            if connector is not None:
-                                connector.close()
-                else:
-                    self.__grpc_connectors.update({connector_config['grpc_key']: connector_config})
-                    if connector_type.lower() != 'grpc':
-                        connector_dir_abs = "/".join(self._config_dir.split("/")[:-2])
-                        connector_file_name = f'{connector_type}_connector.py'
-                        connector_abs_path = f'{connector_dir_abs}/grpc_connectors/{connector_type}/{connector_file_name}'
-                        connector_config_json = simplejson.dumps({
-                            **connector_config,
-                            'gateway': {
-                                'host': 'localhost',
-                                'port': self.__config['grpc']['serverPort']
-                            }
-                        })
+                                    log.info("Config not found for %s", connector_type)
+                            except Exception as e:
+                                log.exception(e)
+                                if connector is not None:
+                                    connector.close()
+                    else:
+                        self.__grpc_connectors.update({connector_config['grpc_key']: connector_config})
+                        if connector_type.lower() != 'grpc':
+                            connector_dir_abs = "/".join(self._config_dir.split("/")[:-2])
+                            connector_file_name = f'{connector_type}_connector.py'
+                            connector_abs_path = f'{connector_dir_abs}/grpc_connectors/{connector_type}/{connector_file_name}'
+                            connector_config_json = simplejson.dumps({
+                                **connector_config,
+                                'gateway': {
+                                    'host': 'localhost',
+                                    'port': self.__config['grpc']['serverPort']
+                                }
+                            })
 
-                        thread = Thread(target=self._run_connector, args=(connector_abs_path, connector_config_json,),
-                                        daemon=True, name='Separate DRPC Connector')
-                        thread.start()
+                            thread = Thread(target=self._run_connector, args=(connector_abs_path, connector_config_json,),
+                                            daemon=True, name='Separate DRPC Connector')
+                            thread.start()
 
     def _run_connector(self, connector_abs_path, connector_config_json):
         subprocess.run(['python3', connector_abs_path, connector_config_json, self._config_dir],
