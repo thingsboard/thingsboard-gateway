@@ -34,9 +34,11 @@ class Device:
         for section in ('attributes', 'timeseries'):
             for node_config in self.config.get(section, []):
                 try:
-                    if child := re.search(r"(ns=\d*;[isgb]=.*\d)", node_config['path']):
+                    if re.search(r"(ns=\d*;[isgb]=.*\d)", node_config['path']):
+                        child = re.search(r"(ns=\d*;[isgb]=.*\d)", node_config['path'])
                         self.values[section].append({'path': child.groups()[0], 'key': node_config['key']})
-                    elif child := re.search(r"\${([A-Za-z.:\d]*)}", node_config['path']):
+                    elif re.search(r"\${([A-Za-z.:\d]*)}", node_config['path']):
+                        child = re.search(r"(ns=\d*;[isgb]=.*\d)", node_config['path'])
                         self.values[section].append(
                             {'path': self.path + child.groups()[0].split('.'), 'key': node_config['key']})
 
