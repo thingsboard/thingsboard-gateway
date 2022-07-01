@@ -17,6 +17,7 @@ Install ThingsBoard Gateway
 ---------------------------
 #. Move to the home directory of the gateway: :code:`cd ~`
 #. Install dependencies: :code:`sudo apt update && sudo apt install python3-dev python3-pip libglib2.0-dev git`
+#. Install python dependencies: :code:`pip install cython PyYAML`
 #. Clone the repository: :code:`git clone --single-branch --branch thingsboard-master git@github.com:drexelwireless/thingsboard-gateway.git`
 #. Move to the repository: :code:`cd thingsboard-gateway`
 #. Install the gateway python module: :code:`sudo python3 setup.py install`
