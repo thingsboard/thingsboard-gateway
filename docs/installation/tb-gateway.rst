@@ -46,6 +46,11 @@ Configure ThingsBoard Gateway
    * Replace :code:`accessToken: PUT_YOUR_ACCESS_TOKEN_HERE` with the copied access token
    * Press :code:`Ctrl-O <Enter> Ctrl-X` to save and exit
 
+Optional: VPN
+-------------
+#. If VPN access is needed, install it with: :code:`sudo apt install openconnect network-manager-openconnect-gnome`
+#. Connect with: :code:`sudo openconnect -u <your username> -b <VPN host server>`
+
 Run ThingsBoard Gateway
 -----------------------
 #. Start the ThingsBoard service: :code:`sudo service thingsboard-gateway start`
