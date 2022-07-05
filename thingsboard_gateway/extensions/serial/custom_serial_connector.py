@@ -109,12 +109,12 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
 
     def run(self):  # Main loop of thread
         try:
-            while True:
+            while not self.stopped:
                 for device in self.__devices:
                     device_serial_port = self.__devices[device]["serial"]
                     received_character = b''
                     data_from_device = b''
-                    while received_character != b'\n':  # We will read until receive LF symbol
+                    while not self.stopped and received_character != b'\n':  # We will read until receive LF symbol
                         try:
                             received_character = device_serial_port.read(1)  # Read one symbol per time
                         except AttributeError as e:
@@ -127,8 +127,9 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
                         else:
                             data_from_device = data_from_device + received_character
                     try:
-                        converted_data = self.__devices[device]['converter'].convert(self.__devices[device]['device_config'], data_from_device)
-                        self.__gateway.send_to_storage(self.get_name(), converted_data)
+                        if len(data_from_device) > 0:
+                            converted_data = self.__devices[device]['converter'].convert(self.__devices[device]['device_config'], data_from_device)
+                            self.__gateway.send_to_storage(self.get_name(), converted_data)
                         time.sleep(.1)
                     except Exception as e:
                         log.exception(e)
@@ -142,7 +143,7 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
     def close(self):  # Close connect function, usually used if exception handled in gateway main loop or in connector main loop
         self.stopped = True
         for device in self.__devices:
-            self.__gateway.del_device(self.__devices[device])
+            self.__gateway.del_device(self.__devices[device]["device_config"]["name"])
             if self.__devices[device]['serial'].isOpen():
                 self.__devices[device]['serial'].close()
 
