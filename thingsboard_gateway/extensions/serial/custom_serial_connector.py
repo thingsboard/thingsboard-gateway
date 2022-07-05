@@ -55,24 +55,25 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
                     self.__devices[device]["serial"] = None
                     while self.__devices[device]["serial"] is None or not self.__devices[device]["serial"].isOpen():  # Try connect
                         # connection to serial port with parameters from configuration file or default
-                        self.__devices[device]["serial"] = serial.Serial(port=self.__config.get('port', '/dev/ttyUSB0'),
-                                                                         baudrate=self.__config.get('baudrate', 9600),
-                                                                         bytesize=self.__config.get('bytesize', serial.EIGHTBITS),
-                                                                         parity=self.__config.get('parity', serial.PARITY_NONE),
-                                                                         stopbits=self.__config.get('stopbits', serial.STOPBITS_ONE),
-                                                                         timeout=self.__config.get('timeout', 1),
-                                                                         xonxoff=self.__config.get('xonxoff', False),
-                                                                         rtscts=self.__config.get('rtscts', False),
-                                                                         write_timeout=self.__config.get('write_timeout', None),
-                                                                         dsrdtr=self.__config.get('dsrdtr', False),
-                                                                         inter_byte_timeout=self.__config.get('inter_byte_timeout', None),
-                                                                         exclusive=self.__config.get('exclusive', None))
+                        device_config = self.__devices[device]["device_config"]
+                        self.__devices[device]["serial"] = serial.Serial(port=device_config.get('port', '/dev/ttyUSB0'),
+                                                                         baudrate=device_config.get('baudrate', 9600),
+                                                                         bytesize=device_config.get('bytesize', serial.EIGHTBITS),
+                                                                         parity=device_config.get('parity', serial.PARITY_NONE),
+                                                                         stopbits=device_config.get('stopbits', serial.STOPBITS_ONE),
+                                                                         timeout=device_config.get('timeout', 1),
+                                                                         xonxoff=device_config.get('xonxoff', False),
+                                                                         rtscts=device_config.get('rtscts', False),
+                                                                         write_timeout=device_config.get('write_timeout', None),
+                                                                         dsrdtr=device_config.get('dsrdtr', False),
+                                                                         inter_byte_timeout=device_config.get('inter_byte_timeout', None),
+                                                                         exclusive=device_config.get('exclusive', None))
                         time.sleep(.1)
                         if time.time() - connection_start > 10:  # Break connection try if it setting up for 10 seconds
-                            log.error("Connection refused per timeout for device %s", self.__devices[device]["device_config"].get("name"))
+                            log.error("Connection refused per timeout for device %s", device_config.get("name"))
                             break
             except serial.serialutil.SerialException:
-                log.error("Port %s for device %s - not found", self.__config.get('port', '/dev/ttyUSB0'), device)
+                log.error("Port %s for device %s - not found", self.__devices[device]["device_config"].get('port', '/dev/ttyUSB0'), device)
             except Exception as e:
                 log.exception(e)
             else:  # if no exception handled - add device and change connection state
