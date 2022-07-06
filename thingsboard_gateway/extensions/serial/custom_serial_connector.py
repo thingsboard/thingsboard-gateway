@@ -18,8 +18,14 @@ import time
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
-import serial
+try:
+    import serial
+except ImportError:
+    print("pyserial library not found - installing...")
+    TBUtility.install_package("pyserial")
+    import serial
 
 from thingsboard_gateway.connectors.connector import Connector, log  # Import base class for connector and logger
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
