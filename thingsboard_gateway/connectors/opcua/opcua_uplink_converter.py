@@ -24,7 +24,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
     def __init__(self, config):
         self.__config = config
 
-    def convert(self, config, val, data = None):
+    def convert(self, config, val, data=None, key=None):
         device_name = self.__config["deviceName"]
         result = {"deviceName": device_name,
                   "deviceType": self.__config.get("deviceType", "OPC-UA Device"),
@@ -43,7 +43,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
                     else:
                         config_information = config.replace('\\\\', '\\')
                     if path == config_information or fullmatch(path, config_information) or path.replace('\\\\', '\\') == config_information:
-                        full_key = information["key"]
+                        full_key = key if key else information["key"]
                         full_value = information["path"].replace("${"+path+"}", str(val))
                         if information_type == 'timeseries' and data is not None:
                             # Note: SourceTimestamp and ServerTimestamp may be naive datetime objects, hence for the timestamp() the tz must first be overwritten to UTC (which it is according to the spec)
