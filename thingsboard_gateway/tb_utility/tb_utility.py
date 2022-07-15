@@ -11,7 +11,8 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+import datetime
+import ssl
 from logging import getLogger
 from re import search, findall
 
@@ -170,3 +171,51 @@ class TBUtility:
     @staticmethod
     def get_dict_key_by_value(dictionary: dict, value):
         return list(dictionary.values())[list(dictionary.values()).index(value)]
+
+    @staticmethod
+    def generate_certificate(old_certificate):
+        try:
+            import OpenSSL
+        except ImportError:
+            TBUtility.install_package('pyopenssl')
+            import OpenSSL
+
+        key = OpenSSL.crypto.PKey()
+        key.generate_key(OpenSSL.crypto.TYPE_RSA, 2048)
+
+        cert = OpenSSL.crypto.X509()
+
+        subject = cert.get_subject()
+        subject.C = old_certificate['issuer'][0][-1][-1]
+        subject.ST = old_certificate['issuer'][1][-1][-1]
+        subject.L = old_certificate['issuer'][2][-1][-1]
+        subject.O = old_certificate['issuer'][3][-1][-1]
+        subject.OU = old_certificate['issuer'][4][-1][-1]
+        subject.CN = old_certificate['issuer'][5][-1][-1]
+        subject.emailAddress = old_certificate['issuer'][6][-1][-1]
+
+        cert.set_version(2)
+        cert.set_issuer(subject)
+        cert.set_subject(subject)
+        cert.set_serial_number(int(123123123))
+        cert.gmtime_adj_notBefore(0)
+        cert.gmtime_adj_notAfter(31536000)
+        cert.set_pubkey(key)
+        cert.sign(key, 'sha256')
+
+        cert = OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert).decode("utf-8")
+        key = OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, key).decode("utf-8")
+        return cert, key
+
+    @staticmethod
+    def check_certificate(certificate, days_left=3):
+        ctx = ssl.SSLContext()
+        ctx.load_verify_locations(certificate)
+        certificate_details = ctx.get_ca_certs()
+
+        cert_detail_dict = certificate_details[0]
+        not_after_str = cert_detail_dict['notAfter'].split(' GMT')[0]
+        not_after = datetime.datetime.strptime(not_after_str, '%b %d %H:%M:%S %Y')
+
+        if not_after - datetime.datetime.now() <= datetime.timedelta(days=days_left):
+            return TBUtility.generate_certificate(cert_detail_dict)
