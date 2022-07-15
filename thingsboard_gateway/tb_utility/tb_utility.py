@@ -175,7 +175,7 @@ class TBUtility:
     @staticmethod
     def generate_certificate(old_certificate_path, old_key_path, old_certificate):
         key = OpenSSL.crypto.PKey()
-        key.generate_key(OpenSSL.crypto.TYPE_RSA, 2048)
+        key.generate_key(OpenSSL.crypto.TYPE_EC, 2048)
 
         cert = OpenSSL.crypto.X509()
 
