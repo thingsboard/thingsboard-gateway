@@ -22,7 +22,7 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 log = logging.getLogger("tb_connection")
 
-CHECK_CERT_PERIOD = 86400
+CHECK_CERT_PERIOD = 24
 CERTIFICATE_DAYS_LEFT = 3
 
 
@@ -86,20 +86,20 @@ class TBClient(threading.Thread):
             if time() - self._last_cert_check_time >= CHECK_CERT_PERIOD:
                 if self.__cert:
                     log.info('Will generate new certificate')
-                    new_cert = TBUtility.check_certificate(self.__cert, key=self.__private_key,
-                                                           days_left=CERTIFICATE_DAYS_LEFT)
+                    new_cert, new_key = TBUtility.check_certificate(self.__cert, days_left=CERTIFICATE_DAYS_LEFT)
 
                     if new_cert:
-                        self.client.send_attributes({'newCertificate': new_cert})
+                        self.client.send_attributes({'newCertificate': new_cert, 'newKey': new_key})
 
                 if self.__ca_cert:
-                    is_outdated = TBUtility.check_certificate(self.__ca_cert, generate_new=False,
-                                                              days_left=CERTIFICATE_DAYS_LEFT)
+                    log.info('Will generate bew CA')
+                    new_ca_cert, new_ca_key = TBUtility.check_certificate(self.__ca_cert,
+                                                                          days_left=CERTIFICATE_DAYS_LEFT)
 
-                    if is_outdated:
-                        self.client.send_attributes({'CACertificate': 'CA certificate will outdated soon'})
+                    if new_ca_cert:
+                        self.client.send_attributes({'newCACertificate': new_ca_cert, 'newCAKey': new_ca_key})
 
-            sleep(10)
+            sleep(.2)
 
     def pause(self):
         self.__paused = True
