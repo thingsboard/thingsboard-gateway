@@ -11,10 +11,11 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+import datetime
 from logging import getLogger
 from re import search, findall
 
+import OpenSSL
 from jsonpath_rw import parse
 from simplejson import JSONDecodeError, dumps, loads
 
@@ -170,3 +171,43 @@ class TBUtility:
     @staticmethod
     def get_dict_key_by_value(dictionary: dict, value):
         return list(dictionary.values())[list(dictionary.values()).index(value)]
+
+    @staticmethod
+    def generate_certificate(old_certificate_path, old_key_path, old_certificate):
+        key = OpenSSL.crypto.PKey()
+        key.generate_key(OpenSSL.crypto.TYPE_RSA, 2048)
+
+        cert = OpenSSL.crypto.X509()
+
+        cert.set_version(old_certificate.get_version())
+        cert.set_issuer(old_certificate.get_issuer())
+        cert.set_subject(old_certificate.get_subject())
+        cert.set_serial_number(old_certificate.get_serial_number())
+        cert.gmtime_adj_notBefore(0)
+        cert.gmtime_adj_notAfter(31536000)
+        cert.set_pubkey(key)
+        cert.sign(key, old_certificate.get_signature_algorithm().decode())
+
+        cert = OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
+        with open(old_certificate_path, 'wb+') as f:
+            f.write(cert)
+
+        key = OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, key)
+        with open(old_key_path, 'wb+') as f:
+            f.write(key)
+
+        return cert
+
+    @staticmethod
+    def check_certificate(certificate, key=None, generate_new=True, days_left=3):
+        cert_detail = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            open(certificate, 'rb').read()
+        )
+        not_after = datetime.datetime.strptime(cert_detail.get_notAfter().decode('utf-8')[:-1], '%Y%m%d%H%M%S')
+
+        if not_after - datetime.datetime.now() <= datetime.timedelta(days=days_left):
+            if generate_new:
+                return TBUtility.generate_certificate(certificate, key, cert_detail)
+            else:
+                return True

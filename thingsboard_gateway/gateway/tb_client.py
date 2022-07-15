@@ -14,12 +14,16 @@
 
 import logging
 import threading
-from time import sleep
+from time import sleep, time
 from ssl import CERT_REQUIRED, PROTOCOL_TLSv1_2
 
 from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 log = logging.getLogger("tb_connection")
+
+CHECK_CERT_PERIOD = 86400
+CERTIFICATE_DAYS_LEFT = 3
 
 
 class TBClient(threading.Thread):
@@ -42,6 +46,7 @@ class TBClient(threading.Thread):
         self.__is_connected = False
         self.__stopped = False
         self.__paused = False
+        self._last_cert_check_time = 0
         if credentials.get("accessToken") is not None:
             self.__token = str(credentials["accessToken"])
         self.client = TBGatewayMqttClient(self.__host, self.__port, self.__token, self, quality_of_service=self.__default_quality_of_service)
@@ -49,6 +54,12 @@ class TBClient(threading.Thread):
             self.__ca_cert = self.__config_folder_path + credentials.get("caCert") if credentials.get("caCert") is not None else None
             self.__private_key = self.__config_folder_path + credentials.get("privateKey") if credentials.get("privateKey") is not None else None
             self.__cert = self.__config_folder_path + credentials.get("cert") if credentials.get("cert") is not None else None
+
+            # check certificates for end date
+            self._check_cert_thread = threading.Thread(name='Check Certificates Thread',
+                                                       target=self._check_certificates, daemon=True)
+            self._check_cert_thread.start()
+
             self.client._client.tls_set(ca_certs=self.__ca_cert,
                                         certfile=self.__cert,
                                         keyfile=self.__private_key,
@@ -69,6 +80,26 @@ class TBClient(threading.Thread):
     #         log.exception(args)
     #     else:
     #         log.debug(args)
+
+    def _check_certificates(self):
+        while not self.__stopped and not self.__paused:
+            if time() - self._last_cert_check_time >= CHECK_CERT_PERIOD:
+                if self.__cert:
+                    log.info('Will generate new certificate')
+                    new_cert = TBUtility.check_certificate(self.__cert, key=self.__private_key,
+                                                           days_left=CERTIFICATE_DAYS_LEFT)
+
+                    if new_cert:
+                        self.client.send_attributes({'newCertificate': new_cert})
+
+                if self.__ca_cert:
+                    is_outdated = TBUtility.check_certificate(self.__ca_cert, generate_new=False,
+                                                              days_left=CERTIFICATE_DAYS_LEFT)
+
+                    if is_outdated:
+                        self.client.send_attributes({'CACertificate': 'CA certificate will outdated soon'})
+
+            sleep(10)
 
     def pause(self):
         self.__paused = True
