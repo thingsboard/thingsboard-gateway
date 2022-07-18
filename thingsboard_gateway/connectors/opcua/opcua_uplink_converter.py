@@ -45,7 +45,8 @@ class OpcUaUplinkConverter(OpcUaConverter):
                     if path == config_information or fullmatch(path, config_information) or path.replace('\\\\', '\\') == config_information:
                         full_key = key if key else information["key"]
                         full_value = information["path"].replace("${"+path+"}", str(val))
-                        if information_type == 'timeseries' and data is not None:
+                        if information_type == 'timeseries' and data is not None and not self.__config.get(
+                                'subOverrideServerTime', False):
                             # Note: SourceTimestamp and ServerTimestamp may be naive datetime objects, hence for the timestamp() the tz must first be overwritten to UTC (which it is according to the spec)
                             if data.monitored_item.Value.SourceTimestamp is not None:
                                 timestamp = int(data.monitored_item.Value.SourceTimestamp.replace(tzinfo=timezone.utc).timestamp()*1000)
