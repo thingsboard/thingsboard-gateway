@@ -15,7 +15,6 @@ import datetime
 from logging import getLogger
 from re import search, findall
 
-import OpenSSL
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
