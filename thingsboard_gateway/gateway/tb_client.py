@@ -99,6 +99,8 @@ class TBClient(threading.Thread):
                     if is_outdated:
                         self.client.send_attributes({'CACertificate': 'CA certificate will outdated soon'})
 
+                self._last_cert_check_time = time()
+
             sleep(10)
 
     def pause(self):
