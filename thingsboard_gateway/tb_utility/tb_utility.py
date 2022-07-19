@@ -74,11 +74,11 @@ class TBUtility:
 
     @staticmethod
     def topic_to_regex(topic):
-        return topic.replace("+", "[^/]+").replace("#", ".+")
+        return topic.replace("+", "[^/]+").replace("#", ".+").replace('$', '\\$')
 
     @staticmethod
     def regex_to_topic(regex):
-        return regex.replace("[^/]+", "+").replace(".+", "#")
+        return regex.replace("[^/]+", "+").replace(".+", "#").replace('\\$', '$')
 
     @staticmethod
     def get_value(expression, body=None, value_type="string", get_tag=False, expression_instead_none=False):
