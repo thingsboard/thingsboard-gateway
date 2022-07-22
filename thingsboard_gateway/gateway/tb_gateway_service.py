@@ -642,7 +642,7 @@ class TBGatewayService:
 
                         data = self.__convert_telemetry_to_ts(data)
 
-                        max_data_size = self.__config["thingsboard"].get("maxPayloadSizeBytes", 1024)
+                        max_data_size = self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
                         if self.__get_data_size(data) >= max_data_size:
                             # Data is too large, so we will attempt to send in pieces
                             adopted_data = {"deviceName": data['deviceName'],
@@ -697,7 +697,7 @@ class TBGatewayService:
 
     @staticmethod
     def __get_data_size(data: dict):
-        return getsizeof(data)
+        return getsizeof(str(data))
 
     @staticmethod
     def __convert_telemetry_to_ts(data):
@@ -724,7 +724,7 @@ class TBGatewayService:
 
     def check_size(self, devices_data_in_event_pack):
         if self.__get_data_size(devices_data_in_event_pack) >= self.__config["thingsboard"].get("maxPayloadSizeBytes",
-                                                                                                1024):
+                                                                                                400):
             self.__send_data(devices_data_in_event_pack)
             for device in devices_data_in_event_pack:
                 devices_data_in_event_pack[device]["telemetry"] = []
