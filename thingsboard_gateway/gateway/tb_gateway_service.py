@@ -697,7 +697,7 @@ class TBGatewayService:
 
     @staticmethod
     def __get_data_size(data: dict):
-        return getsizeof(str(data))
+        return getsizeof(data)
 
     @staticmethod
     def __convert_telemetry_to_ts(data):
