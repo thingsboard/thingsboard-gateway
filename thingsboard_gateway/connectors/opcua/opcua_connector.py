@@ -26,6 +26,7 @@ from simplejson import dumps
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 try:
     from opcua import Client, Node, ua
@@ -231,6 +232,7 @@ class OpcUaConnector(Thread, Connector):
     def get_name(self):
         return self.name
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         log.debug(content)
         try:
@@ -249,6 +251,7 @@ class OpcUaConnector(Thread, Connector):
         except Exception as e:
             log.exception(e)
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         try:
             rpc_method = content["data"].get("method")

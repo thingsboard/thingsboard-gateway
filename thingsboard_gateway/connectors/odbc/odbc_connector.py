@@ -35,6 +35,7 @@ except ImportError:
 from thingsboard_gateway.connectors.odbc.odbc_uplink_converter import OdbcUplinkConverter
 
 from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class OdbcConnector(Connector, Thread):
@@ -98,6 +99,7 @@ class OdbcConnector(Connector, Thread):
     def on_attributes_update(self, content):
         pass
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         done = False
         try:

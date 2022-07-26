@@ -26,6 +26,7 @@ import simplejson
 from thingsboard_gateway.connectors.ftp.file import File
 from thingsboard_gateway.connectors.ftp.ftp_uplink_converter import FTPUplinkConverter
 from thingsboard_gateway.connectors.ftp.path import Path
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
@@ -208,6 +209,7 @@ class FTPConnector(Connector, Thread):
             return False
         return True
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         try:
             for attribute_request in self.__attribute_updates:
@@ -236,7 +238,7 @@ class FTPConnector(Connector, Thread):
                                     log.error('Invalid json data')
                             else:
                                 if attribute_request['writingMode'] == 'OVERRIDE':
-                                    io_stream = io.BytesIO(str.encode(data_expression))
+                                    io_stream = self._get_io_stream(data_expression)
                                     ftp.storbinary('STOR ' + file.path_to_file, io_stream)
                                     io_stream.close()
                                 else:
@@ -252,10 +254,15 @@ class FTPConnector(Connector, Thread):
         except Exception as e:
             log.exception(e)
 
+    @StatisticsService.CollectAllReceivedBytesStatistics('allBytesSentToDevices')
+    def _get_io_stream(self, data_expression):
+        return io.BytesIO(str.encode(data_expression))
+
     def __fill_rpc_requests(self):
         for rpc_request in self.__config.get("serverSideRpc", []):
             self.__rpc_requests.append(rpc_request)
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         try:
             for rpc_request in self.__rpc_requests:
@@ -270,7 +277,7 @@ class FTPConnector(Connector, Thread):
                         if content['data']['method'] == 'write':
                             try:
                                 arr = re.sub("'", '', content['data']['params']).split(';')
-                                io_stream = io.BytesIO(str.encode(arr[1]))
+                                io_stream = self._get_io_stream(arr[1])
                                 ftp.storbinary('STOR ' + arr[0], io_stream)
                                 io_stream.close()
                                 success_sent = True

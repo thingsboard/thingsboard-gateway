@@ -18,6 +18,7 @@ from time import time
 
 from thingsboard_gateway.connectors.xmpp.xmpp_converter import XmppConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class XmppUplinkConverter(XmppConverter):
@@ -135,6 +136,8 @@ class XmppUplinkConverter(XmppConverter):
 
         return None
 
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, config, val):
         # convert data if it is json format
         result = self._convert_json(val)

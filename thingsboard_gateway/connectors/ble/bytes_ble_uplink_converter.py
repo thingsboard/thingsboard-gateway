@@ -28,6 +28,7 @@ from pprint import pformat
 from re import findall
 
 from thingsboard_gateway.connectors.ble.ble_uplink_converter import BLEUplinkConverter, log
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BytesBLEUplinkConverter(BLEUplinkConverter):
@@ -37,6 +38,8 @@ class BytesBLEUplinkConverter(BLEUplinkConverter):
                             "deviceType": config['deviceType']
                             }
 
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         if data is None:
             return {}

@@ -16,9 +16,12 @@ import struct
 
 from thingsboard_gateway.connectors.can.can_converter import CanConverter
 from thingsboard_gateway.connectors.converter import log
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BytesCanUplinkConverter(CanConverter):
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, configs, can_data):
         result = {"attributes": {},
                   "telemetry": {}}

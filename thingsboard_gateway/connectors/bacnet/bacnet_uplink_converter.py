@@ -17,12 +17,15 @@ from bacpypes.constructeddata import ArrayOf
 from bacpypes.primitivedata import Tag
 
 from thingsboard_gateway.connectors.bacnet.bacnet_converter import BACnetConverter, log
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BACnetUplinkConverter(BACnetConverter):
     def __init__(self, config):
         self.__config = config
 
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         value = None
         if isinstance(data, ReadPropertyACK):

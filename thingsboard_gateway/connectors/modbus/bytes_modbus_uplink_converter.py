@@ -18,6 +18,7 @@ from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.pdu import ExceptionResponse
 
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BytesModbusUplinkConverter(ModbusConverter):
@@ -29,6 +30,8 @@ class BytesModbusUplinkConverter(ModbusConverter):
         self.__result = {"deviceName": config.get("deviceName", "ModbusDevice %s" % (str(config["unitId"]))),
                          "deviceType": config.get("deviceType", "default")}
 
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         self.__result["telemetry"] = []
         self.__result["attributes"] = []

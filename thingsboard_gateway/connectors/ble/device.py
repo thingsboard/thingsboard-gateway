@@ -32,6 +32,7 @@ import asyncio
 from bleak import BleakClient
 
 from thingsboard_gateway.connectors.connector import log
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.connectors.ble.error_handler import ErrorHandler
 
@@ -279,6 +280,7 @@ class Device(Thread):
             log.exception(e)
             return e
 
+    @StatisticsService.CollectStatistics(start_stat_type='allBytesSentToDevices')
     def write_char(self, char_id, data):
         task = self.loop.create_task(self.__write_char(char_id, data))
 

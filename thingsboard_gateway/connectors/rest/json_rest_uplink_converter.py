@@ -18,6 +18,7 @@ from simplejson import dumps
 
 from thingsboard_gateway.connectors.rest.rest_converter import RESTConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class JsonRESTUplinkConverter(RESTConverter):
@@ -25,6 +26,8 @@ class JsonRESTUplinkConverter(RESTConverter):
     def __init__(self, config):
         self.__config = config
 
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         datatypes = {"attributes": "attributes",
                      "timeseries": "telemetry"}

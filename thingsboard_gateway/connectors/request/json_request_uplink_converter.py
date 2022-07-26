@@ -18,6 +18,7 @@ from simplejson import dumps, loads
 
 from thingsboard_gateway.connectors.request.request_converter import RequestConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class JsonRequestUplinkConverter(RequestConverter):
@@ -26,6 +27,8 @@ class JsonRequestUplinkConverter(RequestConverter):
         self.__datatypes = {"attributes": "attributes",
                             "telemetry": "telemetry"}
 
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         if isinstance(data, (bytes, str)):
             data = loads(data)
