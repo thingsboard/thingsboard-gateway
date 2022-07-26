@@ -23,6 +23,7 @@ from time import sleep
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 try:
     from slixmpp import ClientXMPP
@@ -198,6 +199,12 @@ class XMPPConnector(Connector, Thread):
     def is_connected(self):
         return self._connected
 
+    @StatisticsService.CollectStatistics(start_stat_type='allBytesSentToDevices')
+    def _send_message(self, jid, data):
+        self._xmpp.send_message(mto=jid, mfrom=self._server_config['jid'], mbody=data,
+                                mtype='chat')
+
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         self.__log.debug('Got attribute update: %s', content)
 
@@ -212,12 +219,12 @@ class XMPPConnector(Connector, Thread):
                     if attr_conf['attributeOnThingsBoard'] == key:
                         data_to_send = attr_conf['valueExpression'].replace('${attributeKey}', key).replace(
                             '${attributeValue}', value)
-                        self._xmpp.send_message(mto=device_jid, mfrom=self._server_config['jid'], mbody=data_to_send,
-                                                mtype='chat')
+                        self._send_message(device_jid, data_to_send)
                         return
         except KeyError as e:
             self.__log.error('Key not found %s during processing attribute update', e)
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         self.__log.debug('Got RPC: %s', content)
 
@@ -240,8 +247,7 @@ class XMPPConnector(Connector, Thread):
                     for (tag, value) in zip(data_to_send_tags, data_to_send_values):
                         data_to_send = data_to_send.replace('${' + tag + '}', dumps(value))
 
-                    self._xmpp.send_message(mto=device_jid, mfrom=self._server_config['jid'], mbody=data_to_send,
-                                            mtype='chat')
+                    self._send_message(device_jid, data_to_send)
 
                     if rpc_conf.get('withResponse', True):
                         self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],

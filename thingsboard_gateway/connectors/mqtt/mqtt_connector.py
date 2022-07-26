@@ -24,8 +24,10 @@ import simplejson
 from paho.mqtt.client import Client
 
 from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class MqttConnector(Connector, Thread):
@@ -601,6 +603,7 @@ class MqttConnector(Connector, Thread):
 
         self._client.publish(topic, data, retain=retain).wait_for_publish()
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         if self.__attribute_updates:
             for attribute_update in self.__attribute_updates:
@@ -622,8 +625,8 @@ class MqttConnector(Connector, Thread):
                             except KeyError as e:
                                 log.exception("Cannot form topic, key %s - not found", e)
                                 raise e
-                            self._client.publish(topic, data,
-                                                 retain=attribute_update.get('retain', False)).wait_for_publish()
+
+                            self._publish(topic, data, attribute_update.get('retain', False))
                             self.__log.debug("Attribute Update data: %s for device %s to topic: %s", data,
                                              content["device"], topic)
                         else:
@@ -633,6 +636,7 @@ class MqttConnector(Connector, Thread):
         else:
             self.__log.error("Attribute updates config not found.")
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         self.__log.info("Incoming server-side RPC: %s", content)
 
@@ -705,7 +709,7 @@ class MqttConnector(Connector, Thread):
 
                 try:
                     self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
-                    self._client.publish(request_topic, data_to_send, retain=rpc_config.get('retain', False))
+                    self._publish(request_topic, data_to_send, rpc_config.get('retain', False))
 
                     if not expects_response or not defines_timeout:
                         self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
@@ -719,6 +723,10 @@ class MqttConnector(Connector, Thread):
                     self.__log.exception(e)
 
         self.__log.error("RPC not handled: %s", content)
+
+    @CustomCollectStatistics(start_stat_type='allBytesSentToDevices')
+    def _publish(self, request_topic, data_to_send, retain):
+        self._client.publish(request_topic, data_to_send, retain).wait_for_publish()
 
     def rpc_cancel_processing(self, topic):
         log.info("RPC canceled or terminated. Unsubscribing from %s", topic)

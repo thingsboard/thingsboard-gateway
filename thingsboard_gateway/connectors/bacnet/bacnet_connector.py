@@ -18,6 +18,7 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time
 
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -114,6 +115,7 @@ class BACnetConnector(Thread, Connector):
     def is_connected(self):
         return self.__connected
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         try:
             log.debug('Recieved Attribute Update Request: %r', str(content))
@@ -135,6 +137,7 @@ class BACnetConnector(Thread, Connector):
         except Exception as e:
             log.exception(e)
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         try:
             log.debug('Recieved RPC Request: %r', str(content))

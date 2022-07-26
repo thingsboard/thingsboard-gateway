@@ -13,12 +13,15 @@
 #     limitations under the License.
 
 from thingsboard_gateway.connectors.converter import Converter, log
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class SNMPUplinkConverter(Converter):
     def __init__(self, config):
         self.__config = config
 
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         result = {
             "deviceName": self.__config["deviceName"],

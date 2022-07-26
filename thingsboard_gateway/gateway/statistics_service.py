@@ -1,3 +1,4 @@
+import datetime
 import subprocess
 from threading import Thread
 from time import time, sleep
@@ -6,6 +7,14 @@ import simplejson
 
 
 class StatisticsService(Thread):
+    DATA_STREAMS_STATISTICS = {
+        'receivedBytesFromDevices': 0,
+        'convertedBytesFromDevice': 0,
+        'allReceivedBytesFromTB': 0,
+        'allBytesSentToTB': 0,
+        'allBytesSentToDevices': 0,
+    }
+
     def __init__(self, config_path, stats_send_period_in_seconds, gateway, log):
         super().__init__()
         self.name = 'Statistics Thread'
@@ -18,6 +27,7 @@ class StatisticsService(Thread):
         self._log = log
         self._config = self._load_config()
         self._last_poll = 0
+        self._last_streams_statistics_clear_time = datetime.datetime.now()
 
         self.start()
 
@@ -27,6 +37,20 @@ class StatisticsService(Thread):
     def _load_config(self):
         with open(self._config_path, 'r') as file:
             return simplejson.load(file)
+
+    @classmethod
+    def add_bytes(cls, stat_type, bytes_count):
+        cls.DATA_STREAMS_STATISTICS[stat_type] += bytes_count
+
+    @classmethod
+    def clear_streams_statistics(cls):
+        cls.DATA_STREAMS_STATISTICS = {
+            'receivedBytesFromDevices': 0,
+            'convertedBytesFromDevice': 0,
+            'allReceivedBytesFromTB': 0,
+            'allBytesSentToTB': 0,
+            'allBytesSentToDevices': 0,
+        }
 
     def run(self) -> None:
         while not self._stopped:
@@ -46,6 +70,65 @@ class StatisticsService(Thread):
 
                 self._gateway.tb_client.client.send_attributes(data_to_send)
 
+                if datetime.datetime.now() - self._last_streams_statistics_clear_time >= datetime.timedelta(days=1):
+                    self.clear_streams_statistics()
+
+                self._gateway.tb_client.client.send_attributes(StatisticsService.DATA_STREAMS_STATISTICS)
+
                 self._last_poll = time()
 
             sleep(.2)
+
+    class CollectStatistics:
+        def __init__(self, start_stat_type, end_stat_type=None):
+            self.start_stat_type = start_stat_type
+            self.end_stat_type = end_stat_type
+
+        def __call__(self, func):
+            def inner(*args, **kwargs):
+                try:
+                    _, __, data = args
+                    self.collect(self.start_stat_type, data)
+                except ValueError:
+                    pass
+
+                result = func(*args, **kwargs)
+                if result and self.end_stat_type:
+                    self.collect(self.end_stat_type, result)
+
+                return result
+
+            return inner
+
+        @staticmethod
+        def collect(stat_type, data):
+            bytes_count = str(data).__sizeof__()
+            StatisticsService.add_bytes(stat_type, bytes_count)
+
+    class CollectAllReceivedBytesStatistics(CollectStatistics):
+        def __call__(self, func):
+            def inner(*args, **kwargs):
+                try:
+                    _, data = args
+                    self.collect(self.start_stat_type, data)
+                except ValueError:
+                    pass
+
+                func(*args, **kwargs)
+
+            return inner
+
+    class CollectAllSentTBBytesStatistics(CollectAllReceivedBytesStatistics):
+        def __call__(self, func):
+            return super().__call__(func)
+
+    class CollectRPCReplyStatistics(CollectStatistics):
+        def __call__(self, func):
+            def inner(*args, **kwargs):
+                data = kwargs.get('content')
+                if data:
+                    self.collect(self.start_stat_type, data)
+
+                func(*args, **kwargs)
+
+            return inner

@@ -18,12 +18,15 @@ from datetime import timezone
 
 from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class OpcUaUplinkConverter(OpcUaConverter):
     def __init__(self, config):
         self.__config = config
 
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, config, val, data=None, key=None):
         device_name = self.__config["deviceName"]
         result = {"deviceName": device_name,
