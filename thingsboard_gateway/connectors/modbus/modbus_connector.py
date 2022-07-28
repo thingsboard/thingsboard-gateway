@@ -123,15 +123,8 @@ class ModbusConnector(Connector, Thread):
     def run(self):
         self.__connected = True
 
-        while True:
-            if not self.__stopped and not ModbusConnector.process_requests.empty():
-                thread = Thread(target=self.__process_slaves, daemon=True)
-                thread.start()
-
-            if self.__stopped:
-                break
-
-            sleep(.2)
+        thread = Thread(target=self.__process_slaves, daemon=True)
+        thread.start()
 
     @staticmethod
     def __configure_and_run_slave(config):
@@ -252,48 +245,51 @@ class ModbusConnector(Connector, Thread):
         return self.name
 
     def __process_slaves(self):
-        # TODO: write documentation
-        device = ModbusConnector.process_requests.get()
+        while True:
+            if not self.__stopped and not ModbusConnector.process_requests.empty():
+                device = ModbusConnector.process_requests.get()
 
-        device_responses = {'timeseries': {}, 'attributes': {}}
-        current_device_config = {}
-        try:
-            for config_section in device_responses:
-                if device.config.get(config_section) is not None:
-                    current_device_config = device.config
+                device_responses = {'timeseries': {}, 'attributes': {}}
+                current_device_config = {}
+                try:
+                    for config_section in device_responses:
+                        if device.config.get(config_section) is not None:
+                            current_device_config = device.config
 
-                    self.__connect_to_current_master(device)
+                            self.__connect_to_current_master(device)
 
-                    if not device.config['master'].is_socket_open() or not len(
-                            current_device_config[config_section]):
-                        continue
+                            if not device.config['master'].is_socket_open() or not len(
+                                    current_device_config[config_section]):
+                                continue
 
-                    # Reading data from device
-                    for interested_data in range(len(current_device_config[config_section])):
-                        current_data = current_device_config[config_section][interested_data]
-                        current_data[DEVICE_NAME_PARAMETER] = device
-                        input_data = self.__function_to_device(device, current_data)
-                        device_responses[config_section][current_data[TAG_PARAMETER]] = {
-                            "data_sent": current_data,
-                            "input_data": input_data}
+                            # Reading data from device
+                            for interested_data in range(len(current_device_config[config_section])):
+                                current_data = current_device_config[config_section][interested_data]
+                                current_data[DEVICE_NAME_PARAMETER] = device
+                                input_data = self.__function_to_device(device, current_data)
+                                device_responses[config_section][current_data[TAG_PARAMETER]] = {
+                                    "data_sent": current_data,
+                                    "input_data": input_data}
 
-                    log.debug("Checking %s for device %s", config_section, device)
-                    log.debug('Device response: ', device_responses)
+                            log.debug("Checking %s for device %s", config_section, device)
+                            log.debug('Device response: ', device_responses)
 
-            if device_responses.get('timeseries') or device_responses.get('attributes'):
-                self.__convert_and_save_data((device, current_device_config, {
-                    **current_device_config,
-                    BYTE_ORDER_PARAMETER: current_device_config.get(BYTE_ORDER_PARAMETER,
-                                                                    device.byte_order),
-                    WORD_ORDER_PARAMETER: current_device_config.get(WORD_ORDER_PARAMETER,
-                                                                    device.word_order)
-                }, device_responses))
+                    if device_responses.get('timeseries') or device_responses.get('attributes'):
+                        self.__convert_and_save_data((device, current_device_config, {
+                            **current_device_config,
+                            BYTE_ORDER_PARAMETER: current_device_config.get(BYTE_ORDER_PARAMETER,
+                                                                            device.byte_order),
+                            WORD_ORDER_PARAMETER: current_device_config.get(WORD_ORDER_PARAMETER,
+                                                                            device.word_order)
+                        }, device_responses))
 
-        except ConnectionException:
-            sleep(5)
-            log.error("Connection lost! Reconnecting...")
-        except Exception as e:
-            log.exception(e)
+                except ConnectionException:
+                    sleep(5)
+                    log.error("Connection lost! Reconnecting...")
+                except Exception as e:
+                    log.exception(e)
+
+            sleep(.2)
 
     def __connect_to_current_master(self, device=None):
         # TODO: write documentation
