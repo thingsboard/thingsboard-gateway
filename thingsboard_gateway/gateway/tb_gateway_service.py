@@ -203,10 +203,11 @@ class TBGatewayService:
 
         self.__statistics = self.__config['thingsboard'].get('statistics', DEFAULT_STATISTIC)
         self.__statistics_service = None
-        if self.__statistics['enable'] and self.__statistics.get('configuration'):
-            statistics_config_path = self._config_dir + self.__statistics['configuration']
-            self.__statistics_service = StatisticsService(statistics_config_path,
-                                                          self.__statistics['statsSendPeriodInSeconds'], self, log)
+        if self.__statistics['enable']:
+            self.__statistics_service = StatisticsService(self.__statistics['statsSendPeriodInSeconds'], self, log,
+                                                          config_path=self._config_dir + self.__statistics[
+                                                              'configuration'] if self.__statistics.get(
+                                                              'configuration') else None)
 
         self._published_events = SimpleQueue()
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
