@@ -15,7 +15,7 @@ class StatisticsService(Thread):
         'allBytesSentToDevices': 0,
     }
 
-    def __init__(self, config_path, stats_send_period_in_seconds, gateway, log):
+    def __init__(self, stats_send_period_in_seconds, gateway, log, config_path=None):
         super().__init__()
         self.name = 'Statistics Thread'
         self.daemon = True
@@ -35,8 +35,11 @@ class StatisticsService(Thread):
         self._stopped = True
 
     def _load_config(self):
-        with open(self._config_path, 'r') as file:
-            return simplejson.load(file)
+        if self._config_path:
+            with open(self._config_path, 'r') as file:
+                return simplejson.load(file)
+
+        return []
 
     @classmethod
     def add_bytes(cls, stat_type, bytes_count):
