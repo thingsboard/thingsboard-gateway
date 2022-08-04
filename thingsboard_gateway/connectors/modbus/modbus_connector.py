@@ -102,6 +102,14 @@ class ModbusConnector(Connector, Thread):
         self.__stopped = False
         self.daemon = True
 
+        self._convert_msg_queue = Queue()
+        self._save_msg_queue = Queue()
+
+        self.__msg_queue = Queue()
+        self.__workers_thread_pool = []
+        self.__max_msg_number_for_worker = config.get('maxMessageNumberPerWorker', 10)
+        self.__max_number_of_workers = config.get('maxNumberOfWorkers', 100)
+
         if self.__config.get('slave'):
             self.__slave_thread = Thread(target=self.__configure_and_run_slave, args=(self.__config['slave'],),
                                          daemon=True, name='Gateway as a slave')
@@ -125,6 +133,11 @@ class ModbusConnector(Connector, Thread):
 
         thread = Thread(target=self.__process_slaves, daemon=True)
         thread.start()
+
+        while not self.__stopped:
+            self.__thread_manager()
+
+            sleep(.001)
 
     @staticmethod
     def __configure_and_run_slave(config):
@@ -194,8 +207,28 @@ class ModbusConnector(Connector, Thread):
     def connector_type(self):
         return self._connector_type
 
-    def __convert_and_save_data(self, config_tuple):
-        device, current_device_config, config, device_responses = config_tuple
+    def __thread_manager(self):
+        if len(self.__workers_thread_pool) == 0:
+            worker = ModbusConnector.ConverterWorker("Main", self._convert_msg_queue, self._save_data)
+            self.__workers_thread_pool.append(worker)
+            worker.start()
+
+        number_of_needed_threads = round(self._convert_msg_queue.qsize() / self.__max_msg_number_for_worker, 0)
+        threads_count = len(self.__workers_thread_pool)
+        if number_of_needed_threads > threads_count < self.__max_number_of_workers:
+            thread = ModbusConnector.ConverterWorker(
+                "Worker " + ''.join(choice(ascii_lowercase) for _ in range(5)), self._convert_msg_queue,
+                self._save_data)
+            self.__workers_thread_pool.append(thread)
+            thread.start()
+        elif number_of_needed_threads < threads_count and threads_count > 1:
+            worker: ModbusConnector.ConverterWorker = self.__workers_thread_pool[-1]
+            if not worker.in_progress:
+                worker.stopped = True
+                self.__workers_thread_pool.remove(worker)
+
+    def __convert_data(self, params):
+        device, current_device_config, config, device_responses = params
         converted_data = {}
 
         try:
@@ -231,8 +264,11 @@ class ModbusConnector(Connector, Thread):
                 to_send[converted_data_section] = converted_data[converted_data_section]
 
         if to_send.get(ATTRIBUTES_PARAMETER) or to_send.get(TELEMETRY_PARAMETER):
-            self.__gateway.send_to_storage(self.get_name(), to_send)
-            self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
+            return to_send
+
+    def _save_data(self, data):
+        self.__gateway.send_to_storage(self.get_name(), data)
+        self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
 
     def close(self):
         self.__stopped = True
@@ -275,13 +311,13 @@ class ModbusConnector(Connector, Thread):
                             log.debug('Device response: ', device_responses)
 
                     if device_responses.get('timeseries') or device_responses.get('attributes'):
-                        self.__convert_and_save_data((device, current_device_config, {
+                        self._convert_msg_queue.put((self.__convert_data, (device, current_device_config, {
                             **current_device_config,
                             BYTE_ORDER_PARAMETER: current_device_config.get(BYTE_ORDER_PARAMETER,
                                                                             device.byte_order),
                             WORD_ORDER_PARAMETER: current_device_config.get(WORD_ORDER_PARAMETER,
                                                                             device.word_order)
-                        }, device_responses))
+                        }, device_responses)))
 
                 except ConnectionException:
                     sleep(5)
@@ -289,7 +325,7 @@ class ModbusConnector(Connector, Thread):
                 except Exception as e:
                     log.exception(e)
 
-            sleep(.2)
+            sleep(.001)
 
     def __connect_to_current_master(self, device=None):
         # TODO: write documentation
@@ -561,3 +597,25 @@ class ModbusConnector(Connector, Thread):
                                                   response)
 
             log.debug("%r", response)
+
+    class ConverterWorker(Thread):
+        def __init__(self, name, incoming_queue, send_result):
+            super().__init__()
+            self.stopped = False
+            self.setName(name)
+            self.setDaemon(True)
+            self.__msg_queue = incoming_queue
+            self.in_progress = False
+            self.__send_result = send_result
+
+        def run(self):
+            while not self.stopped:
+                if not self.__msg_queue.empty():
+                    self.in_progress = True
+                    convert_function, params = self.__msg_queue.get(True, 10)
+                    converted_data = convert_function(params)
+                    log.info(converted_data)
+                    self.__send_result(converted_data)
+                    self.in_progress = False
+                else:
+                    sleep(.001)
