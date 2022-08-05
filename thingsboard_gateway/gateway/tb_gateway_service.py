@@ -377,7 +377,10 @@ class TBGatewayService:
             log.debug("Current renamed_devices dict: %s", self.__renamed_devices)
         if deleted_device_name in self.__connected_devices:
             del self.__connected_devices[deleted_device_name]
-            log.debug("Device %s - was removed", deleted_device_name)
+            log.debug("Device %s - was removed from __connected_devices", deleted_device_name)
+        if deleted_device_name in self.__saved_devices:
+            del self.__saved_devices[deleted_device_name]
+            log.debug("Device %s - was removed from __saved_devices", deleted_device_name)
         self.__save_persistent_devices()
         self.__load_persistent_devices()
 
