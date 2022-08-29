@@ -16,8 +16,7 @@ import logging
 import threading
 from time import sleep, time
 from ssl import CERT_REQUIRED, PROTOCOL_TLSv1_2
-
-from thingsboard_gateway.tb_client.tb_gateway_mqtt import TBGatewayMqttClient
+from tb_mqtt_client.tb_gateway_mqtt import TBGatewayMqttClient
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 log = logging.getLogger("tb_connection")

@@ -1,0 +1,3 @@
+[submodule "tb_mqtt_client"]
+	path = tb_mqtt_client
+	url = https://github.com/thingsboard/thingsboard-python-client-sdk.git
