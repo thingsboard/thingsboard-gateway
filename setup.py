@@ -66,7 +66,7 @@ setup(
         'termcolor',
         'grpcio<=1.43.0',
         'protobuf',
-        'cachetools',
+        'cachetools'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={
