@@ -17,7 +17,7 @@ import logging.config
 import logging.handlers
 import subprocess
 from copy import deepcopy
-from os import execv, listdir, path, pathsep, stat, system
+from os import execv, listdir, path, pathsep, stat, system, environ
 from queue import SimpleQueue
 from random import choice
 from string import ascii_lowercase, hexdigits
@@ -78,12 +78,39 @@ DEFAULT_STATISTIC = {
     'statsSendPeriodInSeconds': 3600
 }
 
+SECURITY_VAR = ('accessToken', 'caCert', 'privateKey', 'cert')
+
 
 def load_file(path_to_file):
     content = None
     with open(path_to_file, 'r') as target_file:
         content = load(target_file)
     return content
+
+
+def get_env_variables():
+    env_variables = {
+        'host': environ.get('host'),
+        'port': int(environ.get('port')) or None,
+        'accessToken': environ.get('accessToken'),
+        'caCert': environ.get('caCert'),
+        'privateKey': environ.get('privateKey'),
+        'cert': environ.get('cert')
+    }
+
+    converted_env_variables = {}
+
+    for (key, value) in env_variables.items():
+        if value is not None:
+            if key in SECURITY_VAR:
+                if not converted_env_variables.get('security'):
+                    converted_env_variables['security'] = {}
+
+                converted_env_variables['security'][key] = value
+            else:
+                converted_env_variables[key] = value
+
+    return converted_env_variables
 
 
 class TBGatewayService:
@@ -102,6 +129,10 @@ class TBGatewayService:
                                                                                                                  path.sep)
         with open(config_file) as general_config:
             self.__config = safe_load(general_config)
+
+        # change main config if Gateway running with docker env variables
+        self.__modify_main_config()
+
         self._config_dir = path.dirname(path.abspath(config_file)) + path.sep
         logging_error = None
         try:
@@ -294,6 +325,10 @@ class TBGatewayService:
             log.info("The gateway has been stopped.")
             self.tb_client.stop()
 
+    def __modify_main_config(self):
+        env_variables = get_env_variables()
+        self.__config['thingsboard'] = {**self.__config['thingsboard'], **env_variables}
+
     def __close_connectors(self):
         for current_connector in self.available_connectors:
             try:
@@ -426,6 +461,7 @@ class TBGatewayService:
 
     def __check_shared_attributes(self):
         self.tb_client.client.request_attributes(callback=self._attributes_parse)
+
     def __register_connector(self, session_id, connector_key):
         if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key][
                 'name'] not in self.available_connectors:
@@ -1075,9 +1111,10 @@ class TBGatewayService:
         self.__save_persistent_devices()
 
     def get_devices(self, connector_name: str = None):
-        return self.__connected_devices if connector_name is None else {device_name: self.__connected_devices[device_name]["device_type"] for device_name in self.__connected_devices.keys() if self.__connected_devices[device_name].get("connector") is not None and
-                                                                           self.__connected_devices[device_name]["connector"].get_name() == connector_name}
-
+        return self.__connected_devices if connector_name is None else {
+            device_name: self.__connected_devices[device_name]["device_type"] for device_name in
+            self.__connected_devices.keys() if self.__connected_devices[device_name].get("connector") is not None and
+            self.__connected_devices[device_name]["connector"].get_name() == connector_name}
 
     def __process_async_device_actions(self):
         while not self.stopped:
