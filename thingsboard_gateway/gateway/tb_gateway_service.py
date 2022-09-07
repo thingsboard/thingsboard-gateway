@@ -91,7 +91,7 @@ def load_file(path_to_file):
 def get_env_variables():
     env_variables = {
         'host': environ.get('host'),
-        'port': int(environ.get('port')) or None,
+        'port': int(environ.get('port')) if environ.get('port') else None,
         'accessToken': environ.get('accessToken'),
         'caCert': environ.get('caCert'),
         'privateKey': environ.get('privateKey'),
