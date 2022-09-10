@@ -92,41 +92,45 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
         try:
             for datatype in datatypes:
+                timestamp = data.get("ts", data.get("timestamp")) if datatype == 'timeseries' else None
                 dict_result[datatypes[datatype]] = []
                 for datatype_config in self.__config.get(datatype, []):
-                    values = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
-                                                  expression_instead_none=False)
-                    values_tags = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
-                                                       get_tag=True)
-
-                    keys = TBUtility.get_values(datatype_config["key"], data, datatype_config["type"],
-                                                expression_instead_none=False)
-                    keys_tags = TBUtility.get_values(datatype_config["key"], data, get_tag=True)
-
-                    full_key = datatype_config["key"]
-                    for (key, key_tag) in zip(keys, keys_tags):
-                        is_valid_key = "${" in datatype_config["key"] and "}" in \
-                                       datatype_config["key"]
-                        full_key = full_key.replace('${' + str(key_tag) + '}',
-                                                    str(key)) if is_valid_key else key_tag
-
-                    full_value = datatype_config["value"]
-                    for (value, value_tag) in zip(values, values_tags):
-                        is_valid_value = "${" in datatype_config["value"] and "}" in \
-                                         datatype_config["value"]
-
-                        full_value = full_value.replace('${' + str(value_tag) + '}',
-                                                        str(value)) if is_valid_value else value
-
-                    if full_key != 'None' and full_value != 'None':
-                        if datatype == 'timeseries' and (
-                                data.get("ts") is not None or data.get("timestamp") is not None):
+                    if isinstance(datatype_config, str) and datatype_config == "*":
+                        for item in data:
                             dict_result[datatypes[datatype]].append(
-                                {"ts": data.get('ts', data.get('timestamp', int(time()))),
-                                 'values': {full_key: full_value}})
-                        else:
-                            dict_result[datatypes[datatype]].append({full_key: full_value})
+                                self._create_result_item(item, data[item], timestamp))
+                    else:
+                        values = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
+                                                      expression_instead_none=False)
+                        values_tags = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
+                                                           get_tag=True)
+
+                        keys = TBUtility.get_values(datatype_config["key"], data, datatype_config["type"],
+                                                    expression_instead_none=False)
+                        keys_tags = TBUtility.get_values(datatype_config["key"], data, get_tag=True)
+
+                        full_key = datatype_config["key"]
+                        for (key, key_tag) in zip(keys, keys_tags):
+                            is_valid_key = "${" in datatype_config["key"] and "}" in \
+                                           datatype_config["key"]
+                            full_key = full_key.replace('${' + str(key_tag) + '}',
+                                                        str(key)) if is_valid_key else key_tag
+
+                        full_value = datatype_config["value"]
+                        for (value, value_tag) in zip(values, values_tags):
+                            is_valid_value = "${" in datatype_config["value"] and "}" in \
+                                             datatype_config["value"]
+
+                            full_value = full_value.replace('${' + str(value_tag) + '}',
+                                                            str(value)) if is_valid_value else value
+
+                        if full_key != 'None' and full_value != 'None':
+                            dict_result[datatypes[datatype]].append(self._create_result_item(full_key, full_value, timestamp))
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
             log.exception(e)
         return dict_result
+
+    def _create_result_item(self, key, value, timestamp):
+        value_item = {key: value}
+        return {"ts": timestamp, 'values': value_item} if timestamp else value_item
