@@ -179,11 +179,15 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         return not re.fullmatch(pattern, pattern)
 
     async def find_nodes(self, node_pattern, current_parent_node=None, level=0, nodes=None, final=None):
+        node_pattern = node_pattern.replace('\\.', '.')
         node_list = node_pattern.split('.')
 
         if level <= len(node_list) - 1:
             if level == 0:
                 current_parent_node = self.__client.nodes.root
+
+                if level + 1 <= len(node_list) - 1:
+                    level += 1
 
             children = await current_parent_node.get_children()
             for node in children:
@@ -202,21 +206,36 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
 
         return final
 
+    async def find_node_name_space_index(self, path):
+        node = await self.__client.nodes.root.get_child(path[:-1])
+
+        arr = await self.find_nodes('.'.join(path), current_parent_node=node, level=len(path) - 1, nodes=[], final=[])
+        if len(arr):
+            return path[:-1] + [path for path in arr][-1]
+
+        return path
+
     async def __validate_nodes(self):
         for device in self.__server_conf.get('mapping', []):
             nodes = await self.find_nodes(device['deviceNodePattern'], nodes=[], final=[])
+            self.__log.info('Found nodes: %s', nodes)
 
             device_names = []
-            device_name_nodes = await self.find_nodes(device['deviceNamePattern'], nodes=[], final=[])
+            device_name_pattern = device['deviceNamePattern']
+            if re.match(r"\${([A-Za-z.:\d]*)}", device_name_pattern):
+                device_name_nodes = await self.find_nodes(device_name_pattern, nodes=[], final=[])
+                self.__log.info('Found nodes: %s', device_name_nodes)
 
-            for node in device_name_nodes:
-                try:
-                    var = await self.__client.nodes.root.get_child(node)
-                    value = await var.read_value()
-                    device_names.append(value)
-                except Exception as e:
-                    self.__log.exception(e)
-                    continue
+                for node in device_name_nodes:
+                    try:
+                        var = await self.__client.nodes.root.get_child(node)
+                        value = await var.read_value()
+                        device_names.append(value)
+                    except Exception as e:
+                        self.__log.exception(e)
+                        continue
+            else:
+                device_names.append(device_name_pattern)
 
             for device_name in device_names:
                 for node in nodes:
@@ -227,6 +246,8 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                                converter_for_sub=converter(device_config) if not self.__server_conf.get(
                                    'disableSubscriptions',
                                    False) else None))
+
+        self.__log.info('Validated nodes: %s', self.__validated_nodes)
 
     def __convert_sub_data(self):
         while not self.__stopped:
@@ -252,7 +273,17 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                 for node in device.values.get(section, []):
                     if not node.get('invalid', False):
                         try:
-                            var = await self.__client.nodes.root.get_child(node['path'])
+                            path = node['path']
+                            if isinstance(path, str) and re.match(r"(ns=\d*;[isgb]=.*\d)", path):
+                                var = self.__client.get_node(path)
+                            else:
+                                if len(path[-1].split(':')) != 2:
+                                    final_path = await self.find_node_name_space_index(path)
+                                    node['path'] = final_path
+                                    path = final_path
+
+                                var = await self.__client.nodes.root.get_child(path)
+
                             value = await var.read_data_value()
 
                             device.converter.convert(config={'section': section, 'key': node['key']}, val=value)

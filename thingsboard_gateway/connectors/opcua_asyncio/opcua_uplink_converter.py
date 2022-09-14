@@ -63,14 +63,17 @@ class OpcUaUplinkConverter(OpcUaConverter):
 
         data = val.Value.Value
 
-        if config['section'] != 'timeseries' or data is not None:
-            if val.SourceTimestamp:
-                timestamp = int(val.SourceTimestamp.replace(tzinfo=timezone.utc).timestamp() * 1000)
-            elif val.ServerTimestamp:
-                timestamp = int(val.ServerTimestamp.replace(tzinfo=timezone.utc).timestamp() * 1000)
-            else:
-                timestamp = int(time() * 1000)
+        if data is not None:
+            if config['section'] == 'timeseries':
+                if val.SourceTimestamp:
+                    timestamp = int(val.SourceTimestamp.replace(tzinfo=timezone.utc).timestamp() * 1000)
+                elif val.ServerTimestamp:
+                    timestamp = int(val.ServerTimestamp.replace(tzinfo=timezone.utc).timestamp() * 1000)
+                else:
+                    timestamp = int(time() * 1000)
 
-            self.data[DATA_TYPES[config['section']]].append({'ts': timestamp, 'values': {config['key']: data}})
-        else:
-            self.data[DATA_TYPES[config['section']]].append({config['key']: data})
+                self.data[DATA_TYPES[config['section']]].append({'ts': timestamp, 'values': {config['key']: data}})
+            else:
+                self.data[DATA_TYPES[config['section']]].append({config['key']: data})
+
+            log.debug('Converted data: %s', self.data)
