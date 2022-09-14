@@ -404,7 +404,7 @@ class OpcUaConnector(Thread, Connector):
                             if device_info["configuration"].get('converter') is None:
                                 converter = OpcUaUplinkConverter(configuration)
                             else:
-                                converter = TBModuleLoader.import_module(self._connector_type, configuration)
+                                converter = TBModuleLoader.import_module(self._connector_type, device_info["configuration"].get('converter'))(configuration)
                             device_info["uplink_converter"] = converter
                         else:
                             converter = device_info["uplink_converter"]
