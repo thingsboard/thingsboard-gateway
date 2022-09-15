@@ -207,11 +207,16 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         return final
 
     async def find_node_name_space_index(self, path):
-        node = await self.__client.nodes.root.get_child(path[:-1])
+        # find unrecognized nodes
+        u_node_count = len(tuple(filter(lambda u_node: len(u_node.split(':')) < 2, path)))
 
-        arr = await self.find_nodes('.'.join(path), current_parent_node=node, level=len(path) - 1, nodes=[], final=[])
-        if len(arr):
-            return path[:-1] + [path for path in arr][-1]
+        node = await self.__client.nodes.root.get_child(path[:-u_node_count])
+
+        found_u_nodes = await self.find_nodes('.'.join(path), current_parent_node=node, level=len(path) - u_node_count,
+                                              nodes=[],
+                                              final=[])
+        if len(found_u_nodes):
+            return path[:-u_node_count] + found_u_nodes[0][0:u_node_count]
 
         return path
 
