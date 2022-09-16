@@ -36,8 +36,24 @@ class BackwardCompatibilityAdapter:
             file.writelines(dumps(config, sort_keys=False, indent='  ', separators=(',', ': ')))
         BackwardCompatibilityAdapter.config_files_count += 1
 
+    @staticmethod
+    def __check_slaves_type_connection(config):
+        is_tcp_or_udp_connection = False
+        is_serial_connection = False
+        for slave in config['master']['slaves']:
+            if slave['type'] == 'tcp' or slave['type'] == 'udp':
+                is_tcp_or_udp_connection = True
+            elif slave['type'] == 'serial':
+                is_serial_connection = True
+
+        if is_tcp_or_udp_connection and is_serial_connection:
+            log.warning('It seems that your slaves using different connection type (tcp/udp and serial). '
+                        'It is recommended to separate tcp/udp slaves and serial slaves in different connectors.')
+
     def convert(self):
         if not self.__config.get('server'):
+            # check if slaves are similar type connection
+            self.__check_slaves_type_connection(self.__config)
             return self.__config
 
         log.warning(
@@ -58,6 +74,10 @@ class BackwardCompatibilityAdapter:
             slaves.append(slave)
 
         result_dict = {'master': {'slaves': slaves}, 'slave': self.__config.get('slave')}
+
+        # check if slaves are similar type connection
+        self.__check_slaves_type_connection(result_dict)
+
         self.__save_json_config_file(result_dict)
 
         return result_dict
