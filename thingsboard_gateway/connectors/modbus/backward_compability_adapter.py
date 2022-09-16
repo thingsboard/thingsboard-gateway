@@ -40,6 +40,7 @@ class BackwardCompatibilityAdapter:
     def __check_slaves_type_connection(config):
         is_tcp_or_udp_connection = False
         is_serial_connection = False
+
         for slave in config['master']['slaves']:
             if slave['type'] == 'tcp' or slave['type'] == 'udp':
                 is_tcp_or_udp_connection = True
@@ -48,7 +49,8 @@ class BackwardCompatibilityAdapter:
 
         if is_tcp_or_udp_connection and is_serial_connection:
             log.warning('It seems that your slaves using different connection type (tcp/udp and serial). '
-                        'It is recommended to separate tcp/udp slaves and serial slaves in different connectors.')
+                        'It is recommended to separate tcp/udp slaves and serial slaves in different connectors '
+                        'to avoid problems with reading data.')
 
     def convert(self):
         if not self.__config.get('server'):
