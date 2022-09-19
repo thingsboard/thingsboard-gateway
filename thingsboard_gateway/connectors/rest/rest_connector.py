@@ -64,6 +64,10 @@ class RESTConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.__gateway = gateway
+        self._default_downlink_converter = TBModuleLoader.import_module(self._connector_type,
+                                                                        self._default_converters['downlink'])
+        self._default_uplink_converter = TBModuleLoader.import_module(self._connector_type,
+                                                                      self._default_converters['uplink'])
         self.__USER_DATA = {}
         self.setName(config.get("name", 'REST Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self._app = None
@@ -209,22 +213,51 @@ class RESTConnector(Connector, Thread):
 
     def server_side_rpc_handler(self, content):
         try:
-            for rpc_request in self.__rpc_requests:
-                if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and \
-                        fullmatch(rpc_request["methodFilter"], content["data"]["method"]):
-                    converted_data = rpc_request["downlink_converter"].convert(rpc_request, content)
+            rpc_method = content['data']['method']
 
-                    request_dict = {"config": {**rpc_request,
-                                               **converted_data},
-                                    "request": regular_request}
-                    request_dict["converter"] = request_dict["config"].get("uplink_converter")
+            # check if RPC method is reserved get/set
+            if rpc_method == 'get' or rpc_method == 'set':
+                params = {}
+                for param in content['data']['params'].split(';'):
+                    try:
+                        (key, value) = param.split('=')
+                    except ValueError:
+                        continue
 
-                    response = self.__send_request(request_dict, Queue(1), log, with_queue=False)
+                    if key and value:
+                        params[key] = value
 
-                    log.debug('Response from RPC request: %s', response)
-                    self.__gateway.send_rpc_reply(device=content["device"],
-                                                  req_id=content["data"]["id"],
-                                                  content=response[2] if response and len(response) >= 3 else response)
+                uplink_converter = self._default_uplink_converter
+                downlink_converter = self._default_downlink_converter
+                converted_data = downlink_converter.convert(params, content)
+
+                request_dict = {'config': {**params, **converted_data}, 'request': regular_request,
+                                'converter': uplink_converter}
+                response = self.__send_request(request_dict, Queue(1), log, with_queue=False)
+
+                log.debug('Response from RPC request: %s', response)
+                self.__gateway.send_rpc_reply(device=content["device"],
+                                              req_id=content["data"]["id"],
+                                              content=response[2] if response and len(
+                                                  response) >= 3 else response)
+            else:
+                for rpc_request in self.__rpc_requests:
+                    if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and \
+                            fullmatch(rpc_request["methodFilter"], rpc_method):
+                        converted_data = rpc_request["downlink_converter"].convert(rpc_request, content)
+
+                        request_dict = {"config": {**rpc_request,
+                                                   **converted_data},
+                                        "request": regular_request}
+                        request_dict["converter"] = request_dict["config"].get("uplink_converter")
+
+                        response = self.__send_request(request_dict, Queue(1), log, with_queue=False)
+
+                        log.debug('Response from RPC request: %s', response)
+                        self.__gateway.send_rpc_reply(device=content["device"],
+                                                      req_id=content["data"]["id"],
+                                                      content=response[2] if response and len(
+                                                          response) >= 3 else response)
         except Exception as e:
             log.exception(e)
 

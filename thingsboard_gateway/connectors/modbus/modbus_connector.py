@@ -432,7 +432,7 @@ class ModbusConnector(Connector, Thread):
         function_code = config.get('functionCode')
         result = None
         if function_code == 1:
-            #why count * 8 ? in my Modbus device one coils is 1bit, tow coils is 2bit,if * 8 can not read right coils 
+            #why count * 8 ? in my Modbus device one coils is 1bit, tow coils is 2bit,if * 8 can not read right coils
             # result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
             #                                                              count=config.get(OBJECTS_COUNT_PARAMETER,
             #                                                                               config.get("registersCount",
@@ -511,27 +511,40 @@ class ModbusConnector(Connector, Thread):
                     )
                 )[0]
 
-                if isinstance(device.config[RPC_SECTION], dict):
-                    rpc_command_config = device.config[RPC_SECTION].get(
-                        server_rpc_request[DATA_PARAMETER][RPC_METHOD_PARAMETER])
+                rpc_method = server_rpc_request[DATA_PARAMETER].get(RPC_METHOD_PARAMETER)
+
+                # check if RPC method is reserved get/set
+                if rpc_method == 'get' or rpc_method == 'set':
+                    params = {}
+                    for param in server_rpc_request['data']['params'].split(';'):
+                        try:
+                            (key, value) = param.split('=')
+                        except ValueError:
+                            continue
+
+                        if key and value:
+                            params[key] = value if key not in ('functionCode', 'objectsCount', 'address') else int(
+                                value)
+
+                    self.__process_request(server_rpc_request, params)
+                elif isinstance(device.config[RPC_SECTION], dict):
+                    rpc_command_config = device.config[RPC_SECTION].get(rpc_method)
 
                     if rpc_command_config is not None:
                         self.__process_request(server_rpc_request, rpc_command_config)
 
                 elif isinstance(device.config[RPC_SECTION], list):
                     for rpc_command_config in device.config[RPC_SECTION]:
-                        if rpc_command_config[TAG_PARAMETER] == server_rpc_request[DATA_PARAMETER][
-                                RPC_METHOD_PARAMETER]:
+                        if rpc_command_config[TAG_PARAMETER] == rpc_method:
                             self.__process_request(server_rpc_request, rpc_command_config)
                             break
                 else:
                     log.error("Received rpc request, but method %s not found in config for %s.",
-                              server_rpc_request[DATA_PARAMETER].get(RPC_METHOD_PARAMETER),
+                              rpc_method,
                               self.get_name())
                     self.__gateway.send_rpc_reply(server_rpc_request[DEVICE_SECTION_PARAMETER],
                                                   server_rpc_request[DATA_PARAMETER][RPC_ID_PARAMETER],
-                                                  {server_rpc_request[DATA_PARAMETER][
-                                                       RPC_METHOD_PARAMETER]: "METHOD NOT FOUND!"})
+                                                  {rpc_method: "METHOD NOT FOUND!"})
             else:
                 log.debug("Received RPC to connector: %r", server_rpc_request)
         except Exception as e:
@@ -614,8 +627,9 @@ class ModbusConnector(Connector, Thread):
                     self.in_progress = True
                     convert_function, params = self.__msg_queue.get(True, 10)
                     converted_data = convert_function(params)
-                    log.info(converted_data)
-                    self.__send_result(converted_data)
-                    self.in_progress = False
+                    if converted_data:
+                        log.info(converted_data)
+                        self.__send_result(converted_data)
+                        self.in_progress = False
                 else:
                     sleep(.001)

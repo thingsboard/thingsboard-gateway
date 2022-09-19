@@ -337,26 +337,54 @@ class SocketConnector(Connector, Thread):
         try:
             device = tuple(filter(lambda item: item['deviceName'] == content['device'], self.__config['devices']))[0]
 
-            for rpc_config in device['serverSideRpc']:
-                for (key, value) in content['data'].items():
-                    if value == rpc_config['methodRPC']:
-                        rpc_method = rpc_config['methodProcessing']
-                        return_result = rpc_config['withResponse']
-                        result = None
+            # check if RPC method is reserved set
+            if content['data']['method'] == 'set':
+                params = {}
+                for param in content['data']['params'].split(';'):
+                    try:
+                        (key, value) = param.split('=')
+                    except ValueError:
+                        continue
 
-                        address, port = device['address'].split(':')
-                        encoding = device.get('encoding', 'utf-8').lower()
-                        converted_data = bytes(str(content['data']['params']), encoding=encoding)
+                    if key and value:
+                        params[key] = value
 
-                        if rpc_method.upper() == 'WRITE':
-                            if self.__socket_type == 'TCP':
-                                result = self.__write_value_via_tcp(address, port, converted_data)
-                            else:
-                                self.__write_value_via_udp(address, port, converted_data)
+                result = None
+                try:
+                    if self.__socket_type == 'TCP':
+                        result = self.__write_value_via_tcp(params['address'], int(params['port']), params['value'])
+                    else:
+                        self.__write_value_via_udp(params['address'], int(params['port']), params['value'])
+                except KeyError:
+                    self.__gateway.send_rpc_reply(content['device'], content['data']['id'], 'Not enough params')
+                except ValueError:
+                    self.__gateway.send_rpc_reply(content['device'], content['data']['id'],
+                                                  'Param "port" have to be int type')
+                else:
+                    self.__gateway.send_rpc_reply(content['device'], content['data']['id'], str(result))
+            else:
+                for rpc_config in device['serverSideRpc']:
+                    for (key, value) in content['data'].items():
+                        if value == rpc_config['methodRPC']:
+                            rpc_method = rpc_config['methodProcessing']
+                            return_result = rpc_config['withResponse']
+                            result = None
 
-                        if return_result and self.__socket_type == 'TCP':
-                            self.__gateway.send_rpc_reply(content['device'], content['data']['id'], str(result))
+                            address, port = device['address'].split(':')
+                            encoding = device.get('encoding', 'utf-8').lower()
+                            converted_data = bytes(str(content['data']['params']), encoding=encoding)
 
-                        return
+                            if rpc_method.upper() == 'WRITE':
+                                if self.__socket_type == 'TCP':
+                                    result = self.__write_value_via_tcp(address, port, converted_data)
+                                else:
+                                    self.__write_value_via_udp(address, port, converted_data)
+
+                            if return_result and self.__socket_type == 'TCP':
+                                self.__gateway.send_rpc_reply(content['device'], content['data']['id'], str(result))
+
+                            return
         except IndexError:
             self.__log.error('Device not found')
+        except Exception as e:
+            self.__log.exception(e)
