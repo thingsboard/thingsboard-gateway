@@ -403,7 +403,7 @@ class MqttConnector(Connector, Thread):
                         available_converters = self.__mapping_sub_topics[topic]
                         for converter in available_converters:
                             try:
-                                if isinstance(content, list):
+                                if isinstance(content, list) and not converter.process_raw_data():
                                     for item in content:
                                         request_handled = self.put_data_to_convert(converter, message, item)
                                         if not request_handled:
