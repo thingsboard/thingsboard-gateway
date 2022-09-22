@@ -767,7 +767,8 @@ class MqttConnector(Connector, Thread):
                     convert_function, config, incoming_data = self.__msg_queue.get(True, 100)
                     converted_data = convert_function(config, incoming_data)
                     log.debug(converted_data)
-                    self.__send_result(config, converted_data)
+                    if converted_data.get('attributes') or converted_data.get('telemetry'):
+                        self.__send_result(config, converted_data)
                     self.in_progress = False
                 else:
                     sleep(.2)
