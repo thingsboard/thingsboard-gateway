@@ -115,6 +115,11 @@ connectors:
 #    type: xmpp
 #    configuration: xmpp.json
 #
+#  -
+#   name: OCPP Connector
+#   type: ocpp
+#   configuration: ocpp.json
+#
 # ========= Customization ==========
 #
 #

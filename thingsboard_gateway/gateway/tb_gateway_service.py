@@ -72,6 +72,7 @@ DEFAULT_CONNECTORS = {
     "ftp": "FTPConnector",
     "socket": "SocketConnector",
     "xmpp": "XMPPConnector",
+    "ocpp": "OcppConnector",
 }
 
 DEFAULT_STATISTIC = {
