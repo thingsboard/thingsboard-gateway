@@ -34,6 +34,7 @@ except ImportError:
 
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
+from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, BadInvalidState
 
 DEFAULT_UPLINK_CONVERTER = 'OpcUaUplinkConverter'
 
@@ -74,7 +75,6 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         self.daemon = True
 
         self.__device_nodes = []
-        self.__subscriptions = []
         self.__last_poll = 0
 
     def open(self):
@@ -83,7 +83,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         log.info("Starting OPC-UA Connector (Async IO)")
 
     def close(self):
-        task = self.__loop.create_task(self.__close_subscriptions())
+        task = self.__loop.create_task(self.__reset_nodes())
 
         while not task.done():
             sleep(.2)
@@ -92,21 +92,21 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         self.__connected = False
         self.__log.info('%s has been stopped.', self.get_name())
 
-    async def __close_subscriptions(self):
-        for subscription in self.__subscriptions:
-            sub, handle = subscription
-            try:
-                await sub.unsubscribe(handle)
-                await sub.delete()
-            except:
-                pass
-
-    def __reset_nodes(self):
+    async def __reset_nodes(self, name=None):
         for device in self.__device_nodes:
-            for section in ('attributes', 'timeseries'):
-                for node in device.config.get(section, []):
-                    node['valid'] = False
-                    node['sub_on'] = False
+            if name is None or device.name == name:
+                for section in ('attributes', 'timeseries'):
+                    for node in device.config.get(section, []):
+                        node['valid'] = False
+                        if node.get('sub_on', False):
+                            try:
+                                sub, handle = node['subscription']
+                                await sub.unsubscribe(handle)
+                                await sub.delete()
+                            except:
+                                pass
+                            node['subscription'] = None
+                            node['sub_on'] = False
 
     def get_name(self):
         return self.name
@@ -139,18 +139,16 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                 async with self.__client:
                     self.__connected = True
 
-                    await self.__validate_device_nodes()
-
                     while not self.__stopped:
                         if time() - self.__last_poll >= self.__server_conf.get('scanPeriodInMillis', 5000) / 1000:
+                            await self.__scan_device_nodes()
                             await self.__poll_nodes()
                             self.__last_poll = time()
 
                         await asyncio.sleep(.2)
             except ConnectionError:
                 self.__log.warning('Connection lost for %s', self.get_name())
-                await self.__close_subscriptions()
-                self.__reset_nodes()
+                await self.__reset_nodes()
             except asyncio.exceptions.TimeoutError:
                 self.__log.warning('Failed to connect %s', self.get_name())
             finally:
@@ -226,16 +224,19 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
 
         return await self.__find_nodes(node_list, current_parent_node, level, nodes)
 
-    async def __validate_device_nodes(self):
+    async def __scan_device_nodes(self):
+        existing_devices = list(map(lambda dev: dev.name, self.__device_nodes))
+
+        scanned_devices = []
         for device in self.__server_conf.get('mapping', []):
             nodes = await self.find_nodes(device['deviceNodePattern'])
-            self.__log.info('Found nodes: %s', nodes)
+            self.__log.debug('Found devices: %s', nodes)
 
             device_names = []
             device_name_pattern = device['deviceNamePattern']
             if re.match(r"\${([A-Za-z.:\d]*)}", device_name_pattern):
                 device_name_nodes = await self.find_nodes(device_name_pattern)
-                self.__log.info('Found nodes: %s', device_name_nodes)
+                self.__log.debug('Found device name nodes: %s', device_name_nodes)
 
                 for node in device_name_nodes:
                     try:
@@ -249,16 +250,23 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                 device_names.append(device_name_pattern)
 
             for device_name in device_names:
-                for node in nodes:
-                    converter = self.__load_converter(device)
-                    device_config = {**device, 'device_name': device_name}
-                    self.__device_nodes.append(
-                        Device(path=node, name=device_name, config=device_config, converter=converter(device_config),
-                               converter_for_sub=converter(device_config) if not self.__server_conf.get(
-                                   'disableSubscriptions',
-                                   False) else None))
+                scanned_devices.append(device_name)
+                if device_name not in existing_devices:
+                    for node in nodes:
+                        converter = self.__load_converter(device)
+                        device_config = {**device, 'device_name': device_name}
+                        self.__device_nodes.append(
+                            Device(path=node, name=device_name, config=device_config, converter=converter(device_config),
+                                   converter_for_sub=converter(device_config) if not self.__server_conf.get(
+                                       'disableSubscriptions',
+                                       False) else None))
+                        self.__log.info('Added device node: %s', device_name)
 
-        self.__log.info('Device nodes: %s', self.__device_nodes)
+        for device_name in existing_devices:
+            if device_name not in scanned_devices:
+                await self.__reset_nodes(device_name)
+
+        self.__log.debug('Device nodes: %s', self.__device_nodes)
 
     def __convert_sub_data(self):
         while not self.__stopped:
@@ -282,42 +290,48 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         for device in self.__device_nodes:
             for section in ('attributes', 'timeseries'):
                 for node in device.config.get(section, []):
-                    if not node.get('valid', False):
-                        try:
-                            path = node.get('qualified_path', node['path'])
-                            if isinstance(path, str) and re.match(r"(ns=\d*;[isgb]=.*\d)", path):
-                                var = self.__client.get_node(path)
-                            else:
-                                if len(path[-1].split(':')) != 2:
-                                    qualified_path = await self.find_nodes(path)
-                                    if len(qualified_path) == 0:
-                                        self.__log.warning('Node not found: %s', node)
-                                        continue
-                                    elif len(qualified_path) > 1:
-                                        self.__log.warning('Multiple matching nodes found for node: %s; %s', node, qualified_path)
-                                    node['qualified_path'] = qualified_path[0]
-                                    path = qualified_path[0]
-
-                                var = await self.__client.nodes.root.get_child(path)
-
-                            node['valid'] = True
-
-                            if self.__server_conf.get('disableSubscriptions', False):
-                                value = await var.read_data_value()
-                                device.converter.convert(config={'section': section, 'key': node['key']}, val=value)
-                        except ConnectionError:
-                            raise
-                        except Exception as e:
-                            self.__log.exception(e)
-                            node['valid'] = False
+                    try:
+                        path = node.get('qualified_path', node['path'])
+                        if isinstance(path, str) and re.match(r"(ns=\d*;[isgb]=.*\d)", path):
+                            var = self.__client.get_node(path)
                         else:
+                            if len(path[-1].split(':')) != 2:
+                                qualified_path = await self.find_nodes(path)
+                                if len(qualified_path) == 0:
+                                    self.__log.warning('Node not found: %s %s', node['key'], node['path'])
+                                    continue
+                                elif len(qualified_path) > 1:
+                                    self.__log.warning('Multiple matching nodes found for node: %s; %s; %s', node['key'], node['path'], qualified_path)
+                                node['qualified_path'] = qualified_path[0]
+                                path = qualified_path[0]
+
+                            var = await self.__client.nodes.root.get_child(path)
+
+                        if not node.get('valid', False) or self.__server_conf.get('disableSubscriptions', False):
+                            value = await var.read_data_value()
+                            device.converter.convert(config={'section': section, 'key': node['key']}, val=value)
+
                             if not self.__server_conf.get('disableSubscriptions', False) and not node.get('sub_on', False):
                                 handler = SubHandler()
                                 sub = await self.__client.create_subscription(1, handler)
                                 handle = await sub.subscribe_data_change(var)
+                                node['subscription'] = (sub, handle)
                                 node['sub_on'] = True
                                 node['id'] = f'ns={var.nodeid.NamespaceIndex};i={var.nodeid.Identifier}'
-                                self.__subscriptions.append((sub, handle))
+                                self.__log.info("Subscribed %s to %s", node['key'], node['id'])
+
+                            node['valid'] = True
+                    except ConnectionError:
+                        raise
+                    except (BadNodeIdUnknown, BadConnectionClosed, BadInvalidState):
+                        self.__log.warning('Node not found: %s %s', node['key'], node['path'])
+                        node['valid'] = False
+                    except UaStatusCodeError as uae:
+                        self.__log.exception('Node status code error: %s', uae)
+                        node['valid'] = False
+                    except Exception as e:
+                        self.__log.exception(e)
+                        node['valid'] = False
 
             converter_data = device.converter.get_data()
             if converter_data:
