@@ -27,6 +27,17 @@ class JsonMqttUplinkConverterTests(unittest.TestCase):
         self.assertDictEqual(data, self._convert_to_dict(converted_data.get('telemetry')))
         self.assertDictEqual(data, self._convert_to_dict(converted_data.get('attributes')))
 
+    def test_array_result(self):
+        topic, config, single_data = self._get_device_1_test_data()
+        array_data = [single_data, single_data];
+        converter = JsonMqttUplinkConverter(config)
+        converted_array_data = converter.convert(topic, array_data)
+
+        self.assertTrue(isinstance(converted_array_data, list))
+        for item in converted_array_data:
+            self.assertDictEqual(single_data, self._convert_to_dict(item.get('telemetry')))
+            self.assertDictEqual(single_data, self._convert_to_dict(item.get('attributes')))
+
     def _convert_to_dict(self, data_array):
         data_dict = {}
         for item_container in data_array:
