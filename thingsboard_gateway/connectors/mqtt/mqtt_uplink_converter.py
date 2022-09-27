@@ -20,6 +20,3 @@ class MqttUplinkConverter(Converter):
     @abstractmethod
     def convert(self, config, data):
         pass
-
-    def process_raw_data(self):
-        return False

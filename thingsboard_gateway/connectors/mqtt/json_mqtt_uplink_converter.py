@@ -29,6 +29,16 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
+        if isinstance(data, list):
+            converted_data = []
+            for item in data:
+                converted_data.append(self._convert_single_item(config, item))
+            return converted_data
+        else:
+            return self._convert_single_item(config, data)
+
+
+    def _convert_single_item(self, config, data):
         datatypes = {"attributes": "attributes",
                      "timeseries": "telemetry"}
         dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
