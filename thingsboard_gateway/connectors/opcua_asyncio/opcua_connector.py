@@ -34,7 +34,8 @@ except ImportError:
 
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
-from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, BadInvalidState
+from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
+    BadInvalidState, BadSessionClosed
 
 DEFAULT_UPLINK_CONVERTER = 'OpcUaUplinkConverter'
 
@@ -92,11 +93,11 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         self.__connected = False
         self.__log.info('%s has been stopped.', self.get_name())
 
-    async def __reset_nodes(self, name=None):
+    async def __reset_nodes(self, device_name=None):
         for device in self.__device_nodes:
-            if name is None or device.name == name:
+            if device_name is None or device.name == device_name:
                 for section in ('attributes', 'timeseries'):
-                    for node in device.config.get(section, []):
+                    for node in device.values.get(section, []):
                         node['valid'] = False
                         if node.get('sub_on', False):
                             try:
@@ -126,15 +127,15 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         self.__loop.run_until_complete(self.start_client())
 
     async def start_client(self):
-        self.__client = asyncua.Client(url=self.__opcua_url,
-                                       timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
-
-        if self.__server_conf.get("type") == "cert.PEM":
-            await self.__set_auth_settings_by_cert()
-        if self.__server_conf["identity"].get("username"):
-            self.__set_auth_settings_by_username()
-
         while not self.__stopped:
+            self.__client = asyncua.Client(url=self.__opcua_url,
+                                           timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
+
+            if self.__server_conf.get("type") == "cert.PEM":
+                await self.__set_auth_settings_by_cert()
+            if self.__server_conf["identity"].get("username"):
+                self.__set_auth_settings_by_username()
+
             try:
                 async with self.__client:
                     self.__connected = True
@@ -146,12 +147,14 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                             self.__last_poll = time()
 
                         await asyncio.sleep(.2)
-            except ConnectionError:
+            except (ConnectionError, BadSessionClosed):
                 self.__log.warning('Connection lost for %s', self.get_name())
-                await self.__reset_nodes()
             except asyncio.exceptions.TimeoutError:
                 self.__log.warning('Failed to connect %s', self.get_name())
+            except Exception as e:
+                self.__log.exception(e)
             finally:
+                await self.__reset_nodes()
                 self.__connected = False
 
     async def __set_auth_settings_by_cert(self):
@@ -194,35 +197,47 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
     def is_regex_pattern(pattern):
         return not re.fullmatch(pattern, pattern)
 
-    async def __find_nodes(self, node_list, current_parent_node, level, nodes):
-        assert level < len(node_list)
+    async def __find_nodes(self, node_list, current_parent_node, nodes):
+        assert len(node_list) > 0
         final = []
 
         children = await current_parent_node.get_children()
         for node in children:
             child_node = await node.read_browse_name()
 
-            if re.fullmatch(node_list[level], child_node.Name):
+            if re.fullmatch(node_list[0], child_node.Name):
                 new_nodes = [*nodes, f'{child_node.NamespaceIndex}:{child_node.Name}']
-
-                if level == len(node_list) - 1:
+                if len(node_list) == 1:
                     final.append(new_nodes)
                 else:
-                    final.extend(await self.__find_nodes(node_list, current_parent_node=node, level=level + 1, nodes=new_nodes))
+                    final.extend(await self.__find_nodes(node_list[1:], current_parent_node=node, nodes=new_nodes))
 
         return final
 
-    async def find_nodes(self, node_pattern, current_parent_node=None, level=0, nodes=[]):
+    async def find_nodes(self, node_pattern, current_parent_node=None, nodes=[]):
         node_list = node_pattern.split('\\.')
 
         if current_parent_node is None:
-            assert level == 0
             current_parent_node = self.__client.nodes.root
 
             if len(node_list) > 0 and node_list[0].lower() == 'root':
-                level += 1
+                node_list = node_list[1:]
 
-        return await self.__find_nodes(node_list, current_parent_node, level, nodes)
+        return await self.__find_nodes(node_list, current_parent_node, nodes)
+
+    async def find_node_name_space_index(self, path):
+        if isinstance(path, str):
+            path = path.split('\\.')
+
+        # find unresolved nodes
+        u_node_count = len(tuple(filter(lambda u_node: len(u_node.split(':')) < 2, path)))
+
+        resolved = path[:-u_node_count]
+        resolved_level = len(path) - u_node_count
+        parent_node = await self.__client.nodes.root.get_child(resolved)
+
+        unresolved = path[resolved_level:]
+        return await self.__find_nodes(unresolved, current_parent_node=parent_node, nodes=resolved)
 
     async def __scan_device_nodes(self):
         existing_devices = list(map(lambda dev: dev.name, self.__device_nodes))
@@ -275,7 +290,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
 
                 for device in self.__device_nodes:
                     for section in ('attributes', 'timeseries'):
-                        for node in device.config.get(section, []):
+                        for node in device.values.get(section, []):
                             if node.get('id') == sub_node.__str__():
                                 device.converter_for_sub.convert(config={'section': section, 'key': node['key']},
                                                                  val=data.monitored_item.Value)
@@ -289,14 +304,14 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
     async def __poll_nodes(self):
         for device in self.__device_nodes:
             for section in ('attributes', 'timeseries'):
-                for node in device.config.get(section, []):
+                for node in device.values.get(section, []):
                     try:
                         path = node.get('qualified_path', node['path'])
                         if isinstance(path, str) and re.match(r"(ns=\d*;[isgb]=.*\d)", path):
                             var = self.__client.get_node(path)
                         else:
                             if len(path[-1].split(':')) != 2:
-                                qualified_path = await self.find_nodes(path)
+                                qualified_path = await self.find_node_name_space_index(path)
                                 if len(qualified_path) == 0:
                                     self.__log.warning('Node not found: %s %s', node['key'], node['path'])
                                     continue
