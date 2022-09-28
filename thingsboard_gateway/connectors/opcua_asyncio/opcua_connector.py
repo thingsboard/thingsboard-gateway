@@ -299,7 +299,8 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                                 if converter_data:
                                     OpcUaConnectorAsyncIO.DATA_TO_SEND.put(*converter_data)
                                     device.converter_for_sub.clear_data()
-            sleep(.2)
+            else:
+                sleep(.2)
 
     async def __poll_nodes(self):
         for device in self.__device_nodes:
@@ -363,8 +364,8 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                 self.__gateway.send_to_storage(self.get_name(), data)
                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                 self.__log.debug('Data to ThingsBoard %s', data)
-
-            sleep(.2)
+            else:
+                sleep(.2)
 
     def on_attributes_update(self, content):
         self.__log.debug(content)
