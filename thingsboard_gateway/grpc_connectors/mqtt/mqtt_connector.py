@@ -19,8 +19,14 @@ from queue import Queue
 from time import sleep, time
 from re import fullmatch, match, search
 
-from paho.mqtt.client import Client
 from simplejson import dumps
+try:
+    from paho.mqtt.client import Client
+except ImportError:
+    print("paho-mqtt library not found")
+    TBUtility.install_package("paho-mqtt", version=">=1.6")
+    from paho.mqtt.client import Client
+
 
 from thingsboard_gateway.connectors.mqtt.mqtt_connector import MqttConnector
 from thingsboard_gateway.grpc_connectors.gw_grpc_connector import GwGrpcConnector, log

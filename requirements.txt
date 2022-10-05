@@ -1,7 +1,6 @@
 jsonpath-rw
 regex
 pip
-paho-mqtt
 PyYAML
 simplejson
 requests

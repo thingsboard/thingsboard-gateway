@@ -21,7 +21,13 @@ from threading import Thread
 from time import sleep, time
 
 import simplejson
-from paho.mqtt.client import Client
+try:
+    from paho.mqtt.client import Client
+except ImportError:
+    print("paho-mqtt library not found")
+    TBUtility.install_package("paho-mqtt", version=">=1.6")
+    from paho.mqtt.client import Client
+
 
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectStatistics
