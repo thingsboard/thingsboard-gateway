@@ -1,3 +1,47 @@
 {
-
+  "centralSystem": {
+    "host": "127.0.0.1",
+    "port": 9000
+  },
+  "chargePoints": [
+    {
+      "idRegexpPattern": "bidon/hello/CP_1",
+      "hostRegexpPattern": "",
+      "portRegexpPattern": "",
+      "deviceNameExpression": "${Vendor} ${Model}",
+      "deviceTypeExpression": "default",
+      "attributes": [
+        {
+          "messageTypeFilter": "MeterValues,",
+          "key": "temp1",
+          "value": "${meter_value[:].sampled_value[:].value}"
+        },
+        {
+          "messageTypeFilter": "MeterValues,",
+          "key": "vendorId",
+          "value": "${connector_id}"
+        }
+      ],
+      "timeseries": [
+        {
+          "messageTypeFilter": "DataTransfer,",
+          "key": "temp",
+          "value": "${data.temp}"
+        }
+      ],
+      "attributeUpdates": [
+        {
+          "attributeOnThingsBoard": "shared",
+          "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
+        }
+      ],
+      "serverSideRpc": [
+        {
+          "methodRPC": "rpc1",
+          "withResponse": true,
+          "valueExpression": "${params}"
+        }
+      ]
+    }
+  ]
 }
