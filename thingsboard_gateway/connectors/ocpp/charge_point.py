@@ -25,25 +25,31 @@ from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 class ChargePoint(CP):
     def __init__(self, charge_point_id, websocket, config, callback):
         super(ChargePoint, self).__init__(charge_point_id, websocket)
-        self._websocket = websocket
         self._config = config
         self._callback = callback
         self._uplink_converter = self._load_converter(config['uplink_converter_name'])(self._config)
         self._profile = {}
         self.name = None
         self.type = None
+        self._stopped = False
 
     @property
     def config(self):
         return self._config
 
-    @property
-    def websocket(self):
-        return self._websocket
+    async def start(self):
+        while not self._stopped:
+            message = await self._connection.recv()
+
+            await self.route_message(message)
 
     @staticmethod
     def _load_converter(converter_name):
         return TBModuleLoader.import_module('ocpp', converter_name)
+
+    async def close(self):
+        self._stopped = True
+        return await self._connection.close()
 
     @on(Action.BootNotification)
     def on_boot_notitication(self, charge_point_vendor, charge_point_model, **kwargs):

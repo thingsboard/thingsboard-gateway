@@ -151,7 +151,11 @@ class OcppConnector(Connector, Thread):
 
             self._log.info('Connected Charge Point with id: %s', charge_point_id)
             self._connected_charge_points.append(cp)
-            await cp.start()
+
+            try:
+                await cp.start()
+            except websockets.ConnectionClosed:
+                self._connected_charge_points.pop(self._connected_charge_points.index(cp))
 
     async def _is_charge_point_valid(self, charge_point_id, **kwargs):
         for cp_config in self._charge_points_config:
@@ -178,7 +182,7 @@ class OcppConnector(Connector, Thread):
 
     async def _close_cp_connections(self):
         for cp in self._connected_charge_points:
-            await cp.websocket.close()
+            await cp.close()
 
     def get_name(self):
         return self.name
