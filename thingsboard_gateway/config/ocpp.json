@@ -1,13 +1,15 @@
 {
   "centralSystem": {
+    "name": "Central System",
     "host": "127.0.0.1",
-    "port": 9000
+    "port": 9000,
+    "security": {
+      "type": "anonymous"
+    }
   },
   "chargePoints": [
     {
       "idRegexpPattern": "bidon/hello/CP_1",
-      "hostRegexpPattern": "",
-      "portRegexpPattern": "",
       "deviceNameExpression": "${Vendor} ${Model}",
       "deviceTypeExpression": "default",
       "attributes": [

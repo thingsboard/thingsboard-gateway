@@ -14,6 +14,7 @@
 
 import asyncio
 import re
+import ssl
 from queue import Queue
 from threading import Thread
 from random import choice
@@ -57,11 +58,25 @@ class OcppConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self._gateway = gateway
-        self.setName(config.get("name", 'OCPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.setName(self._central_system_config.get("name", 'OCPP Connector ' + ''.join(
+            choice(ascii_lowercase) for _ in range(5))))
 
         self._default_converters = {'uplink': 'OcppUplinkConverter'}
         self._server = None
         self._connected_charge_points = []
+
+        self._ssl_context = None
+        try:
+            if self._central_system_config['security']['type'].lower() == 'tls':
+                self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                pem_file = self._central_system_config['security']['cert']
+                key_file = self._central_system_config['security']['key']
+                password = self._central_system_config['security'].get('password')
+                self._ssl_context.load_cert_chain(pem_file, key_file, password=password)
+        except Exception as e:
+            self._log.exception(e)
+            self._log.warning('TLS connection not set!')
+            self._ssl_context = None
 
         self._data_convert_thread = Thread(name='Convert Data Thread', daemon=True, target=self._process_data)
         self._data_send_thread = Thread(name='Send Data Thread', daemon=True, target=self._send_data)
@@ -86,7 +101,8 @@ class OcppConnector(Connector, Thread):
     async def start_server(self):
         host = self._central_system_config.get('host', '0.0.0.0')
         port = self._central_system_config.get('port', 9000)
-        self._server = await websockets.serve(self.on_connect, host, port, subprotocols=['ocpp1.6'])
+        self._server = await websockets.serve(self.on_connect, host, port, subprotocols=['ocpp1.6'],
+                                              ssl=self._ssl_context)
         self.__connected = True
         self._log.info('Central System is running on %s:%d', host, port)
 
