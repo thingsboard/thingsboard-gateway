@@ -13,6 +13,7 @@
 #     limitations under the License.
 
 import asyncio
+import base64
 import re
 import ssl
 from queue import Queue
@@ -45,6 +46,10 @@ except ImportError:
 from ocpp.v16 import call
 
 
+class NotAuthorized(Exception):
+    """Charge Point not authorized"""
+
+
 class OcppConnector(Connector, Thread):
     DATA_TO_CONVERT = Queue(-1)
     DATA_TO_SEND = Queue(-1)
@@ -67,11 +72,11 @@ class OcppConnector(Connector, Thread):
 
         self._ssl_context = None
         try:
-            if self._central_system_config['security']['type'].lower() == 'tls':
+            if self._central_system_config['connection']['type'].lower() == 'tls':
                 self._ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-                pem_file = self._central_system_config['security']['cert']
-                key_file = self._central_system_config['security']['key']
-                password = self._central_system_config['security'].get('password')
+                pem_file = self._central_system_config['connection']['cert']
+                key_file = self._central_system_config['connection']['key']
+                password = self._central_system_config['connection'].get('password')
                 self._ssl_context.load_cert_chain(pem_file, key_file, password=password)
         except Exception as e:
             self._log.exception(e)
@@ -108,6 +113,21 @@ class OcppConnector(Connector, Thread):
 
         await self._server.wait_closed()
 
+    def _auth(self, websocket):
+        for sec in self._central_system_config['security']:
+            if sec['type'].lower() == 'token' and websocket.request_headers['authorization'] in sec['tokens']:
+                self._log.debug('Got Authorization: %s', websocket.request_headers['authorization'])
+                return
+            elif sec['type'].lower() == 'basic':
+                for cred in sec['credentials']:
+                    token = 'Basic {0}'.format(
+                        base64.b64encode(bytes(cred['username'] + ':' + cred['password'], 'utf-8')).decode('ascii'))
+                    if websocket.request_headers['authorization'] == token:
+                        self._log.debug('Got Authorization: %s', websocket.request_headers['authorization'])
+                        return
+
+        raise NotAuthorized('Charge Point not authorized')
+
     async def on_connect(self, websocket, path):
         """ For every new charge point that connects, create a ChargePoint instance
         and start listening for messages.
@@ -120,6 +140,14 @@ class OcppConnector(Connector, Thread):
         except KeyError:
             self._log.info("Client hasn't requested any Subprotocol. "
                            "Closing Connection")
+
+        # Authorize Charge Point before accept connection
+        if self._central_system_config.get('security'):
+            try:
+                self._auth(websocket)
+            except NotAuthorized as e:
+                self._log.error(e)
+                return await websocket.close()
 
         if websocket.subprotocol:
             self._log.info("Protocols Matched: %s", websocket.subprotocol)
@@ -148,6 +176,7 @@ class OcppConnector(Connector, Thread):
             uplink_converter_name = cp_config.get('extension', self._default_converters['uplink'])
             cp = ChargePoint(charge_point_id, websocket, {**cp_config, 'uplink_converter_name': uplink_converter_name},
                              OcppConnector._callback)
+            cp.authorized = True
 
             self._log.info('Connected Charge Point with id: %s', charge_point_id)
             self._connected_charge_points.append(cp)

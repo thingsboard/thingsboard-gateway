@@ -3,9 +3,26 @@
     "name": "Central System",
     "host": "127.0.0.1",
     "port": 9000,
-    "security": {
-      "type": "anonymous"
-    }
+    "connection": {
+      "type": "insecure"
+    },
+    "security": [
+      {
+        "type": "token",
+        "tokens": [
+          "Bearer ACCESS_TOKEN"
+        ]
+      },
+      {
+        "type": "basic",
+        "credentials": [
+          {
+            "username": "admin",
+            "password": "admin"
+          }
+        ]
+      }
+    ]
   },
   "chargePoints": [
     {

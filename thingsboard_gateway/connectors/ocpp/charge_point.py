@@ -31,11 +31,20 @@ class ChargePoint(CP):
         self._profile = {}
         self.name = None
         self.type = None
+        self._authorized = False
         self._stopped = False
 
     @property
     def config(self):
         return self._config
+
+    @property
+    def authorized(self):
+        return self._authorized
+
+    @authorized.setter
+    def authorized(self, is_auth: bool):
+        self._authorized = is_auth
 
     async def start(self):
         while not self._stopped:
@@ -52,18 +61,31 @@ class ChargePoint(CP):
         return await self._connection.close()
 
     @on(Action.BootNotification)
-    def on_boot_notitication(self, charge_point_vendor, charge_point_model, **kwargs):
+    def on_boot_notification(self, charge_point_vendor: str, charge_point_model: str, **kwargs):
         self._profile = {
             'Vendor': charge_point_vendor,
             'Model': charge_point_model
         }
         self.name = self._uplink_converter.get_device_name(self._profile)
         self.type = self._uplink_converter.get_device_type(self._profile)
+
+        self._callback((self._uplink_converter,
+                        {'deviceName': self.name, 'deviceType': self.type, 'messageType': Action.MeterValues,
+                         'profile': self._profile},
+                        {'Vendor': charge_point_vendor, 'Model': charge_point_model, **kwargs}))
+
         return call_result.BootNotificationPayload(
             current_time=datetime.utcnow().isoformat(),
             interval=10,
             status=RegistrationStatus.accepted
         )
+
+    @on(Action.Authorize)
+    def on_authorize(self, id_tag: str, **kwargs):
+        if self.authorized:
+            return call_result.AuthorizePayload(id_tag_info={'status': 'Accepted'})
+
+        return call_result.AuthorizePayload(id_tag_info={'status': 'Not authorized'})
 
     @on(Action.Heartbeat)
     def on_heartbeat(self):
