@@ -28,77 +28,24 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
-    def convert(self, config, data):
+    def convert(self, topic, data):
         if isinstance(data, list):
             converted_data = []
             for item in data:
-                converted_data.append(self._convert_single_item(config, item))
+                converted_data.append(self._convert_single_item(topic, item))
             return converted_data
         else:
-            return self._convert_single_item(config, data)
+            return self._convert_single_item(topic, data)
 
-
-    def _convert_single_item(self, config, data):
+    def _convert_single_item(self, topic, data):
         datatypes = {"attributes": "attributes",
                      "timeseries": "telemetry"}
-        dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
-
-        try:
-            if self.__config.get("deviceNameJsonExpression") is not None:
-                device_name_tags = TBUtility.get_values(self.__config.get("deviceNameJsonExpression"), data,
-                                                        get_tag=True)
-                device_name_values = TBUtility.get_values(self.__config.get("deviceNameJsonExpression"), data,
-                                                          expression_instead_none=True)
-
-                dict_result['deviceName'] = self.__config.get("deviceNameJsonExpression")
-                for (device_name_tag, device_name_value) in zip(device_name_tags, device_name_values):
-                    is_valid_key = "${" in self.__config.get("deviceNameJsonExpression") and "}" in \
-                                   self.__config.get("deviceNameJsonExpression")
-                    dict_result['deviceName'] = dict_result['deviceName'].replace('${' + str(device_name_tag) + '}',
-                                                                                  str(device_name_value)) \
-                        if is_valid_key else device_name_tag
-
-            elif self.__config.get("deviceNameTopicExpression") is not None:
-                search_result = search(self.__config["deviceNameTopicExpression"], config)
-                if search_result is not None:
-                    dict_result["deviceName"] = search_result.group(0)
-                else:
-                    log.debug(
-                        "Regular expression result is None. deviceNameTopicExpression parameter will be interpreted as a deviceName\n Topic: %s\nRegex: %s",
-                        config, self.__config.get("deviceNameTopicExpression"))
-                    dict_result["deviceName"] = self.__config.get("deviceNameTopicExpression")
-            else:
-                log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
-
-            if self.__config.get("deviceTypeJsonExpression") is not None:
-                device_type_tags = TBUtility.get_values(self.__config.get("deviceTypeJsonExpression"), data,
-                                                        get_tag=True)
-                device_type_values = TBUtility.get_values(self.__config.get("deviceTypeJsonExpression"), data,
-                                                          expression_instead_none=True)
-
-                dict_result["deviceType"] = self.__config.get("deviceTypeJsonExpression")
-                for (device_type_tag, device_type_value) in zip(device_type_tags, device_type_values):
-                    is_valid_key = "${" in self.__config.get("deviceTypeJsonExpression") and "}" in \
-                                   self.__config.get("deviceTypeJsonExpression")
-                    dict_result["deviceType"] = dict_result["deviceType"].replace('${' + str(device_type_tag) + '}',
-                                                                                  str(device_type_value)) \
-                        if is_valid_key else device_type_tag
-
-            elif self.__config.get("deviceTypeTopicExpression") is not None:
-                search_result = search(self.__config["deviceTypeTopicExpression"], config)
-                if search_result is not None:
-                    dict_result["deviceType"] = search_result.group(0)
-                else:
-                    log.debug(
-                        "Regular expression result is None. deviceTypeTopicExpression will be interpreted as a deviceType\n Topic: %s\nRegex: %s",
-                        config,
-                        self.__config.get("deviceTypeTopicExpression"))
-                    dict_result["deviceType"] = self.__config.get("deviceTypeTopicExpression")
-            else:
-                log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
-        except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
-            log.exception(e)
+        dict_result = {
+            "deviceName": JsonMqttUplinkConverter.parse_device_name(topic, data, self.__config),
+            "deviceType": JsonMqttUplinkConverter.parse_device_type(topic, data, self.__config),
+            "attributes": [],
+            "telemetry": []
+        }
 
         try:
             for datatype in datatypes:
@@ -108,7 +55,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                     if isinstance(datatype_config, str) and datatype_config == "*":
                         for item in data:
                             dict_result[datatypes[datatype]].append(
-                                self._create_result_item(item, data[item], timestamp))
+                                JsonMqttUplinkConverter.create_timeseries_record(item, data[item], timestamp))
                     else:
                         values = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
                                                       expression_instead_none=False)
@@ -135,12 +82,55 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                                                             str(value)) if is_valid_value else value
 
                         if full_key != 'None' and full_value != 'None':
-                            dict_result[datatypes[datatype]].append(self._create_result_item(full_key, full_value, timestamp))
+                            dict_result[datatypes[datatype]].append(
+                                JsonMqttUplinkConverter.create_timeseries_record(full_key, full_value, timestamp))
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
             log.exception(e)
         return dict_result
 
-    def _create_result_item(self, key, value, timestamp):
+    @staticmethod
+    def create_timeseries_record(key, value, timestamp):
         value_item = {key: value}
         return {"ts": timestamp, 'values': value_item} if timestamp else value_item
+
+    @staticmethod
+    def parse_device_name(topic, data, config):
+        return JsonMqttUplinkConverter.parse_device_info(
+            topic, data, config, "deviceNameJsonExpression", "deviceNameTopicExpression")
+
+    @staticmethod
+    def parse_device_type(topic, data, config):
+        return JsonMqttUplinkConverter.parse_device_info(
+            topic, data, config, "deviceTypeJsonExpression", "deviceTypeTopicExpression")
+
+    @staticmethod
+    def parse_device_info(topic, data, config, json_expression_config_name, topic_expression_config_name):
+        result = None
+        try:
+            if config.get(json_expression_config_name) is not None:
+                expression = config.get(json_expression_config_name)
+                result_tags = TBUtility.get_values(expression, data, get_tag=True)
+                result_values = TBUtility.get_values(expression, data, expression_instead_none=True)
+
+                result = expression
+                for (result_tag, result_value) in zip(result_tags, result_values):
+                    is_valid_key = "${" in expression and "}" in expression
+                    result = result.replace('${' + str(result_tag) + '}',
+                                            str(result_value)) if is_valid_key else result_tag
+            elif config.get(topic_expression_config_name) is not None:
+                expression = config.get(topic_expression_config_name)
+                search_result = search(expression, topic)
+                if search_result is not None:
+                    result = search_result.group(0)
+                else:
+                    log.debug(
+                        "Regular expression result is None. deviceNameTopicExpression parameter will be interpreted "
+                        "as a deviceName\n Topic: %s\nRegex: %s", topic, expression)
+                    result = expression
+            else:
+                log.error("The expression for looking \"deviceName\" not found in config %s", dumps(config))
+        except Exception as e:
+            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(config), data)
+            log.exception(e)
+        return result
