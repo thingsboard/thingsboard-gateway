@@ -721,7 +721,7 @@ class TBGatewayService:
                                 for kv in ts_kv_list['values']:
                                     if ts in ts_to_index:
                                         kv_data = {kv: ts_kv_list['values'][kv]}
-                                        adopted_data['telemetry'][ts_to_index]['values'].update(kv_data)
+                                        adopted_data['telemetry'][ts_to_index[ts]]['values'].update(kv_data)
                                     else:
                                         kv_data = {'ts': ts, 'values': {kv: ts_kv_list['values'][kv]}}
                                         adopted_data['telemetry'].append(kv_data)
