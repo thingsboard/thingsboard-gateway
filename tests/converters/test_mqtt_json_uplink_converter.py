@@ -19,6 +19,24 @@ from thingsboard_gateway.connectors.mqtt.json_mqtt_uplink_converter import JsonM
 
 
 class JsonMqttUplinkConverterTests(unittest.TestCase):
+    DEVICE_NAME = "TestDevice"
+    DEVICE_TYPE = "TestDeviceType"
+
+    def test_topic_name_and_type(self):
+        topic, config, data = self._get_device_1_test_data()
+        converter = JsonMqttUplinkConverter(config)
+        converted_data = converter.convert(topic, data)
+
+        self.assertEqual(self.DEVICE_NAME, converted_data["deviceName"])
+        self.assertEqual(self.DEVICE_TYPE, converted_data["deviceType"])
+
+    def test_json_name_and_type(self):
+        topic, config, data = self._get_device_2_test_data()
+        converter = JsonMqttUplinkConverter(config)
+        converted_data = converter.convert(topic, data)
+
+        self.assertEqual(self.DEVICE_NAME, converted_data["deviceName"])
+        self.assertEqual(self.DEVICE_TYPE, converted_data["deviceType"])
 
     def test_glob_matching(self):
         topic, config, data = self._get_device_1_test_data()
@@ -38,7 +56,8 @@ class JsonMqttUplinkConverterTests(unittest.TestCase):
             self.assertDictEqual(single_data, self._convert_to_dict(item.get('telemetry')))
             self.assertDictEqual(single_data, self._convert_to_dict(item.get('attributes')))
 
-    def _convert_to_dict(self, data_array):
+    @staticmethod
+    def _convert_to_dict(data_array):
         data_dict = {}
         for item_container in data_array:
             item_data = item_container
@@ -50,13 +69,13 @@ class JsonMqttUplinkConverterTests(unittest.TestCase):
         return data_dict
 
     def _get_device_1_test_data(self):
-        topic = "Device/data"
+        topic = f"{self.DEVICE_NAME}/{self.DEVICE_TYPE}"
         config = {
           "topicFilter": topic,
           "converter": {
             "type": "json",
-            "deviceNameTopicExpression": "(.*?)(?=\/data)",
-            "deviceTypeTopicExpression": "Boiler",
+            "deviceNameTopicExpression": "(.*?)(?=/.*)",
+            "deviceTypeTopicExpression": f"(?<={self.DEVICE_NAME}/)(.*)",
             "timeout": 60000,
             "attributes": "*",
             "timeseries": "*"
@@ -65,6 +84,25 @@ class JsonMqttUplinkConverterTests(unittest.TestCase):
         data = {
             "Temperature": randint(0, 256),
             "Pressure": randint(0, 256)
+        }
+        return topic, config, data
+
+    def _get_device_2_test_data(self):
+        topic = f"{self.DEVICE_NAME}/{self.DEVICE_TYPE}"
+        config = {
+          "topicFilter": topic,
+          "converter": {
+            "type": "json",
+            "deviceNameJsonExpression": "${DeviceName}",
+            "deviceTypeJsonExpression": "${DeviceType}",
+            "timeout": 60000,
+            "attributes": "*",
+            "timeseries": "*"
+          }
+        }
+        data = {
+            "DeviceName": self.DEVICE_NAME,
+            "DeviceType": self.DEVICE_TYPE
         }
         return topic, config, data
 
