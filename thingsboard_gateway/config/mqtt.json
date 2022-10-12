@@ -1,4 +1,5 @@
 {
+  "processRawData": false,
   "broker": {
     "name": "Default Local Broker",
     "host": "127.0.0.1",

@@ -51,6 +51,8 @@ class MqttConnector(Connector, Thread):
         # Extract main sections from configuration ---------------------------------------------------------------------
         self.__broker = config.get('broker')
 
+        self.__processRawData = self.config.get("processRawData", False)
+
         self.__mapping = []
         self.__server_side_rpc = []
         self.__connect_requests = []
@@ -392,7 +394,7 @@ class MqttConnector(Connector, Thread):
                 client, userdata, message = self._on_message_queue.get()
 
                 self.statistics['MessagesReceived'] += 1
-                content = TBUtility.decode(message)
+                content = message.payload if self.__processRawData else TBUtility.decode(message)
 
                 # Check if message topic exists in mappings "i.e., I'm posting telemetry/attributes" -------------------
                 topic_handlers = [regex for regex in self.__mapping_sub_topics if fullmatch(regex, message.topic)]
