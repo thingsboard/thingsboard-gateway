@@ -21,19 +21,19 @@ from threading import Thread
 from time import sleep, time
 
 import simplejson
-try:
-    from paho.mqtt.client import Client
-except ImportError:
-    print("paho-mqtt library not found")
-    TBUtility.install_package("paho-mqtt", version=">=1.6")
-    from paho.mqtt.client import Client
-
 
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
+
+try:
+    from paho.mqtt.client import Client
+except ImportError:
+    print("paho-mqtt library not found")
+    TBUtility.install_package("paho-mqtt", version=">=1.6")
+    from paho.mqtt.client import Client
 
 
 class MqttConnector(Connector, Thread):
@@ -142,8 +142,8 @@ class MqttConnector(Connector, Thread):
 
         self.__msg_queue = Queue()
         self.__workers_thread_pool = []
-        self.__max_msg_number_for_worker = config.get('maxMessageNumberPerWorker', 10)
-        self.__max_number_of_workers = config.get('maxNumberOfWorkers', 100)
+        self.__max_msg_number_for_worker = config['broker'].get('maxMessageNumberPerWorker', 10)
+        self.__max_number_of_workers = config['broker'].get('maxNumberOfWorkers', 100)
 
         self._on_message_queue = Queue()
         self._on_message_thread = Thread(name='On Message', target=self._process_on_message, daemon=True)
