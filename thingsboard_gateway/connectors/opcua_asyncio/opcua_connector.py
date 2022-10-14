@@ -131,7 +131,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
             self.__client = asyncua.Client(url=self.__opcua_url,
                                            timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
 
-            if self.__server_conf.get("type") == "cert.PEM":
+            if self.__server_conf["identity"].get("type") == "cert.PEM":
                 await self.__set_auth_settings_by_cert()
             if self.__server_conf["identity"].get("username"):
                 self.__set_auth_settings_by_username()
