@@ -25,7 +25,7 @@ try:
     from pymodbus.constants import Defaults
 except ImportError:
     print("Modbus library not found - installing...")
-    TBUtility.install_package("pymodbus", ">=2.3.0")
+    TBUtility.install_package("pymodbus", ">=2.3.0,<3.0.0")
     TBUtility.install_package('pyserial')
     from pymodbus.constants import Defaults
 
