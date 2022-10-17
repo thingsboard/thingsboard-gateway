@@ -10,3 +10,4 @@ Here you will find instructions on how work with your data via dashboards, rule 
    get-personal-token
    telemetry-api
    attributes-api
+   rpc
