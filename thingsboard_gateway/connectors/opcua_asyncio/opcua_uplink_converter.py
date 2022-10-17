@@ -16,7 +16,7 @@ from time import time
 from datetime import timezone
 
 from thingsboard_gateway.connectors.opcua_asyncio.opcua_converter import OpcUaConverter, log
-
+from asyncua.ua.uatypes import LocalizedText, VariantType
 
 DATA_TYPES = {
     'attributes': 'attributes',
@@ -64,6 +64,11 @@ class OpcUaUplinkConverter(OpcUaConverter):
         data = val.Value.Value
 
         if data is not None:
+            if isinstance(data, LocalizedText):
+                data = data.Text
+            elif val.Value.VariantType == VariantType.ExtensionObject:
+                data = str(data)
+
             if config['section'] == 'timeseries':
                 if val.SourceTimestamp:
                     timestamp = int(val.SourceTimestamp.replace(tzinfo=timezone.utc).timestamp() * 1000)

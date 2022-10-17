@@ -35,7 +35,7 @@ except ImportError:
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
-    BadInvalidState, BadSessionClosed
+    BadInvalidState, BadSessionClosed, BadAttributeIdInvalid, BadCommunicationError, BadOutOfService
 
 DEFAULT_UPLINK_CONVERTER = 'OpcUaUplinkConverter'
 
@@ -149,6 +149,12 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
             try:
                 async with self.__client:
                     self.__connected = True
+
+                    try:
+                        await self.__client.load_data_type_definitions()
+                    except Exception as e:
+                        self.__log.error("Error on loading type definitions:")
+                        self.__log.error(e)
 
                     while not self.__stopped:
                         if time() - self.__last_poll >= self.__server_conf.get('scanPeriodInMillis', 5000) / 1000:
@@ -351,7 +357,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                             node['valid'] = True
                     except ConnectionError:
                         raise
-                    except (BadNodeIdUnknown, BadConnectionClosed, BadInvalidState):
+                    except (BadNodeIdUnknown, BadConnectionClosed, BadInvalidState, BadAttributeIdInvalid, BadCommunicationError, BadOutOfService):
                         if node.get('valid', True):
                             self.__log.warning('Node not found: %s %s', node['key'], node['path'])
                             await self.__reset_node(node)
