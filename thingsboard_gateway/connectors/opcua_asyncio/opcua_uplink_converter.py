@@ -68,6 +68,10 @@ class OpcUaUplinkConverter(OpcUaConverter):
                 data = data.Text
             elif val.Value.VariantType == VariantType.ExtensionObject:
                 data = str(data)
+            elif val.Value.VariantType == VariantType.DateTime:
+                if data.tzinfo is None:
+                    data = data.replace(tzinfo=timezone.utc)
+                data = data.isoformat()
 
             if config['section'] == 'timeseries':
                 if val.SourceTimestamp:
