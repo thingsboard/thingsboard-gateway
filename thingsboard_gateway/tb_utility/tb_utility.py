@@ -125,7 +125,7 @@ class TBUtility:
 
     @staticmethod
     def get_values(expression, body=None, value_type="string", get_tag=False, expression_instead_none=False):
-        expression_arr = findall(r'\$\{[${A-Za-z0-9.^\]\[*_]*\}', expression)
+        expression_arr = findall(r'\$\{[${A-Za-z0-9.^\]\[*_:]*\}', expression)
 
         values = [TBUtility.get_value(exp, body, value_type=value_type, get_tag=get_tag,
                                       expression_instead_none=expression_instead_none) for exp in expression_arr]
