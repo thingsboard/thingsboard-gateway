@@ -318,18 +318,18 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                 for node in device.values.get(section, []):
                     try:
                         path = node.get('qualified_path', node['path'])
-                        if isinstance(path, str) and re.match(r"(ns=\d*;[isgb]=.*\d)", path):
+                        if isinstance(path, str) and re.match(r"(ns=\d+;[isgb]=[^}]+)", path):
                             var = self.__client.get_node(path)
                         else:
                             if len(path[-1].split(':')) != 2:
                                 qualified_path = await self.find_node_name_space_index(path)
                                 if len(qualified_path) == 0:
                                     if node.get('valid', True):
-                                        self.__log.warning('Node not found: %s %s', node['key'], node['path'])
+                                        self.__log.warning('Node not found; device: %s, key: %s, path: %s', device.name, node['key'], node['path'])
                                         await self.__reset_node(node)
                                     continue
                                 elif len(qualified_path) > 1:
-                                    self.__log.warning('Multiple matching nodes found for node: %s; %s; %s', node['key'], node['path'], qualified_path)
+                                    self.__log.warning('Multiple matching nodes found; device: %s, key: %s, path: %s; %s', device.name, node['key'], node['path'], qualified_path)
                                 node['qualified_path'] = qualified_path[0]
                                 path = qualified_path[0]
 
@@ -346,14 +346,14 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                                 node['subscription'] = handle
                                 node['sub_on'] = True
                                 node['id'] = f'ns={var.nodeid.NamespaceIndex};i={var.nodeid.Identifier}'
-                                self.__log.info("Subscribed %s to %s", node['key'], node['id'])
+                                self.__log.info("Subscribed on data change; device: %s, key: %s, path: %s", device.name, node['key'], node['id'])
 
                             node['valid'] = True
                     except ConnectionError:
                         raise
                     except (BadNodeIdUnknown, BadConnectionClosed, BadInvalidState):
                         if node.get('valid', True):
-                            self.__log.warning('Node not found: %s %s', node['key'], node['path'])
+                            self.__log.warning('Node not found (2); device: %s, key: %s, path: %s', device.name, node['key'], node['path'])
                             await self.__reset_node(node)
                     except UaStatusCodeError as uae:
                         if node.get('valid', True):
