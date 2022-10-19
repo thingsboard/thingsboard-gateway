@@ -331,6 +331,10 @@ class ModbusConnector(Connector, Thread):
                 except Exception as e:
                     log.exception(e)
 
+                # Release mutex if "serial" type only
+                if device.config.get(TYPE_PARAMETER) == 'serial':
+                    self.lock.release()
+
             sleep(.001)
 
     def __connect_to_current_master(self, device=None):
