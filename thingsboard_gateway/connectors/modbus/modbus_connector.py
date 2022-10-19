@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from threading import Thread
+from threading import Thread, Lock
 from time import sleep, time
 from queue import Queue
 from random import choice
@@ -101,6 +101,8 @@ class ModbusConnector(Connector, Thread):
         self.__connected = False
         self.__stopped = False
         self.daemon = True
+
+        self.lock = Lock()
 
         self._convert_msg_queue = Queue()
         self._save_msg_queue = Queue()
@@ -284,6 +286,10 @@ class ModbusConnector(Connector, Thread):
         while True:
             if not self.__stopped and not ModbusConnector.process_requests.empty():
                 device = ModbusConnector.process_requests.get()
+
+                log.debug("Device connector type: %s", device.config.get(TYPE_PARAMETER))
+                if device.config.get(TYPE_PARAMETER).lower() == 'serial':
+                    self.lock.acquire()
 
                 device_responses = {'timeseries': {}, 'attributes': {}}
                 current_device_config = {}
