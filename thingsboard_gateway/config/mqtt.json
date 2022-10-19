@@ -80,6 +80,29 @@
       }
     },
     {
+      "topicFilter": "/sensor/raw_data",
+      "converter": {
+        "type": "bytes",
+        "deviceNameExpression": "[0:4]",
+        "deviceTypeExpression": "default",
+        "timeout": 60000,
+        "attributes": [
+          {
+            "type": "raw",
+            "key": "rawData",
+            "value": "[:]"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "raw",
+            "key": "temp",
+            "value": "[4:]"
+          }
+        ]
+      }
+    },
+    {
       "topicFilter": "/custom/sensors/+",
       "converter": {
         "type": "custom",
