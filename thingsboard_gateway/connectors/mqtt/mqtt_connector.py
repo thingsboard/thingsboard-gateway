@@ -35,6 +35,64 @@ except ImportError:
     TBUtility.install_package("paho-mqtt", version=">=1.6")
     from paho.mqtt.client import Client
 
+from paho.mqtt.client import MQTTv31, MQTTv311, MQTTv5
+
+
+MQTT_VERSIONS = {
+    3: MQTTv31,
+    4: MQTTv311,
+    5: MQTTv5
+}
+
+RESULT_CODES_V3 = {
+    1: "Connection rejected for unsupported protocol version",
+    2: "Connection rejected for rejected client ID",
+    3: "Connection rejected for unavailable server",
+    4: "Connection rejected for damaged username or password",
+    5: "Connection rejected for unauthorized",
+}
+
+RESULT_CODES_V5 = {
+    4:   "Disconnect with Will Message",
+    16:  "No matching subscribers",
+    17:  "No subscription existed",
+    128: "Unspecified error",
+    129: "Malformed Packet",
+    130: "Protocol Error",
+    131: "Implementation specific error",
+    132: "Unsupported Protocol Version",
+    133: "Client Identifier not valid",
+    134: "Bad User Name or Password",
+    135: "Not authorized",
+    136: "Server unavailable",
+    137: "Server busy",
+    138: "Banned",
+    139: "Server shutting down",
+    140: "Bad authentication method",
+    141: "Keep Alive timeout",
+    142: "Session taken over",
+    143: "Topic Filter invalid",
+    144: "Topic Name invalid",
+    145: "Packet Identifier in use",
+    146: "Packet Identifier not found",
+    147: "Receive Maximum exceeded",
+    148: "Topic Alias invalid",
+    149: "Packet too large",
+    150: "Message rate too high",
+    151: "Quota exceeded",
+    152: "Administrative action",
+    153: "Payload format invalid",
+    154: "Retain not supported",
+    155: "QoS not supported",
+    156: "Use another server",
+    157: "Server moved",
+    158: "Shared Subscription not supported",
+    159: "Connection rate exceeded",
+    160: "Maximum connect time",
+    161: "Subscription Identifiers not supported",
+    162: "Wildcard Subscription not supported"
+}
+
 
 class MqttConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
@@ -93,7 +151,15 @@ class MqttConnector(Connector, Thread):
 
         # Set up external MQTT broker connection -----------------------------------------------------------------------
         client_id = self.__broker.get("clientId", ''.join(random.choice(string.ascii_lowercase) for _ in range(23)))
-        self._client = Client(client_id)
+
+        self._mqtt_version = self.__broker.get('version', 5)
+        try:
+            self._client = Client(client_id, protocol=MQTT_VERSIONS[self._mqtt_version])
+        except KeyError:
+            self.__log.error('Unknown MQTT version. Starting up on version 5...')
+            self._client = Client(client_id, protocol=MQTTv5)
+            self._mqtt_version = 5
+
         self.setName(config.get("name", self.__broker.get(
             "name",
             'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)))))
@@ -239,15 +305,6 @@ class MqttConnector(Connector, Thread):
             self.__log.exception(e)
 
     def _on_connect(self, client, userdata, flags, result_code, *extra_params):
-
-        result_codes = {
-            1: "incorrect protocol version",
-            2: "invalid client identifier",
-            3: "server unavailable",
-            4: "bad username or password",
-            5: "not authorised",
-        }
-
         if result_code == 0:
             self._connected = True
             self.__log.info('%s connected to %s:%s - successfully.',
@@ -327,6 +384,7 @@ class MqttConnector(Connector, Thread):
                 topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
                 self.__attribute_requests_sub_topics[topic_filter] = request
         else:
+            result_codes = RESULT_CODES_V5 if self._mqtt_version == 5 else RESULT_CODES_V3
             if result_code in result_codes:
                 self.__log.error("%s connection FAIL with error %s %s!", self.get_name(), result_code,
                                  result_codes[result_code])
