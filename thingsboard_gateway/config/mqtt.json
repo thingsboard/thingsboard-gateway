@@ -4,6 +4,7 @@
     "host": "127.0.0.1",
     "port": 1883,
     "clientId": "ThingsBoard_gateway",
+    "version": 5,
     "maxMessageNumberPerWorker": 10,
     "maxNumberOfWorkers": 100,
     "security": {
