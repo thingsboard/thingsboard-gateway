@@ -351,7 +351,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                                 handle = await self.__subscription.subscribe_data_change(var)
                                 node['subscription'] = handle
                                 node['sub_on'] = True
-                                node['id'] = f'ns={var.nodeid.NamespaceIndex};i={var.nodeid.Identifier}'
+                                node['id'] = var.nodeid.to_string()
                                 self.__log.info("Subscribed on data change; device: %s, key: %s, path: %s", device.name, node['key'], node['id'])
 
                             node['valid'] = True
