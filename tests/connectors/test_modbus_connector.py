@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 from simplejson import load
 
-from pymodbus.client.sync import ModbusTcpClient as ModbusClient
+from pymodbus.client import ModbusTcpClient as ModbusClient
 
 import thingsboard_gateway
 from thingsboard_gateway.connectors.modbus.modbus_connector import ModbusConnector

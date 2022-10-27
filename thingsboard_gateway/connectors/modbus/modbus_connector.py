@@ -25,8 +25,9 @@ try:
     from pymodbus.constants import Defaults
 except ImportError:
     print("Modbus library not found - installing...")
-    TBUtility.install_package("pymodbus", ">=2.3.0,<3.0.0")
+    TBUtility.install_package("pymodbus", ">=3.0.0")
     TBUtility.install_package('pyserial')
+    TBUtility.install_package('pyserial-asyncio')
     from pymodbus.constants import Defaults
 
 try:
@@ -40,10 +41,12 @@ from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoi
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
 from pymodbus.register_read_message import ReadRegistersResponseBase
 from pymodbus.bit_read_message import ReadBitsResponseBase
-from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient
-from pymodbus.client.sync import ModbusRtuFramer, ModbusSocketFramer, ModbusAsciiFramer
+from pymodbus.client import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient
+from pymodbus.framer.rtu_framer import ModbusRtuFramer
+from pymodbus.framer.socket_framer import ModbusSocketFramer
+from pymodbus.framer.ascii_framer import ModbusAsciiFramer
 from pymodbus.exceptions import ConnectionException
-from pymodbus.server.asynchronous import StartTcpServer, StartUdpServer, StartSerialServer, StopServer
+from pymodbus.server import StartTcpServer, StartUdpServer, StartSerialServer, ServerStop
 from pymodbus.device import ModbusDeviceIdentification
 from pymodbus.version import version
 from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
@@ -172,7 +175,7 @@ class ModbusConnector(Connector, Thread):
             blocks[FUNCTION_TYPE[key]] = ModbusSparseDataBlock(values)
 
         context = ModbusServerContext(slaves=ModbusSlaveContext(**blocks), single=True)
-        SLAVE_TYPE[config['type']](context, identity=identity,
+        SLAVE_TYPE[config['type']](context=context, identity=identity,
                                    address=(config.get('host'), config.get('port')) if (
                                            config['type'] == 'tcp' or 'udp') else None,
                                    port=config.get('port') if config['type'] == 'serial' else None,
@@ -276,7 +279,7 @@ class ModbusConnector(Connector, Thread):
         self.__stopped = True
         self.__stop_connections_to_masters()
         if reactor.running:
-            StopServer()
+            ServerStop()
         log.info('%s has been stopped.', self.get_name())
 
     def get_name(self):
@@ -449,7 +452,7 @@ class ModbusConnector(Connector, Thread):
             #                                                                                          config.get(
             #                                                                                              "registerCount",
             #                                                                                              1))) * 8,
-            #                                                              unit=device.config['unitId'])
+            #                                                              slave=device.config['unitId'])
 
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          count=config.get(OBJECTS_COUNT_PARAMETER,
@@ -457,7 +460,7 @@ class ModbusConnector(Connector, Thread):
                                                                                                      config.get(
                                                                                                          "registerCount",
                                                                                                          1))),
-                                                                         unit=device.config['unitId'])
+                                                                         slave=device.config['unitId'])
         elif function_code in (2, 3, 4):
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          count=config.get(OBJECTS_COUNT_PARAMETER,
@@ -465,19 +468,19 @@ class ModbusConnector(Connector, Thread):
                                                                                                      config.get(
                                                                                                          "registerCount",
                                                                                                          1))),
-                                                                         unit=device.config['unitId'])
+                                                                         slave=device.config['unitId'])
         elif function_code == 5:
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          value=config[PAYLOAD_PARAMETER],
-                                                                         unit=device.config['unitId'])
+                                                                         slave=device.config['unitId'])
         elif function_code == 6:
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          value=config[PAYLOAD_PARAMETER],
-                                                                         unit=device.config['unitId'])
+                                                                         slave=device.config['unitId'])
         elif function_code in (15, 16):
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          values=config[PAYLOAD_PARAMETER],
-                                                                         unit=device.config['unitId'])
+                                                                         slave=device.config['unitId'])
         else:
             log.error("Unknown Modbus function with code: %s", function_code)
 

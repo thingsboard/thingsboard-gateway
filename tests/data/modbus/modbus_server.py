@@ -1,4 +1,4 @@
-from pymodbus.server.asynchronous import StartTcpServer, StopServer
+from pymodbus.server import StartTcpServer, ServerStop
 from pymodbus.datastore import ModbusSequentialDataBlock
 from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
 from pymodbus.constants import Endian
@@ -15,7 +15,7 @@ log.setLevel(logging.DEBUG)
 
 
 def handler(signum, frame):
-    StopServer()
+    ServerStop()
     sleep(1)
 
 
@@ -67,7 +67,7 @@ def run_server():
         0x05: store1
     }
     context = ModbusServerContext(slaves=slaves, single=False)
-    StartTcpServer(context, address=("127.0.0.1", 5021))
+    StartTcpServer(context=context, address=("127.0.0.1", 5021))
 
 
 if __name__ == "__main__":

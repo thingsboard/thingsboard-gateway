@@ -22,8 +22,8 @@ from thingsboard_gateway.connectors.mqtt.json_mqtt_uplink_converter import JsonM
 from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
 from thingsboard_gateway.connectors.ble.bytes_ble_uplink_converter import BytesBLEUplinkConverter
 from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
-from thingsboard_gateway.storage.memory_event_storage import MemoryEventStorage
-from thingsboard_gateway.storage.file_event_storage import FileEventStorage
+from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
+from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 
 logging.basicConfig(level=logging.ERROR,
                     format='%(asctime)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s',
@@ -66,7 +66,7 @@ class ConvertersTests(unittest.TestCase):
             "deviceName": "SensorA",
             "deviceType": "temperature-sensor",
             "attributes": [{"model": "T1000"}],
-            "telemetry": [{"temperature": 42.0}]
+            "telemetry": [{"temperature": '42.0'}]
         }
 
         converter = JsonMqttUplinkConverter(test_mqtt_config)
@@ -103,7 +103,8 @@ class ConvertersTests(unittest.TestCase):
 
     def test_ble_getting_values(self):
         test_ble_config = {
-            "name": "Temperature and humidity sensor",
+            "deviceName": "Temperature and humidity sensor",
+            "deviceType": "BLEDevice",
             "MACAddress": "4C:65:A8:DF:85:C0",
             "telemetry": [
                 {

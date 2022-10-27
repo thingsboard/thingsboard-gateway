@@ -53,9 +53,9 @@ from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoi
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
 from pymodbus.register_read_message import ReadRegistersResponseBase
 from pymodbus.bit_read_message import ReadBitsResponseBase
-from pymodbus.client.sync import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient
+from pymodbus.client import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient
 from pymodbus.exceptions import ConnectionException
-from pymodbus.server.asynchronous import StopServer
+from pymodbus.server import ServerStop
 from pymodbus.device import ModbusDeviceIdentification
 from pymodbus.version import version
 from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
@@ -177,7 +177,7 @@ class GrpcModbusConnector(GwGrpcConnector):
         super(GrpcModbusConnector, self).stop()
         self.__stop_connections_to_masters()
         if reactor.running:
-            StopServer()
+            ServerStop()
         log.info('%s has been stopped.', self.get_name())
 
     def get_name(self):
@@ -383,7 +383,7 @@ class GrpcModbusConnector(GwGrpcConnector):
                                                                                                      config.get(
                                                                                                          "registerCount",
                                                                                                          1))) * 8,
-                                                                         unit=device.config['unitId'])
+                                                                         slave=device.config['unitId'])
         elif function_code in (2, 3, 4):
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          count=config.get(OBJECTS_COUNT_PARAMETER,
@@ -391,19 +391,19 @@ class GrpcModbusConnector(GwGrpcConnector):
                                                                                                      config.get(
                                                                                                          "registerCount",
                                                                                                          1))),
-                                                                         unit=device.config['unitId'])
+                                                                         slave=device.config['unitId'])
         elif function_code == 5:
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER] * 8,
                                                                          value=config[PAYLOAD_PARAMETER],
-                                                                         unit=device.config['unitId'])
+                                                                         slave=device.config['unitId'])
         elif function_code == 6:
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          value=config[PAYLOAD_PARAMETER],
-                                                                         unit=device.config['unitId'])
+                                                                         slave=device.config['unitId'])
         elif function_code in (15, 16):
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          values=config[PAYLOAD_PARAMETER],
-                                                                         unit=device.config['unitId'])
+                                                                         slave=device.config['unitId'])
         else:
             log.error("Unknown Modbus function with code: %s", function_code)
 
