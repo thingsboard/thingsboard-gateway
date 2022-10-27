@@ -23,8 +23,8 @@ ENV logs /thingsboard_gateway/logs
 RUN apt-get update && apt-get install gcc python3-dev build-essential protobuf-compiler -y
 # The default grpcio version of 1.43.0 was broken on ARM v7
 # See this thread: https://groups.google.com/g/grpc-io/c/vjbL3IdZ2Vk?pli=1
-RUN python3 -m pip install --no-cache-dir --upgrade pip --user && python3 -m pip install --no-cache-dir --upgrade setuptools && pip3 install --no-cache-dir importlib_metadata --user
-RUN python3 -m pip install --no-cache-dir -r requirements.txt
+RUN mkdir -p /default-config/config /default-config/extensions/ && cp -r /thingsboard_gateway/config/* /default-config/config/ && cp -r /thingsboard_gateway/extensions/* /default-config/extensions
+RUN python3 -m pip install --no-cache-dir --upgrade pip --user && python3 -m pip install --no-cache-dir --upgrade setuptools && pip3 install --no-cache-dir importlib_metadata --user && python3 -m pip install --no-cache-dir -r requirements.txt
 RUN apt-get autoremove -y gcc
 VOLUME ["${configs}", "${extensions}", "${logs}"]
 COPY . .
