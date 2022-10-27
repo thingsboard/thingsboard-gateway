@@ -21,14 +21,20 @@ from string import ascii_lowercase
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 # Try import Pymodbus library or install it and import
+installation_required = False
+
 try:
-    from pymodbus.constants import Defaults
+    from pymodbus import __version__ as pymodbus_version
+    if int(pymodbus_version.split('.')[0]) < 3:
+        installation_required = True
 except ImportError:
+    installation_required = True
+
+if installation_required:
     print("Modbus library not found - installing...")
     TBUtility.install_package("pymodbus", ">=3.0.0")
     TBUtility.install_package('pyserial')
     TBUtility.install_package('pyserial-asyncio')
-    from pymodbus.constants import Defaults
 
 try:
     from twisted.internet import reactor
@@ -37,6 +43,7 @@ except ImportError:
     from twisted.internet import reactor
 
 from twisted.internet import reactor
+from pymodbus.constants import Defaults
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
 from pymodbus.register_read_message import ReadRegistersResponseBase
