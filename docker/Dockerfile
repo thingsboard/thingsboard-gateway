@@ -26,7 +26,6 @@ RUN apt-get update && apt-get install gcc python3-dev build-essential protobuf-c
 # See this thread: https://groups.google.com/g/grpc-io/c/vjbL3IdZ2Vk?pli=1
 RUN mkdir -p /default-config/config /default-config/extensions/ && cp -r /thingsboard_gateway/config/* /default-config/config/ && cp -r /thingsboard_gateway/extensions/* /default-config/extensions
 RUN python3 -m pip install --no-cache-dir --upgrade pip --user && python3 -m pip install --no-cache-dir --upgrade setuptools && python3 -m pip install --no-cache-dir importlib_metadata --user && python3 -m pip install --no-cache-dir -r requirements.txt
-RUN apt-get autoremove -y gcc
 VOLUME ["${configs}", "${extensions}", "${logs}"]
 COPY . .
 CMD [ "/bin/sh", "./start-gateway.sh" ]
