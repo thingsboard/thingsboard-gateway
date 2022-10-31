@@ -333,7 +333,7 @@ class MqttConnector(Connector, Thread):
                     # Get converter class from "extension" parameter or default converter
                     converter_class_name = mapping["converter"].get("extension",
                                                                     default_converters.get(
-                                                                        mapping['converter']['type']))
+                                                                        mapping['converter'].get('type')))
 
                     # Find and load required class
                     module = TBModuleLoader.import_module(self._connector_type, converter_class_name)
