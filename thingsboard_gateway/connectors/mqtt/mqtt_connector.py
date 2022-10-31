@@ -327,13 +327,14 @@ class MqttConnector(Connector, Thread):
                     # mappings are guaranteed to have topicFilter and converter fields. See __init__
                     default_converters = {
                         "json": "JsonMqttUplinkConverter",
-                        "bytes": "BytesMqttUplinkConverter",
-                        "custom": ""
+                        "bytes": "BytesMqttUplinkConverter"
                     }
 
                     # Get converter class from "extension" parameter or default converter
                     converter_class_name = mapping["converter"].get("extension",
-                                                                    default_converters[mapping['converter']['type']])
+                                                                    default_converters.get(
+                                                                        mapping['converter']['type']))
+
                     # Find and load required class
                     module = TBModuleLoader.import_module(self._connector_type, converter_class_name)
                     if module:
