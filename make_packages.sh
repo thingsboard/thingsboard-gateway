@@ -54,7 +54,15 @@ if [ "$1" != "only_clean" ] ; then
   chown root:root deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/DEBIAN/preinst
 # Bulding Deb package
   dpkg-deb -b deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway/
-  cp deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway.deb .
+  mkdir deb-temp
+  cd deb-temp
+  ar x ../deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway.deb
+  zstd -d *.zst
+  rm *.zst
+  xz *.tar
+  ar r ../python3-thingsboard-gateway.deb debian-binary control.tar.xz data.tar.xz
+  cd ..
+  rm -r deb-temp
   # Create sources for RPM Package
   echo 'Building RPM package'
   #find thingsboard_gateway/ -name "*.pyc" -exec rm -f {} \;
