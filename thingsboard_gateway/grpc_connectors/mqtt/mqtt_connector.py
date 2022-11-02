@@ -16,23 +16,25 @@ from random import choice
 from string import ascii_lowercase
 import ssl
 from queue import Queue
+from threading import Thread
 from time import sleep, time
 from re import fullmatch, match, search
 
 from simplejson import dumps
-try:
-    from paho.mqtt.client import Client
-except ImportError:
-    print("paho-mqtt library not found")
-    TBUtility.install_package("paho-mqtt", version=">=1.6")
-    from paho.mqtt.client import Client
 
-
-from thingsboard_gateway.connectors.mqtt.mqtt_connector import MqttConnector
+from thingsboard_gateway.connectors.mqtt.mqtt_connector import MqttConnector, MQTT_VERSIONS, RESULT_CODES_V5, \
+    RESULT_CODES_V3
 from thingsboard_gateway.grpc_connectors.gw_grpc_connector import GwGrpcConnector, log
 from thingsboard_gateway.grpc_connectors.gw_grpc_msg_creator import GrpcMsgCreator
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
+try:
+    from paho.mqtt.client import Client, MQTTv5
+except ImportError:
+    print("paho-mqtt library not found")
+    TBUtility.install_package("paho-mqtt", version=">=1.6")
+    from paho.mqtt.client import Client
 
 
 class GrpcMqttConnector(GwGrpcConnector):
@@ -97,7 +99,14 @@ class GrpcMqttConnector(GwGrpcConnector):
 
         # Set up external MQTT broker connection -----------------------------------------------------------------------
         client_id = self.__broker.get("clientId", ''.join(choice(ascii_lowercase) for _ in range(23)))
-        self._client = Client(client_id)
+
+        self._mqtt_version = self.__broker.get('version', 5)
+        try:
+            self._client = Client(client_id, protocol=MQTT_VERSIONS[self._mqtt_version])
+        except KeyError:
+            log.error('Unknown MQTT version. Starting up on version 5...')
+            self._client = Client(client_id, protocol=MQTTv5)
+            self._mqtt_version = 5
 
         if "username" in self.__broker["security"]:
             self._client.username_pw_set(self.__broker["security"]["username"],
@@ -144,6 +153,10 @@ class GrpcMqttConnector(GwGrpcConnector):
         self.__workers_thread_pool = []
         self.__max_msg_number_for_worker = self.__config.get('maxMessageNumberPerWorker', 10)
         self.__max_number_of_workers = self.__config.get('maxNumberOfWorkers', 100)
+
+        self._on_message_queue = Queue()
+        self._on_message_thread = Thread(name='On Message', target=self._process_on_message, daemon=True)
+        self._on_message_thread.start()
 
     def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list):
         if handler_flavor not in self.__config:
@@ -242,15 +255,6 @@ class GrpcMqttConnector(GwGrpcConnector):
             log.exception(e)
 
     def _on_connect(self, client, userdata, flags, result_code, *extra_params):
-
-        result_codes = {
-            1: "incorrect protocol version",
-            2: "invalid client identifier",
-            3: "server unavailable",
-            4: "bad username or password",
-            5: "not authorised",
-        }
-
         if result_code == 0:
             self._connected = True
             log.info('%s connected to %s:%s - successfully.',
@@ -271,9 +275,19 @@ class GrpcMqttConnector(GwGrpcConnector):
                 try:
                     # Load converter for this mapping entry ------------------------------------------------------------
                     # mappings are guaranteed to have topicFilter and converter fields. See __init__
-                    default_converter_class_name = "JsonGrpcMqttUplinkConverter"
+                    default_converters = {
+                        "json": "JsonGrpcMqttUplinkConverter",
+                        "bytes": "BytesGrpcMqttUplinkConverter"
+                    }
+
                     # Get converter class from "extension" parameter or default converter
-                    converter_class_name = mapping["converter"].get("extension", default_converter_class_name)
+                    converter_class_name = mapping["converter"].get("extension",
+                                                                    default_converters.get(
+                                                                        mapping['converter'].get('type')))
+                    if not converter_class_name:
+                        log.error('Converter type or extension class should be configured!')
+                        continue
+
                     # Find and load required class
                     module = TBModuleLoader.import_module(self._connector_type, converter_class_name)
                     if module:
@@ -324,6 +338,7 @@ class GrpcMqttConnector(GwGrpcConnector):
                 topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
                 self.__attribute_requests_sub_topics[topic_filter] = request
         else:
+            result_codes = RESULT_CODES_V5 if self._mqtt_version == 5 else RESULT_CODES_V3
             if result_code in result_codes:
                 log.error("%s connection FAIL with error %s %s!", self.get_name(), result_code,
                           result_codes[result_code])
@@ -395,182 +410,194 @@ class GrpcMqttConnector(GwGrpcConnector):
                 self.__workers_thread_pool.remove(worker)
 
     def _on_message(self, client, userdata, message):
-        self.statistics['MessagesReceived'] += 1
-        content = TBUtility.decode(message)
+        self._on_message_queue.put((client, userdata, message))
 
-        # Check if message topic exists in mappings "i.e., I'm posting telemetry/attributes" ---------------------------
-        topic_handlers = [regex for regex in self.__mapping_sub_topics if fullmatch(regex, message.topic)]
+    def _process_on_message(self):
+        while not self.__stopped:
+            if not self._on_message_queue.empty():
+                client, userdata, message = self._on_message_queue.get()
 
-        if topic_handlers:
-            # Note: every topic may be associated to one or more converter. This means that a single MQTT message
-            # may produce more than one message towards ThingsBoard. This also means that I cannot return after
-            # the first successful conversion: I got to use all the available ones.
-            # I will use a flag to understand whether at least one converter succeeded
-            request_handled = False
+                self.statistics['MessagesReceived'] += 1
+                content = TBUtility.decode(message)
 
-            for topic in topic_handlers:
-                available_converters = self.__mapping_sub_topics[topic]
-                for converter in available_converters:
-                    try:
-                        if isinstance(content, list):
-                            for item in content:
-                                request_handled = self.put_data_to_convert(converter, message, item)
-                                if not request_handled:
-                                    log.error(
-                                        'Cannot find converter for the topic:"%s"! Client: %s, User data: %s',
-                                        message.topic,
-                                        str(client),
-                                        str(userdata))
+                # Check if message topic exists in mappings "i.e., I'm posting telemetry/attributes" -------------------
+                topic_handlers = [regex for regex in self.__mapping_sub_topics if fullmatch(regex, message.topic)]
+
+                if topic_handlers:
+                    # Note: every topic may be associated to one or more converter.
+                    # This means that a single MQTT message may produce more than one message towards ThingsBoard.
+                    # This also means that I cannot return after the first successful conversion:
+                    # I got to use all the available ones.
+                    # I will use a flag to understand whether at least one converter succeeded
+                    request_handled = False
+
+                    for topic in topic_handlers:
+                        available_converters = self.__mapping_sub_topics[topic]
+                        for converter in available_converters:
+                            try:
+                                if isinstance(content, list):
+                                    for item in content:
+                                        request_handled = self.put_data_to_convert(converter, message, item)
+                                        if not request_handled:
+                                            log.error(
+                                                'Cannot find converter for the topic:"%s"! Client: %s, User data: %s',
+                                                message.topic,
+                                                str(client),
+                                                str(userdata))
+                                else:
+                                    request_handled = self.put_data_to_convert(converter, message, content)
+
+                            except Exception as e:
+                                log.exception(e)
+
+                    if not request_handled:
+                        log.error('Cannot find converter for the topic:"%s"! Client: %s, User data: %s',
+                                  message.topic,
+                                  str(client),
+                                  str(userdata))
+
+                    # Note: if I'm in this branch, this was for sure a telemetry/attribute push message
+                    # => Execution must end here both in case of failure and success
+                    return None
+
+                # Check if message topic exists in connection handlers "i.e., I'm connecting a device" -----------------
+                topic_handlers = [regex for regex in self.__connect_requests_sub_topics if
+                                  fullmatch(regex, message.topic)]
+
+                if topic_handlers:
+                    for topic in topic_handlers:
+                        handler = self.__connect_requests_sub_topics[topic]
+
+                        found_device_name = None
+                        found_device_type = 'default'
+
+                        # Get device name, either from topic or from content
+                        if handler.get("deviceNameTopicExpression"):
+                            device_name_match = search(handler["deviceNameTopicExpression"], message.topic)
+                            if device_name_match is not None:
+                                found_device_name = device_name_match.group(0)
+                        elif handler.get("deviceNameJsonExpression"):
+                            found_device_name = TBUtility.get_value(handler["deviceNameJsonExpression"], content)
+
+                        # Get device type (if any), either from topic or from content
+                        if handler.get("deviceTypeTopicExpression"):
+                            device_type_match = search(handler["deviceTypeTopicExpression"], message.topic)
+                            found_device_type = device_type_match.group(0) if device_type_match is not None else \
+                                handler["deviceTypeTopicExpression"]
+                        elif handler.get("deviceTypeJsonExpression"):
+                            found_device_type = TBUtility.get_value(handler["deviceTypeJsonExpression"], content)
+
+                        if found_device_name is None:
+                            log.error("Device name missing from connection request")
+                            continue
+
+                        # Note: device must be added even if it is already known locally: else ThingsBoard
+                        # will not send RPCs and attribute updates
+                        log.info("Connecting device %s of type %s", found_device_name, found_device_type)
+                        GrpcMsgCreator.create_device_connected_msg(found_device_name)
+
+                    # Note: if I'm in this branch, this was for sure a connection message
+                    # => Execution must end here both in case of failure and success
+                    return None
+
+                # Check if message topic exists in disconnection handlers "i.e., I'm disconnecting a device" -----------
+                topic_handlers = [regex for regex in self.__disconnect_requests_sub_topics if
+                                  fullmatch(regex, message.topic)]
+                if topic_handlers:
+                    for topic in topic_handlers:
+                        handler = self.__disconnect_requests_sub_topics[topic]
+
+                        found_device_name = None
+                        found_device_type = 'default'
+
+                        # Get device name, either from topic or from content
+                        if handler.get("deviceNameTopicExpression"):
+                            device_name_match = search(handler["deviceNameTopicExpression"], message.topic)
+                            if device_name_match is not None:
+                                found_device_name = device_name_match.group(0)
+                        elif handler.get("deviceNameJsonExpression"):
+                            found_device_name = TBUtility.get_value(handler["deviceNameJsonExpression"], content)
+
+                        # Get device type (if any), either from topic or from content
+                        if handler.get("deviceTypeTopicExpression"):
+                            device_type_match = search(handler["deviceTypeTopicExpression"], message.topic)
+                            if device_type_match is not None:
+                                found_device_type = device_type_match.group(0)
+                        elif handler.get("deviceTypeJsonExpression"):
+                            found_device_type = TBUtility.get_value(handler["deviceTypeJsonExpression"], content)
+
+                        if found_device_name is None:
+                            log.error("Device name missing from disconnection request")
+                            continue
+
+                        if found_device_name in GrpcMsgCreator.create_get_connected_devices_msg(self._connector_key):
+                            log.info("Disconnecting device %s of type %s", found_device_name, found_device_type)
+                            GrpcMsgCreator.create_device_disconnected_msg(found_device_name)
                         else:
-                            request_handled = self.put_data_to_convert(converter, message, content)
+                            log.info("Device %s was not connected", found_device_name)
+
+                        break
+
+                    # Note: if I'm in this branch, this was for sure a disconnection message
+                    # => Execution must end here both in case of failure and success
+                    return None
+
+                # Check if message topic exists in attribute request handlers "i.e., I'm asking for a shared attribute"-
+                topic_handlers = [regex for regex in self.__attribute_requests_sub_topics if
+                                  fullmatch(regex, message.topic)]
+                if topic_handlers:
+                    try:
+                        for topic in topic_handlers:
+                            handler = self.__attribute_requests_sub_topics[topic]
+
+                            found_device_name = None
+                            found_attribute_names = None
+
+                            # Get device name, either from topic or from content
+                            if handler.get("deviceNameTopicExpression"):
+                                device_name_match = search(handler["deviceNameTopicExpression"], message.topic)
+                                if device_name_match is not None:
+                                    found_device_name = device_name_match.group(0)
+                            elif handler.get("deviceNameJsonExpression"):
+                                found_device_name = TBUtility.get_value(handler["deviceNameJsonExpression"], content)
+
+                            # Get attribute name, either from topic or from content
+                            if handler.get("attributeNameTopicExpression"):
+                                attribute_name_match = search(handler["attributeNameTopicExpression"], message.topic)
+                                if attribute_name_match is not None:
+                                    found_attribute_names = attribute_name_match.group(0)
+                            elif handler.get("attributeNameJsonExpression"):
+                                found_attribute_names = list(filter(lambda x: x is not None,
+                                                                    TBUtility.get_values(
+                                                                        handler["attributeNameJsonExpression"],
+                                                                        content)))
+
+                            if found_device_name is None:
+                                log.error("Device name missing from attribute request")
+                                continue
+
+                            if found_attribute_names is None:
+                                log.error("Attribute name missing from attribute request")
+                                continue
+
+                            log.info("Will retrieve attribute %s of %s", found_attribute_names, found_device_name)
+                            self.request_device_attributes(found_device_name, found_attribute_names, client_scope=False)
+                            self._attribute_requests_queue.put(
+                                (found_attribute_names, handler.get("topicExpression"), handler.get("valueExpression"),
+                                 handler.get('retain', False)))
+
+                            break
 
                     except Exception as e:
                         log.exception(e)
 
-            if not request_handled:
-                log.error('Cannot find converter for the topic:"%s"! Client: %s, User data: %s',
+                    # Note: if I'm in this branch, this was for sure an attribute request message
+                    # => Execution must end here both in case of failure and success
+                    return None
+
+                log.debug("Received message to topic \"%s\" with unknown interpreter data: \n\n\"%s\"",
                           message.topic,
-                          str(client),
-                          str(userdata))
-
-            # Note: if I'm in this branch, this was for sure a telemetry/attribute push message
-            # => Execution must end here both in case of failure and success
-            return None
-
-        # Check if message topic exists in connection handlers "i.e., I'm connecting a device" -------------------------
-        topic_handlers = [regex for regex in self.__connect_requests_sub_topics if fullmatch(regex, message.topic)]
-
-        if topic_handlers:
-            for topic in topic_handlers:
-                handler = self.__connect_requests_sub_topics[topic]
-
-                found_device_name = None
-                found_device_type = 'default'
-
-                # Get device name, either from topic or from content
-                if handler.get("deviceNameTopicExpression"):
-                    device_name_match = search(handler["deviceNameTopicExpression"], message.topic)
-                    if device_name_match is not None:
-                        found_device_name = device_name_match.group(0)
-                elif handler.get("deviceNameJsonExpression"):
-                    found_device_name = TBUtility.get_value(handler["deviceNameJsonExpression"], content)
-
-                # Get device type (if any), either from topic or from content
-                if handler.get("deviceTypeTopicExpression"):
-                    device_type_match = search(handler["deviceTypeTopicExpression"], message.topic)
-                    found_device_type = device_type_match.group(0) if device_type_match is not None else handler[
-                        "deviceTypeTopicExpression"]
-                elif handler.get("deviceTypeJsonExpression"):
-                    found_device_type = TBUtility.get_value(handler["deviceTypeJsonExpression"], content)
-
-                if found_device_name is None:
-                    log.error("Device name missing from connection request")
-                    continue
-
-                # Note: device must be added even if it is already known locally: else ThingsBoard
-                # will not send RPCs and attribute updates
-                log.info("Connecting device %s of type %s", found_device_name, found_device_type)
-                # self.__gateway.add_device(found_device_name, {"connector": self}, device_type=found_device_type)
-                GrpcMsgCreator.create_device_connected_msg(found_device_name)
-
-            # Note: if I'm in this branch, this was for sure a connection message
-            # => Execution must end here both in case of failure and success
-            return None
-
-        # Check if message topic exists in disconnection handlers "i.e., I'm disconnecting a device" -------------------
-        topic_handlers = [regex for regex in self.__disconnect_requests_sub_topics if fullmatch(regex, message.topic)]
-        if topic_handlers:
-            for topic in topic_handlers:
-                handler = self.__disconnect_requests_sub_topics[topic]
-
-                found_device_name = None
-                found_device_type = 'default'
-
-                # Get device name, either from topic or from content
-                if handler.get("deviceNameTopicExpression"):
-                    device_name_match = search(handler["deviceNameTopicExpression"], message.topic)
-                    if device_name_match is not None:
-                        found_device_name = device_name_match.group(0)
-                elif handler.get("deviceNameJsonExpression"):
-                    found_device_name = TBUtility.get_value(handler["deviceNameJsonExpression"], content)
-
-                # Get device type (if any), either from topic or from content
-                if handler.get("deviceTypeTopicExpression"):
-                    device_type_match = search(handler["deviceTypeTopicExpression"], message.topic)
-                    if device_type_match is not None:
-                        found_device_type = device_type_match.group(0)
-                elif handler.get("deviceTypeJsonExpression"):
-                    found_device_type = TBUtility.get_value(handler["deviceTypeJsonExpression"], content)
-
-                if found_device_name is None:
-                    log.error("Device name missing from disconnection request")
-                    continue
-
-                if found_device_name in GrpcMsgCreator.create_get_connected_devices_msg(self._connector_key):
-                    log.info("Disconnecting device %s of type %s", found_device_name, found_device_type)
-                    GrpcMsgCreator.create_device_disconnected_msg(found_device_name)
-                else:
-                    log.info("Device %s was not connected", found_device_name)
-
-                break
-
-            # Note: if I'm in this branch, this was for sure a disconnection message
-            # => Execution must end here both in case of failure and success
-            return None
-
-        # Check if message topic exists in attribute request handlers "i.e., I'm asking for a shared attribute" --------
-        topic_handlers = [regex for regex in self.__attribute_requests_sub_topics if fullmatch(regex, message.topic)]
-        if topic_handlers:
-            try:
-                for topic in topic_handlers:
-                    handler = self.__attribute_requests_sub_topics[topic]
-
-                    found_device_name = None
-                    found_attribute_names = None
-
-                    # Get device name, either from topic or from content
-                    if handler.get("deviceNameTopicExpression"):
-                        device_name_match = search(handler["deviceNameTopicExpression"], message.topic)
-                        if device_name_match is not None:
-                            found_device_name = device_name_match.group(0)
-                    elif handler.get("deviceNameJsonExpression"):
-                        found_device_name = TBUtility.get_value(handler["deviceNameJsonExpression"], content)
-
-                    # Get attribute name, either from topic or from content
-                    if handler.get("attributeNameTopicExpression"):
-                        attribute_name_match = search(handler["attributeNameTopicExpression"], message.topic)
-                        if attribute_name_match is not None:
-                            found_attribute_names = attribute_name_match.group(0)
-                    elif handler.get("attributeNameJsonExpression"):
-                        found_attribute_names = list(filter(lambda x: x is not None,
-                                                            TBUtility.get_values(handler["attributeNameJsonExpression"],
-                                                                                 content)))
-
-                    if found_device_name is None:
-                        log.error("Device name missing from attribute request")
-                        continue
-
-                    if found_attribute_names is None:
-                        log.error("Attribute name missing from attribute request")
-                        continue
-
-                    log.info("Will retrieve attribute %s of %s", found_attribute_names, found_device_name)
-                    self.request_device_attributes(found_device_name, found_attribute_names, client_scope=False)
-                    self._attribute_requests_queue.put(
-                        (found_attribute_names, handler.get("topicExpression"), handler.get("valueExpression"), handler.get('retain', False)))
-
-                    break
-
-            except Exception as e:
-                log.exception(e)
-
-            # Note: if I'm in this branch, this was for sure an attribute request message
-            # => Execution must end here both in case of failure and success
-            return None
-
-        log.debug("Received message to topic \"%s\" with unknown interpreter data: \n\n\"%s\"",
-                  message.topic,
-                  content)
+                          content)
 
     def notify_attribute(self, content):
         try:
@@ -643,29 +670,72 @@ class GrpcMqttConnector(GwGrpcConnector):
         else:
             log.error("Attribute updates config not found.")
 
-    # temporary method
-    def _processing_rpc(self):
-        while not self.__stopped:
-            cur_time = time() * 1000
+    def __process_rpc_request(self, content, rpc_config):
+        # This handler seems able to handle the request
+        log.info("Candidate RPC handler found")
 
-            new_rpc_request_in_progress = {}
-            if self.__rpc_requests_in_progress:
-                for rpc_in_progress, data in self.__rpc_requests_in_progress.items():
-                    if cur_time >= data[1]:
-                        data[2](rpc_in_progress)
-                        self.rpc_cancel_processing(rpc_in_progress)
-                        self.__rpc_requests_in_progress[rpc_in_progress] = "del"
-                new_rpc_request_in_progress = {key: value for key, value in
-                                               self.__rpc_requests_in_progress.items() if value != 'del'}
-            if not self.__rpc_register_queue.empty():
-                rpc_request_from_queue = self.__rpc_register_queue.get(False)
-                topic = rpc_request_from_queue["topic"]
-                data = rpc_request_from_queue["data"]
-                new_rpc_request_in_progress[topic] = data
+        expects_response = rpc_config.get("responseTopicExpression")
+        defines_timeout = rpc_config.get("responseTimeout")
 
-            self.__rpc_requests_in_progress = new_rpc_request_in_progress
+        # 2-way RPC setup
+        if expects_response and defines_timeout:
+            expected_response_topic = rpc_config["responseTopicExpression"] \
+                .replace("${deviceName}", str(content["device"])) \
+                .replace("${methodName}", str(content['data']['method'])) \
+                .replace("${requestId}", str(content["data"]["id"]))
 
-            sleep(.2)
+            expected_response_topic = TBUtility.replace_params_tags(expected_response_topic, content)
+
+            timeout = time() * 1000 + rpc_config.get("responseTimeout")
+
+            # Start listenting on the response topic
+            log.info("Subscribing to: %s", expected_response_topic)
+            self.__subscribe(expected_response_topic, rpc_config.get("responseTopicQoS", 1))
+
+            # Wait for subscription to be carried out
+            sub_response_timeout = 10
+
+            while expected_response_topic in self.__subscribes_sent.values():
+                sub_response_timeout -= 1
+                sleep(0.1)
+                if sub_response_timeout == 0:
+                    break
+
+        elif expects_response and not defines_timeout:
+            log.info("2-way RPC without timeout: treating as 1-way")
+
+        # Actually reach out for the device
+        request_topic: str = rpc_config.get("requestTopicExpression") \
+            .replace("${deviceName}", str(content["device"])) \
+            .replace("${methodName}", str(content['data']['method'])) \
+            .replace("${requestId}", str(content["data"]["id"]))
+
+        request_topic = TBUtility.replace_params_tags(request_topic, content)
+
+        data_to_send_tags = TBUtility.get_values(rpc_config.get('valueExpression'), content['data'],
+                                                 'params',
+                                                 get_tag=True)
+        data_to_send_values = TBUtility.get_values(rpc_config.get('valueExpression'), content['data'],
+                                                   'params',
+                                                   expression_instead_none=True)
+
+        data_to_send = rpc_config.get('valueExpression')
+        for (tag, value) in zip(data_to_send_tags, data_to_send_values):
+            data_to_send = data_to_send.replace('${' + tag + '}', dumps(value))
+
+        try:
+            log.info("Publishing to: %s with data %s", request_topic, data_to_send)
+            self._client.publish(request_topic, data_to_send, rpc_config.get('retain', False))
+
+            if not expects_response or not defines_timeout:
+                log.info("One-way RPC: sending ack to ThingsBoard immediately")
+                self.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
+                                    success=True)
+
+            # Everything went out smoothly: RPC is served
+            return
+        except Exception as e:
+            log.exception(e)
 
     def server_side_rpc_handler(self, content):
         log.info("Incoming server-side RPC: %s", content)
@@ -679,79 +749,29 @@ class GrpcMqttConnector(GwGrpcConnector):
             }
         }
 
-        # Check whether one of my RPC handlers can handle this request
-        for rpc_config in self.__server_side_rpc:
-            if search(rpc_config["deviceNameFilter"], converted_content["device"]) \
-                    and search(rpc_config["methodFilter"], converted_content["data"]["method"]) is not None:
+        rpc_method = converted_content['data']['method']
 
-                # This handler seems able to handle the request
-                log.info("Candidate RPC handler found")
-
-                expects_response = rpc_config.get("responseTopicExpression")
-                defines_timeout = rpc_config.get("responseTimeout")
-
-                # 2-way RPC setup
-                if expects_response and defines_timeout:
-                    expected_response_topic = rpc_config["responseTopicExpression"] \
-                        .replace("${deviceName}", str(converted_content["device"])) \
-                        .replace("${methodName}", str(converted_content["data"]["method"])) \
-                        .replace("${requestId}", str(converted_content["data"]["id"]))
-
-                    expected_response_topic = TBUtility.replace_params_tags(expected_response_topic, converted_content)
-
-                    timeout = time() * 1000 + rpc_config.get("responseTimeout")
-
-                    # Start listening on the response topic
-                    log.info("Subscribing to: %s", expected_response_topic)
-                    self.__subscribe(expected_response_topic, rpc_config.get("responseTopicQoS", 1))
-
-                    # Wait for subscription to be carried out
-                    sub_response_timeout = 10
-
-                    while expected_response_topic in self.__subscribes_sent.values():
-                        sub_response_timeout -= 1
-                        sleep(0.1)
-                        if sub_response_timeout == 0:
-                            break
-
-                elif expects_response and not defines_timeout:
-                    log.info("2-way RPC without timeout: treating as 1-way")
-
-                # Actually reach out for the device
-                request_topic: str = rpc_config.get("requestTopicExpression") \
-                    .replace("${deviceName}", str(converted_content["device"])) \
-                    .replace("${methodName}", str(converted_content["data"]["method"])) \
-                    .replace("${requestId}", str(converted_content["data"]["id"]))
-
-                request_topic = TBUtility.replace_params_tags(request_topic, converted_content)
-
-                data_to_send_tags = TBUtility.get_values(rpc_config.get('valueExpression'), converted_content['data'],
-                                                         'params',
-                                                         get_tag=True)
-                data_to_send_values = TBUtility.get_values(rpc_config.get('valueExpression'), converted_content['data'],
-                                                           'params',
-                                                           expression_instead_none=True)
-
-                data_to_send = rpc_config.get('valueExpression')
-                for (tag, value) in zip(data_to_send_tags, data_to_send_values):
-                    data_to_send = data_to_send.replace('${' + tag + '}', dumps(value))
-
+        # check if RPC method is reserved get/set
+        if rpc_method == 'get' or rpc_method == 'set':
+            params = {}
+            for param in converted_content['data']['params'].split(';'):
                 try:
-                    log.info("Publishing to: %s with data %s", request_topic, data_to_send)
-                    self._client.publish(request_topic, data_to_send, retain=rpc_config.get('retain', False))
+                    (key, value) = param.split('=')
+                except ValueError:
+                    continue
 
-                    if not expects_response or not defines_timeout:
-                        log.info("One-way RPC: sending ack to ThingsBoard immediately")
-                        self.send_rpc_reply(device=converted_content["device"], req_id=converted_content["data"]["id"],
-                                            success=True)
+                if key and value:
+                    params[key] = value
 
-                    # Everything went out smoothly: RPC is served
-                    return
+            return self.__process_rpc_request(converted_content, params)
+        else:
+            # Check whether one of my RPC handlers can handle this request
+            for rpc_config in self.__server_side_rpc:
+                if search(rpc_config["deviceNameFilter"], converted_content["device"]) \
+                        and search(rpc_config["methodFilter"], rpc_method) is not None:
+                    return self.__process_rpc_request(converted_content, rpc_config)
 
-                except Exception as e:
-                    log.exception(e)
-
-        log.error("RPC not handled: %s", converted_content)
+            log.error("RPC not handled: %s", converted_content)
 
     def rpc_cancel_processing(self, topic):
         log.info("RPC canceled or terminated. Unsubscribing from %s", topic)
