@@ -15,7 +15,7 @@
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
-from threading import Thread
+from threading import Thread, Lock
 from time import sleep, time
 
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
@@ -34,13 +34,20 @@ from thingsboard_gateway.connectors.modbus.modbus_connector import FUNCTION_CODE
     FUNCTION_CODE_PARAMETER, FRAMER_TYPE, SLAVE_TYPE, FUNCTION_CODE_READ, CONVERTED_DATA_SECTIONS
 
 # Try import Pymodbus library or install it and import
+installation_required = False
+
 try:
-    from pymodbus.constants import Defaults
+    from pymodbus import __version__ as pymodbus_version
+    if int(pymodbus_version.split('.')[0]) < 3:
+        installation_required = True
 except ImportError:
+    installation_required = True
+
+if installation_required:
     print("Modbus library not found - installing...")
-    TBUtility.install_package("pymodbus", ">=2.3.0")
+    TBUtility.install_package("pymodbus", ">=3.0.0")
     TBUtility.install_package('pyserial')
-    from pymodbus.constants import Defaults
+    TBUtility.install_package('pyserial-asyncio')
 
 try:
     from twisted.internet import reactor
