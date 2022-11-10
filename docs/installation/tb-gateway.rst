@@ -34,6 +34,7 @@ ExecStopPost=/home/pi/thingsboard-gateway/setup_files/bluetooth-kill.sh
 
 [Install]
 WantedBy=multi-user.target`
+
    * Be sure to save the file before closing. 
    
    * Move to the directory the service file will live in: :code:`cd /etc/systemd/system`
