@@ -77,4 +77,5 @@ Run ThingsBoard Gateway
   
   *Note: the :code:`"$ACCESS_TOKEN"` refers to the access token associated with your gateway on ThingsBoard. You must copy and paste it into that field.
   
+  
 #. Navigate to the devices panel of ThingsBoard, click on your gateway device, then the "Latest Telemetry" tab. If everything worked the way it should, you should see an entry with key "temperature" and value "25".
