@@ -75,7 +75,7 @@ Run ThingsBoard Gateway
 #. Be sure to check there is no line in the status that contains :code:`|ERROR| - [tb_device_mqtt.py] - tb_device_mqtt - _on_connect - 146 - connection FAIL with error 5 not authorised"`. This error means the gateway failed to connect to ThingsBoard due to a bad access token.
 #. Once everything is running smoothly, use the following command to send a telemetry packet to ThingsBoard: :code:`mosquitto_pub -d -q 1 -h "variot.ece.drexel.edu" -p "1883" -t "v1/devices/me/telemetry" -u "$ACCESS_TOKEN" -m {"temperature":25}`. Be sure to replace :code:`$ACCESS_TOKEN` with your access code.
   
-  *Note: the :code:`"$ACCESS_TOKEN"` refers to the access token associated with your gateway on ThingsBoard. You must copy and paste it into that field.
+  *Note: the :code:`"$ACCESS_TOKEN"` refers to the access token associated with your gateway on ThingsBoard. You must copy and paste it into that field
   
   
 #. Navigate to the devices panel of ThingsBoard, click on your gateway device, then the "Latest Telemetry" tab. If everything worked the way it should, you should see an entry with key "temperature" and value "25".
