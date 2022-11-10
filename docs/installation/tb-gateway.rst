@@ -22,6 +22,19 @@ Install ThingsBoard Gateway
 #. Move to the repository: :code:`cd thingsboard-gateway`
 #. Install the gateway python module: :code:`sudo python3 setup.py install`
 #. In order to run your gateway from the source, copy :code:`thingsboard-gateway.service` to the :code:`/etc/systemd/system` directory
+
+   * Before copying :code:`thingsboard-gateway.service` you need to edit the file. Open :code:`thingsboard-gateway.service` in your editor of choice and delete all contents. Then copy and paste the following : :code:`[Unit]
+Description=ThingsBoard Gateway
+After=network-online.target wait-for-dns.service
+Wants=network-online.target wait-for-dns.service
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/thingsboard-gateway/thingsboard-gateway/thingsboard_gateway/tb_gateway.py
+ExecStopPost=/home/pi/thingsboard-gateway/setup_files/bluetooth-kill.sh
+
+[Install]
+WantedBy=multi-user.target`
+   * Be sure to save the file before closing. 
    
    * Move to the directory the service file will live in: :code:`cd /etc/systemd/system`
    * Copy the service files to the current directory: :code:`cp ~/setup_files/*.service .` <-- the period here is important
