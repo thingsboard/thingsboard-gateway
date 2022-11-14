@@ -26,6 +26,10 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
     def __init__(self, config):
         self.__config = config.get('converter')
 
+    @property
+    def config(self):
+        return self.__config
+
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
     def convert(self, topic, data):
@@ -41,8 +45,8 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         datatypes = {"attributes": "attributes",
                      "timeseries": "telemetry"}
         dict_result = {
-            "deviceName": JsonMqttUplinkConverter.parse_device_name(topic, data, self.__config),
-            "deviceType": JsonMqttUplinkConverter.parse_device_type(topic, data, self.__config),
+            "deviceName": self.parse_device_name(topic, data, self.__config),
+            "deviceType": self.parse_device_type(topic, data, self.__config),
             "attributes": [],
             "telemetry": []
         }
@@ -55,7 +59,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                     if isinstance(datatype_config, str) and datatype_config == "*":
                         for item in data:
                             dict_result[datatypes[datatype]].append(
-                                JsonMqttUplinkConverter.create_timeseries_record(item, data[item], timestamp))
+                                self.create_timeseries_record(item, data[item], timestamp))
                     else:
                         values = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
                                                       expression_instead_none=False)
@@ -83,7 +87,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
                         if full_key != 'None' and full_value != 'None':
                             dict_result[datatypes[datatype]].append(
-                                JsonMqttUplinkConverter.create_timeseries_record(full_key, full_value, timestamp))
+                                self.create_timeseries_record(full_key, full_value, timestamp))
         except Exception as e:
             log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
             log.exception(e)

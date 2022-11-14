@@ -20,6 +20,7 @@
         "type": "json",
         "deviceNameJsonExpression": "${serialNumber}",
         "deviceTypeJsonExpression": "${sensorType}",
+        "sendDataOnlyOnChange": false,
         "timeout": 60000,
         "attributes": [
           {
@@ -58,6 +59,7 @@
         "type": "json",
         "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/data)",
         "deviceTypeTopicExpression": "Thermometer",
+        "sendDataOnlyOnChange": false,
         "timeout": 60000,
         "attributes": [
           {
@@ -86,6 +88,7 @@
         "type": "bytes",
         "deviceNameExpression": "[0:4]",
         "deviceTypeExpression": "default",
+        "sendDataOnlyOnChange": false,
         "timeout": 60000,
         "attributes": [
           {
