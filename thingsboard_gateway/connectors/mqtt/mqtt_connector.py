@@ -109,6 +109,9 @@ class MqttConnector(Connector, Thread):
         # Extract main sections from configuration ---------------------------------------------------------------------
         self.__broker = config.get('broker')
 
+        # for sendDataOnlyOnChange param
+        self.__topic_content = {}
+
         self.__mapping = []
         self.__server_side_rpc = []
         self.__connect_requests = []
@@ -477,6 +480,14 @@ class MqttConnector(Connector, Thread):
                         available_converters = self.__mapping_sub_topics[topic]
                         for converter in available_converters:
                             try:
+                                # check if data is equal
+                                if converter.config.get('sendDataOnlyOnChange', False) and self.__topic_content.get(
+                                        message.topic) == content:
+                                    request_handled = True
+                                    continue
+
+                                self.__topic_content[message.topic] = content
+
                                 request_handled = self.put_data_to_convert(converter, message, content)
                             except Exception as e:
                                 log.exception(e)
