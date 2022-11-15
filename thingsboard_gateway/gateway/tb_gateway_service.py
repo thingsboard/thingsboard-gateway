@@ -248,7 +248,13 @@ class TBGatewayService:
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
         self._send_thread.start()
-        self.__min_pack_send_delay_ms = self.__config['thingsboard'].get('minPackSendDelayMS', 500) / 1000.0
+
+        self.__min_pack_send_delay_ms = self.__config['thingsboard'].get('minPackSendDelayMS', 200)
+        if self.__min_pack_send_delay_ms == 0:
+            self.__min_pack_send_delay_ms = 10
+
+        self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
+
         log.info("Gateway started.")
 
         self._watchers_thread = Thread(target=self._watchers, name='Watchers', daemon=True)
@@ -862,7 +868,7 @@ class TBGatewayService:
                                 except Exception as e:
                                     log.exception(e)
                                     success = False
-                                sleep(0.2)
+                                sleep(self.__min_pack_send_delay_ms)
                             if success and self.tb_client.is_connected():
                                 self._event_storage.event_pack_processing_done()
                                 del devices_data_in_event_pack
@@ -870,9 +876,9 @@ class TBGatewayService:
                         else:
                             continue
                     else:
-                        sleep(0.2)
+                        sleep(self.__min_pack_send_delay_ms)
                 else:
-                    sleep(0.2)
+                    sleep(self.__min_pack_send_delay_ms)
             except Exception as e:
                 log.exception(e)
                 sleep(1)
