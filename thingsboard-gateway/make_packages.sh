@@ -41,7 +41,7 @@ if [ "$1" != "only_clean" ] ; then
   echo "Building DEB package"
   # Create sources for DEB package
   python3 setup.py --command-packages=stdeb.command bdist_deb
-#  find thingsboard_gateway/ -name "*.pyc" -exec rm -f {} \;
+  #find thingsboard_gateway/ -name "*.pyc" -exec rm -f {} \;
   echo 1
   # Adding the files, scripts and permissions
   cp -r for_build/etc deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway
@@ -57,9 +57,9 @@ if [ "$1" != "only_clean" ] ; then
   cp deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway.deb .
   # Create sources for RPM Package
   echo 'Building RPM package'
-#  find thingsboard_gateway/ -name "*.pyc" -exec rm -f {} \;
+  #find thingsboard_gateway/ -name "*.pyc" -exec rm -f {} \;
   python3 setup.py bdist_rpm
-#  find thingsboard_gateway/ -name "*.pyc" -exec rm -f {} \;
+  #find thingsboard_gateway/ -name "*.pyc" -exec rm -f {} \;
   cp build/bdist.linux-x86_64/rpm/* /home/$CURRENT_USER/rpmbuild/ -r
   # Adding the file, scripts and permissions
   cp for_build/etc/systemd/system/thingsboard-gateway.service /home/$CURRENT_USER/rpmbuild/SOURCES/
