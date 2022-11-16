@@ -1,0 +1,230 @@
+
+syntax = "proto3";
+
+package messages;
+
+message Response {
+  ResponseStatus status = 1;
+  FromServiceMessage serviceMessage = 2;
+  FromConnectorMessage connectorMessage = 3;
+}
+
+service TBGatewayProtoService {
+    rpc stream(FromConnectorMessage) returns (FromServiceMessage);
+}
+
+message FromConnectorMessage {
+  Response response = 1;
+  GatewayTelemetryMsg gatewayTelemetryMsg = 2;
+  GatewayAttributesMsg gatewayAttributesMsg = 3;
+  GatewayClaimMsg gatewayClaimMsg = 4;
+  RegisterConnectorMsg registerConnectorMsg = 5;
+  UnregisterConnectorMsg unregisterConnectorMsg = 6;
+  ConnectMsg connectMsg = 7;
+  DisconnectMsg disconnectMsg = 8;
+  GatewayRpcResponseMsg gatewayRpcResponseMsg = 9;
+  GatewayAttributesRequestMsg gatewayAttributeRequestMsg = 10;
+  ConnectorGetConnectedDevicesMsg connectorGetConnectedDevicesMsg = 11;
+}
+
+message FromServiceMessage {
+  Response response = 1;
+  ConnectorConfigurationMsg connectorConfigurationMsg = 2;
+  GatewayAttributeUpdateNotificationMsg gatewayAttributeUpdateNotificationMsg = 3;
+  GatewayAttributeResponseMsg gatewayAttributeResponseMsg = 4;
+  GatewayDeviceRpcRequestMsg gatewayDeviceRpcRequestMsg = 5;
+  UnregisterConnectorMsg unregisterConnectorMsg = 6;
+  ConnectorGetConnectedDevicesResponseMsg connectorGetConnectedDevicesResponseMsg = 7;
+}
+
+// Enums
+
+enum ResponseStatus {
+  UNKNOWN = 0;
+  SUCCESS = 1;
+  NOT_FOUND = 2;
+  FAILURE = 3;
+}
+
+enum KeyValueType {
+  BOOLEAN_V = 0;
+  LONG_V = 1;
+  DOUBLE_V = 2;
+  STRING_V = 3;
+  JSON_V = 4;
+}
+
+// Service connector messages
+
+message RegisterConnectorMsg {
+  string connectorKey = 1;
+}
+
+message UnregisterConnectorMsg {
+  string connectorKey = 1;
+}
+
+message ConnectorConfigurationMsg {
+  string connectorName = 1;
+  string configuration = 2;
+}
+
+message ConnectorGetConnectedDevicesMsg {
+  string connectorKey = 1;
+}
+
+message ConnectorGetConnectedDevicesResponseMsg {
+  repeated ConnectorDeviceInfo connectorDevices = 1;
+}
+
+message ConnectorDeviceInfo {
+  string deviceName = 1;
+  string deviceType = 2;
+}
+
+// Device messages
+
+message KeyValueProto {
+  string key = 1;
+  KeyValueType type = 2;
+  bool bool_v = 3;
+  int64 long_v = 4;
+  double double_v = 5;
+  string string_v = 6;
+  string json_v = 7;
+}
+
+message TsKvProto {
+  int64 ts = 1;
+  KeyValueProto kv = 2;
+}
+
+message TsKvListProto {
+  int64 ts = 1;
+  repeated KeyValueProto kv = 2;
+}
+
+message PostTelemetryMsg {
+  repeated TsKvListProto tsKvList = 1;
+}
+
+message PostAttributeMsg {
+  repeated KeyValueProto kv = 1;
+}
+
+message AttributeUpdateNotificationMsg {
+  repeated TsKvProto sharedUpdated = 1;
+  repeated string sharedDeleted = 2;
+}
+
+message ToDeviceRpcRequestMsg {
+  int32 requestId = 1;
+  string methodName = 2;
+  string params = 3;
+}
+
+message ToDeviceRpcResponseMsg {
+  int32 requestId = 1;
+  string payload = 2;
+  string error = 3;
+}
+
+message ToServerRpcRequestMsg {
+  int32 requestId = 1;
+  string methodName = 2;
+  string params = 3;
+}
+
+message ToServerRpcResponseMsg {
+  int32 requestId = 1;
+  string payload = 2;
+  string error = 3;
+}
+
+message ClaimDevice {
+  string secretKey = 1;
+  int64 durationMs = 2;
+}
+
+message AttributesRequest {
+  string clientKeys = 1;
+  string sharedKeys = 2;
+}
+
+message RpcRequest {
+  string method = 1;
+  string params = 2;
+}
+
+message DisconnectMsg {
+  string deviceName = 1;
+}
+
+message ConnectMsg {
+  string deviceName = 1;
+  string deviceType = 2;
+}
+
+message TelemetryMsg {
+  string deviceName = 1;
+  PostTelemetryMsg msg = 3;
+}
+
+message AttributesMsg {
+  string deviceName = 1;
+  PostAttributeMsg msg = 2;
+}
+
+message ClaimDeviceMsg {
+  string deviceName = 1;
+  ClaimDevice claimRequest = 2;
+}
+
+// Gateway messages
+
+message GatewayTelemetryMsg {
+  repeated TelemetryMsg msg = 1;
+}
+
+message GatewayClaimMsg {
+  repeated ClaimDeviceMsg msg = 1;
+}
+
+message GatewayAttributesMsg {
+  repeated AttributesMsg msg = 1;
+}
+
+message GatewayRpcResponseMsg {
+  string deviceName = 1;
+  int32  id = 2;
+  string data = 3;
+}
+
+message GatewayAttributeResponseMsg {
+  string deviceName = 1;
+  GatewayAttributesResponseMsg responseMsg = 2;
+}
+
+message GatewayAttributeUpdateNotificationMsg {
+  string deviceName = 1;
+  AttributeUpdateNotificationMsg notificationMsg = 2;
+}
+
+message GatewayDeviceRpcRequestMsg {
+  string deviceName = 1;
+  ToDeviceRpcRequestMsg rpcRequestMsg = 2;
+}
+
+message GatewayAttributesRequestMsg {
+  int32  id = 1;
+  string deviceName = 2;
+  bool client = 3;
+  repeated string keys = 4;
+}
+
+message GatewayAttributesResponseMsg {
+  int32 requestId = 1;
+  repeated KeyValueProto clientAttributeList = 2;
+  repeated KeyValueProto sharedAttributeList = 3;
+  string error = 5;
+}
