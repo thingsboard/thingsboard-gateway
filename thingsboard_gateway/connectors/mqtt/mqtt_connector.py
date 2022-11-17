@@ -22,6 +22,8 @@ from time import sleep, time
 
 import simplejson
 
+from thingsboard_gateway.gateway.constants import *
+from thingsboard_gateway.gateway.constant_enums import Status
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -108,6 +110,7 @@ class MqttConnector(Connector, Thread):
 
         # Extract main sections from configuration ---------------------------------------------------------------------
         self.__broker = config.get('broker')
+        self.__send_data_only_on_change = self.__broker.get(SEND_ON_CHANGE_PARAMETER, DEFAULT_SEND_DATA_ON_CHANGE_VALUE)
 
         # for sendDataOnlyOnChange param
         self.__topic_content = {}
@@ -217,6 +220,9 @@ class MqttConnector(Connector, Thread):
         self._on_message_queue = Queue()
         self._on_message_thread = Thread(name='On Message', target=self._process_on_message, daemon=True)
         self._on_message_thread.start()
+
+    def is_filtering_enable(self, device_name):
+        return self.__send_data_only_on_change
 
     def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list):
         if handler_flavor not in self.config:
@@ -436,9 +442,9 @@ class MqttConnector(Connector, Thread):
         return False
 
     def _save_converted_msg(self, topic, data):
-        self.__gateway.send_to_storage(self.name, data)
-        self.statistics['MessagesSent'] += 1
-        self.__log.debug("Successfully converted message from topic %s", topic)
+        if self.__gateway.send_to_storage(self.name, data) == Status.SUCCESS:
+            self.statistics['MessagesSent'] += 1
+            self.__log.debug("Successfully converted message from topic %s", topic)
 
     def __threads_manager(self):
         if len(self.__workers_thread_pool) == 0:
@@ -847,7 +853,8 @@ class MqttConnector(Connector, Thread):
                     convert_function, config, incoming_data = self.__msg_queue.get(True, 100)
                     converted_data = convert_function(config, incoming_data)
                     log.debug(converted_data)
-                    if converted_data and (converted_data.get('attributes') or converted_data.get('telemetry')):
+                    if converted_data and (converted_data.get(ATTRIBUTES_PARAMETER) or
+                                           converted_data.get(TELEMETRY_PARAMETER)):
                         self.__send_result(config, converted_data)
                     self.in_progress = False
                 else:

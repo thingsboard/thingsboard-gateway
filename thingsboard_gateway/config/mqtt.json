@@ -7,6 +7,7 @@
     "version": 5,
     "maxMessageNumberPerWorker": 10,
     "maxNumberOfWorkers": 100,
+    "sendDataOnlyOnChange": false,
     "security": {
       "type": "basic",
       "username": "user",

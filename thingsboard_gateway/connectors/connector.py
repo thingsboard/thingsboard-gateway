@@ -43,3 +43,6 @@ class Connector(ABC):
     @abstractmethod
     def server_side_rpc_handler(self, content):
         pass
+
+    def is_filtering_enable(self, device_name):
+        return False

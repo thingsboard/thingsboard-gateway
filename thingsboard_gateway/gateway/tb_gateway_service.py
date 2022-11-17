@@ -33,6 +33,7 @@ from yaml import safe_load
 from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME
+from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
@@ -146,6 +147,7 @@ class TBGatewayService:
         global log
         log = logging.getLogger('service')
         log.info("Gateway starting...")
+        self.__duplicate_detector = DuplicateDetector(self)
         self.__updater = TBUpdater()
         self.__updates_check_period_ms = 300000
         self.__updates_check_time = 0
@@ -259,6 +261,9 @@ class TBGatewayService:
 
         self._watchers_thread = Thread(target=self._watchers, name='Watchers', daemon=True)
         self._watchers_thread.start()
+
+    def get_connector(self, name):
+        return self.available_connectors.get(name)
 
     def _watchers(self):
         try:
@@ -654,8 +659,12 @@ class TBGatewayService:
 
     def send_to_storage(self, connector_name, data):
         try:
-            self.__converted_data_queue.put((connector_name, data), True, 100)
-            return Status.SUCCESS
+            filtered_data = self.__duplicate_detector.filter_data(connector_name, data)
+            if filtered_data:
+                self.__converted_data_queue.put((connector_name, filtered_data), True, 100)
+                return Status.SUCCESS
+            else:
+                return Status.NO_NEW_DATA
         except Exception as e:
             log.exception("Cannot put converted data!", e)
             return Status.FAILURE
