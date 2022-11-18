@@ -62,10 +62,10 @@ class StatisticsService(Thread):
                 for attribute in self._config:
                     try:
                         process = subprocess.run(attribute['command'], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                             encoding='utf-8', timeout=attribute['timeout'])
+                                                 encoding='utf-8', timeout=attribute['timeout'])
                     except Exception as e:
-                        self._log.error("Statistic parameter %s raise the exception: %s",
-                                        attribute['attributeOnGateway'], e)
+                        self._log.warning("Statistic parameter %s raise the exception: %s",
+                                          attribute['attributeOnGateway'], e)
                         continue
 
                     value = process.stdout

@@ -245,15 +245,16 @@ class TBGatewayService:
                                                               'configuration') else None)
 
         self._published_events = SimpleQueue()
-        self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
-                                   name="Send data to Thingsboard Thread")
-        self._send_thread.start()
 
         self.__min_pack_send_delay_ms = self.__config['thingsboard'].get('minPackSendDelayMS', 200)
         if self.__min_pack_send_delay_ms == 0:
             self.__min_pack_send_delay_ms = 10
 
         self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
+
+        self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
+                                   name="Send data to Thingsboard Thread")
+        self._send_thread.start()
 
         log.info("Gateway started.")
 
