@@ -60,11 +60,12 @@ class StatisticsService(Thread):
             if time() - self._last_poll >= self._stats_send_period_in_seconds:
                 data_to_send = {}
                 for attribute in self._config:
-                    process = subprocess.run(attribute['command'], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    try:
+                        process = subprocess.run(attribute['command'], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                              encoding='utf-8', timeout=attribute['timeout'])
-
-                    if process.returncode != 0:
-                        self._log.error("Statistic parameter raise the exception: %s", process.stderr)
+                    except Exception as e:
+                        self._log.error("Statistic parameter %s raise the exception: %s",
+                                        attribute['attributeOnGateway'], e)
                         continue
 
                     value = process.stdout

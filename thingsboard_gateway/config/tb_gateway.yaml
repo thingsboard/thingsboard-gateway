@@ -6,9 +6,9 @@ thingsboard:
   statistics:
     enable: true
     statsSendPeriodInSeconds: 3600
-    configuration: statistics.json
+#    configuration: statistics/statistics_linux.json
   maxPayloadSizeBytes: 1024
-  minPackSendDelayMS: 0
+  minPackSendDelayMS: 200
   checkConnectorsConfigurationInSeconds: 60
   handleDeviceRenaming: true
   checkingDeviceActivity:
