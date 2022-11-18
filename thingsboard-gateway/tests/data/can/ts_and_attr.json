@@ -42,6 +42,42 @@
           "value": "4:2:int"
         }
       ]
+    },
+    {
+      "name": "Car3",
+      "sendDataOnlyOnChange": true,
+      "timeseries": [
+        {
+          "key": "param1",
+          "nodeId": 3,
+          "command": "0:2:little:11111",
+          "value": "2:2:int"
+        },
+        {
+          "key": "param2",
+          "nodeId": 3,
+          "command": "0:2:little:22222",
+          "value": "2:2:int"
+        }
+      ]
+    },
+    {
+      "name": "Car4",
+      "sendDataOnlyOnChange": true,
+      "timeseries": [
+        {
+          "key": "firstCommandConfig",
+          "nodeId": 4,
+          "command": "0:2:little:11111",
+          "value": "2:2:int"
+        },
+        {
+          "key": "ignoredAnotherCommandConfig",
+          "nodeId": 4,
+          "command": "3:3:little:22222",
+          "value": "2:2:int"
+        }
+      ]
     }
   ]
 }
