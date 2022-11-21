@@ -251,6 +251,7 @@ class TBGatewayService:
             self.__min_pack_send_delay_ms = 10
 
         self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
+        self.__min_events_process = self.__config['thingsboard'].get('minEventsProcess', 50)
 
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
@@ -856,20 +857,23 @@ class TBGatewayService:
                                         self.__rpc_reply_sent:
                                     success = False
                                     break
-                                event = self._published_events.get(False, 10)
-                                try:
-                                    if self.tb_client.is_connected() and (
-                                            self.__remote_configurator is None or not self.__remote_configurator.in_process):
-                                        if self.tb_client.client.quality_of_service == 1:
-                                            success = event.get() == event.TB_ERR_SUCCESS
+
+                                events = [self._published_events.get(False, 10) for _ in
+                                          range(min(self.__min_events_process, self._published_events.qsize()))]
+                                for event in events:
+                                    try:
+                                        if self.tb_client.is_connected() and (
+                                                self.__remote_configurator is None or not self.__remote_configurator.in_process):
+                                            if self.tb_client.client.quality_of_service == 1:
+                                                success = event.get() == event.TB_ERR_SUCCESS
+                                            else:
+                                                success = True
                                         else:
-                                            success = True
-                                    else:
-                                        break
-                                except Exception as e:
-                                    log.exception(e)
-                                    success = False
-                                sleep(self.__min_pack_send_delay_ms)
+                                            break
+                                    except Exception as e:
+                                        log.exception(e)
+                                        success = False
+                                    sleep(self.__min_pack_send_delay_ms)
                             if success and self.tb_client.is_connected():
                                 self._event_storage.event_pack_processing_done()
                                 del devices_data_in_event_pack
