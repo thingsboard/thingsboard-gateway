@@ -115,8 +115,8 @@ class RequestConnector(Connector, Thread):
                     response_queue = Queue(1)
                     request_dict = {"config": {**rpc_request,
                                                **converted_data},
-                                    "request": request}
-                    request_dict["config"].get("uplink_converter")
+                                    "request": request,
+                                    "withResponse": True}
                     rpc_request_thread = Thread(target=self.__send_request,
                                                 args=(request_dict, response_queue, log),
                                                 daemon=True,
@@ -127,7 +127,10 @@ class RequestConnector(Connector, Thread):
                         response = response_queue.get_nowait()
                         log.debug(response)
                         self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                                      content=response[2])
+                                                      content=response.text)
+                        del response_queue
+                        return
+
                     self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
                                                   success_sent=True)
 
@@ -201,6 +204,11 @@ class RequestConnector(Connector, Thread):
                 params["headers"] = request["config"]["httpHeaders"]
             logger.debug("Request to %s will be sent", url)
             response = request["request"](**params)
+
+            if request.get('withResponse'):
+                converter_queue.put(response)
+                return
+
             if response and response.ok:
                 if not converter_queue.full():
                     data_to_storage = [url, request["converter"]]
