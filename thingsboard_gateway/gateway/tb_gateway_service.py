@@ -251,7 +251,7 @@ class TBGatewayService:
             self.__min_pack_send_delay_ms = 10
 
         self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
-        self.__min_events_process = self.__config['thingsboard'].get('minEventsProcess', 50)
+        self.__min_pack_size_to_send = self.__config['thingsboard'].get('minPackSizeToSend', 50)
 
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
@@ -859,7 +859,7 @@ class TBGatewayService:
                                     break
 
                                 events = [self._published_events.get(False, 10) for _ in
-                                          range(min(self.__min_events_process, self._published_events.qsize()))]
+                                          range(min(self.__min_pack_size_to_send, self._published_events.qsize()))]
                                 for event in events:
                                     try:
                                         if self.tb_client.is_connected() and (
