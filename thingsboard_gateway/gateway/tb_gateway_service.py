@@ -147,7 +147,6 @@ class TBGatewayService:
         global log
         log = logging.getLogger('service')
         log.info("Gateway starting...")
-        self.__duplicate_detector = DuplicateDetector(self)
         self.__updater = TBUpdater()
         self.__updates_check_period_ms = 300000
         self.__updates_check_time = 0
@@ -257,13 +256,12 @@ class TBGatewayService:
 
         self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
 
+        self.__duplicate_detector = DuplicateDetector(self.available_connectors)
+
         log.info("Gateway started.")
 
         self._watchers_thread = Thread(target=self._watchers, name='Watchers', daemon=True)
         self._watchers_thread.start()
-
-    def get_connector(self, name):
-        return self.available_connectors.get(name)
 
     def _watchers(self):
         try:

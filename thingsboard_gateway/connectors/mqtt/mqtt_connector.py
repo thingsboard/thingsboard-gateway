@@ -22,7 +22,8 @@ from time import sleep, time
 
 import simplejson
 
-from thingsboard_gateway.gateway.constants import *
+from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER, DEFAULT_SEND_DATA_ON_CHANGE_VALUE, \
+    ATTRIBUTES_PARAMETER, TELEMETRY_PARAMETER
 from thingsboard_gateway.gateway.constant_enums import Status
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectStatistics

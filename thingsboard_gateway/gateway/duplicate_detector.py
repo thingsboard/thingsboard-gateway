@@ -14,19 +14,20 @@
 
 from logging import getLogger
 
-from thingsboard_gateway.gateway.constants import *
+from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER, DEVICE_NAME_PARAMETER, \
+    ATTRIBUTES_PARAMETER, TELEMETRY_PARAMETER, TELEMETRY_TIMESTAMP_PARAMETER, TELEMETRY_VALUES_PARAMETER, \
+    DEVICE_TYPE_PARAMETER
 
 log = getLogger("service")
 
 
 class DuplicateDetector:
-    def __init__(self, connectors_storage):
+    def __init__(self, connectors):
         self._connectors_data = {}
-        self._connectors_storage = connectors_storage
+        self._connectors = connectors
 
     def persist_latest_values(self):
-        # TODO: periodically save latest values if persistent storage is enabled
-        pass
+        raise NotImplementedError("Persisting feature for latest attributes/telemetry values is not implemented!")
 
     def filter_data(self, connector_name, new_data):
         in_data_filter_enabled = new_data.get(SEND_ON_CHANGE_PARAMETER)
@@ -35,7 +36,7 @@ class DuplicateDetector:
 
         device_name = new_data[DEVICE_NAME_PARAMETER]
         if not in_data_filter_enabled:
-            connector = self._connectors_storage.get_connector(connector_name)
+            connector = self._connectors.get(connector_name)
             if not connector or not connector.is_filtering_enable(device_name):
                 return new_data
 
@@ -69,15 +70,15 @@ class DuplicateDetector:
                     {TELEMETRY_TIMESTAMP_PARAMETER: ts, TELEMETRY_VALUES_PARAMETER: ts_values} if ts else ts_values)
 
         if remaining_attributes_count > 0 or remaining_telemetry_count > 0:
-            log.warning("[%s] '%s' changed attributes %d from %d, changed telemetry %d from %d",
-                        connector_name, device_name,
-                        remaining_attributes_count, remaining_attributes_count + filtered_attributes_count,
-                        remaining_telemetry_count, remaining_telemetry_count + filtered_telemetry_count)
+            log.debug("[%s] '%s' changed attributes %d from %d, changed telemetry %d from %d",
+                      connector_name, device_name,
+                      remaining_attributes_count, remaining_attributes_count + filtered_attributes_count,
+                      remaining_telemetry_count, remaining_telemetry_count + filtered_telemetry_count)
             to_send[DEVICE_NAME_PARAMETER] = device_name
             to_send[DEVICE_TYPE_PARAMETER] = new_data[DEVICE_TYPE_PARAMETER]
             return to_send
 
-        log.warning("[%s] '%s' device data has not been changed", connector_name, device_name)
+        log.info("[%s] '%s' device data has not been changed", connector_name, device_name)
         return None
 
     def _update_latest_attribute_value(self, connector_name, device_name, key, value):

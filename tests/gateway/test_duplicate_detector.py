@@ -19,17 +19,6 @@ from thingsboard_gateway.gateway.constants import *
 from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
 
 
-class ConnectorStorage:
-    def __init__(self):
-        self._connectors = {}
-
-    def add_connector(self, name, connector):
-        self._connectors[name] = connector
-
-    def get_connector(self, name):
-        return self._connectors.get(name)
-
-
 class Connector:
     def __init__(self, enable_filtering):
         self._enable_filtering = enable_filtering
@@ -96,8 +85,8 @@ class TestDuplicateDetector(unittest.TestCase):
         }
 
     def setUp(self):
-        self._connector_storage = ConnectorStorage()
-        self._duplicate_detector = DuplicateDetector(self._connector_storage)
+        self.connectors = {}
+        self._duplicate_detector = DuplicateDetector(self.connectors)
 
     def test_in_data_filter_disable(self):
         expected_data = self._create_data_packet()
@@ -124,7 +113,7 @@ class TestDuplicateDetector(unittest.TestCase):
 
     def test_connector_with_disable_filtering(self):
         connector_name = "some_connector"
-        self._connector_storage.add_connector(connector_name, Connector(False))
+        self.connectors[connector_name] = Connector(False)
 
         expected_data = self._create_data_packet()
         actual_data1 = self._duplicate_detector.filter_data(connector_name, expected_data)
@@ -134,7 +123,7 @@ class TestDuplicateDetector(unittest.TestCase):
 
     def test_connector_with_enable_filtering(self):
         connector_name = "some_connector"
-        self._connector_storage.add_connector(connector_name, Connector(True))
+        self.connectors[connector_name] = Connector(True)
 
         expected_data = self._create_data_packet()
         actual_data1 = self._duplicate_detector.filter_data(connector_name, expected_data)

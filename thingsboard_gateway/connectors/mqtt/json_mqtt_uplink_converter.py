@@ -16,7 +16,7 @@ from re import search
 
 from simplejson import dumps
 
-from thingsboard_gateway.gateway.constants import *
+from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
