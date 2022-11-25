@@ -210,6 +210,36 @@ class TestDuplicateDetector(unittest.TestCase):
         self.assertEqual(actual_telemetry[0].get(TELEMETRY_TIMESTAMP_PARAMETER), changed_telemetry_value2.get(TELEMETRY_TIMESTAMP_PARAMETER))
         self._is_dicts_equal(actual_telemetry[0].get(TELEMETRY_VALUES_PARAMETER), changed_telemetry_value2.get(TELEMETRY_VALUES_PARAMETER))
 
+    def test_device_deletion(self):
+        connector_name = "some_connector"
+        self.connectors[connector_name] = Connector(True)
+
+        expected_data = self._create_data_packet()
+        actual_data1 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        self._is_data_packets_equal(actual_data1, expected_data)
+        actual_data2 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        self.assertIsNone(actual_data2)
+
+        self._duplicate_detector.delete_device(TestDuplicateDetector.TEST_DEVICE_NAME)
+        actual_data3 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        self._is_data_packets_equal(actual_data3, expected_data)
+
+    def test_device_renaming(self):
+        connector_name = "some_connector"
+        self.connectors[connector_name] = Connector(True)
+
+        expected_data = self._create_data_packet()
+        actual_data1 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        self._is_data_packets_equal(actual_data1, expected_data)
+        actual_data2 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        self.assertIsNone(actual_data2)
+
+        new_device_name = "New device name"
+        self._duplicate_detector.rename_device(TestDuplicateDetector.TEST_DEVICE_NAME, new_device_name)
+        expected_data[DEVICE_NAME_PARAMETER] = new_device_name
+        actual_data3 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        self.assertIsNone(actual_data3)
+
 
 if __name__ == '__main__':
     unittest.main()

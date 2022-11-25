@@ -23,8 +23,15 @@ log = getLogger("service")
 
 class DuplicateDetector:
     def __init__(self, connectors):
-        self._connectors_data = {}
+        self._latest_data = {}
         self._connectors = connectors
+
+    def rename_device(self, old_device_name, new_device_name):
+        self._latest_data[new_device_name] = self._latest_data.pop(old_device_name,
+                                                                   DuplicateDetector._create_device_latest_data())
+
+    def delete_device(self, device_name):
+        del self._latest_data[device_name]
 
     def persist_latest_values(self):
         raise NotImplementedError("Persisting feature for latest attributes/telemetry values is not implemented!")
@@ -46,7 +53,7 @@ class DuplicateDetector:
         filtered_attributes_count = 0
         for attribute in new_data[ATTRIBUTES_PARAMETER]:
             for key, new_value in attribute.items():
-                if self._update_latest_attribute_value(connector_name, device_name, key, new_value):
+                if self._update_latest_attribute_value(device_name, key, new_value):
                     to_send[ATTRIBUTES_PARAMETER].append(attribute)
                     remaining_attributes_count += 1
                 else:
@@ -59,7 +66,7 @@ class DuplicateDetector:
             ts = ts_kv_list.get(TELEMETRY_TIMESTAMP_PARAMETER)
             ts_values = {}
             for key, new_value in ts_kv_list.get(TELEMETRY_VALUES_PARAMETER, ts_kv_list).items():
-                if self._update_latest_telemetry_value(connector_name, device_name, key, new_value):
+                if self._update_latest_telemetry_value(device_name, key, new_value):
                     ts_values[key] = new_value
                     ts_added = True
                     remaining_telemetry_count += 1
@@ -81,25 +88,26 @@ class DuplicateDetector:
         log.info("[%s] '%s' device data has not been changed", connector_name, device_name)
         return None
 
-    def _update_latest_attribute_value(self, connector_name, device_name, key, value):
-        return self._update_latest_value(connector_name, device_name, ATTRIBUTES_PARAMETER, key, value)
+    @staticmethod
+    def _create_device_latest_data():
+        return {
+            ATTRIBUTES_PARAMETER: {},
+            TELEMETRY_PARAMETER: {}
+        }
 
-    def _update_latest_telemetry_value(self, connector_name, device_name, key, value):
-        return self._update_latest_value(connector_name, device_name, TELEMETRY_PARAMETER, key, value)
+    def _update_latest_attribute_value(self, device_name, key, value):
+        return self._update_latest_value(device_name, ATTRIBUTES_PARAMETER, key, value)
 
-    def _update_latest_value(self, connector_name, device_name, data_type, key, value):
-        if connector_name not in self._connectors_data:
-            self._connectors_data[connector_name] = {}
+    def _update_latest_telemetry_value(self, device_name, key, value):
+        return self._update_latest_value(device_name, TELEMETRY_PARAMETER, key, value)
 
-        if device_name not in self._connectors_data[connector_name]:
-            self._connectors_data[connector_name][device_name] = {
-                ATTRIBUTES_PARAMETER: {},
-                TELEMETRY_PARAMETER: {}
-            }
-            self._connectors_data[connector_name][device_name][data_type][key] = value
+    def _update_latest_value(self, device_name, data_type, key, value):
+        if device_name not in self._latest_data:
+            self._latest_data[device_name] = DuplicateDetector._create_device_latest_data()
+            self._latest_data[device_name][data_type][key] = value
             return True
 
-        if self._connectors_data[connector_name][device_name][data_type].get(key) != value:
-            self._connectors_data[connector_name][device_name][data_type][key] = value
+        if self._latest_data[device_name][data_type].get(key) != value:
+            self._latest_data[device_name][data_type][key] = value
             return True
         return False

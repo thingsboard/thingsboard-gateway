@@ -437,6 +437,7 @@ class TBGatewayService:
         if deleted_device_name in self.__saved_devices:
             del self.__saved_devices[deleted_device_name]
             log.debug("Device %s - was removed from __saved_devices", deleted_device_name)
+        self.__duplicate_detector.delete_device(deleted_device_name)
         self.__save_persistent_devices()
         self.__load_persistent_devices()
 
@@ -449,6 +450,7 @@ class TBGatewayService:
             else:
                 device_name_key = new_device_name
             self.__renamed_devices[device_name_key] = new_device_name
+            self.__duplicate_detector.rename_device(old_device_name, new_device_name)
 
             self.__save_persistent_devices()
             self.__load_persistent_devices()
