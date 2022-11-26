@@ -1,4 +1,4 @@
-#     Copyright 2020. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -11,26 +11,21 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
-from re import search
-from os import path, listdir
-from inspect import getmembers, isclass
-from importlib import util
+import datetime
 from logging import getLogger
-from simplejson import dumps, loads, JSONDecodeError
-from jsonpath_rw import parse
-from platform import system
+from re import search, findall
 
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import serialization
+from jsonpath_rw import parse
+from simplejson import JSONDecodeError, dumps, loads
 
 log = getLogger("service")
 
 
 class TBUtility:
-
-    # Buffer for connectors/converters
-    # key - class name
-    # value - loaded class
-    loaded_extensions = {}
 
     @staticmethod
     def decode(message):
@@ -40,9 +35,9 @@ class TBUtility:
             else:
                 content = loads(message.payload)
         except JSONDecodeError:
-            if isinstance(message.payload, bytes):
+            try:
                 content = message.payload.decode("utf-8", "ignore")
-            else:
+            except JSONDecodeError:
                 content = message.payload
         return content
 
@@ -51,14 +46,27 @@ class TBUtility:
         error = None
         if error is None and not data.get("deviceName"):
             error = 'deviceName is empty in data: '
-        if error is None and not data.get("deviceType"):
-            error = 'deviceType is empty in data: '
-        if error is None and not data.get("attributes") and not data.get("telemetry"):
-            error = 'No telemetry and attributes in data: '
+
+        if error is None:
+            got_attributes = False
+            got_telemetry = False
+
+            if data.get("attributes") is not None and len(data.get("attributes")) > 0:
+                got_attributes = True
+
+            if data.get("telemetry") is not None:
+                for entry in data.get("telemetry"):
+                    if (entry.get("ts") is not None and len(entry.get("values")) > 0) or entry.get("ts") is None:
+                        got_telemetry = True
+                        break
+
+            if got_attributes is False and got_telemetry is False:
+                error = 'No telemetry and attributes in data: '
+
         if error is not None:
             json_data = dumps(data)
             if isinstance(json_data, bytes):
-                log.error(error+json_data.decode("UTF-8"))
+                log.error(error + json_data.decode("UTF-8"))
             else:
                 log.error(error + json_data)
             return False
@@ -66,53 +74,11 @@ class TBUtility:
 
     @staticmethod
     def topic_to_regex(topic):
-        return topic.replace("+", "[^/]+").replace("#", ".+")
+        return topic.replace("+", "[^/]+").replace("#", ".+").replace('$', '\\$')
 
     @staticmethod
     def regex_to_topic(regex):
-        return regex.replace("[^/]+", "+").replace(".+", "#")
-
-    @staticmethod
-    def check_and_import(extension_type, module_name):
-        if TBUtility.loaded_extensions.get(extension_type + module_name) is None:
-            if system() == "Windows":
-                extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
-                                    path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
-            else:
-                extensions_paths = (path.abspath(path.dirname(path.dirname(__file__)) + '/connectors/'.replace('/', path.sep) + extension_type.lower()),
-                                    '/var/lib/thingsboard_gateway/extensions/'.replace('/', path.sep) + extension_type.lower(),
-                                    path.abspath(path.dirname(path.dirname(__file__)) + '/extensions/'.replace('/', path.sep) + extension_type.lower()))
-            try:
-                for extension_path in extensions_paths:
-                    if path.exists(extension_path):
-                        for file in listdir(extension_path):
-                            if not file.startswith('__') and file.endswith('.py'):
-                                try:
-                                    module_spec = util.spec_from_file_location(module_name, extension_path + path.sep + file)
-                                    log.debug(module_spec)
-
-                                    if module_spec is None:
-                                        log.error('Module: %s not found', module_name)
-                                        continue
-
-                                    module = util.module_from_spec(module_spec)
-                                    log.debug(str(module))
-                                    module_spec.loader.exec_module(module)
-                                    for extension_class in getmembers(module, isclass):
-                                        if module_name in extension_class:
-                                            log.debug("Import %s from %s.", module_name, extension_path)
-                                            # Save class into buffer
-                                            TBUtility.loaded_extensions[extension_type + module_name] = extension_class[1]
-                                            return extension_class[1]
-                                except ImportError:
-                                    continue
-                    else:
-                        log.error("Import %s failed, path %s doesn't exist", module_name, extension_path)
-            except Exception as e:
-                log.exception(e)
-        else:
-            log.debug("Class %s found in TBUtility buffer.", module_name)
-            return TBUtility.loaded_extensions[extension_type + module_name]
+        return regex.replace("[^/]+", "+").replace(".+", "#").replace('\\$', '$')
 
     @staticmethod
     def get_value(expression, body=None, value_type="string", get_tag=False, expression_instead_none=False):
@@ -134,7 +100,9 @@ class TBUtility:
         try:
             if isinstance(body, dict) and target_str.split()[0] in body:
                 if value_type.lower() == "string":
-                    full_value = expression[0: max(abs(p1 - 2), 0)] + body[target_str.split()[0]] + expression[p2 + 1:len(expression)]
+                    full_value = str(expression[0: max(p1 - 2, 0)]) + str(body[target_str.split()[0]]) + str(expression[
+                                                                                                             p2 + 1:len(
+                                                                                                                 expression)])
                 else:
                     full_value = body.get(target_str.split()[0])
             elif isinstance(body, (dict, list)):
@@ -156,6 +124,18 @@ class TBUtility:
         return full_value
 
     @staticmethod
+    def get_values(expression, body=None, value_type="string", get_tag=False, expression_instead_none=False):
+        expression_arr = findall(r'\$\{[${A-Za-z0-9.^\]\[*_:]*\}', expression)
+
+        values = [TBUtility.get_value(exp, body, value_type=value_type, get_tag=get_tag,
+                                      expression_instead_none=expression_instead_none) for exp in expression_arr]
+
+        if '${' not in expression:
+            values.append(expression)
+
+        return values
+
+    @staticmethod
     def install_package(package, version="upgrade"):
         from sys import executable
         from subprocess import check_call, CalledProcessError
@@ -175,7 +155,57 @@ class TBUtility:
             if current_package_version is None or current_package_version != version:
                 installation_sign = "==" if ">=" not in version else ""
                 try:
-                    result = check_call([executable, "-m", "pip", "install", package + installation_sign + version, "--user"])
+                    result = check_call(
+                        [executable, "-m", "pip", "install", package + installation_sign + version, "--user"])
                 except CalledProcessError:
                     result = check_call([executable, "-m", "pip", "install", package + installation_sign + version])
         return result
+
+    @staticmethod
+    def replace_params_tags(text, data):
+        if '${' in text:
+            for item in text.split('/'):
+                if '${' in item:
+                    tag = '${' + TBUtility.get_value(item, data['data'], 'params', get_tag=True) + '}'
+                    value = TBUtility.get_value(item, data['data'], 'params', expression_instead_none=True)
+                    text = text.replace(tag, str(value))
+        return text
+
+    @staticmethod
+    def get_dict_key_by_value(dictionary: dict, value):
+        return list(dictionary.values())[list(dictionary.values()).index(value)]
+
+    @staticmethod
+    def generate_certificate(old_certificate_path, old_key_path, old_certificate):
+        key = ec.generate_private_key(ec.SECP256R1())
+        public_key = key.public_key()
+        builder = x509.CertificateBuilder()
+        builder = builder.subject_name(old_certificate.subject)
+        builder = builder.issuer_name(old_certificate.issuer)
+        builder = builder.not_valid_before(datetime.datetime.today() - datetime.timedelta(days=1))
+        builder = builder.not_valid_after(datetime.datetime.today() + (datetime.timedelta(1, 0, 0) * 365))
+        builder = builder.serial_number(x509.random_serial_number())
+        builder = builder.public_key(public_key)
+        certificate = builder.sign(private_key=key, algorithm=hashes.SHA256())
+
+        cert = certificate.public_bytes(serialization.Encoding.PEM)
+        with open(old_certificate_path, 'wb+') as f:
+            f.write(cert)
+
+        key = key.private_bytes(encoding=serialization.Encoding.PEM,
+                                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                                encryption_algorithm=serialization.NoEncryption())
+        with open(old_key_path, 'wb+') as f:
+            f.write(key)
+
+        return cert
+
+    @staticmethod
+    def check_certificate(certificate, key=None, generate_new=True, days_left=3):
+        cert_detail = x509.load_pem_x509_certificate(open(certificate, 'rb').read())
+
+        if cert_detail.not_valid_after - datetime.datetime.now() <= datetime.timedelta(days=days_left):
+            if generate_new:
+                return TBUtility.generate_certificate(certificate, key, cert_detail)
+            else:
+                return True

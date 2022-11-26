@@ -1,4 +1,4 @@
-#     Copyright 2020. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ class CustomSerialUplinkConverter(Converter):
             'deviceType': config.get('deviceType', 'default'),
             'attributes': [],
             'telemetry': []
-        }
+            }
 
     def convert(self, config, data: bytes):
         keys = ['attributes', 'telemetry']
@@ -48,4 +48,3 @@ class CustomSerialUplinkConverter(Converter):
                     self.result_dict[key].append(converted_data)
         log.debug("Converted data: %s", self.result_dict)
         return self.result_dict
-

@@ -1,4 +1,4 @@
-#     Copyright 2020. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -15,11 +15,12 @@
 import re
 import sched
 import time
-from threading import Thread
 from copy import copy
 from random import choice
 from string import ascii_lowercase
+from threading import Thread
 
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
@@ -68,7 +69,7 @@ class CanConnector(Connector, Thread):
         super().__init__()
         self.setName(config.get("name", 'CAN Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__gateway = gateway
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.__bus_conf = {}
         self.__bus = None
         self.__reconnect_count = 0
@@ -131,7 +132,7 @@ class CanConnector(Connector, Thread):
         if rpc_config is None:
             if not self.__devices[content["device"]]["enableUnknownRpc"]:
                 log.warning("[%s] No configuration for '%s' RPC request (id=%s), ignore it",
-                         self.get_name(), content["data"]["method"], content["data"]["id"])
+                            self.get_name(), content["data"]["method"], content["data"]["id"])
                 return
             else:
                 rpc_config = {}
@@ -286,7 +287,7 @@ class CanConnector(Connector, Thread):
             "dataBefore": None,
             "dataAfter": None,
             "dataInHex": None
-        }
+            }
         for option_name, option_value in options.items():
             if option_name in rpc_params:
                 config[option_name] = rpc_params[option_name]
@@ -318,7 +319,7 @@ class CanConnector(Connector, Thread):
         data = self.__converters[parsing_conf["deviceName"]]["uplink"].convert(parsing_conf["configs"], message.data)
         if data is None or not data.get("attributes", []) and not data.get("telemetry", []):
             log.warning("[%s] Failed to process CAN message (id=%d,cmd_id=%s): data conversion failure",
-                     self.get_name(), message.arbitration_id, cmd_id)
+                        self.get_name(), message.arbitration_id, cmd_id)
             return
 
         self.__check_and_send(parsing_conf, data)
@@ -360,18 +361,18 @@ class CanConnector(Connector, Thread):
             "enabled": config.get("reconnect", self.DEFAULT_RECONNECT_STATE),
             "period": config.get("reconnectPeriod", self.DEFAULT_RECONNECT_PERIOD),
             "maxCount": config.get("reconnectCount", None)
-        }
+            }
 
         self.__bus_conf = {
             "interface": config.get("interface", "socketcan"),
             "channel": config.get("channel", "vcan0"),
             "backend": config.get("backend", {})
-        }
+            }
 
         for device_config in config.get("devices"):
             is_device_config_valid = False
             device_name = device_config["name"]
-            device_type = device_config.get("type", self.__connector_type)
+            device_type = device_config.get("type", self._connector_type)
             strict_eval = device_config.get("strictEval", self.DEFAULT_STRICT_EVAL_FLAG)
 
             self.__devices[device_name] = {}
@@ -438,7 +439,7 @@ class CanConnector(Connector, Thread):
                                     self.get_name(), tb_key, config_key, )
                         continue
 
-                    if msg_config.get("command", "") and node_id not in self.__commands:
+                    if msg_config.get("command"):
                         cmd_config = self.__parse_command_config(msg_config["command"])
                         if cmd_config is None:
                             log.warning("[%s] Ignore '%s' %s configuration: wrong command configuration",
@@ -446,7 +447,18 @@ class CanConnector(Connector, Thread):
                             continue
 
                         cmd_id = cmd_config["value"]
-                        self.__commands[node_id] = cmd_config
+
+                        if node_id not in self.__commands:
+                            self.__commands[node_id] = cmd_config
+                        else:
+                            prev_cmd_config = self.__commands[node_id]
+                            if cmd_config["start"] != prev_cmd_config["start"] or \
+                                    cmd_config["length"] != prev_cmd_config["length"] or \
+                                    cmd_config["byteorder"] != prev_cmd_config["byteorder"]:
+                                log.warning("[%s] Ignore '%s' %s configuration: "
+                                            "another command configuration already added for arbitration_id %d",
+                                            self.get_name(), tb_key, config_key, node_id)
+                                continue
                     else:
                         cmd_id = self.NO_CMD_ID
                         self.__commands[node_id] = None
@@ -511,7 +523,7 @@ class CanConnector(Connector, Thread):
                 "length": int(value_matches.group(2)),
                 "byteorder": value_matches.group(3) if value_matches.group(3) else self.DEFAULT_BYTEORDER,
                 "type": value_matches.group(4)
-            }
+                }
 
             if value_config["type"][0] == "i" or value_config["type"][0] == "l":
                 value_config["signed"] = value_matches.group(5) == "signed" if value_matches.group(5) \
@@ -527,7 +539,7 @@ class CanConnector(Connector, Thread):
                     "length": int(config["length"]),
                     "byteorder": config["byteorder"] if config.get("byteorder", "") else self.DEFAULT_BYTEORDER,
                     "type": config["type"]
-                }
+                    }
 
                 if value_config["type"][0] == "i" or value_config["type"][0] == "l":
                     value_config["signed"] = config.get("signed", self.DEFAULT_SIGNED_FLAG)
@@ -557,7 +569,7 @@ class CanConnector(Connector, Thread):
                 "length": int(cmd_matches.group(2)),
                 "byteorder": cmd_matches.group(3) if cmd_matches.group(3) else self.DEFAULT_BYTEORDER,
                 "value": int(cmd_matches.group(4))
-            }
+                }
         elif isinstance(config, dict):
             try:
                 return {
@@ -565,7 +577,7 @@ class CanConnector(Connector, Thread):
                     "length": int(config["length"]),
                     "byteorder": config["byteorder"] if config.get("byteorder", "") else self.DEFAULT_BYTEORDER,
                     "value": int(config["value"])
-                }
+                    }
             except (KeyError, ValueError) as e:
                 log.warning("[%s] Wrong command configuration: %s", self.get_name(), str(e))
                 return
@@ -579,11 +591,11 @@ class CanConnector(Connector, Thread):
             if need_uplink:
                 uplink = config.get("uplink")
                 return BytesCanUplinkConverter() if uplink is None \
-                    else TBUtility.check_and_import(self.__connector_type, uplink)
+                    else TBModuleLoader.import_module(self._connector_type, uplink)
             else:
                 downlink = config.get("downlink")
                 return BytesCanDownlinkConverter() if downlink is None \
-                    else TBUtility.check_and_import(self.__connector_type, downlink)
+                    else TBModuleLoader.import_module(self._connector_type, downlink)
 
 
 class Poller(Thread):

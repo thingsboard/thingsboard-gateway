@@ -1,4 +1,4 @@
-#     Copyright 2020. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.converter import ABC, abstractmethod
+from thingsboard_gateway.connectors.converter import ABC, abstractmethod, log
 
 
 class CanConverter(ABC):

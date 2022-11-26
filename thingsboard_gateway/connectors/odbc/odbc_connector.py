@@ -1,4 +1,4 @@
-#     Copyright 2020. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -11,16 +11,18 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+from time import time
 from hashlib import sha1
 from os import path
 from pathlib import Path
-from time import sleep
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
+from time import sleep
+
 from simplejson import dumps, load
 
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
@@ -33,6 +35,7 @@ except ImportError:
 from thingsboard_gateway.connectors.odbc.odbc_uplink_converter import OdbcUplinkConverter
 
 from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class OdbcConnector(Connector, Thread):
@@ -53,7 +56,7 @@ class OdbcConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.__gateway = gateway
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.__config = config
         self.__stopped = False
 
@@ -72,7 +75,7 @@ class OdbcConnector(Connector, Thread):
         self.__timeseries_columns = []
 
         self.__converter = OdbcUplinkConverter() if not self.__config.get("converter", "") else \
-            TBUtility.check_and_import(self.__connector_type, self.__config["converter"])
+            TBModuleLoader.import_module(self._connector_type, self.__config["converter"])
 
         self.__configure_pyodbc()
         self.__parse_rpc_config()
@@ -96,6 +99,7 @@ class OdbcConnector(Connector, Thread):
     def on_attributes_update(self, content):
         pass
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         done = False
         try:
@@ -219,9 +223,9 @@ class OdbcConnector(Connector, Thread):
         # For some reason pyodbc.Cursor.rowcount may be 0 (sqlite) so use our own row counter
         row_count = 0
         for row in rows:
-            # log.debug("[%s] Fetch row: %s", self.get_name(), row)
-            row_count += 1
+            log.debug("[%s] Fetch row: %s", self.get_name(), row)
             self.__process_row(row)
+            row_count += 1
 
         self.__iterator["total"] += row_count
         log.info("[%s] Polling iteration finished. Processed rows: current %d, total %d",
@@ -239,15 +243,23 @@ class OdbcConnector(Connector, Thread):
                        "telemetry": {} if "timeseries" not in self.__config["mapping"] else
                        self.__converter.convert(self.__config["mapping"]["timeseries"], data)}
 
+            if to_send['telemetry'].get('ts'):
+                to_send['ts'] = to_send['telemetry']['ts']
+                del to_send['telemetry']['ts']
+
             device_name = eval(self.__config["mapping"]["device"]["name"], globals(), data)
+
+            device_type = eval(self.__config["mapping"]["device"]["type"], globals(), data)
+            if not device_type:
+                device_type = self.__config["mapping"]["device"].get("type", "default")
+
             if device_name not in self.__devices:
                 self.__devices[device_name] = {"attributes": {}, "telemetry": {}}
-                self.__gateway.add_device(device_name, {"connector": self})
+                self.__gateway.add_device(device_name, {"connector": self},
+                                          device_type=device_type)
 
             self.__iterator["value"] = getattr(row, self.__iterator["name"])
-            self.__check_and_send(device_name,
-                                  self.__config["mapping"]["device"].get("type", self.__connector_type),
-                                  to_send)
+            self.__check_and_send(device_name, device_type, to_send)
         except Exception as e:
             log.warning("[%s] Failed to process database row: %s", self.get_name(), str(e))
 
@@ -273,8 +285,11 @@ class OdbcConnector(Connector, Thread):
             to_send["deviceName"] = device_name
             to_send["deviceType"] = device_type
 
+            to_send['telemetry'] = {'ts': new_data.get('ts', int(time()) * 1000), 'values': new_data['telemetry']}
+
             log.debug("[%s] Pushing to TB server '%s' device data: %s", self.get_name(), device_name, to_send)
 
+            to_send['telemetry'] = [to_send['telemetry']]
             self.__gateway.send_to_storage(self.get_name(), to_send)
             self.statistics['MessagesSent'] += 1
         else:
@@ -324,6 +339,7 @@ class OdbcConnector(Connector, Thread):
             file_name += self.__connection.getinfo(pyodbc.SQL_DRIVER_NAME)
             file_name += self.__connection.getinfo(pyodbc.SQL_SERVER_NAME)
             file_name += self.__connection.getinfo(pyodbc.SQL_DATABASE_NAME)
+            file_name += self.get_name()
             file_name += self.__config["polling"]["iterator"]["column"]
 
             self.__iterator_file_name = sha1(file_name.encode()).hexdigest() + ".json"

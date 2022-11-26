@@ -1,22 +1,25 @@
-#      Copyright 2020. ThingsBoard
-#  #
-#      Licensed under the Apache License, Version 2.0 (the "License");
-#      you may not use this file except in compliance with the License.
-#      You may obtain a copy of the License at
-#  #
-#          http://www.apache.org/licenses/LICENSE-2.0
-#  #
-#      Unless required by applicable law or agreed to in writing, software
-#      distributed under the License is distributed on an "AS IS" BASIS,
-#      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#      See the License for the specific language governing permissions and
-#      limitations under the License.
+#     Copyright 2022. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
 
+from queue import Queue
 from random import choice
-from threading import Thread
-from time import time, sleep
 from string import ascii_lowercase
+from threading import Thread
+from time import sleep, time
 
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
@@ -34,7 +37,7 @@ from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_ap
 
 class BACnetConnector(Thread, Connector):
     def __init__(self, gateway, config, connector_type):
-        self.__connector_type = connector_type
+        self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         super().__init__()
@@ -45,18 +48,22 @@ class BACnetConnector(Thread, Connector):
         self.__devices_address_name = {}
         self.__gateway = gateway
         self._application = TBBACnetApplication(self, self.__config)
-        self.__bacnet_core_thread = Thread(target=run, name="BACnet core thread")
+        self.__bacnet_core_thread = Thread(target=run, name="BACnet core thread", daemon=True,
+                                           kwargs={"sigterm": None, "sigusr1": None})
         self.__bacnet_core_thread.start()
         self.__stopped = False
         self.__config_devices = self.__config["devices"]
-        self.default_converters = {"uplink_converter": TBUtility.check_and_import(self.__connector_type, "BACnetUplinkConverter"),
-                                     "downlink_converter": TBUtility.check_and_import(self.__connector_type, "BACnetDownlinkConverter")}
+        self.default_converters = {
+            "uplink_converter": TBModuleLoader.import_module(self._connector_type, "BACnetUplinkConverter"),
+            "downlink_converter": TBModuleLoader.import_module(self._connector_type, "BACnetDownlinkConverter")}
         self.__request_functions = {"writeProperty": self._application.do_write_property,
-                                    "readProperty": self._application.do_read_property}
+                                    "readProperty": self._application.do_read_property,
+                                    "risingEdge": self._application.do_binary_rising_edge}
         self.__available_object_resources = {}
         self.rpc_requests_in_progress = {}
         self.__connected = False
         self.daemon = True
+        self.__convert_and_save_data_queue = Queue()
 
     def open(self):
         self.__stopped = False
@@ -69,10 +76,11 @@ class BACnetConnector(Thread, Connector):
         log.debug("WhoIsRequest has been sent.")
         self.scan_network()
         while not self.__stopped:
-            sleep(.1)
+            sleep(.2)
             for device in self.__devices:
                 try:
-                    if device.get("previous_check") is None or time() * 1000 - device["previous_check"] >= device["poll_period"]:
+                    if device.get("previous_check") is None or time() * 1000 - device["previous_check"] >= device[
+                            "poll_period"]:
                         for mapping_type in ["attributes", "telemetry"]:
                             for config in device[mapping_type]:
                                 if config.get("uplink_converter") is None or config.get("downlink_converter") is None:
@@ -86,9 +94,15 @@ class BACnetConnector(Thread, Connector):
                                 self._application.do_read_property(**data_to_application)
                         device["previous_check"] = time() * 1000
                     else:
-                        sleep(.1)
+                        sleep(.2)
                 except Exception as e:
                     log.exception(e)
+
+            if not self.__convert_and_save_data_queue.empty():
+                for _ in range(self.__convert_and_save_data_queue.qsize()):
+                    thread = Thread(target=self.__convert_and_save_data, args=(self.__convert_and_save_data_queue,),
+                                    daemon=True)
+                    thread.start()
 
     def close(self):
         self.__stopped = True
@@ -101,6 +115,7 @@ class BACnetConnector(Thread, Connector):
     def is_connected(self):
         return self.__connected
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         try:
             log.debug('Recieved Attribute Update Request: %r', str(content))
@@ -122,6 +137,7 @@ class BACnetConnector(Thread, Connector):
         except Exception as e:
             log.exception(e)
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         try:
             log.debug('Recieved RPC Request: %r', str(content))
@@ -133,11 +149,12 @@ class BACnetConnector(Thread, Connector):
                             if content["data"]["method"] == request["method"]:
                                 method_found = True
                                 kwargs = request["iocb"][1]
-                                timeout = time()*1000 + request["config"].get("requestTimeout", 200)
+                                timeout = time() * 1000 + request["config"].get("requestTimeout", 200)
                                 if content["data"].get("params") is not None:
                                     kwargs["config"].update({"propertyValue": content["data"]["params"]})
                                 iocb = request["iocb"][0](device, **kwargs)
-                                self.__request_functions[request["config"]["requestType"]](device=iocb, callback=self.__rpc_response_cb)
+                                self.__request_functions[request["config"]["requestType"]](device=iocb,
+                                                                                           callback=self.__rpc_response_cb)
                                 self.rpc_requests_in_progress[iocb] = {"content": content,
                                                                        "uplink_converter": request["uplink_converter"]}
                                 # self.__gateway.register_rpc_request_timeout(content,
@@ -174,8 +191,6 @@ class BACnetConnector(Thread, Connector):
         else:
             log.error("Received unknown RPC response callback from device: %r", iocb)
 
-
-
     def __rpc_cancel_processing(self, iocb):
         log.info("RPC with iocb %r - cancelled.", iocb)
 
@@ -187,6 +202,8 @@ class BACnetConnector(Thread, Connector):
                 if self._application.check_or_add(device):
                     for mapping_type in ["attributes", "timeseries"]:
                         for config in device[mapping_type]:
+                            if config.get("uplink_converter") is None or config.get("downlink_converter") is None:
+                                self.__load_converters(device)
                             data_to_application = {
                                 "device": device,
                                 "mapping_type": mapping_type,
@@ -197,13 +214,29 @@ class BACnetConnector(Thread, Connector):
             except Exception as e:
                 log.exception(e)
 
+    def __convert_and_save_data(self, queue):
+        converter, mapping_type, config, iocb = queue.get()
+        converted_data = {}
+        try:
+            converted_data = converter.convert((mapping_type, config),
+                                               iocb.ioResponse if iocb.ioResponse else iocb.ioError)
+        except Exception as e:
+            log.exception(e)
+        self.__gateway.send_to_storage(self.name, converted_data)
+
     def __bacnet_device_mapping_response_cb(self, iocb, callback_params):
-        converter = callback_params["config"]["uplink_converter"]
         mapping_type = callback_params["mapping_type"]
         config = callback_params["config"]
         converted_data = {}
+        converter = callback_params["config"].get("uplink_converter")
+        if converter is None:
+            for device in self.__devices:
+                self.__load_converters(device)
+            else:
+                converter = callback_params["config"].get("uplink_converter")
         try:
-            converted_data = converter.convert((mapping_type, config), iocb.ioResponse if iocb.ioResponse else iocb.ioError)
+            converted_data = converter.convert((mapping_type, config),
+                                               iocb.ioResponse if iocb.ioResponse else iocb.ioError)
         except Exception as e:
             log.exception(e)
         self.__gateway.send_to_storage(self.name, converted_data)
@@ -214,7 +247,9 @@ class BACnetConnector(Thread, Connector):
             for datatype_config in device.get(datatype, []):
                 try:
                     for converter_type in self.default_converters:
-                        converter_object = self.default_converters[converter_type] if datatype_config.get("class") is None else TBUtility.check_and_import(self.__connector_type, device.get("class"))
+                        converter_object = self.default_converters[converter_type] if datatype_config.get(
+                            "class") is None else TBModuleLoader.import_module(self._connector_type,
+                                                                               device.get("class"))
                         datatype_config[converter_type] = converter_object(device)
                 except Exception as e:
                     log.exception(e)
@@ -222,31 +257,34 @@ class BACnetConnector(Thread, Connector):
     def add_device(self, data):
         if self.__devices_address_name.get(data["address"]) is None:
             for device in self.__config_devices:
-                try:
-                    config_address = Address(device["address"])
-                    device_name_tag = TBUtility.get_value(device["deviceName"], get_tag=True)
-                    device_name = device["deviceName"].replace("${" + device_name_tag + "}", data.pop("name"))
-                    device_information = {
-                        **data,
-                        **self.__get_requests_configs(device),
-                        "type": device["deviceType"],
-                        "config": device,
-                        "attributes": device.get("attributes", []),
-                        "telemetry": device.get("timeseries", []),
-                        "poll_period": device.get("pollPeriod", 5000),
-                        "deviceName": device_name,
-                    }
-                    if config_address == data["address"] or \
-                            (config_address, GlobalBroadcast) or \
-                            (isinstance(config_address, LocalBroadcast) and isinstance(device["address"], LocalStation)) or \
-                            (isinstance(config_address, (LocalStation, RemoteStation)) and isinstance(data["address"], (
-                            LocalStation, RemoteStation))):
-                        self.__devices_address_name[data["address"]] = device_information["deviceName"]
-                        self.__devices.append(device_information)
+                if device["address"] == data["address"]:
+                    try:
+                        config_address = Address(device["address"])
+                        device_name_tag = TBUtility.get_value(device["deviceName"], get_tag=True)
+                        device_name = device["deviceName"].replace("${" + device_name_tag + "}", data.pop("name"))
+                        device_information = {
+                            **data,
+                            **self.__get_requests_configs(device),
+                            "type": device["deviceType"],
+                            "config": device,
+                            "attributes": device.get("attributes", []),
+                            "telemetry": device.get("timeseries", []),
+                            "poll_period": device.get("pollPeriod", 5000),
+                            "deviceName": device_name,
+                        }
+                        if config_address == data["address"] or \
+                                (config_address, GlobalBroadcast) or \
+                                (isinstance(config_address, LocalBroadcast) and isinstance(device["address"],
+                                                                                           LocalStation)) or \
+                                (isinstance(config_address, (LocalStation, RemoteStation)) and isinstance(
+                                    data["address"], (
+                                            LocalStation, RemoteStation))):
+                            self.__devices_address_name[data["address"]] = device_information["deviceName"]
+                            self.__devices.append(device_information)
 
-                    log.debug(data["address"].addrType)
-                except Exception as e:
-                    log.exception(e)
+                        log.debug(data["address"].addrType)
+                    except Exception as e:
+                        log.exception(e)
 
     def __get_requests_configs(self, device):
         result = {"attribute_updates": [], "server_side_rpc": []}

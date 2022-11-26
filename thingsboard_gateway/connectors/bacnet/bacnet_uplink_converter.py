@@ -1,28 +1,31 @@
-#      Copyright 2020. ThingsBoard
-#  #
-#      Licensed under the Apache License, Version 2.0 (the "License");
-#      you may not use this file except in compliance with the License.
-#      You may obtain a copy of the License at
-#  #
-#          http://www.apache.org/licenses/LICENSE-2.0
-#  #
-#      Unless required by applicable law or agreed to in writing, software
-#      distributed under the License is distributed on an "AS IS" BASIS,
-#      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#      See the License for the specific language governing permissions and
-#      limitations under the License.
+#     Copyright 2022. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
 
 from bacpypes.apdu import APDU, ReadPropertyACK
-from bacpypes.primitivedata import Tag
 from bacpypes.constructeddata import ArrayOf
+from bacpypes.primitivedata import Tag
+
 from thingsboard_gateway.connectors.bacnet.bacnet_converter import BACnetConverter, log
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BACnetUplinkConverter(BACnetConverter):
     def __init__(self, config):
         self.__config = config
 
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         value = None
         if isinstance(data, ReadPropertyACK):
@@ -57,5 +60,3 @@ class BACnetUplinkConverter(BACnetConverter):
             datatype = ArrayOf(datatype)
         value = apdu.propertyValue.cast_out(datatype)
         return value
-
-

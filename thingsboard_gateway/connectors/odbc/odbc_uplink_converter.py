@@ -1,4 +1,4 @@
-#     Copyright 2020. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -14,9 +14,13 @@
 
 from thingsboard_gateway.connectors.converter import log
 from thingsboard_gateway.connectors.odbc.odbc_converter import OdbcConverter
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class OdbcUplinkConverter(OdbcConverter):
+
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         if isinstance(config, str) and config == "*":
             return data
@@ -43,5 +47,8 @@ class OdbcUplinkConverter(OdbcConverter):
                               type(config_item))
             except Exception as e:
                 log.error("Failed to convert SQL data to TB format: %s", str(e))
-        return converted_data
 
+        if data.get('ts'):
+            converted_data['ts'] = data.get('ts')
+
+        return converted_data

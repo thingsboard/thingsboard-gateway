@@ -1,9 +1,12 @@
 {
   "broker": {
-    "name":"Default Local Broker",
-    "host":"127.0.0.1",
-    "port":1883,
+    "name": "Default Local Broker",
+    "host": "127.0.0.1",
+    "port": 1883,
     "clientId": "ThingsBoard_gateway",
+    "version": 5,
+    "maxMessageNumberPerWorker": 10,
+    "maxNumberOfWorkers": 100,
     "security": {
       "type": "basic",
       "username": "user",
@@ -17,6 +20,7 @@
         "type": "json",
         "deviceNameJsonExpression": "${serialNumber}",
         "deviceTypeJsonExpression": "${sensorType}",
+        "sendDataOnlyOnChange": false,
         "timeout": 60000,
         "attributes": [
           {
@@ -40,6 +44,11 @@
             "type": "double",
             "key": "humidity",
             "value": "${hum}"
+          },
+          {
+            "type": "string",
+            "key": "combine",
+            "value": "${hum}:${temp}"
           }
         ]
       }
@@ -50,6 +59,7 @@
         "type": "json",
         "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/data)",
         "deviceTypeTopicExpression": "Thermometer",
+        "sendDataOnlyOnChange": false,
         "timeout": 60000,
         "attributes": [
           {
@@ -73,14 +83,38 @@
       }
     },
     {
+      "topicFilter": "/sensor/raw_data",
+      "converter": {
+        "type": "bytes",
+        "deviceNameExpression": "[0:4]",
+        "deviceTypeExpression": "default",
+        "sendDataOnlyOnChange": false,
+        "timeout": 60000,
+        "attributes": [
+          {
+            "type": "raw",
+            "key": "rawData",
+            "value": "[:]"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "raw",
+            "key": "temp",
+            "value": "[4:]"
+          }
+        ]
+      }
+    },
+    {
       "topicFilter": "/custom/sensors/+",
       "converter": {
         "type": "custom",
         "extension": "CustomMqttUplinkConverter",
         "extension-config": {
-            "temperatureBytes" : 2,
-            "humidityBytes" :  2,
-            "batteryLevelBytes" : 1
+          "temperatureBytes": 2,
+          "humidityBytes": 2,
+          "batteryLevelBytes": 1
         }
       }
     }
@@ -105,8 +139,19 @@
       "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/disconnect)"
     }
   ],
+  "attributeRequests": [
+    {
+      "retain": false,
+      "topicFilter": "v1/devices/me/attributes/request",
+      "deviceNameJsonExpression": "${serialNumber}",
+      "attributeNameJsonExpression": "${versionAttribute}, ${pduAttribute}",
+      "topicExpression": "devices/${deviceName}/attrs",
+      "valueExpression": "${attributeKey}: ${attributeValue}"
+    }
+  ],
   "attributeUpdates": [
     {
+      "retain": true,
       "deviceNameFilter": "SmartMeter.*",
       "attributeFilter": "uploadFrequency",
       "topicExpression": "sensor/${deviceName}/${attributeKey}",

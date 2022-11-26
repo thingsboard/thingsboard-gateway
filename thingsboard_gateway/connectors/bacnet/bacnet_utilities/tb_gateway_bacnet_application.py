@@ -1,33 +1,28 @@
-#  Copyright 2020. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
-#  Licensed under the Apache License, Version 2.0 (the "License");
-#  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#         http://www.apache.org/licenses/LICENSE-2.0
 #
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS,
-#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  See the License for the specific language governing permissions and
-#  limitations under the License.
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
 
-from bacpypes.pdu import Address, GlobalBroadcast
-from bacpypes.object import get_datatype
-from bacpypes.apdu import APDU
-
+from bacpypes.apdu import APDU, IAmRequest, ReadPropertyRequest, SimpleAckPDU, WhoIsRequest, WritePropertyRequest
 from bacpypes.app import BIPSimpleApplication
-
-from bacpypes.core import run, deferred, enable_sleeping
-from bacpypes.iocb import IOCB
-
-from bacpypes.apdu import ReadPropertyRequest, WhoIsRequest, IAmRequest, WritePropertyRequest, SimpleAckPDU, ReadPropertyACK
-from bacpypes.primitivedata import Null, ObjectIdentifier
 from bacpypes.constructeddata import Any
+from bacpypes.core import deferred
+from bacpypes.iocb import IOCB
+from bacpypes.object import get_datatype
+from bacpypes.pdu import Address, GlobalBroadcast
+from bacpypes.primitivedata import Null, ObjectIdentifier, Atomic, Integer, Real, Unsigned
 
-from thingsboard_gateway.connectors.connector import log
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_device import TBBACnetDevice
+from thingsboard_gateway.connectors.connector import log
 
 
 class TBBACnetApplication(BIPSimpleApplication):
@@ -76,7 +71,7 @@ class TBBACnetApplication(BIPSimpleApplication):
                 destination=apdu.pduSource,
                 objectIdentifier=apdu.iAmDeviceIdentifier,
                 propertyIdentifier='objectName',
-            )
+                )
             iocb = IOCB(request)
             deferred(self.request_io, iocb)
             iocb.add_callback(self.__iam_cb, vendor_id=apdu.vendorID)
@@ -93,7 +88,7 @@ class TBBACnetApplication(BIPSimpleApplication):
             iocb.add_callback(self.__general_cb)
         except Exception as e:
             log.exception(e)
-    
+
     def do_write_property(self, device, callback=None):
         try:
             iocb = device if isinstance(device, IOCB) else self.form_iocb(device, request_type="writeProperty")
@@ -102,6 +97,12 @@ class TBBACnetApplication(BIPSimpleApplication):
             iocb.add_callback(self.__general_cb)
         except Exception as error:
             log.exception("exception: %r", error)
+
+    def do_binary_rising_edge(self, device, callback=None):
+        device["propertyValue"] = 1
+        self.do_write_property(device)
+        device["propertyValue"] = 0
+        self.do_write_property(device)
 
     def check_or_add(self, device):
         device_address = device["address"] if isinstance(device["address"], Address) else Address(device["address"])
@@ -167,7 +168,7 @@ class TBBACnetApplication(BIPSimpleApplication):
                 "objectId": apdu.objectIdentifier,
                 "name": value,
                 "vendor": vendor_id if vendor_id is not None else 0
-            }
+                }
             self.__connector.add_device(data_to_connector)
         elif iocb.ioError:
             log.exception(iocb.ioError)
@@ -189,7 +190,7 @@ class TBBACnetApplication(BIPSimpleApplication):
                 request = ReadPropertyRequest(
                     objectIdentifier=object_id,
                     propertyIdentifier=property_id
-                )
+                    )
                 request.pduDestination = address
                 if property_index is not None:
                     request.propertyArrayIndex = int(property_index)
@@ -200,15 +201,24 @@ class TBBACnetApplication(BIPSimpleApplication):
             datatype = get_datatype(object_id.value[0], property_id, vendor)
             if (isinstance(value, str) and value.lower() == 'null') or value is None:
                 value = Null()
+            elif issubclass(datatype, Atomic):
+                if datatype is Integer:
+                    value = int(value)
+                elif datatype is Real:
+                    value = float(value)
+                elif datatype is Unsigned:
+                    value = int(value)
+                value = datatype(value)
+            elif not isinstance(value, datatype):
+                log.error("invalid result datatype, expecting %s" % (datatype.__name__,))
             request = WritePropertyRequest(
                 objectIdentifier=object_id,
                 propertyIdentifier=property_id
-            )
+                )
             request.pduDestination = address
             request.propertyValue = Any()
             try:
-                value = datatype(value)
-                request.propertyValue = Any(value)
+                request.propertyValue.cast_in(value)
             except AttributeError as e:
                 log.debug(e)
             except Exception as error:

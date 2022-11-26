@@ -1,18 +1,23 @@
 {
-  "server": {
-    "type": "tcp",
-    "host": "127.0.0.1",
-    "port": 5020,
-    "timeout": 35,
-    "method": "socket",
-    "byteOrder": "BIG",
-    "devices": [
+  "master": {
+    "slaves": [
       {
+        "host": "127.0.0.1",
+        "port": 5021,
+        "type": "tcp",
+        "method": "socket",
+        "timeout": 35,
+        "byteOrder": "BIG",
+        "retries": true,
+        "retryOnEmpty": true,
+        "retryOnInvalid": true,
+        "pollPeriod": 5000,
         "unitId": 1,
         "deviceName": "Temp Sensor",
-        "attributesPollPeriod": 5000,
-        "timeseriesPollPeriod": 5000,
         "sendDataOnlyOnChange": true,
+        "connectAttemptTimeMs": 5000,
+        "connectAttemptCount": 5,
+        "waitAfterFailedAttemptsMs": 300000,
         "attributes": [
           {
             "tag": "string_read",
@@ -72,8 +77,8 @@
             "objectsCount": 4,
             "address": 13
           }
-      ],
-      "timeseries": [
+        ],
+        "timeseries": [
           {
             "tag": "8uint_read",
             "type": "8uint",
@@ -156,7 +161,7 @@
             "address": 33
           },
           {
-            "tag":"getCPULoad",
+            "tag": "getCPULoad",
             "type": "32int",
             "functionCode": 4,
             "objectsCount": 2,
@@ -165,5 +170,77 @@
         ]
       }
     ]
+  },
+  "slave": {
+    "type": "tcp",
+    "host": "127.0.0.1",
+    "port": 5026,
+    "method": "socket",
+    "deviceName": "Gateway",
+    "deviceType": "default",
+    "pollPeriod": 5000,
+    "sendDataToThingsBoard": false,
+    "byteOrder": "BIG",
+    "unitId": 0,
+    "values": {
+      "holding_registers": [
+        {
+          "attributes": [
+            {
+              "address": 1,
+              "type": "string",
+              "tag": "sm",
+              "objectsCount": 1,
+              "value": "ON"
+            }
+          ],
+          "timeseries": [
+            {
+              "address": 2,
+              "type": "int",
+              "tag": "smm",
+              "objectsCount": 1,
+              "value": "12334"
+            }
+          ],
+          "attributeUpdates": [
+            {
+              "tag": "shared_attribute_write",
+              "type": "32int",
+              "functionCode": 6,
+              "objectsCount": 2,
+              "address": 29,
+              "value": 1243
+            }
+          ],
+          "rpc": [
+            {
+              "tag": "setValue",
+              "type": "bits",
+              "functionCode": 5,
+              "objectsCount": 1,
+              "address": 31,
+              "value": 22
+            }
+          ]
+        }
+      ],
+      "coils_initializer": [
+        {
+          "attributes": [
+            {
+              "address": 5,
+              "type": "string",
+              "tag": "sm",
+              "objectsCount": 1,
+              "value": "12"
+            }
+          ],
+          "timeseries": [],
+          "attributeUpdates": [],
+          "rpc": []
+        }
+      ]
+    }
   }
 }

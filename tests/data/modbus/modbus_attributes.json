@@ -1,0 +1,150 @@
+{
+  "master": {
+    "slaves": [
+      {
+        "host": "127.0.0.1",
+        "port": 5021,
+        "type": "tcp",
+        "method": "socket",
+        "timeout": 35,
+        "byteOrder": "LITTLE",
+        "wordOrder": "LITTLE",
+        "retries": true,
+        "retryOnEmpty": true,
+        "retryOnInvalid": true,
+        "pollPeriod": 5000,
+        "unitId": 1,
+        "deviceName": "MASTER Temp Sensor",
+        "sendDataOnlyOnChange": false,
+        "connectAttemptTimeMs": 5000,
+        "connectAttemptCount": 5,
+        "waitAfterFailedAttemptsMs": 300000,
+        "attributes": [
+          {
+            "tag": "string_read",
+            "type": "string",
+            "functionCode": 4,
+            "objectsCount": 2,
+            "address": 0
+          },
+          {
+            "tag": "bits_read",
+            "type": "bits",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 2
+          },
+          {
+            "tag": "8int_read",
+            "type": "8int",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 3
+          },
+          {
+            "tag": "8uint_read",
+            "type": "8Uint",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 4
+          },
+          {
+            "tag": "16int_read",
+            "type": "16int",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 5
+          },
+          {
+            "tag": "16uint_read",
+            "type": "16uint",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 6
+          },
+          {
+            "tag": "32int_read",
+            "type": "32int",
+            "functionCode": 4,
+            "objectsCount": 2,
+            "address": 7
+          },
+          {
+            "tag": "32uint_read",
+            "type": "32uint",
+            "functionCode": 4,
+            "objectsCount": 2,
+            "address": 9
+          },
+          {
+            "tag": "16float_read",
+            "type": "16float",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 11
+          },
+          {
+            "tag": "16float_read_2",
+            "type": "16float",
+            "functionCode": 4,
+            "objectsCount": 1,
+            "address": 12
+          },
+          {
+            "tag": "32float_read",
+            "type": "32float",
+            "functionCode": 4,
+            "objectsCount": 2,
+            "address": 13
+          },
+          {
+            "tag": "32float_read_2",
+            "type": "32float",
+            "functionCode": 4,
+            "objectsCount": 2,
+            "address": 15
+          },
+          {
+            "tag": "64int_read",
+            "type": "64int",
+            "functionCode": 4,
+            "objectsCount": 4,
+            "address": 17
+          },
+          {
+            "tag": "64uint_read",
+            "type": "64uint",
+            "functionCode": 4,
+            "objectsCount": 4,
+            "address": 21
+          },
+          {
+            "tag": "64uint_read_2",
+            "type": "64uint",
+            "functionCode": 4,
+            "objectsCount": 4,
+            "address": 25
+          },
+          {
+            "tag": "64float_read",
+            "type": "64float",
+            "functionCode": 4,
+            "objectsCount": 4,
+            "address": 22
+          },
+          {
+            "tag": "64float_read_2",
+            "type": "64float",
+            "functionCode": 4,
+            "objectsCount": 4,
+            "address": 28
+          }
+        ],
+        "timeseries": [],
+        "attributeUpdates": [],
+        "rpc": []
+      }
+    ]
+  },
+  "slave": null
+}

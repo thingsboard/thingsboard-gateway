@@ -1,4 +1,4 @@
-#     Copyright 2020. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -17,17 +17,30 @@ import time
 from concurrent.futures import CancelledError, TimeoutError as FuturesTimeoutError
 from copy import deepcopy
 from random import choice
-from threading import Thread
 from string import ascii_lowercase
+from threading import Thread
+from cachetools import cached, TTLCache
+
 import regex
 from simplejson import dumps
+
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
+
 try:
-    from opcua import Client, ua
+    from opcua import Client, Node, ua
 except ImportError:
     print("OPC-UA library not found")
     TBUtility.install_package("opcua")
-    from opcua import Client, ua
+    from opcua import Client, Node, ua
+
+try:   
+    from opcua.crypto import uacrypto
+except ImportError: 
+    TBUtility.install_package("cryptography")
+    from opcua.crypto import uacrypto
+
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
 
@@ -51,40 +64,17 @@ class OpcUaConnector(Thread, Connector):
                 log.error("deviceNodePattern in mapping: %s - not found, add property deviceNodePattern to processing this mapping",
                           dumps(mapping))
         if "opc.tcp" not in self.__server_conf.get("url"):
-            self.__opcua_url = "opc.tcp://"+self.__server_conf.get("url")
+            self.__opcua_url = "opc.tcp://" + self.__server_conf.get("url")
         else:
             self.__opcua_url = self.__server_conf.get("url")
-        self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000)/1000)
-        if self.__server_conf["identity"].get("type") == "cert.PEM": 
-            try:
-                ca_cert = self.__server_conf["identity"].get("caCert")
-                private_key = self.__server_conf["identity"].get("privateKey")
-                cert = self.__server_conf["identity"].get("cert")
-                security_mode = self.__server_conf["identity"].get("mode", "SignAndEncrypt")
-                policy = self.__server_conf["security"]
-                if cert is None or private_key is None:
-                    log.exception("Error in ssl configuration - cert or privateKey parameter not found")
-                    raise RuntimeError("Error in ssl configuration - cert or privateKey parameter not found")
-                security_string = policy+','+security_mode+','+cert+','+private_key
-                if ca_cert is not None:
-                    security_string = security_string + ',' + ca_cert
-                self.client.set_security_string(security_string)
 
-            except Exception as e:
-                log.exception(e)
-        if self.__server_conf["identity"].get("username"):
-            self.client.set_user(self.__server_conf["identity"].get("username"))
-            if self.__server_conf["identity"].get("password"):
-                self.client.set_password(self.__server_conf["identity"].get("password"))
+        self.client = None
+        self.__connected = False
 
         self.setName(self.__server_conf.get("name", 'OPC-UA ' + ''.join(choice(ascii_lowercase) for _ in range(5))) + " Connector")
-        self.__opcua_nodes = {}
-        self._subscribed = {}
-        self.__sub = None
         self.__sub_handler = SubHandler(self)
         self.data_to_send = []
         self.__stopped = False
-        self.__connected = False
         self.daemon = True
 
     def is_connected(self):
@@ -95,17 +85,52 @@ class OpcUaConnector(Thread, Connector):
         self.start()
         log.info("Starting OPC-UA Connector")
 
-    def run(self):
-        while not self.__connected:
+    def __create_client(self):
+        if self.client:
+            try:
+                # Always try to disconnect to release resource on client and server side!
+                self.client.disconnect()
+            except:
+                pass
+            self.client = None
+
+        self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000) / 1000)
+
+        if self.__server_conf.get('uri'):
+            self.client.application_uri = self.__server_conf['uri']
+
+        if self.__server_conf["identity"].get("type") == "cert.PEM":
+            self.__set_auth_settings_by_cert()
+        if self.__server_conf["identity"].get("username"):
+            self.__set_auth_settings_by_username()
+
+        self.__available_object_resources = {}
+        self.__opcua_nodes = {}
+        self._subscribed = {}
+        self.__sub = None
+        self.__connected = False
+
+    def __connect(self):
+        self.__create_client()
+
+        while not self.__connected and not self.__stopped:
             try:
                 self.client.connect()
                 try:
                     self.client.load_type_definitions()
                 except Exception as e:
-                    log.debug(e)
-                    log.debug("Error on loading type definitions.")
+                    log.error("Error on loading type definitions:")
+                    log.error(e)
                 log.debug(self.client.get_namespace_array()[-1])
                 log.debug(self.client.get_namespace_index(self.client.get_namespace_array()[-1]))
+
+                self.__initialize_client()
+
+                if not self.__server_conf.get("disableSubscriptions", False):
+                    self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
+
+                self.__connected = True
+                log.info("OPC-UA connector %s connected to server %s", self.get_name(), self.__server_conf.get("url"))
             except ConnectionRefusedError:
                 log.error("Connection refused on connection to OPC-UA server with url %s", self.__server_conf.get("url"))
                 time.sleep(10)
@@ -116,20 +141,17 @@ class OpcUaConnector(Thread, Connector):
                 log.debug("error on connection to OPC-UA server.")
                 log.error(e)
                 time.sleep(10)
-            else:
-                self.__connected = True
-                log.info("OPC-UA connector %s connected to server %s", self.get_name(), self.__server_conf.get("url"))
-        self.__initialize_client()
+
+    def run(self):
         while not self.__stopped:
             try:
-                time.sleep(.1)
+                time.sleep(.2)
                 self.__check_connection()
                 if not self.__connected and not self.__stopped:
-                    self.client.connect()
-                    self.__initialize_client()
-                    log.info("Reconnected to the OPC-UA server - %s", self.__server_conf.get("url"))
+                    self.__connect()
                 elif not self.__stopped:
-                    if self.__server_conf.get("disableSubscriptions", False) and time.time()*1000 - self.__previous_scan_time > self.__server_conf.get("scanPeriodInMillis", 60000):
+                    if self.__server_conf.get("disableSubscriptions", False) and time.time() * 1000 - self.__previous_scan_time > self.__server_conf.get(
+                            "scanPeriodInMillis", 60000):
                         self.scan_nodes_from_config()
                         self.__previous_scan_time = time.time() * 1000
                     # giusguerrini, 2020-09-24: Fix: flush event set and send all data to platform,
@@ -151,56 +173,66 @@ class OpcUaConnector(Thread, Connector):
                 log.error("Connection failed on connection to OPC-UA server with url %s",
                           self.__server_conf.get("url"))
                 log.exception(e)
-                self.client = Client(self.__opcua_url, timeout=self.__server_conf.get("timeoutInMillis", 4000) / 1000)
-                self._subscribed = {}
-                self.__available_object_resources = {}
+
                 time.sleep(10)
+
+    def __set_auth_settings_by_cert(self):
+        try:
+            ca_cert = self.__server_conf["identity"].get("caCert")
+            private_key = self.__server_conf["identity"].get("privateKey")
+            cert = self.__server_conf["identity"].get("cert")
+            security_mode = self.__server_conf["identity"].get("mode", "SignAndEncrypt")
+            policy = self.__server_conf["security"]
+            if cert is None or private_key is None:
+                log.exception("Error in ssl configuration - cert or privateKey parameter not found")
+                raise RuntimeError("Error in ssl configuration - cert or privateKey parameter not found")
+            security_string = policy + ',' + security_mode + ',' + cert + ',' + private_key
+            if ca_cert is not None:
+                security_string = security_string + ',' + ca_cert
+            self.client.set_security_string(security_string)
+
+        except Exception as e:
+            log.exception(e)
+
+    def __set_auth_settings_by_username(self):
+        self.client.set_user(self.__server_conf["identity"].get("username"))
+        if self.__server_conf["identity"].get("password"):
+            self.client.set_password(self.__server_conf["identity"].get("password"))
 
     def __check_connection(self):
         try:
-            node = self.client.get_root_node()
-            node.get_children()
-            if not self.__server_conf.get("disableSubscriptions", False) and (not self.__connected or not self.subscribed):
-                self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
-            self.__connected = True
+            if self.client:
+                node = self.client.get_root_node()
+                node.get_children()
+            else:
+                self.__connected = False
         except ConnectionRefusedError:
             self.__connected = False
-            self._subscribed = {}
-            self.__available_object_resources = {}
-            self.__sub = None
         except OSError:
             self.__connected = False
-            self._subscribed = {}
-            self.__available_object_resources = {}
-            self.__sub = None
         except FuturesTimeoutError:
             self.__connected = False
-            self._subscribed = {}
-            self.__available_object_resources = {}
-            self.__sub = None
         except AttributeError:
             self.__connected = False
-            self._subscribed = {}
-            self.__available_object_resources = {}
-            self.__sub = None
         except Exception as e:
             self.__connected = False
-            self._subscribed = {}
-            self.__available_object_resources = {}
-            self.__sub = None
             log.exception(e)
-
 
     def close(self):
         self.__stopped = True
-        if self.__connected:
-            self.client.disconnect()
+        if self.client:
+            try:
+                # Always try to disconnect to release resource on client and server side!
+                self.client.disconnect()
+            except:
+                pass
         self.__connected = False
         log.info('%s has been stopped.', self.get_name())
 
     def get_name(self):
         return self.name
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         log.debug(content)
         try:
@@ -209,24 +241,87 @@ class OpcUaConnector(Thread, Connector):
                     for variable in server_variables:
                         if attribute == variable:
                             try:
-                                server_variables[variable].set_value(content["data"][variable])
+                                if ( isinstance(content["data"][variable], int) ):
+                                    dv = ua.DataValue(ua.Variant(content["data"][variable], server_variables[variable].get_data_type_as_variant_type()))
+                                    server_variables[variable].set_value(dv)
+                                else:
+                                    server_variables[variable].set_value(content["data"][variable])
                             except Exception:
                                 server_variables[variable].set_attribute(ua.AttributeIds.Value, ua.DataValue(content["data"][variable]))
         except Exception as e:
             log.exception(e)
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         try:
             rpc_method = content["data"].get("method")
+
+            # firstly check if a method is not service
+            if rpc_method == 'set' or rpc_method == 'get':
+                full_path = ''
+                args_list = []
+                try:
+                    args_list = content['data']['params'].split(';')
+
+                    if 'ns' in content['data']['params']:
+                        full_path = ';'.join([item for item in (args_list[0:-1] if rpc_method == 'set' else args_list)])
+                    else:
+                        full_path = args_list[0].split('=')[-1]
+                except IndexError:
+                    log.error('Not enough arguments. Expected min 2.')
+                    self.__gateway.send_rpc_reply(content['device'],
+                                                  content['data']['id'],
+                                                  {content['data']['method']: 'Not enough arguments. Expected min 2.',
+                                                   'code': 400})
+
+                node_list = []
+                self.__search_node(current_node=content['device'], fullpath=full_path, result=node_list)
+
+                node = None
+                try:
+                    node = node_list[0]
+                except IndexError:
+                    self.__gateway.send_rpc_reply(content['device'], content['data']['id'],
+                                                  {content['data']['method']: 'Node didn\'t find!',
+                                                   'code': 500})
+
+                if rpc_method == 'get':
+                    self.__gateway.send_rpc_reply(content['device'],
+                                                  content['data']['id'],
+                                                  {content['data']['method']: node.get_value(),
+                                                   'code': 200})
+                else:
+                    try:
+                        value = args_list[2].split('=')[-1]
+                        node.set_value(value)
+                        self.__gateway.send_rpc_reply(content['device'],
+                                                      content['data']['id'],
+                                                      {'success': 'true', 'code': 200})
+                    except ValueError:
+                        log.error('Method SET take three arguments!')
+                        self.__gateway.send_rpc_reply(content['device'],
+                                                      content['data']['id'],
+                                                      {'error': 'Method SET take three arguments!', 'code': 400})
+                    except ua.UaStatusCodeError:
+                        log.error('Write method doesn\'t allow!')
+                        self.__gateway.send_rpc_reply(content['device'],
+                                                      content['data']['id'],
+                                                      {'error': 'Write method doesn\'t allow!', 'code': 400})
+
             for method in self.__available_object_resources[content["device"]]['methods']:
                 if rpc_method is not None and method.get(rpc_method) is not None:
                     arguments_from_config = method["arguments"]
-                    arguments = content["data"].get("params") if content["data"].get("params") is not None else arguments_from_config
+                    arguments = content["data"].get("params") if content["data"].get(
+                        "params") is not None else arguments_from_config
                     try:
                         if isinstance(arguments, list):
                             result = method["node"].call_method(method[rpc_method], *arguments)
                         elif arguments is not None:
-                            result = method["node"].call_method(method[rpc_method], arguments)
+                            try:
+                                result = method["node"].call_method(method[rpc_method], arguments)
+                            except ua.UaStatusCodeError as e:
+                                if "BadTypeMismatch" in str(e) and isinstance(arguments, int):
+                                    result = method["node"].call_method(method[rpc_method], float(arguments))
                         else:
                             result = method["node"].call_method(method[rpc_method])
 
@@ -282,27 +377,26 @@ class OpcUaConnector(Thread, Connector):
             log.exception(e)
 
     def __search_nodes_and_subscribe(self, device_info):
+        sub_nodes = []
         information_types = {"attributes": "attributes", "timeseries": "telemetry"}
         for information_type in information_types:
             for information in device_info["configuration"][information_type]:
-                information_key = information["key"]
                 config_path = TBUtility.get_value(information["path"], get_tag=True)
                 information_path = self._check_path(config_path, device_info["deviceNode"])
                 information["path"] = '${%s}' % information_path
                 information_nodes = []
                 self.__search_node(device_info["deviceNode"], information_path, result=information_nodes)
+
                 for information_node in information_nodes:
+                    changed_key = False
+
                     if information_node is not None:
                         try:
                             information_value = information_node.get_value()
                         except:
                             log.error("Err get_value: %s", str(information_node))
                             continue
-                        log.debug("Node for %s \"%s\" with path: %s - FOUND! Current values is: %s",
-                                  information_type,
-                                  information_key,
-                                  information_path,
-                                  str(information_value))
+
                         if device_info.get("uplink_converter") is None:
                             configuration = {**device_info["configuration"],
                                              "deviceName": device_info["deviceName"],
@@ -310,27 +404,53 @@ class OpcUaConnector(Thread, Connector):
                             if device_info["configuration"].get('converter') is None:
                                 converter = OpcUaUplinkConverter(configuration)
                             else:
-                                converter = TBUtility.check_and_import(self._connector_type, configuration)
+                                converter = TBModuleLoader.import_module(self._connector_type, device_info["configuration"].get('converter'))(configuration)
                             device_info["uplink_converter"] = converter
                         else:
                             converter = device_info["uplink_converter"]
+
                         self.subscribed[information_node] = {"converter": converter,
                                                              "path": information_path,
                                                              "config_path": config_path}
+
+                        # Use Node name if param "key" not found in config
+                        if not information.get('key'):
+                            information['key'] = information_node.get_browse_name().Name
+                            self.subscribed[information_node]['key'] = information['key']
+                            changed_key = True
+
+                        information_key = information['key']
+
+                        log.debug("Node for %s \"%s\" with path: %s - FOUND! Current values is: %s",
+                                  information_type,
+                                  information_key,
+                                  information_path,
+                                  str(information_value))
+
                         if not device_info.get(information_types[information_type]):
                             device_info[information_types[information_type]] = []
+
                         converted_data = converter.convert((config_path, information_path), information_value)
                         self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                         self.data_to_send.append(converted_data)
                         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                        if not self.__server_conf.get("disableSubscriptions", False):
-                            if self.__sub is None:
-                                self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
-                            self.__sub.subscribe_data_change(information_node)
-                        log.debug("Added subscription to node: %s", str(information_node))
                         log.debug("Data to ThingsBoard: %s", converted_data)
+
+                        if not self.__server_conf.get("disableSubscriptions", False):
+                            sub_nodes.append(information_node)
                     else:
                         log.error("Node for %s \"%s\" with path %s - NOT FOUND!", information_type, information_key, information_path)
+
+                    if changed_key:
+                        information['key'] = None
+
+        if not self.__server_conf.get("disableSubscriptions", False):
+            if self.__sub is None:
+                self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500),
+                                                             self.__sub_handler)
+            if sub_nodes:
+                self.__sub.subscribe_data_change(sub_nodes)
+                log.debug("Added subscription to nodes: %s", str(sub_nodes))
 
     def __save_methods(self, device_info):
         try:
@@ -347,7 +467,8 @@ class OpcUaConnector(Thread, Connector):
                     for method in methods:
                         if method is not None:
                             node_method_name = method.get_display_name().Text
-                            self.__available_object_resources[device_info["deviceName"]]["methods"].append({node_method_name: method, "node": node, "arguments": method_object.get("arguments")})
+                            self.__available_object_resources[device_info["deviceName"]]["methods"].append(
+                                {node_method_name: method, "node": node, "arguments": method_object.get("arguments")})
                         else:
                             log.error("Node for method with path %s - NOT FOUND!", method_node_path)
         except Exception as e:
@@ -368,7 +489,8 @@ class OpcUaConnector(Thread, Connector):
                     self.__search_node(node, attribute_path, result=attribute_nodes)
                     for attribute_node in attribute_nodes:
                         if attribute_node is not None:
-                            self.__available_object_resources[device_name]["variables"].append({attribute_update["attributeOnThingsBoard"]: attribute_node})
+                            if self.get_node_path(attribute_node) ==  attribute_path:
+                                self.__available_object_resources[device_name]["variables"].append({attribute_update["attributeOnThingsBoard"]: attribute_node})
                         else:
                             log.error("Attribute update node with path \"%s\" - NOT FOUND!", attribute_path)
         except Exception as e:
@@ -385,17 +507,28 @@ class OpcUaConnector(Thread, Connector):
                 name_expression = TBUtility.get_value(name_pattern_config, get_tag=True)
                 if "${" in name_pattern_config and "}" in name_pattern_config:
                     log.debug("Looking for device name")
-                    name_path = self._check_path(name_expression, device_node)
-                    device_name_node = []
-                    self.__search_node(device_node, name_path, result=device_name_node)
-                    device_name_node = device_name_node[0]
-                    if device_name_node is not None:
-                        device_name_from_node = device_name_node.get_value()
-                        full_device_name = name_pattern_config.replace("${" + name_expression + "}", str(device_name_from_node)).replace(
-                            name_expression, str(device_name_from_node))
+                    device_name_from_node = ""
+                    if name_expression == "$DisplayName":
+                        device_name_from_node = device_node.get_display_name().Text
+                    elif name_expression == "$BrowseName":
+                        device_name_from_node = device_node.get_browse_name().Name
+                    elif name_expression == "$NodeId.Identifier":
+                        device_name_from_node = str(device_node.nodeid.Identifier)
                     else:
+                        name_path = self._check_path(name_expression, device_node)
+                        device_name_node = []
+                        self.__search_node(device_node, name_path, result=device_name_node)
+                        if len(device_name_node) == 0:
+                            log.warn("Device name node - not found, skipping device...")
+                            continue
+                        device_name_node = device_name_node[0]
+                        if device_name_node is not None:
+                            device_name_from_node = device_name_node.get_value()
+                    if device_name_from_node == "":
                         log.error("Device name node not found with expression: %s", name_expression)
                         return None
+                    full_device_name = name_pattern_config.replace("${" + name_expression + "}", str(device_name_from_node)).replace(
+                        name_expression, str(device_name_from_node))
                 else:
                     full_device_name = name_expression
                 result_device_dict["deviceName"] = full_device_name
@@ -427,6 +560,10 @@ class OpcUaConnector(Thread, Connector):
                 log.error("Device node not found with expression: %s", TBUtility.get_value(device["deviceNodePattern"], get_tag=True))
         return result
 
+    @cached(cache=TTLCache(maxsize=1000, ttl=10 * 60))
+    def get_node_path(self, node: Node):
+        return '\\.'.join(node.get_browse_name().Name for node in node.get_path(200000))
+
     def __search_node(self, current_node, fullpath, search_method=False, result=None):
         if result is None:
             result = []
@@ -443,24 +580,32 @@ class OpcUaConnector(Thread, Connector):
             else:
                 fullpath_pattern = regex.compile(fullpath)
                 full1 = fullpath.replace('\\\\.', '.')
+                # current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
+                current_node_path = self.get_node_path(current_node)
+                # we are allways the parent
+                child_node_parent_class = current_node.get_node_class()
+                new_parent = current_node
                 for child_node in current_node.get_children():
                     new_node_class = child_node.get_node_class()
-                    #basis Description of node.get_parent() function, sometime child_node.get_parent() return None
-                    new_parent = child_node.get_parent()
-                    if (new_parent is None):
-                        child_node_parent_class = current_node.get_node_class()
-                    else:
-                        child_node_parent_class = child_node.get_parent().get_node_class() 
-                    current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
-                    new_node_path = '\\\\.'.join(char.split(":")[1] for char in child_node.get_path(200000, True))
+                    # this will not change you can do it outside th loop
+                    # basis Description of node.get_parent() function, sometime child_node.get_parent() return None
+                    # new_parent = child_node.get_parent()
+                    # if (new_parent is None):
+                    #    child_node_parent_class = current_node.get_node_class()
+                    # else:
+                    #    child_node_parent_class = child_node.get_parent().get_node_class()
+                    # current_node_path = '\\.'.join(char.split(":")[1] for char in current_node.get_path(200000, True))
+                    # new_node_path = '\\\\.'.join(char.split(":")[1] for char in child_node.get_path(200000, True))
+                    new_node_path = self.get_node_path(child_node)
                     if child_node_parent_class == ua.NodeClass.View and new_parent is not None:
-                        parent_path = '\\.'.join(char.split(":")[1] for char in child_node.get_parent().get_path(200000, True))
+                        parent_path = self.get_node_path(new_parent)
+                        # parent_path = '\\.'.join(char.split(":")[1] for char in new_parent.get_path(200000, True))
                         fullpath = fullpath.replace(current_node_path, parent_path)
                     nnp1 = new_node_path.replace('\\\\.', '.')
                     nnp2 = new_node_path.replace('\\\\', '\\')
                     if self.__show_map:
                         log.debug("SHOW MAP: Current node path: %s", new_node_path)
-                    regex_fullmatch = regex.fullmatch(fullpath_pattern,  nnp1) or \
+                    regex_fullmatch = regex.fullmatch(fullpath_pattern, nnp1) or \
                                       nnp2 == full1 or \
                                       nnp2 == fullpath or \
                                       nnp1 == full1
@@ -470,8 +615,8 @@ class OpcUaConnector(Thread, Connector):
                         result.append(child_node)
                     else:
                         regex_search = fullpath_pattern.fullmatch(nnp1, partial=True) or \
-                                          nnp2 in full1 or \
-                                          nnp1 in full1
+                                       nnp2 in full1 or \
+                                       nnp1 in full1
                         if regex_search:
                             if self.__show_map:
                                 log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path)
@@ -479,9 +624,9 @@ class OpcUaConnector(Thread, Connector):
                                 if self.__show_map:
                                     log.debug("SHOW MAP: Search in %s", new_node_path)
                                 self.__search_node(child_node, fullpath, result=result)
-                            elif new_node_class == ua.NodeClass.Variable:
-                                log.debug("Found in %s", new_node_path)
-                                result.append(child_node)
+                            # elif new_node_class == ua.NodeClass.Variable:
+                            #     log.debug("Found in %s", new_node_path)
+                            #     result.append(child_node)
                             elif new_node_class == ua.NodeClass.Method and search_method:
                                 log.debug("Found in %s", new_node_path)
                                 result.append(child_node)
@@ -498,10 +643,10 @@ class OpcUaConnector(Thread, Connector):
         if regex.match(r"ns=\d*;[isgb]=.*", config_path, regex.IGNORECASE):
             return config_path
         if re.search(r"^root", config_path.lower()) is None:
-            node_path = '\\\\.'.join(
-                char.split(":")[1] for char in node.get_path(200000, True))
+            node_path = self.get_node_path(node)
+            # node_path = '\\\\.'.join(char.split(":")[1] for char in node.get_path(200000, True))
             if config_path[-3:] != '\\.':
-                information_path = node_path + '\\\\.' + config_path.replace('\\', '\\\\')
+                information_path = (node_path + '\\.' + config_path).replace('\\', '\\\\')
             else:
                 information_path = node_path + config_path.replace('\\', '\\\\')
         else:
@@ -522,7 +667,8 @@ class SubHandler(object):
         try:
             log.debug("Python: New data change event on node %s, with val: %s and data %s", node, val, str(data))
             subscription = self.connector.subscribed[node]
-            converted_data = subscription["converter"].convert((subscription["config_path"], subscription["path"]), val)
+            converted_data = subscription["converter"].convert((subscription["config_path"], subscription["path"]), val,
+                                                               data, key=subscription.get('key'))
             self.connector.statistics['MessagesReceived'] = self.connector.statistics['MessagesReceived'] + 1
             self.connector.data_to_send.append(converted_data)
             self.connector.statistics['MessagesSent'] = self.connector.statistics['MessagesSent'] + 1

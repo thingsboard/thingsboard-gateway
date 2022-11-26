@@ -1,0 +1,32 @@
+[
+  {
+    "timeout": 100,
+    "command": ["wmic", "cpu", "get", "loadpercentage"],
+    "attributeOnGateway": "CPU"
+  },
+  {
+    "timeout": 100,
+    "command": ["wmic", "OS", "get", "FreeVirtualMemory", "/Value"],
+    "attributeOnGateway": "Memory"
+  },
+  {
+    "timeout": 100,
+    "command": ["ipconfig"],
+    "attributeOnGateway": "IP address"
+  },
+  {
+    "timeout": 1000,
+    "command": ["systeminfo | findstr /B /C:\"OS Name\""],
+    "attributeOnGateway": "OS"
+  },
+  {
+    "timeout": 1000,
+    "command": ["systeminfo | find \"System Boot Time:\""],
+    "attributeOnGateway": "Uptime"
+  },
+  {
+    "timeout": 100,
+    "command": ["wmic", "logicaldisk", "where", "drivetype=2", "get", "deviceid, volumename, description"],
+    "attributeOnGateway": "USBs"
+  }
+]

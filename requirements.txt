@@ -1,0 +1,13 @@
+jsonpath-rw
+regex
+pip
+PyYAML
+simplejson
+requests
+PyInquirer
+pyfiglet
+termcolor
+grpcio==1.40.0
+protobuf<=3.20.0
+cachetools
+cryptography<3.5

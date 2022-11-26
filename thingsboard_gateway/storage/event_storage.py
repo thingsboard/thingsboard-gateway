@@ -1,4 +1,4 @@
-#     Copyright 2020. ThingsBoard
+#     Copyright 2022. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -12,10 +12,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from logging import getLogger
 from abc import ABC, abstractmethod
+from logging import getLogger
 
 log = getLogger("storage")
+
 
 class EventStorage(ABC):
 
@@ -31,4 +32,9 @@ class EventStorage(ABC):
     @abstractmethod
     def event_pack_processing_done(self):
         # Indicates that events from previous "get_event_pack" may be cleared
+        pass
+
+    @abstractmethod
+    def stop(self):
+        # Stop the storage processing
         pass
