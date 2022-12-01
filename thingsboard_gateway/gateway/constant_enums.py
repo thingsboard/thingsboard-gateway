@@ -34,4 +34,5 @@ class DownlinkMessageType(Enum):
 class Status(Enum):
     FAILURE = 1,
     NOT_FOUND = 2,
-    SUCCESS = 3
+    SUCCESS = 3,
+    NO_NEW_DATA = 4
