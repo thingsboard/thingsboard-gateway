@@ -225,6 +225,9 @@ class MqttConnector(Connector, Thread):
     def is_filtering_enable(self, device_name):
         return self.__send_data_only_on_change
 
+    def get_config(self):
+        return self.config
+
     def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list):
         if handler_flavor not in self.config:
             self.__log.error("'%s' section missing from configuration", handler_flavor)

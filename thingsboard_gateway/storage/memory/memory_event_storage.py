@@ -53,3 +53,6 @@ class MemoryEventStorage(EventStorage):
 
     def stop(self):
         self.__stopped = True
+
+    def len(self):
+        return self.__events_queue.qsize()
