@@ -240,14 +240,10 @@ class TBGatewayService:
         self.__statistics = self.__config['thingsboard'].get('statistics', DEFAULT_STATISTIC)
         self.__statistics_service = None
         if self.__statistics['enable']:
-            # fix thread block in rasperberry pi
-            self.__statistics_service_thread = Thread(name='Checking devices idle time', target=StatisticsService,
-                                                      args=(self.__statistics['statsSendPeriodInSeconds'], self, log,
-                                                            self._config_dir + self.__statistics[
+            self.__statistics_service = StatisticsService(self.__statistics['statsSendPeriodInSeconds'], self, log,
+                                                          config_path=self._config_dir + self.__statistics[
                                                               'configuration'] if self.__statistics.get(
-                                                              'configuration') else None),
-                                                      daemon=True)
-            self.__statistics_service_thread.start()
+                                                              'configuration') else None)
 
         self._published_events = SimpleQueue()
 
