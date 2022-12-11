@@ -33,6 +33,7 @@ from yaml import safe_load
 from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME
+from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
@@ -261,6 +262,8 @@ class TBGatewayService:
                                    name="Send data to Thingsboard Thread")
         self._send_thread.start()
 
+        self.__duplicate_detector = DuplicateDetector(self.available_connectors)
+
         log.info("Gateway started.")
 
         self._watchers_thread = Thread(target=self._watchers, name='Watchers', daemon=True)
@@ -440,6 +443,7 @@ class TBGatewayService:
         if deleted_device_name in self.__saved_devices:
             del self.__saved_devices[deleted_device_name]
             log.debug("Device %s - was removed from __saved_devices", deleted_device_name)
+        self.__duplicate_detector.delete_device(deleted_device_name)
         self.__save_persistent_devices()
         self.__load_persistent_devices()
 
@@ -452,6 +456,7 @@ class TBGatewayService:
             else:
                 device_name_key = new_device_name
             self.__renamed_devices[device_name_key] = new_device_name
+            self.__duplicate_detector.rename_device(old_device_name, new_device_name)
 
             self.__save_persistent_devices()
             self.__load_persistent_devices()
@@ -660,8 +665,12 @@ class TBGatewayService:
 
     def send_to_storage(self, connector_name, data):
         try:
-            self.__converted_data_queue.put((connector_name, data), True, 100)
-            return Status.SUCCESS
+            filtered_data = self.__duplicate_detector.filter_data(connector_name, data)
+            if filtered_data:
+                self.__converted_data_queue.put((connector_name, filtered_data), True, 100)
+                return Status.SUCCESS
+            else:
+                return Status.NO_NEW_DATA
         except Exception as e:
             log.exception("Cannot put converted data!", e)
             return Status.FAILURE

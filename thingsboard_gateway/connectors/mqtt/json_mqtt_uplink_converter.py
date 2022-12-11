@@ -13,10 +13,10 @@
 #     limitations under the License.
 
 from re import search
-from time import time
 
 from simplejson import dumps
 
+from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
@@ -25,6 +25,7 @@ from thingsboard_gateway.gateway.statistics_service import StatisticsService
 class JsonMqttUplinkConverter(MqttUplinkConverter):
     def __init__(self, config):
         self.__config = config.get('converter')
+        self.__send_data_on_change = self.__config.get(SEND_ON_CHANGE_PARAMETER)
 
     @property
     def config(self):
@@ -50,6 +51,9 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
             "attributes": [],
             "telemetry": []
         }
+
+        if isinstance(self.__send_data_on_change, bool):
+            dict_result[SEND_ON_CHANGE_PARAMETER] = self.__send_data_on_change
 
         try:
             for datatype in datatypes:

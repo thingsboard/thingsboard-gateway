@@ -15,6 +15,7 @@
 import unittest
 from random import randint
 
+from thingsboard_gateway.gateway.constants import *
 from thingsboard_gateway.connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
 
 
@@ -55,6 +56,26 @@ class JsonMqttUplinkConverterTests(unittest.TestCase):
         for item in converted_array_data:
             self.assertDictEqual(single_data, self._convert_to_dict(item.get('telemetry')))
             self.assertDictEqual(single_data, self._convert_to_dict(item.get('attributes')))
+
+    def test_without_send_on_change_option(self):
+        topic, config, data = self._get_device_1_test_data()
+        converter = JsonMqttUplinkConverter(config)
+        converted_array_data = converter.convert(topic, data)
+        self.assertIsNone(converted_array_data.get(SEND_ON_CHANGE_PARAMETER))
+
+    def test_with_send_on_change_option_disabled(self):
+        topic, config, data = self._get_device_1_test_data()
+        config["converter"][SEND_ON_CHANGE_PARAMETER] = False
+        converter = JsonMqttUplinkConverter(config)
+        converted_array_data = converter.convert(topic, data)
+        self.assertFalse(converted_array_data.get(SEND_ON_CHANGE_PARAMETER))
+
+    def test_with_send_on_change_option_enabled(self):
+        topic, config, data = self._get_device_1_test_data()
+        config["converter"][SEND_ON_CHANGE_PARAMETER] = True
+        converter = JsonMqttUplinkConverter(config)
+        converted_array_data = converter.convert(topic, data)
+        self.assertTrue(converted_array_data.get(SEND_ON_CHANGE_PARAMETER))
 
     @staticmethod
     def _convert_to_dict(data_array):
