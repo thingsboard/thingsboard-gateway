@@ -20,15 +20,19 @@ from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
 
 
 class Connector:
-    def __init__(self, enable_filtering):
+    def __init__(self, enable_filtering, ttl=DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE):
         self._enable_filtering = enable_filtering
+        self._ttl = ttl
 
     def is_filtering_enable(self, device_name):
         return self._enable_filtering
 
+    def get_ttl_for_duplicates(self, device_name):
+        return self._ttl
+
 
 class TestDuplicateDetector(unittest.TestCase):
-
+    CONNECTOR_NAME = "ConnectorName"
     TEST_DEVICE_NAME = "Test device"
     TEST_DEVICE_TYPE = "TimeMachine"
 
@@ -65,8 +69,8 @@ class TestDuplicateDetector(unittest.TestCase):
         return {
             DEVICE_NAME_PARAMETER: TestDuplicateDetector.TEST_DEVICE_NAME,
             DEVICE_TYPE_PARAMETER: TestDuplicateDetector.TEST_DEVICE_TYPE,
-            ATTRIBUTES_PARAMETER: attributes if attributes else [TestDuplicateDetector._create_attributes()],
-            TELEMETRY_PARAMETER: telemetry if telemetry else [TestDuplicateDetector._create_telemetry()]
+            ATTRIBUTES_PARAMETER: attributes if attributes is not None else [TestDuplicateDetector._create_attributes()],
+            TELEMETRY_PARAMETER: telemetry if telemetry is not None else [TestDuplicateDetector._create_telemetry()]
         }
 
     @staticmethod
@@ -74,15 +78,9 @@ class TestDuplicateDetector(unittest.TestCase):
         return {'testAttribute': 100500}
 
     @staticmethod
-    def _create_telemetry():
-        return {'testTelemetry': 12345}
-
-    @staticmethod
-    def _create_ts_telemetry():
-        return {
-            TELEMETRY_TIMESTAMP_PARAMETER: 1668624816000,
-            TELEMETRY_VALUES_PARAMETER: TestDuplicateDetector._create_telemetry()
-        }
+    def _create_telemetry(ts=None):
+        value = {'testTelemetry': 12345}
+        return {TELEMETRY_TIMESTAMP_PARAMETER: ts, TELEMETRY_VALUES_PARAMETER: value} if ts else value
 
     def setUp(self):
         self.connectors = {}
@@ -91,17 +89,17 @@ class TestDuplicateDetector(unittest.TestCase):
     def test_in_data_filter_disable(self):
         expected_data = self._create_data_packet()
         expected_data[SEND_ON_CHANGE_PARAMETER] = False
-        actual_data1 = self._duplicate_detector.filter_data("some_connector", expected_data)
+        actual_data1 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
         self._is_data_packets_equal(actual_data1, expected_data)
-        actual_data2 = self._duplicate_detector.filter_data("some_connector", expected_data)
+        actual_data2 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
         self._is_data_packets_equal(actual_data2, expected_data)
 
     def test_in_data_filter_enable(self):
         expected_data = self._create_data_packet()
         expected_data[SEND_ON_CHANGE_PARAMETER] = True
-        actual_data1 = self._duplicate_detector.filter_data("some_connector", expected_data)
+        actual_data1 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
         self._is_data_packets_equal(actual_data1, expected_data)
-        actual_data2 = self._duplicate_detector.filter_data("some_connector", expected_data)
+        actual_data2 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
         self.assertIsNone(actual_data2)
 
     def test_dont_filter_data_from_unknown_connector(self):
@@ -112,23 +110,21 @@ class TestDuplicateDetector(unittest.TestCase):
         self._is_data_packets_equal(actual_data2, expected_data)
 
     def test_connector_with_disable_filtering(self):
-        connector_name = "some_connector"
-        self.connectors[connector_name] = Connector(False)
+        self.connectors[self.CONNECTOR_NAME] = Connector(False)
 
         expected_data = self._create_data_packet()
-        actual_data1 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        actual_data1 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
         self._is_data_packets_equal(actual_data1, expected_data)
-        actual_data2 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        actual_data2 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
         self._is_data_packets_equal(actual_data2, expected_data)
 
     def test_connector_with_enable_filtering(self):
-        connector_name = "some_connector"
-        self.connectors[connector_name] = Connector(True)
+        self.connectors[self.CONNECTOR_NAME] = Connector(True)
 
         expected_data = self._create_data_packet()
-        actual_data1 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        actual_data1 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
         self._is_data_packets_equal(actual_data1, expected_data)
-        actual_data2 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        actual_data2 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
         self.assertIsNone(actual_data2)
 
     def test_one_unchanged_and_one_changed_attributes(self):
@@ -144,11 +140,11 @@ class TestDuplicateDetector(unittest.TestCase):
         expected_data2 = self._create_data_packet(expected_attributes2, [])
         expected_data2[SEND_ON_CHANGE_PARAMETER] = True
 
-        actual_data1 = self._duplicate_detector.filter_data("some_connector", expected_data1)
+        actual_data1 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data1)
         expected_data1.pop(SEND_ON_CHANGE_PARAMETER, None)
         self.assertEqual(actual_data1, expected_data1)
 
-        actual_data2 = self._duplicate_detector.filter_data("some_connector", expected_data2)
+        actual_data2 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data2)
         actual_attributes = actual_data2.get(ATTRIBUTES_PARAMETER)
         self.assertNotEqual(len(actual_attributes), len(expected_attributes2))
         self.assertTrue(len(actual_attributes) == 1)
@@ -167,11 +163,11 @@ class TestDuplicateDetector(unittest.TestCase):
         expected_data2 = self._create_data_packet([], expected_telemetry2)
         expected_data2[SEND_ON_CHANGE_PARAMETER] = True
 
-        actual_data1 = self._duplicate_detector.filter_data("some_connector", expected_data1)
+        actual_data1 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data1)
         expected_data1.pop(SEND_ON_CHANGE_PARAMETER, None)
         self.assertEqual(actual_data1, expected_data1)
 
-        actual_data2 = self._duplicate_detector.filter_data("some_connector", expected_data2)
+        actual_data2 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data2)
         actual_telemetry = actual_data2.get(TELEMETRY_PARAMETER)
         self.assertNotEqual(len(actual_telemetry), len(expected_telemetry2))
         self.assertTrue(len(actual_telemetry) == 1)
@@ -199,45 +195,87 @@ class TestDuplicateDetector(unittest.TestCase):
         expected_data2 = self._create_data_packet([], expected_telemetry2)
         expected_data2[SEND_ON_CHANGE_PARAMETER] = True
 
-        actual_data1 = self._duplicate_detector.filter_data("some_connector", expected_data1)
+        actual_data1 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data1)
         expected_data1.pop(SEND_ON_CHANGE_PARAMETER, None)
         self.assertEqual(actual_data1, expected_data1)
 
-        actual_data2 = self._duplicate_detector.filter_data("some_connector", expected_data2)
+        actual_data2 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data2)
         actual_telemetry = actual_data2.get(TELEMETRY_PARAMETER)
         self.assertNotEqual(len(actual_telemetry), len(expected_telemetry2))
         self.assertTrue(len(actual_telemetry) == 1)
-        self.assertEqual(actual_telemetry[0].get(TELEMETRY_TIMESTAMP_PARAMETER), changed_telemetry_value2.get(TELEMETRY_TIMESTAMP_PARAMETER))
-        self._is_dicts_equal(actual_telemetry[0].get(TELEMETRY_VALUES_PARAMETER), changed_telemetry_value2.get(TELEMETRY_VALUES_PARAMETER))
+        self.assertEqual(actual_telemetry[0].get(TELEMETRY_TIMESTAMP_PARAMETER),
+                         changed_telemetry_value2.get(TELEMETRY_TIMESTAMP_PARAMETER))
+        self._is_dicts_equal(actual_telemetry[0].get(TELEMETRY_VALUES_PARAMETER),
+                             changed_telemetry_value2.get(TELEMETRY_VALUES_PARAMETER))
 
-    def test_device_deletion(self):
-        connector_name = "some_connector"
-        self.connectors[connector_name] = Connector(True)
+    def test_in_connector_ttl(self):
+        ttl = 60 * 1000
+        now = int(time() * 1000)
+        self.connectors[self.CONNECTOR_NAME] = Connector(True, ttl)
 
-        expected_data = self._create_data_packet()
-        actual_data1 = self._duplicate_detector.filter_data(connector_name, expected_data)
-        self._is_data_packets_equal(actual_data1, expected_data)
-        actual_data2 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        expected_data1 = self._create_data_packet(telemetry=[self._create_telemetry(now)])
+        actual_data1 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data1)
+        self._is_data_packets_equal(actual_data1, expected_data1)
+
+        expected_data2 = self._create_data_packet(telemetry=[self._create_telemetry(now + int(ttl / 2))])
+        actual_data2 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data2)
         self.assertIsNone(actual_data2)
 
-        self._duplicate_detector.delete_device(TestDuplicateDetector.TEST_DEVICE_NAME)
-        actual_data3 = self._duplicate_detector.filter_data(connector_name, expected_data)
+    def test_out_connector_ttl(self):
+        ttl = 60 * 1000
+        now = int(time() * 1000)
+        self.connectors[self.CONNECTOR_NAME] = Connector(True, ttl)
+
+        expected_data1 = self._create_data_packet([], telemetry=[self._create_telemetry(now)])
+        actual_data1 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data1)
+        self._is_data_packets_equal(actual_data1, expected_data1)
+
+        expected_data2 = self._create_data_packet([], telemetry=[self._create_telemetry(now + int(ttl * 2))])
+        actual_data2 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data2)
+        self._is_data_packets_equal(actual_data2, expected_data2)
+
+    def test_out_connector_ttl_but_in_converter_ttl(self):
+        connector_ttl = 60 * 1000
+        converter_ttl = 3 * connector_ttl
+        data_ts_shift = 2 * connector_ttl
+        now = int(time() * 1000)
+        self.connectors[self.CONNECTOR_NAME] = Connector(True, connector_ttl)
+
+        expected_data1 = self._create_data_packet([], [self._create_telemetry(now)])
+        actual_data1 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data1)
+        self._is_data_packets_equal(actual_data1, expected_data1)
+
+        expected_data2 = self._create_data_packet([], [self._create_telemetry(now + data_ts_shift)])
+        expected_data2[SEND_ON_CHANGE_TTL_PARAMETER] = converter_ttl
+        actual_data2 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data2)
+        self.assertIsNone(actual_data2)
+
+    def test_device_deletion(self):
+        self.connectors[self.CONNECTOR_NAME] = Connector(True)
+
+        expected_data = self._create_data_packet()
+        actual_data1 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
+        self._is_data_packets_equal(actual_data1, expected_data)
+        actual_data2 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
+        self.assertIsNone(actual_data2)
+
+        self._duplicate_detector.delete_device(self.TEST_DEVICE_NAME)
+        actual_data3 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
         self._is_data_packets_equal(actual_data3, expected_data)
 
     def test_device_renaming(self):
-        connector_name = "some_connector"
-        self.connectors[connector_name] = Connector(True)
+        self.connectors[self.CONNECTOR_NAME] = Connector(True)
 
         expected_data = self._create_data_packet()
-        actual_data1 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        actual_data1 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
         self._is_data_packets_equal(actual_data1, expected_data)
-        actual_data2 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        actual_data2 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
         self.assertIsNone(actual_data2)
 
         new_device_name = "New device name"
-        self._duplicate_detector.rename_device(TestDuplicateDetector.TEST_DEVICE_NAME, new_device_name)
+        self._duplicate_detector.rename_device(self.TEST_DEVICE_NAME, new_device_name)
         expected_data[DEVICE_NAME_PARAMETER] = new_device_name
-        actual_data3 = self._duplicate_detector.filter_data(connector_name, expected_data)
+        actual_data3 = self._duplicate_detector.filter_data(self.CONNECTOR_NAME, expected_data)
         self.assertIsNone(actual_data3)
 
 
