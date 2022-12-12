@@ -24,3 +24,4 @@ __pycache__
 /venv/
 /docs/_build/*
 .vscode/*
+/.vs
