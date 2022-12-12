@@ -17,7 +17,7 @@ import logging.config
 import logging.handlers
 import subprocess
 from copy import deepcopy
-from os import execv, listdir, path, pathsep, stat, system
+from os import execv, listdir, path, pathsep, stat, system, environ
 from queue import SimpleQueue
 from random import choice
 from string import ascii_lowercase, hexdigits
@@ -32,6 +32,7 @@ from yaml import safe_load
 from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
@@ -59,6 +60,7 @@ DEFAULT_CONNECTORS = {
     "mqtt": "MqttConnector",
     "modbus": "ModbusConnector",
     "opcua": "OpcUaConnector",
+    "opcua_asyncio": "OpcUaConnectorAsyncIO",
     "ble": "BLEConnector",
     "request": "RequestConnector",
     "can": "CanConnector",
@@ -67,8 +69,16 @@ DEFAULT_CONNECTORS = {
     "rest": "RESTConnector",
     "snmp": "SNMPConnector",
     "ftp": "FTPConnector",
-    "socket": "SocketConnector"
+    "socket": "SocketConnector",
+    "xmpp": "XMPPConnector",
 }
+
+DEFAULT_STATISTIC = {
+    'enable': True,
+    'statsSendPeriodInSeconds': 3600
+}
+
+SECURITY_VAR = ('accessToken', 'caCert', 'privateKey', 'cert')
 
 
 def load_file(path_to_file):
@@ -76,6 +86,31 @@ def load_file(path_to_file):
     with open(path_to_file, 'r') as target_file:
         content = load(target_file)
     return content
+
+
+def get_env_variables():
+    env_variables = {
+        'host': environ.get('host'),
+        'port': int(environ.get('port')) if environ.get('port') else None,
+        'accessToken': environ.get('accessToken'),
+        'caCert': environ.get('caCert'),
+        'privateKey': environ.get('privateKey'),
+        'cert': environ.get('cert')
+    }
+
+    converted_env_variables = {}
+
+    for (key, value) in env_variables.items():
+        if value is not None:
+            if key in SECURITY_VAR:
+                if not converted_env_variables.get('security'):
+                    converted_env_variables['security'] = {}
+
+                converted_env_variables['security'][key] = value
+            else:
+                converted_env_variables[key] = value
+
+    return converted_env_variables
 
 
 class TBGatewayService:
@@ -94,6 +129,10 @@ class TBGatewayService:
                                                                                                                  path.sep)
         with open(config_file) as general_config:
             self.__config = safe_load(general_config)
+
+        # change main config if Gateway running with docker env variables
+        self.__modify_main_config()
+
         self._config_dir = path.dirname(path.abspath(config_file)) + path.sep
         logging_error = None
         try:
@@ -193,6 +232,14 @@ class TBGatewayService:
             thread.start()
             log.info('Start checking devices idle time')
 
+        self.__statistics = self.__config['thingsboard'].get('statistics', DEFAULT_STATISTIC)
+        self.__statistics_service = None
+        if self.__statistics['enable']:
+            self.__statistics_service = StatisticsService(self.__statistics['statsSendPeriodInSeconds'], self, log,
+                                                          config_path=self._config_dir + self.__statistics[
+                                                              'configuration'] if self.__statistics.get(
+                                                              'configuration') else None)
+
         self._published_events = SimpleQueue()
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
@@ -252,8 +299,8 @@ class TBGatewayService:
                     self.__request_config_after_connect = True
                     self.__check_shared_attributes()
 
-                if cur_time - gateway_statistic_send > self.__config["thingsboard"].get("statsSendPeriodInSeconds",
-                                                                                        3600) * 1000 and self.tb_client.is_connected():
+                if cur_time - gateway_statistic_send > self.__statistics[
+                        'statsSendPeriodInSeconds'] * 1000 and self.tb_client.is_connected():
                     summary_messages = self.__form_statistics()
                     # with self.__lock:
                     self.tb_client.client.send_telemetry(summary_messages)
@@ -278,6 +325,10 @@ class TBGatewayService:
             log.info("The gateway has been stopped.")
             self.tb_client.stop()
 
+    def __modify_main_config(self):
+        env_variables = get_env_variables()
+        self.__config['thingsboard'] = {**self.__config['thingsboard'], **env_variables}
+
     def __close_connectors(self):
         for current_connector in self.available_connectors:
             try:
@@ -290,6 +341,10 @@ class TBGatewayService:
         self.stopped = True
         self.__updater.stop()
         log.info("Stopping...")
+
+        if self.__statistics_service:
+            self.__statistics_service.stop()
+
         if self.__grpc_manager is not None:
             self.__grpc_manager.stop()
         self.__close_connectors()
@@ -357,7 +412,10 @@ class TBGatewayService:
             log.debug("Current renamed_devices dict: %s", self.__renamed_devices)
         if deleted_device_name in self.__connected_devices:
             del self.__connected_devices[deleted_device_name]
-            log.debug("Device %s - was removed", deleted_device_name)
+            log.debug("Device %s - was removed from __connected_devices", deleted_device_name)
+        if deleted_device_name in self.__saved_devices:
+            del self.__saved_devices[deleted_device_name]
+            log.debug("Device %s - was removed from __saved_devices", deleted_device_name)
         self.__save_persistent_devices()
         self.__load_persistent_devices()
 
@@ -394,6 +452,12 @@ class TBGatewayService:
         self.tb_client.client.set_server_side_rpc_request_handler(self._rpc_request_handler)
         self.tb_client.client.subscribe_to_all_attributes(self._attribute_update_callback)
         self.tb_client.client.gw_subscribe_to_all_attributes(self._attribute_update_callback)
+
+    def request_device_attributes(self, device_name, shared_keys, client_keys, callback):
+        if client_keys is not None:
+            self.tb_client.client.gw_request_client_attributes(device_name, client_keys, callback)
+        if shared_keys is not None:
+            self.tb_client.client.gw_request_shared_attributes(device_name, shared_keys, callback)
 
     def __check_shared_attributes(self):
         self.tb_client.client.request_attributes(callback=self._attributes_parse)
@@ -467,7 +531,10 @@ class TBGatewayService:
                                                                                connector['type'],
                                                                                connector.get('class')))
 
-                        self._implemented_connectors[connector['type']] = connector_class
+                        if connector_class is None:
+                            log.warning("Connector implementation not found for %s", connector["name"])
+                        else:
+                            self._implemented_connectors[connector['type']] = connector_class
                     elif connector['type'] == "grpc":
                         if connector.get('key') == "auto":
                             self._generate_persistent_key(connector, connectors_persistent_keys)
@@ -511,13 +578,12 @@ class TBGatewayService:
     def _connect_with_connectors(self):
         for connector_type in self.connectors_configs:
             for connector_config in self.connectors_configs[connector_type]:
-                if connector_type.lower() != 'grpc' and 'Grpc' not in self._implemented_connectors[
-                        connector_type.lower()].__name__:
-                    for config in connector_config["config"]:
-                        connector = None
-                        try:
-                            if connector_config["config"][config] is not None:
-                                if self._implemented_connectors[connector_type]:
+                if self._implemented_connectors.get(connector_type.lower()) is not None:
+                    if connector_type.lower() != 'grpc' and 'Grpc' not in self._implemented_connectors[connector_type.lower()].__name__:
+                        for config in connector_config["config"]:
+                            connector = None
+                            try:
+                                if connector_config["config"][config] is not None:
                                     connector = self._implemented_connectors[connector_type](self,
                                                                                              connector_config["config"][
                                                                                                  config],
@@ -526,30 +592,28 @@ class TBGatewayService:
                                     self.available_connectors[connector.get_name()] = connector
                                     connector.open()
                                 else:
-                                    log.warning("Connector implementation not found for %s", connector_config["name"])
-                            else:
-                                log.info("Config not found for %s", connector_type)
-                        except Exception as e:
-                            log.exception(e)
-                            if connector is not None:
-                                connector.close()
-                else:
-                    self.__grpc_connectors.update({connector_config['grpc_key']: connector_config})
+                                    log.info("Config not found for %s", connector_type)
+                            except Exception as e:
+                                log.exception(e)
+                                if connector is not None:
+                                    connector.close()
+                    else:
+                        self.__grpc_connectors.update({connector_config['grpc_key']: connector_config})
+                        if connector_type.lower() != 'grpc':
+                            connector_dir_abs = "/".join(self._config_dir.split("/")[:-2])
+                            connector_file_name = f'{connector_type}_connector.py'
+                            connector_abs_path = f'{connector_dir_abs}/grpc_connectors/{connector_type}/{connector_file_name}'
+                            connector_config_json = simplejson.dumps({
+                                **connector_config,
+                                'gateway': {
+                                    'host': 'localhost',
+                                    'port': self.__config['grpc']['serverPort']
+                                }
+                            })
 
-                    connector_dir_abs = "/".join(self._config_dir.split("/")[:-2])
-                    connector_file_name = f'{connector_type}_connector.py'
-                    connector_abs_path = f'{connector_dir_abs}/grpc_connectors/{connector_type}/{connector_file_name}'
-                    connector_config_json = simplejson.dumps({
-                        **connector_config,
-                        'gateway': {
-                            'host': 'localhost',
-                            'port': self.__config['grpc']['serverPort']
-                        }
-                    })
-
-                    thread = Thread(target=self._run_connector, args=(connector_abs_path, connector_config_json,),
-                                    daemon=True, name='Separate DRPC Connector')
-                    thread.start()
+                            thread = Thread(target=self._run_connector, args=(connector_abs_path, connector_config_json,),
+                                            daemon=True, name='Separate DRPC Connector')
+                            thread.start()
 
     def _run_connector(self, connector_abs_path, connector_config_json):
         subprocess.run(['python3', connector_abs_path, connector_config_json, self._config_dir],
@@ -618,25 +682,28 @@ class TBGatewayService:
 
                         data = self.__convert_telemetry_to_ts(data)
 
-                        max_data_size = self.__config["thingsboard"].get("maxPayloadSizeBytes", 1024)
+                        max_data_size = self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
                         if self.__get_data_size(data) >= max_data_size:
+                            # Data is too large, so we will attempt to send in pieces
                             adopted_data = {"deviceName": data['deviceName'],
                                             "deviceType": data['deviceType'],
                                             "attributes": {},
                                             "telemetry": []}
+
+                            # First, loop through the attributes
                             for attribute in data['attributes']:
+                                adopted_data['attributes'].update(attribute)
                                 adopted_data_size = self.__get_data_size(adopted_data)
                                 if adopted_data_size >= max_data_size:
+                                    # We have surpassed the max_data_size, so send what we have and clear attributes
                                     self.__send_data_pack_to_storage(adopted_data, connector_name)
                                     adopted_data['attributes'] = {}
-                                adopted_data['attributes'].update({attribute: data['attributes'][attribute]})
-                            for ts_kv_list in data['telemetry']:
+                            
+                            # Now, loop through telemetry. Possibly have some unsent attributes that have been adopted.
+                            telemetry = data['telemetry'] if isinstance(data['telemetry'], list) else [data['telemetry']]
+                            for ts_kv_list in telemetry:
                                 ts = ts_kv_list['ts']
                                 for kv in ts_kv_list['values']:
-                                    adopted_data_size = self.__get_data_size(adopted_data)
-                                    if adopted_data_size >= max_data_size:
-                                        self.__send_data_pack_to_storage(adopted_data, connector_name)
-                                        adopted_data['telemetry'] = []
                                     if len(adopted_data['telemetry']) == 0:
                                         adopted_data['telemetry'] = [
                                             {'ts': ts, 'values': {kv: ts_kv_list['values'][kv]}}]
@@ -644,6 +711,21 @@ class TBGatewayService:
                                         for adopted_kv in adopted_data['telemetry']:
                                             if adopted_kv['ts'] == ts:
                                                 adopted_kv['values'].update({kv: ts_kv_list['values'][kv]})
+
+                                    adopted_data_size = self.__get_data_size(adopted_data)
+                                    if adopted_data_size >= max_data_size:
+                                        # we have surpassed the max_data_size, so send what we have and clear attributes and telemetry
+                                        self.__send_data_pack_to_storage(adopted_data, connector_name)
+                                        adopted_data['telemetry'] = []
+                                        adopted_data['attributes'] = {}
+
+                            # It is possible that we get here and have some telemetry or attributes not yet sent, so check for that.
+                            if len(adopted_data['telemetry']) > 0 or len(adopted_data['attributes']) > 0:
+                                self.__send_data_pack_to_storage(adopted_data, connector_name)
+                                
+                                # technically unnecessary to clear here, but leaving for consistency.
+                                adopted_data['telemetry'] = []
+                                adopted_data['attributes'] = {}
 
                         else:
                             self.__send_data_pack_to_storage(data, connector_name)
@@ -682,7 +764,7 @@ class TBGatewayService:
 
     def check_size(self, devices_data_in_event_pack):
         if self.__get_data_size(devices_data_in_event_pack) >= self.__config["thingsboard"].get("maxPayloadSizeBytes",
-                                                                                                1024):
+                                                                                                400):
             self.__send_data(devices_data_in_event_pack)
             for device in devices_data_in_event_pack:
                 devices_data_in_event_pack[device]["telemetry"] = []
@@ -779,6 +861,7 @@ class TBGatewayService:
                 log.exception(e)
                 sleep(1)
 
+    @StatisticsService.CollectAllSentTBBytesStatistics(start_stat_type='allBytesSentToTB')
     def __send_data(self, devices_data_in_event_pack):
         try:
             for device in devices_data_in_event_pack:
@@ -921,6 +1004,7 @@ class TBGatewayService:
         log.info("Outgoing RPC. Device: %s, ID: %d", device, req_id)
         self.send_rpc_reply(device, req_id, content)
 
+    @StatisticsService.CollectRPCReplyStatistics(start_stat_type='all_bytes_sent')
     def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None,
                        quality_of_service=0):
         self.__rpc_processing_queue.put((device, req_id, content, success_sent, wait_for_publish, quality_of_service))
@@ -1026,8 +1110,11 @@ class TBGatewayService:
         self.__saved_devices.pop(device_name)
         self.__save_persistent_devices()
 
-    def get_devices(self):
-        return self.__connected_devices
+    def get_devices(self, connector_name: str = None):
+        return self.__connected_devices if connector_name is None else {
+            device_name: self.__connected_devices[device_name]["device_type"] for device_name in
+            self.__connected_devices.keys() if self.__connected_devices[device_name].get("connector") is not None and
+            self.__connected_devices[device_name]["connector"].get_name() == connector_name}
 
     def __process_async_device_actions(self):
         while not self.stopped:

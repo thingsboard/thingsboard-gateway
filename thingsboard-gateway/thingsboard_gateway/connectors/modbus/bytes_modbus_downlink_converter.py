@@ -16,6 +16,7 @@ from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadBuilder
 
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BytesModbusDownlinkConverter(ModbusConverter):
@@ -23,6 +24,8 @@ class BytesModbusDownlinkConverter(ModbusConverter):
     def __init__(self, config):
         self.__config = config
 
+    @StatisticsService.CollectStatistics(start_stat_type='allReceivedBytesFromTB',
+                                         end_stat_type='allBytesSentToDevices')
     def convert(self, config, data):
         byte_order_str = config.get("byteOrder", "LITTLE")
         word_order_str = config.get("wordOrder", "LITTLE")
@@ -99,13 +102,18 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             if "Exception" in str(builder):
                 log.exception(builder)
                 builder = str(builder)
-            if variable_size <= 16:
-                if isinstance(builder, list) and len(builder) not in (8, 16, 32, 64):
+            # if function_code is 5 , is useing first coils value 
+            if function_code == 5:
+                if isinstance(builder, list):
                     builder = builder[0]
             else:
-                if isinstance(builder, list) and len(builder) not in (2, 4):
-                    log.warning("There is a problem with the value builder. Only the first register is written.")
-                    builder = builder[0]
+                if variable_size <= 16:
+                    if isinstance(builder, list) and len(builder) not in (8, 16, 32, 64):
+                        builder = builder[0]
+                else:
+                    if isinstance(builder, list) and len(builder) not in (2, 4):
+                        log.warning("There is a problem with the value builder. Only the first register is written.")
+                        builder = builder[0]
             return builder
         log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter", config["device"])
         return None

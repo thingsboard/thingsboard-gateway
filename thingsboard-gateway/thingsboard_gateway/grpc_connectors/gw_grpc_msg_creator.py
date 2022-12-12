@@ -209,6 +209,15 @@ class GrpcMsgCreator:
         return basic_message
 
     @staticmethod
+    def create_get_connected_devices_msg(connector_key: str, basic_message=None):
+        is_not_none(connector_key)
+        basic_message = GrpcMsgCreator.get_basic_message(basic_message)
+        get_connected_devices_msg = ConnectorGetConnectedDevicesMsg()
+        get_connected_devices_msg.connectorKey = connector_key
+        basic_message.connectorGetConnectedDevicesMsg.MergeFrom(get_connected_devices_msg)
+        return basic_message
+
+    @staticmethod
     def create_device_connected_msg(device_name, device_type="default", basic_message=None):
         is_not_none(device_name)
         basic_message = GrpcMsgCreator.get_basic_message(basic_message)
@@ -241,8 +250,19 @@ class GrpcMsgCreator:
         return basic_message
 
     @staticmethod
-    def create_attributes_request_connector_msg():
-        pass
+    def create_attributes_request_connector_msg(device, keys: list[str], client_scope=False, request_id=None,
+                                                basic_message=None):
+        is_not_none(device)
+        is_not_none(keys)
+        is_not_none(request_id)
+        basic_message = GrpcMsgCreator.get_basic_message(basic_message)
+        gw_attr_request_msg = GatewayAttributesRequestMsg()
+        gw_attr_request_msg.deviceName = device
+        gw_attr_request_msg.id = request_id
+        gw_attr_request_msg.client = client_scope
+        gw_attr_request_msg.keys.extend(keys)
+        basic_message.gatewayAttributeRequestMsg.MergeFrom(gw_attr_request_msg)
+        return basic_message
 
     @staticmethod
     def __get_key_value_proto_value(key: str, value: Union[str, bool, int, float, dict]) -> KeyValueProto:

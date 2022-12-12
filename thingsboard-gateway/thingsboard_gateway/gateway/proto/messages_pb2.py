@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x0emessages.proto\x12\x08messages\"\xa4\x01\n\x08Response\x12(\n\x06status\x18\x01 \x01(\x0e\x32\x18.messages.ResponseStatus\x12\x34\n\x0eserviceMessage\x18\x02 \x01(\x0b\x32\x1c.messages.FromServiceMessage\x12\x38\n\x10\x63onnectorMessage\x18\x03 \x01(\x0b\x32\x1e.messages.FromConnectorMessage\"\xcf\x04\n\x14\x46romConnectorMessage\x12$\n\x08response\x18\x01 \x01(\x0b\x32\x12.messages.Response\x12:\n\x13gatewayTelemetryMsg\x18\x02 \x01(\x0b\x32\x1d.messages.GatewayTelemetryMsg\x12<\n\x14gatewayAttributesMsg\x18\x03 \x01(\x0b\x32\x1e.messages.GatewayAttributesMsg\x12\x32\n\x0fgatewayClaimMsg\x18\x04 \x01(\x0b\x32\x19.messages.GatewayClaimMsg\x12<\n\x14registerConnectorMsg\x18\x05 \x01(\x0b\x32\x1e.messages.RegisterConnectorMsg\x12@\n\x16unregisterConnectorMsg\x18\x06 \x01(\x0b\x32 .messages.UnregisterConnectorMsg\x12(\n\nconnectMsg\x18\x07 \x01(\x0b\x32\x14.messages.ConnectMsg\x12.\n\rdisconnectMsg\x18\x08 \x01(\x0b\x32\x17.messages.DisconnectMsg\x12>\n\x15gatewayRpcResponseMsg\x18\t \x01(\x0b\x32\x1f.messages.GatewayRpcResponseMsg\x12I\n\x1agatewayAttributeRequestMsg\x18\n \x01(\x0b\x32%.messages.GatewayAttributesRequestMsg\"\xba\x03\n\x12\x46romServiceMessage\x12$\n\x08response\x18\x01 \x01(\x0b\x32\x12.messages.Response\x12\x46\n\x19\x63onnectorConfigurationMsg\x18\x02 \x01(\x0b\x32#.messages.ConnectorConfigurationMsg\x12^\n%gatewayAttributeUpdateNotificationMsg\x18\x03 \x01(\x0b\x32/.messages.GatewayAttributeUpdateNotificationMsg\x12J\n\x1bgatewayAttributeResponseMsg\x18\x04 \x01(\x0b\x32%.messages.GatewayAttributeResponseMsg\x12H\n\x1agatewayDeviceRpcRequestMsg\x18\x05 \x01(\x0b\x32$.messages.GatewayDeviceRpcRequestMsg\x12@\n\x16unregisterConnectorMsg\x18\x06 \x01(\x0b\x32 .messages.UnregisterConnectorMsg\"\x96\x01\n\rKeyValueProto\x12\x0b\n\x03key\x18\x01 \x01(\t\x12$\n\x04type\x18\x02 \x01(\x0e\x32\x16.messages.KeyValueType\x12\x0e\n\x06\x62ool_v\x18\x03 \x01(\x08\x12\x0e\n\x06long_v\x18\x04 \x01(\x03\x12\x10\n\x08\x64ouble_v\x18\x05 \x01(\x01\x12\x10\n\x08string_v\x18\x06 \x01(\t\x12\x0e\n\x06json_v\x18\x07 \x01(\t\"<\n\tTsKvProto\x12\n\n\x02ts\x18\x01 \x01(\x03\x12#\n\x02kv\x18\x02 \x01(\x0b\x32\x17.messages.KeyValueProto\"@\n\rTsKvListProto\x12\n\n\x02ts\x18\x01 \x01(\x03\x12#\n\x02kv\x18\x02 \x03(\x0b\x32\x17.messages.KeyValueProto\"=\n\x10PostTelemetryMsg\x12)\n\x08tsKvList\x18\x01 \x03(\x0b\x32\x17.messages.TsKvListProto\"7\n\x10PostAttributeMsg\x12#\n\x02kv\x18\x01 \x03(\x0b\x32\x17.messages.KeyValueProto\"{\n\x16GetAttributeRequestMsg\x12\x11\n\trequestId\x18\x01 \x01(\x05\x12\x1c\n\x14\x63lientAttributeNames\x18\x02 \x03(\t\x12\x1c\n\x14sharedAttributeNames\x18\x03 \x03(\t\x12\x12\n\nonlyShared\x18\x04 \x01(\x08\"\xb7\x01\n\x17GetAttributeResponseMsg\x12\x11\n\trequestId\x18\x01 \x01(\x05\x12\x30\n\x13\x63lientAttributeList\x18\x02 \x03(\x0b\x32\x13.messages.TsKvProto\x12\x30\n\x13sharedAttributeList\x18\x03 \x03(\x0b\x32\x13.messages.TsKvProto\x12\r\n\x05\x65rror\x18\x05 \x01(\t\x12\x16\n\x0esharedStateMsg\x18\x06 \x01(\x08\"c\n\x1e\x41ttributeUpdateNotificationMsg\x12*\n\rsharedUpdated\x18\x01 \x03(\x0b\x32\x13.messages.TsKvProto\x12\x15\n\rsharedDeleted\x18\x02 \x03(\t\"N\n\x15ToDeviceRpcRequestMsg\x12\x11\n\trequestId\x18\x01 \x01(\x05\x12\x12\n\nmethodName\x18\x02 \x01(\t\x12\x0e\n\x06params\x18\x03 \x01(\t\"K\n\x16ToDeviceRpcResponseMsg\x12\x11\n\trequestId\x18\x01 \x01(\x05\x12\x0f\n\x07payload\x18\x02 \x01(\t\x12\r\n\x05\x65rror\x18\x03 \x01(\t\"N\n\x15ToServerRpcRequestMsg\x12\x11\n\trequestId\x18\x01 \x01(\x05\x12\x12\n\nmethodName\x18\x02 \x01(\t\x12\x0e\n\x06params\x18\x03 \x01(\t\"K\n\x16ToServerRpcResponseMsg\x12\x11\n\trequestId\x18\x01 \x01(\x05\x12\x0f\n\x07payload\x18\x02 \x01(\t\x12\r\n\x05\x65rror\x18\x03 \x01(\t\"4\n\x0b\x43laimDevice\x12\x11\n\tsecretKey\x18\x01 \x01(\t\x12\x12\n\ndurationMs\x18\x02 \x01(\x03\";\n\x11\x41ttributesRequest\x12\x12\n\nclientKeys\x18\x01 \x01(\t\x12\x12\n\nsharedKeys\x18\x02 \x01(\t\",\n\nRpcRequest\x12\x0e\n\x06method\x18\x01 \x01(\t\x12\x0e\n\x06params\x18\x02 \x01(\t\"#\n\rDisconnectMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\",\n\x14RegisterConnectorMsg\x12\x14\n\x0c\x63onnectorKey\x18\x01 \x01(\t\".\n\x16UnregisterConnectorMsg\x12\x14\n\x0c\x63onnectorKey\x18\x01 \x01(\t\"I\n\x19\x43onnectorConfigurationMsg\x12\x15\n\rconnectorName\x18\x01 \x01(\t\x12\x15\n\rconfiguration\x18\x02 \x01(\t\"4\n\nConnectMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\x12\n\ndeviceType\x18\x02 \x01(\t\"K\n\x0cTelemetryMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\'\n\x03msg\x18\x03 \x01(\x0b\x32\x1a.messages.PostTelemetryMsg\"L\n\rAttributesMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\'\n\x03msg\x18\x02 \x01(\x0b\x32\x1a.messages.PostAttributeMsg\"Q\n\x0e\x43laimDeviceMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12+\n\x0c\x63laimRequest\x18\x02 \x01(\x0b\x32\x15.messages.ClaimDevice\":\n\x13GatewayTelemetryMsg\x12#\n\x03msg\x18\x01 \x03(\x0b\x32\x16.messages.TelemetryMsg\"8\n\x0fGatewayClaimMsg\x12%\n\x03msg\x18\x01 \x03(\x0b\x32\x18.messages.ClaimDeviceMsg\"<\n\x14GatewayAttributesMsg\x12$\n\x03msg\x18\x01 \x03(\x0b\x32\x17.messages.AttributesMsg\"E\n\x15GatewayRpcResponseMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\n\n\x02id\x18\x02 \x01(\x05\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\t\"i\n\x1bGatewayAttributeResponseMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\x36\n\x0bresponseMsg\x18\x02 \x01(\x0b\x32!.messages.GetAttributeResponseMsg\"~\n%GatewayAttributeUpdateNotificationMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\x41\n\x0fnotificationMsg\x18\x02 \x01(\x0b\x32(.messages.AttributeUpdateNotificationMsg\"h\n\x1aGatewayDeviceRpcRequestMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\x36\n\rrpcRequestMsg\x18\x02 \x01(\x0b\x32\x1f.messages.ToDeviceRpcRequestMsg\"[\n\x1bGatewayAttributesRequestMsg\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x12\n\ndeviceName\x18\x02 \x01(\t\x12\x0e\n\x06\x63lient\x18\x03 \x01(\x08\x12\x0c\n\x04keys\x18\x04 \x03(\t*F\n\x0eResponseStatus\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01\x12\r\n\tNOT_FOUND\x10\x02\x12\x0b\n\x07\x46\x41ILURE\x10\x03*Q\n\x0cKeyValueType\x12\r\n\tBOOLEAN_V\x10\x00\x12\n\n\x06LONG_V\x10\x01\x12\x0c\n\x08\x44OUBLE_V\x10\x02\x12\x0c\n\x08STRING_V\x10\x03\x12\n\n\x06JSON_V\x10\x04\x32_\n\x15TBGatewayProtoService\x12\x46\n\x06stream\x12\x1e.messages.FromConnectorMessage\x1a\x1c.messages.FromServiceMessageb\x06proto3'
+  serialized_pb=b'\n\x0emessages.proto\x12\x08messages\"\xa4\x01\n\x08Response\x12(\n\x06status\x18\x01 \x01(\x0e\x32\x18.messages.ResponseStatus\x12\x34\n\x0eserviceMessage\x18\x02 \x01(\x0b\x32\x1c.messages.FromServiceMessage\x12\x38\n\x10\x63onnectorMessage\x18\x03 \x01(\x0b\x32\x1e.messages.FromConnectorMessage\"\xa3\x05\n\x14\x46romConnectorMessage\x12$\n\x08response\x18\x01 \x01(\x0b\x32\x12.messages.Response\x12:\n\x13gatewayTelemetryMsg\x18\x02 \x01(\x0b\x32\x1d.messages.GatewayTelemetryMsg\x12<\n\x14gatewayAttributesMsg\x18\x03 \x01(\x0b\x32\x1e.messages.GatewayAttributesMsg\x12\x32\n\x0fgatewayClaimMsg\x18\x04 \x01(\x0b\x32\x19.messages.GatewayClaimMsg\x12<\n\x14registerConnectorMsg\x18\x05 \x01(\x0b\x32\x1e.messages.RegisterConnectorMsg\x12@\n\x16unregisterConnectorMsg\x18\x06 \x01(\x0b\x32 .messages.UnregisterConnectorMsg\x12(\n\nconnectMsg\x18\x07 \x01(\x0b\x32\x14.messages.ConnectMsg\x12.\n\rdisconnectMsg\x18\x08 \x01(\x0b\x32\x17.messages.DisconnectMsg\x12>\n\x15gatewayRpcResponseMsg\x18\t \x01(\x0b\x32\x1f.messages.GatewayRpcResponseMsg\x12I\n\x1agatewayAttributeRequestMsg\x18\n \x01(\x0b\x32%.messages.GatewayAttributesRequestMsg\x12R\n\x1f\x63onnectorGetConnectedDevicesMsg\x18\x0b \x01(\x0b\x32).messages.ConnectorGetConnectedDevicesMsg\"\x9e\x04\n\x12\x46romServiceMessage\x12$\n\x08response\x18\x01 \x01(\x0b\x32\x12.messages.Response\x12\x46\n\x19\x63onnectorConfigurationMsg\x18\x02 \x01(\x0b\x32#.messages.ConnectorConfigurationMsg\x12^\n%gatewayAttributeUpdateNotificationMsg\x18\x03 \x01(\x0b\x32/.messages.GatewayAttributeUpdateNotificationMsg\x12J\n\x1bgatewayAttributeResponseMsg\x18\x04 \x01(\x0b\x32%.messages.GatewayAttributeResponseMsg\x12H\n\x1agatewayDeviceRpcRequestMsg\x18\x05 \x01(\x0b\x32$.messages.GatewayDeviceRpcRequestMsg\x12@\n\x16unregisterConnectorMsg\x18\x06 \x01(\x0b\x32 .messages.UnregisterConnectorMsg\x12\x62\n\'connectorGetConnectedDevicesResponseMsg\x18\x07 \x01(\x0b\x32\x31.messages.ConnectorGetConnectedDevicesResponseMsg\",\n\x14RegisterConnectorMsg\x12\x14\n\x0c\x63onnectorKey\x18\x01 \x01(\t\".\n\x16UnregisterConnectorMsg\x12\x14\n\x0c\x63onnectorKey\x18\x01 \x01(\t\"I\n\x19\x43onnectorConfigurationMsg\x12\x15\n\rconnectorName\x18\x01 \x01(\t\x12\x15\n\rconfiguration\x18\x02 \x01(\t\"7\n\x1f\x43onnectorGetConnectedDevicesMsg\x12\x14\n\x0c\x63onnectorKey\x18\x01 \x01(\t\"b\n\'ConnectorGetConnectedDevicesResponseMsg\x12\x37\n\x10\x63onnectorDevices\x18\x01 \x03(\x0b\x32\x1d.messages.ConnectorDeviceInfo\"=\n\x13\x43onnectorDeviceInfo\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\x12\n\ndeviceType\x18\x02 \x01(\t\"\x96\x01\n\rKeyValueProto\x12\x0b\n\x03key\x18\x01 \x01(\t\x12$\n\x04type\x18\x02 \x01(\x0e\x32\x16.messages.KeyValueType\x12\x0e\n\x06\x62ool_v\x18\x03 \x01(\x08\x12\x0e\n\x06long_v\x18\x04 \x01(\x03\x12\x10\n\x08\x64ouble_v\x18\x05 \x01(\x01\x12\x10\n\x08string_v\x18\x06 \x01(\t\x12\x0e\n\x06json_v\x18\x07 \x01(\t\"<\n\tTsKvProto\x12\n\n\x02ts\x18\x01 \x01(\x03\x12#\n\x02kv\x18\x02 \x01(\x0b\x32\x17.messages.KeyValueProto\"@\n\rTsKvListProto\x12\n\n\x02ts\x18\x01 \x01(\x03\x12#\n\x02kv\x18\x02 \x03(\x0b\x32\x17.messages.KeyValueProto\"=\n\x10PostTelemetryMsg\x12)\n\x08tsKvList\x18\x01 \x03(\x0b\x32\x17.messages.TsKvListProto\"7\n\x10PostAttributeMsg\x12#\n\x02kv\x18\x01 \x03(\x0b\x32\x17.messages.KeyValueProto\"c\n\x1e\x41ttributeUpdateNotificationMsg\x12*\n\rsharedUpdated\x18\x01 \x03(\x0b\x32\x13.messages.TsKvProto\x12\x15\n\rsharedDeleted\x18\x02 \x03(\t\"N\n\x15ToDeviceRpcRequestMsg\x12\x11\n\trequestId\x18\x01 \x01(\x05\x12\x12\n\nmethodName\x18\x02 \x01(\t\x12\x0e\n\x06params\x18\x03 \x01(\t\"K\n\x16ToDeviceRpcResponseMsg\x12\x11\n\trequestId\x18\x01 \x01(\x05\x12\x0f\n\x07payload\x18\x02 \x01(\t\x12\r\n\x05\x65rror\x18\x03 \x01(\t\"N\n\x15ToServerRpcRequestMsg\x12\x11\n\trequestId\x18\x01 \x01(\x05\x12\x12\n\nmethodName\x18\x02 \x01(\t\x12\x0e\n\x06params\x18\x03 \x01(\t\"K\n\x16ToServerRpcResponseMsg\x12\x11\n\trequestId\x18\x01 \x01(\x05\x12\x0f\n\x07payload\x18\x02 \x01(\t\x12\r\n\x05\x65rror\x18\x03 \x01(\t\"4\n\x0b\x43laimDevice\x12\x11\n\tsecretKey\x18\x01 \x01(\t\x12\x12\n\ndurationMs\x18\x02 \x01(\x03\";\n\x11\x41ttributesRequest\x12\x12\n\nclientKeys\x18\x01 \x01(\t\x12\x12\n\nsharedKeys\x18\x02 \x01(\t\",\n\nRpcRequest\x12\x0e\n\x06method\x18\x01 \x01(\t\x12\x0e\n\x06params\x18\x02 \x01(\t\"#\n\rDisconnectMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\"4\n\nConnectMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\x12\n\ndeviceType\x18\x02 \x01(\t\"K\n\x0cTelemetryMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\'\n\x03msg\x18\x03 \x01(\x0b\x32\x1a.messages.PostTelemetryMsg\"L\n\rAttributesMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\'\n\x03msg\x18\x02 \x01(\x0b\x32\x1a.messages.PostAttributeMsg\"Q\n\x0e\x43laimDeviceMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12+\n\x0c\x63laimRequest\x18\x02 \x01(\x0b\x32\x15.messages.ClaimDevice\":\n\x13GatewayTelemetryMsg\x12#\n\x03msg\x18\x01 \x03(\x0b\x32\x16.messages.TelemetryMsg\"8\n\x0fGatewayClaimMsg\x12%\n\x03msg\x18\x01 \x03(\x0b\x32\x18.messages.ClaimDeviceMsg\"<\n\x14GatewayAttributesMsg\x12$\n\x03msg\x18\x01 \x03(\x0b\x32\x17.messages.AttributesMsg\"E\n\x15GatewayRpcResponseMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\n\n\x02id\x18\x02 \x01(\x05\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\t\"n\n\x1bGatewayAttributeResponseMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12;\n\x0bresponseMsg\x18\x02 \x01(\x0b\x32&.messages.GatewayAttributesResponseMsg\"~\n%GatewayAttributeUpdateNotificationMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\x41\n\x0fnotificationMsg\x18\x02 \x01(\x0b\x32(.messages.AttributeUpdateNotificationMsg\"h\n\x1aGatewayDeviceRpcRequestMsg\x12\x12\n\ndeviceName\x18\x01 \x01(\t\x12\x36\n\rrpcRequestMsg\x18\x02 \x01(\x0b\x32\x1f.messages.ToDeviceRpcRequestMsg\"[\n\x1bGatewayAttributesRequestMsg\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x12\n\ndeviceName\x18\x02 \x01(\t\x12\x0e\n\x06\x63lient\x18\x03 \x01(\x08\x12\x0c\n\x04keys\x18\x04 \x03(\t\"\xac\x01\n\x1cGatewayAttributesResponseMsg\x12\x11\n\trequestId\x18\x01 \x01(\x05\x12\x34\n\x13\x63lientAttributeList\x18\x02 \x03(\x0b\x32\x17.messages.KeyValueProto\x12\x34\n\x13sharedAttributeList\x18\x03 \x03(\x0b\x32\x17.messages.KeyValueProto\x12\r\n\x05\x65rror\x18\x05 \x01(\t*F\n\x0eResponseStatus\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01\x12\r\n\tNOT_FOUND\x10\x02\x12\x0b\n\x07\x46\x41ILURE\x10\x03*Q\n\x0cKeyValueType\x12\r\n\tBOOLEAN_V\x10\x00\x12\n\n\x06LONG_V\x10\x01\x12\x0c\n\x08\x44OUBLE_V\x10\x02\x12\x0c\n\x08STRING_V\x10\x03\x12\n\n\x06JSON_V\x10\x04\x32_\n\x15TBGatewayProtoService\x12\x46\n\x06stream\x12\x1e.messages.FromConnectorMessage\x1a\x1c.messages.FromServiceMessageb\x06proto3'
 )
 
 _RESPONSESTATUS = _descriptor.EnumDescriptor(
@@ -53,8 +53,8 @@ _RESPONSESTATUS = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=3705,
-  serialized_end=3775,
+  serialized_start=3978,
+  serialized_end=4048,
 )
 _sym_db.RegisterEnumDescriptor(_RESPONSESTATUS)
 
@@ -94,8 +94,8 @@ _KEYVALUETYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=3777,
-  serialized_end=3858,
+  serialized_start=4050,
+  serialized_end=4131,
 )
 _sym_db.RegisterEnumDescriptor(_KEYVALUETYPE)
 
@@ -236,6 +236,13 @@ _FROMCONNECTORMESSAGE = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='connectorGetConnectedDevicesMsg', full_name='messages.FromConnectorMessage.connectorGetConnectedDevicesMsg', index=10,
+      number=11, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -249,7 +256,7 @@ _FROMCONNECTORMESSAGE = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=196,
-  serialized_end=787,
+  serialized_end=871,
 )
 
 
@@ -303,6 +310,13 @@ _FROMSERVICEMESSAGE = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='connectorGetConnectedDevicesResponseMsg', full_name='messages.FromServiceMessage.connectorGetConnectedDevicesResponseMsg', index=6,
+      number=7, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -315,8 +329,214 @@ _FROMSERVICEMESSAGE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=790,
-  serialized_end=1232,
+  serialized_start=874,
+  serialized_end=1416,
+)
+
+
+_REGISTERCONNECTORMSG = _descriptor.Descriptor(
+  name='RegisterConnectorMsg',
+  full_name='messages.RegisterConnectorMsg',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='connectorKey', full_name='messages.RegisterConnectorMsg.connectorKey', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1418,
+  serialized_end=1462,
+)
+
+
+_UNREGISTERCONNECTORMSG = _descriptor.Descriptor(
+  name='UnregisterConnectorMsg',
+  full_name='messages.UnregisterConnectorMsg',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='connectorKey', full_name='messages.UnregisterConnectorMsg.connectorKey', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1464,
+  serialized_end=1510,
+)
+
+
+_CONNECTORCONFIGURATIONMSG = _descriptor.Descriptor(
+  name='ConnectorConfigurationMsg',
+  full_name='messages.ConnectorConfigurationMsg',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='connectorName', full_name='messages.ConnectorConfigurationMsg.connectorName', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='configuration', full_name='messages.ConnectorConfigurationMsg.configuration', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1512,
+  serialized_end=1585,
+)
+
+
+_CONNECTORGETCONNECTEDDEVICESMSG = _descriptor.Descriptor(
+  name='ConnectorGetConnectedDevicesMsg',
+  full_name='messages.ConnectorGetConnectedDevicesMsg',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='connectorKey', full_name='messages.ConnectorGetConnectedDevicesMsg.connectorKey', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1587,
+  serialized_end=1642,
+)
+
+
+_CONNECTORGETCONNECTEDDEVICESRESPONSEMSG = _descriptor.Descriptor(
+  name='ConnectorGetConnectedDevicesResponseMsg',
+  full_name='messages.ConnectorGetConnectedDevicesResponseMsg',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='connectorDevices', full_name='messages.ConnectorGetConnectedDevicesResponseMsg.connectorDevices', index=0,
+      number=1, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1644,
+  serialized_end=1742,
+)
+
+
+_CONNECTORDEVICEINFO = _descriptor.Descriptor(
+  name='ConnectorDeviceInfo',
+  full_name='messages.ConnectorDeviceInfo',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='deviceName', full_name='messages.ConnectorDeviceInfo.deviceName', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='deviceType', full_name='messages.ConnectorDeviceInfo.deviceType', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1744,
+  serialized_end=1805,
 )
 
 
@@ -389,8 +609,8 @@ _KEYVALUEPROTO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1235,
-  serialized_end=1385,
+  serialized_start=1808,
+  serialized_end=1958,
 )
 
 
@@ -428,8 +648,8 @@ _TSKVPROTO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1387,
-  serialized_end=1447,
+  serialized_start=1960,
+  serialized_end=2020,
 )
 
 
@@ -467,8 +687,8 @@ _TSKVLISTPROTO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1449,
-  serialized_end=1513,
+  serialized_start=2022,
+  serialized_end=2086,
 )
 
 
@@ -499,8 +719,8 @@ _POSTTELEMETRYMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1515,
-  serialized_end=1576,
+  serialized_start=2088,
+  serialized_end=2149,
 )
 
 
@@ -531,121 +751,8 @@ _POSTATTRIBUTEMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1578,
-  serialized_end=1633,
-)
-
-
-_GETATTRIBUTEREQUESTMSG = _descriptor.Descriptor(
-  name='GetAttributeRequestMsg',
-  full_name='messages.GetAttributeRequestMsg',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='requestId', full_name='messages.GetAttributeRequestMsg.requestId', index=0,
-      number=1, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='clientAttributeNames', full_name='messages.GetAttributeRequestMsg.clientAttributeNames', index=1,
-      number=2, type=9, cpp_type=9, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='sharedAttributeNames', full_name='messages.GetAttributeRequestMsg.sharedAttributeNames', index=2,
-      number=3, type=9, cpp_type=9, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='onlyShared', full_name='messages.GetAttributeRequestMsg.onlyShared', index=3,
-      number=4, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=1635,
-  serialized_end=1758,
-)
-
-
-_GETATTRIBUTERESPONSEMSG = _descriptor.Descriptor(
-  name='GetAttributeResponseMsg',
-  full_name='messages.GetAttributeResponseMsg',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='requestId', full_name='messages.GetAttributeResponseMsg.requestId', index=0,
-      number=1, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='clientAttributeList', full_name='messages.GetAttributeResponseMsg.clientAttributeList', index=1,
-      number=2, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='sharedAttributeList', full_name='messages.GetAttributeResponseMsg.sharedAttributeList', index=2,
-      number=3, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='error', full_name='messages.GetAttributeResponseMsg.error', index=3,
-      number=5, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='sharedStateMsg', full_name='messages.GetAttributeResponseMsg.sharedStateMsg', index=4,
-      number=6, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=1761,
-  serialized_end=1944,
+  serialized_start=2151,
+  serialized_end=2206,
 )
 
 
@@ -683,8 +790,8 @@ _ATTRIBUTEUPDATENOTIFICATIONMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1946,
-  serialized_end=2045,
+  serialized_start=2208,
+  serialized_end=2307,
 )
 
 
@@ -729,8 +836,8 @@ _TODEVICERPCREQUESTMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2047,
-  serialized_end=2125,
+  serialized_start=2309,
+  serialized_end=2387,
 )
 
 
@@ -775,8 +882,8 @@ _TODEVICERPCRESPONSEMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2127,
-  serialized_end=2202,
+  serialized_start=2389,
+  serialized_end=2464,
 )
 
 
@@ -821,8 +928,8 @@ _TOSERVERRPCREQUESTMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2204,
-  serialized_end=2282,
+  serialized_start=2466,
+  serialized_end=2544,
 )
 
 
@@ -867,8 +974,8 @@ _TOSERVERRPCRESPONSEMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2284,
-  serialized_end=2359,
+  serialized_start=2546,
+  serialized_end=2621,
 )
 
 
@@ -906,8 +1013,8 @@ _CLAIMDEVICE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2361,
-  serialized_end=2413,
+  serialized_start=2623,
+  serialized_end=2675,
 )
 
 
@@ -945,8 +1052,8 @@ _ATTRIBUTESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2415,
-  serialized_end=2474,
+  serialized_start=2677,
+  serialized_end=2736,
 )
 
 
@@ -984,8 +1091,8 @@ _RPCREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2476,
-  serialized_end=2520,
+  serialized_start=2738,
+  serialized_end=2782,
 )
 
 
@@ -1016,111 +1123,8 @@ _DISCONNECTMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2522,
-  serialized_end=2557,
-)
-
-
-_REGISTERCONNECTORMSG = _descriptor.Descriptor(
-  name='RegisterConnectorMsg',
-  full_name='messages.RegisterConnectorMsg',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='connectorKey', full_name='messages.RegisterConnectorMsg.connectorKey', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=2559,
-  serialized_end=2603,
-)
-
-
-_UNREGISTERCONNECTORMSG = _descriptor.Descriptor(
-  name='UnregisterConnectorMsg',
-  full_name='messages.UnregisterConnectorMsg',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='connectorKey', full_name='messages.UnregisterConnectorMsg.connectorKey', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=2605,
-  serialized_end=2651,
-)
-
-
-_CONNECTORCONFIGURATIONMSG = _descriptor.Descriptor(
-  name='ConnectorConfigurationMsg',
-  full_name='messages.ConnectorConfigurationMsg',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='connectorName', full_name='messages.ConnectorConfigurationMsg.connectorName', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='configuration', full_name='messages.ConnectorConfigurationMsg.configuration', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=2653,
-  serialized_end=2726,
+  serialized_start=2784,
+  serialized_end=2819,
 )
 
 
@@ -1158,8 +1162,8 @@ _CONNECTMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2728,
-  serialized_end=2780,
+  serialized_start=2821,
+  serialized_end=2873,
 )
 
 
@@ -1197,8 +1201,8 @@ _TELEMETRYMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2782,
-  serialized_end=2857,
+  serialized_start=2875,
+  serialized_end=2950,
 )
 
 
@@ -1236,8 +1240,8 @@ _ATTRIBUTESMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2859,
-  serialized_end=2935,
+  serialized_start=2952,
+  serialized_end=3028,
 )
 
 
@@ -1275,8 +1279,8 @@ _CLAIMDEVICEMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2937,
-  serialized_end=3018,
+  serialized_start=3030,
+  serialized_end=3111,
 )
 
 
@@ -1307,8 +1311,8 @@ _GATEWAYTELEMETRYMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3020,
-  serialized_end=3078,
+  serialized_start=3113,
+  serialized_end=3171,
 )
 
 
@@ -1339,8 +1343,8 @@ _GATEWAYCLAIMMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3080,
-  serialized_end=3136,
+  serialized_start=3173,
+  serialized_end=3229,
 )
 
 
@@ -1371,8 +1375,8 @@ _GATEWAYATTRIBUTESMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3138,
-  serialized_end=3198,
+  serialized_start=3231,
+  serialized_end=3291,
 )
 
 
@@ -1417,8 +1421,8 @@ _GATEWAYRPCRESPONSEMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3200,
-  serialized_end=3269,
+  serialized_start=3293,
+  serialized_end=3362,
 )
 
 
@@ -1456,8 +1460,8 @@ _GATEWAYATTRIBUTERESPONSEMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3271,
-  serialized_end=3376,
+  serialized_start=3364,
+  serialized_end=3474,
 )
 
 
@@ -1495,8 +1499,8 @@ _GATEWAYATTRIBUTEUPDATENOTIFICATIONMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3378,
-  serialized_end=3504,
+  serialized_start=3476,
+  serialized_end=3602,
 )
 
 
@@ -1534,8 +1538,8 @@ _GATEWAYDEVICERPCREQUESTMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3506,
-  serialized_end=3610,
+  serialized_start=3604,
+  serialized_end=3708,
 )
 
 
@@ -1587,8 +1591,61 @@ _GATEWAYATTRIBUTESREQUESTMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3612,
-  serialized_end=3703,
+  serialized_start=3710,
+  serialized_end=3801,
+)
+
+
+_GATEWAYATTRIBUTESRESPONSEMSG = _descriptor.Descriptor(
+  name='GatewayAttributesResponseMsg',
+  full_name='messages.GatewayAttributesResponseMsg',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='requestId', full_name='messages.GatewayAttributesResponseMsg.requestId', index=0,
+      number=1, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='clientAttributeList', full_name='messages.GatewayAttributesResponseMsg.clientAttributeList', index=1,
+      number=2, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='sharedAttributeList', full_name='messages.GatewayAttributesResponseMsg.sharedAttributeList', index=2,
+      number=3, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='error', full_name='messages.GatewayAttributesResponseMsg.error', index=3,
+      number=5, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3804,
+  serialized_end=3976,
 )
 
 _RESPONSE.fields_by_name['status'].enum_type = _RESPONSESTATUS
@@ -1604,19 +1661,20 @@ _FROMCONNECTORMESSAGE.fields_by_name['connectMsg'].message_type = _CONNECTMSG
 _FROMCONNECTORMESSAGE.fields_by_name['disconnectMsg'].message_type = _DISCONNECTMSG
 _FROMCONNECTORMESSAGE.fields_by_name['gatewayRpcResponseMsg'].message_type = _GATEWAYRPCRESPONSEMSG
 _FROMCONNECTORMESSAGE.fields_by_name['gatewayAttributeRequestMsg'].message_type = _GATEWAYATTRIBUTESREQUESTMSG
+_FROMCONNECTORMESSAGE.fields_by_name['connectorGetConnectedDevicesMsg'].message_type = _CONNECTORGETCONNECTEDDEVICESMSG
 _FROMSERVICEMESSAGE.fields_by_name['response'].message_type = _RESPONSE
 _FROMSERVICEMESSAGE.fields_by_name['connectorConfigurationMsg'].message_type = _CONNECTORCONFIGURATIONMSG
 _FROMSERVICEMESSAGE.fields_by_name['gatewayAttributeUpdateNotificationMsg'].message_type = _GATEWAYATTRIBUTEUPDATENOTIFICATIONMSG
 _FROMSERVICEMESSAGE.fields_by_name['gatewayAttributeResponseMsg'].message_type = _GATEWAYATTRIBUTERESPONSEMSG
 _FROMSERVICEMESSAGE.fields_by_name['gatewayDeviceRpcRequestMsg'].message_type = _GATEWAYDEVICERPCREQUESTMSG
 _FROMSERVICEMESSAGE.fields_by_name['unregisterConnectorMsg'].message_type = _UNREGISTERCONNECTORMSG
+_FROMSERVICEMESSAGE.fields_by_name['connectorGetConnectedDevicesResponseMsg'].message_type = _CONNECTORGETCONNECTEDDEVICESRESPONSEMSG
+_CONNECTORGETCONNECTEDDEVICESRESPONSEMSG.fields_by_name['connectorDevices'].message_type = _CONNECTORDEVICEINFO
 _KEYVALUEPROTO.fields_by_name['type'].enum_type = _KEYVALUETYPE
 _TSKVPROTO.fields_by_name['kv'].message_type = _KEYVALUEPROTO
 _TSKVLISTPROTO.fields_by_name['kv'].message_type = _KEYVALUEPROTO
 _POSTTELEMETRYMSG.fields_by_name['tsKvList'].message_type = _TSKVLISTPROTO
 _POSTATTRIBUTEMSG.fields_by_name['kv'].message_type = _KEYVALUEPROTO
-_GETATTRIBUTERESPONSEMSG.fields_by_name['clientAttributeList'].message_type = _TSKVPROTO
-_GETATTRIBUTERESPONSEMSG.fields_by_name['sharedAttributeList'].message_type = _TSKVPROTO
 _ATTRIBUTEUPDATENOTIFICATIONMSG.fields_by_name['sharedUpdated'].message_type = _TSKVPROTO
 _TELEMETRYMSG.fields_by_name['msg'].message_type = _POSTTELEMETRYMSG
 _ATTRIBUTESMSG.fields_by_name['msg'].message_type = _POSTATTRIBUTEMSG
@@ -1624,19 +1682,25 @@ _CLAIMDEVICEMSG.fields_by_name['claimRequest'].message_type = _CLAIMDEVICE
 _GATEWAYTELEMETRYMSG.fields_by_name['msg'].message_type = _TELEMETRYMSG
 _GATEWAYCLAIMMSG.fields_by_name['msg'].message_type = _CLAIMDEVICEMSG
 _GATEWAYATTRIBUTESMSG.fields_by_name['msg'].message_type = _ATTRIBUTESMSG
-_GATEWAYATTRIBUTERESPONSEMSG.fields_by_name['responseMsg'].message_type = _GETATTRIBUTERESPONSEMSG
+_GATEWAYATTRIBUTERESPONSEMSG.fields_by_name['responseMsg'].message_type = _GATEWAYATTRIBUTESRESPONSEMSG
 _GATEWAYATTRIBUTEUPDATENOTIFICATIONMSG.fields_by_name['notificationMsg'].message_type = _ATTRIBUTEUPDATENOTIFICATIONMSG
 _GATEWAYDEVICERPCREQUESTMSG.fields_by_name['rpcRequestMsg'].message_type = _TODEVICERPCREQUESTMSG
+_GATEWAYATTRIBUTESRESPONSEMSG.fields_by_name['clientAttributeList'].message_type = _KEYVALUEPROTO
+_GATEWAYATTRIBUTESRESPONSEMSG.fields_by_name['sharedAttributeList'].message_type = _KEYVALUEPROTO
 DESCRIPTOR.message_types_by_name['Response'] = _RESPONSE
 DESCRIPTOR.message_types_by_name['FromConnectorMessage'] = _FROMCONNECTORMESSAGE
 DESCRIPTOR.message_types_by_name['FromServiceMessage'] = _FROMSERVICEMESSAGE
+DESCRIPTOR.message_types_by_name['RegisterConnectorMsg'] = _REGISTERCONNECTORMSG
+DESCRIPTOR.message_types_by_name['UnregisterConnectorMsg'] = _UNREGISTERCONNECTORMSG
+DESCRIPTOR.message_types_by_name['ConnectorConfigurationMsg'] = _CONNECTORCONFIGURATIONMSG
+DESCRIPTOR.message_types_by_name['ConnectorGetConnectedDevicesMsg'] = _CONNECTORGETCONNECTEDDEVICESMSG
+DESCRIPTOR.message_types_by_name['ConnectorGetConnectedDevicesResponseMsg'] = _CONNECTORGETCONNECTEDDEVICESRESPONSEMSG
+DESCRIPTOR.message_types_by_name['ConnectorDeviceInfo'] = _CONNECTORDEVICEINFO
 DESCRIPTOR.message_types_by_name['KeyValueProto'] = _KEYVALUEPROTO
 DESCRIPTOR.message_types_by_name['TsKvProto'] = _TSKVPROTO
 DESCRIPTOR.message_types_by_name['TsKvListProto'] = _TSKVLISTPROTO
 DESCRIPTOR.message_types_by_name['PostTelemetryMsg'] = _POSTTELEMETRYMSG
 DESCRIPTOR.message_types_by_name['PostAttributeMsg'] = _POSTATTRIBUTEMSG
-DESCRIPTOR.message_types_by_name['GetAttributeRequestMsg'] = _GETATTRIBUTEREQUESTMSG
-DESCRIPTOR.message_types_by_name['GetAttributeResponseMsg'] = _GETATTRIBUTERESPONSEMSG
 DESCRIPTOR.message_types_by_name['AttributeUpdateNotificationMsg'] = _ATTRIBUTEUPDATENOTIFICATIONMSG
 DESCRIPTOR.message_types_by_name['ToDeviceRpcRequestMsg'] = _TODEVICERPCREQUESTMSG
 DESCRIPTOR.message_types_by_name['ToDeviceRpcResponseMsg'] = _TODEVICERPCRESPONSEMSG
@@ -1646,9 +1710,6 @@ DESCRIPTOR.message_types_by_name['ClaimDevice'] = _CLAIMDEVICE
 DESCRIPTOR.message_types_by_name['AttributesRequest'] = _ATTRIBUTESREQUEST
 DESCRIPTOR.message_types_by_name['RpcRequest'] = _RPCREQUEST
 DESCRIPTOR.message_types_by_name['DisconnectMsg'] = _DISCONNECTMSG
-DESCRIPTOR.message_types_by_name['RegisterConnectorMsg'] = _REGISTERCONNECTORMSG
-DESCRIPTOR.message_types_by_name['UnregisterConnectorMsg'] = _UNREGISTERCONNECTORMSG
-DESCRIPTOR.message_types_by_name['ConnectorConfigurationMsg'] = _CONNECTORCONFIGURATIONMSG
 DESCRIPTOR.message_types_by_name['ConnectMsg'] = _CONNECTMSG
 DESCRIPTOR.message_types_by_name['TelemetryMsg'] = _TELEMETRYMSG
 DESCRIPTOR.message_types_by_name['AttributesMsg'] = _ATTRIBUTESMSG
@@ -1661,6 +1722,7 @@ DESCRIPTOR.message_types_by_name['GatewayAttributeResponseMsg'] = _GATEWAYATTRIB
 DESCRIPTOR.message_types_by_name['GatewayAttributeUpdateNotificationMsg'] = _GATEWAYATTRIBUTEUPDATENOTIFICATIONMSG
 DESCRIPTOR.message_types_by_name['GatewayDeviceRpcRequestMsg'] = _GATEWAYDEVICERPCREQUESTMSG
 DESCRIPTOR.message_types_by_name['GatewayAttributesRequestMsg'] = _GATEWAYATTRIBUTESREQUESTMSG
+DESCRIPTOR.message_types_by_name['GatewayAttributesResponseMsg'] = _GATEWAYATTRIBUTESRESPONSEMSG
 DESCRIPTOR.enum_types_by_name['ResponseStatus'] = _RESPONSESTATUS
 DESCRIPTOR.enum_types_by_name['KeyValueType'] = _KEYVALUETYPE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
@@ -1685,6 +1747,48 @@ FromServiceMessage = _reflection.GeneratedProtocolMessageType('FromServiceMessag
   # @@protoc_insertion_point(class_scope:messages.FromServiceMessage)
   })
 _sym_db.RegisterMessage(FromServiceMessage)
+
+RegisterConnectorMsg = _reflection.GeneratedProtocolMessageType('RegisterConnectorMsg', (_message.Message,), {
+  'DESCRIPTOR' : _REGISTERCONNECTORMSG,
+  '__module__' : 'messages_pb2'
+  # @@protoc_insertion_point(class_scope:messages.RegisterConnectorMsg)
+  })
+_sym_db.RegisterMessage(RegisterConnectorMsg)
+
+UnregisterConnectorMsg = _reflection.GeneratedProtocolMessageType('UnregisterConnectorMsg', (_message.Message,), {
+  'DESCRIPTOR' : _UNREGISTERCONNECTORMSG,
+  '__module__' : 'messages_pb2'
+  # @@protoc_insertion_point(class_scope:messages.UnregisterConnectorMsg)
+  })
+_sym_db.RegisterMessage(UnregisterConnectorMsg)
+
+ConnectorConfigurationMsg = _reflection.GeneratedProtocolMessageType('ConnectorConfigurationMsg', (_message.Message,), {
+  'DESCRIPTOR' : _CONNECTORCONFIGURATIONMSG,
+  '__module__' : 'messages_pb2'
+  # @@protoc_insertion_point(class_scope:messages.ConnectorConfigurationMsg)
+  })
+_sym_db.RegisterMessage(ConnectorConfigurationMsg)
+
+ConnectorGetConnectedDevicesMsg = _reflection.GeneratedProtocolMessageType('ConnectorGetConnectedDevicesMsg', (_message.Message,), {
+  'DESCRIPTOR' : _CONNECTORGETCONNECTEDDEVICESMSG,
+  '__module__' : 'messages_pb2'
+  # @@protoc_insertion_point(class_scope:messages.ConnectorGetConnectedDevicesMsg)
+  })
+_sym_db.RegisterMessage(ConnectorGetConnectedDevicesMsg)
+
+ConnectorGetConnectedDevicesResponseMsg = _reflection.GeneratedProtocolMessageType('ConnectorGetConnectedDevicesResponseMsg', (_message.Message,), {
+  'DESCRIPTOR' : _CONNECTORGETCONNECTEDDEVICESRESPONSEMSG,
+  '__module__' : 'messages_pb2'
+  # @@protoc_insertion_point(class_scope:messages.ConnectorGetConnectedDevicesResponseMsg)
+  })
+_sym_db.RegisterMessage(ConnectorGetConnectedDevicesResponseMsg)
+
+ConnectorDeviceInfo = _reflection.GeneratedProtocolMessageType('ConnectorDeviceInfo', (_message.Message,), {
+  'DESCRIPTOR' : _CONNECTORDEVICEINFO,
+  '__module__' : 'messages_pb2'
+  # @@protoc_insertion_point(class_scope:messages.ConnectorDeviceInfo)
+  })
+_sym_db.RegisterMessage(ConnectorDeviceInfo)
 
 KeyValueProto = _reflection.GeneratedProtocolMessageType('KeyValueProto', (_message.Message,), {
   'DESCRIPTOR' : _KEYVALUEPROTO,
@@ -1720,20 +1824,6 @@ PostAttributeMsg = _reflection.GeneratedProtocolMessageType('PostAttributeMsg', 
   # @@protoc_insertion_point(class_scope:messages.PostAttributeMsg)
   })
 _sym_db.RegisterMessage(PostAttributeMsg)
-
-GetAttributeRequestMsg = _reflection.GeneratedProtocolMessageType('GetAttributeRequestMsg', (_message.Message,), {
-  'DESCRIPTOR' : _GETATTRIBUTEREQUESTMSG,
-  '__module__' : 'messages_pb2'
-  # @@protoc_insertion_point(class_scope:messages.GetAttributeRequestMsg)
-  })
-_sym_db.RegisterMessage(GetAttributeRequestMsg)
-
-GetAttributeResponseMsg = _reflection.GeneratedProtocolMessageType('GetAttributeResponseMsg', (_message.Message,), {
-  'DESCRIPTOR' : _GETATTRIBUTERESPONSEMSG,
-  '__module__' : 'messages_pb2'
-  # @@protoc_insertion_point(class_scope:messages.GetAttributeResponseMsg)
-  })
-_sym_db.RegisterMessage(GetAttributeResponseMsg)
 
 AttributeUpdateNotificationMsg = _reflection.GeneratedProtocolMessageType('AttributeUpdateNotificationMsg', (_message.Message,), {
   'DESCRIPTOR' : _ATTRIBUTEUPDATENOTIFICATIONMSG,
@@ -1797,27 +1887,6 @@ DisconnectMsg = _reflection.GeneratedProtocolMessageType('DisconnectMsg', (_mess
   # @@protoc_insertion_point(class_scope:messages.DisconnectMsg)
   })
 _sym_db.RegisterMessage(DisconnectMsg)
-
-RegisterConnectorMsg = _reflection.GeneratedProtocolMessageType('RegisterConnectorMsg', (_message.Message,), {
-  'DESCRIPTOR' : _REGISTERCONNECTORMSG,
-  '__module__' : 'messages_pb2'
-  # @@protoc_insertion_point(class_scope:messages.RegisterConnectorMsg)
-  })
-_sym_db.RegisterMessage(RegisterConnectorMsg)
-
-UnregisterConnectorMsg = _reflection.GeneratedProtocolMessageType('UnregisterConnectorMsg', (_message.Message,), {
-  'DESCRIPTOR' : _UNREGISTERCONNECTORMSG,
-  '__module__' : 'messages_pb2'
-  # @@protoc_insertion_point(class_scope:messages.UnregisterConnectorMsg)
-  })
-_sym_db.RegisterMessage(UnregisterConnectorMsg)
-
-ConnectorConfigurationMsg = _reflection.GeneratedProtocolMessageType('ConnectorConfigurationMsg', (_message.Message,), {
-  'DESCRIPTOR' : _CONNECTORCONFIGURATIONMSG,
-  '__module__' : 'messages_pb2'
-  # @@protoc_insertion_point(class_scope:messages.ConnectorConfigurationMsg)
-  })
-_sym_db.RegisterMessage(ConnectorConfigurationMsg)
 
 ConnectMsg = _reflection.GeneratedProtocolMessageType('ConnectMsg', (_message.Message,), {
   'DESCRIPTOR' : _CONNECTMSG,
@@ -1903,6 +1972,13 @@ GatewayAttributesRequestMsg = _reflection.GeneratedProtocolMessageType('GatewayA
   })
 _sym_db.RegisterMessage(GatewayAttributesRequestMsg)
 
+GatewayAttributesResponseMsg = _reflection.GeneratedProtocolMessageType('GatewayAttributesResponseMsg', (_message.Message,), {
+  'DESCRIPTOR' : _GATEWAYATTRIBUTESRESPONSEMSG,
+  '__module__' : 'messages_pb2'
+  # @@protoc_insertion_point(class_scope:messages.GatewayAttributesResponseMsg)
+  })
+_sym_db.RegisterMessage(GatewayAttributesResponseMsg)
+
 
 
 _TBGATEWAYPROTOSERVICE = _descriptor.ServiceDescriptor(
@@ -1912,8 +1988,8 @@ _TBGATEWAYPROTOSERVICE = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=3860,
-  serialized_end=3955,
+  serialized_start=4133,
+  serialized_end=4228,
   methods=[
   _descriptor.MethodDescriptor(
     name='stream',

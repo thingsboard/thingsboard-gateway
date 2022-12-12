@@ -32,8 +32,8 @@ log = logging.getLogger("tb_connection")
 
 
 class TBGatewayMqttClient(TBDeviceMqttClient):
-    def __init__(self, host, port, token=None, gateway=None, quality_of_service=1):
-        super().__init__(host, port, token, quality_of_service)
+    def __init__(self, host, port, username=None, password=None, gateway=None, quality_of_service=1, client_id=""):
+        super().__init__(host, port, username, password, quality_of_service, client_id)
         self.quality_of_service = quality_of_service
         self.__max_sub_id = 0
         self.__sub_dict = {}
@@ -81,7 +81,11 @@ class TBGatewayMqttClient(TBDeviceMqttClient):
                 req_id = content["id"]
                 # pop callback and use it
                 if self._attr_request_dict[req_id]:
-                    self._attr_request_dict.pop(req_id)(content, None)
+                    callback = self._attr_request_dict.pop(req_id)
+                    if isinstance(callback, tuple):
+                        callback[0](content, None, callback[1])
+                    else:
+                        callback(content, None)
                 else:
                     log.error("Unable to find callback to process attributes response from TB")
         elif message.topic == GATEWAY_ATTRIBUTES_TOPIC:

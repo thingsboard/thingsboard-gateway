@@ -18,8 +18,14 @@ import time
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
-import serial
+try:
+    import serial
+except ImportError:
+    print("pyserial library not found - installing...")
+    TBUtility.install_package("pyserial")
+    import serial
 
 from thingsboard_gateway.connectors.connector import Connector, log  # Import base class for connector and logger
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -55,24 +61,25 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
                     self.__devices[device]["serial"] = None
                     while self.__devices[device]["serial"] is None or not self.__devices[device]["serial"].isOpen():  # Try connect
                         # connection to serial port with parameters from configuration file or default
-                        self.__devices[device]["serial"] = serial.Serial(port=self.__config.get('port', '/dev/ttyUSB0'),
-                                                                         baudrate=self.__config.get('baudrate', 9600),
-                                                                         bytesize=self.__config.get('bytesize', serial.EIGHTBITS),
-                                                                         parity=self.__config.get('parity', serial.PARITY_NONE),
-                                                                         stopbits=self.__config.get('stopbits', serial.STOPBITS_ONE),
-                                                                         timeout=self.__config.get('timeout', 1),
-                                                                         xonxoff=self.__config.get('xonxoff', False),
-                                                                         rtscts=self.__config.get('rtscts', False),
-                                                                         write_timeout=self.__config.get('write_timeout', None),
-                                                                         dsrdtr=self.__config.get('dsrdtr', False),
-                                                                         inter_byte_timeout=self.__config.get('inter_byte_timeout', None),
-                                                                         exclusive=self.__config.get('exclusive', None))
+                        device_config = self.__devices[device]["device_config"]
+                        self.__devices[device]["serial"] = serial.Serial(port=device_config.get('port', '/dev/ttyUSB0'),
+                                                                         baudrate=device_config.get('baudrate', 9600),
+                                                                         bytesize=device_config.get('bytesize', serial.EIGHTBITS),
+                                                                         parity=device_config.get('parity', serial.PARITY_NONE),
+                                                                         stopbits=device_config.get('stopbits', serial.STOPBITS_ONE),
+                                                                         timeout=device_config.get('timeout', 1),
+                                                                         xonxoff=device_config.get('xonxoff', False),
+                                                                         rtscts=device_config.get('rtscts', False),
+                                                                         write_timeout=device_config.get('write_timeout', None),
+                                                                         dsrdtr=device_config.get('dsrdtr', False),
+                                                                         inter_byte_timeout=device_config.get('inter_byte_timeout', None),
+                                                                         exclusive=device_config.get('exclusive', None))
                         time.sleep(.1)
                         if time.time() - connection_start > 10:  # Break connection try if it setting up for 10 seconds
-                            log.error("Connection refused per timeout for device %s", self.__devices[device]["device_config"].get("name"))
+                            log.error("Connection refused per timeout for device %s", device_config.get("name"))
                             break
             except serial.serialutil.SerialException:
-                log.error("Port %s for device %s - not found", self.__config.get('port', '/dev/ttyUSB0'), device)
+                log.error("Port %s for device %s - not found", self.__devices[device]["device_config"].get('port', '/dev/ttyUSB0'), device)
             except Exception as e:
                 log.exception(e)
             else:  # if no exception handled - add device and change connection state
@@ -108,12 +115,12 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
 
     def run(self):  # Main loop of thread
         try:
-            while True:
+            while not self.stopped:
                 for device in self.__devices:
                     device_serial_port = self.__devices[device]["serial"]
                     received_character = b''
                     data_from_device = b''
-                    while received_character != b'\n':  # We will read until receive LF symbol
+                    while not self.stopped and received_character != b'\n':  # We will read until receive LF symbol
                         try:
                             received_character = device_serial_port.read(1)  # Read one symbol per time
                         except AttributeError as e:
@@ -126,8 +133,9 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
                         else:
                             data_from_device = data_from_device + received_character
                     try:
-                        converted_data = self.__devices[device]['converter'].convert(self.__devices[device]['device_config'], data_from_device)
-                        self.__gateway.send_to_storage(self.get_name(), converted_data)
+                        if len(data_from_device) > 0:
+                            converted_data = self.__devices[device]['converter'].convert(self.__devices[device]['device_config'], data_from_device)
+                            self.__gateway.send_to_storage(self.get_name(), converted_data)
                         time.sleep(.1)
                     except Exception as e:
                         log.exception(e)
@@ -141,7 +149,7 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
     def close(self):  # Close connect function, usually used if exception handled in gateway main loop or in connector main loop
         self.stopped = True
         for device in self.__devices:
-            self.__gateway.del_device(self.__devices[device])
+            self.__gateway.del_device(self.__devices[device]["device_config"]["name"])
             if self.__devices[device]['serial'].isOpen():
                 self.__devices[device]['serial'].close()
 

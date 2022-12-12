@@ -76,15 +76,15 @@ class TBPublishInfo:
 
 
 class TBDeviceMqttClient:
-    def __init__(self, host, port=1883, token=None, quality_of_service=None):
-        self._client = paho.Client(protocol=4)
+    def __init__(self, host, port=1883, username=None, password=None, quality_of_service=None, client_id=""):
+        self._client = paho.Client(protocol=4, client_id=client_id)
         self.quality_of_service = quality_of_service if quality_of_service is not None else 1
         self.__host = host
         self.__port = port
-        if token == "":
+        if username == "":
             log.warning("token is not set, connection without tls wont be established")
         else:
-            self._client.username_pw_set(token)
+            self._client.username_pw_set(username, password=password)
         self._lock = RLock()
 
         self._attr_request_dict = {}
@@ -216,7 +216,10 @@ class TBDeviceMqttClient:
                 req_id = int(message.topic[len(ATTRIBUTES_TOPIC + "/response/"):])
                 # pop callback and use it
                 callback = self._attr_request_dict.pop(req_id)
-            callback(content, None)
+            if isinstance(callback, tuple):
+                callback[0](content, None, callback[1])
+            else:
+                callback(content, None)
 
     def max_inflight_messages_set(self, inflight):
         """Set the maximum number of messages with QoS>0 that can be part way through their network flow at once.
@@ -356,7 +359,10 @@ class TBDeviceMqttClient:
                             if self.__device_client_rpc_dict.get(item["rpc_request_id"]):
                                 callback = self.__device_client_rpc_dict.pop(item["rpc_request_id"])
                     if callback is not None:
-                        callback(None, TBTimeoutException("Timeout while waiting for a reply from ThingsBoard!"))
+                        if isinstance(callback, tuple):
+                            callback[0](None, TBTimeoutException("Timeout while waiting for a reply from ThingsBoard!"), callback[1])
+                        else:
+                            callback(None, TBTimeoutException("Timeout while waiting for a reply from ThingsBoard!"))
             else:
                 sleep(0.2)
 

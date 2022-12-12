@@ -24,6 +24,7 @@ message FromConnectorMessage {
   DisconnectMsg disconnectMsg = 8;
   GatewayRpcResponseMsg gatewayRpcResponseMsg = 9;
   GatewayAttributesRequestMsg gatewayAttributeRequestMsg = 10;
+  ConnectorGetConnectedDevicesMsg connectorGetConnectedDevicesMsg = 11;
 }
 
 message FromServiceMessage {
@@ -33,8 +34,10 @@ message FromServiceMessage {
   GatewayAttributeResponseMsg gatewayAttributeResponseMsg = 4;
   GatewayDeviceRpcRequestMsg gatewayDeviceRpcRequestMsg = 5;
   UnregisterConnectorMsg unregisterConnectorMsg = 6;
+  ConnectorGetConnectedDevicesResponseMsg connectorGetConnectedDevicesResponseMsg = 7;
 }
 
+// Enums
 
 enum ResponseStatus {
   UNKNOWN = 0;
@@ -50,6 +53,36 @@ enum KeyValueType {
   STRING_V = 3;
   JSON_V = 4;
 }
+
+// Service connector messages
+
+message RegisterConnectorMsg {
+  string connectorKey = 1;
+}
+
+message UnregisterConnectorMsg {
+  string connectorKey = 1;
+}
+
+message ConnectorConfigurationMsg {
+  string connectorName = 1;
+  string configuration = 2;
+}
+
+message ConnectorGetConnectedDevicesMsg {
+  string connectorKey = 1;
+}
+
+message ConnectorGetConnectedDevicesResponseMsg {
+  repeated ConnectorDeviceInfo connectorDevices = 1;
+}
+
+message ConnectorDeviceInfo {
+  string deviceName = 1;
+  string deviceType = 2;
+}
+
+// Device messages
 
 message KeyValueProto {
   string key = 1;
@@ -77,21 +110,6 @@ message PostTelemetryMsg {
 
 message PostAttributeMsg {
   repeated KeyValueProto kv = 1;
-}
-
-message GetAttributeRequestMsg {
-  int32 requestId = 1;
-  repeated string clientAttributeNames = 2;
-  repeated string sharedAttributeNames = 3;
-  bool onlyShared = 4;
-}
-
-message GetAttributeResponseMsg {
-  int32 requestId = 1;
-  repeated TsKvProto clientAttributeList = 2;
-  repeated TsKvProto sharedAttributeList = 3;
-  string error = 5;
-  bool sharedStateMsg = 6;
 }
 
 message AttributeUpdateNotificationMsg {
@@ -142,19 +160,6 @@ message DisconnectMsg {
   string deviceName = 1;
 }
 
-message RegisterConnectorMsg {
-  string connectorKey = 1;
-}
-
-message UnregisterConnectorMsg {
-  string connectorKey = 1;
-}
-
-message ConnectorConfigurationMsg {
-  string connectorName = 1;
-  string configuration = 2;
-}
-
 message ConnectMsg {
   string deviceName = 1;
   string deviceType = 2;
@@ -174,6 +179,8 @@ message ClaimDeviceMsg {
   string deviceName = 1;
   ClaimDevice claimRequest = 2;
 }
+
+// Gateway messages
 
 message GatewayTelemetryMsg {
   repeated TelemetryMsg msg = 1;
@@ -195,7 +202,7 @@ message GatewayRpcResponseMsg {
 
 message GatewayAttributeResponseMsg {
   string deviceName = 1;
-  GetAttributeResponseMsg responseMsg = 2;
+  GatewayAttributesResponseMsg responseMsg = 2;
 }
 
 message GatewayAttributeUpdateNotificationMsg {
@@ -213,4 +220,11 @@ message GatewayAttributesRequestMsg {
   string deviceName = 2;
   bool client = 3;
   repeated string keys = 4;
+}
+
+message GatewayAttributesResponseMsg {
+  int32 requestId = 1;
+  repeated KeyValueProto clientAttributeList = 2;
+  repeated KeyValueProto sharedAttributeList = 3;
+  string error = 5;
 }

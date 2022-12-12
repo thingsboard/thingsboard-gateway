@@ -29,7 +29,8 @@ class GrpcDownlinkConverter(Converter):
             DownlinkMessageType.GatewayAttributeUpdateNotificationMsg: self.__convert_gateway_attribute_update_notification_msg,
             DownlinkMessageType.GatewayAttributeResponseMsg: self.__convert_gateway_attribute_response_msg,
             DownlinkMessageType.GatewayDeviceRpcRequestMsg: self.__convert_gateway_device_rpc_request_msg,
-            DownlinkMessageType.UnregisterConnectorMsg: self.__convert_unregister_connector_msg
+            DownlinkMessageType.UnregisterConnectorMsg: self.__convert_unregister_connector_msg,
+            DownlinkMessageType.ConnectorGetConnectedDevicesResponseMsg: self.__convert_get_connected_devices_msg
             }
 
     def convert(self, config, msg):
@@ -52,7 +53,7 @@ class GrpcDownlinkConverter(Converter):
             if additional_message.HasField('gatewayTelemetryMsg'):
                 additional_message.gatewayTelemetryMsg.MergeFrom(GatewayTelemetryMsg())
             elif additional_message.HasField("gatewayAttributesMsg"):
-                additional_message.gatewayTelemetryMsg.MergeFrom(GatewayTelemetryMsg())
+                additional_message.gatewayAttributesMsg.MergeFrom(GatewayAttributesMsg())
             else:
                 basic_msg.response.connectorMessage.MergeFrom(additional_message)
         basic_msg.response.status = ResponseStatus.Value(msg.name)
@@ -68,6 +69,9 @@ class GrpcDownlinkConverter(Converter):
         gw_attr_upd_notify_msg.deviceName = msg['device']
         attr_notify_msg = AttributeUpdateNotificationMsg()
         for shared_attribute in msg['data']:
+            if len(msg["data"]) == 1 and msg["data"].get("deleted") is not None and isinstance(msg["data"]["deleted"], list):
+                attr_notify_msg.sharedDeleted.extend(msg["data"]["deleted"])
+                break
             ts_kv_proto = TsKvProto()
             ts_kv_proto.ts = ts
             kv = GrpcDownlinkConverter.__get_key_value_proto_value(shared_attribute, msg['data'][shared_attribute])
@@ -79,7 +83,27 @@ class GrpcDownlinkConverter(Converter):
 
     @staticmethod
     def __convert_gateway_attribute_response_msg(basic_msg, msg, additional_data=None):
-        pass
+        attrs_resp_msg = GatewayAttributesResponseMsg()
+        attrs_resp_msg.requestId = additional_data["request_id"]
+        if additional_data.get("error") is not None:
+            attrs_resp_msg.error = additional_data["error"]
+        if additional_data.get("key") is not None:  # Single key requested
+            if additional_data["client"]:
+                attrs_resp_msg.clientAttributeList.extend([GrpcDownlinkConverter.__get_key_value_proto_value(additional_data["key"], msg.get("value"))])
+            else:
+                attrs_resp_msg.sharedAttributeList.extend([GrpcDownlinkConverter.__get_key_value_proto_value(additional_data["key"], msg.get("value"))])
+        else:  # Several keys requested
+            for key, value in msg["values"].items():
+                if additional_data["client"]:
+                    attrs_resp_msg.clientAttributeList.extend([GrpcDownlinkConverter.__get_key_value_proto_value(key, value)])
+                else:
+                    attrs_resp_msg.sharedAttributeList.extend([GrpcDownlinkConverter.__get_key_value_proto_value(key, value)])
+        gw_attr_resp_msg = GatewayAttributeResponseMsg()
+        gw_attr_resp_msg.deviceName = msg["device"]
+        gw_attr_resp_msg.responseMsg.MergeFrom(attrs_resp_msg)
+        basic_msg.gatewayAttributeResponseMsg.MergeFrom(gw_attr_resp_msg)
+        return basic_msg
+
 
     @staticmethod
     def __convert_gateway_device_rpc_request_msg(basic_msg, msg, additional_data=None):
@@ -104,6 +128,23 @@ class GrpcDownlinkConverter(Converter):
         unreg_msg = UnregisterConnectorMsg()
         unreg_msg.connectorKey = msg
         basic_msg.unregisterConnectorMsg.MergeFrom(unreg_msg)
+        return basic_msg
+
+    @staticmethod
+    def __convert_get_connected_devices_msg(basic_msg, msg, additional_data=None):
+        status = ResponseStatus.Value("SUCCESS")
+        if additional_data is None:
+            status = ResponseStatus.Value("FAILURE")
+            additional_data = {}
+        connector_devices_response_msg = ConnectorGetConnectedDevicesResponseMsg()
+        for device_name, device_type in additional_data.items():
+            device_info_msg = ConnectorDeviceInfo()
+            device_info_msg.deviceName = device_name
+            device_info_msg.deviceType = device_type
+            connector_devices_response_msg.connectorDevices.extend([device_info_msg])
+        basic_msg.connectorGetConnectedDevicesResponseMsg.MergeFrom(connector_devices_response_msg)
+        basic_msg.response.connectorMessage.connectorGetConnectedDevicesMsg.MergeFrom(ConnectorGetConnectedDevicesMsg())
+        basic_msg.response.status = status
         return basic_msg
 
     @staticmethod

@@ -26,6 +26,7 @@ from simplejson import dumps
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 try:
     from opcua import Client, Node, ua
@@ -231,6 +232,7 @@ class OpcUaConnector(Thread, Connector):
     def get_name(self):
         return self.name
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         log.debug(content)
         try:
@@ -249,6 +251,7 @@ class OpcUaConnector(Thread, Connector):
         except Exception as e:
             log.exception(e)
 
+    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         try:
             rpc_method = content["data"].get("method")
@@ -385,24 +388,15 @@ class OpcUaConnector(Thread, Connector):
                 self.__search_node(device_info["deviceNode"], information_path, result=information_nodes)
 
                 for information_node in information_nodes:
+                    changed_key = False
+
                     if information_node is not None:
-                        # Use Node name if param "key" not found in config
-                        if not information.get('key'):
-                            information['key'] = information_node.get_browse_name().Name
-
-                        information_key = information['key']
-
                         try:
                             information_value = information_node.get_value()
                         except:
                             log.error("Err get_value: %s", str(information_node))
                             continue
 
-                        log.debug("Node for %s \"%s\" with path: %s - FOUND! Current values is: %s",
-                                  information_type,
-                                  information_key,
-                                  information_path,
-                                  str(information_value))
                         if device_info.get("uplink_converter") is None:
                             configuration = {**device_info["configuration"],
                                              "deviceName": device_info["deviceName"],
@@ -414,9 +408,25 @@ class OpcUaConnector(Thread, Connector):
                             device_info["uplink_converter"] = converter
                         else:
                             converter = device_info["uplink_converter"]
+
                         self.subscribed[information_node] = {"converter": converter,
                                                              "path": information_path,
                                                              "config_path": config_path}
+
+                        # Use Node name if param "key" not found in config
+                        if not information.get('key'):
+                            information['key'] = information_node.get_browse_name().Name
+                            self.subscribed[information_node]['key'] = information['key']
+                            changed_key = True
+
+                        information_key = information['key']
+
+                        log.debug("Node for %s \"%s\" with path: %s - FOUND! Current values is: %s",
+                                  information_type,
+                                  information_key,
+                                  information_path,
+                                  str(information_value))
+
                         if not device_info.get(information_types[information_type]):
                             device_info[information_types[information_type]] = []
 
@@ -430,6 +440,9 @@ class OpcUaConnector(Thread, Connector):
                             sub_nodes.append(information_node)
                     else:
                         log.error("Node for %s \"%s\" with path %s - NOT FOUND!", information_type, information_key, information_path)
+
+                    if changed_key:
+                        information['key'] = None
 
         if not self.__server_conf.get("disableSubscriptions", False):
             if self.__sub is None:
@@ -654,7 +667,8 @@ class SubHandler(object):
         try:
             log.debug("Python: New data change event on node %s, with val: %s and data %s", node, val, str(data))
             subscription = self.connector.subscribed[node]
-            converted_data = subscription["converter"].convert((subscription["config_path"], subscription["path"]), val, data)
+            converted_data = subscription["converter"].convert((subscription["config_path"], subscription["path"]), val,
+                                                               data, key=subscription.get('key'))
             self.connector.statistics['MessagesReceived'] = self.connector.statistics['MessagesReceived'] + 1
             self.connector.data_to_send.append(converted_data)
             self.connector.statistics['MessagesSent'] = self.connector.statistics['MessagesSent'] + 1

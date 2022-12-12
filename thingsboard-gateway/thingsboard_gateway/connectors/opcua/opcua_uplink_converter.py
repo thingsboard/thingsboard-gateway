@@ -18,13 +18,16 @@ from datetime import timezone
 
 from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter, log
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class OpcUaUplinkConverter(OpcUaConverter):
     def __init__(self, config):
         self.__config = config
 
-    def convert(self, config, val, data = None):
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
+    def convert(self, config, val, data=None, key=None):
         device_name = self.__config["deviceName"]
         result = {"deviceName": device_name,
                   "deviceType": self.__config.get("deviceType", "OPC-UA Device"),
@@ -43,9 +46,10 @@ class OpcUaUplinkConverter(OpcUaConverter):
                     else:
                         config_information = config.replace('\\\\', '\\')
                     if path == config_information or fullmatch(path, config_information) or path.replace('\\\\', '\\') == config_information:
-                        full_key = information["key"]
+                        full_key = key if key else information["key"]
                         full_value = information["path"].replace("${"+path+"}", str(val))
-                        if information_type == 'timeseries' and data is not None:
+                        if information_type == 'timeseries' and data is not None and not self.__config.get(
+                                'subOverrideServerTime', False):
                             # Note: SourceTimestamp and ServerTimestamp may be naive datetime objects, hence for the timestamp() the tz must first be overwritten to UTC (which it is according to the spec)
                             if data.monitored_item.Value.SourceTimestamp is not None:
                                 timestamp = int(data.monitored_item.Value.SourceTimestamp.replace(tzinfo=timezone.utc).timestamp()*1000)

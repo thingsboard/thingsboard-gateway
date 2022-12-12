@@ -3,7 +3,10 @@ thingsboard:
   port: 1883
   remoteShell: false
   remoteConfiguration: false
-  statsSendPeriodInSeconds: 3600
+  statistics:
+    enable: true
+    statsSendPeriodInSeconds: 3600
+    configuration: statistics.json
   minPackSendDelayMS: 0
   checkConnectorsConfigurationInSeconds: 60
   handleDeviceRenaming: true
@@ -58,6 +61,11 @@ connectors:
 #    configuration: opcua.json
 #
 #  -
+#    name: OPC-UA Connector
+#    type: opcua_asyncio
+#    configuration: opcua.json
+#
+#  -
 #    name: BLE Connector
 #    type: ble
 #    configuration: ble.json
@@ -101,6 +109,11 @@ connectors:
 #    name: Socket TCP/UDP Connector
 #    type: socket
 #    configuration: socket.json
+#
+#  -
+#    name: XMPP Connector
+#    type: xmpp
+#    configuration: xmpp.json
 #
 # ========= Customization ==========
 #

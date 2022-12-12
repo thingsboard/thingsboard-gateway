@@ -20,6 +20,7 @@ from simplejson import dumps
 from thingsboard_gateway.connectors.converter import log
 from thingsboard_gateway.connectors.ftp.ftp_converter import FTPConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class FTPUplinkConverter(FTPConverter):
@@ -192,6 +193,8 @@ class FTPUplinkConverter(FTPConverter):
 
         return dict_result
 
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         if config['file_ext'] == 'csv' or (
                 config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'TABLE'):

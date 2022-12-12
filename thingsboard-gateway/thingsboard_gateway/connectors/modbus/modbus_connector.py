@@ -102,6 +102,14 @@ class ModbusConnector(Connector, Thread):
         self.__stopped = False
         self.daemon = True
 
+        self._convert_msg_queue = Queue()
+        self._save_msg_queue = Queue()
+
+        self.__msg_queue = Queue()
+        self.__workers_thread_pool = []
+        self.__max_msg_number_for_worker = config.get('maxMessageNumberPerWorker', 10)
+        self.__max_number_of_workers = config.get('maxNumberOfWorkers', 100)
+
         if self.__config.get('slave'):
             self.__slave_thread = Thread(target=self.__configure_and_run_slave, args=(self.__config['slave'],),
                                          daemon=True, name='Gateway as a slave')
@@ -123,15 +131,13 @@ class ModbusConnector(Connector, Thread):
     def run(self):
         self.__connected = True
 
-        while True:
-            if not self.__stopped and not ModbusConnector.process_requests.empty():
-                thread = Thread(target=self.__process_slaves, daemon=True)
-                thread.start()
+        thread = Thread(target=self.__process_slaves, daemon=True)
+        thread.start()
 
-            if self.__stopped:
-                break
+        while not self.__stopped:
+            self.__thread_manager()
 
-            sleep(.2)
+            sleep(.001)
 
     @staticmethod
     def __configure_and_run_slave(config):
@@ -201,8 +207,28 @@ class ModbusConnector(Connector, Thread):
     def connector_type(self):
         return self._connector_type
 
-    def __convert_and_save_data(self, config_tuple):
-        device, current_device_config, config, device_responses = config_tuple
+    def __thread_manager(self):
+        if len(self.__workers_thread_pool) == 0:
+            worker = ModbusConnector.ConverterWorker("Main", self._convert_msg_queue, self._save_data)
+            self.__workers_thread_pool.append(worker)
+            worker.start()
+
+        number_of_needed_threads = round(self._convert_msg_queue.qsize() / self.__max_msg_number_for_worker, 0)
+        threads_count = len(self.__workers_thread_pool)
+        if number_of_needed_threads > threads_count < self.__max_number_of_workers:
+            thread = ModbusConnector.ConverterWorker(
+                "Worker " + ''.join(choice(ascii_lowercase) for _ in range(5)), self._convert_msg_queue,
+                self._save_data)
+            self.__workers_thread_pool.append(thread)
+            thread.start()
+        elif number_of_needed_threads < threads_count and threads_count > 1:
+            worker: ModbusConnector.ConverterWorker = self.__workers_thread_pool[-1]
+            if not worker.in_progress:
+                worker.stopped = True
+                self.__workers_thread_pool.remove(worker)
+
+    def __convert_data(self, params):
+        device, current_device_config, config, device_responses = params
         converted_data = {}
 
         try:
@@ -238,8 +264,11 @@ class ModbusConnector(Connector, Thread):
                 to_send[converted_data_section] = converted_data[converted_data_section]
 
         if to_send.get(ATTRIBUTES_PARAMETER) or to_send.get(TELEMETRY_PARAMETER):
-            self.__gateway.send_to_storage(self.get_name(), to_send)
-            self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
+            return to_send
+
+    def _save_data(self, data):
+        self.__gateway.send_to_storage(self.get_name(), data)
+        self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
 
     def close(self):
         self.__stopped = True
@@ -252,48 +281,51 @@ class ModbusConnector(Connector, Thread):
         return self.name
 
     def __process_slaves(self):
-        # TODO: write documentation
-        device = ModbusConnector.process_requests.get()
+        while True:
+            if not self.__stopped and not ModbusConnector.process_requests.empty():
+                device = ModbusConnector.process_requests.get()
 
-        device_responses = {'timeseries': {}, 'attributes': {}}
-        current_device_config = {}
-        try:
-            for config_section in device_responses:
-                if device.config.get(config_section) is not None:
-                    current_device_config = device.config
+                device_responses = {'timeseries': {}, 'attributes': {}}
+                current_device_config = {}
+                try:
+                    for config_section in device_responses:
+                        if device.config.get(config_section) is not None:
+                            current_device_config = device.config
 
-                    self.__connect_to_current_master(device)
+                            self.__connect_to_current_master(device)
 
-                    if not device.config['master'].is_socket_open() or not len(
-                            current_device_config[config_section]):
-                        continue
+                            if not device.config['master'].is_socket_open() or not len(
+                                    current_device_config[config_section]):
+                                continue
 
-                    # Reading data from device
-                    for interested_data in range(len(current_device_config[config_section])):
-                        current_data = current_device_config[config_section][interested_data]
-                        current_data[DEVICE_NAME_PARAMETER] = device
-                        input_data = self.__function_to_device(device, current_data)
-                        device_responses[config_section][current_data[TAG_PARAMETER]] = {
-                            "data_sent": current_data,
-                            "input_data": input_data}
+                            # Reading data from device
+                            for interested_data in range(len(current_device_config[config_section])):
+                                current_data = current_device_config[config_section][interested_data]
+                                current_data[DEVICE_NAME_PARAMETER] = device
+                                input_data = self.__function_to_device(device, current_data)
+                                device_responses[config_section][current_data[TAG_PARAMETER]] = {
+                                    "data_sent": current_data,
+                                    "input_data": input_data}
 
-                    log.debug("Checking %s for device %s", config_section, device)
-                    log.debug('Device response: ', device_responses)
+                            log.debug("Checking %s for device %s", config_section, device)
+                            log.debug('Device response: ', device_responses)
 
-            if device_responses.get('timeseries') or device_responses.get('attributes'):
-                self.__convert_and_save_data((device, current_device_config, {
-                    **current_device_config,
-                    BYTE_ORDER_PARAMETER: current_device_config.get(BYTE_ORDER_PARAMETER,
-                                                                    device.byte_order),
-                    WORD_ORDER_PARAMETER: current_device_config.get(WORD_ORDER_PARAMETER,
-                                                                    device.word_order)
-                }, device_responses))
+                    if device_responses.get('timeseries') or device_responses.get('attributes'):
+                        self._convert_msg_queue.put((self.__convert_data, (device, current_device_config, {
+                            **current_device_config,
+                            BYTE_ORDER_PARAMETER: current_device_config.get(BYTE_ORDER_PARAMETER,
+                                                                            device.byte_order),
+                            WORD_ORDER_PARAMETER: current_device_config.get(WORD_ORDER_PARAMETER,
+                                                                            device.word_order)
+                        }, device_responses)))
 
-        except ConnectionException:
-            sleep(5)
-            log.error("Connection lost! Reconnecting...")
-        except Exception as e:
-            log.exception(e)
+                except ConnectionException:
+                    sleep(5)
+                    log.error("Connection lost! Reconnecting...")
+                except Exception as e:
+                    log.exception(e)
+
+            sleep(.001)
 
     def __connect_to_current_master(self, device=None):
         # TODO: write documentation
@@ -400,12 +432,21 @@ class ModbusConnector(Connector, Thread):
         function_code = config.get('functionCode')
         result = None
         if function_code == 1:
+            #why count * 8 ? in my Modbus device one coils is 1bit, tow coils is 2bit,if * 8 can not read right coils 
+            # result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
+            #                                                              count=config.get(OBJECTS_COUNT_PARAMETER,
+            #                                                                               config.get("registersCount",
+            #                                                                                          config.get(
+            #                                                                                              "registerCount",
+            #                                                                                              1))) * 8,
+            #                                                              unit=device.config['unitId'])
+
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          count=config.get(OBJECTS_COUNT_PARAMETER,
                                                                                           config.get("registersCount",
                                                                                                      config.get(
                                                                                                          "registerCount",
-                                                                                                         1))) * 8,
+                                                                                                         1))),
                                                                          unit=device.config['unitId'])
         elif function_code in (2, 3, 4):
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
@@ -416,7 +457,7 @@ class ModbusConnector(Connector, Thread):
                                                                                                          1))),
                                                                          unit=device.config['unitId'])
         elif function_code == 5:
-            result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER] * 8,
+            result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          value=config[PAYLOAD_PARAMETER],
                                                                          unit=device.config['unitId'])
         elif function_code == 6:
@@ -556,3 +597,25 @@ class ModbusConnector(Connector, Thread):
                                                   response)
 
             log.debug("%r", response)
+
+    class ConverterWorker(Thread):
+        def __init__(self, name, incoming_queue, send_result):
+            super().__init__()
+            self.stopped = False
+            self.setName(name)
+            self.setDaemon(True)
+            self.__msg_queue = incoming_queue
+            self.in_progress = False
+            self.__send_result = send_result
+
+        def run(self):
+            while not self.stopped:
+                if not self.__msg_queue.empty():
+                    self.in_progress = True
+                    convert_function, params = self.__msg_queue.get(True, 10)
+                    converted_data = convert_function(params)
+                    log.info(converted_data)
+                    self.__send_result(converted_data)
+                    self.in_progress = False
+                else:
+                    sleep(.001)

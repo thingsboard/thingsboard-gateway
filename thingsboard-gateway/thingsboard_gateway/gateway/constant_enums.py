@@ -27,7 +27,8 @@ class DownlinkMessageType(Enum):
     GatewayAttributeUpdateNotificationMsg = 2,
     GatewayAttributeResponseMsg = 3,
     GatewayDeviceRpcRequestMsg = 4,
-    UnregisterConnectorMsg = 5
+    UnregisterConnectorMsg = 5,
+    ConnectorGetConnectedDevicesResponseMsg = 6
 
 
 class Status(Enum):

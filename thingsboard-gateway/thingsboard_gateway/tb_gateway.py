@@ -11,17 +11,26 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
-from os import curdir, listdir, mkdir, path, getcwd, chdir
+import sys
+from os import curdir, listdir, mkdir, path
 
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
+from thingsboard_gateway.gateway.hot_reloader import HotReloader
 
 
 def main():
-    chdir(path.dirname(path.abspath(__file__)))
     if "logs" not in listdir(curdir):
         mkdir("logs")
-    TBGatewayService(path.dirname(path.abspath(__file__)) + '/config/tb_gateway.yaml'.replace('/', path.sep))
+
+    try:
+        hot_reload = bool(sys.argv[1])
+    except IndexError:
+        hot_reload = False
+
+    if hot_reload:
+        HotReloader(TBGatewayService)
+    else:
+        TBGatewayService(path.dirname(path.abspath(__file__)) + '/config/tb_gateway.yaml'.replace('/', path.sep))
 
 
 def daemon():

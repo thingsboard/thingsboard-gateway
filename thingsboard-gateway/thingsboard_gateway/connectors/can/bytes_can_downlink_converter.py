@@ -16,9 +16,12 @@ import struct
 
 from thingsboard_gateway.connectors.can.can_converter import CanConverter
 from thingsboard_gateway.connectors.converter import log
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BytesCanDownlinkConverter(CanConverter):
+    @StatisticsService.CollectStatistics(start_stat_type='allReceivedBytesFromTB',
+                                         end_stat_type='allBytesSentToDevices')
     def convert(self, config, data):
         try:
             if config.get("dataInHex", ""):
