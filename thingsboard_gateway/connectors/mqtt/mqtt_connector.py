@@ -22,8 +22,8 @@ from time import sleep, time
 
 import simplejson
 
-from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER, DEFAULT_SEND_DATA_ON_CHANGE_VALUE, \
-    ATTRIBUTES_PARAMETER, TELEMETRY_PARAMETER
+from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER, DEFAULT_SEND_ON_CHANGE_VALUE, \
+    ATTRIBUTES_PARAMETER, TELEMETRY_PARAMETER, SEND_ON_CHANGE_TTL_PARAMETER, DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE
 from thingsboard_gateway.gateway.constant_enums import Status
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectStatistics
@@ -111,7 +111,8 @@ class MqttConnector(Connector, Thread):
 
         # Extract main sections from configuration ---------------------------------------------------------------------
         self.__broker = config.get('broker')
-        self.__send_data_only_on_change = self.__broker.get(SEND_ON_CHANGE_PARAMETER, DEFAULT_SEND_DATA_ON_CHANGE_VALUE)
+        self.__send_data_only_on_change = self.__broker.get(SEND_ON_CHANGE_PARAMETER, DEFAULT_SEND_ON_CHANGE_VALUE)
+        self.__send_data_only_on_change_ttl = self.__broker.get(SEND_ON_CHANGE_TTL_PARAMETER, DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE)
 
         # for sendDataOnlyOnChange param
         self.__topic_content = {}
@@ -227,6 +228,9 @@ class MqttConnector(Connector, Thread):
 
     def get_config(self):
         return self.config
+    
+    def get_ttl_for_duplicates(self, device_name):
+        return self.__send_data_only_on_change_ttl
 
     def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list):
         if handler_flavor not in self.config:
