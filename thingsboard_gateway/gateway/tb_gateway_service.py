@@ -35,7 +35,7 @@ from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME
 from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
-# from thingsboard_gateway.gateway.shell_manager import ShellManager
+from thingsboard_gateway.gateway.shell.proxy import AutoProxy
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
@@ -138,7 +138,6 @@ class TBGatewayService:
         'get_storage_events_count',
         'get_available_connectors',
         'get_connector_status',
-        'get_connector_name',
         'get_connector_config'
     ]
 
@@ -291,7 +290,8 @@ class TBGatewayService:
         self._watchers_thread.start()
 
         self.manager = GatewayManager(address='/tmp/gateway', authkey=b'gateway')
-        GatewayManager.register('get_gateway', self.get_gateway, exposed=self.EXPOSED_GETTERS)
+        GatewayManager.register('get_gateway', self.get_gateway, proxytype=AutoProxy, exposed=self.EXPOSED_GETTERS,
+                                create_method=False)
         self.server = self.manager.get_server()
         self.server.serve_forever()
 
@@ -300,7 +300,7 @@ class TBGatewayService:
             return self.manager.gateway
         else:
             self.manager.add_gateway(self)
-            self.manager.register('gateway', lambda: self)
+            self.manager.register('gateway', lambda: self, proxytype=AutoProxy)
 
     def _watchers(self):
         try:
@@ -412,8 +412,6 @@ class TBGatewayService:
         log.info("The gateway has been stopped.")
         self.tb_client.disconnect()
         self.tb_client.stop()
-        # self.shell_manager.connect()
-        # self.shell_manager.gateway_stopped()
         self.manager.shutdown()
 
     def __init_remote_configuration(self, force=False):
@@ -1321,13 +1319,18 @@ class TBGatewayService:
         return {num + 1: name for (num, name) in enumerate(self.available_connectors)}
 
     def get_connector_status(self, name):
-        return {'connected': self.available_connectors[name].is_connected()}
-
-    def get_connector_name(self, name):
-        return self.available_connectors[name].get_name()
+        try:
+            connector = self.available_connectors[name]
+            return {'connected': connector.is_connected()}
+        except KeyError:
+            return f'Connector {name} not found!'
 
     def get_connector_config(self, name):
-        return self.available_connectors[name].get_config()
+        try:
+            connector = self.available_connectors[name]
+            return connector.get_config()
+        except KeyError:
+            return f'Connector {name} not found!'
 
     # Gateway ----------------------
     def get_status(self):

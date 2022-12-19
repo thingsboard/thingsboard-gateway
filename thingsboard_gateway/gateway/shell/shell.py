@@ -6,7 +6,7 @@ from re import findall
 from threading import Thread
 from time import sleep
 
-# from thingsboard_gateway.gateway.shell_manager import ShellManager
+from thingsboard_gateway.gateway.shell.proxy import AutoProxy
 from thingsboard_gateway.gateway.tb_gateway_service import GatewayManager
 
 
@@ -24,21 +24,6 @@ class Shell(cmd.Cmd, Thread):
 
         self.stdout.write('Gateway Shell\n')
         self.stdout.write('=============\n')
-
-        # self.gateway_manager = GatewayManager(address='/tmp/gateway', authkey=b'gateway')
-        # try:
-        #     self.gateway_manager.connect()
-        #     GatewayManager.register('get_gateway')
-        # except (FileNotFoundError, AssertionError):
-        #     self.stdout.write('Gateway is not running!\n')
-        #     return
-
-        # self.connected = False
-        # self.gateway = None
-        # try:
-        #     self.connect()
-        # except Exception as e:
-        #     self.stdout.write(e.__str__())
 
         self.gateway_manager, self.gateway = self.create_manager()
         if self.gateway_manager is None or self.gateway is None:
@@ -63,10 +48,12 @@ class Shell(cmd.Cmd, Thread):
                 },
                 {
                     'arg': ('-s', '--status'),
+                    'val_required': True,
                     'func': self.gateway.get_connector_status
                 },
                 {
                     'arg': ('-c', '--config'),
+                    'val_required': True,
                     'func': self.gateway.get_connector_config
                 }
             ],
@@ -94,7 +81,7 @@ class Shell(cmd.Cmd, Thread):
             try:
                 gateway_manager = GatewayManager(address='/tmp/gateway', authkey=b'gateway')
                 gateway_manager.connect()
-                GatewayManager.register('get_gateway')
+                GatewayManager.register('get_gateway', proxytype=AutoProxy)
                 GatewayManager.register('gateway')
                 gateway = self.connect(gateway_manager)
             except (FileNotFoundError, AssertionError):
@@ -151,9 +138,12 @@ class Shell(cmd.Cmd, Thread):
                     opt = input_arg[0]
 
                 if opt in arg['arg']:
+                    if arg.get('val_required') and not val:
+                        continue
+
                     return arg['func'](val.strip()) if val else arg['func']()
 
-            raise ShellSyntaxError()
+        raise ShellSyntaxError()
 
     def _print(self, *args):
         for arg in args:
@@ -165,30 +155,29 @@ class Shell(cmd.Cmd, Thread):
             else:
                 self.stdout.write(str(arg) + '\n')
 
+    def wrapper(self, arg, label, config):
+        try:
+            self._print(self.parser(arg, config))
+        except ShellSyntaxError as e:
+            self.stdout.write(e.__str__() + ' (see `help ' + label + '`)\n')
+            self.do_help(label)
+        except (FileNotFoundError, AttributeError, BrokenPipeError, multiprocessing.managers.RemoteError):
+            self.stdout.write('Connection is lost...\n')
+            self.gateway_manager, self.gateway = self.create_manager()
+
     # ---
     def do_gateway(self, arg):
         """Gateway
         -s/--status: get gateway status
         """
-        try:
-            self._print(self.parser(arg, self.command_config['gateway']))
-        except ShellSyntaxError as e:
-            self.stdout.write(e.__str__() + ' (see `help gateway`)\n')
-            self.do_help('gateway')
-        except (FileNotFoundError, AttributeError, BrokenPipeError):
-            self.stdout.write('Connection is lost...\n')
-            self.gateway_manager, self.gateway = self.create_manager()
+        self.wrapper(arg, 'gateway', self.command_config['gateway'])
 
     def do_storage(self, arg):
         """Storage
         -n/--name:   name of storage
         -c/--count:  events in storage
         """
-        try:
-            self._print(self.parser(arg, self.command_config['storage']))
-        except ShellSyntaxError as e:
-            self.stdout.write(e.__str__() + ' (see `help storage`)\n')
-            self.do_help('storage')
+        self.wrapper(arg, 'storage', self.command_config['storage'])
 
     def do_connector(self, arg):
         """Connector
@@ -196,14 +185,7 @@ class Shell(cmd.Cmd, Thread):
         -s/--status <name>:    get connector status
         -c/--config <name>:    get connector config
         """
-        try:
-            self._print(self.parser(arg, self.command_config['connector']))
-        except ShellSyntaxError as e:
-            self.stdout.write(e.__str__() + ' (see `help connector`)\n')
-            self.do_help('connector')
-        except (FileNotFoundError, AttributeError):
-            self.stdout.write('Connection is lost...\n')
-            self.connect()
+        self.wrapper(arg, 'connector', self.command_config['connector'])
 
     # ---
     @staticmethod
