@@ -312,3 +312,6 @@ class OcppConnector(Connector, Thread):
                         return
         except Exception as e:
             self._log.exception(e)
+
+    def get_config(self):
+        return {'CS': self._central_system_config, 'CP': self._charge_points_config}

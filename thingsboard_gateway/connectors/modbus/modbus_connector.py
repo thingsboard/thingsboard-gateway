@@ -631,6 +631,9 @@ class ModbusConnector(Connector, Thread):
 
             log.debug("%r", response)
 
+    def get_config(self):
+        return self.__config
+
     class ConverterWorker(Thread):
         def __init__(self, name, incoming_queue, send_result):
             super().__init__()

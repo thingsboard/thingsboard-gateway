@@ -103,6 +103,9 @@ class SNMPConnector(Connector, Thread):
     def is_connected(self):
         return self._connected
 
+    def get_config(self):
+        return self.__config
+
     def collect_statistic_and_send(self, connector_name, data):
         self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
         self.__gateway.send_to_storage(connector_name, data)

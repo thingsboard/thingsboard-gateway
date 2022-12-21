@@ -181,6 +181,9 @@ class RESTConnector(Connector, Thread):
     def is_connected(self):
         return self._connected
 
+    def get_config(self):
+        return self.__config
+
     def on_attributes_update(self, content):
         try:
             for attribute_request in self.__attribute_updates:

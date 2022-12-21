@@ -199,6 +199,9 @@ class XMPPConnector(Connector, Thread):
     def is_connected(self):
         return self._connected
 
+    def get_config(self):
+        return self.__config
+
     @StatisticsService.CollectStatistics(start_stat_type='allBytesSentToDevices')
     def _send_message(self, jid, data):
         self._xmpp.send_message(mto=jid, mfrom=self._server_config['jid'], mbody=data,

@@ -658,6 +658,9 @@ class OpcUaConnector(Thread, Connector):
     def subscribed(self):
         return self._subscribed
 
+    def get_config(self):
+        return self.__server_conf
+
 
 class SubHandler(object):
     def __init__(self, connector: OpcUaConnector):

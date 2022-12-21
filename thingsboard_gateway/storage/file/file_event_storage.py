@@ -101,3 +101,5 @@ class FileEventStorage(EventStorage):
     def stop(self):
         self.__stopped = True
 
+    def len(self):
+        return len(self.__writer.files.data_files)

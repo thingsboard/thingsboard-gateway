@@ -164,3 +164,6 @@ class BLEConnector(Connector, Thread):
                         return
         except IndexError:
             log.error('Device not found')
+
+    def get_config(self):
+        return self.__config
