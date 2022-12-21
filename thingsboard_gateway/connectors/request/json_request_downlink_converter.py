@@ -35,9 +35,9 @@ class JsonRequestDownlinkConverter(RequestConverter):
                     "url": self.__config["requestUrlExpression"].replace("${attributeKey}", quote(attribute_key))
                                                                 .replace("${attributeValue}", quote(attribute_value))
                                                                 .replace("${deviceName}", quote(data["device"])),
-                    "data": self.__config["valueExpression"].replace("${attributeKey}", quote(attribute_key))
-                                                            .replace("${attributeValue}", quote(attribute_value))
-                                                            .replace("${deviceName}", quote(data["device"]))
+                    "data": self.__config["requestValueExpression"].replace("${attributeKey}", quote(attribute_key))
+                                                                   .replace("${attributeValue}", quote(attribute_value))
+                                                                   .replace("${deviceName}", quote(data["device"]))
                 }
             else:
                 request_id = str(data["data"]["id"])
@@ -47,16 +47,16 @@ class JsonRequestDownlinkConverter(RequestConverter):
                     "url": self.__config["requestUrlExpression"].replace("${requestId}", request_id)
                                                                 .replace("${methodName}", method_name)
                                                                 .replace("${deviceName}", quote(data["device"])),
-                    "data": self.__config["valueExpression"].replace("${requestId}", request_id)
-                                                            .replace("${methodName}", method_name)
-                                                            .replace("${deviceName}", quote(data["device"]))
+                    "data": self.__config["requestValueExpression"].replace("${requestId}", request_id)
+                                                                   .replace("${methodName}", method_name)
+                                                                   .replace("${deviceName}", quote(data["device"]))
                 }
 
                 result['url'] = TBUtility.replace_params_tags(result['url'], data)
 
-                data_tags = TBUtility.get_values(config.get('valueExpression'), data['data'], 'params',
+                data_tags = TBUtility.get_values(config.get('requestValueExpression'), data['data'], 'params',
                                                  get_tag=True)
-                data_values = TBUtility.get_values(config.get('valueExpression'), data['data'], 'params',
+                data_values = TBUtility.get_values(config.get('requestValueExpression'), data['data'], 'params',
                                                    expression_instead_none=True)
 
                 for (tag, value) in zip(data_tags, data_values):
