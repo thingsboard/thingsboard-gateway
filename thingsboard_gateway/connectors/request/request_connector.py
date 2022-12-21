@@ -20,6 +20,8 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time
 
+import simplejson
+
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -125,7 +127,25 @@ class RequestConnector(Connector, Thread):
                     rpc_request_thread.join()
                     if not response_queue.empty():
                         response = response_queue.get_nowait()
-                        log.debug(response)
+
+                        if rpc_request.get('responseValueExpression'):
+                            response_value_expression = rpc_request['responseValueExpression']
+                            values = TBUtility.get_values(response_value_expression, response.json(),
+                                                          expression_instead_none=True)
+                            values_tags = TBUtility.get_values(response_value_expression, response.json(), get_tag=True)
+                            full_value = response_value_expression
+                            for (value, value_tag) in zip(values, values_tags):
+                                is_valid_value = "${" in response_value_expression and "}" in \
+                                                 response_value_expression
+
+                                full_value = full_value.replace('${' + str(value_tag) + '}',
+                                                                str(value)) if is_valid_value else str(value)
+
+                            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
+                                                          content=full_value)
+                            del response_queue
+                            return
+
                         self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
                                                       content=response.text)
                         del response_queue
