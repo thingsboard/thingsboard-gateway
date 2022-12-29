@@ -56,7 +56,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
                     word_endian_order = Endian.Little if word_order.upper() == "LITTLE" else Endian.Big
                     decoded_data = None
                     if not isinstance(response, ModbusIOException) and not isinstance(response, ExceptionResponse):
-                        if configuration["functionCode"] in [1, 2] :
+                        if configuration["functionCode"] in [1, 2]:
                             decoder = None
                             coils = response.bits
                             try:
@@ -119,10 +119,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
         decoded = None
 
-        if lower_type in ['bit','bits']:
-            decoded_lastbyte= decoder_functions[type_]()
-            decoded= decoder_functions[type_]()
-            decoded+=decoded_lastbyte
+        if lower_type in ['bit', 'bits']:
+            decoded_lastbyte = decoder_functions[type_]()
+            decoded = decoder_functions[type_]()
+            decoded += decoded_lastbyte
 
         elif lower_type == "string":
             decoded = decoder_functions[type_](objects_count * 2)
@@ -161,7 +161,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
             if configuration.get('bit') is not None:
                 result_data = int(decoded[configuration['bit']])
             else:
-                result_data = [int(bit) for bit in decoded]
+                if objects_count == 1 and configuration.get('bitTargetType', 'bool') == 'bool':
+                    result_data = bool(decoded[-1])
+                else:
+                    result_data = [int(bit) for bit in decoded]
         elif isinstance(decoded, float):
             result_data = decoded
         elif decoded is not None:
