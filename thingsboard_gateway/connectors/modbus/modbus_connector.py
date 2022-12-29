@@ -452,7 +452,7 @@ class ModbusConnector(Connector, Thread):
         function_code = config.get('functionCode')
         result = None
         if function_code == 1:
-            #why count * 8 ? in my Modbus device one coils is 1bit, tow coils is 2bit,if * 8 can not read right coils
+            # why count * 8 ? in my Modbus device one coils is 1bit, tow coils is 2bit,if * 8 can not read right coils
             # result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
             #                                                              count=config.get(OBJECTS_COUNT_PARAMETER,
             #                                                                               config.get("registersCount",
@@ -579,16 +579,17 @@ class ModbusConnector(Connector, Thread):
             rpc_command_config[WORD_ORDER_PARAMETER] = device.config.get("wordOrder", "LITTLE")
             self.__connect_to_current_master(device)
 
-            if rpc_command_config.get(FUNCTION_CODE_PARAMETER) in (6, 16):
+            if rpc_command_config.get(FUNCTION_CODE_PARAMETER) in (5, 6):
                 converted_data = device.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER].convert(rpc_command_config,
                                                                                               content)
                 try:
                     rpc_command_config[PAYLOAD_PARAMETER] = converted_data[0]
                 except IndexError and TypeError:
                     rpc_command_config[PAYLOAD_PARAMETER] = converted_data
-            elif rpc_command_config.get(FUNCTION_CODE_PARAMETER) in (5, 15):
+            elif rpc_command_config.get(FUNCTION_CODE_PARAMETER) in (15, 16):
                 converted_data = device.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER].convert(rpc_command_config,
                                                                                               content)
+                converted_data.reverse()
                 rpc_command_config[PAYLOAD_PARAMETER] = converted_data
 
             try:

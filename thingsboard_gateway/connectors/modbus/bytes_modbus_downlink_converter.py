@@ -102,7 +102,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             if "Exception" in str(builder):
                 log.exception(builder)
                 builder = str(builder)
-            # if function_code is 5 , is useing first coils value 
+            # if function_code is 5 , is using first coils value
             if function_code == 5:
                 if isinstance(builder, list):
                     builder = builder[0]
