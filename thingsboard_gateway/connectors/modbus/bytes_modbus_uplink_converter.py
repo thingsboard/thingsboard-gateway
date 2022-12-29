@@ -161,7 +161,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             if configuration.get('bit') is not None:
                 result_data = int(decoded[configuration['bit']])
             else:
-                if objects_count == 1:
+                if objects_count == 1 and configuration.get('bitTargetType', 'bool') == 'bool':
                     result_data = bool(decoded[-1])
                 else:
                     result_data = [int(bit) for bit in decoded]
