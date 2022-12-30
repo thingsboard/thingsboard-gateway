@@ -7,7 +7,8 @@
         "type": "tcp",
         "method": "socket",
         "timeout": 35,
-        "byteOrder": "BIG",
+        "byteOrder": "LITTLE",
+        "wordOrder": "LITTLE",
         "retries": true,
         "retryOnEmpty": true,
         "retryOnInvalid": true,
@@ -180,7 +181,8 @@
     "deviceType": "default",
     "pollPeriod": 5000,
     "sendDataToThingsBoard": false,
-    "byteOrder": "BIG",
+    "byteOrder": "LITTLE",
+    "wordOrder": "LITTLE",
     "unitId": 0,
     "values": {
       "holding_registers": [
