@@ -36,3 +36,4 @@ class Status(Enum):
     NOT_FOUND = 2,
     SUCCESS = 3,
     NO_NEW_DATA = 4
+    FORBIDDEN_DEVICE = 5

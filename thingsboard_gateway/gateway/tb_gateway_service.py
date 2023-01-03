@@ -33,6 +33,7 @@ from yaml import safe_load
 from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME
+from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_client import TBClient
@@ -79,6 +80,10 @@ DEFAULT_CONNECTORS = {
 DEFAULT_STATISTIC = {
     'enable': True,
     'statsSendPeriodInSeconds': 3600
+}
+
+DEFAULT_DEVICE_FILTER = {
+    'enable': False
 }
 
 SECURITY_VAR = ('accessToken', 'caCert', 'privateKey', 'cert')
@@ -257,6 +262,12 @@ class TBGatewayService:
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
         self._send_thread.start()
+
+        self.__device_filter_config = self.__config['thingsboard'].get('deviceFiltering', DEFAULT_DEVICE_FILTER)
+        self.__device_filter = None
+        if self.__device_filter_config['enable']:
+            self.__device_filter = DeviceFilter(config_path=self._config_dir + self.__device_filter_config[
+                'filterFile'] if self.__device_filter_config.get('filterFile') else None)
 
         self.__duplicate_detector = DuplicateDetector(self.available_connectors)
 
@@ -661,6 +672,14 @@ class TBGatewayService:
 
     def send_to_storage(self, connector_name, data):
         try:
+            device_valid = True
+            if self.__device_filter:
+                device_valid = self.__device_filter.validate_device(connector_name, data)
+
+            if not device_valid:
+                log.warning('Device %s forbidden', data['deviceName'])
+                return Status.FORBIDDEN_DEVICE
+
             filtered_data = self.__duplicate_detector.filter_data(connector_name, data)
             if filtered_data:
                 self.__converted_data_queue.put((connector_name, filtered_data), True, 100)

@@ -1,0 +1,16 @@
+{
+  "deny": {
+    "MQTT Broker Connector": [
+      "Temperature Device",
+      "(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$)"
+    ],
+    "Modbus Connector": [
+      "My Modbus Device"
+    ]
+  },
+  "allow": {
+    "MQTT Broker Connector": [
+      "My Temperature Sensor"
+    ]
+  }
+}
