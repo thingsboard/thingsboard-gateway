@@ -7,6 +7,9 @@ thingsboard:
     enable: true
     statsSendPeriodInSeconds: 3600
 #    configuration: statistics/statistics_linux.json
+  deviceFiltering:
+    enable: false
+    filterFile: list.json
   maxPayloadSizeBytes: 1024
   minPackSendDelayMS: 200
   minPackSizeToSend: 500
