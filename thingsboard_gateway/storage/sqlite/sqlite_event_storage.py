@@ -86,3 +86,6 @@ class SQLiteEventStorage(EventStorage):
         self.stopped = True
         self.db.__stopped = True
         self.db.closeDB()
+
+    def len(self):
+        return self.processQueue.qsize()

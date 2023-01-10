@@ -226,6 +226,9 @@ class MqttConnector(Connector, Thread):
     def is_filtering_enable(self, device_name):
         return self.__send_data_only_on_change
 
+    def get_config(self):
+        return self.config
+    
     def get_ttl_for_duplicates(self, device_name):
         return self.__send_data_only_on_change_ttl
 

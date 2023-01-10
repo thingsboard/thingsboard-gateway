@@ -311,3 +311,6 @@ class BACnetConnector(Thread, Connector):
             }
             result["server_side_rpc"].append(request_config)
         return result
+
+    def get_config(self):
+        return self.__config

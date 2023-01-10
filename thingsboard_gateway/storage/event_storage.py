@@ -38,3 +38,7 @@ class EventStorage(ABC):
     def stop(self):
         # Stop the storage processing
         pass
+
+    @abstractmethod
+    def len(self):
+        pass

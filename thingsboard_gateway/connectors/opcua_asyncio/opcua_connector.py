@@ -125,6 +125,9 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
     def is_connected(self):
         return self.__connected
 
+    def get_config(self):
+        return self.__server_conf
+
     def run(self):
         data_send_thread = Thread(name='Send Data Thread', target=self.__send_data, daemon=True)
         data_send_thread.start()

@@ -34,6 +34,10 @@ class Connector(ABC):
         pass
 
     @abstractmethod
+    def get_config(self):
+        pass
+
+    @abstractmethod
     def is_connected(self):
         pass
 

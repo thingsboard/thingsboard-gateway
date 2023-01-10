@@ -294,3 +294,6 @@ class FTPConnector(Connector, Thread):
                                                       success_sent=success_sent, content=converted_data)
         except Exception as e:
             log.exception(e)
+
+    def get_config(self):
+        return self.__config

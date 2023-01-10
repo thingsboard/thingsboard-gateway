@@ -308,3 +308,6 @@ class RequestConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
+
+    def get_config(self):
+        return self.__config

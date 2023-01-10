@@ -70,6 +70,7 @@ class CanConnector(Connector, Thread):
         self.setName(config.get("name", 'CAN Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__gateway = gateway
         self._connector_type = connector_type
+        self.__config = config
         self.__bus_conf = {}
         self.__bus = None
         self.__reconnect_count = 0
@@ -596,6 +597,9 @@ class CanConnector(Connector, Thread):
                 downlink = config.get("downlink")
                 return BytesCanDownlinkConverter() if downlink is None \
                     else TBModuleLoader.import_module(self._connector_type, downlink)
+
+    def get_config(self):
+        return self.__config
 
 
 class Poller(Thread):

@@ -456,3 +456,6 @@ class OdbcConnector(Connector, Thread):
                             type(rpc_config))
 
         self.__config["serverSideRpc"]["methods"] = reformatted_config
+
+    def get_config(self):
+        return self.__config
