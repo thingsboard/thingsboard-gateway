@@ -19,16 +19,12 @@ Install ThingsBoard Gateway
 #. Install dependencies: :code:`sudo apt update && sudo apt install python3-dev python3-pip libglib2.0-dev git mosquitto mosquitto-clients`
 #. Install python dependencies: :code:`pip install cython PyYAML`
 #. Clone the repository: :code:`git clone --single-branch --branch thingsboard-master git@github.com:drexelwireless/thingsboard-gateway.git`
-#. Move to the repository: :code:`cd thingsboard-gateway`
+#. Move to the repository: :code:`cd thingsboard-gateway/thingsboard-gateway`
 #. Install the gateway python module: :code:`sudo python3 setup.py install`
-#. In order to run your gateway from the source, copy :code:`thingsboard-gateway.service` to the :code:`/etc/systemd/system` directory
+#. Copy the service files:
 
-   * Before copying :code:`thingsboard-gateway.service` you need to edit the file. Open :code:`thingsboard-gateway.service` in your editor of choice and delete all contents. Then copy and paste the contents found in: https://github.com/drexelwireless/thingsboard-gateway/blob/master/setup_files/thingsboard-gateway.service
-
-   * Be sure to save the file before closing. 
-   
-   * Move to the directory the service file will live in: :code:`cd /etc/systemd/system`
-   * Copy the service files to the current directory: :code:`cp ~/setup_files/*.service .` <-- the period here is important
+   * Move to the directory the service files will live in: :code:`cd /etc/systemd/system`
+   * Copy the service files to the current directory: :code:`cp ~/thingsboard-gateway/setup_files/*.service .` <-- the period here is important
 #. Notify the system that daemons were changed: :code:`sudo systemctl daemon-reload`
 
 Create Gateway Device
