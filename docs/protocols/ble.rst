@@ -11,6 +11,26 @@ Installation Guide
     sudo apt install -y libglib2.0-dev zlib1g-dev
     sudo pip3 install bleak
 
+Connector Configuration:
+--------------
+1. Open tb_gateway.yaml
+
+.. code-block:: sh
+
+    cd thingsboard-gateway/thingsboard-gateway/thingsboard_gateway/config/
+    nano tb_gateway.yaml
+    
+2. Uncomment the following section:
+
+.. code-block::
+
+    -
+        name: BLE Connector
+        type: ble
+        configuration: ble.json
+        
+3. Save and close the file. Afterward, you must restart the thingsboard service before the changes take effect.
+
 JSON File Configuration Guide
 --------------
 1. Navigate and open ble.json file with text editor
