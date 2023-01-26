@@ -211,5 +211,9 @@ class Shell(cmd.Cmd, Thread):
         return self.do_exit(args)
 
 
+def main():
+    Shell()
+
+
 if __name__ == '__main__':
     shell = Shell()
