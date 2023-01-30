@@ -86,12 +86,12 @@ class Device(Thread):
     def _generate_config(self, config):
         new_config = {
             'characteristic': {
-                'extension': self.__load_converter(DEFAULT_CONVERTER_CLASS_NAME),
+                'extension': self.__load_converter(config.get('extension', DEFAULT_CONVERTER_CLASS_NAME)),
                 'telemetry': [],
                 'attributes': []
             },
             'advertisement': {
-                'extension': self.__load_converter('BytesBLEAdvConverter'),
+                'extension': self.__load_converter(config.get('extension', 'BytesBLEAdvConverter')),
                 'telemetry': [],
                 'attributes': []
             },
