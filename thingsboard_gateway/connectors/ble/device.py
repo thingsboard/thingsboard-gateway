@@ -86,12 +86,14 @@ class Device(Thread):
     def _generate_config(self, config):
         new_config = {
             'characteristic': {
-                'extension': self.__load_converter(config.get('extension', DEFAULT_CONVERTER_CLASS_NAME)),
+                'extension': self.__load_converter(config.get('extension', DEFAULT_CONVERTER_CLASS_NAME if config.get(
+                    'type', 'bytes') == 'bytes' else 'HexBytesBLEUplinkConverter')),
                 'telemetry': [],
                 'attributes': []
             },
             'advertisement': {
-                'extension': self.__load_converter(config.get('extension', 'BytesBLEAdvConverter')),
+                'extension': self.__load_converter(config.get('extension', 'HexBytesBLEUplinkConverter' if config.get(
+                    'type', 'hex') == 'hex' else DEFAULT_CONVERTER_CLASS_NAME)),
                 'telemetry': [],
                 'attributes': []
             },

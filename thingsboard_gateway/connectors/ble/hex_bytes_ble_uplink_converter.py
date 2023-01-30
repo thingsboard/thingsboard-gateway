@@ -5,7 +5,7 @@ from thingsboard_gateway.connectors.ble.ble_uplink_converter import BLEUplinkCon
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
-class BytesBLEAdvConverter(BLEUplinkConverter):
+class HexBytesBLEUplinkConverter(BLEUplinkConverter):
     def __init__(self, config):
         self.__config = config
         self.dict_result = {"deviceName": config['deviceName'],
