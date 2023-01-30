@@ -81,11 +81,10 @@ class TBLoggerHandler(logging.Handler):
 
 class TimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
     def __init__(self, filename, when='h', interval=1, backupCount=0,
-                 encoding=None, delay=False, utc=False, atTime=None,
-                 errors=None):
+                 encoding=None, delay=False, utc=False):
         config_path = environ.get('logs')
         if config_path:
             filename = config_path + '/' + filename.split('/')[-1]
 
         super().__init__(filename, when=when, interval=interval, backupCount=backupCount,
-                         encoding=encoding, delay=delay, utc=utc, atTime=atTime, errors=errors)
+                         encoding=encoding, delay=delay, utc=utc)
