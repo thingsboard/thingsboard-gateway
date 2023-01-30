@@ -29,7 +29,7 @@ from platform import system
 from time import time, sleep
 import asyncio
 
-from bleak import BleakClient
+from bleak import BleakClient, BleakScanner
 
 from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
@@ -68,22 +68,47 @@ class Device(Thread):
             log.error(e)
 
         self.poll_period = config.get('pollPeriod', 5000) / 1000
-        self.config = {
-            'extension': config.get('extension', DEFAULT_CONVERTER_CLASS_NAME),
-            'telemetry': config.get('telemetry', []),
-            'attributes': config.get('attributes', []),
-            'attributeUpdates': config.get('attributeUpdates', []),
-            'serverSideRpc': config.get('serverSideRpc', [])
-        }
+        self.config = self._generate_config(config)
+        self.adv_only = self._check_adv_mode()
         self.callback = config['callback']
         self.last_polled_time = self.poll_period + 1
 
         self.notifying_chars = []
 
-        self.__converter = None
-        self.__load_converter()
-
         self.start()
+
+    def _check_adv_mode(self):
+        if len(self.config['characteristic']['telemetry']) or len(self.config['characteristic']['attributes']):
+            return False
+
+        return True
+
+    def _generate_config(self, config):
+        new_config = {
+            'characteristic': {
+                'extension': self.__load_converter(config.get('extension', DEFAULT_CONVERTER_CLASS_NAME if config.get(
+                    'type', 'bytes') == 'bytes' else 'HexBytesBLEUplinkConverter')),
+                'telemetry': [],
+                'attributes': []
+            },
+            'advertisement': {
+                'extension': self.__load_converter(config.get('extension', 'HexBytesBLEUplinkConverter' if config.get(
+                    'type', 'hex') == 'hex' else DEFAULT_CONVERTER_CLASS_NAME)),
+                'telemetry': [],
+                'attributes': []
+            },
+            'attributeUpdates': config.get('attributeUpdates', []),
+            'serverSideRpc': config.get('serverSideRpc', [])
+        }
+
+        for section in ('telemetry', 'attributes'):
+            for section_config in config[section]:
+                if section_config.get('dataSourceType', 'characteristic') == 'characteristic':
+                    new_config['characteristic'][section].append(section_config)
+                else:
+                    new_config['advertisement'][section].append(section_config)
+
+        return new_config
 
     @staticmethod
     def validate_mac_address(mac_address):
@@ -94,13 +119,12 @@ class Device(Thread):
 
         return mac_address.upper()
 
-    def __load_converter(self):
-        converter_class_name = self.config['extension']
-        module = TBModuleLoader.import_module(self.__connector_type, converter_class_name)
+    def __load_converter(self, name):
+        module = TBModuleLoader.import_module(self.__connector_type, name)
 
         if module:
-            log.debug('Converter %s for device %s - found!', converter_class_name, self.name)
-            self.__converter = module
+            log.debug('Converter %s for device %s - found!', name, self.name)
+            return module
         else:
             log.error("Cannot find converter for %s device", self.name)
             self.stopped = True
@@ -111,6 +135,7 @@ class Device(Thread):
                 if time() - self.last_polled_time >= self.poll_period:
                     self.last_polled_time = time()
                     await self.__process_self()
+                    await self._process_adv_data()
                 else:
                     await asyncio.sleep(.2)
             except Exception as e:
@@ -136,17 +161,16 @@ class Device(Thread):
     async def notify_callback(self, sender: int, data: bytearray):
         not_converted_data = {'telemetry': [], 'attributes': []}
         for section in ('telemetry', 'attributes'):
-            for item in self.config[section]:
+            for item in self.config['characteristic'][section]:
                 if item.get('handle') and item['handle'] == sender:
                     not_converted_data[section].append({'data': data, **item})
 
                     data_for_converter = {
                         'deviceName': self.name,
                         'deviceType': self.device_type,
-                        'converter': self.__converter,
+                        'converter': self.config['characteristic']['extension'],
                         'config': {
-                            'attributes': self.config['attributes'],
-                            'telemetry': self.config['telemetry']
+                            **self.config['characteristic']
                         },
                         'data': not_converted_data
                     }
@@ -159,7 +183,7 @@ class Device(Thread):
     async def __process_self(self):
         not_converted_data = {'telemetry': [], 'attributes': []}
         for section in ('telemetry', 'attributes'):
-            for item in self.config[section]:
+            for item in self.config['characteristic'][section]:
                 char_id = item['characteristicUUID']
 
                 if item['method'] == 'read':
@@ -190,10 +214,9 @@ class Device(Thread):
             data_for_converter = {
                 'deviceName': self.name,
                 'deviceType': self.device_type,
-                'converter': self.__converter,
+                'converter': self.config['characteristic']['extension'],
                 'config': {
-                    'attributes': self.config['attributes'],
-                    'telemetry': self.config['telemetry']
+                    **self.config['characteristic']
                 },
                 'data': not_converted_data
             }
@@ -206,26 +229,69 @@ class Device(Thread):
                     item['handle'] = char.handle
                     return
 
-    async def connect_to_device(self):
+    async def _connect_to_device(self):
         try:
             log.info('Trying to connect to %s with %s MAC address', self.name, self.mac_address)
             await self.client.connect(timeout=self.timeout)
         except Exception as e:
             log.error(e)
 
-    async def run_client(self):
+    def filter_macaddress(self, device):
+        macaddress, device = device
+        if macaddress == self.mac_address:
+            return True
+
+        return False
+
+    async def _process_adv_data(self):
+        devices = await BleakScanner(scanning_mode="active").discover(timeout=self.timeout, return_adv=True)
+
+        try:
+            device = tuple(filter(self.filter_macaddress, devices.items()))[0][-1]
+        except IndexError:
+            log.error('Device with MAC address %s not found!', self.mac_address)
+            return
+
+        try:
+            advertisement_data = list(device[-1].manufacturer_data.values())[0]
+        except (IndexError, AttributeError):
+            log.error('Device %s haven\'t advertisement data', self.name)
+            return
+
+        data_for_converter = {
+            'deviceName': self.name,
+            'deviceType': self.device_type,
+            'converter': self.config['advertisement']['extension'],
+            'config': {
+                **self.config['advertisement']
+            },
+            'data': advertisement_data
+        }
+
+        self.callback(data_for_converter)
+
+    async def connect_to_device(self):
         while not self.stopped and not self.client.is_connected:
-            await self.connect_to_device()
+            await self._connect_to_device()
 
             sleep(.2)
 
-        if self.client and self.client.is_connected:
-            log.info('Connected to %s device', self.name)
+    async def run_client(self):
+        if not self.adv_only or self.show_map:
+            # default mode
+            await self.connect_to_device()
 
-            if self.show_map:
-                await self.__show_map()
+            if self.client and self.client.is_connected:
+                log.info('Connected to %s device', self.name)
 
-            await self.timer()
+                if self.show_map:
+                    await self.__show_map()
+
+                await self.timer()
+        else:
+            while not self.stopped:
+                await self._process_adv_data()
+                sleep(self.poll_period)
 
     def run(self):
         self.loop = asyncio.new_event_loop()
