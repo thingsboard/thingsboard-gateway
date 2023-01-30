@@ -59,7 +59,7 @@ class BLEConnector(Connector, Thread):
     async def __show_map(self):
         scanner = self.__config.get('scanner', {})
         devices = await BleakScanner(
-            scanning_mode='active' if self.__config.get('passiveScanMode', True) else 'passive').discover(
+            scanning_mode='passive' if self.__config.get('passiveScanMode', True) else 'active').discover(
             timeout=scanner.get('timeout', 10000) / 1000)
 
         log.info('FOUND DEVICES')

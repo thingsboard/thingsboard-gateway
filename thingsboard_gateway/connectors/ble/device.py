@@ -29,7 +29,7 @@ from platform import system
 from time import time, sleep
 import asyncio
 
-from bleak import BleakClient
+from bleak import BleakClient, BleakScanner
 
 from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
@@ -213,19 +213,59 @@ class Device(Thread):
         except Exception as e:
             log.error(e)
 
+    def filter_macaddress(self, device):
+        macaddress, device = device
+        if macaddress == self.mac_address:
+            return True
+
+        return False
+
     async def run_client(self):
-        while not self.stopped and not self.client.is_connected:
-            await self.connect_to_device()
+        if self.config['extension'] != 'BytesBLEAdvConverter':
+            # default mode
+            while not self.stopped and not self.client.is_connected:
+                await self.connect_to_device()
 
-            sleep(.2)
+                sleep(.2)
 
-        if self.client and self.client.is_connected:
-            log.info('Connected to %s device', self.name)
+            if self.client and self.client.is_connected:
+                log.info('Connected to %s device', self.name)
 
-            if self.show_map:
-                await self.__show_map()
+                if self.show_map:
+                    await self.__show_map()
 
-            await self.timer()
+                await self.timer()
+        else:
+            log.info('Device will work in advertisement mode')
+
+            while not self.stopped:
+                devices = await BleakScanner(scanning_mode="active").discover(timeout=self.timeout, return_adv=True)
+
+                try:
+                    device = tuple(filter(self.filter_macaddress, devices.items()))[0][-1]
+                except IndexError:
+                    log.error('Device with MAC address %s not found!', self.mac_address)
+                    continue
+
+                try:
+                    advertisement_data = list(device[-1].manufacturer_data.values())[0]
+                except (IndexError, AttributeError):
+                    log.error('Device %s haven\'t advertisement data', self.name)
+                    continue
+                data_for_converter = {
+                    'deviceName': self.name,
+                    'deviceType': self.device_type,
+                    'converter': self.__converter,
+                    'config': {
+                        'attributes': self.config['attributes'],
+                        'telemetry': self.config['telemetry']
+                    },
+                    'data': advertisement_data
+                }
+
+                self.callback(data_for_converter)
+
+                sleep(self.poll_period)
 
     def run(self):
         self.loop = asyncio.new_event_loop()
