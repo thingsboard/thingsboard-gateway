@@ -253,13 +253,14 @@ class OdbcConnector(Connector, Thread):
             if not device_type:
                 device_type = self.__config["mapping"]["device"].get("type", "default")
 
-            if device_name not in self.__devices:
-                self.__devices[device_name] = {"attributes": {}, "telemetry": {}}
-                self.__gateway.add_device(device_name, {"connector": self},
-                                          device_type=device_type)
+            if to_send["telemetry"] or to_send["attributes"]:
+                if device_name not in self.__devices:
+                    self.__devices[device_name] = {"attributes": {}, "telemetry": {}}
+                    self.__gateway.add_device(device_name, {"connector": self},
+                                              device_type=device_type)
 
-            self.__iterator["value"] = getattr(row, self.__iterator["name"])
-            self.__check_and_send(device_name, device_type, to_send)
+                self.__iterator["value"] = getattr(row, self.__iterator["name"])
+                self.__check_and_send(device_name, device_type, to_send)
         except Exception as e:
             log.warning("[%s] Failed to process database row: %s", self.get_name(), str(e))
 
