@@ -40,7 +40,7 @@ class DuplicateDetector:
 
     def filter_data(self, connector_name, new_data):
         in_data_filter_enabled = new_data.get(SEND_ON_CHANGE_PARAMETER)
-        if isinstance(in_data_filter_enabled, bool) and not in_data_filter_enabled:
+        if not in_data_filter_enabled or not isinstance(in_data_filter_enabled, bool):
             return new_data
 
         ttl = new_data.get(SEND_ON_CHANGE_TTL_PARAMETER)
