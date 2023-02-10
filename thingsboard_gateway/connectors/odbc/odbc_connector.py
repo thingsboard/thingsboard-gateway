@@ -275,12 +275,25 @@ class OdbcConnector(Connector, Thread):
         self.statistics['MessagesReceived'] += 1
         to_send = {"attributes": [], "telemetry": []}
         send_on_change = self.__config["mapping"].get("sendDataOnlyOnChange", self.DEFAULT_SEND_IF_CHANGED)
+        send_on_change_attributes = self.__config["mapping"].get("sendDataOnlyOnChangeAttributes")
+        send_on_change_telemetry = self.__config["mapping"].get("sendDataOnlyOnChangeTelemetry")
 
-        for tb_key in to_send.keys():
-            for key, new_value in new_data[tb_key].items():
-                if not send_on_change or self.__devices[device_name][tb_key].get(key, None) != new_value:
-                    self.__devices[device_name][tb_key][key] = new_value
-                    to_send[tb_key].append({key: new_value})
+        if send_on_change_attributes is None and send_on_change_telemetry is None:
+            for tb_key in to_send.keys():
+                for key, new_value in new_data[tb_key].items():
+                    if not send_on_change or self.__devices[device_name][tb_key].get(key, None) != new_value:
+                        self.__devices[device_name][tb_key][key] = new_value
+                        to_send[tb_key].append({key: new_value})
+        else:
+            for key, new_value in new_data["attributes"].items():
+                if not send_on_change_attributes or self.__devices[device_name]["attributes"].get(key, None) != new_value:
+                    self.__devices[device_name]["attributes"][key] = new_value
+                    to_send["attributes"].append({key: new_value})
+
+            for key, new_value in new_data["telemetry"].items():
+                if not send_on_change_telemetry or self.__devices[device_name]["telemetry"].get(key, None) != new_value:
+                    self.__devices[device_name]["telemetry"][key] = new_value
+                    to_send["telemetry"].append({key: new_value})
 
         if to_send["attributes"] or to_send["telemetry"]:
             to_send["deviceName"] = device_name
