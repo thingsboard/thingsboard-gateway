@@ -3,25 +3,22 @@ thingsboard:
   port: 1883
   remoteShell: false
   remoteConfiguration: false
-  statsSendPeriodInSeconds: 3600
+  statistics:
+    enable: true
+    statsSendPeriodInSeconds: 3600
   minPackSendDelayMS: 0
   checkConnectorsConfigurationInSeconds: 60
+  handleDeviceRenaming: true
+  checkingDeviceActivity:
+    checkDeviceInactivity: false
+    inactivityTimeoutSeconds: 120
+    inactivityCheckPeriodSeconds: 10
   security:
     accessToken: jl67DQyjb5LLYsIoz2GA
-  qos: 1
 storage:
   type: memory
-  read_records_count: 100
-  max_records_count: 100000
-#  type: file
-#  data_folder_path: ./data/
-#  max_file_count: 10
-#  max_read_records_count: 10
-#  max_records_per_file: 10000
-#  type: sqlite
-#  data_file_path: ./data/data.db
-#  messages_ttl_check_in_hours: 1
-#  messages_ttl_in_days: 7
+  read_records_count: 10
+  max_records_count: 1000
 grpc:
   enabled: false
   serverPort: 9595
@@ -32,10 +29,50 @@ grpc:
   minTimeBetweenPingsMs: 10000
   minPingIntervalWithoutDataMs: 5000
 connectors:
+
   -
     name: MQTT Broker Connector
     type: mqtt
     configuration: mqtt.json
+
+# thingsboard:
+#   host: thingsboard.cloud
+#   port: 1883
+#   remoteShell: false
+#   remoteConfiguration: false
+#   statsSendPeriodInSeconds: 3600
+#   minPackSendDelayMS: 0
+#   checkConnectorsConfigurationInSeconds: 60
+#   security:
+#     accessToken: jl67DQyjb5LLYsIoz2GA
+#   qos: 1
+# storage:
+#   type: memory
+#   read_records_count: 100
+#   max_records_count: 100000
+#  type: file
+#  data_folder_path: ./data/
+#  max_file_count: 10
+#  max_read_records_count: 10
+#  max_records_per_file: 10000
+#  type: sqlite
+#  data_file_path: ./data/data.db
+#  messages_ttl_check_in_hours: 1
+#  messages_ttl_in_days: 7
+# grpc:
+#   enabled: false
+#   serverPort: 9595
+#   keepaliveTimeMs: 10000
+#   keepaliveTimeoutMs: 5000
+#   keepalivePermitWithoutCalls: true
+#   maxPingsWithoutData: 0
+#   minTimeBetweenPingsMs: 10000
+#   minPingIntervalWithoutDataMs: 5000
+# connectors:
+#   -
+#     name: MQTT Broker Connector
+#     type: mqtt
+#     configuration: mqtt.json
 
 #  -
 #    name: Modbus Connector
