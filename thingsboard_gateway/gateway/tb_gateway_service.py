@@ -300,6 +300,13 @@ class TBGatewayService:
         self._watchers_thread = Thread(target=self._watchers, name='Watchers', daemon=True)
         self._watchers_thread.start()
 
+        if path.exists('/tmp/gateway'):
+            try:
+                # deleting old manager if it was closed incorrectly
+                system('rm -rf /tmp/gateway')
+            except OSError as e:
+                log.exception(e)
+
         self.manager = GatewayManager(address='/tmp/gateway', authkey=b'gateway')
         GatewayManager.register('get_gateway', self.get_gateway, proxytype=AutoProxy, exposed=self.EXPOSED_GETTERS,
                                 create_method=False)
