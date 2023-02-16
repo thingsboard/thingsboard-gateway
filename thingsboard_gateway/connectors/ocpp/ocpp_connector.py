@@ -27,7 +27,6 @@ from simplejson import dumps
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.connectors.ocpp.charge_point import ChargePoint
 
 try:
     import ocpp
@@ -44,6 +43,7 @@ except ImportError:
     import websockets
 
 from ocpp.v16 import call
+from thingsboard_gateway.connectors.ocpp.charge_point import ChargePoint
 
 
 class NotAuthorized(Exception):
