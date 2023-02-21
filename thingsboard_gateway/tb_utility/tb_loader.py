@@ -53,7 +53,7 @@ class TBModuleLoader:
                 current_extension_path = current_path + path.sep + extension_type
                 if path.exists(current_extension_path):
                     for file in listdir(current_extension_path):
-                        if not file.startswith('__') and file.endswith('.py'):
+                        if not file.startswith('__') and (file.endswith('.py') or file.endswith('.pyc')):
                             try:
                                 module_spec = spec_from_file_location(module_name, current_extension_path + path.sep + file)
                                 log.debug(module_spec)
