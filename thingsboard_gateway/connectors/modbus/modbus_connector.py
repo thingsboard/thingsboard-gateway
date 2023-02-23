@@ -18,6 +18,8 @@ from queue import Queue
 from random import choice
 from string import ascii_lowercase
 
+from pymodbus.pdu import ExceptionResponse
+
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 # Try import Pymodbus library or install it and import
@@ -52,7 +54,7 @@ from pymodbus.client import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient
 from pymodbus.framer.rtu_framer import ModbusRtuFramer
 from pymodbus.framer.socket_framer import ModbusSocketFramer
 from pymodbus.framer.ascii_framer import ModbusAsciiFramer
-from pymodbus.exceptions import ConnectionException
+from pymodbus.exceptions import ConnectionException, ModbusIOException
 from pymodbus.server import StartTcpServer, StartUdpServer, StartSerialServer, ServerStop
 from pymodbus.device import ModbusDeviceIdentification
 from pymodbus.version import version
@@ -319,6 +321,13 @@ class ModbusConnector(Connector, Thread):
                                 current_data = current_device_config[config_section][interested_data]
                                 current_data[DEVICE_NAME_PARAMETER] = device
                                 input_data = self.__function_to_device(device, current_data)
+
+                                # due to issue #1056
+                                if isinstance(input_data, ModbusIOException) or isinstance(input_data, ExceptionResponse):
+                                    device.config.pop('master', None)
+                                    self.__connect_to_current_master(device)
+                                    break
+
                                 device_responses[config_section][current_data[TAG_PARAMETER]] = {
                                     "data_sent": current_data,
                                     "input_data": input_data}
