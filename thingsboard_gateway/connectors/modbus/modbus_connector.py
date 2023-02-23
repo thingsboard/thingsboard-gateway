@@ -18,8 +18,6 @@ from queue import Queue
 from random import choice
 from string import ascii_lowercase
 
-from pymodbus.pdu import ExceptionResponse
-
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 # Try import Pymodbus library or install it and import
@@ -60,6 +58,7 @@ from pymodbus.device import ModbusDeviceIdentification
 from pymodbus.version import version
 from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
 from pymodbus.datastore import ModbusSparseDataBlock
+from pymodbus.pdu import ExceptionResponse
 
 from thingsboard_gateway.connectors.connector import Connector, log
 from thingsboard_gateway.connectors.modbus.constants import *
