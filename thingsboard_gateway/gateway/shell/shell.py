@@ -5,6 +5,7 @@ import multiprocessing.managers
 from re import findall
 from threading import Thread
 from time import sleep
+from platform import system as platform_system
 
 from thingsboard_gateway.gateway.shell.proxy import AutoProxy
 from thingsboard_gateway.gateway.tb_gateway_service import GatewayManager
@@ -79,7 +80,10 @@ class Shell(cmd.Cmd, Thread):
         self.stdout.write('Establish connection...\n')
         while elapsed_time <= timeout:
             try:
-                gateway_manager = GatewayManager(address='/tmp/gateway', authkey=b'gateway')
+                manager_address = '/tmp/gateway'
+                if platform_system() == 'Windows':
+                    manager_address = ('127.0.0.1', 9999)
+                gateway_manager = GatewayManager(address=manager_address, authkey=b'gateway')
                 gateway_manager.connect()
                 GatewayManager.register('get_gateway', proxytype=AutoProxy)
                 GatewayManager.register('gateway')
