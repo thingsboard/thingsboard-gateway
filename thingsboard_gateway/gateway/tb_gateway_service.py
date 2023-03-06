@@ -26,6 +26,7 @@ from string import ascii_lowercase, hexdigits
 from sys import argv, executable, getsizeof
 from threading import RLock, Thread
 from time import sleep, time
+from platform import system as platform_system
 
 import simplejson
 from simplejson import JSONDecodeError, dumps, load, loads
@@ -307,7 +308,11 @@ class TBGatewayService:
             except OSError as e:
                 log.exception(e)
 
-        self.manager = GatewayManager(address='/tmp/gateway', authkey=b'gateway')
+        manager_address = '/tmp/gateway'
+        if platform_system() == 'Windows':
+            manager_address = ('127.0.0.1', 9999)
+
+        self.manager = GatewayManager(address=manager_address, authkey=b'gateway')
         GatewayManager.register('get_gateway', self.get_gateway, proxytype=AutoProxy, exposed=self.EXPOSED_GETTERS,
                                 create_method=False)
         self.server = self.manager.get_server()
