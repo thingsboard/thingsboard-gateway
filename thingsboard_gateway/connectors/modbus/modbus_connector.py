@@ -313,6 +313,9 @@ class ModbusConnector(Connector, Thread):
 
                             if not device.config['master'].is_socket_open() or not len(
                                     current_device_config[config_section]):
+                                error = 'Socket is closed' if not device.config[
+                                    'master'].is_socket_open() else 'Config is invalid'
+                                log.error(error)
                                 continue
 
                             # Reading data from device
