@@ -21,6 +21,7 @@ Welcome to VarIoT's documentation!
    remote_gateway_development/index
    flask_portal/index
    devices/index
+   thingsboard/index
 
 
 Indices and tables
