@@ -94,7 +94,8 @@ class RequestConnector(Connector, Thread):
                     response_queue = Queue(1)
                     request_dict = {"config": {**attribute_request,
                                                **converted_data},
-                                    "request": request}
+                                    "request": request,
+                                    "withResponse": True}
                     attribute_update_request_thread = Thread(target=self.__send_request,
                                                              args=(request_dict, response_queue, log),
                                                              daemon=True,

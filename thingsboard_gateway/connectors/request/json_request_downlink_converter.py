@@ -33,10 +33,10 @@ class JsonRequestDownlinkConverter(RequestConverter):
 
                 result = {
                     "url": self.__config["requestUrlExpression"].replace("${attributeKey}", quote(attribute_key))
-                                                                .replace("${attributeValue}", quote(attribute_value))
+                                                                .replace("${attributeValue}", quote(str(attribute_value)))
                                                                 .replace("${deviceName}", quote(data["device"])),
                     "data": self.__config["requestValueExpression"].replace("${attributeKey}", quote(attribute_key))
-                                                                   .replace("${attributeValue}", quote(attribute_value))
+                                                                   .replace("${attributeValue}", quote(str(attribute_value)))
                                                                    .replace("${deviceName}", quote(data["device"]))
                 }
             else:

@@ -137,7 +137,7 @@
       "deviceNameFilter": "SD.*",
       "attributeFilter": "send_data",
       "requestUrlExpression": "sensor/${deviceName}/${attributeKey}",
-      "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
+      "requestValueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
     }
   ],
   "serverSideRpc": [
