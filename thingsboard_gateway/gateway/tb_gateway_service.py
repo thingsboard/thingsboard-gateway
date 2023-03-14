@@ -339,7 +339,7 @@ class TBGatewayService:
                 if self.tb_client.is_connected() and not self.__subscribed_to_rpc_topics:
                     for device in self.__saved_devices:
                         self.add_device(device, {"connector": self.__saved_devices[device]["connector"]},
-                                        device_type=self.__saved_devices[device]["device_type"])
+                                        device_type=self.__saved_devices[device]["device_type"], reconnect=True)
                     self.subscribe_to_required_topics()
                     self.__subscribed_to_rpc_topics = True
 
@@ -1189,8 +1189,8 @@ class TBGatewayService:
         else:
             return Status.FAILURE
 
-    def add_device(self, device_name, content, device_type=None):
-        if device_name not in self.__saved_devices:
+    def add_device(self, device_name, content, device_type=None, reconnect=False):
+        if device_name not in self.__saved_devices or reconnect:
             device_type = device_type if device_type is not None else 'default'
             self.__connected_devices[device_name] = {**content, "device_type": device_type}
             self.__saved_devices[device_name] = {**content, "device_type": device_type}
