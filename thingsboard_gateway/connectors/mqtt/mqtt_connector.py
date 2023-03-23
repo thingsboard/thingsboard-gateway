@@ -35,7 +35,7 @@ try:
     from paho.mqtt.client import Client
 except ImportError:
     print("paho-mqtt library not found")
-    TBUtility.install_package("paho-mqtt", version=">=1.6")
+    TBUtility.install_package("tb-paho-mqtt-client")
     from paho.mqtt.client import Client
 
 from paho.mqtt.client import MQTTv31, MQTTv311, MQTTv5
