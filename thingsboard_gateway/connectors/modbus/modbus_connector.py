@@ -48,12 +48,12 @@ from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoi
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
 from pymodbus.register_read_message import ReadRegistersResponseBase
 from pymodbus.bit_read_message import ReadBitsResponseBase
-from pymodbus.client import ModbusTcpClient, ModbusUdpClient, ModbusSerialClient
+from pymodbus.client import ModbusTcpClient, ModbusTlsClient, ModbusUdpClient, ModbusSerialClient
 from pymodbus.framer.rtu_framer import ModbusRtuFramer
 from pymodbus.framer.socket_framer import ModbusSocketFramer
 from pymodbus.framer.ascii_framer import ModbusAsciiFramer
 from pymodbus.exceptions import ConnectionException, ModbusIOException
-from pymodbus.server import StartTcpServer, StartUdpServer, StartSerialServer, ServerStop
+from pymodbus.server import StartTcpServer, StartTlsServer, StartUdpServer, StartSerialServer, ServerStop
 from pymodbus.device import ModbusDeviceIdentification
 from pymodbus.version import version
 from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
@@ -74,6 +74,7 @@ FRAMER_TYPE = {
 }
 SLAVE_TYPE = {
     'tcp': StartTcpServer,
+    'tls': StartTlsServer,
     'udp': StartUdpServer,
     'serial': StartSerialServer
 }
@@ -187,7 +188,7 @@ class ModbusConnector(Connector, Thread):
                                    address=(config.get('host'), config.get('port')) if (
                                            config['type'] == 'tcp' or 'udp') else None,
                                    port=config.get('port') if config['type'] == 'serial' else None,
-                                   framer=FRAMER_TYPE[config['method']])
+                                   framer=FRAMER_TYPE[config['method']], **config.get('security', {}))
 
     def __modify_main_config(self):
         config = self.__config['slave']
@@ -410,7 +411,16 @@ class ModbusConnector(Connector, Thread):
         current_config = config
         current_config["rtu"] = FRAMER_TYPE[current_config['method']]
 
-        if current_config.get('type') == 'tcp':
+        if current_config.get('type') == 'tcp' and current_config.get('tls'):
+            master = ModbusTlsClient(current_config["host"],
+                                     current_config["port"],
+                                     current_config["rtu"],
+                                     timeout=current_config["timeout"],
+                                     retry_on_empty=current_config["retry_on_empty"],
+                                     retry_on_invalid=current_config["retry_on_invalid"],
+                                     retries=current_config["retries"],
+                                     **current_config['tls'])
+        elif current_config.get('type') == 'tcp':
             master = ModbusTcpClient(current_config["host"],
                                      current_config["port"],
                                      current_config["rtu"],
