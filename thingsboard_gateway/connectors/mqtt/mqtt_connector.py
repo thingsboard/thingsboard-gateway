@@ -844,6 +844,9 @@ class MqttConnector(Connector, Thread):
         log.info("RPC canceled or terminated. Unsubscribing from %s", topic)
         self._client.unsubscribe(topic)
 
+    def get_converters(self):
+        return self.__mapping_sub_topics
+
     class ConverterWorker(Thread):
         def __init__(self, name, incoming_queue, send_result):
             super().__init__()
