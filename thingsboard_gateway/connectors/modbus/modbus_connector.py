@@ -656,6 +656,24 @@ class ModbusConnector(Connector, Thread):
     def get_config(self):
         return self.__config
 
+    def update_converter_config(self, converter_name, config):
+        log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
+                  config)
+        for slave in self.__slaves:
+            try:
+                if slave.config[UPLINK_PREFIX + CONVERTER_PARAMETER].__class__.__name__ == converter_name:
+                    slave.config.update(config)
+                    log.info('Updated converter configuration for: %s with configuration %s',
+                             converter_name, config)
+
+                    for slave_config in self.__config['master']['slaves']:
+                        if slave_config['deviceName'] == slave.name:
+                            slave_config.update(config)
+
+                    self.__gateway.update_connector_config_file(self.name, self.__config)
+            except KeyError:
+                continue
+
     class ConverterWorker(Thread):
         def __init__(self, name, incoming_queue, send_result):
             super().__init__()

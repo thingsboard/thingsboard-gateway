@@ -28,12 +28,12 @@ class Device:
             'attributes': []
         }
 
-        self.__load_values()
+        self.load_values()
 
     def __repr__(self):
         return f'{self.path}'
 
-    def __load_values(self):
+    def load_values(self):
         for section in ('attributes', 'timeseries'):
             for node_config in self.config.get(section, []):
                 try:

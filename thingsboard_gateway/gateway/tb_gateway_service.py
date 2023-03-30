@@ -471,6 +471,7 @@ class TBGatewayService:
     def __process_attribute_update(self, content):
         self.__process_remote_logging_update(content.get("RemoteLoggingLevel"))
         self.__process_remote_configuration(content.get("configuration"))
+        self.__process_remote_converter_configuration_update(content)
 
     def __process_attributes_response(self, shared_attributes, client_attributes):
         self.__process_remote_logging_update(shared_attributes.get('RemoteLoggingLevel'))
@@ -486,6 +487,27 @@ class TBGatewayService:
                 self.remote_handler.activate(remote_logging_level)
                 log.info('Remote logging has being updated. Current logging level is: %s ',
                          remote_logging_level)
+
+    def __process_remote_converter_configuration_update(self, content: dict):
+        try:
+            key = list(content.keys())[0]
+            connector_name, converter_name = key.split(':')
+            log.info('Got remote converter configuration update')
+            if not self.available_connectors.get(connector_name):
+                raise ValueError
+
+            self.available_connectors[connector_name].update_converter_config(converter_name, content[key])
+        except (ValueError, AttributeError, IndexError) as e:
+            log.exception(e)
+
+    def update_connector_config_file(self, connector_name, config):
+        for connector in self.__config['connectors']:
+            if connector['name'] == connector_name:
+                with open(self._config_dir + connector['configuration'], 'w', encoding='UTF-8') as file:
+                    file.writelines(dumps(config))
+
+                log.info('Updated %s configuration file', connector_name)
+                return
 
     def __process_deleted_gateway_devices(self, deleted_device_name: str):
         log.info("Received deleted gateway device notification: %s", deleted_device_name)
