@@ -845,7 +845,32 @@ class MqttConnector(Connector, Thread):
         self._client.unsubscribe(topic)
 
     def get_converters(self):
-        return self.__mapping_sub_topics
+        return [item[0] for _, item in self.__mapping_sub_topics.items()]
+
+    def update_converter_config(self, converter_name, config):
+        self.__log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
+                         config)
+        converters = self.get_converters()
+        for converter_class_obj in converters:
+            converter_class_name = converter_class_obj.__class__.__name__
+            converter_obj = converter_class_obj
+            if converter_class_name == converter_name:
+                converter_obj.config = config
+                log.info('Updated converter configuration for: %s with configuration %s',
+                         converter_name, converter_obj.config)
+
+                for device_config in self.config['mapping']:
+                    try:
+                        if device_config['converter']['deviceNameJsonExpression'] == config['deviceNameJsonExpression']:
+                            device_config['converter'].update(config)
+
+                        if device_config['converter']['deviceNameTopicExpression'] == config[
+                            'deviceNameTopicExpression']:
+                            device_config['converter'].update(config)
+                    except KeyError:
+                        continue
+
+                self.__gateway.update_connector_config_file(self.name, self.config)
 
     class ConverterWorker(Thread):
         def __init__(self, name, incoming_queue, send_result):

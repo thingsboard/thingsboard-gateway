@@ -496,18 +496,18 @@ class TBGatewayService:
             if not self.available_connectors.get(connector_name):
                 raise ValueError
 
-            converters = self.available_connectors[connector_name].get_converters()
-            for (_, converter_class_name_list) in converters.items():
-                converter_class_name = converter_class_name_list[0].__class__.__name__
-                converter_obj = converter_class_name_list[0]
-                if converter_class_name == converter_name:
-                    converter_obj.config = content[key]
-                    log.info('Updated converter configuration for: %s with configuration %s',
-                             converter_name, converter_obj.config)
-        # TODO: log correct exception
+            self.available_connectors[connector_name].update_converter_config(converter_name, content[key])
         except (ValueError, AttributeError, IndexError) as e:
             log.exception(e)
-            return
+
+    def update_connector_config_file(self, connector_name, config):
+        for connector in self.__config['connectors']:
+            if connector['name'] == connector_name:
+                with open(self._config_dir + connector['configuration'], 'w', encoding='UTF-8') as file:
+                    file.writelines(dumps(config))
+
+                log.info('Updated %s configuration file', connector_name)
+                return
 
     def __process_deleted_gateway_devices(self, deleted_device_name: str):
         log.info("Received deleted gateway device notification: %s", deleted_device_name)

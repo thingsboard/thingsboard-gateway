@@ -524,6 +524,21 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         except Exception as e:
             result['error'] = e.__str__()
 
+    def update_converter_config(self, converter_name, config):
+        log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
+                  config)
+        for device in self.__device_nodes:
+            if device.converter.__class__.__name__ == converter_name:
+                device.config.update(config)
+                device.load_values()
+                log.info('Updated converter configuration for: %s with configuration %s',
+                         converter_name, device.config)
+
+                for node_config in self.__server_conf['mapping']:
+                    if node_config['deviceNodePattern'] == device.config['deviceNodePattern']:
+                        node_config.update(config)
+
+                self.__gateway.update_connector_config_file(self.name, {'server': self.__server_conf})
 
 class SubHandler:
     def __init__(self, queue):

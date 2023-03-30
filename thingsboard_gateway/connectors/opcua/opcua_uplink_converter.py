@@ -25,6 +25,14 @@ class OpcUaUplinkConverter(OpcUaConverter):
     def __init__(self, config):
         self.__config = config
 
+    @property
+    def config(self):
+        return self.__config
+
+    @config.setter
+    def config(self, value):
+        self.__config = value
+
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
     def convert(self, config, val, data=None, key=None):

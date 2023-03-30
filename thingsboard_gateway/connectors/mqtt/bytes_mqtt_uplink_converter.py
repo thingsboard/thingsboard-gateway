@@ -15,6 +15,10 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
     def config(self):
         return self.__config
 
+    @config.setter
+    def config(self, value):
+        self.__config = value
+
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
     def convert(self, topic, data):

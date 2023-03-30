@@ -661,6 +661,26 @@ class OpcUaConnector(Thread, Connector):
     def get_config(self):
         return self.__server_conf
 
+    def get_converters(self):
+        return [item['converter'] for _, item in self.subscribed.items()]
+
+    def update_converter_config(self, converter_name, config):
+        log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
+                         config)
+        converters = self.get_converters()
+        for converter_class_obj in converters:
+            converter_class_name = converter_class_obj.__class__.__name__
+            converter_obj = converter_class_obj
+            if converter_class_name == converter_name:
+                converter_obj.config = config
+                log.info('Updated converter configuration for: %s with configuration %s',
+                         converter_name, converter_obj.config)
+
+                for node_config in self.__server_conf['mapping']:
+                    if node_config['deviceNodePattern'] == config['deviceNodePattern']:
+                        node_config.update(config)
+
+                self.__gateway.update_connector_config_file(self.name, {'server': self.__server_conf})
 
 class SubHandler(object):
     def __init__(self, connector: OpcUaConnector):

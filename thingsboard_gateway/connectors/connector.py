@@ -49,10 +49,6 @@ class Connector(ABC):
     def server_side_rpc_handler(self, content):
         pass
 
-    @abstractmethod
-    def get_converters(self):
-        pass
-
     def is_filtering_enable(self, device_name):
         return DEFAULT_SEND_ON_CHANGE_VALUE
 
