@@ -12,8 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 import datetime
-import random
-import string
 from logging import getLogger
 from re import search, findall
 
