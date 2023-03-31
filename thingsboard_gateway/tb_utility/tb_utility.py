@@ -12,10 +12,13 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 import datetime
+import random
+import string
 from logging import getLogger
 from re import search, findall
 
 from cryptography import x509
+from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
@@ -176,12 +179,14 @@ class TBUtility:
         return list(dictionary.values())[list(dictionary.values()).index(value)]
 
     @staticmethod
-    def generate_certificate(old_certificate_path, old_key_path, old_certificate):
+    def generate_certificate(old_certificate_path, old_key_path, old_certificate=None):
         key = ec.generate_private_key(ec.SECP256R1())
         public_key = key.public_key()
         builder = x509.CertificateBuilder()
-        builder = builder.subject_name(old_certificate.subject)
-        builder = builder.issuer_name(old_certificate.issuer)
+        builder = builder.subject_name(old_certificate.subject if old_certificate else x509.Name(
+            [x509.NameAttribute(NameOID.COMMON_NAME, u'localhost'), ]))
+        builder = builder.issuer_name(old_certificate.issuer if old_certificate else x509.Name(
+            [x509.NameAttribute(NameOID.COMMON_NAME, u'localhost'), ]))
         builder = builder.not_valid_before(datetime.datetime.today() - datetime.timedelta(days=1))
         builder = builder.not_valid_after(datetime.datetime.today() + (datetime.timedelta(1, 0, 0) * 365))
         builder = builder.serial_number(x509.random_serial_number())
