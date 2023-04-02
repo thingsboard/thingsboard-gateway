@@ -124,6 +124,8 @@ class MqttConnector(Connector, Thread):
         self.__attribute_requests = []
         self.__attribute_updates = []
 
+        self.__cached_custom_converters = {}
+
         mandatory_keys = {
             "mapping": ['topicFilter', 'converter'],
             "serverSideRpc": ['deviceNameFilter', 'methodFilter', 'requestTopicExpression', 'valueExpression'],
@@ -355,15 +357,26 @@ class MqttConnector(Connector, Thread):
                         self.__log.error('Converter type or extension class should be configured!')
                         continue
 
-                    # Find and load required class
-                    module = TBModuleLoader.import_module(self._connector_type, converter_class_name)
-                    if module:
-                        self.__log.debug('Converter %s for topic %s - found!', converter_class_name,
-                                         mapping["topicFilter"])
-                        converter = module(mapping)
+                    converter = None
+                    need_cache = mapping["converter"].get("type") == "custom" and mapping["converter"].get("cached", False)
+                    if need_cache:
+                        converter = self.__cached_custom_converters.get(converter_class_name)
+
+                    if not converter:
+                        # Find and load required class
+                        module = TBModuleLoader.import_module(self._connector_type, converter_class_name)
+                        if module:
+                            self.__log.debug('Converter %s for topic %s - found!', converter_class_name,
+                                             mapping["topicFilter"])
+                            converter = module(mapping)
+                            if need_cache:
+                                self.__cached_custom_converters[converter_class_name] = converter
+                        else:
+                            self.__log.error("Cannot find converter for %s topic", mapping["topicFilter"])
+                            continue
                     else:
-                        self.__log.error("Cannot find converter for %s topic", mapping["topicFilter"])
-                        continue
+                        self.__log.debug('Converter %s for topic %s - found in cache!', converter_class_name,
+                                         mapping["topicFilter"])
 
                     # Setup regexp topic acceptance list ---------------------------------------------------------------
                     # Check if topic is shared subscription type

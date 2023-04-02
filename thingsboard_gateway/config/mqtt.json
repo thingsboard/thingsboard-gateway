@@ -112,6 +112,7 @@
       "converter": {
         "type": "custom",
         "extension": "CustomMqttUplinkConverter",
+        "cached": true,
         "extension-config": {
           "temperatureBytes": 2,
           "humidityBytes": 2,
