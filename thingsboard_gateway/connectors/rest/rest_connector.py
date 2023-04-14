@@ -502,7 +502,8 @@ class AnonymousDataHandler(BaseDataHandler):
             return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
                                 status=405)
 
-        data = json_data if json_data else dict(request.query)
+        json_data.update(dict(request.query))
+        data = json_data
 
         # check if request is Attribute Request type
         result = self.process_attribute_request(data)
@@ -550,7 +551,8 @@ class BasicDataHandler(BaseDataHandler):
                 return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
                                     status=405)
 
-            data = json_data if json_data else dict(request.query)
+            json_data.update(dict(request.query))
+            data = json_data
 
             # check if request is Attribute Request type
             result = self.process_attribute_request(data)
