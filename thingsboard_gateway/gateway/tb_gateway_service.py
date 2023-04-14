@@ -470,12 +470,12 @@ class TBGatewayService:
 
     def __process_attribute_update(self, content):
         self.__process_remote_logging_update(content.get("RemoteLoggingLevel"))
-        self.__process_remote_configuration(content.get("configuration"))
+        self.__process_remote_configuration(content)
         self.__process_remote_converter_configuration_update(content)
 
     def __process_attributes_response(self, shared_attributes, client_attributes):
         self.__process_remote_logging_update(shared_attributes.get('RemoteLoggingLevel'))
-        self.__process_remote_configuration(shared_attributes.get("configuration"))
+        self.__process_remote_configuration(shared_attributes)
 
     def __process_remote_logging_update(self, remote_logging_level):
         if remote_logging_level == 'NONE':
@@ -498,7 +498,7 @@ class TBGatewayService:
 
             self.available_connectors[connector_name].update_converter_config(converter_name, content[key])
         except (ValueError, AttributeError, IndexError) as e:
-            log.exception(e)
+            log.debug('Failed to process remote converter update: %s', e)
 
     def update_connector_config_file(self, connector_name, config):
         for connector in self.__config['connectors']:
@@ -546,7 +546,9 @@ class TBGatewayService:
     def __process_remote_configuration(self, new_configuration):
         if new_configuration is not None and self.__remote_configurator is not None:
             try:
-                self.__remote_configurator.process_configuration(new_configuration)
+                self.__remote_configurator.process_configuration(
+                    general_configuration=new_configuration.get('configuration'),
+                    connectors_configuration=new_configuration.get('implementedConnectors'))
                 self.__remote_configurator.send_current_configuration()
             except Exception as e:
                 log.exception(e)

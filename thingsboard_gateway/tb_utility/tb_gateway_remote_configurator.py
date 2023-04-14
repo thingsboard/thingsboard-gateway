@@ -43,42 +43,50 @@ class RemoteConfigurator:
         self.__new_logs_configuration = None
         self.__old_connectors_configs = {}
         self.__new_connectors_configs = {}
+        self.__connectors_config = []
         self.__old_general_configuration_file = config
         self.__new_general_configuration_file = {}
         self.__old_event_storage = None
         self.__new_event_storage = None
         self.in_process = False
 
-    def process_configuration(self, configuration):
+    def process_configuration(self, general_configuration=None, connectors_configuration=None):
         try:
             if not self.in_process:
                 self.in_process = True
                 # while not self.__gateway._published_events.empty():
                 #     LOG.debug("Waiting for end of the data processing...")
                 #     sleep(1)
-                decoded_configuration = b64decode(configuration)
-                self.__new_configuration = loads(decoded_configuration)
-                self.__old_connectors_configs = self.__gateway.connectors_configs
-                self.__new_general_configuration_file = self.__new_configuration.get("thingsboard")
-                
-                # To maintain RemoteShell status
-                if not isinstance(self.__old_configuration, dict):
-                    self.__old_configuration = loads(b64decode(self.__old_configuration))
-                if self.__old_configuration.get("thingsboard").get("thingsboard").get("remoteShell"):
-                    self.__new_configuration["thingsboard"]["thingsboard"]["remoteShell"] = True
-                    
-                self.__new_logs_configuration = b64decode(self.__new_general_configuration_file.pop("logs")).decode('UTF-8').replace('}}', '\n')
-                if self.__old_configuration != decoded_configuration:
-                    LOG.info("Remote configuration received: \n %s", decoded_configuration)
-                    result = self.__process_connectors_configuration()
-                    self.in_process = False
-                    if result:
-                        self.__old_configuration = self.__new_configuration
-                        return True
+                if general_configuration:
+                    decoded_configuration = b64decode(general_configuration)
+                    self.__new_configuration = loads(decoded_configuration)
+                    self.__old_connectors_configs = self.__gateway.connectors_configs
+                    self.__new_general_configuration_file = self.__new_configuration.get("thingsboard")
+
+                    # To maintain RemoteShell status
+                    if not isinstance(self.__old_configuration, dict):
+                        self.__old_configuration = loads(b64decode(self.__old_configuration))
+                    if self.__old_configuration.get("thingsboard").get("thingsboard").get("remoteShell"):
+                        self.__new_configuration["thingsboard"]["thingsboard"]["remoteShell"] = True
+
+                    self.__new_logs_configuration = b64decode(self.__new_general_configuration_file.pop("logs")).decode('UTF-8').replace('}}', '\n')
+                    if self.__old_configuration != decoded_configuration:
+                        LOG.info("Remote configuration received: \n %s", decoded_configuration)
+                        result = self.__process_connectors_configuration()
+                        self.in_process = False
+                        if result:
+                            self.__old_configuration = self.__new_configuration
+                            return True
+                        else:
+                            return False
                     else:
-                        return False
-                else:
-                    LOG.info("Remote configuration is the same.")
+                        LOG.info("Remote configuration is the same.")
+
+                if connectors_configuration:
+                    self.__old_general_configuration_file["connectors"] = []
+                    self.__connectors_config = connectors_configuration
+                    if self.__apply_new_connectors_configuration():
+                        self.__write_new_configuration_files()
             else:
                 LOG.error("Remote configuration is already in processing")
                 return False
@@ -108,8 +116,6 @@ class RemoteConfigurator:
 
     def __process_connectors_configuration(self):
         LOG.info("Processing remote connectors configuration...")
-        if self.__apply_new_connectors_configuration():
-            self.__write_new_configuration_files()
         self.__apply_storage_configuration()
         if self.__safe_apply_connection_configuration():
             LOG.info("Remote configuration has been applied.")
@@ -138,28 +144,28 @@ class RemoteConfigurator:
     def __prepare_connectors_configuration(self, input_connector_config):
         try:
             self.__gateway.connectors_configs = {}
-            for connector in input_connector_config['thingsboard']['connectors']:
-                for input_connector in input_connector_config[connector['type']]:
-                    if input_connector['name'] == connector['name']:
-                        if not self.__gateway.connectors_configs.get(connector['type']):
-                            self.__gateway.connectors_configs[connector['type']] = []
-                        config_file_path = self.__gateway.get_config_path() + connector['configuration']
-                        # Create the configuration json file if not exists
-                        open(config_file_path, 'w')
-                        self.__gateway.connectors_configs[connector['type']].append(
-                            {"name": connector["name"], 
-                            "config": {connector['configuration']: input_connector["config"]},
-                            "config_updated": stat(config_file_path),
-                            "config_file_path": config_file_path})
-                        connector_class = TBModuleLoader.import_module(connector["type"],
-                                                                       self.__gateway._default_connectors.get(connector["type"], connector.get("class")))
-                        self.__gateway._implemented_connectors[connector["type"]] = connector_class
+            for connector in input_connector_config:
+                if not self.__gateway.connectors_configs.get(connector['type']):
+                    self.__gateway.connectors_configs[connector['type']] = []
+                config_file_path = self.__gateway.get_config_path() + connector['configuration']
+                # Create the configuration json file if not exists
+                open(config_file_path, 'w')
+                self.__gateway.connectors_configs[connector['type']].append(
+                    {"name": connector["name"],
+                    "config": {connector['configuration']: connector['jsonConfiguration']},
+                    "config_updated": stat(config_file_path),
+                    "config_file_path": config_file_path})
+                connector_class = TBModuleLoader.import_module(connector["type"],
+                                                               self.__gateway._default_connectors.get(connector["type"],
+                                                                                                      connector.get(
+                                                                                                          "class")))
+                self.__gateway._implemented_connectors[connector["type"]] = connector_class
         except Exception as e:
             LOG.exception(e)
 
     def __apply_new_connectors_configuration(self):
         try:
-            self.__prepare_connectors_configuration(self.__new_configuration)
+            self.__prepare_connectors_configuration(self.__connectors_config)
             for connector_name in self.__gateway.available_connectors:
                 try:
                     self.__gateway.available_connectors[connector_name].close()
@@ -246,7 +252,8 @@ class RemoteConfigurator:
             self.__new_general_configuration_file = self.__old_general_configuration_file
             self.__gateway.tb_client.disconnect()
             self.__gateway.tb_client.stop()
-            self.__gateway.tb_client = TBClient(self.__old_general_configuration_file["thingsboard"])
+            self.__gateway.tb_client = TBClient(self.__old_general_configuration_file["thingsboard"],
+                                                self.__gateway.get_config_path())
             self.__gateway.tb_client.connect()
             self.__gateway.subscribe_to_required_topics()
             LOG.debug("%s connection has been restored", str(self.__gateway.tb_client.client._client))
