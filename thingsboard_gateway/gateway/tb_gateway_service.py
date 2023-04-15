@@ -696,7 +696,7 @@ class TBGatewayService:
                                                                                              connector_config["config"][
                                                                                                  config],
                                                                                              connector_type)
-                                    connector.setName(connector_config["name"])
+                                    connector.name = connector_config["name"]
                                     self.available_connectors[connector.get_name()] = connector
                                     connector.open()
                                 else:
