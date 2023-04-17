@@ -501,7 +501,7 @@ class TBGatewayService:
             log.error('Remote converter configuration update failed with exception:')
             log.exception(e)
         except IndexError:
-            pass
+            log.debug('Received unknown request with content: %s', content)
 
     def update_connector_config_file(self, connector_name, config):
         for connector in self.__config['connectors']:
