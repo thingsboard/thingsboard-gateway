@@ -98,6 +98,9 @@ RESULT_CODES_V5 = {
 
 
 class MqttConnector(Connector, Thread):
+    CONFIGURATION_KEY_SHARED_GLOBAL = "sharedGlobal"
+    CONFIGURATION_KEY_SHARED_ID = "sharedId"
+
     def __init__(self, gateway, config, connector_type):
         super().__init__()
 
@@ -124,7 +127,7 @@ class MqttConnector(Connector, Thread):
         self.__attribute_requests = []
         self.__attribute_updates = []
 
-        self.__cached_custom_converters = {}
+        self.__shared_custom_converters = {}
 
         mandatory_keys = {
             "mapping": ['topicFilter', 'converter'],
@@ -358,9 +361,17 @@ class MqttConnector(Connector, Thread):
                         continue
 
                     converter = None
-                    need_cache = mapping["converter"].get("type") == "custom" and mapping["converter"].get("cached", False)
-                    if need_cache:
-                        converter = self.__cached_custom_converters.get(converter_class_name)
+                    sharing_id = None
+                    if mapping["converter"].get("type") == "custom" or mapping["converter"].get("extension"):
+                        if mapping["converter"].get(self.CONFIGURATION_KEY_SHARED_GLOBAL, False):
+                            sharing_id = converter_class_name
+                        elif mapping["converter"].get(self.CONFIGURATION_KEY_SHARED_ID):
+                            sharing_id = mapping["converter"][self.CONFIGURATION_KEY_SHARED_ID]
+
+                        if sharing_id:
+                            converter = self.__shared_custom_converters.get(sharing_id)
+                            self.__log.debug('Converter %s for topic %s will use in sharing mode!', sharing_id,
+                                             mapping["topicFilter"])
 
                     if not converter:
                         # Find and load required class
@@ -369,8 +380,8 @@ class MqttConnector(Connector, Thread):
                             self.__log.debug('Converter %s for topic %s - found!', converter_class_name,
                                              mapping["topicFilter"])
                             converter = module(mapping)
-                            if need_cache:
-                                self.__cached_custom_converters[converter_class_name] = converter
+                            if sharing_id:
+                                self.__shared_custom_converters[sharing_id] = converter
                         else:
                             self.__log.error("Cannot find converter for %s topic", mapping["topicFilter"])
                             continue
