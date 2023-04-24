@@ -173,9 +173,9 @@ class MqttConnector(Connector, Thread):
             self._client = Client(client_id, protocol=MQTTv5)
             self._mqtt_version = 5
 
-        self.setName(config.get("name", self.__broker.get(
+        self.name = config.get("name", self.__broker.get(
             "name",
-            'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)))))
+            'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5))))
 
         if "username" in self.__broker["security"]:
             self._client.username_pw_set(self.__broker["security"]["username"],
@@ -441,6 +441,8 @@ class MqttConnector(Connector, Thread):
                                  result_codes[result_code])
             else:
                 self.__log.error("%s connection FAIL with unknown error!", self.get_name())
+
+        self._send_current_converter_config()
 
     def _on_disconnect(self, *args):
         self._connected = False
@@ -895,6 +897,14 @@ class MqttConnector(Connector, Thread):
                         continue
 
                 self.__gateway.update_connector_config_file(self.name, self.config)
+
+    def _send_current_converter_config(self):
+        for converter_obj in self.get_converters():
+            try:
+                self.__gateway.tb_client.client.send_attributes(
+                    {self.name + ':' + converter_obj.__class__.__name__: converter_obj.config})
+            except AttributeError:
+                continue
 
     class ConverterWorker(Thread):
         def __init__(self, name, incoming_queue, send_result):
