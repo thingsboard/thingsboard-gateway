@@ -49,50 +49,62 @@ class RemoteConfigurator:
         self.__old_event_storage = None
         self.__new_event_storage = None
         self.in_process = False
+        self.handlers = {
+            'configuration': self.__handle_general_config_update,
+            'implementedConnectors': self.__handle_connectors_config_update
+        }
 
-    def process_configuration(self, general_configuration=None, connectors_configuration=None):
+    def process_configuration(self, configuration):
         try:
             if not self.in_process:
                 self.in_process = True
                 # while not self.__gateway._published_events.empty():
                 #     LOG.debug("Waiting for end of the data processing...")
                 #     sleep(1)
-                if general_configuration:
-                    decoded_configuration = b64decode(general_configuration)
-                    self.__new_configuration = loads(decoded_configuration)
-                    self.__old_connectors_configs = self.__gateway.connectors_configs
-                    self.__new_general_configuration_file = self.__new_configuration.get("thingsboard")
 
-                    # To maintain RemoteShell status
-                    if not isinstance(self.__old_configuration, dict):
-                        self.__old_configuration = loads(b64decode(self.__old_configuration))
-                    if self.__old_configuration.get("thingsboard").get("thingsboard").get("remoteShell"):
-                        self.__new_configuration["thingsboard"]["thingsboard"]["remoteShell"] = True
-
-                    self.__new_logs_configuration = b64decode(self.__new_general_configuration_file.pop("logs")).decode('UTF-8').replace('}}', '\n')
-                    if self.__old_configuration != decoded_configuration:
-                        LOG.info("Remote configuration received: \n %s", decoded_configuration)
-                        result = self.__process_connectors_configuration()
-                        self.in_process = False
-                        if result:
-                            self.__old_configuration = self.__new_configuration
-                            return True
-                        else:
-                            return False
-                    else:
-                        LOG.info("Remote configuration is the same.")
-
-                if connectors_configuration:
-                    self.__old_general_configuration_file["connectors"] = []
-                    self.__connectors_config = connectors_configuration
-                    if self.__apply_new_connectors_configuration():
-                        self.__write_new_configuration_files()
+                try:
+                    for attr_name in configuration.keys():
+                        self.handlers[attr_name](configuration.get(attr_name))
+                except KeyError:
+                    LOG.error('Unknown attribute update name (Available: %s)', ', '.join(self.handlers.keys()))
             else:
                 LOG.error("Remote configuration is already in processing")
                 return False
         except Exception as e:
             self.in_process = False
             LOG.exception(e)
+
+    def __handle_general_config_update(self, configuration):
+        decoded_configuration = b64decode(configuration)
+        self.__new_configuration = loads(decoded_configuration)
+        self.__old_connectors_configs = self.__gateway.connectors_configs
+        self.__new_general_configuration_file = self.__new_configuration.get("thingsboard")
+
+        # To maintain RemoteShell status
+        if not isinstance(self.__old_configuration, dict):
+            self.__old_configuration = loads(b64decode(self.__old_configuration))
+        if self.__old_configuration.get("thingsboard").get("thingsboard").get("remoteShell"):
+            self.__new_configuration["thingsboard"]["thingsboard"]["remoteShell"] = True
+
+        self.__new_logs_configuration = b64decode(self.__new_general_configuration_file.pop("logs")).decode(
+            'UTF-8').replace('}}', '\n')
+        if self.__old_configuration != decoded_configuration:
+            LOG.info("Remote configuration received: \n %s", decoded_configuration)
+            result = self.__process_connectors_configuration()
+            self.in_process = False
+            if result:
+                self.__old_configuration = self.__new_configuration
+                return True
+            else:
+                return False
+        else:
+            LOG.info("Remote configuration is the same.")
+
+    def __handle_connectors_config_update(self, configuration):
+        self.__old_general_configuration_file["connectors"] = []
+        self.__connectors_config = configuration
+        if self.__apply_new_connectors_configuration():
+            self.__write_new_configuration_files()
 
     def send_current_configuration(self):
         try:
@@ -152,9 +164,9 @@ class RemoteConfigurator:
                 open(config_file_path, 'w')
                 self.__gateway.connectors_configs[connector['type']].append(
                     {"name": connector["name"],
-                    "config": {connector['configuration']: connector['jsonConfiguration']},
-                    "config_updated": stat(config_file_path),
-                    "config_file_path": config_file_path})
+                     "config": {connector['configuration']: connector['jsonConfiguration']},
+                     "config_updated": stat(config_file_path),
+                     "config_file_path": config_file_path})
                 connector_class = TBModuleLoader.import_module(connector["type"],
                                                                self.__gateway._default_connectors.get(connector["type"],
                                                                                                       connector.get(

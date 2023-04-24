@@ -546,9 +546,7 @@ class TBGatewayService:
     def __process_remote_configuration(self, new_configuration):
         if new_configuration is not None and self.__remote_configurator is not None:
             try:
-                self.__remote_configurator.process_configuration(
-                    general_configuration=new_configuration.get('configuration'),
-                    connectors_configuration=new_configuration.get('implementedConnectors'))
+                self.__remote_configurator.process_configuration(new_configuration)
                 self.__remote_configurator.send_current_configuration()
             except Exception as e:
                 log.exception(e)
