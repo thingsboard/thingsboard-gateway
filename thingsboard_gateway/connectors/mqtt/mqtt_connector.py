@@ -436,9 +436,9 @@ class MqttConnector(Connector, Thread):
                 self.__attribute_requests_sub_topics[topic_filter] = request
         else:
             result_codes = RESULT_CODES_V5 if self._mqtt_version == 5 else RESULT_CODES_V3
-            if result_code in result_codes:
-                self.__log.error("%s connection FAIL with error %s %s!", self.get_name(), result_code,
-                                 result_codes[result_code])
+            rc = result_code.value if self._mqtt_version == 5 else result_code
+            if rc in result_codes:
+                self.__log.error("%s connection FAIL with error %s %s!", self.get_name(), rc, result_codes[rc])
             else:
                 self.__log.error("%s connection FAIL with unknown error!", self.get_name())
 
