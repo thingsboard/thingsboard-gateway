@@ -22,6 +22,10 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
         self.__config = config.get('converter')
         self.dict_result = {}
 
+    @property
+    def config(self):
+        return self.__config
+
     def convert(self, topic, body):
         try:
             self.dict_result["deviceName"] = topic.split("/")[
