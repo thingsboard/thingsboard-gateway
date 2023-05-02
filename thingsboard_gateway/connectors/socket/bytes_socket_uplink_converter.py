@@ -19,7 +19,7 @@ from thingsboard_gateway.gateway.statistics_service import StatisticsService
 class BytesSocketUplinkConverter(SocketUplinkConverter):
     def __init__(self, config):
         self.__config = config
-        self.dict_result = {
+        dict_result = {
             "deviceName": config['deviceName'],
             "deviceType": config['deviceType']
         }
@@ -30,9 +30,14 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
         if data is None:
             return {}
 
+        dict_result = {
+            "deviceName": self.__config['deviceName'],
+            "deviceType": self.__config['deviceType']
+        }
+
         try:
-            self.dict_result["telemetry"] = []
-            self.dict_result["attributes"] = []
+            dict_result["telemetry"] = []
+            dict_result["attributes"] = []
 
             for section in ('telemetry', 'attributes'):
                 for item in config[section]:
@@ -49,7 +54,7 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
                             converted_data = str(converted_data)
 
                         if item.get('key') is not None:
-                            self.dict_result[section].append(
+                            dict_result[section].append(
                                 {item['key']: converted_data})
                         else:
                             log.error('Key for %s not found in config: %s', config['type'], config['section_config'])
@@ -58,5 +63,5 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
         except Exception as e:
             log.exception(e)
 
-        log.debug(self.dict_result)
-        return self.dict_result
+        log.debug(dict_result)
+        return dict_result
