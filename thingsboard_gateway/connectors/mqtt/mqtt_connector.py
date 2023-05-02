@@ -837,7 +837,10 @@ class MqttConnector(Connector, Thread):
     def server_side_rpc_handler(self, content):
         self.__log.info("Incoming server-side RPC: %s", content)
 
-        rpc_method = content['data']['method']
+        try:
+            rpc_method = content['data']['method']
+        except KeyError:
+            rpc_method = content['params']['method']
 
         # check if RPC method is reserved get/set
         if rpc_method == 'get' or rpc_method == 'set':
@@ -852,6 +855,8 @@ class MqttConnector(Connector, Thread):
                     params[key] = value
 
             return self.__process_rpc_request(content, params)
+        elif rpc_method == 'sync_converters_config':
+            self._send_current_converter_config()
         else:
             # Check whether one of my RPC handlers can handle this request
             for rpc_config in self.__server_side_rpc:
