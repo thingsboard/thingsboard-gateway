@@ -5,7 +5,7 @@ thingsboard:
   remoteConfiguration: false
   statistics:
     enable: true
-    statsSendPeriodInSeconds: 3600
+    statsSendPeriodInSeconds: 60
 #    configuration: statistics/statistics_linux.json
   deviceFiltering:
     enable: false
