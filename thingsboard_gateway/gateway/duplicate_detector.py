@@ -33,7 +33,7 @@ class DuplicateDetector:
                                                                    DuplicateDetector._create_device_latest_data())
 
     def delete_device(self, device_name):
-        del self._latest_data[device_name]
+        self._latest_data.pop(device_name, None)
 
     def persist_latest_values(self):
         raise NotImplementedError("Persisting feature for latest attributes/telemetry values is not implemented!")
