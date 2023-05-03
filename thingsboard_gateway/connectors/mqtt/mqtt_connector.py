@@ -442,7 +442,7 @@ class MqttConnector(Connector, Thread):
             else:
                 self.__log.error("%s connection FAIL with unknown error!", self.get_name())
 
-        self._send_current_converter_config()
+        self._init_send_current_converter_config()
 
     def _on_disconnect(self, *args):
         self._connected = False
@@ -882,6 +882,7 @@ class MqttConnector(Connector, Thread):
             converter_obj = converter_class_obj
             if converter_class_name == converter_name:
                 converter_obj.config = config
+                self._send_current_converter_config(self.name + ':' + converter_name, config)
                 log.info('Updated converter configuration for: %s with configuration %s',
                          converter_name, converter_obj.config)
 
@@ -891,20 +892,23 @@ class MqttConnector(Connector, Thread):
                             device_config['converter'].update(config)
 
                         if device_config['converter']['deviceNameTopicExpression'] == config[
-                            'deviceNameTopicExpression']:
+                                'deviceNameTopicExpression']:
                             device_config['converter'].update(config)
                     except KeyError:
                         continue
 
                 self.__gateway.update_connector_config_file(self.name, self.config)
 
-    def _send_current_converter_config(self):
+    def _init_send_current_converter_config(self):
         for converter_obj in self.get_converters():
             try:
                 self.__gateway.tb_client.client.send_attributes(
                     {self.name + ':' + converter_obj.__class__.__name__: converter_obj.config})
             except AttributeError:
                 continue
+
+    def _send_current_converter_config(self, name, config):
+        self.__gateway.tb_client.client.send_attributes({name: config})
 
     class ConverterWorker(Thread):
         def __init__(self, name, incoming_queue, send_result):
