@@ -948,7 +948,6 @@ class TBGatewayService:
                             while self.__rpc_reply_sent:
                                 sleep(.2)
                             self.__send_data(devices_data_in_event_pack)
-                            sleep(self.__min_pack_send_delay_ms)
 
                         if self.tb_client.is_connected() and (
                                 self.__remote_configurator is None or not self.__remote_configurator.in_process):
