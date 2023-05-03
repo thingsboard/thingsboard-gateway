@@ -34,9 +34,6 @@ from thingsboard_gateway.gateway.statistics_service import StatisticsService
 class BytesBLEUplinkConverter(BLEUplinkConverter):
     def __init__(self, config):
         self.__config = config
-        self.dict_result = {"deviceName": config['deviceName'],
-                            "deviceType": config['deviceType']
-                            }
 
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
@@ -44,9 +41,14 @@ class BytesBLEUplinkConverter(BLEUplinkConverter):
         if data is None:
             return {}
 
+        dict_result = {
+            "deviceName": self.__config['deviceName'],
+            "deviceType": self.__config['deviceType']
+        }
+
         try:
-            self.dict_result["telemetry"] = []
-            self.dict_result["attributes"] = []
+            dict_result["telemetry"] = []
+            dict_result["attributes"] = []
 
             for section in ('telemetry', 'attributes'):
                 for item in data[section]:
@@ -71,7 +73,7 @@ class BytesBLEUplinkConverter(BLEUplinkConverter):
                             converted_data = converted_data.replace(exp, data_to_replace)
 
                         if item.get('key') is not None:
-                            self.dict_result[section].append({item['key']: converted_data})
+                            dict_result[section].append({item['key']: converted_data})
                         else:
                             log.error('Key for %s not found in config: %s', config['type'], config[section])
                     except Exception as e:
@@ -81,5 +83,5 @@ class BytesBLEUplinkConverter(BLEUplinkConverter):
         except Exception as e:
             log.exception(e)
 
-        log.debug(self.dict_result)
-        return self.dict_result
+        log.debug(dict_result)
+        return dict_result
