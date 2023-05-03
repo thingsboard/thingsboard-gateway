@@ -203,7 +203,6 @@ class TBGatewayService:
             self.tb_client.client.send_telemetry({"ts": time() * 1000, "values": {
                 "LOGS": "Logging loading exception, logs.conf is wrong: %s" % (str(logging_error),)}})
             TBLoggerHandler.set_default_handler()
-        self.counter = 0
         self.__rpc_reply_sent = False
         global main_handler
         self.main_handler = main_handler
@@ -278,9 +277,6 @@ class TBGatewayService:
         self._published_events = SimpleQueue()
 
         self.__min_pack_send_delay_ms = self.__config['thingsboard'].get('minPackSendDelayMS', 200)
-        if self.__min_pack_send_delay_ms == 0:
-            self.__min_pack_send_delay_ms = 10
-
         self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
         self.__min_pack_size_to_send = self.__config['thingsboard'].get('minPackSizeToSend', 50)
 
@@ -904,7 +900,6 @@ class TBGatewayService:
         while not self.stopped:
             try:
                 if self.tb_client.is_connected():
-                    size = self.__get_data_size(devices_data_in_event_pack) - 2
                     events = []
 
                     if self.__remote_configurator is None or not self.__remote_configurator.in_process:
@@ -912,7 +907,6 @@ class TBGatewayService:
 
                     if events:
                         for event in events:
-                            self.counter += 1
                             try:
                                 current_event = loads(event)
                             except Exception as e:
@@ -946,7 +940,7 @@ class TBGatewayService:
                             if not self.tb_client.is_connected():
                                 continue
                             while self.__rpc_reply_sent:
-                                sleep(.2)
+                                sleep(.01)
                             self.__send_data(devices_data_in_event_pack)
 
                         if self.tb_client.is_connected() and (
@@ -985,7 +979,7 @@ class TBGatewayService:
                     else:
                         sleep(self.__min_pack_send_delay_ms)
                 else:
-                    sleep(self.__min_pack_send_delay_ms)
+                    sleep(1)
             except Exception as e:
                 log.exception(e)
                 sleep(1)
