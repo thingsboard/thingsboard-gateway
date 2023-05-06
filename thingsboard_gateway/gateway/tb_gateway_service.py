@@ -969,7 +969,6 @@ class TBGatewayService:
                                     except Exception as e:
                                         log.exception(e)
                                         success = False
-                                    sleep(self.__min_pack_send_delay_ms)
                             if success and self.tb_client.is_connected():
                                 self._event_storage.event_pack_processing_done()
                                 del devices_data_in_event_pack
