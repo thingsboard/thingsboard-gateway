@@ -75,6 +75,7 @@ In order to use the LTE connection to publish telemetry to ThingsBoard, the user
     * Note: The keystrokes are not typed into the command line interface, they are simply keystrokes to interact with tmux.
   * Select either of the two shell sessions to begin the Drexel VPN login sequence. 
   Upon successful SSL negotiation, navigate to the unutilized shell window by pressing *ctrl+B*, followed by one of the arrow keys; *up* or *down* arrow for vertical splits, *left* or *right* for horizontal. Do not press the arrow key while holding ctrl+B, as this will resize the shell the user is currently controlling. 
+  
   * Verify that the gateway can publish telemetry to the VarIoT cloud by executing the command: :code:`mosquitto_pub -d -q 1 -h "variot.ece.drexel.edu" -p "1883" -t "v1/devices/me/telemetry" -u "$ACCESS_TOKEN" -m {"connectionTest":telemetry_via_LTE}`
     * Be sure to modify $ACCESS_TOKEN with the appropriate device access token for ThingsBoard.
     * The “connectionTest” telemetry should populate in ThingsBoard under the Telemetry field of the user’s target device.
