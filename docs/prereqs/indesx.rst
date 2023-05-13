@@ -1,5 +1,5 @@
 .. toctree::
    :maxdepth: 3
-   :caption: Hardware Prerequisites:
+   :caption: Hardware and OS Prerequisites:
 
    hardware
