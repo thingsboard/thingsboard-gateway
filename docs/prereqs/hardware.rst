@@ -20,6 +20,7 @@ Operating System
       
       * rak_common_for_gateway firmware for both RAK2284 LoRa RPi Hat and RAK2013 LTE-M module
       * A partially configured thingsboard-gateway service, with all required dependencies for a full fledged VarIoT gateway
+       * This effectively mitigates the user from having to setup the gateway following the instructions found under `Install Gateway Components <https://variot.readthedocs.io/en/latest/installation/index.html#>`_. There is no need to setup the gateway from scratch!
 
 * If the user elects option 2, please ensure to modify the *tb_gateway.yaml* file, as mentioned in `Configure ThingsBoard Gateway <https://variot.readthedocs.io/en/latest/installation/tb-gateway.html#configure-thingsboard-gateway>`_ before use.
   
