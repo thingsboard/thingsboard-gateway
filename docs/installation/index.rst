@@ -9,3 +9,4 @@ Here you will find instructions on how to install the components necessary to be
 
    mosquitto
    tb-gateway
+   lte-gateway
