@@ -1,9 +1,7 @@
 LoRa Gateway Setup
 ====================
 
-NOTE: Due to hardware limitations, LoRa has only been tested on gateways without any additional protocols. This was
-because when LoRa was confirmed to be working, the team did not want to risk messing with the hardware setup and cause
-an issue with the only available LoRa hat
+NOTE: In order to use the RAK2245 RPi HAT, the SPI and I2C interfaces must be enabled on the Pi as noted in <https://docs.rakwireless.com/Product-Categories/WisLink/RAK2245-Pi-HAT/Quickstart/#configuring-the-gateway>`_. When these interfaces are enabled, the UART RX/TX lines are no longer available to the embedded Bluetooth hardware, and thus the bluetooth service is effectively disabled. It is highly recommended that a Bluetooth USB-dongle be acquired in order to use Bluetooth in conjunction with the LoRaWAN protocol.
 
 Hardware
 --------
