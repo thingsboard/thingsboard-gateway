@@ -57,8 +57,8 @@ To get started with the RAK2013, the user must first install the appropriate fir
 8. Verify that the LTE module is powered on by observing the three status LEDs mounted on the board. There should be two steady LEDs, one blue and one green, and another flashing red LED.
 9. After about a minute of boot time, verify that the LTE connection was established by running :code:`ip a` or :code:`ifconfig`. A list of network devices will populate, and the LTE device is named ppp0. If an IP address shows under the ppp0 device, the LTE connection was successfully established.
 10. To confirm the network is reachable via LTE-M connection first remove the ethernet cable if connected, then ping Google’s DNS server: :code:`ping 8.8.8.8`
-  * If the network is reachable, the packets will successfully return every few milliseconds
-	* If the network is unreachable, the shell will display the appropriate error message. If this is the case, please refer to the troubleshooting section.
+  * If the network is reachable, the packets will successfully return every few milliseconds.
+  * If the network is unreachable, the shell will display the appropriate error message. If this is the case, please refer to the troubleshooting section.
 
 
 **Congratulations!** You now have an LTE-M enabled VarIoT gateway.
