@@ -49,7 +49,26 @@ Configure ThingsBoard Gateway
 Optional: VPN
 -------------
 #. If VPN access is needed, install it with: :code:`sudo apt install openconnect network-manager-openconnect-gnome`
-#. Connect with: :code:`sudo openconnect -u <your username> -b <VPN host server>`
+#. Connect with: :code:`sudo openconnect -u <your Drexel abc123> <vpn.drexel.edu>`
+
+   * Be sure to type in **Drexel** when prompted for the Group. The *password* is the same one you use to login to your Drexel Connect account.
+   * The VPN login sequence requires Two-Factor Authentication (2FA). Be sure to check your mobile phone when prompted for the security response. 
+   The VPN output should look like the following:
+   ::
+      sudo openconnect -u abc123 vpn.drexel.edu
+      
+      POST https://vpn.drexel.edu/
+      Connected to 144.118.1.196:443
+      SSL negotiation with vpn.drexel.edu
+      Connected to HTTPS on vpn.drexel.edu with ciphersuite (TLS1.2)-(ECDHE-SECP256R1)-(RSA-SHA512)-(AES-256-GCM)
+      XML POST enabled
+      Please enter your username and password:
+      GROUP: [DrexelVPN|IRT-Application-Test|IRT-Private|IRT-Private-MSmfa|VPN-ANS-Private|VPN-DPS-Private|VPN-Drexel-Trusted-Clients|ZNG-VPN-Drexel-Trusted-Clients]:Drexel
+      POST https://vpn.drexel.edu/
+      XML POST enabled
+      Please enter your username and password:
+      Password:
+
 
 Run ThingsBoard Gateway
 -----------------------
