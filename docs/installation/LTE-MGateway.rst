@@ -66,7 +66,7 @@ To get started with the RAK2013, the user must first install the appropriate fir
 
 Using the LTE Connection for ThingsBoard Telemetry
 ----------------------------------
-In order to use the LTE connection to publish telemetry to ThingsBoard, the user must first VPN into the Drexel network using their own login credentials. Instructions on how to login to the Drexel VPN are found in the Install ThingsBoard Gateway from Source section, under Optional: VPN. Before beginning the VPN login process, it would behoove the user to begin a tmux session to allow multiple shells to run. If the user elects not to use tmux, the VPN connection will take ownership of the shell’s foreground, barring the user from interacting with the gateway in their current session.
+In order to use the LTE connection to publish telemetry to ThingsBoard, the user must first VPN into the Drexel network using their own login credentials. Instructions on how to login to the Drexel VPN are found in the Install ThingsBoard Gateway from Source section, under `Optional: VPN <https://variot.readthedocs.io/en/latest/installation/tb-gateway.html#optional-vpn>`_. Before beginning the VPN login process, it would behoove the user to begin a tmux session to allow multiple shells to run. If the user elects not to use tmux, the VPN connection will take ownership of the shell’s foreground, barring the user from interacting with the gateway in their current session.
 
 1. Open a tmux session: :code:`tmux`
 	* If the command tmux is not available, the package must first be installed: :code:`sudo apt-get install tmux`
