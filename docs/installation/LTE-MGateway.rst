@@ -71,7 +71,8 @@ In order to use the LTE connection to publish telemetry to ThingsBoard, the user
 1. Open a tmux session: :code:`tmux`
 	* If the command tmux is not available, the package must first be installed: :code:`sudo apt-get install tmux`
 	* Once it finishes installing, execute the command: :code:`tmux`
-  * While in tmux, fork a new shell by pressing ctrl+B, followed immediately by shift+5 or shift+”. The keystroke ctrl+B is the prefix key for all tmux commands. The keystrokes shift+5 and shift+” are to fork a new shell either vertically (shift+5) or horizontally (shift+”).
+  * While in tmux, fork a new shell by pressing *ctrl+B*, followed immediately by *shift+5* or *shift+”*. The keystroke ctrl+B is the prefix key for all tmux commands. The keystrokes shift+5 and shift+” are to fork a new shell either vertically (shift+5) or horizontally (shift+”).
+  
     * Note: The keystrokes are not typed into the command line interface, they are simply keystrokes to interact with tmux.
   * Select either of the two shell sessions to begin the Drexel VPN login sequence. 
   Upon successful SSL negotiation, navigate to the unutilized shell window by pressing *ctrl+B*, followed by one of the arrow keys; *up* or *down* arrow for vertical splits, *left* or *right* for horizontal. Do not press the arrow key while holding ctrl+B, as this will resize the shell the user is currently controlling. 
