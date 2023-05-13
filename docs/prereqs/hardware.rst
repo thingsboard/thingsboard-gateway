@@ -11,7 +11,7 @@ Hardware
 
 Operating System
 ----------------
-* An Ubuntu distrobution for the Raspberry Pi is required for proper functionality of the gateway. There are two options available to the user:
+* An Ubuntu distribution for the Raspberry Pi is required for proper functionality of the gateway. There are two options available to the user:
  
   1. Download the official Raspberry Pi Imager and flash a microSD card with a Raspian OS (Bullseye) image. The imager can be found on the `official Raspberry Pi website <https://www.raspberrypi.com/software/>`_.
   2. Flash a microSD card with a VarIoT Linux image that has been preconfigured with support for both LTE-M and LoRaWaN hardware. This image is found on the `VarIoT Google Drive <https://drive.google.com/file/d/1JmDyyV_89n3nTgnFq6ypgmyraMQ1k05P/view?usp=share_link>`_.     
