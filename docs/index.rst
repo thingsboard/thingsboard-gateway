@@ -8,6 +8,12 @@ Welcome to VarIoT's documentation!
 
 .. toctree::
    :maxdepth: 5
+   :caption: Prerequisites:
+   
+   prereqs/index
+
+.. toctree::
+   :maxdepth: 5
    :caption: Setup:
 
    installation/index
