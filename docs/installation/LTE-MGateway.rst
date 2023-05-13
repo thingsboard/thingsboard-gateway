@@ -81,5 +81,5 @@ In order to use the LTE connection to publish telemetry to ThingsBoard, the user
     * Be sure to modify $ACCESS_TOKEN with the appropriate device access token for ThingsBoard.
     * The “connectionTest” telemetry should populate in ThingsBoard under the Telemetry field of the user’s target device.
   * If the telemetry test was successful, the gateway is now fully connected to the VarIoT network and the ThingsBoard service is able to function properly. 
-  * It is a good idea at this point to restart the thingsboard-gateway.service so it may establish connection to the network now that the gateway has been properly configured: sudo systemctl restart thingsboard-gateway
+  * It is a good idea at this point to restart the thingsboard-gateway.service so it may establish connection to the network now that the gateway has been properly configured: :code:`sudo systemctl restart thingsboard-gateway`
 
