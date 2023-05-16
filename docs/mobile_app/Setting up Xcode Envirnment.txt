@@ -1,0 +1,57 @@
+﻿Setting up the Xcode environment will require a computer with Mac OS and Xcode 14 installed. This tutorial will involve the use of both xcode and bash command prompt. 
+
+
+Xcode Configuration
+* Open Xcode and select “File” from the top navigation bar
+   * Select “Open” and navigate to the project directory
+      * Within the project directory, open the “ios” folder and select “runner.xcodeproj”
+         * Select “open”
+* From the panel on the left hand side of the screen, select “Runner”
+   * On the left hand side of the middle window
+      * Make sure “Runner” is selected under “TARGETS”
+   * Select the “General” tab at the top
+      * Under the “Minimum Deployments” section
+         * Ensure the “IOS” dropdown is set to “14.0”
+   * Select the “Signing & Capabilities” tab at the top
+      * Ensure the “Automatically manage signing” box is checked
+      * Under the “Team” dropdown
+         * Select your personal team
+            * If your personal team is not available, sign in with your apple ID
+      * Under the “Bundle Identifier” dropdown
+         * Ensure the value is set to “org.thingsboard.app.variot.drexel”
+            * Note: Any unique string value will work as long as it begins with “org.thingsboard.app.”
+* On the left hand side of the middle window
+   * Change the value to “Runner” is under “PROJECT”
+   * Select the “Info” tab at the top
+      * Under the “Minimum Deployments” section
+         * Ensure the “iOS Deployment Target” dropdown is set to “14.0”
+
+
+Command Prompt Configuration
+* Open the command prompt on the Mac computer
+   * Navigate to the project directory using “cd” 
+      * If flutter is not downloaded, reference documentation titled ____
+   * Set the flutter path
+      * export PATH=”$PATH:{path to flutter}”
+         * Where {path to flutter} is the path where the Flutter SDK is saved on your local computer 
+   * Upgrade the Flutter dependencies using the following command
+      * flutter pub upgrade 
+   * Build the ios executable using the following command
+      * Flutter build ios –no-tree-shake-icons
+   * Leave this terminal open
+
+
+Configuring Debug Environment in Xcode
+* In Xcode
+   * Select “Product” in the top navigation bar
+      * Select “Destination” and then select your iPhone
+         * Note: iPhone must be connected to laptop via USB
+      * If not already enabled, follow the instructions to enable “Developer Mode” on the iPhone
+         * Note: Developer mode should already be enabled for the iPhone in the lab
+
+
+Running the Application
+* Open the terminal that was just configured 
+   * Run the application using the following command
+      * flutter run
+         * Note: iPhone needs to be unlocked and connected to the Drexel wifi

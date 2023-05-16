@@ -1,0 +1,4 @@
+﻿Things needed
+* Where to add additional pages
+* What to change when copying files from other places
+* How to add routes to the page

@@ -1,0 +1,8 @@
+﻿The ThingsBoard version is hardcoded
+
+
+The first time you select a sensor it gives readings of 0, second time you click it it gives actual readings
+        Maybe need an initialization set of files
+
+
+If the username and password is not stored in global variables, when the internal sensor page is selected, the user is sent back to the login screen so the variables can be populated
