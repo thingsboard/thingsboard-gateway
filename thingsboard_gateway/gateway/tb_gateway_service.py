@@ -893,6 +893,7 @@ class TBGatewayService:
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
         log.debug("Send data Thread has been started successfully.")
+        log.debug("Maximal size of the client message queue is: %r", self.tb_client.client._client._max_queued_messages)
 
         while not self.stopped:
             try:
@@ -902,8 +903,7 @@ class TBGatewayService:
                     if self.__remote_configurator is None or not self.__remote_configurator.in_process:
                         events = self._event_storage.get_event_pack()
 
-                    if events and len(self.tb_client.client._client._out_messages) <= (
-                            self.tb_client.client._client._max_queued_messages - 10000):
+                    if events:
                         for event in events:
                             try:
                                 current_event = loads(event)
