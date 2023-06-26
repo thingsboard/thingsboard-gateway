@@ -1,12 +1,14 @@
 import unittest
 from os import path
 from time import sleep
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from simplejson import load
 
 from pymodbus.client import ModbusTcpClient as ModbusClient
 
+from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
+from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.connectors.modbus.modbus_connector import ModbusConnector
 
@@ -26,6 +28,10 @@ class ModbusConnectorTestsBase(unittest.TestCase):
     def _create_connector(self, config_file_name):
         with open(self.CONFIG_PATH + config_file_name, 'r', encoding="UTF-8") as file:
             self.config = load(file)
+            self.config['master']['slaves'][0]['uplink_converter'] = BytesModbusUplinkConverter(
+                {**self.config['master']['slaves'][0], 'deviceName': 'Test'})
+            self.config['master']['slaves'][0]['downlink_converter'] = BytesModbusDownlinkConverter(
+                {**self.config['master']['slaves'][0], 'deviceName': 'Test'})
             self.connector = ModbusConnector(self.gateway, self.config, "modbus")
             self.connector.open()
             sleep(1)  # some time to init
@@ -43,7 +49,8 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
     def tearDownClass(cls) -> None:
         cls.client.close()
 
-    def test_read_input_registers(self):
+    @patch('thingsboard_gateway.connectors.modbus.slave.Slave._Slave__load_converters')
+    def test_read_input_registers(self, _):
         self._create_connector('modbus_attributes.json')
 
         modbus_client_results = []
@@ -62,7 +69,8 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
         for ir, ir1 in zip(modbus_client_results, modbus_connector_results):
             self.assertEqual(ir, ir1)
 
-    def test_read_holding_registers(self):
+    @patch('thingsboard_gateway.connectors.modbus.slave.Slave._Slave__load_converters')
+    def test_read_holding_registers(self, _):
         self._create_connector('modbus_attributes.json')
         modbus_client_results = []
         attrs = self.connector._ModbusConnector__config['master']['slaves'][0]['attributes']
@@ -80,7 +88,8 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
         for hr, hr1 in zip(modbus_client_results, modbus_connector_results):
             self.assertEqual(hr, hr1)
 
-    def test_read_discrete_inputs(self):
+    @patch('thingsboard_gateway.connectors.modbus.slave.Slave._Slave__load_converters')
+    def test_read_discrete_inputs(self, _):
         self._create_connector('modbus_attributes.json')
         modbus_client_results = []
         attrs = self.connector._ModbusConnector__config['master']['slaves'][0]['attributes']
@@ -98,7 +107,8 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
         for rd, rd1 in zip(modbus_client_results, modbus_connector_results):
             self.assertEqual(rd, rd1)
 
-    def test_read_coils_inputs(self):
+    @patch('thingsboard_gateway.connectors.modbus.slave.Slave._Slave__load_converters')
+    def test_read_coils_inputs(self, _):
         self._create_connector('modbus_attributes.json')
         modbus_client_results = []
         attrs = self.connector._ModbusConnector__config['master']['slaves'][0]['attributes']
@@ -132,7 +142,8 @@ class ModbusConnectorRpcTest(ModbusConnectorTestsBase):
     def tearDownClass(cls) -> None:
         cls.client.close()
 
-    def test_write_type_rpc(self):
+    @patch('thingsboard_gateway.connectors.modbus.slave.Slave._Slave__load_converters')
+    def test_write_type_rpc(self, _):
         self._create_connector('modbus_rpc.json')
 
         with open(self.CONFIG_PATH + 'modbus_rpc.json') as config_file:
@@ -154,7 +165,8 @@ class ModbusConnectorRpcTest(ModbusConnectorTestsBase):
             last_value = self.client.read_input_registers(rpc['address'], rpc['objectsCount'], slave=1).registers
             self.assertNotEqual(first_value, last_value)
 
-    def test_deny_unknown_rpc(self):
+    @patch('thingsboard_gateway.connectors.modbus.slave.Slave._Slave__load_converters')
+    def test_deny_unknown_rpc(self, _):
         self._create_connector('modbus_rpc.json')
         first_value = self.client.read_input_registers(0, 2, slave=1).registers
         rpc = {
@@ -184,7 +196,8 @@ class ModbusConnectorAttributeUpdatesTest(ModbusConnectorTestsBase):
     def tearDownClass(cls) -> None:
         cls.client.close()
 
-    def test_attribute_updates(self):
+    @patch('thingsboard_gateway.connectors.modbus.slave.Slave._Slave__load_converters')
+    def test_attribute_updates(self, _):
         self._create_connector('modbus_attribute_updates.json')
 
         with open(self.CONFIG_PATH + 'modbus_attribute_updates.json') as config_file:
@@ -208,7 +221,8 @@ class ModbusConnectorAttributeUpdatesTest(ModbusConnectorTestsBase):
                                                           slave=1).registers
             self.assertNotEqual(first_value, last_value)
 
-    def test_deny_unknown_attribute_update(self):
+    @patch('thingsboard_gateway.connectors.modbus.slave.Slave._Slave__load_converters')
+    def test_deny_unknown_attribute_update(self, _):
         self._create_connector('modbus_attribute_updates.json')
         first_value = self.client.read_input_registers(0, 2, slave=1).registers
 
