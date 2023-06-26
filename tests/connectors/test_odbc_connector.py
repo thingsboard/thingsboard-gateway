@@ -23,7 +23,7 @@ import pyodbc
 from simplejson import load
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
-import thingsboard_gateway
+from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.connectors.odbc.odbc_connector import OdbcConnector
 
 logging.basicConfig(level=logging.DEBUG,
@@ -59,7 +59,7 @@ class OdbcConnectorTests(unittest.TestCase):
     POSTGRES_PORT = 12345
 
     def setUp(self):
-        self.gateway = Mock(spec=thingsboard_gateway.TBGatewayService)
+        self.gateway = Mock(spec=TBGatewayService)
         self.gateway.get_config_path.return_value = self.CONFIG_PATH
 
         self.connector = None
