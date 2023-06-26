@@ -307,7 +307,7 @@ class ModbusConnector(Connector, Thread):
                 current_device_config = {}
                 try:
                     for config_section in device_responses:
-                        if device.config.get(config_section) is not None:
+                        if device.config.get(config_section) is not None and len(device.config.get(config_section)):
                             current_device_config = device.config
 
                             self.__connect_to_current_master(device)
