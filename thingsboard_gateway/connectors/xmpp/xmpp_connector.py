@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 import asyncio
 from json import dumps
 from queue import Queue
@@ -20,7 +21,7 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep
 
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
@@ -44,7 +45,6 @@ class XMPPConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
-        self.__log = log
 
         super().__init__()
 
@@ -54,6 +54,7 @@ class XMPPConnector(Connector, Thread):
         self.__config = config
         self._server_config = config['server']
         self._devices_config = config.get('devices', [])
+        self.__log = self.init_logger()
 
         self._devices = {}
         self._reformat_devices_config()
@@ -70,6 +71,19 @@ class XMPPConnector(Connector, Thread):
 
         self._xmpp = None
 
+    def init_logger(self):
+        log = logging.getLogger(self.__config['name'])
+        log.addHandler(self.__gateway.remote_handler)
+        log.addHandler(self.__gateway.main_handler)
+        log_level_conf = self.__config.get('logLevel')
+        if log_level_conf:
+            log_level = logging.getLevelName(log_level_conf)
+            log.setLevel(log_level)
+        else:
+            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
+        self.__gateway.remote_handler.add_logger(self.__config['name'])
+        return log
+
     def _reformat_devices_config(self):
         for config in self._devices_config:
             try:
@@ -81,7 +95,7 @@ class XMPPConnector(Connector, Thread):
                     continue
 
                 self._devices[device_jid] = config
-                self._devices[device_jid]['converter'] = converter(config)
+                self._devices[device_jid]['converter'] = converter(config, self.__log)
             except KeyError as e:
                 self.__log.error('Invalid configuration %s with key error %s', config, e)
                 continue
@@ -90,10 +104,10 @@ class XMPPConnector(Connector, Thread):
         module = TBModuleLoader.import_module(self._connector_type, converter_name)
 
         if module:
-            log.debug('Converter %s for device %s - found!', converter_name, self.name)
+            self.__log.debug('Converter %s for device %s - found!', converter_name, self.name)
             return module
 
-        log.error("Cannot find converter for %s device", self.name)
+        self.__log.error("Cannot find converter for %s device", self.name)
         return None
 
     def open(self):
@@ -195,6 +209,9 @@ class XMPPConnector(Connector, Thread):
 
     def get_name(self):
         return self.name
+
+    def get_type(self):
+        return self._connector_type
 
     def is_connected(self):
         return self._connected

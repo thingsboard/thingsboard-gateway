@@ -1,12 +1,12 @@
 [
   {
     "timeout": 100,
-    "command": ["/bin/sh", "-c", "ps -A -o cpu,%mem | awk '{cpu += $1}END{print cpu}'"],
+    "command": "ps -A -o cpu,%mem | awk '{cpu += $1}END{print cpu}'",
     "attributeOnGateway": "CPU"
   },
   {
     "timeout": 100,
-    "command": ["/bin/sh", "-c", "ps -A -o %cpu,%mem | awk '{mem += $2}END{print mem}'"],
+    "command": "ps -A -o %cpu,%mem | awk '{mem += $2}END{print mem}'",
     "attributeOnGateway": "Memory"
   },
   {

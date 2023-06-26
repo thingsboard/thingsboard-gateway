@@ -16,13 +16,14 @@ import json
 from re import findall
 from time import time
 
-from thingsboard_gateway.connectors.xmpp.xmpp_converter import XmppConverter, log
+from thingsboard_gateway.connectors.xmpp.xmpp_converter import XmppConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class XmppUplinkConverter(XmppConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config
         self._datatypes = {"attributes": "attributes",
                            "timeseries": "telemetry"}
@@ -98,8 +99,7 @@ class XmppUplinkConverter(XmppConverter):
         except json.decoder.JSONDecodeError:
             return None
 
-    @staticmethod
-    def _get_value(data, config, key):
+    def _get_value(self, data, config, key):
         expression_arr = findall(r'\[\S[\d:]*]', config[key])
         if expression_arr:
             indexes = expression_arr[0][1:-1].split(':')
@@ -111,7 +111,7 @@ class XmppUplinkConverter(XmppConverter):
                     index = int(indexes[0])
                     return data[index]
             except IndexError:
-                log.error('deviceName expression invalid (index out of range)')
+                self._log.error('deviceName expression invalid (index out of range)')
                 return None
         else:
             return config[key]

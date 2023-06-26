@@ -17,14 +17,14 @@ from time import time
 
 from simplejson import dumps
 
-from thingsboard_gateway.connectors.converter import log
 from thingsboard_gateway.connectors.ftp.ftp_converter import FTPConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class FTPUplinkConverter(FTPConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config
         self.__data_types = {"attributes": "attributes", "timeseries": "telemetry"}
 
@@ -73,8 +73,8 @@ class FTPUplinkConverter(FTPConverter):
                         dict_result['deviceType'] = arr[index]
 
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
+            self._log.exception(e)
 
         return dict_result
 
@@ -108,8 +108,8 @@ class FTPUplinkConverter(FTPConverter):
                         if self.__config['devicePatternType'] == information['value']:
                             dict_result['deviceType'] = val
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
+            self._log.exception(e)
 
         return dict_result
 
@@ -132,7 +132,7 @@ class FTPUplinkConverter(FTPConverter):
                         if is_valid_key else device_name_tag
 
             else:
-                log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
+                self._log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
 
             if self.__config.get("devicePatternType") is not None:
                 device_type_tags = TBUtility.get_values(self.__config.get("devicePatternType"), data,
@@ -148,8 +148,8 @@ class FTPUplinkConverter(FTPConverter):
                                                                                   str(device_type_value)) \
                         if is_valid_key else device_type_tag
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
+            self._log.exception(e)
 
         try:
             for datatype in self.__data_types:
@@ -188,8 +188,8 @@ class FTPUplinkConverter(FTPConverter):
                     else:
                         dict_result[self.__data_types[datatype]].append({full_key: full_value})
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
+            self._log.exception(e)
 
         return dict_result
 

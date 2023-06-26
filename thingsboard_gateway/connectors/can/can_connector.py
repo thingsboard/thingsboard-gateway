@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 import re
 import sched
 import time
@@ -32,7 +33,7 @@ except ImportError:
 
 from thingsboard_gateway.connectors.can.bytes_can_downlink_converter import BytesCanDownlinkConverter
 from thingsboard_gateway.connectors.can.bytes_can_uplink_converter import BytesCanUplinkConverter
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 
 
 class CanConnector(Connector, Thread):
@@ -71,6 +72,7 @@ class CanConnector(Connector, Thread):
         self.__gateway = gateway
         self._connector_type = connector_type
         self.__config = config
+        self._log = self.init_logger()
         self.__bus_conf = {}
         self.__bus = None
         self.__reconnect_count = 0
@@ -88,18 +90,35 @@ class CanConnector(Connector, Thread):
         self.daemon = True
         self.__parse_config(config)
 
+    def init_logger(self):
+        log = logging.getLogger(self.name)
+        if hasattr(self.__gateway, 'remote_handler') and hasattr(self.__gateway, 'main_handler'):
+            log.addHandler(self.__gateway.remote_handler)
+            log.addHandler(self.__gateway.main_handler)
+            log_level_conf = self.__config.get('logLevel')
+            if log_level_conf:
+                log_level = logging.getLevelName(log_level_conf)
+                log.setLevel(log_level)
+            else:
+                log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
+            self.__gateway.remote_handler.add_logger(self.name)
+        return log
+
     def open(self):
-        log.info("[%s] Starting...", self.get_name())
+        self._log.info("[%s] Starting...", self.get_name())
         self.__stopped = False
         self.start()
 
     def close(self):
         if not self.__stopped:
             self.__stopped = True
-            log.debug("[%s] Stopping", self.get_name())
+            self._log.debug("[%s] Stopping", self.get_name())
 
     def get_name(self):
         return self.name
+
+    def get_type(self):
+        return self._connector_type
 
     def is_connected(self):
         return self.__connected
@@ -108,47 +127,47 @@ class CanConnector(Connector, Thread):
         for attr_name, attr_value in content["data"].items():
             attr_config = self.__shared_attributes.get(content["device"], {}).get(attr_name)
             if attr_config is None:
-                log.warning("[%s] No configuration for '%s' attribute, ignore its update", self.get_name(), attr_name)
+                self._log.warning("[%s] No configuration for '%s' attribute, ignore its update", self.get_name(), attr_name)
                 return
 
-            log.debug("[%s] Processing attribute update for '%s' device: attribute=%s,value=%s",
+            self._log.debug("[%s] Processing attribute update for '%s' device: attribute=%s,value=%s",
                       self.get_name(), content["device"], attr_name, attr_value)
 
             # Converter expects dictionary as the second parameter so pack an attribute value to a dictionary
             data = self.__converters[content["device"]]["downlink"].convert(attr_config, {"value": attr_value})
             if data is None:
-                log.error("[%s] Failed to update '%s' attribute for '%s' device: data conversion failure",
+                self._log.error("[%s] Failed to update '%s' attribute for '%s' device: data conversion failure",
                           self.get_name(), attr_name, content["device"])
                 return
 
             done = self.send_data_to_bus(data, attr_config, data_check=True)
             if done:
-                log.debug("[%s] Updated '%s' attribute for '%s' device", self.get_name(), attr_name, content["device"])
+                self._log.debug("[%s] Updated '%s' attribute for '%s' device", self.get_name(), attr_name, content["device"])
             else:
-                log.error("[%s] Failed to update '%s' attribute for '%s' device",
+                self._log.error("[%s] Failed to update '%s' attribute for '%s' device",
                           self.get_name(), attr_name, content["device"])
 
     def server_side_rpc_handler(self, content):
         rpc_config = self.__rpc_calls.get(content["device"], {}).get(content["data"]["method"])
         if rpc_config is None:
             if not self.__devices[content["device"]]["enableUnknownRpc"]:
-                log.warning("[%s] No configuration for '%s' RPC request (id=%s), ignore it",
+                self._log.warning("[%s] No configuration for '%s' RPC request (id=%s), ignore it",
                             self.get_name(), content["data"]["method"], content["data"]["id"])
                 return
             else:
                 rpc_config = {}
 
-        log.debug("[%s] Processing %s '%s' RPC request (id=%s) for '%s' device: params=%s",
+        self._log.debug("[%s] Processing %s '%s' RPC request (id=%s) for '%s' device: params=%s",
                   self.get_name(), "pre-configured" if rpc_config else "UNKNOWN", content["data"]["method"],
                   content["data"]["id"], content["device"], content["data"].get("params"))
 
         if self.__devices[content["device"]]["overrideRpcConfig"]:
             if rpc_config:
                 conversion_config = self.__merge_rpc_configs(content["data"].get("params", {}), rpc_config)
-                log.debug("[%s] RPC request (id=%s) params and connector config merged to conversion config %s",
+                self._log.debug("[%s] RPC request (id=%s) params and connector config merged to conversion config %s",
                           self.get_name(), content["data"]["id"], conversion_config)
             else:
-                log.debug("[%s] RPC request (id=%s) will use its params as conversion config",
+                self._log.debug("[%s] RPC request (id=%s) will use its params as conversion config",
                           self.get_name(), content["data"]["id"])
                 conversion_config = content["data"].get("params", {})
         else:
@@ -159,14 +178,14 @@ class CanConnector(Connector, Thread):
         if data is not None:
             done = self.send_data_to_bus(data, conversion_config, data_check=True)
             if done:
-                log.debug("[%s] Processed '%s' RPC request (id=%s) for '%s' device",
+                self._log.debug("[%s] Processed '%s' RPC request (id=%s) for '%s' device",
                           self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
             else:
-                log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device",
+                self._log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device",
                           self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
         else:
             done = False
-            log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device: data conversion failure",
+            self._log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device: data conversion failure",
                       self.get_name(), content["data"]["method"], content["data"]["id"], content["device"])
 
         if conversion_config.get("response", self.DEFAULT_RPC_RESPONSE_SEND_FLAG):
@@ -185,7 +204,7 @@ class CanConnector(Connector, Thread):
                 reader = BufferedReader()
                 bus_notifier = Notifier(self.__bus, [reader])
 
-                log.info("[%s] Connected to CAN bus (interface=%s,channel=%s)", self.get_name(), interface, channel)
+                self._log.info("[%s] Connected to CAN bus (interface=%s,channel=%s)", self.get_name(), interface, channel)
 
                 if self.__polling_messages:
                     poller = Poller(self)
@@ -205,7 +224,7 @@ class CanConnector(Connector, Thread):
                         self.__process_message(message)
                     self.__check_if_error_happened()
             except Exception as e:
-                log.error("[%s] Error on CAN bus: %s", self.get_name(), str(e))
+                self._log.error("[%s] Error on CAN bus: %s", self.get_name(), str(e))
             finally:
                 try:
                     if poller is not None:
@@ -213,28 +232,28 @@ class CanConnector(Connector, Thread):
                     if bus_notifier is not None:
                         bus_notifier.stop()
                     if self.__bus is not None:
-                        log.debug("[%s] Shutting down connection to CAN bus (state=%s)",
+                        self._log.debug("[%s] Shutting down connection to CAN bus (state=%s)",
                                   self.get_name(), self.__bus.state)
                         self.__bus.shutdown()
                 except Exception as e:
-                    log.error("[%s] Error on shutdown connection to CAN bus: %s", self.get_name(), str(e))
+                    self._log.error("[%s] Error on shutdown connection to CAN bus: %s", self.get_name(), str(e))
 
                 self.__connected = False
 
                 if not self.__stopped:
                     if self.__is_reconnect_enabled():
                         retry_period = self.__reconnect_conf["period"]
-                        log.info("[%s] Next attempt to connect will be in %f seconds (%s attempt left)",
+                        self._log.info("[%s] Next attempt to connect will be in %f seconds (%s attempt left)",
                                  self.get_name(), retry_period,
                                  "infinite" if self.__reconnect_conf["maxCount"] is None
                                  else self.__reconnect_conf["maxCount"] - self.__reconnect_count + 1)
                         time.sleep(retry_period)
                     else:
                         need_run = False
-                        log.info("[%s] Last attempt to connect has failed. Exiting...", self.get_name())
+                        self._log.info("[%s] Last attempt to connect has failed. Exiting...", self.get_name())
                 else:
                     need_run = False
-        log.info("[%s] Stopped", self.get_name())
+        self._log.info("[%s] Stopped", self.get_name())
 
     def is_stopped(self):
         return self.__stopped
@@ -252,9 +271,9 @@ class CanConnector(Connector, Thread):
                                     check=data_check))
             return True
         except (ValueError, TypeError) as e:
-            log.error("[%s] Wrong CAN message data: %s", self.get_name(), str(e))
+            self._log.error("[%s] Wrong CAN message data: %s", self.get_name(), str(e))
         except CanError as e:
-            log.error("[%s] Failed to send CAN message: %s", self.get_name(), str(e))
+            self._log.error("[%s] Failed to send CAN message: %s", self.get_name(), str(e))
             if raise_exception:
                 raise e
             else:
@@ -262,7 +281,7 @@ class CanConnector(Connector, Thread):
         return False
 
     def __on_bus_error(self, e):
-        log.warning("[%s] Notified about CAN bus error. Store it to later processing", self.get_name())
+        self._log.warning("[%s] Notified about CAN bus error. Store it to later processing", self.get_name())
         self.__bus_error = e
 
     def __check_if_error_happened(self):
@@ -299,7 +318,7 @@ class CanConnector(Connector, Thread):
     def __process_message(self, message):
         if message.arbitration_id not in self.__nodes:
             # Too lot log messages in case of high message generation frequency
-            log.debug("[%s] Ignoring CAN message. Unknown arbitration_id %d", self.get_name(), message.arbitration_id)
+            self._log.debug("[%s] Ignoring CAN message. Unknown arbitration_id %d", self.get_name(), message.arbitration_id)
             return
 
         cmd_conf = self.__commands[message.arbitration_id]
@@ -310,16 +329,16 @@ class CanConnector(Connector, Thread):
             cmd_id = self.NO_CMD_ID
 
         if cmd_id not in self.__nodes[message.arbitration_id]:
-            log.debug("[%s] Ignoring CAN message. Unknown cmd_id %d", self.get_name(), cmd_id)
+            self._log.debug("[%s] Ignoring CAN message. Unknown cmd_id %d", self.get_name(), cmd_id)
             return
 
-        log.debug("[%s] Processing CAN message (id=%d,cmd_id=%s): %s",
+        self._log.debug("[%s] Processing CAN message (id=%d,cmd_id=%s): %s",
                   self.get_name(), message.arbitration_id, cmd_id, message)
 
         parsing_conf = self.__nodes[message.arbitration_id][cmd_id]
         data = self.__converters[parsing_conf["deviceName"]]["uplink"].convert(parsing_conf["configs"], message.data)
         if data is None or not data.get("attributes", []) and not data.get("telemetry", []):
-            log.warning("[%s] Failed to process CAN message (id=%d,cmd_id=%s): data conversion failure",
+            self._log.warning("[%s] Failed to process CAN message (id=%d,cmd_id=%s): data conversion failure",
                         self.get_name(), message.arbitration_id, cmd_id)
             return
 
@@ -340,12 +359,12 @@ class CanConnector(Connector, Thread):
             to_send["deviceName"] = conf["deviceName"]
             to_send["deviceType"] = conf["deviceType"]
 
-            log.debug("[%s] Pushing to TB server '%s' device data: %s", self.get_name(), conf["deviceName"], to_send)
+            self._log.debug("[%s] Pushing to TB server '%s' device data: %s", self.get_name(), conf["deviceName"], to_send)
 
             self.__gateway.send_to_storage(self.get_name(), to_send)
             self.statistics['MessagesSent'] += 1
         else:
-            log.debug("[%s] '%s' device data has not been changed", self.get_name(), conf["deviceName"])
+            self._log.debug("[%s] '%s' device data has not been changed", self.get_name(), conf["deviceName"])
 
     def __is_reconnect_enabled(self):
         if self.__reconnect_conf["enabled"]:
@@ -385,7 +404,7 @@ class CanConnector(Connector, Thread):
             self.__converters[device_name] = {}
 
             if not strict_eval:
-                log.info("[%s] Data converters for '%s' device will use non-strict eval", self.get_name(), device_name)
+                self._log.info("[%s] Data converters for '%s' device will use non-strict eval", self.get_name(), device_name)
 
             if "serverSideRpc" in device_config and device_config["serverSideRpc"]:
                 is_device_config_valid = True
@@ -428,7 +447,7 @@ class CanConnector(Connector, Thread):
 
                     node_id = msg_config.get("nodeId", self.UNKNOWN_ARBITRATION_ID)
                     if node_id == self.UNKNOWN_ARBITRATION_ID:
-                        log.warning("[%s] Ignore '%s' %s configuration: no arbitration id",
+                        self._log.warning("[%s] Ignore '%s' %s configuration: no arbitration id",
                                     self.get_name(), tb_key, config_key)
                         continue
 
@@ -436,14 +455,14 @@ class CanConnector(Connector, Thread):
                     if value_config is not None:
                         msg_config.update(value_config)
                     else:
-                        log.warning("[%s] Ignore '%s' %s configuration: no value configuration",
+                        self._log.warning("[%s] Ignore '%s' %s configuration: no value configuration",
                                     self.get_name(), tb_key, config_key, )
                         continue
 
                     if msg_config.get("command"):
                         cmd_config = self.__parse_command_config(msg_config["command"])
                         if cmd_config is None:
-                            log.warning("[%s] Ignore '%s' %s configuration: wrong command configuration",
+                            self._log.warning("[%s] Ignore '%s' %s configuration: wrong command configuration",
                                         self.get_name(), tb_key, config_key, )
                             continue
 
@@ -456,7 +475,7 @@ class CanConnector(Connector, Thread):
                             if cmd_config["start"] != prev_cmd_config["start"] or \
                                     cmd_config["length"] != prev_cmd_config["length"] or \
                                     cmd_config["byteorder"] != prev_cmd_config["byteorder"]:
-                                log.warning("[%s] Ignore '%s' %s configuration: "
+                                self._log.warning("[%s] Ignore '%s' %s configuration: "
                                             "another command configuration already added for arbitration_id %d",
                                             self.get_name(), tb_key, config_key, node_id)
                                 continue
@@ -498,25 +517,25 @@ class CanConnector(Connector, Thread):
                                               check=True)
                             self.__polling_messages.append(polling_config)
                         except (ValueError, TypeError) as e:
-                            log.warning("[%s] Ignore '%s' %s polling configuration, wrong CAN data: %s",
-                                        self.get_name(), tb_key, config_key, str(e))
+                            self._log.warning("[%s] Ignore '%s' %s polling configuration, wrong CAN data: %s",
+                                              self.get_name(), tb_key, config_key, str(e))
                             continue
             if is_device_config_valid:
-                log.debug("[%s] Done parsing of '%s' device configuration", self.get_name(), device_name)
+                self._log.debug("[%s] Done parsing of '%s' device configuration", self.get_name(), device_name)
                 self.__gateway.add_device(device_name, {"connector": self})
             else:
-                log.warning("[%s] Ignore '%s' device configuration, because it doesn't have attributes,"
-                            "attributeUpdates,timeseries or serverSideRpc", self.get_name(), device_name)
+                self._log.warning("[%s] Ignore '%s' device configuration, because it doesn't have attributes,"
+                                  "attributeUpdates,timeseries or serverSideRpc", self.get_name(), device_name)
 
     def __parse_value_config(self, config):
         if config is None:
-            log.warning("[%s] Wrong value configuration: no data", self.get_name())
+            self._log.warning("[%s] Wrong value configuration: no data", self.get_name())
             return
 
         if isinstance(config, str):
             value_matches = re.search(self.VALUE_REGEX, config)
             if not value_matches:
-                log.warning("[%s] Wrong value configuration: '%s' doesn't match pattern", self.get_name(), config)
+                self._log.warning("[%s] Wrong value configuration: '%s' doesn't match pattern", self.get_name(), config)
                 return
 
             value_config = {
@@ -549,20 +568,20 @@ class CanConnector(Connector, Thread):
 
                 return value_config
             except (KeyError, ValueError) as e:
-                log.warning("[%s] Wrong value configuration: %s", self.get_name(), str(e))
+                self._log.warning("[%s] Wrong value configuration: %s", self.get_name(), str(e))
                 return
-        log.warning("[%s] Wrong value configuration: unknown type", self.get_name())
+        self._log.warning("[%s] Wrong value configuration: unknown type", self.get_name())
         return
 
     def __parse_command_config(self, config):
         if config is None:
-            log.warning("[%s] Wrong command configuration: no data", self.get_name())
+            self._log.warning("[%s] Wrong command configuration: no data", self.get_name())
             return
 
         if isinstance(config, str):
             cmd_matches = re.search(self.CMD_REGEX, config)
             if not cmd_matches:
-                log.warning("[%s] Wrong command configuration: '%s' doesn't match pattern", self.get_name(), config)
+                self._log.warning("[%s] Wrong command configuration: '%s' doesn't match pattern", self.get_name(), config)
                 return
 
             return {
@@ -580,22 +599,22 @@ class CanConnector(Connector, Thread):
                     "value": int(config["value"])
                     }
             except (KeyError, ValueError) as e:
-                log.warning("[%s] Wrong command configuration: %s", self.get_name(), str(e))
+                self._log.warning("[%s] Wrong command configuration: %s", self.get_name(), str(e))
                 return
-        log.warning("[%s] Wrong command configuration: unknown type", self.get_name())
+        self._log.warning("[%s] Wrong command configuration: unknown type", self.get_name())
         return
 
     def __get_converter(self, config, need_uplink):
         if config is None:
-            return BytesCanUplinkConverter() if need_uplink else BytesCanDownlinkConverter()
+            return BytesCanUplinkConverter(self._log) if need_uplink else BytesCanDownlinkConverter(self._log)
         else:
             if need_uplink:
                 uplink = config.get("uplink")
-                return BytesCanUplinkConverter() if uplink is None \
+                return BytesCanUplinkConverter(self._log) if uplink is None \
                     else TBModuleLoader.import_module(self._connector_type, uplink)
             else:
                 downlink = config.get("downlink")
-                return BytesCanDownlinkConverter() if downlink is None \
+                return BytesCanDownlinkConverter(self._log) if downlink is None \
                     else TBModuleLoader.import_module(self._connector_type, downlink)
 
     def get_config(self):
@@ -613,15 +632,16 @@ class Poller(Thread):
 
     def poll(self):
         if self.first_run:
-            log.info("[%s] Starting poller", self.connector.get_name())
+            self.connector._log.info("[%s] Starting poller", self.connector.get_name())
 
         for polling_config in self.connector.get_polling_messages():
             key = polling_config["key"]
             if polling_config["type"] == "always":
-                log.info("[%s] Polling '%s' key every %f sec", self.connector.get_name(), key, polling_config["period"])
+                self.connector._log.info("[%s] Polling '%s' key every %f sec", self.connector.get_name(), key,
+                                         polling_config["period"])
                 self.__poll_and_schedule(bytearray.fromhex(polling_config["dataInHex"]), polling_config)
             elif self.first_run:
-                log.info("[%s] Polling '%s' key once", self.connector.get_name(), key)
+                self.connector._log.info("[%s] Polling '%s' key once", self.connector.get_name(), key)
                 self.connector.send_data_to_bus(bytearray.fromhex(polling_config["dataInHex"]),
                                                 polling_config,
                                                 raise_exception=self.first_run)
@@ -631,10 +651,10 @@ class Poller(Thread):
 
     def run(self):
         self.scheduler.run()
-        log.info("[%s] Poller stopped", self.connector.get_name())
+        self.connector._log.info("[%s] Poller stopped", self.connector.get_name())
 
     def stop(self):
-        log.debug("[%s] Stopping poller", self.connector.get_name())
+        self.connector._log.debug("[%s] Stopping poller", self.connector.get_name())
         for event in self.events:
             self.scheduler.cancel(event)
 
@@ -644,8 +664,8 @@ class Poller(Thread):
         if self.events:
             self.events.pop(0)
 
-        log.debug("[%s] Sending periodic (%f sec) CAN message (arbitration_id=%d, data=%s)",
-                  self.connector.get_name(), config["period"], config["nodeId"], data)
+        self.connector._log.debug("[%s] Sending periodic (%f sec) CAN message (arbitration_id=%d, data=%s)",
+                                  self.connector.get_name(), config["period"], config["nodeId"], data)
         self.connector.send_data_to_bus(data, config, raise_exception=self.first_run)
 
         event = self.scheduler.enter(config["period"], 1, self.__poll_and_schedule, argument=(data, config))

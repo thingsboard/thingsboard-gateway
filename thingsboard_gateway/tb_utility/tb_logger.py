@@ -20,23 +20,34 @@ from os import environ
 
 
 class TBLoggerHandler(logging.Handler):
+    LOGGER_NAME_TO_ATTRIBUTE_NAME = {
+        'service': 'SERVICE_LOGS',
+        'extension': 'EXTENSION_LOGS',
+        'tb_connection': 'CONNECTION_LOGS',
+        'storage': 'STORAGE_LOGS',
+    }
+
     def __init__(self, gateway):
         self.current_log_level = 'INFO'
         super().__init__(logging.getLevelName(self.current_log_level))
         self.setLevel(logging.getLevelName('DEBUG'))
         self.__gateway = gateway
         self.activated = False
-        self.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - [%(filename)s] - %(module)s - %(lineno)d - %(message)s'))
+        self.setFormatter(logging.Formatter('%(asctime)s - |%(levelname)s| - [%(filename)s] - %(module)s - %(lineno)d - %(message)s'))
         self.loggers = ['service',
                         'extension',
-                        'converter',
-                        'connector',
-                        'tb_connection'
+                        'tb_connection',
+                        'storage'
                         ]
         for logger in self.loggers:
             log = logging.getLogger(logger)
             log.addHandler(self.__gateway.main_handler)
             log.debug("Added remote handler to log %s", logger)
+
+    def add_logger(self, name):
+        log = logging.getLogger(name)
+        log.addHandler(self.__gateway.main_handler)
+        log.debug("Added remote handler to log %s", name)
 
     def activate(self, log_level=None):
         try:
@@ -56,8 +67,15 @@ class TBLoggerHandler(logging.Handler):
 
     def handle(self, record):
         if self.activated and not self.__gateway.stopped:
+            name = record.name
             record = self.formatter.format(record)
-            self.__gateway.send_to_storage(self.__gateway.name, {"deviceName": self.__gateway.name, "telemetry": [{"ts": int(time()*1000), "values":{'LOGS': record}}]})
+            try:
+                telemetry_key = self.LOGGER_NAME_TO_ATTRIBUTE_NAME[name]
+            except KeyError:
+                telemetry_key = name + '_LOGS'
+
+            self.__gateway.tb_client.client.send_telemetry(
+                {'ts': int(time() * 1000), 'values': {telemetry_key: record, 'LOGS': record}})
 
     def deactivate(self):
         self.activated = False
@@ -68,8 +86,6 @@ class TBLoggerHandler(logging.Handler):
             'service',
             'storage',
             'extension',
-            'converter',
-            'connector',
             'tb_connection'
             ]
         for logger_name in logger_names:

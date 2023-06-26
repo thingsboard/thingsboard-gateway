@@ -31,7 +31,6 @@ import asyncio
 
 from bleak import BleakClient, BleakScanner
 
-from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.connectors.ble.error_handler import ErrorHandler
@@ -44,8 +43,9 @@ DEFAULT_CONVERTER_CLASS_NAME = 'BytesBLEUplinkConverter'
 
 
 class Device(Thread):
-    def __init__(self, config):
+    def __init__(self, config, logger):
         super().__init__()
+        self._log = logger
         self.loop = None
         self.stopped = False
         self.name = config['name']
@@ -65,7 +65,7 @@ class Device(Thread):
         except ValueError as e:
             self.client = None
             self.stopped = True
-            log.error(e)
+            self._log.error(e)
 
         self.poll_period = config.get('pollPeriod', 5000) / 1000
         self.config = self._generate_config(config)
@@ -123,10 +123,10 @@ class Device(Thread):
         module = TBModuleLoader.import_module(self.__connector_type, name)
 
         if module:
-            log.debug('Converter %s for device %s - found!', name, self.name)
+            self._log.debug('Converter %s for device %s - found!', name, self.name)
             return module
         else:
-            log.error("Cannot find converter for %s device", self.name)
+            self._log.error("Cannot find converter for %s device", self.name)
             self.stopped = True
 
     async def timer(self):
@@ -139,13 +139,13 @@ class Device(Thread):
                 else:
                     await asyncio.sleep(.2)
             except Exception as e:
-                log.error('Problem with connection')
-                log.debug(e)
+                self._log.error('Problem with connection')
+                self._log.debug(e)
 
                 try:
                     await self.client.disconnect()
                 except Exception as err:
-                    log.exception(err)
+                    self._log.exception(err)
 
                 connect_try = 0
                 while not self.stopped and not self.client.is_connected:
@@ -193,7 +193,7 @@ class Device(Thread):
                     except Exception as e:
                         error = ErrorHandler(e)
                         if error.is_char_not_found() or error.is_operation_not_supported():
-                            log.error(e)
+                            self._log.error(e)
                             pass
                         else:
                             raise e
@@ -205,7 +205,7 @@ class Device(Thread):
                     except Exception as e:
                         error = ErrorHandler(e)
                         if error.is_char_not_found() or error.is_operation_not_supported():
-                            log.error(e)
+                            self._log.error(e)
                             pass
                         else:
                             raise e
@@ -231,10 +231,10 @@ class Device(Thread):
 
     async def _connect_to_device(self):
         try:
-            log.info('Trying to connect to %s with %s MAC address', self.name, self.mac_address)
+            self._log.info('Trying to connect to %s with %s MAC address', self.name, self.mac_address)
             await self.client.connect(timeout=self.timeout)
         except Exception as e:
-            log.error(e)
+            self._log.error(e)
 
     def filter_macaddress(self, device):
         macaddress, device = device
@@ -249,13 +249,13 @@ class Device(Thread):
         try:
             device = tuple(filter(self.filter_macaddress, devices.items()))[0][-1]
         except IndexError:
-            log.error('Device with MAC address %s not found!', self.mac_address)
+            self._log.error('Device with MAC address %s not found!', self.mac_address)
             return
 
         try:
             advertisement_data = list(device[-1].manufacturer_data.values())[0]
         except (IndexError, AttributeError):
-            log.error('Device %s haven\'t advertisement data', self.name)
+            self._log.error('Device %s haven\'t advertisement data', self.name)
             return
 
         data_for_converter = {
@@ -282,7 +282,7 @@ class Device(Thread):
             await self.connect_to_device()
 
             if self.client and self.client.is_connected:
-                log.info('Connected to %s device', self.name)
+                self._log.info('Connected to %s device', self.name)
 
                 if self.show_map:
                     await self.__show_map()
@@ -326,7 +326,7 @@ class Device(Thread):
         if return_result:
             return result
         else:
-            log.info(result)
+            self._log.info(result)
 
     def scan_self(self, return_result):
         task = self.loop.create_task(self.__show_map(return_result))
@@ -342,8 +342,8 @@ class Device(Thread):
             await asyncio.sleep(1.0)
             return 'Ok'
         except Exception as e:
-            log.error('Can\'t write data to device')
-            log.exception(e)
+            self._log.error('Can\'t write data to device')
+            self._log.exception(e)
             return e
 
     @StatisticsService.CollectStatistics(start_stat_type='allBytesSentToDevices')
@@ -359,7 +359,7 @@ class Device(Thread):
         try:
             return await self.client.read_gatt_char(char_id)
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def read_char(self, char_id):
         task = self.loop.create_task(self.__read_char(char_id))

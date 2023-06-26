@@ -25,10 +25,13 @@ class ModbusConnectorTestsBase(unittest.TestCase):
 
     def _create_connector(self, config_file_name):
         with open(self.CONFIG_PATH + config_file_name, 'r', encoding="UTF-8") as file:
-            self.config = load(file)
-            self.connector = ModbusConnector(self.gateway, self.config, "modbus")
-            self.connector.open()
-            sleep(1)  # some time to init
+            try:
+                self.config = load(file)
+                self.connector = ModbusConnector(self.gateway, self.config, "modbus")
+                self.connector.open()
+                sleep(1)  # some time to init
+            except Exception as e:
+                print(e)
 
 
 class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):

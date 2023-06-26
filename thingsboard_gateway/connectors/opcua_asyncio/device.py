@@ -13,11 +13,11 @@
 #     limitations under the License.
 
 import re
-from thingsboard_gateway.connectors.connector import log
 
 
 class Device:
-    def __init__(self, path, name, config, converter, converter_for_sub):
+    def __init__(self, path, name, config, converter, converter_for_sub, logger):
+        self._log = logger
         self.path = path
         self.name = name
         self.config = config
@@ -46,4 +46,4 @@ class Device:
                             {'path': self.path + child.groups()[0].split('\\.'), 'key': node_config['key']})
 
                 except KeyError as e:
-                    log.error('Invalid config for %s (key %s not found)', node_config, e)
+                    self._log.error('Invalid config for %s (key %s not found)', node_config, e)

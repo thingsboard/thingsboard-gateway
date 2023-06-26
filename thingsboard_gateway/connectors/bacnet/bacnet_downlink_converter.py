@@ -12,12 +12,13 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.bacnet.bacnet_converter import Converter, log
+from thingsboard_gateway.connectors.bacnet.bacnet_converter import Converter
 
 
 class BACnetDownlinkConverter(Converter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config
 
     def convert(self, config, data):
-        log.debug(config, data)
+        self._log.debug(config, data)

@@ -30,11 +30,11 @@ def main():
     if hot_reload:
         HotReloader(TBGatewayService)
     else:
-        TBGatewayService(path.dirname(path.abspath(__file__)) + '/config/tb_gateway.yaml'.replace('/', path.sep))
+        TBGatewayService(path.dirname(path.abspath(__file__)) + '/config/tb_gateway.json'.replace('/', path.sep))
 
 
 def daemon():
-    TBGatewayService("/etc/thingsboard-gateway/config/tb_gateway.yaml".replace('/', path.sep))
+    TBGatewayService("/etc/thingsboard-gateway/config/tb_gateway.json".replace('/', path.sep))
 
 
 if __name__ == '__main__':

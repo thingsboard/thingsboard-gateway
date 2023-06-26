@@ -29,6 +29,7 @@ except ImportError:
     from opcua.ua import NodeId, NodeIdType
     from opcua import ua, uamethod, Server
 
+
 class OpcUaConnectorGeneralTest(ConnectorTestBase):
     def test_number_one(self):
         self._create_connector("connection_test.json")
@@ -36,22 +37,19 @@ class OpcUaConnectorGeneralTest(ConnectorTestBase):
         self.check_or_create_server()
         self.connector.open()
 
-
-
     def check_or_create_server(self):
         if not hasattr(self, "test_server"):
             self.test_server = Server()
             self.__server_thread = Thread(target=self.__server_run, name="Test OPC UA server", args=(self.test_server,))
         self.assertTrue(self.test_server is not None)
 
-
     def __server_run(self, test_server):
         self.test_server = test_server
+
         class SubHandler(object):
-            
             def datachange_notification(self, node, val, data):
                 print("Python: New data change event", node, val)
-                
+
             def event_notification(self, event):
                 print("Python: New event", event)
 

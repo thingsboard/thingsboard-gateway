@@ -243,6 +243,9 @@ class GrpcOpcUaConnector(GwGrpcConnector):
     def get_name(self):
         return self.name
 
+    def get_type(self):
+        return self._connector_type
+
     def on_attributes_update(self, content):
         log.debug(content)
         try:

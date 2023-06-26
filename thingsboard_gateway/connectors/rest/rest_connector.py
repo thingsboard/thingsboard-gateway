@@ -11,6 +11,8 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
+import logging
 import json
 from queue import Queue
 from random import choice
@@ -28,7 +30,7 @@ from requests.exceptions import RequestException
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 
 try:
     from requests import Timeout, request as regular_request
@@ -50,7 +52,6 @@ requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
 class RESTConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
-        self.__log = log
         self._default_converters = {
             "uplink": "JsonRESTUplinkConverter",
             "downlink": "JsonRESTDownlinkConverter"
@@ -64,6 +65,7 @@ class RESTConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.__gateway = gateway
+        self.__log = self.init_logger()
         self._default_downlink_converter = TBModuleLoader.import_module(self._connector_type,
                                                                         self._default_converters['downlink'])
         self._default_uplink_converter = TBModuleLoader.import_module(self._connector_type,
@@ -78,6 +80,19 @@ class RESTConnector(Connector, Thread):
         self.__rpc_requests = []
         self.__attribute_updates = []
         self.__fill_requests_from_TB()
+
+    def init_logger(self):
+        log = logging.getLogger(self.__config['name'])
+        log.addHandler(self.__gateway.remote_handler)
+        log.addHandler(self.__gateway.main_handler)
+        log_level_conf = self.__config.get('logLevel')
+        if log_level_conf:
+            log_level = logging.getLevelName(log_level_conf)
+            log.setLevel(log_level)
+        else:
+            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
+        self.__gateway.remote_handler.add_logger(self.__config['name'])
+        return log
 
     def load_endpoints(self):
         endpoints = {}
@@ -120,11 +135,11 @@ class RESTConnector(Connector, Thread):
                                    mapping['security']['password'])
                 for http_method in mapping['HTTPMethods']:
                     handler = data_handlers[security_type](self.collect_statistic_and_send, self.get_name(),
-                                                           self.endpoints[mapping["endpoint"]],
+                                                           self.endpoints[mapping["endpoint"]], self.__log,
                                                            provider=self.__event_provider)
                     handlers.append(web.route(http_method, mapping['endpoint'], handler))
             except Exception as e:
-                log.error("Error on creating handlers - %s", str(e))
+                self.__log.error("Error on creating handlers - %s", str(e))
         self._app.add_routes(handlers)
 
     def open(self):
@@ -153,8 +168,8 @@ class RESTConnector(Connector, Thread):
                     cert = self.__config['security']['cert']
                     key = self.__config['security']['key']
                 except KeyError as e:
-                    log.exception(e)
-                    log.error('Provide certificate and key path!')
+                    self.__log.exception(e)
+                    self.__log.error('Provide certificate and key path!')
 
             ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
             ssl_context.load_cert_chain(cert, key)
@@ -169,7 +184,7 @@ class RESTConnector(Connector, Thread):
         try:
             self.__run_server()
         except Exception as e:
-            log.exception(e)
+            self.__log.exception(e)
 
     def close(self):
         self.__stopped = True
@@ -177,6 +192,9 @@ class RESTConnector(Connector, Thread):
 
     def get_name(self):
         return self.name
+
+    def get_type(self):
+        return self._connector_type
 
     def is_connected(self):
         return self._connected
@@ -195,14 +213,14 @@ class RESTConnector(Connector, Thread):
                                                **converted_data},
                                     "request": regular_request}
                     attribute_update_request_thread = Thread(target=self.__send_request,
-                                                             args=(request_dict, response_queue, log),
+                                                             args=(request_dict, response_queue, self.__log),
                                                              daemon=True,
                                                              name="Attribute request to %s" % (
                                                                  converted_data["url"]))
                     attribute_update_request_thread.start()
                     if not response_queue.empty():
                         response = response_queue.get_nowait()
-                        log.debug(response)
+                        self.__log.debug(response)
                     del response_queue
 
             # ONLY if initialized "response" section for endpoint
@@ -212,7 +230,7 @@ class RESTConnector(Connector, Thread):
                 if list(content['data'].keys())[0] == response_attribute:
                     BaseDataHandler.responses_queue.put(content['data'][response_attribute])
         except Exception as e:
-            log.exception(e)
+            self.__log.exception(e)
 
     def server_side_rpc_handler(self, content):
         try:
@@ -236,9 +254,9 @@ class RESTConnector(Connector, Thread):
 
                 request_dict = {'config': {**params, **converted_data}, 'request': regular_request,
                                 'converter': uplink_converter}
-                response = self.__send_request(request_dict, Queue(1), log, with_queue=False)
+                response = self.__send_request(request_dict, Queue(1), self.__log, with_queue=False)
 
-                log.debug('Response from RPC request: %s', response)
+                self.__log.debug('Response from RPC request: %s', response)
                 self.__gateway.send_rpc_reply(device=content["device"],
                                               req_id=content["data"]["id"],
                                               content=response[2] if response and len(
@@ -254,15 +272,15 @@ class RESTConnector(Connector, Thread):
                                         "request": regular_request}
                         request_dict["converter"] = request_dict["config"].get("uplink_converter")
 
-                        response = self.__send_request(request_dict, Queue(1), log, with_queue=False)
+                        response = self.__send_request(request_dict, Queue(1), self.__log, with_queue=False)
 
-                        log.debug('Response from RPC request: %s', response)
+                        self.__log.debug('Response from RPC request: %s', response)
                         self.__gateway.send_rpc_reply(device=content["device"],
                                                       req_id=content["data"]["id"],
                                                       content=response[2] if response and len(
                                                           response) >= 3 else response)
         except Exception as e:
-            log.exception(e)
+            self.__log.exception(e)
 
     def __event_provider(self, event_type):
         try:
@@ -384,7 +402,8 @@ class BaseDataHandler:
     responses_queue = Queue()
     response_attribute_request = Queue()
 
-    def __init__(self, send_to_storage, name, endpoint, provider=None):
+    def __init__(self, send_to_storage, name, endpoint, logger, provider=None):
+        self.log = logger
         self.send_to_storage = send_to_storage
         self.__name = name
         self.__endpoint = endpoint
@@ -511,18 +530,18 @@ class AnonymousDataHandler(BaseDataHandler):
             return result
 
         try:
-            log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
-            converter = self.endpoint['converter'](endpoint_config['converter'])
+            self.log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
+            converter = self.endpoint['converter'](endpoint_config['converter'], self.log)
             converted_data = converter.convert(config=endpoint_config['converter'], data=data)
 
             self.modify_data_for_remote_response(converted_data, self.response_expected)
 
             self.send_to_storage(self.name, converted_data)
-            log.info("CONVERTED_DATA: %r", converted_data)
+            self.log.info("CONVERTED_DATA: %r", converted_data)
 
             return self.get_response()
         except Exception as e:
-            log.exception("Error while post to anonymous handler: %s", e)
+            self.log.exception("Error while post to anonymous handler: %s", e)
             return web.Response(body=str(self.success_response) if self.success_response else None, status=500)
 
 
@@ -560,18 +579,18 @@ class BasicDataHandler(BaseDataHandler):
                 return result
 
             try:
-                log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
-                converter = self.endpoint['converter'](endpoint_config['converter'])
+                self.log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
+                converter = self.endpoint['converter'](endpoint_config['converter'], self.log)
                 converted_data = converter.convert(config=endpoint_config['converter'], data=data)
 
                 self.modify_data_for_remote_response(converted_data, self.response_expected)
 
                 self.send_to_storage(self.name, converted_data)
-                log.info("CONVERTED_DATA: %r", converted_data)
+                self.log.info("CONVERTED_DATA: %r", converted_data)
 
                 return self.get_response()
             except Exception as e:
-                log.exception("Error while post to basic handler: %s", e)
+                self.log.exception("Error while post to basic handler: %s", e)
                 return web.Response(body=str(self.unsuccessful_response) if self.unsuccessful_response else None,
                                     status=500)
 

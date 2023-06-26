@@ -15,13 +15,14 @@
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadBuilder
 
-from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
+from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BytesModbusDownlinkConverter(ModbusConverter):
 
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config
 
     @StatisticsService.CollectStatistics(start_stat_type='allReceivedBytesFromTB',
@@ -55,7 +56,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         lower_type = config.get("type", config.get("tag", "error")).lower()
 
         if lower_type == "error":
-            log.error('"type" and "tag" - not found in configuration.')
+            self._log.error('"type" and "tag" - not found in configuration.')
         variable_size = config.get("objectsCount", config.get("registersCount", config.get("registerCount", 1))) * 16
 
         if lower_type in ["integer", "dword", "dword/integer", "word", "int"]:
@@ -87,7 +88,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         elif lower_type in builder_functions:
             builder_functions[lower_type](value)
         else:
-            log.error("Unknown variable type")
+            self._log.error("Unknown variable type")
 
         builder_converting_functions = {5: builder.to_coils,
                                         15: builder.to_coils,
@@ -98,9 +99,9 @@ class BytesModbusDownlinkConverter(ModbusConverter):
 
         if function_code in builder_converting_functions:
             builder = builder_converting_functions[function_code]()
-            log.debug(builder)
+            self._log.debug(builder)
             if "Exception" in str(builder):
-                log.exception(builder)
+                self._log.exception(builder)
                 builder = str(builder)
             # if function_code is 5 , is using first coils value
             if function_code == 5:
@@ -112,8 +113,8 @@ class BytesModbusDownlinkConverter(ModbusConverter):
                         builder = builder[0]
                 else:
                     if isinstance(builder, list) and len(builder) not in (2, 4):
-                        log.warning("There is a problem with the value builder. Only the first register is written.")
+                        self._log.warning("There is a problem with the value builder. Only the first register is written.")
                         builder = builder[0]
             return builder
-        log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter", config["device"])
+        self._log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter", config["device"])
         return None

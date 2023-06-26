@@ -12,11 +12,12 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.socket.socket_uplink_converter import SocketUplinkConverter, log
+from thingsboard_gateway.connectors.socket.socket_uplink_converter import SocketUplinkConverter
 
 
 class BytesGrpcSocketUplinkConverter(SocketUplinkConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config
         self.dict_result = {}
 
@@ -45,11 +46,12 @@ class BytesGrpcSocketUplinkConverter(SocketUplinkConverter):
                         if item.get('key') is not None:
                             self.dict_result[section][item['key']] = converted_data
                         else:
-                            log.error('Key for %s not found in config: %s', config['type'], config['section_config'])
+                            self._log.error('Key for %s not found in config: %s', config['type'],
+                                            config['section_config'])
                     except Exception as e:
-                        log.exception(e)
+                        self._log.exception(e)
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
-        log.debug(self.dict_result)
+        self._log.debug(self.dict_result)
         return self.dict_result

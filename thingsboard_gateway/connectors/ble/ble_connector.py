@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 import asyncio
 from time import sleep
 from random import choice
@@ -28,7 +29,7 @@ except ImportError:
     print("BLE library not found - installing...")
     TBUtility.install_package("bleak")
 
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.ble.device import Device
 
 
@@ -42,6 +43,7 @@ class BLEConnector(Connector, Thread):
         self._connector_type = connector_type
         self.__gateway = gateway
         self.__config = config
+        self.__log = self.init_logger()
 
         self.daemon = True
         self.setName(self.__config.get("name", 'BLE Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
@@ -56,26 +58,40 @@ class BLEConnector(Connector, Thread):
         self.__devices = []
         self.__configure_and_load_devices()
 
+    def init_logger(self):
+        log = logging.getLogger(self.__config['name'])
+        log.addHandler(self.__gateway.remote_handler)
+        log.addHandler(self.__gateway.main_handler)
+        log_level_conf = self.__config.get('logLevel')
+        if log_level_conf:
+            log_level = logging.getLevelName(log_level_conf)
+            log.setLevel(log_level)
+        else:
+            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
+        self.__gateway.remote_handler.add_logger(self.__config['name'])
+        return log
+
     async def __show_map(self):
         scanner = self.__config.get('scanner', {})
         devices = await BleakScanner(
             scanning_mode='passive' if self.__config.get('passiveScanMode', True) else 'active').discover(
             timeout=scanner.get('timeout', 10000) / 1000)
 
-        log.info('FOUND DEVICES')
+        self.__log.info('FOUND DEVICES')
         if scanner.get('deviceName'):
             found_devices = [x.__str__() for x in filter(lambda x: x.name == scanner['deviceName'], devices)]
             if found_devices:
-                log.info(', '.join(found_devices))
+                self.__log.info(', '.join(found_devices))
             else:
-                log.info('nothing to show')
+                self.__log.info('nothing to show')
         else:
             for device in devices:
-                log.info(device)
+                self.__log.info(device)
 
     def __configure_and_load_devices(self):
-        self.__devices = [Device({**device, 'callback': BLEConnector.callback, 'connector_type': self._connector_type})
-                          for device in self.__config.get('devices', [])]
+        self.__devices = [
+            Device({**device, 'callback': BLEConnector.callback, 'connector_type': self._connector_type}, self.__log)
+            for device in self.__config.get('devices', [])]
 
     def open(self):
         self.__stopped = False
@@ -93,10 +109,13 @@ class BLEConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
-        log.info('%s has been stopped.', self.get_name())
+        self.__log.info('%s has been stopped.', self.get_name())
 
     def get_name(self):
         return self.name
+
+    def get_type(self):
+        return self._connector_type
 
     def is_connected(self):
         return self.__connected
@@ -110,17 +129,17 @@ class BLEConnector(Connector, Thread):
                 converter = device_config.pop('converter')
 
                 try:
-                    converter = converter(device_config)
+                    converter = converter(device_config, self.__log)
                     converted_data = converter.convert(config, data)
                     self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
-                    log.debug(converted_data)
+                    self.__log.debug(converted_data)
 
                     if converted_data is not None:
                         self.__gateway.send_to_storage(self.get_name(), converted_data)
                         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                        log.info('Data to ThingsBoard %s', converted_data)
+                        self.__log.info('Data to ThingsBoard %s', converted_data)
                 except Exception as e:
-                    log.exception(e)
+                    self.__log.exception(e)
             else:
                 sleep(.2)
 
@@ -137,7 +156,7 @@ class BLEConnector(Connector, Thread):
                                                 'utf-8'))
 
         except IndexError:
-            log.error('Device not found')
+            self.__log.error('Device not found')
 
     @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
@@ -163,7 +182,7 @@ class BLEConnector(Connector, Thread):
 
                         return
         except IndexError:
-            log.error('Device not found')
+            self.__log.error('Device not found')
 
     def get_config(self):
         return self.__config

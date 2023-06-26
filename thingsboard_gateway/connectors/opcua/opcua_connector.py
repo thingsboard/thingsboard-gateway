@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 import re
 import time
 from concurrent.futures import CancelledError, TimeoutError as FuturesTimeoutError
@@ -41,7 +42,7 @@ except ImportError:
     TBUtility.install_package("cryptography")
     from opcua.crypto import uacrypto
 
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
 
 
@@ -52,7 +53,11 @@ class OpcUaConnector(Thread, Connector):
                            'MessagesSent': 0}
         super().__init__()
         self.__gateway = gateway
+        self._config = config
         self.__server_conf = config.get("server")
+        self.setName(self.__server_conf.get("name", 'OPC-UA ' + ''.join(
+            choice(ascii_lowercase) for _ in range(5))) + " Connector")
+        self._log = self.init_logger()
         self.__interest_nodes = []
         self.__available_object_resources = {}
         self.__show_map = self.__server_conf.get("showMap", False)
@@ -61,8 +66,9 @@ class OpcUaConnector(Thread, Connector):
             if mapping.get("deviceNodePattern") is not None:
                 self.__interest_nodes.append({mapping["deviceNodePattern"]: mapping})
             else:
-                log.error("deviceNodePattern in mapping: %s - not found, add property deviceNodePattern to processing this mapping",
-                          dumps(mapping))
+                self._log.error(
+                    "deviceNodePattern in mapping: %s - not found, add property deviceNodePattern to processing this mapping",
+                    dumps(mapping))
         if "opc.tcp" not in self.__server_conf.get("url"):
             self.__opcua_url = "opc.tcp://" + self.__server_conf.get("url")
         else:
@@ -71,19 +77,35 @@ class OpcUaConnector(Thread, Connector):
         self.client = None
         self.__connected = False
 
-        self.setName(self.__server_conf.get("name", 'OPC-UA ' + ''.join(choice(ascii_lowercase) for _ in range(5))) + " Connector")
         self.__sub_handler = SubHandler(self)
         self.data_to_send = []
         self.__stopped = False
         self.daemon = True
 
+    def init_logger(self):
+        self._log = logging.getLogger(self._config.get('name', self.name))
+        if hasattr(self.__gateway, 'remote_handler') and hasattr(self.__gateway, 'main_handler'):
+            self._log.addHandler(self.__gateway.remote_handler)
+            self._log.addHandler(self.__gateway.main_handler)
+            log_level_conf = self._config.get('logLevel')
+            if log_level_conf:
+                log_level = logging.getLevelName(log_level_conf)
+                self._log.setLevel(log_level)
+            else:
+                self._log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
+            self.__gateway.remote_handler.add_logger(self._config.get('name', self.name))
+        return self._log
+
     def is_connected(self):
         return self.__connected
+
+    def get_type(self):
+        return self._connector_type
 
     def open(self):
         self.__stopped = False
         self.start()
-        log.info("Starting OPC-UA Connector")
+        self._log.info("Starting OPC-UA Connector")
 
     def __create_client(self):
         if self.client:
@@ -119,27 +141,31 @@ class OpcUaConnector(Thread, Connector):
                 try:
                     self.client.load_type_definitions()
                 except Exception as e:
-                    log.error("Error on loading type definitions:")
-                    log.error(e)
-                log.debug(self.client.get_namespace_array()[-1])
-                log.debug(self.client.get_namespace_index(self.client.get_namespace_array()[-1]))
+                    self._log.error("Error on loading type definitions:")
+                    self._log.error(e)
+                self._log.debug(self.client.get_namespace_array()[-1])
+                self._log.debug(self.client.get_namespace_index(self.client.get_namespace_array()[-1]))
 
                 self.__initialize_client()
 
                 if not self.__server_conf.get("disableSubscriptions", False):
-                    self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500), self.__sub_handler)
+                    self.__sub = self.client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 500),
+                                                                 self.__sub_handler)
 
                 self.__connected = True
-                log.info("OPC-UA connector %s connected to server %s", self.get_name(), self.__server_conf.get("url"))
+                self._log.info("OPC-UA connector %s connected to server %s", self.get_name(),
+                               self.__server_conf.get("url"))
             except ConnectionRefusedError:
-                log.error("Connection refused on connection to OPC-UA server with url %s", self.__server_conf.get("url"))
+                self._log.error("Connection refused on connection to OPC-UA server with url %s",
+                                self.__server_conf.get("url"))
                 time.sleep(10)
             except OSError:
-                log.error("Connection refused on connection to OPC-UA server with url %s", self.__server_conf.get("url"))
+                self._log.error("Connection refused on connection to OPC-UA server with url %s",
+                                self.__server_conf.get("url"))
                 time.sleep(10)
             except Exception as e:
-                log.debug("error on connection to OPC-UA server.")
-                log.error(e)
+                self._log.debug("error on connection to OPC-UA server.")
+                self._log.error(e)
                 time.sleep(10)
 
     def run(self):
@@ -170,9 +196,9 @@ class OpcUaConnector(Thread, Connector):
             except FuturesTimeoutError:
                 self.__check_connection()
             except Exception as e:
-                log.error("Connection failed on connection to OPC-UA server with url %s",
-                          self.__server_conf.get("url"))
-                log.exception(e)
+                self._log.error("Connection failed on connection to OPC-UA server with url %s",
+                                self.__server_conf.get("url"))
+                self._log.exception(e)
 
                 time.sleep(10)
 
@@ -184,7 +210,7 @@ class OpcUaConnector(Thread, Connector):
             security_mode = self.__server_conf["identity"].get("mode", "SignAndEncrypt")
             policy = self.__server_conf["security"]
             if cert is None or private_key is None:
-                log.exception("Error in ssl configuration - cert or privateKey parameter not found")
+                self._log.exception("Error in ssl configuration - cert or privateKey parameter not found")
                 raise RuntimeError("Error in ssl configuration - cert or privateKey parameter not found")
             security_string = policy + ',' + security_mode + ',' + cert + ',' + private_key
             if ca_cert is not None:
@@ -192,7 +218,7 @@ class OpcUaConnector(Thread, Connector):
             self.client.set_security_string(security_string)
 
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def __set_auth_settings_by_username(self):
         self.client.set_user(self.__server_conf["identity"].get("username"))
@@ -216,7 +242,7 @@ class OpcUaConnector(Thread, Connector):
             self.__connected = False
         except Exception as e:
             self.__connected = False
-            log.exception(e)
+            self._log.exception(e)
 
     def close(self):
         self.__stopped = True
@@ -227,29 +253,31 @@ class OpcUaConnector(Thread, Connector):
             except:
                 pass
         self.__connected = False
-        log.info('%s has been stopped.', self.get_name())
+        self._log.info('%s has been stopped.', self.get_name())
 
     def get_name(self):
         return self.name
 
     @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
-        log.debug(content)
+        self._log.debug(content)
         try:
             for server_variables in self.__available_object_resources[content["device"]]['variables']:
                 for attribute in content["data"]:
                     for variable in server_variables:
                         if attribute == variable:
                             try:
-                                if ( isinstance(content["data"][variable], int) ):
-                                    dv = ua.DataValue(ua.Variant(content["data"][variable], server_variables[variable].get_data_type_as_variant_type()))
+                                if isinstance(content["data"][variable], int):
+                                    dv = ua.DataValue(ua.Variant(content["data"][variable], server_variables[
+                                        variable].get_data_type_as_variant_type()))
                                     server_variables[variable].set_value(dv)
                                 else:
                                     server_variables[variable].set_value(content["data"][variable])
                             except Exception:
-                                server_variables[variable].set_attribute(ua.AttributeIds.Value, ua.DataValue(content["data"][variable]))
+                                server_variables[variable].set_attribute(ua.AttributeIds.Value,
+                                                                         ua.DataValue(content["data"][variable]))
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
@@ -268,7 +296,7 @@ class OpcUaConnector(Thread, Connector):
                     else:
                         full_path = args_list[0].split('=')[-1]
                 except IndexError:
-                    log.error('Not enough arguments. Expected min 2.')
+                    self._log.error('Not enough arguments. Expected min 2.')
                     self.__gateway.send_rpc_reply(content['device'],
                                                   content['data']['id'],
                                                   {content['data']['method']: 'Not enough arguments. Expected min 2.',
@@ -298,12 +326,12 @@ class OpcUaConnector(Thread, Connector):
                                                       content['data']['id'],
                                                       {'success': 'true', 'code': 200})
                     except ValueError:
-                        log.error('Method SET take three arguments!')
+                        self._log.error('Method SET take three arguments!')
                         self.__gateway.send_rpc_reply(content['device'],
                                                       content['data']['id'],
                                                       {'error': 'Method SET take three arguments!', 'code': 400})
                     except ua.UaStatusCodeError:
-                        log.error('Write method doesn\'t allow!')
+                        self._log.error('Write method doesn\'t allow!')
                         self.__gateway.send_rpc_reply(content['device'],
                                                       content['data']['id'],
                                                       {'error': 'Write method doesn\'t allow!', 'code': 400})
@@ -328,24 +356,25 @@ class OpcUaConnector(Thread, Connector):
                         self.__gateway.send_rpc_reply(content["device"],
                                                       content["data"]["id"],
                                                       {content["data"]["method"]: result, "code": 200})
-                        log.debug("method %s result is: %s", method[rpc_method], result)
+                        self._log.debug("method %s result is: %s", method[rpc_method], result)
                     except Exception as e:
-                        log.exception(e)
+                        self._log.exception(e)
                         self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
                                                       {"error": str(e), "code": 500})
                 else:
-                    log.error("Method %s not found for device %s", rpc_method, content["device"])
-                    self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], {"error": "%s - Method not found" % (rpc_method), "code": 404})
+                    self._log.error("Method %s not found for device %s", rpc_method, content["device"])
+                    self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+                                                  {"error": "%s - Method not found" % rpc_method, "code": 404})
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def __initialize_client(self):
         self.__opcua_nodes["root"] = self.client.get_objects_node()
         self.__opcua_nodes["objects"] = self.client.get_objects_node()
         self.scan_nodes_from_config()
         self.__previous_scan_time = time.time() * 1000
-        log.debug('Subscriptions: %s', self.subscribed)
-        log.debug("Available methods: %s", self.__available_object_resources)
+        self._log.debug('Subscriptions: %s', self.subscribed)
+        self._log.debug("Available methods: %s", self.__available_object_resources)
 
     def scan_nodes_from_config(self):
         try:
@@ -361,20 +390,21 @@ class OpcUaConnector(Thread, Connector):
                                     self.__save_methods(device_info)
                                     self.__search_attribute_update_variables(device_info)
                                 else:
-                                    log.error("Device node is None, please check your configuration.")
-                                    log.debug("Current device node is: %s", str(device_configuration.get("deviceNodePattern")))
+                                    self._log.error("Device node is None, please check your configuration.")
+                                    self._log.debug("Current device node is: %s",
+                                                    str(device_configuration.get("deviceNodePattern")))
                                     break
                         except BrokenPipeError:
-                            log.debug("Broken Pipe. Connection lost.")
+                            self._log.debug("Broken Pipe. Connection lost.")
                         except OSError:
-                            log.debug("Stop on scanning.")
+                            self._log.debug("Stop on scanning.")
                         except FuturesTimeoutError:
                             self.__check_connection()
                         except Exception as e:
-                            log.exception(e)
-                log.debug(self.__interest_nodes)
+                            self._log.exception(e)
+                self._log.debug(self.__interest_nodes)
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def __search_nodes_and_subscribe(self, device_info):
         sub_nodes = []
@@ -394,7 +424,7 @@ class OpcUaConnector(Thread, Connector):
                         try:
                             information_value = information_node.get_value()
                         except:
-                            log.error("Err get_value: %s", str(information_node))
+                            self._log.error("Err get_value: %s", str(information_node))
                             continue
 
                         if device_info.get("uplink_converter") is None:
@@ -402,9 +432,11 @@ class OpcUaConnector(Thread, Connector):
                                              "deviceName": device_info["deviceName"],
                                              "deviceType": device_info["deviceType"]}
                             if device_info["configuration"].get('converter') is None:
-                                converter = OpcUaUplinkConverter(configuration)
+                                converter = OpcUaUplinkConverter(configuration, self._log)
                             else:
-                                converter = TBModuleLoader.import_module(self._connector_type, device_info["configuration"].get('converter'))(configuration)
+                                converter = TBModuleLoader.import_module(self._connector_type,
+                                                                         device_info["configuration"].get('converter'))(
+                                    configuration, self._log)
                             device_info["uplink_converter"] = converter
                         else:
                             converter = device_info["uplink_converter"]
@@ -421,11 +453,11 @@ class OpcUaConnector(Thread, Connector):
 
                         information_key = information['key']
 
-                        log.debug("Node for %s \"%s\" with path: %s - FOUND! Current values is: %s",
-                                  information_type,
-                                  information_key,
-                                  information_path,
-                                  str(information_value))
+                        self._log.debug("Node for %s \"%s\" with path: %s - FOUND! Current values is: %s",
+                                        information_type,
+                                        information_key,
+                                        information_path,
+                                        str(information_value))
 
                         if not device_info.get(information_types[information_type]):
                             device_info[information_types[information_type]] = []
@@ -434,12 +466,13 @@ class OpcUaConnector(Thread, Connector):
                         self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                         self.data_to_send.append(converted_data)
                         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                        log.debug("Data to ThingsBoard: %s", converted_data)
+                        self._log.debug("Data to ThingsBoard: %s", converted_data)
 
                         if not self.__server_conf.get("disableSubscriptions", False):
                             sub_nodes.append(information_node)
                     else:
-                        log.error("Node for %s \"%s\" with path %s - NOT FOUND!", information_type, information_key, information_path)
+                        self._log.error("Node for %s \"%s\" with path %s - NOT FOUND!", information_type,
+                                        information_key, information_path)
 
                     if changed_key:
                         information['key'] = None
@@ -450,7 +483,7 @@ class OpcUaConnector(Thread, Connector):
                                                              self.__sub_handler)
             if sub_nodes:
                 self.__sub.subscribe_data_change(sub_nodes)
-                log.debug("Added subscription to nodes: %s", str(sub_nodes))
+                self._log.debug("Added subscription to nodes: %s", str(sub_nodes))
 
     def __save_methods(self, device_info):
         try:
@@ -470,9 +503,9 @@ class OpcUaConnector(Thread, Connector):
                             self.__available_object_resources[device_info["deviceName"]]["methods"].append(
                                 {node_method_name: method, "node": node, "arguments": method_object.get("arguments")})
                         else:
-                            log.error("Node for method with path %s - NOT FOUND!", method_node_path)
+                            self._log.error("Node for method with path %s - NOT FOUND!", method_node_path)
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def __search_attribute_update_variables(self, device_info):
         try:
@@ -489,24 +522,27 @@ class OpcUaConnector(Thread, Connector):
                     self.__search_node(node, attribute_path, result=attribute_nodes)
                     for attribute_node in attribute_nodes:
                         if attribute_node is not None:
-                            if self.get_node_path(attribute_node) ==  attribute_path:
-                                self.__available_object_resources[device_name]["variables"].append({attribute_update["attributeOnThingsBoard"]: attribute_node})
+                            if self.get_node_path(attribute_node) == attribute_path:
+                                self.__available_object_resources[device_name]["variables"].append(
+                                    {attribute_update["attributeOnThingsBoard"]: attribute_node})
                         else:
-                            log.error("Attribute update node with path \"%s\" - NOT FOUND!", attribute_path)
+                            self._log.error("Attribute update node with path \"%s\" - NOT FOUND!", attribute_path)
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def __search_general_info(self, device):
         result = []
         match_devices = []
-        self.__search_node(self.__opcua_nodes["root"], TBUtility.get_value(device["deviceNodePattern"], get_tag=True), result=match_devices)
+        self.__search_node(self.__opcua_nodes["root"], TBUtility.get_value(device["deviceNodePattern"], get_tag=True),
+                           result=match_devices)
         for device_node in match_devices:
             if device_node is not None:
-                result_device_dict = {"deviceName": None, "deviceType": None, "deviceNode": device_node, "configuration": deepcopy(device)}
+                result_device_dict = {"deviceName": None, "deviceType": None, "deviceNode": device_node,
+                                      "configuration": deepcopy(device)}
                 name_pattern_config = device["deviceNamePattern"]
                 name_expression = TBUtility.get_value(name_pattern_config, get_tag=True)
                 if "${" in name_pattern_config and "}" in name_pattern_config:
-                    log.debug("Looking for device name")
+                    self._log.debug("Looking for device name")
                     device_name_from_node = ""
                     if name_expression == "$DisplayName":
                         device_name_from_node = device_node.get_display_name().Text
@@ -519,20 +555,21 @@ class OpcUaConnector(Thread, Connector):
                         device_name_node = []
                         self.__search_node(device_node, name_path, result=device_name_node)
                         if len(device_name_node) == 0:
-                            log.warn("Device name node - not found, skipping device...")
+                            self._log.warn("Device name node - not found, skipping device...")
                             continue
                         device_name_node = device_name_node[0]
                         if device_name_node is not None:
                             device_name_from_node = device_name_node.get_value()
                     if device_name_from_node == "":
-                        log.error("Device name node not found with expression: %s", name_expression)
+                        self._log.error("Device name node not found with expression: %s", name_expression)
                         return None
-                    full_device_name = name_pattern_config.replace("${" + name_expression + "}", str(device_name_from_node)).replace(
+                    full_device_name = name_pattern_config.replace("${" + name_expression + "}",
+                                                                   str(device_name_from_node)).replace(
                         name_expression, str(device_name_from_node))
                 else:
                     full_device_name = name_expression
                 result_device_dict["deviceName"] = full_device_name
-                log.debug("Device name: %s", full_device_name)
+                self._log.debug("Device name: %s", full_device_name)
                 if device.get("deviceTypePattern"):
                     device_type_expression = TBUtility.get_value(device["deviceTypePattern"],
                                                                  get_tag=True)
@@ -544,20 +581,22 @@ class OpcUaConnector(Thread, Connector):
                         if device_type_node is not None:
                             device_type = device_type_node.get_value()
                             full_device_type = device_type_expression.replace("${" + device_type_expression + "}",
-                                                                              device_type).replace(device_type_expression,
-                                                                                                   device_type)
+                                                                              device_type).replace(
+                                device_type_expression,
+                                device_type)
                         else:
-                            log.error("Device type node not found with expression: %s", device_type_expression)
+                            self._log.error("Device type node not found with expression: %s", device_type_expression)
                             full_device_type = "default"
                     else:
                         full_device_type = device_type_expression
                     result_device_dict["deviceType"] = full_device_type
-                    log.debug("Device type: %s", full_device_type)
+                    self._log.debug("Device type: %s", full_device_type)
                 else:
                     result_device_dict["deviceType"] = "default"
                 result.append(result_device_dict)
             else:
-                log.error("Device node not found with expression: %s", TBUtility.get_value(device["deviceNodePattern"], get_tag=True))
+                self._log.error("Device node not found with expression: %s",
+                                TBUtility.get_value(device["deviceNodePattern"], get_tag=True))
         return result
 
     @cached(cache=TTLCache(maxsize=1000, ttl=10 * 60))
@@ -570,12 +609,12 @@ class OpcUaConnector(Thread, Connector):
         try:
             if regex.match(r"ns=\d*;[isgb]=.*", fullpath, regex.IGNORECASE):
                 if self.__show_map:
-                    log.debug("Looking for node with config")
+                    self._log.debug("Looking for node with config")
                 node = self.client.get_node(fullpath)
                 if node is None:
-                    log.warning("NODE NOT FOUND - using configuration %s", fullpath)
+                    self._log.warning("NODE NOT FOUND - using configuration %s", fullpath)
                 else:
-                    log.debug("Found in %s", node)
+                    self._log.debug("Found in %s", node)
                     result.append(node)
             else:
                 fullpath_pattern = regex.compile(fullpath)
@@ -604,14 +643,14 @@ class OpcUaConnector(Thread, Connector):
                     nnp1 = new_node_path.replace('\\\\.', '.')
                     nnp2 = new_node_path.replace('\\\\', '\\')
                     if self.__show_map:
-                        log.debug("SHOW MAP: Current node path: %s", new_node_path)
+                        self._log.debug("SHOW MAP: Current node path: %s", new_node_path)
                     regex_fullmatch = regex.fullmatch(fullpath_pattern, nnp1) or \
                                       nnp2 == full1 or \
                                       nnp2 == fullpath or \
                                       nnp1 == full1
                     if regex_fullmatch:
                         if self.__show_map:
-                            log.debug("SHOW MAP: Current node path: %s - NODE FOUND", nnp2)
+                            self._log.debug("SHOW MAP: Current node path: %s - NODE FOUND", nnp2)
                         result.append(child_node)
                     else:
                         regex_search = fullpath_pattern.fullmatch(nnp1, partial=True) or \
@@ -619,25 +658,25 @@ class OpcUaConnector(Thread, Connector):
                                        nnp1 in full1
                         if regex_search:
                             if self.__show_map:
-                                log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path)
+                                self._log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path)
                             if new_node_class == ua.NodeClass.Object:
                                 if self.__show_map:
-                                    log.debug("SHOW MAP: Search in %s", new_node_path)
+                                    self._log.debug("SHOW MAP: Search in %s", new_node_path)
                                 self.__search_node(child_node, fullpath, result=result)
                             # elif new_node_class == ua.NodeClass.Variable:
-                            #     log.debug("Found in %s", new_node_path)
+                            #     self._log.debug("Found in %s", new_node_path)
                             #     result.append(child_node)
                             elif new_node_class == ua.NodeClass.Method and search_method:
-                                log.debug("Found in %s", new_node_path)
+                                self._log.debug("Found in %s", new_node_path)
                                 result.append(child_node)
         except CancelledError:
-            log.error("Request during search has been canceled by the OPC-UA server.")
+            self._log.error("Request during search has been canceled by the OPC-UA server.")
         except BrokenPipeError:
-            log.error("Broken Pipe. Connection lost.")
+            self._log.error("Broken Pipe. Connection lost.")
         except OSError:
-            log.debug("Stop on scanning.")
+            self._log.debug("Stop on scanning.")
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def _check_path(self, config_path, node):
         if regex.match(r"ns=\d*;[isgb]=.*", config_path, regex.IGNORECASE):
@@ -665,7 +704,7 @@ class OpcUaConnector(Thread, Connector):
         return [item['converter'] for _, item in self.subscribed.items()]
 
     def update_converter_config(self, converter_name, config):
-        log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
+        self._log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
                          config)
         converters = self.get_converters()
         for converter_class_obj in converters:
@@ -673,7 +712,7 @@ class OpcUaConnector(Thread, Connector):
             converter_obj = converter_class_obj
             if converter_class_name == converter_name:
                 converter_obj.config = config
-                log.info('Updated converter configuration for: %s with configuration %s',
+                self._log.info('Updated converter configuration for: %s with configuration %s',
                          converter_name, converter_obj.config)
 
                 for node_config in self.__server_conf['mapping']:
@@ -682,27 +721,28 @@ class OpcUaConnector(Thread, Connector):
 
                 self.__gateway.update_connector_config_file(self.name, {'server': self.__server_conf})
 
+
 class SubHandler(object):
     def __init__(self, connector: OpcUaConnector):
         self.connector = connector
 
     def datachange_notification(self, node, val, data):
         try:
-            log.debug("Python: New data change event on node %s, with val: %s and data %s", node, val, str(data))
+            self.connector._log.debug("Python: New data change event on node %s, with val: %s and data %s", node, val, str(data))
             subscription = self.connector.subscribed[node]
             converted_data = subscription["converter"].convert((subscription["config_path"], subscription["path"]), val,
                                                                data, key=subscription.get('key'))
             self.connector.statistics['MessagesReceived'] = self.connector.statistics['MessagesReceived'] + 1
             self.connector.data_to_send.append(converted_data)
             self.connector.statistics['MessagesSent'] = self.connector.statistics['MessagesSent'] + 1
-            log.debug("[SUBSCRIPTION] Data to ThingsBoard: %s", converted_data)
+            self.connector._log.debug("[SUBSCRIPTION] Data to ThingsBoard: %s", converted_data)
         except KeyError:
             self.connector.scan_nodes_from_config()
         except Exception as e:
-            log.exception(e)
+            self.connector._log.exception(e)
 
     def event_notification(self, event):
         try:
-            log.debug("Python: New event %s", event)
+            self.connector._log.debug("Python: New event %s", event)
         except Exception as e:
-            log.exception(e)
+            self.connector._log.exception(e)

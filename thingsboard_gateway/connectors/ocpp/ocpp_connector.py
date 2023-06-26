@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 import asyncio
 import base64
 import re
@@ -24,7 +25,7 @@ from time import sleep
 
 from simplejson import dumps
 
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -56,13 +57,14 @@ class OcppConnector(Connector, Thread):
 
     def __init__(self, gateway, config, connector_type):
         super().__init__()
-        self._log = log
+        self._config = config
         self._central_system_config = config['centralSystem']
         self._charge_points_config = config.get('chargePoints', [])
         self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self._gateway = gateway
+        self._log = self.init_logger()
         self.setName(self._central_system_config.get("name", 'OCPP Connector ' + ''.join(
             choice(ascii_lowercase) for _ in range(5))))
 
@@ -92,10 +94,26 @@ class OcppConnector(Connector, Thread):
         self.__stopped = False
         self.daemon = True
 
+    def init_logger(self):
+        log = logging.getLogger(self._config['name'])
+        log.addHandler(self._gateway.remote_handler)
+        log.addHandler(self._gateway.main_handler)
+        log_level_conf = self._config.get('logLevel')
+        if log_level_conf:
+            log_level = logging.getLevelName(log_level_conf)
+            log.setLevel(log_level)
+        else:
+            log.setLevel(self._gateway.remote_handler.level or self._gateway.main_handler.level)
+        self._gateway.remote_handler.add_logger(self._config['name'])
+        return log
+
     def open(self):
         self.__stopped = False
         self.start()
-        log.info("Starting OCPP Connector")
+        self._log.info("Starting OCPP Connector")
+
+    def get_type(self):
+        return self._connector_type
 
     def run(self):
         self._data_convert_thread.start()
@@ -175,7 +193,7 @@ class OcppConnector(Connector, Thread):
         if is_valid:
             uplink_converter_name = cp_config.get('extension', self._default_converters['uplink'])
             cp = ChargePoint(charge_point_id, websocket, {**cp_config, 'uplink_converter_name': uplink_converter_name},
-                             OcppConnector._callback)
+                             OcppConnector._callback, self._log)
             cp.authorized = True
 
             self._log.info('Connected Charge Point with id: %s', charge_point_id)

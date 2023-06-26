@@ -27,12 +27,13 @@
 from pprint import pformat
 from re import findall
 
-from thingsboard_gateway.connectors.ble.ble_uplink_converter import BLEUplinkConverter, log
+from thingsboard_gateway.connectors.ble.ble_uplink_converter import BLEUplinkConverter
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BytesBLEUplinkConverter(BLEUplinkConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config
         self.dict_result = {"deviceName": config['deviceName'],
                             "deviceType": config['deviceType']
@@ -73,13 +74,13 @@ class BytesBLEUplinkConverter(BLEUplinkConverter):
                         if item.get('key') is not None:
                             self.dict_result[section].append({item['key']: converted_data})
                         else:
-                            log.error('Key for %s not found in config: %s', config['type'], config[section])
+                            self._log.error('Key for %s not found in config: %s', config['type'], config[section])
                     except Exception as e:
-                        log.error('\nException caught when processing data for %s\n\n', pformat(config))
-                        log.exception(e)
+                        self._log.error('\nException caught when processing data for %s\n\n', pformat(config))
+                        self._log.exception(e)
 
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
-        log.debug(self.dict_result)
+        self._log.debug(self.dict_result)
         return self.dict_result

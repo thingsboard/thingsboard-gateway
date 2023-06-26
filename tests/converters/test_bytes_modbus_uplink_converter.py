@@ -1,3 +1,4 @@
+import logging
 import unittest
 
 from pymodbus.constants import Endian
@@ -175,7 +176,7 @@ class ModbusConverterTests(unittest.TestCase):
                         {tag: {"input_data": DummyResponse(builder.to_registers()), "data_sent": tag_dict[tag]}})
                     builder.reset()
 
-        converter = BytesModbusUplinkConverter({"deviceName": "Modbus Test", "deviceType": "default", "unitId": 1})
+        converter = BytesModbusUplinkConverter({"deviceName": "Modbus Test", "deviceType": "default", "unitId": 1}, logger=logging.getLogger('converter'))
         result = converter.convert(test_modbus_convert_config, test_modbus_body_to_convert)
         self.assertDictEqual(result, test_modbus_result)
 

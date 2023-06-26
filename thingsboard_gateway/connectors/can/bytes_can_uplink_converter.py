@@ -15,11 +15,13 @@
 import struct
 
 from thingsboard_gateway.connectors.can.can_converter import CanConverter
-from thingsboard_gateway.connectors.converter import log
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BytesCanUplinkConverter(CanConverter):
+    def __init__(self, logger):
+        self._log = logger
+
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
     def convert(self, configs, can_data):
@@ -51,8 +53,8 @@ class BytesCanUplinkConverter(CanConverter):
                     for hex_byte in can_data[config["start"]:config["start"] + data_length]:
                         value += "%02x" % hex_byte
                 else:
-                    log.error("Failed to convert CAN data to TB %s '%s': unknown data type '%s'",
-                              "time series key" if config["is_ts"] else "attribute", tb_key, config["type"])
+                    self._log.error("Failed to convert CAN data to TB %s '%s': unknown data type '%s'",
+                                    "time series key" if config["is_ts"] else "attribute", tb_key, config["type"])
                     continue
 
                 if config.get("expression", ""):
@@ -62,7 +64,7 @@ class BytesCanUplinkConverter(CanConverter):
                 else:
                     result[tb_item][tb_key] = value
             except Exception as e:
-                log.error("Failed to convert CAN data to TB %s '%s': %s",
-                          "time series key" if config["is_ts"] else "attribute", tb_key, str(e))
+                self._log.error("Failed to convert CAN data to TB %s '%s': %s",
+                                "time series key" if config["is_ts"] else "attribute", tb_key, str(e))
                 continue
         return result

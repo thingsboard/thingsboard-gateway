@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 import asyncio
 from random import choice
 from re import search
@@ -20,7 +21,7 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time
 
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -52,6 +53,7 @@ class SNMPConnector(Connector, Thread):
         self.__stopped = False
         self._connector_type = connector_type
         self.__config = config
+        self._log = self.init_logger()
         self.__devices = self.__config["devices"]
         self.setName(config.get("name", 'SNMP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.statistics = {'MessagesReceived': 0,
@@ -66,6 +68,19 @@ class SNMPConnector(Connector, Thread):
 
         self.__loop = asyncio.new_event_loop()
 
+    def init_logger(self):
+        log = logging.getLogger(self.__config['name'])
+        log.addHandler(self.__gateway.remote_handler)
+        log.addHandler(self.__gateway.main_handler)
+        log_level_conf = self.__config.get('logLevel')
+        if log_level_conf:
+            log_level = logging.getLevelName(log_level_conf)
+            log.setLevel(log_level)
+        else:
+            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
+        self.__gateway.remote_handler.add_logger(self.__config['name'])
+        return log
+
     def open(self):
         self.__stopped = False
         self.__fill_converters()
@@ -76,7 +91,7 @@ class SNMPConnector(Connector, Thread):
         try:
             self.__loop.run_until_complete(self._run())
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     async def _run(self):
         while not self.__stopped:
@@ -87,7 +102,7 @@ class SNMPConnector(Connector, Thread):
                         await self.__process_data(device)
                         device["previous_poll_time"] = current_time
                 except Exception as e:
-                    log.exception(e)
+                    self._log.exception(e)
             if self.__stopped:
                 break
             else:
@@ -99,6 +114,9 @@ class SNMPConnector(Connector, Thread):
 
     def get_name(self):
         return self.name
+
+    def get_type(self):
+        return self._connector_type
 
     def is_connected(self):
         return self._connected
@@ -120,26 +138,25 @@ class SNMPConnector(Connector, Thread):
                     response = None
                     method = datatype_config.get("method")
                     if method is None:
-                        log.error("Method not found in configuration: %r", datatype_config)
+                        self._log.error("Method not found in configuration: %r", datatype_config)
                         continue
                     else:
                         method = method.lower()
                     if method not in self.__methods:
-                        log.error("Unknown method: %s, configuration is: %r", method, datatype_config)
+                        self._log.error("Unknown method: %s, configuration is: %r", method, datatype_config)
                     response = await self.__process_methods(method, common_parameters, datatype_config)
                     converted_data.update(**device["uplink_converter"].convert((datatype, datatype_config), response))
                 except SNMPTimeoutException:
-                    log.error("Timeout exception on connection to device \"%s\" with ip: \"%s\"", device["deviceName"],
+                    self._log.error("Timeout exception on connection to device \"%s\" with ip: \"%s\"", device["deviceName"],
                               device["ip"])
                     return
                 except Exception as e:
-                    log.exception(e)
+                    self._log.exception(e)
 
         if isinstance(converted_data, dict) and (converted_data.get("attributes") or converted_data.get("telemetry")):
             self.collect_statistic_and_send(self.get_name(), converted_data)
 
-    @staticmethod
-    async def __process_methods(method, common_parameters, datatype_config):
+    async def __process_methods(self, method, common_parameters, datatype_config):
         client = Client(ip=common_parameters['ip'],
                         port=common_parameters['port'],
                         credentials=credentials.V1(common_parameters['community']))
@@ -203,7 +220,7 @@ class SNMPConnector(Connector, Thread):
             bulk_size = datatype_config.get("bulkSize", 10)
             response = await client.bulktable(oid=oid, bulk_size=bulk_size)
         else:
-            log.error("Method \"%s\" - Not found", str(method))
+            self._log.error("Method \"%s\" - Not found", str(method))
         return response
 
     def __fill_converters(self):
@@ -211,12 +228,13 @@ class SNMPConnector(Connector, Thread):
             for device in self.__devices:
                 device["uplink_converter"] = TBModuleLoader.import_module("snmp", device.get('converter',
                                                                                              self._default_converters[
-                                                                                                 "uplink"]))(device)
+                                                                                                 "uplink"]))(device,
+                                                                                                             self._log)
                 device["downlink_converter"] = TBModuleLoader.import_module("snmp", device.get('converter',
                                                                                                self._default_converters[
                                                                                                    "downlink"]))(device)
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     @staticmethod
     def __get_common_parameters(device):
@@ -236,15 +254,15 @@ class SNMPConnector(Connector, Thread):
                                 common_parameters = self.__get_common_parameters(device)
                                 result = self.__process_methods(attribute_request_config["method"], common_parameters,
                                                                 {**attribute_request_config, "value": value})
-                                log.debug(
+                                self._log.debug(
                                     "Received attribute update request for device \"%s\" "
                                     "with attribute \"%s\" and value \"%s\"",
                                     content["device"],
                                     attribute)
-                                log.debug(result)
-                                log.debug(content)
+                                self._log.debug(result)
+                                self._log.debug(content)
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def server_side_rpc_handler(self, content):
         try:
@@ -255,13 +273,13 @@ class SNMPConnector(Connector, Thread):
                             common_parameters = self.__get_common_parameters(device)
                             result = self.__process_methods(rpc_request_config["method"], common_parameters,
                                                             {**rpc_request_config, "value": content["data"]["params"]})
-                            log.debug("Received RPC request for device \"%s\" with command \"%s\" and value \"%s\"",
+                            self._log.debug("Received RPC request for device \"%s\" with command \"%s\" and value \"%s\"",
                                       content["device"],
                                       content["data"]["method"])
-                            log.debug(result)
-                            log.debug(content)
+                            self._log.debug(result)
+                            self._log.debug(content)
                             self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
                                                           content=result)
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
             self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=False)

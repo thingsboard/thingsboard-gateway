@@ -12,12 +12,14 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.converter import log
 from thingsboard_gateway.connectors.odbc.odbc_converter import OdbcConverter
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class OdbcUplinkConverter(OdbcConverter):
+
+    def __init__(self, logger):
+        self._log = logger
 
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
@@ -41,12 +43,12 @@ class OdbcUplinkConverter(OdbcConverter):
                     elif "value" in config_item:
                         converted_data[name] = eval(config_item["value"], globals(), data)
                     else:
-                        log.error("Failed to convert SQL data to TB format: no column/value configuration item")
+                        self._log.error("Failed to convert SQL data to TB format: no column/value configuration item")
                 else:
-                    log.error("Failed to convert SQL data to TB format: unexpected configuration type '%s'",
+                    self._log.error("Failed to convert SQL data to TB format: unexpected configuration type '%s'",
                               type(config_item))
             except Exception as e:
-                log.error("Failed to convert SQL data to TB format: %s", str(e))
+                self._log.error("Failed to convert SQL data to TB format: %s", str(e))
 
         if data.get('ts'):
             converted_data['ts'] = data.get('ts')

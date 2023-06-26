@@ -19,7 +19,6 @@ from pymodbus.constants import Defaults
 
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.connectors.modbus.constants import *
-from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.grpc_connectors.gw_grpc_msg_creator import GrpcMsgCreator
 from thingsboard_gateway.grpc_connectors.modbus.bytes_modbus_uplink_converter import GrpcBytesModbusUplinkConverter
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -28,6 +27,7 @@ from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 class Slave(Thread):
     def __init__(self, **kwargs):
         super().__init__()
+        self._log = kwargs['logger']
         self.timeout = kwargs.get('timeout')
         self.name = kwargs['deviceName']
         self.poll_period = kwargs['pollPeriod'] / 1000
@@ -112,7 +112,7 @@ class Slave(Thread):
             self.config[UPLINK_PREFIX + CONVERTER_PARAMETER] = converter
             self.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER] = downlink_converter
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def __str__(self):
         return f'{self.name}'

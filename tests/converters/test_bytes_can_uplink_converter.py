@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 import _struct
 import unittest
 from math import isclose
@@ -24,7 +25,7 @@ from thingsboard_gateway.connectors.can.bytes_can_uplink_converter import BytesC
 class BytesCanUplinkConverterTests(unittest.TestCase):
 
     def setUp(self):
-        self.converter = BytesCanUplinkConverter()
+        self.converter = BytesCanUplinkConverter(logger=logging.getLogger('converter'))
 
     def _has_no_data(self, data):
         return bool(data is None or not data.get("attributes", []) and not data.get("telemetry", []))

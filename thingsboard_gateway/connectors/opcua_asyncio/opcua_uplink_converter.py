@@ -15,7 +15,7 @@
 from time import time
 from datetime import timezone
 
-from thingsboard_gateway.connectors.opcua_asyncio.opcua_converter import OpcUaConverter, log
+from thingsboard_gateway.connectors.opcua_asyncio.opcua_converter import OpcUaConverter
 from asyncua.ua.uatypes import LocalizedText, VariantType
 
 DATA_TYPES = {
@@ -25,7 +25,8 @@ DATA_TYPES = {
 
 
 class OpcUaUplinkConverter(OpcUaConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config
         self.data = {
             'deviceName': self.__config['device_name'],
@@ -85,4 +86,4 @@ class OpcUaUplinkConverter(OpcUaConverter):
             else:
                 self.data[DATA_TYPES[config['section']]].append({config['key']: data})
 
-            log.debug('Converted data: %s', self.data)
+            self._log.debug('Converted data: %s', self.data)

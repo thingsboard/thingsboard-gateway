@@ -18,11 +18,12 @@ from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.pdu import ExceptionResponse
 
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
-from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
+from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
 
 
 class GrpcBytesModbusUplinkConverter(ModbusConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__datatypes = {
             "timeseries": "telemetry",
             "attributes": "attributes"
@@ -68,7 +69,7 @@ class GrpcBytesModbusUplinkConverter(ModbusConverter):
                         elif configuration["functionCode"] in [2, 3, 4]:
                             decoder = None
                             registers = response.registers
-                            log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))
+                            self._log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))
                             try:
                                 decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order,
                                                                              wordorder=word_endian_order)
@@ -83,15 +84,15 @@ class GrpcBytesModbusUplinkConverter(ModbusConverter):
                             if configuration.get("multiplier"):
                                 decoded_data = decoded_data * configuration["multiplier"]
                     else:
-                        log.exception(response)
+                        self._log.exception(response)
                         decoded_data = None
                     if config_data == "rpc":
                         return decoded_data
-                    log.debug("datatype: %s \t key: %s \t value: %s", self.__datatypes[config_data], tag,
+                    self._log.debug("datatype: %s \t key: %s \t value: %s", self.__datatypes[config_data], tag,
                               str(decoded_data))
                     if decoded_data is not None:
                         self.__result[self.__datatypes[config_data]][tag] = decoded_data
                 except Exception as e:
-                    log.exception(e)
-        log.debug(self.__result)
+                    self._log.exception(e)
+        self._log.debug(self.__result)
         return self.__result

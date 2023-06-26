@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 import socket
 from queue import Queue
 from random import choice
@@ -22,7 +23,7 @@ from time import sleep
 
 from simplejson import dumps
 
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.connectors.socket.socket_decorators import CustomCollectStatistics
@@ -37,12 +38,12 @@ DEFAULT_UPLINK_CONVERTER = 'BytesSocketUplinkConverter'
 class SocketConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
-        self.__log = log
         self.__config = config
         self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.__gateway = gateway
+        self.__log = self.init_logger()
         self.setName(config.get("name", 'TCP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.daemon = True
         self.__stopped = False
@@ -58,6 +59,19 @@ class SocketConnector(Connector, Thread):
         self.__devices = self.__convert_devices_list()
         self.__connections = {}
 
+    def init_logger(self):
+        log = logging.getLogger(self.__config['name'])
+        log.addHandler(self.__gateway.remote_handler)
+        log.addHandler(self.__gateway.main_handler)
+        log_level_conf = self.__config.get('logLevel')
+        if log_level_conf:
+            log_level = logging.getLevelName(log_level_conf)
+            log.setLevel(log_level)
+        else:
+            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
+        self.__gateway.remote_handler.add_logger(self.__config['name'])
+        return log
+
     def __convert_devices_list(self):
         devices = self.__config.get('devices', [])
 
@@ -67,7 +81,7 @@ class SocketConnector(Connector, Thread):
             module = self.__load_converter(device)
             converter = module(
                 {'deviceName': device['deviceName'],
-                 'deviceType': device.get('deviceType', 'default')}) if module else None
+                 'deviceType': device.get('deviceType', 'default')}, self.__log) if module else None
             device['converter'] = converter
 
             # validate attributeRequests requestExpression
@@ -88,10 +102,10 @@ class SocketConnector(Connector, Thread):
         module = TBModuleLoader.import_module(self._connector_type, converter_class_name)
 
         if module:
-            log.debug('Converter %s for device %s - found!', converter_class_name, self.name)
+            self.__log.debug('Converter %s for device %s - found!', converter_class_name, self.name)
             return module
 
-        log.error("Cannot find converter for %s device", self.name)
+        self.__log.error("Cannot find converter for %s device", self.name)
         return None
 
     def __validate_attr_requests(self, attr_requests):
@@ -144,7 +158,7 @@ class SocketConnector(Connector, Thread):
             try:
                 self.__socket.bind((self.__socket_address, self.__socket_port))
             except OSError:
-                log.error('Address already in use. Reconnecting...')
+                self.__log.error('Address already in use. Reconnecting...')
                 sleep(3)
             else:
                 self.__bind = True
@@ -237,7 +251,7 @@ class SocketConnector(Connector, Thread):
             if converted_data is not None:
                 self.__gateway.send_to_storage(self.get_name(), converted_data)
                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                log.info('Data to ThingsBoard %s', converted_data)
+                self.__log.info('Data to ThingsBoard %s', converted_data)
         except Exception as e:
             self.__log.exception(e)
 
@@ -289,6 +303,9 @@ class SocketConnector(Connector, Thread):
 
     def get_name(self):
         return self.name
+
+    def get_type(self):
+        return self._connector_type
 
     def is_connected(self):
         return self._connected

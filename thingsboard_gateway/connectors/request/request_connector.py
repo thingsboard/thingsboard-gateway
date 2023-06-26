@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 from json import JSONDecodeError
 from queue import Queue
 from random import choice
@@ -35,7 +36,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
 
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
 from thingsboard_gateway.connectors.request.json_request_downlink_converter import JsonRequestDownlinkConverter
 
@@ -52,6 +53,7 @@ class RequestConnector(Connector, Thread):
         self.__config = config
         self._connector_type = connector_type
         self.__gateway = gateway
+        self._log = self.init_logger()
         self.__security = HTTPBasicAuth(self.__config["security"]["username"], self.__config["security"]["password"]) if \
             self.__config["security"]["type"] == "basic" else None
         self.__host = None
@@ -72,12 +74,25 @@ class RequestConnector(Connector, Thread):
         self.__fill_rpc_requests()
         self.__fill_requests()
 
+    def init_logger(self):
+        log = logging.getLogger(self.__config['name'])
+        log.addHandler(self.__gateway.remote_handler)
+        log.addHandler(self.__gateway.main_handler)
+        log_level_conf = self.__config.get('logLevel')
+        if log_level_conf:
+            log_level = logging.getLevelName(log_level_conf)
+            log.setLevel(log_level)
+        else:
+            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
+        self.__gateway.remote_handler.add_logger(self.__config['name'])
+        return log
+
     def run(self):
         while not self.__stopped:
             if self.__requests_in_progress:
                 for request in self.__requests_in_progress:
                     if time() >= request["next_time"]:
-                        thread = Thread(target=self.__send_request, args=(request, self.__convert_queue, log),
+                        thread = Thread(target=self.__send_request, args=(request, self.__convert_queue, self._log),
                                         daemon=True,
                                         name="Request to endpoint \'%s\' Thread" % (request["config"].get("url")))
                         thread.start()
@@ -97,17 +112,17 @@ class RequestConnector(Connector, Thread):
                                     "request": request,
                                     "withResponse": True}
                     attribute_update_request_thread = Thread(target=self.__send_request,
-                                                             args=(request_dict, response_queue, log),
+                                                             args=(request_dict, response_queue, self._log),
                                                              daemon=True,
                                                              name="Attribute request to %s" % (converted_data["url"]))
                     attribute_update_request_thread.start()
                     attribute_update_request_thread.join()
                     if not response_queue.empty():
                         response = response_queue.get_nowait()
-                        log.debug(response)
+                        self._log.debug(response)
                     del response_queue
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def server_side_rpc_handler(self, content):
         try:
@@ -121,7 +136,7 @@ class RequestConnector(Connector, Thread):
                                     "request": request,
                                     "withResponse": True}
                     rpc_request_thread = Thread(target=self.__send_request,
-                                                args=(request_dict, response_queue, log),
+                                                args=(request_dict, response_queue, self._log),
                                                 daemon=True,
                                                 name="RPC request to %s" % (converted_data["url"]))
                     rpc_request_thread.start()
@@ -157,46 +172,48 @@ class RequestConnector(Connector, Thread):
 
                     del response_queue
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def __fill_requests(self):
-        log.debug(self.__config["mapping"])
+        self._log.debug(self.__config["mapping"])
         for endpoint in self.__config["mapping"]:
             try:
-                log.debug(endpoint)
+                self._log.debug(endpoint)
                 converter = None
                 if endpoint["converter"]["type"] == "custom":
                     module = TBModuleLoader.import_module(self._connector_type, endpoint["converter"]["extension"])
                     if module is not None:
-                        log.debug('Custom converter for url %s - found!', endpoint["url"])
-                        converter = module(endpoint)
+                        self._log.debug('Custom converter for url %s - found!', endpoint["url"])
+                        converter = module(endpoint, self._log)
                     else:
-                        log.error("\n\nCannot find extension module for %s url.\nPlease check your configuration.\n",
-                                  endpoint["url"])
+                        self._log.error(
+                            "\n\nCannot find extension module for %s url.\nPlease check your configuration.\n",
+                            endpoint["url"])
                 else:
-                    converter = JsonRequestUplinkConverter(endpoint)
+                    converter = JsonRequestUplinkConverter(endpoint, self._log)
                 self.__requests_in_progress.append({"config": endpoint,
                                                     "converter": converter,
                                                     "next_time": time(),
                                                     "request": request})
             except Exception as e:
-                log.exception(e)
+                self._log.exception(e)
 
     def __fill_attribute_updates(self):
         for attribute_request in self.__config.get("attributeUpdates", []):
             if attribute_request.get("converter") is not None:
-                converter = TBModuleLoader.import_module("request", attribute_request["converter"])(attribute_request)
+                converter = TBModuleLoader.import_module("request", attribute_request["converter"])(attribute_request,
+                                                                                                    self._log)
             else:
-                converter = JsonRequestDownlinkConverter(attribute_request)
+                converter = JsonRequestDownlinkConverter(attribute_request, self._log)
             attribute_request_dict = {**attribute_request, "converter": converter}
             self.__attribute_updates.append(attribute_request_dict)
 
     def __fill_rpc_requests(self):
         for rpc_request in self.__config.get("serverSideRpc", []):
             if rpc_request.get("converter") is not None:
-                converter = TBModuleLoader.import_module("request", rpc_request["converter"])(rpc_request)
+                converter = TBModuleLoader.import_module("request", rpc_request["converter"])(rpc_request, self._log)
             else:
-                converter = JsonRequestDownlinkConverter(rpc_request)
+                converter = JsonRequestDownlinkConverter(rpc_request, self._log)
             rpc_request_dict = {**rpc_request, "converter": converter}
             self.__rpc_requests.append(rpc_request_dict)
 
@@ -281,7 +298,7 @@ class RequestConnector(Connector, Thread):
             self.__convert_queue.put(data_to_send)
 
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def __add_ts(self, data):
         if data.get("ts") is None:
@@ -295,10 +312,13 @@ class RequestConnector(Connector, Thread):
                 self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
 
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def get_name(self):
         return self.name
+
+    def get_type(self):
+        return self._connector_type
 
     def is_connected(self):
         return self.__connected

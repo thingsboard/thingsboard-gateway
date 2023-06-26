@@ -51,7 +51,7 @@ if IS_ODBC_DRIVER_WITH_STORED_PROCEDURE_INSTALLED:
 
 
 @unittest.skipIf(not IS_ODBC_DRIVER_INSTALLED,
-                 "To run ODBC tests install " + ODBC_DRIVER_WITH_STORED_PROCEDURE + "or" +
+                 "To run ODBC tests install " + ODBC_DRIVER_WITH_STORED_PROCEDURE + " or " +
                  ODBC_DRIVER_WITHOUT_STORED_PROCEDURE + " ODBC driver")
 class OdbcConnectorTests(unittest.TestCase):
     CONFIG_PATH = path.join(path.dirname(path.dirname(path.abspath(__file__))),

@@ -18,7 +18,6 @@ from time import time, sleep
 from pymodbus.constants import Defaults
 
 from thingsboard_gateway.connectors.modbus.constants import *
-from thingsboard_gateway.connectors.connector import log
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -29,6 +28,7 @@ class Slave(Thread):
         super().__init__()
         self.timeout = kwargs.get('timeout')
         self.name = kwargs['deviceName']
+        self._log = kwargs['logger']
         self.poll_period = kwargs['pollPeriod'] / 1000
 
         self.byte_order = kwargs['byteOrder']
@@ -97,13 +97,13 @@ class Slave(Thread):
                 converter = TBModuleLoader.import_module(connector.connector_type,
                                                          self.config[UPLINK_PREFIX + CONVERTER_PARAMETER])(self)
             else:
-                converter = BytesModbusUplinkConverter({**self.config, 'deviceName': self.name})
+                converter = BytesModbusUplinkConverter({**self.config, 'deviceName': self.name}, self._log)
 
             if self.config.get(DOWNLINK_PREFIX + CONVERTER_PARAMETER) is not None:
                 downlink_converter = TBModuleLoader.import_module(connector.connector_type, self.config[
                     DOWNLINK_PREFIX + CONVERTER_PARAMETER])(self)
             else:
-                downlink_converter = BytesModbusDownlinkConverter(self.config)
+                downlink_converter = BytesModbusDownlinkConverter(self.config, self._log)
 
             if self.name not in gateway.get_devices():
                 gateway.add_device(self.name, {CONNECTOR_PARAMETER: connector},
@@ -112,7 +112,7 @@ class Slave(Thread):
             self.config[UPLINK_PREFIX + CONVERTER_PARAMETER] = converter
             self.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER] = downlink_converter
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)
 
     def __str__(self):
         return f'{self.name}'
