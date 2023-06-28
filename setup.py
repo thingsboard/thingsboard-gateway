@@ -60,7 +60,7 @@ setup(
         'pip',
         'PyYAML',
         'simplejson',
-        'requests',
+        'requests>=2.31.0',
         'PyInquirer',
         'pyfiglet',
         'termcolor',
