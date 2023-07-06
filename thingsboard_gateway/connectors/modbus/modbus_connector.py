@@ -641,7 +641,8 @@ class ModbusConnector(Connector, Thread):
                 response = {"success": True}
 
             if content.get(RPC_ID_PARAMETER) or (
-                    content.get(DATA_PARAMETER) is not None and content[DATA_PARAMETER].get(RPC_ID_PARAMETER)):
+                    content.get(DATA_PARAMETER) is not None and content[DATA_PARAMETER].get(
+                    RPC_ID_PARAMETER)) is not None:
                 if isinstance(response, Exception):
                     self.__gateway.send_rpc_reply(content[DEVICE_SECTION_PARAMETER],
                                                   content[DATA_PARAMETER][RPC_ID_PARAMETER],
