@@ -54,7 +54,7 @@ setup(
               'thingsboard_gateway.extensions.socket', 'thingsboard_gateway.extensions.xmpp',
               ],
     install_requires=[
-        'cryptography',
+        'cryptography==3.4.8',
         'jsonpath-rw',
         'regex',
         'pip',
