@@ -16,6 +16,7 @@ import logging
 import logging.config
 import logging.handlers
 import multiprocessing.managers
+import os.path
 from signal import signal, SIGINT
 import subprocess
 from copy import deepcopy
@@ -29,6 +30,7 @@ from time import sleep, time
 from platform import system as platform_system
 
 from simplejson import JSONDecodeError, dumps, load, loads
+from yaml import safe_load
 
 from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
@@ -174,12 +176,8 @@ class TBGatewayService:
         global log
         log = logging.getLogger('service')
 
-        with open(config_file) as general_config:
-            try:
-                self.__config = load(general_config)
-            except JSONDecodeError:
-                log.error('YAML configuration is deprecated now. Please, use JSON configuration instead.')
-                log.error('See default configuration file on https://github.com/thingsboard/thingsboard-gateway/blob/master/thingsboard_gateway/config/tb_gateway.json')
+        # load general configuration YAML/JSON
+        self.__config = self.__load_general_config(config_file)
 
         # change main config if Gateway running with docker env variables
         self.__modify_main_config()
@@ -321,6 +319,35 @@ class TBGatewayService:
                                 create_method=False)
         self.server = self.manager.get_server()
         self.server.serve_forever()
+
+    @staticmethod
+    def __load_general_config(config_file):
+        file_extension = config_file.split('.')[-1]
+        if file_extension == 'json' and os.path.exists(config_file):
+            with open(config_file) as general_config:
+                try:
+                    return load(general_config)
+                except Exception as e:
+                    log.error('Failed to load configuration file')
+                    log.exception(e)
+        else:
+            log.warning('YAML configuration will be deprecated in the future version. '
+                        'Please, use JSON configuration instead.')
+            log.warning(
+                'See default configuration file on https://github.com/thingsboard/thingsboard-gateway/blob/master/thingsboard_gateway/config/tb_gateway.json')
+
+            config = {}
+            try:
+                with open(''.join(config_file.split('.')[:-1]) + '.yaml') as general_config:
+                    config = safe_load(general_config)
+
+                with open(config_file, 'w') as file:
+                    file.writelines(dumps(config))
+            except Exception as e:
+                log.error('Failed to load configuration file')
+                log.exception(e)
+
+            return config
 
     def init_grpc_service(self, config):
         self.__grpc_config = config
