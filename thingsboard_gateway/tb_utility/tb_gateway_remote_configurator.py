@@ -1,3 +1,4 @@
+import os.path
 from logging import getLogger
 from time import sleep, time
 from logging.config import dictConfig
@@ -33,6 +34,12 @@ class RemoteConfigurator:
             'RemoteLoggingLevel': self._handle_remote_logging_level_update,
             r'(?=\D*\d?).*': self._handle_connector_configuration_update,
         }
+        self._modifiable_static_attrs = {
+            'general_configuration': 'tb_gateway.json',
+            'storage_configuration': 'tb_gateway.json',
+            'grpc_configuration': 'tb_gateway.json',
+            'logs_configuration': 'logs.json'
+        }
         LOG.info('Remote Configurator started')
 
     @property
@@ -61,7 +68,11 @@ class RemoteConfigurator:
 
     @property
     def connectors_configuration(self):
-        return self._config.get('connectors', [])
+        connectors = self._config.get('connectors', [])
+        for connector in connectors:
+            connector.pop('config_updated', None)
+            connector.pop('config_file_path', None)
+        return connectors
 
     def _get_active_connectors(self):
         return [connector['name'] for connector in self.connectors_configuration]
@@ -154,9 +165,13 @@ class RemoteConfigurator:
                     if 'deleted' in attr_name:
                         continue
 
+                    request_config = config[attr_name]
+                    if not self._is_modified(attr_name, request_config):
+                        continue
+
                     for (name, func) in self._handlers.items():
                         if fullmatch(name, attr_name):
-                            func(config[attr_name])
+                            func(request_config)
                             break
             except (KeyError, AttributeError):
                 LOG.error('Unknown attribute update name (Available: %s)', ', '.join(self._handlers.keys()))
@@ -164,6 +179,26 @@ class RemoteConfigurator:
                 self.in_process = False
         else:
             LOG.error("Remote configuration is already in processing")
+
+    def _is_modified(self, attr_name, config):
+        try:
+            file_path = config.get('configuration') or self._modifiable_static_attrs.get(attr_name)
+        except AttributeError:
+            file_path = None
+
+        # if there is no file path that means that it is RemoteLoggingLevel or active_connectors attribute update
+        # in this case, we have to update the configuration without TS compare
+        if file_path is None:
+            return True
+
+        try:
+            file_path = self._gateway.get_config_path() + file_path
+            if config.get('ts', 0) <= int(os.path.getmtime(file_path) * 1000):
+                return False
+        except OSError:
+            LOG.warning('File %s not exist', file_path)
+
+        return True
 
     # HANDLERS ---------------------------------------------------------------------------------------------------------
     def _handle_general_configuration_update(self, config):
@@ -358,7 +393,7 @@ class RemoteConfigurator:
             # else:
             configuration = config['configuration']
             with open(self._gateway.get_config_path() + configuration, 'w') as file:
-                config['configurationJson'].update({'logLevel': config['log_level'], 'name': config['name']})
+                config['configurationJson'].update({'logLevel': config['logLevel'], 'name': config['name']})
                 file.writelines(dumps(config['configurationJson']))
 
             found_connectors = list(filter(lambda item: item['name'] == config['name'], self.connectors_configuration))

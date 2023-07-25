@@ -334,7 +334,8 @@ class TBGatewayService:
             log.warning('YAML configuration will be deprecated in the future version. '
                         'Please, use JSON configuration instead.')
             log.warning(
-                'See default configuration file on https://github.com/thingsboard/thingsboard-gateway/blob/master/thingsboard_gateway/config/tb_gateway.json')
+                'See default configuration on '
+                'https://thingsboard.io/docs/iot-gateway/configuration/?storageConfig=sqlite#storage-configuration')
 
             config = {}
             try:
@@ -834,6 +835,17 @@ class TBGatewayService:
             self.__close_connectors()
             self._load_connectors()
             self._connect_with_connectors()
+
+            # Updating global self.__config['connectors'] configuration for states syncing
+            for connector_type in self.connectors_configs:
+                for connector_config in self.connectors_configs[connector_type]:
+                    for (index, connector) in enumerate(self.__config['connectors']):
+                        if connector_config['config'].get(connector['configuration']):
+                            self.__config['connectors'][index]['configurationJson'] = connector_config['config'][
+                                connector['configuration']]
+
+            if self.__remote_configurator is not None:
+                self.__remote_configurator.send_current_configuration()
 
     def send_to_storage(self, connector_name, data):
         try:
