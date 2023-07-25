@@ -35,9 +35,6 @@ class RemoteConfigurator:
             r'(?=\D*\d?).*': self._handle_connector_configuration_update,
         }
         self._modifiable_static_attrs = {
-            'general_configuration': 'tb_gateway.json',
-            'storage_configuration': 'tb_gateway.json',
-            'grpc_configuration': 'tb_gateway.json',
             'logs_configuration': 'logs.json'
         }
         LOG.info('Remote Configurator started')
@@ -105,7 +102,8 @@ class RemoteConfigurator:
         if stat_conf_path:
             with open(self._gateway.get_config_path() + stat_conf_path, 'r') as file:
                 commands = load(file)
-        return {**self.general_configuration}.update(
+        config = self.general_configuration
+        config.update(
             {
                 'statistics': {
                     'enable': self.general_configuration['statistics']['enable'],
@@ -115,6 +113,7 @@ class RemoteConfigurator:
                 }
             }
         )
+        return config
 
     def send_current_configuration(self):
         """
@@ -124,15 +123,19 @@ class RemoteConfigurator:
 
         LOG.debug('Sending all configurations (init)')
         self._gateway.tb_client.client.send_attributes(
-            {'general_configuration': self._get_tb_gateway_general_config_for_remote()})
-        self._gateway.tb_client.client.send_attributes({'storage_configuration': self.storage_configuration})
-        self._gateway.tb_client.client.send_attributes({'grpc_configuration': self.grpc_configuration})
-        self._gateway.tb_client.client.send_attributes({'logs_configuration': self._logs_configuration})
+            {'general_configuration': {**self._get_tb_gateway_general_config_for_remote(), 'ts': int(time() * 1000)}})
+        self._gateway.tb_client.client.send_attributes(
+            {'storage_configuration': {**self.storage_configuration, 'ts': int(time() * 1000)}})
+        self._gateway.tb_client.client.send_attributes(
+            {'grpc_configuration': {**self.grpc_configuration, 'ts': int(time() * 1000)}})
+        self._gateway.tb_client.client.send_attributes(
+            {'logs_configuration': {**self._logs_configuration, 'ts': int(time() * 1000)}})
         self._gateway.tb_client.client.send_attributes({'active_connectors': self._get_active_connectors()})
         self._gateway.tb_client.client.send_attributes({'Version': self._gateway.version.get('current_version', 0.0)})
         for connector in self.connectors_configuration:
             self._gateway.tb_client.client.send_attributes(
-                {connector['name']: connector})
+                {connector['name']: {**connector, 'logLevel': connector['configurationJson']['logLevel'],
+                                     'ts': int(time() * 1000)}})
 
     def _load_connectors_configuration(self):
         for (_, connector_list) in self._gateway.connectors_configs.items():
@@ -179,26 +182,6 @@ class RemoteConfigurator:
                 self.in_process = False
         else:
             LOG.error("Remote configuration is already in processing")
-
-    def _is_modified(self, attr_name, config):
-        try:
-            file_path = config.get('configuration') or self._modifiable_static_attrs.get(attr_name)
-        except AttributeError:
-            file_path = None
-
-        # if there is no file path that means that it is RemoteLoggingLevel or active_connectors attribute update
-        # in this case, we have to update the configuration without TS compare
-        if file_path is None:
-            return True
-
-        try:
-            file_path = self._gateway.get_config_path() + file_path
-            if config.get('ts', 0) <= int(os.path.getmtime(file_path) * 1000):
-                return False
-        except OSError:
-            LOG.warning('File %s not exist', file_path)
-
-        return True
 
     # HANDLERS ---------------------------------------------------------------------------------------------------------
     def _handle_general_configuration_update(self, config):
@@ -540,3 +523,23 @@ class RemoteConfigurator:
 
     def _cleanup(self):
         self.general_configuration['statistics'].pop('commands')
+
+    def _is_modified(self, attr_name, config):
+        try:
+            file_path = config.get('configuration') or self._modifiable_static_attrs.get(attr_name)
+        except AttributeError:
+            file_path = None
+
+        # if there is no file path that means that it is RemoteLoggingLevel or active_connectors attribute update
+        # in this case, we have to update the configuration without TS compare
+        if file_path is None:
+            return True
+
+        try:
+            file_path = self._gateway.get_config_path() + file_path
+            if config.get('ts', 0) <= int(os.path.getmtime(file_path) * 1000):
+                return False
+        except OSError:
+            LOG.warning('File %s not exist', file_path)
+
+        return True
