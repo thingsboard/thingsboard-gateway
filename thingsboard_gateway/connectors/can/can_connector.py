@@ -95,7 +95,7 @@ class CanConnector(Connector, Thread):
         if hasattr(self.__gateway, 'remote_handler') and hasattr(self.__gateway, 'main_handler'):
             log.addHandler(self.__gateway.remote_handler)
             log.addHandler(self.__gateway.main_handler)
-            log_level_conf = self.__config.get('logLevel')
+            log_level_conf = self.__config.get('logLevel', 'INFO')
             if log_level_conf:
                 log_level = logging.getLevelName(log_level_conf)
                 log.setLevel(log_level)

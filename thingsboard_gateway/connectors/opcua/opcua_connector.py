@@ -87,7 +87,7 @@ class OpcUaConnector(Thread, Connector):
         if hasattr(self.__gateway, 'remote_handler') and hasattr(self.__gateway, 'main_handler'):
             self._log.addHandler(self.__gateway.remote_handler)
             self._log.addHandler(self.__gateway.main_handler)
-            log_level_conf = self._config.get('logLevel')
+            log_level_conf = self._config.get('logLevel', 'INFO')
             if log_level_conf:
                 log_level = logging.getLevelName(log_level_conf)
                 self._log.setLevel(log_level)

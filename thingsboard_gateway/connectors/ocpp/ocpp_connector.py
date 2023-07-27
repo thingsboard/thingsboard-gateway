@@ -98,7 +98,7 @@ class OcppConnector(Connector, Thread):
         log = logging.getLogger(self._config['name'])
         log.addHandler(self._gateway.remote_handler)
         log.addHandler(self._gateway.main_handler)
-        log_level_conf = self._config.get('logLevel')
+        log_level_conf = self._config.get('logLevel', 'INFO')
         if log_level_conf:
             log_level = logging.getLevelName(log_level_conf)
             log.setLevel(log_level)
