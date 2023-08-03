@@ -90,7 +90,7 @@ DEFAULT_DEVICE_FILTER = {
     'enable': False
 }
 
-SECURITY_VAR = ('accessToken', 'caCert', 'privateKey', 'cert')
+SECURITY_VAR = ('accessToken', 'caCert', 'privateKey', 'cert', 'clientId', 'username', 'password')
 
 
 def load_file(path_to_file):
@@ -107,7 +107,10 @@ def get_env_variables():
         'accessToken': environ.get('accessToken'),
         'caCert': environ.get('caCert'),
         'privateKey': environ.get('privateKey'),
-        'cert': environ.get('cert')
+        'cert': environ.get('cert'),
+        'clientId': environ.get('clientId'),
+        'username': environ.get('username'),
+        'password': environ.get('password')
     }
 
     converted_env_variables = {}
