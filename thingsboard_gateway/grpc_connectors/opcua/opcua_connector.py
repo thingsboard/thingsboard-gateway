@@ -114,8 +114,7 @@ class GrpcOpcUaConnector(GwGrpcConnector):
                 try:
                     self.client.load_type_definitions()
                 except Exception as e:
-                    log.error("Error on loading type definitions:")
-                    log.error(e)
+                    log.error("Error on loading type definitions:\n %s", e)
                 log.debug(self.client.get_namespace_array()[-1])
                 log.debug(self.client.get_namespace_index(self.client.get_namespace_array()[-1]))
 
@@ -133,8 +132,7 @@ class GrpcOpcUaConnector(GwGrpcConnector):
                 log.error("Connection refused on connection to OPC-UA server with url %s", self.__server_conf.get("url"))
                 time.sleep(10)
             except Exception as e:
-                log.debug("error on connection to OPC-UA server.")
-                log.error(e)
+                log.debug("error on connection to OPC-UA server.\n %s", e)
                 time.sleep(10)
 
     def run(self):
@@ -179,9 +177,8 @@ class GrpcOpcUaConnector(GwGrpcConnector):
             except FuturesTimeoutError:
                 self.__check_connection()
             except Exception as e:
-                log.error("Connection failed on connection to OPC-UA server with url %s",
-                          self.__server_conf.get("url"))
-                log.exception(e)
+                log.error("Connection failed on connection to OPC-UA server with url %s.\n %s",
+                          self.__server_conf.get("url"), e)
 
                 time.sleep(10)
 

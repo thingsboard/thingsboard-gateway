@@ -33,8 +33,8 @@ class BytesGrpcMqttUplinkConverter(MqttUplinkConverter):
                     else:
                         dict_result[datatypes[datatype]].append(value_item)
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
-            log.exception(e)
+            log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), str(data),
+                      e)
 
         log.debug('Converted data: %s', dict_result)
         return dict_result

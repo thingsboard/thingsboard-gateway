@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 import re
 import sched
 import time
@@ -23,6 +22,7 @@ from threading import Thread
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     from can import Notifier, BufferedReader, Message, CanError, ThreadSafeBus
@@ -72,7 +72,7 @@ class CanConnector(Connector, Thread):
         self.__gateway = gateway
         self._connector_type = connector_type
         self.__config = config
-        self._log = self.init_logger()
+        self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self.__bus_conf = {}
         self.__bus = None
         self.__reconnect_count = 0
@@ -90,20 +90,6 @@ class CanConnector(Connector, Thread):
         self.daemon = True
         self.__parse_config(config)
 
-    def init_logger(self):
-        log = logging.getLogger(self.name)
-        if hasattr(self.__gateway, 'remote_handler') and hasattr(self.__gateway, 'main_handler'):
-            log.addHandler(self.__gateway.remote_handler)
-            log.addHandler(self.__gateway.main_handler)
-            log_level_conf = self.__config.get('logLevel', 'INFO')
-            if log_level_conf:
-                log_level = logging.getLevelName(log_level_conf)
-                log.setLevel(log_level)
-            else:
-                log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
-            self.__gateway.remote_handler.add_logger(self.name)
-        return log
-
     def open(self):
         self._log.info("[%s] Starting...", self.get_name())
         self.__stopped = False
@@ -113,6 +99,7 @@ class CanConnector(Connector, Thread):
         if not self.__stopped:
             self.__stopped = True
             self._log.debug("[%s] Stopping", self.get_name())
+            self._log.__del__()
 
     def get_name(self):
         return self.name

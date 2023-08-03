@@ -85,10 +85,11 @@ class JsonGrpcMqttUplinkConverter(MqttUplinkConverter):
                         self.__config.get("deviceTypeTopicExpression"))
                     dict_result["deviceType"] = self.__config.get("deviceTypeTopicExpression")
             else:
-                self._log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
+                self._log.error("The expression for looking \"deviceType\" not found in config %s",
+                                dumps(self.__config))
         except Exception as e:
-            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
-            self._log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
+                            e)
 
         try:
             for datatype in datatypes:
@@ -129,6 +130,7 @@ class JsonGrpcMqttUplinkConverter(MqttUplinkConverter):
                                 dict_result[datatypes[datatype]] = {}
                             dict_result[datatypes[datatype]][full_key] = full_value
         except Exception as e:
-            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
-            self._log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            str(data), e)
+
         return dict_result

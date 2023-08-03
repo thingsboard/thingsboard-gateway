@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 import asyncio
 import base64
 import re
@@ -28,6 +27,7 @@ from simplejson import dumps
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     import ocpp
@@ -64,9 +64,8 @@ class OcppConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self._gateway = gateway
-        self._log = self.init_logger()
-        self.setName(self._central_system_config.get("name", 'OCPP Connector ' + ''.join(
-            choice(ascii_lowercase) for _ in range(5))))
+        self.setName(self._config.get("name", 'OCPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self._log = init_logger(self._gateway, self.name, self._config.get('logLevel', 'INFO'))
 
         self._default_converters = {'uplink': 'OcppUplinkConverter'}
         self._server = None
@@ -93,19 +92,6 @@ class OcppConnector(Connector, Thread):
         self.__connected = False
         self.__stopped = False
         self.daemon = True
-
-    def init_logger(self):
-        log = logging.getLogger(self._config['name'])
-        log.addHandler(self._gateway.remote_handler)
-        log.addHandler(self._gateway.main_handler)
-        log_level_conf = self._config.get('logLevel', 'INFO')
-        if log_level_conf:
-            log_level = logging.getLevelName(log_level_conf)
-            log.setLevel(log_level)
-        else:
-            log.setLevel(self._gateway.remote_handler.level or self._gateway.main_handler.level)
-        self._gateway.remote_handler.add_logger(self._config['name'])
-        return log
 
     def open(self):
         self.__stopped = False
@@ -226,6 +212,7 @@ class OcppConnector(Connector, Thread):
             sleep(.2)
 
         self._log.info('%s has been stopped.', self.get_name())
+        self._log.__del__()
 
     async def _close_cp_connections(self):
         for cp in self._connected_charge_points:

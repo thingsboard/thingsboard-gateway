@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 import re
 import time
 from concurrent.futures import CancelledError, TimeoutError as FuturesTimeoutError
@@ -28,6 +27,7 @@ from simplejson import dumps
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     from opcua import Client, Node, ua
@@ -55,9 +55,9 @@ class OpcUaConnector(Thread, Connector):
         self.__gateway = gateway
         self._config = config
         self.__server_conf = config.get("server")
-        self.setName(self.__server_conf.get("name", 'OPC-UA ' + ''.join(
+        self.setName(self._config.get("name", 'OPC-UA ' + ''.join(
             choice(ascii_lowercase) for _ in range(5))) + " Connector")
-        self._log = self.init_logger()
+        self._log = init_logger(self.__gateway, self.name, self._config.get('logLevel', 'INFO'))
         self.__interest_nodes = []
         self.__available_object_resources = {}
         self.__show_map = self.__server_conf.get("showMap", False)
@@ -81,20 +81,6 @@ class OpcUaConnector(Thread, Connector):
         self.data_to_send = []
         self.__stopped = False
         self.daemon = True
-
-    def init_logger(self):
-        self._log = logging.getLogger(self._config.get('name', self.name))
-        if hasattr(self.__gateway, 'remote_handler') and hasattr(self.__gateway, 'main_handler'):
-            self._log.addHandler(self.__gateway.remote_handler)
-            self._log.addHandler(self.__gateway.main_handler)
-            log_level_conf = self._config.get('logLevel', 'INFO')
-            if log_level_conf:
-                log_level = logging.getLevelName(log_level_conf)
-                self._log.setLevel(log_level)
-            else:
-                self._log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
-            self.__gateway.remote_handler.add_logger(self._config.get('name', self.name))
-        return self._log
 
     def is_connected(self):
         return self.__connected
@@ -141,8 +127,7 @@ class OpcUaConnector(Thread, Connector):
                 try:
                     self.client.load_type_definitions()
                 except Exception as e:
-                    self._log.error("Error on loading type definitions:")
-                    self._log.error(e)
+                    self._log.error("Error on loading type definitions:\n %s", e)
                 self._log.debug(self.client.get_namespace_array()[-1])
                 self._log.debug(self.client.get_namespace_index(self.client.get_namespace_array()[-1]))
 
@@ -164,8 +149,7 @@ class OpcUaConnector(Thread, Connector):
                                 self.__server_conf.get("url"))
                 time.sleep(10)
             except Exception as e:
-                self._log.debug("error on connection to OPC-UA server.")
-                self._log.error(e)
+                self._log.error("error on connection to OPC-UA server.\n %s", e)
                 time.sleep(10)
 
     def run(self):
@@ -196,9 +180,8 @@ class OpcUaConnector(Thread, Connector):
             except FuturesTimeoutError:
                 self.__check_connection()
             except Exception as e:
-                self._log.error("Connection failed on connection to OPC-UA server with url %s",
-                                self.__server_conf.get("url"))
-                self._log.exception(e)
+                self._log.error("Connection failed on connection to OPC-UA server with url %s\n %s",
+                                self.__server_conf.get("url"), e)
 
                 time.sleep(10)
 
@@ -254,6 +237,7 @@ class OpcUaConnector(Thread, Connector):
                 pass
         self.__connected = False
         self._log.info('%s has been stopped.', self.get_name())
+        self._log.__del__()
 
     def get_name(self):
         return self.name

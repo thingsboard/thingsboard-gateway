@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 import io
 import re
 from ftplib import FTP, FTP_TLS
@@ -30,6 +29,7 @@ from thingsboard_gateway.connectors.ftp.ftp_uplink_converter import FTPUplinkCon
 from thingsboard_gateway.connectors.ftp.path import Path
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     from requests import Timeout, request
@@ -53,7 +53,7 @@ class FTPConnector(Connector, Thread):
             'username': 'anonymous', "password": 'anonymous@'}
         self.__tls_support = self.__config.get("TLSSupport", False)
         self.setName(self.__config.get("name", "".join(choice(ascii_lowercase) for _ in range(5))))
-        self.__log = self.init_logger()
+        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self.daemon = True
         self.__stopped = False
         self.__requests_in_progress = []
@@ -83,19 +83,6 @@ class FTPConnector(Connector, Thread):
                 )
             for obj in self.__config['paths']
             ]
-
-    def init_logger(self):
-        log = logging.getLogger(self.__config['name'])
-        log.addHandler(self.__gateway.remote_handler)
-        log.addHandler(self.__gateway.main_handler)
-        log_level_conf = self.__config.get('logLevel', 'INFO')
-        if log_level_conf:
-            log_level = logging.getLevelName(log_level_conf)
-            log.setLevel(log_level)
-        else:
-            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
-        self.__gateway.remote_handler.add_logger(self.__config['name'])
-        return log
 
     def open(self):
         self.__stopped = False
@@ -205,6 +192,7 @@ class FTPConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
+        self.__log.__del__()
 
     def get_name(self):
         return self.name

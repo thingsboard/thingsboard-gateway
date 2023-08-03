@@ -1,4 +1,4 @@
-#     Copyright 2022. ThingsBoard
+#     Copyright 2023. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -13,94 +13,96 @@
 #     limitations under the License.
 
 import logging
-import logging.handlers
-from sys import stdout
-from time import time
-from os import environ
+from time import sleep
+from threading import Thread
 
 
-class TBLoggerHandler(logging.Handler):
-    LOGGER_NAME_TO_ATTRIBUTE_NAME = {
-        'service': 'SERVICE_LOGS',
-        'extension': 'EXTENSION_LOGS',
-        'tb_connection': 'CONNECTION_LOGS',
-        'storage': 'STORAGE_LOGS',
-    }
+def init_logger(gateway, name, level):
+    """
+    For creating a Logger with all config automatically
+    Create a Logger manually only if you know what you are doing!
+    """
+    log = TbLogger(name=name, gateway=gateway)
 
-    def __init__(self, gateway):
-        self.current_log_level = 'INFO'
-        super().__init__(logging.getLevelName(self.current_log_level))
-        self.setLevel(logging.getLevelName('DEBUG'))
-        self.__gateway = gateway
-        self.activated = False
-        self.setFormatter(logging.Formatter('%(asctime)s - |%(levelname)s| - [%(filename)s] - %(module)s - %(lineno)d - %(message)s'))
-        self.loggers = ['service',
-                        'extension',
-                        'tb_connection',
-                        'storage'
-                        ]
-        for logger in self.loggers:
-            log = logging.getLogger(logger)
-            log.addHandler(self.__gateway.main_handler)
-            log.debug("Added remote handler to log %s", logger)
+    if hasattr(gateway, 'remote_handler'):
+        log.addHandler(gateway.remote_handler)
+        log.setLevel(gateway.main_handler.level)
+        gateway.remote_handler.add_logger(name)
 
-    def add_logger(self, name):
-        log = logging.getLogger(name)
-        log.addHandler(self.__gateway.main_handler)
-        log.debug("Added remote handler to log %s", name)
+    if hasattr(gateway, 'main_handler'):
+        log.addHandler(gateway.main_handler)
+        log.setLevel(gateway.remote_handler.level)
 
-    def activate(self, log_level=None):
-        try:
-            for logger in self.loggers:
-                if log_level is not None and logging.getLevelName(log_level) is not None:
-                    if logger == 'tb_connection' and log_level == 'DEBUG':
-                        log = logging.getLogger(logger)
-                        log.setLevel(logging.getLevelName('INFO'))
-                    else:
-                        log = logging.getLogger(logger)
-                        self.current_log_level = log_level
-                        log.setLevel(logging.getLevelName(log_level))
-        except Exception as e:
-            log = logging.getLogger('service')
-            log.exception(e)
-        self.activated = True
+    log_level_conf = level
+    if log_level_conf:
+        log_level = logging.getLevelName(log_level_conf)
+        log.setLevel(log_level)
 
-    def handle(self, record):
-        if self.activated and not self.__gateway.stopped:
-            name = record.name
-            record = self.formatter.format(record)
-            try:
-                telemetry_key = self.LOGGER_NAME_TO_ATTRIBUTE_NAME[name]
-            except KeyError:
-                telemetry_key = name + '_LOGS'
-
-            self.__gateway.tb_client.client.send_telemetry(
-                {'ts': int(time() * 1000), 'values': {telemetry_key: record, 'LOGS': record}})
-
-    def deactivate(self):
-        self.activated = False
-
-    @staticmethod
-    def set_default_handler():
-        logger_names = [
-            'service',
-            'storage',
-            'extension',
-            'tb_connection'
-            ]
-        for logger_name in logger_names:
-            logger = logging.getLogger(logger_name)
-            handler = logging.StreamHandler(stdout)
-            handler.setFormatter(logging.Formatter('[STREAM ONLY] %(asctime)s - %(levelname)s - [%(filename)s] - %(module)s - %(lineno)d - %(message)s'))
-            logger.addHandler(handler)
+    return log
 
 
-class TimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
-    def __init__(self, filename, when='h', interval=1, backupCount=0,
-                 encoding=None, delay=False, utc=False):
-        config_path = environ.get('logs')
-        if config_path:
-            filename = config_path + '/' + filename.split('/')[-1]
+class TbLogger(logging.Logger):
+    ALL_ERRORS_COUNT = 0
+    IS_ALL_ERRORS_COUNT_RESET = False
 
-        super().__init__(filename, when=when, interval=interval, backupCount=backupCount,
-                         encoding=encoding, delay=delay, utc=utc)
+    def __init__(self, name, gateway=None, level=logging.NOTSET):
+        super(TbLogger, self).__init__(name=name, level=level)
+        self.propagate = True
+        self.parent = self.root
+        self._gateway = gateway
+        self.errors = 0
+        self.attr_name = self.name + '_ERRORS_COUNT'
+        self._is_on_init_state = True
+        self._errors_sender_thread = Thread(name='Log Errors Sender', daemon=True, target=self._send_errors)
+        self._errors_sender_thread.start()
+
+    def __del__(self):
+        """
+        !!!Need to be called manually in the connector 'close' method!!!
+        """
+        TbLogger.ALL_ERRORS_COUNT = TbLogger.ALL_ERRORS_COUNT - self.errors
+
+    @property
+    def gateway(self):
+        return self._gateway
+
+    @gateway.setter
+    def gateway(self, gateway):
+        self._gateway = gateway
+
+    def _send_errors(self):
+        is_tb_client = False
+        while not is_tb_client:
+            is_tb_client = hasattr(self._gateway, 'tb_client')
+            sleep(1)
+
+        if not TbLogger.IS_ALL_ERRORS_COUNT_RESET:
+            self._gateway.tb_client.client.send_telemetry(
+                {self.attr_name: 0, 'ALL_ERRORS_COUNT': 0})
+            TbLogger.IS_ALL_ERRORS_COUNT_RESET = True
+        self._is_on_init_state = False
+
+    def error(self, msg, *args, **kwargs):
+        super(TbLogger, self).error(msg, *args, **kwargs, stacklevel=2)
+        self._send_error_count()
+
+    def exception(self, msg, *args, **kwargs) -> None:
+        attr_name = kwargs.pop('attr_name', None)
+        super(TbLogger, self).exception(msg, *args, **kwargs, stacklevel=2)
+        self._send_error_count(error_attr_name=attr_name)
+
+    def _send_error_count(self, error_attr_name=None):
+        TbLogger.ALL_ERRORS_COUNT += 1
+        self.errors += 1
+
+        while self._is_on_init_state:
+            sleep(.2)
+
+        if self._gateway and hasattr(self._gateway, 'tb_client'):
+            if error_attr_name:
+                error_attr_name = error_attr_name + '_ERRORS_COUNT'
+            else:
+                error_attr_name = self.attr_name
+
+            self._gateway.tb_client.client.send_telemetry(
+                {error_attr_name: self.errors, 'ALL_ERRORS_COUNT': TbLogger.ALL_ERRORS_COUNT})

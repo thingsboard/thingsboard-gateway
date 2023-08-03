@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 from time import time
 from hashlib import sha1
 from os import path
@@ -26,6 +25,7 @@ from simplejson import dumps, load
 
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     import pyodbc
@@ -59,7 +59,7 @@ class OdbcConnector(Connector, Thread):
                            'MessagesSent': 0}
         self.__gateway = gateway
         self.__config = config
-        self._log = self.init_logger()
+        self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self._connector_type = connector_type
         self.__stopped = False
 
@@ -83,20 +83,6 @@ class OdbcConnector(Connector, Thread):
         self.__configure_pyodbc()
         self.__parse_rpc_config()
 
-    def init_logger(self):
-        log = logging.getLogger(self.__config.get('name', self.name))
-        if hasattr(self.__gateway, 'remote_handler') and hasattr(self.__gateway, 'main_handler'):
-            log.addHandler(self.__gateway.remote_handler)
-            log.addHandler(self.__gateway.main_handler)
-            log_level_conf = self.__config.get('logLevel', 'INFO')
-            if log_level_conf:
-                log_level = logging.getLevelName(log_level_conf)
-                log.setLevel(log_level)
-            else:
-                log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
-            self.__gateway.remote_handler.add_logger(self.__config.get('name', self.name))
-        return log
-
     def open(self):
         self._log.debug("[%s] Starting...", self.get_name())
         self.__stopped = False
@@ -106,6 +92,7 @@ class OdbcConnector(Connector, Thread):
         if not self.__stopped:
             self.__stopped = True
             self._log.debug("[%s] Stopping", self.get_name())
+            self._log.__del__()
 
     def get_name(self):
         return self.name

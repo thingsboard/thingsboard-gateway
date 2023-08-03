@@ -22,7 +22,7 @@ class StatisticsService(Thread):
         self._stopped = False
 
         self._config_path = config_path
-        self._stats_send_period_in_seconds = stats_send_period_in_seconds / 1000
+        self._stats_send_period_in_seconds = stats_send_period_in_seconds
         self._gateway = gateway
         self._log = log
         self._config = self._load_config()

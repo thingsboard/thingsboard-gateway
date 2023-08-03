@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 from json import JSONDecodeError
 from queue import Queue
 from random import choice
@@ -21,10 +20,9 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time
 
-import simplejson
-
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     from requests import Timeout, request
@@ -53,7 +51,8 @@ class RequestConnector(Connector, Thread):
         self.__config = config
         self._connector_type = connector_type
         self.__gateway = gateway
-        self._log = self.init_logger()
+        self.setName(self.__config.get("name", "".join(choice(ascii_lowercase) for _ in range(5))))
+        self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self.__security = HTTPBasicAuth(self.__config["security"]["username"], self.__config["security"]["password"]) if \
             self.__config["security"]["type"] == "basic" else None
         self.__host = None
@@ -63,7 +62,6 @@ class RequestConnector(Connector, Thread):
         else:
             self.__host = "http://" + self.__config["host"]
         self.__ssl_verify = self.__config.get("SSLVerify", False)
-        self.setName(self.__config.get("name", "".join(choice(ascii_lowercase) for _ in range(5))))
         self.daemon = True
         self.__connected = False
         self.__stopped = False
@@ -73,19 +71,6 @@ class RequestConnector(Connector, Thread):
         self.__fill_attribute_updates()
         self.__fill_rpc_requests()
         self.__fill_requests()
-
-    def init_logger(self):
-        log = logging.getLogger(self.__config['name'])
-        log.addHandler(self.__gateway.remote_handler)
-        log.addHandler(self.__gateway.main_handler)
-        log_level_conf = self.__config.get('logLevel', 'INFO')
-        if log_level_conf:
-            log_level = logging.getLevelName(log_level_conf)
-            log.setLevel(log_level)
-        else:
-            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
-        self.__gateway.remote_handler.add_logger(self.__config['name'])
-        return log
 
     def run(self):
         while not self.__stopped:
@@ -329,6 +314,7 @@ class RequestConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
+        self._log.__del__()
 
     def get_config(self):
         return self.__config

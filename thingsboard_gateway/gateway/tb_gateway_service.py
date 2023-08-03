@@ -1,4 +1,4 @@
-#     Copyright 2022. ThingsBoard
+#     Copyright 2023. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -45,10 +45,11 @@ from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventS
 from thingsboard_gateway.storage.sqlite.sqlite_event_storage import SQLiteEventStorage
 from thingsboard_gateway.tb_utility.tb_gateway_remote_configurator import RemoteConfigurator
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
-from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
+from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
 from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
 from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
 GRPC_LOADED = False
 try:
@@ -59,7 +60,7 @@ try:
 except ImportError:
     print("Cannot load GRPC connector!")
 
-log = logging.getLogger('service')
+log = TbLogger('service')
 main_handler = logging.handlers.MemoryHandler(-1)
 
 DEFAULT_CONNECTORS = {
@@ -174,7 +175,10 @@ class TBGatewayService:
             logging_error = e
 
         global log
-        log = logging.getLogger('service')
+        log = TbLogger('service', gateway=self, level='INFO')
+        global main_handler
+        self.main_handler = main_handler
+        log.addHandler(self.main_handler)
 
         # load general configuration YAML/JSON
         self.__config = self.__load_general_config(config_file)
@@ -211,11 +215,8 @@ class TBGatewayService:
             TBLoggerHandler.set_default_handler()
         self.counter = 0
         self.__rpc_reply_sent = False
-        global main_handler
-        self.main_handler = main_handler
         self.remote_handler = TBLoggerHandler(self)
         log.addHandler(self.remote_handler)
-        log.addHandler(self.main_handler)
         # self.main_handler.setTarget(self.remote_handler)
         self._default_connectors = DEFAULT_CONNECTORS
         self.__converted_data_queue = SimpleQueue()
@@ -328,8 +329,7 @@ class TBGatewayService:
                 try:
                     return load(general_config)
                 except Exception as e:
-                    log.error('Failed to load configuration file')
-                    log.exception(e)
+                    log.exception('Failed to load configuration file:\n %s', e)
         else:
             log.warning('YAML configuration will be deprecated in the future version. '
                         'Please, use JSON configuration instead.')
@@ -345,8 +345,7 @@ class TBGatewayService:
                 with open(config_file, 'w') as file:
                     file.writelines(dumps(config))
             except Exception as e:
-                log.error('Failed to load configuration file')
-                log.exception(e)
+                log.exception('Failed to load configuration file:\n %s', e)
 
             return config
 
@@ -784,19 +783,21 @@ class TBGatewayService:
                     if connector_type.lower() != 'grpc' and 'Grpc' not in self._implemented_connectors[connector_type.lower()].__name__:
                         for config in connector_config["config"]:
                             connector = None
+                            connector_name = None
                             try:
                                 if connector_config["config"][config] is not None:
+                                    connector_name = connector_config["name"]
                                     connector = self._implemented_connectors[connector_type](self,
                                                                                              connector_config["config"][
                                                                                                  config],
                                                                                              connector_type)
-                                    connector.setName(connector_config["name"])
+                                    connector.setName(connector_name)
                                     self.available_connectors[connector.get_name()] = connector
                                     connector.open()
                                 else:
                                     log.info("Config not found for %s", connector_type)
                             except Exception as e:
-                                log.exception(e)
+                                log.exception(e, attr_name=connector_name)
                                 if connector is not None:
                                     connector.close()
                     else:

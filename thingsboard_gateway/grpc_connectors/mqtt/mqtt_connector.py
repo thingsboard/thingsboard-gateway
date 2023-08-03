@@ -130,9 +130,8 @@ class GrpcMqttConnector(GwGrpcConnector):
                                          ciphers=None)
                 except Exception as e:
                     log.error("Cannot setup connection to broker %s using SSL. "
-                              "Please check your configuration.\nError: ",
-                              self.get_name())
-                    log.exception(e)
+                              "Please check your configuration.\nError: %s",
+                              self.get_name(), e)
                 if self.__broker["security"].get("insecure", False):
                     self._client.tls_insecure_set(True)
                 else:
@@ -623,8 +622,7 @@ class GrpcMqttConnector(GwGrpcConnector):
             self._client.publish(topic, data, retain=retain).wait_for_publish()
             return
         except (AttributeError, IndexError) as e:
-            log.error('Error when processing attribute response')
-            log.exception(e)
+            log.error('Error when processing attribute response\n %s', e)
             return
 
     def on_attributes_update(self, content):

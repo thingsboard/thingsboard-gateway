@@ -139,8 +139,7 @@ class Device(Thread):
                 else:
                     await asyncio.sleep(.2)
             except Exception as e:
-                self._log.error('Problem with connection')
-                self._log.debug(e)
+                self._log.exception('Problem with connection: \n %s', e)
 
                 try:
                     await self.client.disconnect()
@@ -342,8 +341,7 @@ class Device(Thread):
             await asyncio.sleep(1.0)
             return 'Ok'
         except Exception as e:
-            self._log.error('Can\'t write data to device')
-            self._log.exception(e)
+            self._log.exception('Can\'t write data to device: \n %s', e)
             return e
 
     @StatisticsService.CollectStatistics(start_stat_type='allBytesSentToDevices')

@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 import asyncio
 from random import choice
 from re import search
@@ -24,6 +23,7 @@ from time import sleep, time
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 # Try import Pymodbus library or install it and import
 installation_required = False
@@ -53,9 +53,9 @@ class SNMPConnector(Connector, Thread):
         self.__stopped = False
         self._connector_type = connector_type
         self.__config = config
-        self._log = self.init_logger()
-        self.__devices = self.__config["devices"]
         self.setName(config.get("name", 'SNMP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
+        self.__devices = self.__config["devices"]
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self._default_converters = {
@@ -67,19 +67,6 @@ class SNMPConnector(Connector, Thread):
         self.__datatypes = ('attributes', 'telemetry')
 
         self.__loop = asyncio.new_event_loop()
-
-    def init_logger(self):
-        log = logging.getLogger(self.__config['name'])
-        log.addHandler(self.__gateway.remote_handler)
-        log.addHandler(self.__gateway.main_handler)
-        log_level_conf = self.__config.get('logLevel', 'INFO')
-        if log_level_conf:
-            log_level = logging.getLevelName(log_level_conf)
-            log.setLevel(log_level)
-        else:
-            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
-        self.__gateway.remote_handler.add_logger(self.__config['name'])
-        return log
 
     def open(self):
         self.__stopped = False

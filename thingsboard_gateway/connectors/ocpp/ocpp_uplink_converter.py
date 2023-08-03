@@ -46,8 +46,8 @@ class OcppUplinkConverter(OcppConverter):
                 self._log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
 
         except Exception as e:
-            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), config)
-            self._log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            config, e)
 
     def get_device_type(self, config):
         try:
@@ -67,8 +67,8 @@ class OcppUplinkConverter(OcppConverter):
 
                 return device_type
         except Exception as e:
-            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), config)
-            self._log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            config, e)
 
     def convert(self, config, data):
         datatypes = {"attributes": "attributes",
@@ -114,8 +114,8 @@ class OcppUplinkConverter(OcppConverter):
                         else:
                             dict_result[datatypes[datatype]].append({full_key: full_value})
         except Exception as e:
-            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
-            self._log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            str(data), e)
 
         self._log.debug(dict_result)
         return dict_result

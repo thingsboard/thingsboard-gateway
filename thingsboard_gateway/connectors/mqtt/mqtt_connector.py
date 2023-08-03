@@ -1,4 +1,4 @@
-#     Copyright 2022. ThingsBoard
+#     Copyright 2023. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 import random
 import ssl
 import string
@@ -31,6 +30,7 @@ from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectSta
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     from paho.mqtt.client import Client
@@ -106,7 +106,7 @@ class MqttConnector(Connector, Thread):
         self._connector_type = connector_type  # Should be "mqtt"
         self.config = config  # mqtt.json contents
 
-        self.__log = self.init_logger()
+        self.__log = init_logger(self.__gateway, self.config['name'], self.config.get('logLevel', 'INFO'))
         self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__subscribes_sent = {}
 
@@ -198,9 +198,8 @@ class MqttConnector(Connector, Thread):
                                          ciphers=None)
                 except Exception as e:
                     self.__log.error("Cannot setup connection to broker %s using SSL. "
-                                     "Please check your configuration.\nError: ",
-                                     self.get_name())
-                    self.__log.exception(e)
+                                     "Please check your configuration.\nError: %s",
+                                     self.get_name(), e)
                 if self.__broker["security"].get("insecure", False):
                     self._client.tls_insecure_set(True)
                 else:
@@ -226,19 +225,6 @@ class MqttConnector(Connector, Thread):
         self._on_message_queue = Queue()
         self._on_message_thread = Thread(name='On Message', target=self._process_on_message, daemon=True)
         self._on_message_thread.start()
-
-    def init_logger(self):
-        log = logging.getLogger(self.config['name'])
-        log.addHandler(self.__gateway.remote_handler)
-        log.addHandler(self.__gateway.main_handler)
-        log_level_conf = self.config.get('logLevel', 'INFO')
-        if log_level_conf:
-            log_level = logging.getLevelName(log_level_conf)
-            log.setLevel(log_level)
-        else:
-            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
-        self.__gateway.remote_handler.add_logger(self.config['name'])
-        return log
 
     def is_filtering_enable(self, device_name):
         return self.__send_data_only_on_change
@@ -330,6 +316,7 @@ class MqttConnector(Connector, Thread):
             self.__log.exception(e)
         self._client.loop_stop()
         self.__log.info('%s has been stopped.', self.get_name())
+        self.__log.__del__()
 
     def get_name(self):
         return self.name

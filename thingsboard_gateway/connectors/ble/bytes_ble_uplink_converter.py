@@ -76,8 +76,7 @@ class BytesBLEUplinkConverter(BLEUplinkConverter):
                         else:
                             self._log.error('Key for %s not found in config: %s', config['type'], config[section])
                     except Exception as e:
-                        self._log.error('\nException caught when processing data for %s\n\n', pformat(config))
-                        self._log.exception(e)
+                        self._log.exception('\nException caught when processing data for %s\n\n%s', pformat(config), e)
 
         except Exception as e:
             self._log.exception(e)

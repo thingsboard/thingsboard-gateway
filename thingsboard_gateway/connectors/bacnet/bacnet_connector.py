@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
@@ -22,6 +21,7 @@ from time import sleep, time
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     from bacpypes.core import run, stop
@@ -48,7 +48,7 @@ class BACnetConnector(Thread, Connector):
         self.__device_indexes = {}
         self.__devices_address_name = {}
         self.__gateway = gateway
-        self._log = self.init_logger()
+        self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self._application = TBBACnetApplication(self, self.__config)
         self.__bacnet_core_thread = Thread(target=run, name="BACnet core thread", daemon=True,
                                            kwargs={"sigterm": None, "sigusr1": None})
@@ -66,19 +66,6 @@ class BACnetConnector(Thread, Connector):
         self.__connected = False
         self.daemon = True
         self.__convert_and_save_data_queue = Queue()
-
-    def init_logger(self):
-        log = logging.getLogger(self.__config['name'])
-        log.addHandler(self.__gateway.remote_handler)
-        log.addHandler(self.__gateway.main_handler)
-        log_level_conf = self.__config.get('logLevel', 'INFO')
-        if log_level_conf:
-            log_level = logging.getLevelName(log_level_conf)
-            log.setLevel(log_level)
-        else:
-            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
-        self.__gateway.remote_handler.add_logger(self.__config['name'])
-        return log
 
     def open(self):
         self.__stopped = False
@@ -122,6 +109,7 @@ class BACnetConnector(Thread, Connector):
     def close(self):
         self.__stopped = True
         self.__connected = False
+        self._log.__del__()
         stop()
 
     def get_name(self):

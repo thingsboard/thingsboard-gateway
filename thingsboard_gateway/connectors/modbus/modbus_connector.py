@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 from threading import Thread, Lock
 from time import sleep, time
 from queue import Queue
@@ -20,6 +19,7 @@ from random import choice
 from string import ascii_lowercase
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 # Try import Pymodbus library or install it and import
 installation_required = False
@@ -109,7 +109,8 @@ class ModbusConnector(Connector, Thread):
         self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config, gateway.get_config_path())
         self.__config = self.__backward_compatibility_adapter.convert()
         self.setName(self.__config.get("name", 'Modbus Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
-        self.__log = self.init_logger()
+        self.__log = init_logger(self.__gateway, self.__config.get('name', self.name),
+                                 self.__config.get('logLevel', 'INFO'))
         self.__connected = False
         self.__stopped = False
         self.daemon = True
@@ -134,20 +135,6 @@ class ModbusConnector(Connector, Thread):
 
         self.__slaves = []
         self.__load_slaves()
-
-    def init_logger(self):
-        log = logging.getLogger(self.__config.get('name', self.name))
-        if hasattr(self.__gateway, 'remote_handler') and hasattr(self.__gateway, 'main_handler'):
-            log.addHandler(self.__gateway.remote_handler)
-            log.addHandler(self.__gateway.main_handler)
-            log_level_conf = self.__config.get('logLevel', 'INFO')
-            if log_level_conf:
-                log_level = logging.getLevelName(log_level_conf)
-                log.setLevel(log_level)
-            else:
-                log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
-            self.__gateway.remote_handler.add_logger(self.__config.get('name', self.name))
-        return log
 
     def is_connected(self):
         return self.__connected
@@ -307,6 +294,7 @@ class ModbusConnector(Connector, Thread):
         if reactor.running:
             ServerStop()
         self.__log.info('%s has been stopped.', self.get_name())
+        self.__log.__del__()
 
     def get_name(self):
         return self.name

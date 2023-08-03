@@ -1,3 +1,17 @@
+#     Copyright 2023. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 import os.path
 from logging import getLogger
 from time import sleep, time
@@ -7,7 +21,7 @@ from regex import fullmatch
 from simplejson import dumps, load
 
 from thingsboard_gateway.gateway.tb_client import TBClient
-from thingsboard_gateway.tb_utility.tb_logger import TBLoggerHandler
+from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
 
 LOG = getLogger("service")
 
@@ -123,11 +137,9 @@ class RemoteConfigurator:
 
         LOG.debug('Sending all configurations (init)')
         self._gateway.tb_client.client.send_attributes(
-            {'general_configuration': {**self._get_tb_gateway_general_config_for_remote(), 'ts': int(time() * 1000)}})
-        self._gateway.tb_client.client.send_attributes(
-            {'storage_configuration': {**self.storage_configuration, 'ts': int(time() * 1000)}})
-        self._gateway.tb_client.client.send_attributes(
-            {'grpc_configuration': {**self.grpc_configuration, 'ts': int(time() * 1000)}})
+            {'general_configuration': self._get_tb_gateway_general_config_for_remote()})
+        self._gateway.tb_client.client.send_attributes({'storage_configuration': self.storage_configuration})
+        self._gateway.tb_client.client.send_attributes({'grpc_configuration': self.grpc_configuration})
         self._gateway.tb_client.client.send_attributes(
             {'logs_configuration': {**self._logs_configuration, 'ts': int(time() * 1000)}})
         self._gateway.tb_client.client.send_attributes({'active_connectors': self._get_active_connectors()})
@@ -253,7 +265,7 @@ class RemoteConfigurator:
         self._cleanup()
         with open(self._gateway.get_config_path() + "tb_gateway.json", "w",
                   encoding="UTF-8") as file:
-            file.writelines(dumps(self._get_tb_gateway_general_config_for_save()))
+            file.writelines(dumps(self._get_tb_gateway_general_config_for_save(), indent='  '))
 
     def _handle_storage_configuration_update(self, config):
         LOG.debug('Processing storage configuration update...')
@@ -267,10 +279,9 @@ class RemoteConfigurator:
             LOG.exception(e)
             self._gateway._event_storage = old_event_storage
         else:
-            # TODO: maybe it can be replaced by setter
             self.storage_configuration = config
             with open(self._gateway.get_config_path() + "tb_gateway.json", "w", encoding="UTF-8") as file:
-                file.writelines(dumps(self._get_tb_gateway_general_config_for_save()))
+                file.writelines(dumps(self._get_tb_gateway_general_config_for_save(), indent='  '))
             self._gateway.tb_client.client.send_attributes({'storage_configuration': self.storage_configuration})
 
             LOG.info('Processed storage configuration update successfully')
@@ -293,10 +304,9 @@ class RemoteConfigurator:
                 self._gateway.load_connectors(self._get_tb_gateway_general_config_for_save())
                 self._gateway.connect_with_connectors()
             else:
-                # TODO: maybe it can be replaced by setter
                 self.grpc_configuration = config
                 with open(self._gateway.get_config_path() + "tb_gateway.json", "w", encoding="UTF-8") as file:
-                    file.writelines(dumps(self._get_tb_gateway_general_config_for_save()))
+                    file.writelines(dumps(self._get_tb_gateway_general_config_for_save(), indent='  '))
                 self._gateway.tb_client.client.send_attributes({'grpc_configuration': self.grpc_configuration})
 
                 LOG.info('Processed GRPC configuration update successfully')
@@ -316,9 +326,10 @@ class RemoteConfigurator:
             LOG.addHandler(self._gateway.remote_handler)
 
             with open(logs_conf_file_path, 'w') as logs:
-                logs.write(dumps(config))
+                logs.write(dumps(config, indent='  '))
 
             LOG.debug("Logs configuration has been updated.")
+            self._gateway.tb_client.client.send_attributes({'logs_configuration': config})
         except Exception as e:
             LOG.error("Remote logging configuration is wrong!")
             LOG.exception(e)
@@ -330,12 +341,12 @@ class RemoteConfigurator:
             if active_connector_name not in config:
                 try:
                     self._gateway.available_connectors[active_connector_name].close()
-                    self._delete_connector_from_config(active_connector_name)
-                    with open(self._gateway.get_config_path() + 'tb_gateway.json', 'w') as file:
-                        file.writelines(dumps(self._get_tb_gateway_general_config_for_save()))
                 except Exception as e:
                     LOG.exception(e)
 
+        self._delete_connectors_from_config(config)
+        with open(self._gateway.get_config_path() + 'tb_gateway.json', 'w') as file:
+            file.writelines(dumps(self._get_tb_gateway_general_config_for_save(), indent='  '))
         self._active_connectors = config
         self._gateway.tb_client.client.send_attributes({'active_connectors': config})
 
@@ -346,7 +357,7 @@ class RemoteConfigurator:
             "name": "Mqtt Broker Connector",
             "type": "mqtt",
             "configuration": "mqtt.json",
-            "log_level": "INFO",
+            "logLevel": "INFO",
             "key?type=>grpc": "auto",
             "class?type=>custom": "",
             "configurationJson": {
@@ -355,29 +366,10 @@ class RemoteConfigurator:
         }
         """
 
-        LOG.debug('Processing logs configuration update...')
+        LOG.debug('Processing connectors configuration update...')
 
         try:
-            # if path.isfile(self._gateway.get_config_path() + config.get('configuration')) and config[
-            #         'name'] in self._active_connectors:
-            #     available_connector = self._gateway.available_connectors.get(config['name'])
-            #     if available_connector:
-            #         available_connector.close()
-            #
-            #     for connector in self.connectors_configuration:
-            #         if connector['name'] == config['name'] and connector['type'] != config['type']:
-            #             connector['type'] = config['type']
-            #             with open(self._gateway.get_config_path() + 'tb_gateway.json', 'w') as file:
-            #                 file.writelines(dumps(self._get_tb_gateway_general_config_for_save()))
-            #
-            #     with open(self._gateway.get_config_path() + config['configuration'], 'w') as file:
-            #         file.writelines(dumps(config['configurationJson']))
-            #
-            # else:
             configuration = config['configuration']
-            with open(self._gateway.get_config_path() + configuration, 'w') as file:
-                config['configurationJson'].update({'logLevel': config['logLevel'], 'name': config['name']})
-                file.writelines(dumps(config['configurationJson']))
 
             found_connectors = list(filter(lambda item: item['name'] == config['name'], self.connectors_configuration))
             if not found_connectors:
@@ -389,25 +381,57 @@ class RemoteConfigurator:
                 if config.get('class'):
                     connector_configuration['class'] = config['class']
 
+                with open(self._gateway.get_config_path() + configuration, 'w') as file:
+                    config['configurationJson'].update({'logLevel': config['logLevel'], 'name': config['name']})
+                    file.writelines(dumps(config['configurationJson'], indent='  '))
+
                 self.connectors_configuration.append(connector_configuration)
                 with open(self._gateway.get_config_path() + 'tb_gateway.json', 'w') as file:
-                    file.writelines(dumps(self._get_tb_gateway_general_config_for_save()))
+                    file.writelines(dumps(self._get_tb_gateway_general_config_for_save(), indent='  '))
+
+                self._gateway.load_connectors(self._get_tb_gateway_general_config_for_save())
+                self._gateway.connect_with_connectors()
             else:
                 found_connector = found_connectors[0]
-                connector_configuration = {'name': config['name'], 'type': config['type'],
-                                           'configuration': configuration}
+                changed = False
 
-                if config.get('key'):
-                    connector_configuration['key'] = config['key']
+                config_path = self._gateway.get_config_path() + configuration
+                if os.path.exists(config_path):
+                    with open(config_path, 'r') as file:
+                        conf = load(file)
+                        config_hash = hash(str(conf))
 
-                if config.get('class'):
-                    connector_configuration['class'] = config['class']
+                    if config_hash != hash(str(config['configurationJson'])):
+                        changed = True
 
-                found_connector.update(connector_configuration)
-                self._gateway.available_connectors[connector_configuration['name']].close()
+                connector_configuration = None
+                if found_connector.get('name') != config['name'] or found_connector.get('type') != config[
+                    'type'] or found_connector.get('class') != config.get('class') or found_connector.get(
+                    'key') != config.get('key') or found_connector.get('configurationJson', {}).get(
+                        'logLevel') != config.get('logLevel'):
+                    changed = True
+                    connector_configuration = {'name': config['name'], 'type': config['type'],
+                                               'configuration': configuration}
 
-            self._gateway.load_connectors(self._get_tb_gateway_general_config_for_save())
-            self._gateway.connect_with_connectors()
+                    if config.get('key'):
+                        connector_configuration['key'] = config['key']
+
+                    if config.get('class'):
+                        connector_configuration['class'] = config['class']
+
+                    found_connector.update(connector_configuration)
+
+                if changed:
+                    with open(self._gateway.get_config_path() + configuration, 'w') as file:
+                        config['configurationJson'].update({'logLevel': config['logLevel'], 'name': config['name']})
+                        file.writelines(dumps(config['configurationJson'], indent='  '))
+
+                    if connector_configuration is None:
+                        connector_configuration = found_connector
+
+                    self._gateway.available_connectors[connector_configuration['name']].close()
+                    self._gateway.load_connectors(self._get_tb_gateway_general_config_for_save())
+                    self._gateway.connect_with_connectors()
 
             self._gateway.tb_client.client.send_attributes({config['name']: config})
         except Exception as e:
@@ -422,22 +446,21 @@ class RemoteConfigurator:
         old_tb_client = self._gateway.tb_client
         try:
             old_tb_client.disconnect()
-            old_tb_client.stop()
 
-            self._gateway.tb_client = TBClient(config, old_tb_client.get_config_folder_path())
-            self._gateway.tb_client.connect()
+            new_tb_client = TBClient(config, old_tb_client.get_config_folder_path())
+
             connection_state = False
-            while time() * 1000 - apply_start < 10000 and not connection_state:
-                connection_state = self._gateway.tb_client.is_connected()
-                sleep(.1)
+            while not connection_state:
+                for client in (new_tb_client, old_tb_client):
+                    client.connect()
+                    while time() * 1000 - apply_start >= 1000 and not connection_state:
+                        connection_state = client.is_connected()
+                        sleep(.1)
 
-            if connection_state:
-                self._gateway.subscribe_to_required_topics()
-                return True
-            else:
-                self._revert_connection()
-                LOG.info("The gateway cannot connect to the ThingsBoard server with a new configuration.")
-                return False
+                    if connection_state:
+                        self._gateway.tb_client = client
+                        self._gateway.subscribe_to_required_topics()
+                        return True
         except Exception as e:
             LOG.exception(e)
             self._revert_connection()
@@ -462,9 +485,11 @@ class RemoteConfigurator:
             if commands:
                 statistics_conf_file_name = self.general_configuration['statistics'].get('configuration',
                                                                                          'statistics.json')
+                if statistics_conf_file_name is None:
+                    statistics_conf_file_name = 'statistics.json'
 
                 with open(self._gateway.get_config_path() + statistics_conf_file_name, 'w') as file:
-                    file.writelines(dumps(commands))
+                    file.writelines(dumps(commands, indent='  '))
                 config['configuration'] = statistics_conf_file_name
 
             self._gateway.init_statistics_service(config)
@@ -501,9 +526,9 @@ class RemoteConfigurator:
     def _apply_other_params_config(self, config):
         self._gateway.config['thingsboard'].update(config)
 
-    def _delete_connector_from_config(self, connector_name):
+    def _delete_connectors_from_config(self, connector_list):
         self._config['connectors'] = list(
-            filter(lambda connector: connector['name'] != connector_name, self.connectors_configuration))
+            filter(lambda connector: connector['name'] in connector_list, self.connectors_configuration))
 
     def _check_statistics_configuration_changes(self, config):
         general_statistics_config = self.general_configuration.get('statistics', self.DEFAULT_STATISTICS)

@@ -73,8 +73,8 @@ class FTPUplinkConverter(FTPConverter):
                         dict_result['deviceType'] = arr[index]
 
         except Exception as e:
-            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
-            self._log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
+                            e)
 
         return dict_result
 
@@ -108,8 +108,8 @@ class FTPUplinkConverter(FTPConverter):
                         if self.__config['devicePatternType'] == information['value']:
                             dict_result['deviceType'] = val
         except Exception as e:
-            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
-            self._log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
+                            e)
 
         return dict_result
 
@@ -148,8 +148,8 @@ class FTPUplinkConverter(FTPConverter):
                                                                                   str(device_type_value)) \
                         if is_valid_key else device_type_tag
         except Exception as e:
-            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
-            self._log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
+                            e)
 
         try:
             for datatype in self.__data_types:
@@ -188,8 +188,8 @@ class FTPUplinkConverter(FTPConverter):
                     else:
                         dict_result[self.__data_types[datatype]].append({full_key: full_value})
         except Exception as e:
-            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
-            self._log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            str(data), e)
 
         return dict_result
 

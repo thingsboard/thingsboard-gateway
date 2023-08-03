@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 import json
 from queue import Queue
 from random import choice
@@ -31,6 +30,7 @@ from requests.exceptions import RequestException
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     from requests import Timeout, request as regular_request
@@ -64,14 +64,14 @@ class RESTConnector(Connector, Thread):
         self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
+        self.setName(config.get("name", 'REST Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__gateway = gateway
-        self.__log = self.init_logger()
+        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self._default_downlink_converter = TBModuleLoader.import_module(self._connector_type,
                                                                         self._default_converters['downlink'])
         self._default_uplink_converter = TBModuleLoader.import_module(self._connector_type,
                                                                       self._default_converters['uplink'])
         self.__USER_DATA = {}
-        self.setName(config.get("name", 'REST Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self._app = None
         self._connected = False
         self.__stopped = False
@@ -80,19 +80,6 @@ class RESTConnector(Connector, Thread):
         self.__rpc_requests = []
         self.__attribute_updates = []
         self.__fill_requests_from_TB()
-
-    def init_logger(self):
-        log = logging.getLogger(self.__config['name'])
-        log.addHandler(self.__gateway.remote_handler)
-        log.addHandler(self.__gateway.main_handler)
-        log_level_conf = self.__config.get('logLevel', 'INFO')
-        if log_level_conf:
-            log_level = logging.getLevelName(log_level_conf)
-            log.setLevel(log_level)
-        else:
-            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
-        self.__gateway.remote_handler.add_logger(self.__config['name'])
-        return log
 
     def load_endpoints(self):
         endpoints = {}
@@ -168,8 +155,7 @@ class RESTConnector(Connector, Thread):
                     cert = self.__config['security']['cert']
                     key = self.__config['security']['key']
                 except KeyError as e:
-                    self.__log.exception(e)
-                    self.__log.error('Provide certificate and key path!')
+                    self.__log.error('Provide certificate and key path!\n %s', e)
 
             ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
             ssl_context.load_cert_chain(cert, key)
@@ -189,6 +175,7 @@ class RESTConnector(Connector, Thread):
     def close(self):
         self.__stopped = True
         self._connected = False
+        self.__log.__del__()
 
     def get_name(self):
         return self.name

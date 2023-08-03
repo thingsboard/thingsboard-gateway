@@ -99,8 +99,8 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                             dict_result[datatypes[datatype]].append(
                                 self.create_timeseries_record(full_key, full_value, timestamp))
         except Exception as e:
-            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
-            self._log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            str(data), e)
         self._log.debug(dict_result)
         return dict_result
 
@@ -143,6 +143,5 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
             else:
                 self._log.error("The expression for looking \"deviceName\" not found in config %s", dumps(config))
         except Exception as e:
-            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(config), data)
-            self._log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(config), data, e)
         return result
