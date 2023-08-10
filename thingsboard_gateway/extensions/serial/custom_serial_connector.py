@@ -14,7 +14,6 @@
 
 """Import libraries"""
 
-import logging
 import time
 from random import choice
 from string import ascii_lowercase
@@ -30,6 +29,7 @@ except ImportError:
 
 from thingsboard_gateway.connectors.connector import Connector  # Import base class for connector and logger
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 
 class CustomSerialConnector(Thread, Connector):  # Define a connector class, it should inherit from "Connector" class.
@@ -43,7 +43,7 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
         self.setName(self.__config.get("name",
                                        "Custom %s connector " % self.get_name() + ''.join(
                                            choice(ascii_lowercase) for _ in range(5))))  # get from the configuration or create name for logs.
-        self._log = self.init_logger()
+        self._log = init_logger(self.__gateway, self.name, level=self.__config.get('logLevel'))
         self._log.info("Starting Custom %s connector", self.get_name())  # Send message to logger
         self.daemon = True  # Set self thread as daemon
         self.stopped = True  # Service variable for check state
@@ -53,19 +53,6 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
         self.__connect_to_devices()  # Call function for connect to devices
         self._log.info('Custom connector %s initialization success.', self.get_name())  # Message to logger
         self._log.info("Devices in configuration file found: %s ", '\n'.join(device for device in self.__devices))  # Message to logger
-
-    def init_logger(self):
-        log = logging.getLogger(self.__config['name'])
-        log.addHandler(self.__gateway.remote_handler)
-        log.addHandler(self.__gateway.main_handler)
-        log_level_conf = self.__config.get('logLevel')
-        if log_level_conf:
-            log_level = logging.getLevelName(log_level_conf)
-            log.setLevel(log_level)
-        else:
-            log.setLevel(self.__gateway.remote_handler.level or self.__gateway.main_handler.level)
-        self.__gateway.remote_handler.add_logger(self.__config['name'])
-        return log
 
     def __connect_to_devices(self):  # Function for opening connection and connecting to devices
         for device in self.__devices:
@@ -171,6 +158,7 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
             self.__gateway.del_device(self.__devices[device]["device_config"]["name"])
             if self.__devices[device]['serial'].isOpen():
                 self.__devices[device]['serial'].close()
+        self._log.__del__()
 
     def on_attributes_update(self, content):  # Function used for processing attribute update requests from ThingsBoard
         self._log.debug(content)
