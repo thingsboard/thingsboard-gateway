@@ -33,7 +33,7 @@ except ImportError:
 
 if installation_required:
     print("Modbus library not found - installing...")
-    TBUtility.install_package("pymodbus", ">=3.0.0")
+    TBUtility.install_package("pymodbus", "3.0.0")
     TBUtility.install_package('pyserial')
     TBUtility.install_package('pyserial-asyncio')
 
@@ -44,7 +44,6 @@ except ImportError:
     from twisted.internet import reactor
 
 from twisted.internet import reactor
-from pymodbus.constants import Defaults
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
 from pymodbus.register_read_message import ReadRegistersResponseBase
@@ -312,7 +311,7 @@ class ModbusConnector(Connector, Thread):
                 current_device_config = {}
                 try:
                     for config_section in device_responses:
-                        if device.config.get(config_section) is not None:
+                        if device.config.get(config_section) is not None and len(device.config.get(config_section)):
                             current_device_config = device.config
 
                             self.__connect_to_current_master(device)
@@ -646,7 +645,8 @@ class ModbusConnector(Connector, Thread):
                 response = {"success": True}
 
             if content.get(RPC_ID_PARAMETER) or (
-                    content.get(DATA_PARAMETER) is not None and content[DATA_PARAMETER].get(RPC_ID_PARAMETER)):
+                    content.get(DATA_PARAMETER) is not None and content[DATA_PARAMETER].get(
+                    RPC_ID_PARAMETER)) is not None:
                 if isinstance(response, Exception):
                     self.__gateway.send_rpc_reply(content[DEVICE_SECTION_PARAMETER],
                                                   content[DATA_PARAMETER][RPC_ID_PARAMETER],

@@ -22,7 +22,7 @@ from string import ascii_lowercase
 from time import sleep
 from unittest.mock import Mock, patch
 
-import thingsboard_gateway
+from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from can import Notifier, BufferedReader, Bus, Message
 from simplejson import load
 
@@ -50,7 +50,7 @@ class CanConnectorTestsBase(unittest.TestCase):
 
     def setUp(self):
         self.bus = self._create_bus()
-        self.gateway = Mock(spec=thingsboard_gateway.TBGatewayService)
+        self.gateway = Mock(spec=TBGatewayService)
         self.connector = None
         self.config = None
 

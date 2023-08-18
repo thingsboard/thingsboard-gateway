@@ -61,9 +61,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             decoder = None
                             coils = response.bits
                             try:
-                                decoder = BinaryPayloadDecoder.fromCoils(coils, byteorder=endian_order, wordorder=word_endian_order)
+                                decoder = BinaryPayloadDecoder.fromCoils(coils, byteorder=endian_order,
+                                                                         _wordorder=word_endian_order)
                             except TypeError:
-                                decoder = BinaryPayloadDecoder.fromCoils(coils, wordorder=word_endian_order)
+                                decoder = BinaryPayloadDecoder.fromCoils(coils, _wordorder=word_endian_order)
                             assert decoder is not None
                             decoded_data = self.decode_from_registers(decoder, configuration)
                         elif configuration["functionCode"] in [3, 4]:
@@ -71,10 +72,12 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             registers = response.registers
                             self._log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))
                             try:
-                                decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order, wordorder=word_endian_order)
+                                decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order,
+                                                                             wordorder=word_endian_order)
                             except TypeError:
                                 # pylint: disable=E1123
-                                decoder = BinaryPayloadDecoder.fromRegisters(registers, endian=endian_order, wordorder=word_endian_order)
+                                decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order,
+                                                                             wordorder=word_endian_order)
                             assert decoder is not None
                             decoded_data = self.decode_from_registers(decoder, configuration)
                             if configuration.get("divider"):
@@ -96,7 +99,8 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
     def decode_from_registers(self, decoder, configuration):
         type_ = configuration["type"]
-        objects_count = configuration.get("objectsCount", configuration.get("registersCount", configuration.get("registerCount", 1)))
+        objects_count = configuration.get("objectsCount",
+                                          configuration.get("registersCount", configuration.get("registerCount", 1)))
         lower_type = type_.lower()
 
         decoder_functions = {

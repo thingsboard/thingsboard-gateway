@@ -17,12 +17,12 @@
 from setuptools import setup
 from os import path
 
-from thingsboard_gateway.gateway.constants import VERSION
 
-
-this_directory = path.abspath(path.dirname(__file__))
-with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+current_directory = path.abspath(path.dirname(__file__))
+with open(path.join(current_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
+
+VERSION = "3.3"
 
 setup(
     version=VERSION,
@@ -54,19 +54,21 @@ setup(
               'thingsboard_gateway.extensions.socket', 'thingsboard_gateway.extensions.xmpp',
               ],
     install_requires=[
-        'cryptography',
+        'cryptography==3.4.8',
         'jsonpath-rw',
         'regex',
         'pip',
         'PyYAML',
         'simplejson',
-        'requests',
+        'urllib3<=1.26.15'
+        'requests>=2.31.0',
         'PyInquirer',
         'pyfiglet',
         'termcolor',
         'grpcio<=1.43.0',
         'protobuf',
-        'cachetools'
+        'cachetools',
+        'tb-mqtt-client>=1.5'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={

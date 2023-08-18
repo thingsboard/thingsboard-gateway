@@ -75,7 +75,6 @@ class SQLiteEventStorage(EventStorage):
 
                 log.info("Sending data to storage")
                 self.processQueue.put(request)
-                self.db.process()
                 return True
             else:
                 return False

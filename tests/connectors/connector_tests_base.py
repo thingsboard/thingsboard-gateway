@@ -18,9 +18,9 @@ import unittest
 from unittest.mock import Mock
 from os import path
 from time import sleep
-import thingsboard_gateway
 from simplejson import load
 
+from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.gateway.tb_gateway_service import DEFAULT_CONNECTORS
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
@@ -36,7 +36,7 @@ class ConnectorTestBase(unittest.TestCase):
                           "data" + path.sep)
 
     def setUp(self):
-        self.gateway = Mock(spec=thingsboard_gateway.TBGatewayService)
+        self.gateway = Mock(spec=TBGatewayService)
         self.connector = None
         self.config = None
 

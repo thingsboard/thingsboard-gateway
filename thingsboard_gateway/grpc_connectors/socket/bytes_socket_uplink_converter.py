@@ -19,15 +19,16 @@ class BytesGrpcSocketUplinkConverter(SocketUplinkConverter):
     def __init__(self, config, logger):
         self._log = logger
         self.__config = config
-        self.dict_result = {}
 
     def convert(self, config, data):
         if data is None:
             return {}
 
+        dict_result = {}
+
         try:
-            self.dict_result["telemetry"] = {}
-            self.dict_result["attributes"] = {}
+            dict_result["telemetry"] = {}
+            dict_result["attributes"] = {}
 
             for section in ('telemetry', 'attributes'):
                 for item in config[section]:
@@ -44,7 +45,7 @@ class BytesGrpcSocketUplinkConverter(SocketUplinkConverter):
                             converted_data = str(converted_data)
 
                         if item.get('key') is not None:
-                            self.dict_result[section][item['key']] = converted_data
+                            dict_result[section][item['key']] = converted_data
                         else:
                             self._log.error('Key for %s not found in config: %s', config['type'],
                                             config['section_config'])
@@ -53,5 +54,5 @@ class BytesGrpcSocketUplinkConverter(SocketUplinkConverter):
         except Exception as e:
             self._log.exception(e)
 
-        self._log.debug(self.dict_result)
-        return self.dict_result
+        self._log.debug(dict_result)
+        return dict_result

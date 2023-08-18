@@ -196,12 +196,13 @@ class FTPUplinkConverter(FTPConverter):
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
-        if config['file_ext'] == 'csv' or (
-                config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'TABLE'):
-            return self._convert_table_view_data(config, data)
-        elif config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'SLICED':
-            return self._convert_slices_view_data(data)
-        elif config['file_ext'] == 'json':
-            return self._convert_json_file(data)
-        else:
-            raise Exception('Incorrect file extension or file data view mode')
+        if data:
+            if config['file_ext'] == 'csv' or (
+                    config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'TABLE'):
+                return self._convert_table_view_data(config, data)
+            elif config['file_ext'] == 'txt' and self.__config['txt_file_data_view'] == 'SLICED':
+                return self._convert_slices_view_data(data)
+            elif config['file_ext'] == 'json':
+                return self._convert_json_file(data)
+            else:
+                raise Exception('Incorrect file extension or file data view mode')

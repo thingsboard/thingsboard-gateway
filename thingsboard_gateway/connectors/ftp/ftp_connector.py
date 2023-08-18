@@ -145,7 +145,7 @@ class FTPConnector(Connector, Thread):
                 for file in path.files:
                     current_hash = file.get_current_hash(ftp)
                     if ((file.has_hash() and current_hash != file.hash)
-                        or not file.has_hash()) and file.check_size_limit(ftp):
+                            or not file.has_hash()) and file.check_size_limit(ftp):
                         file.set_new_hash(current_hash)
 
                         handle_stream = io.BytesIO()
@@ -162,14 +162,10 @@ class FTPConnector(Connector, Thread):
                             if isinstance(json_data, list):
                                 for obj in json_data:
                                     converted_data = converter.convert(convert_conf, obj)
-                                    self.__gateway.send_to_storage(self.getName(), converted_data)
-                                    self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                                    self.__log.debug("Data to ThingsBoard: %s", converted_data)
+                                    self.__send_data(converted_data)
                             else:
                                 converted_data = converter.convert(convert_conf, json_data)
-                                self.__gateway.send_to_storage(self.getName(), converted_data)
-                                self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                                self.__log.debug("Data to ThingsBoard: %s", converted_data)
+                                self.__send_data(converted_data)
                         else:
                             cursor = file.cursor or 0
 
@@ -184,11 +180,15 @@ class FTPConnector(Connector, Thread):
                                     else:
                                         converted_data = converter.convert(convert_conf, line)
 
-                                    self.__gateway.send_to_storage(self.getName(), converted_data)
-                                    self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                                    self.__log.debug("Data to ThingsBoard: %s", converted_data)
+                                    self.__send_data(converted_data)
 
                         handle_stream.close()
+
+    def __send_data(self, converted_data):
+        if converted_data:
+            self.__gateway.send_to_storage(self.getName(), converted_data)
+            self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+            self.__log.debug("Data to ThingsBoard: %s", converted_data)
 
     def close(self):
         self.__stopped = True

@@ -23,13 +23,15 @@ if [ "$1" = "clean" ] || [ "$1" = "only_clean" ] ; then
   sudo apt remove python3-thingsboard-gateway -y
 fi
 
+sudo rm -rf thingsboard_gateway/logs/*
+
 if [ "$1" != "only_clean" ] ; then
   echo "Installing libraries for building deb package."
-  sudo apt-get install python3-stdeb fakeroot python-all dh-python zstd -y
+  sudo apt-get install python3-stdeb python3-setuptools fakeroot python3-all dh-python zstd -y
   echo "Building DEB package"
   echo "Creating sources for DEB package..."
   python3 setup.py --command-packages=stdeb.command bdist_deb
-  echo "Adding the files, scripts and permissions in the package"
+  echo "Adding the files, scripts and permissions to the package"
   sudo cp -r thingsboard_gateway/extensions for_build/etc/thingsboard-gateway/
   sudo cp -r thingsboard_gateway/config for_build/etc/thingsboard-gateway/
   sudo cp -r for_build/etc deb_dist/thingsboard-gateway-$CURRENT_VERSION/debian/python3-thingsboard-gateway

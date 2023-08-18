@@ -19,15 +19,15 @@ import multiprocessing.managers
 import os.path
 from signal import signal, SIGINT
 import subprocess
-from copy import deepcopy
 from os import execv, listdir, path, pathsep, stat, system, environ
+from platform import system as platform_system
 from queue import SimpleQueue
 from random import choice
+from signal import signal, SIGINT
 from string import ascii_lowercase, hexdigits
 from sys import argv, executable, getsizeof
-from threading import RLock, Thread
+from threading import RLock, Thread, main_thread, current_thread
 from time import sleep, time
-from platform import system as platform_system
 
 from simplejson import JSONDecodeError, dumps, load, loads
 from yaml import safe_load
@@ -139,6 +139,9 @@ class GatewayManager(multiprocessing.managers.BaseManager):
     def add_gateway(self, gateway):
         self.gateway = gateway
 
+    def shutdown(self) -> None:
+        pass
+
 
 class TBGatewayService:
     EXPOSED_GETTERS = [
@@ -152,7 +155,8 @@ class TBGatewayService:
     ]
 
     def __init__(self, config_file=None):
-        signal(SIGINT, lambda _, __: self.__stop_gateway())
+        if current_thread() is main_thread():
+            signal(SIGINT, lambda _, __: self.__stop_gateway())
 
         self.stopped = False
         self.__lock = RLock()
@@ -216,7 +220,6 @@ class TBGatewayService:
             self.tb_client.client.send_telemetry({"ts": time() * 1000, "values": {
                 "LOGS": "Logging loading exception, logs.conf is wrong: %s" % (str(logging_error),)}})
             TBLoggerHandler.set_default_handler()
-        self.counter = 0
         self.__rpc_reply_sent = False
         self.remote_handler = TBLoggerHandler(self)
         log.addHandler(self.remote_handler)
@@ -283,9 +286,6 @@ class TBGatewayService:
         self._published_events = SimpleQueue()
 
         self.__min_pack_send_delay_ms = self.__config['thingsboard'].get('minPackSendDelayMS', 200)
-        if self.__min_pack_send_delay_ms == 0:
-            self.__min_pack_send_delay_ms = 10
-
         self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
         self.__min_pack_size_to_send = self.__config['thingsboard'].get('minPackSizeToSend', 50)
 
@@ -317,12 +317,13 @@ class TBGatewayService:
         manager_address = '/tmp/gateway'
         if platform_system() == 'Windows':
             manager_address = ('127.0.0.1', 9999)
-
         self.manager = GatewayManager(address=manager_address, authkey=b'gateway')
-        GatewayManager.register('get_gateway', self.get_gateway, proxytype=AutoProxy, exposed=self.EXPOSED_GETTERS,
-                                create_method=False)
-        self.server = self.manager.get_server()
-        self.server.serve_forever()
+
+        if current_thread() is main_thread():
+            GatewayManager.register('get_gateway', self.get_gateway, proxytype=AutoProxy, exposed=self.EXPOSED_GETTERS,
+                                    create_method=False)
+            self.server = self.manager.get_server()
+            self.server.serve_forever()
 
     @staticmethod
     def __load_general_config(config_file):
@@ -469,8 +470,7 @@ class TBGatewayService:
                     self.__request_config_after_connect = True
                     self.__check_shared_attributes()
 
-                if cur_time - gateway_statistic_send > self.__statistics[
-                        'statsSendPeriodInSeconds'] * 1000 and self.tb_client.is_connected():
+                if cur_time - gateway_statistic_send > self.__statistics['statsSendPeriodInSeconds'] * 1000 and self.tb_client.is_connected():
                     summary_messages = self.__form_statistics()
                     # with self.__lock:
                     self.tb_client.client.send_telemetry(summary_messages)
@@ -655,8 +655,7 @@ class TBGatewayService:
         self.tb_client.client.request_attributes(callback=self._attributes_parse)
 
     def __register_connector(self, session_id, connector_key):
-        if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key][
-                'name'] not in self.available_connectors:
+        if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key]['name'] not in self.available_connectors:
             target_connector = self.__grpc_connectors.get(connector_key)
             connector = GrpcConnector(self, target_connector['config'], self.__grpc_manager, session_id)
             connector.setName(target_connector['name'])
@@ -671,8 +670,7 @@ class TBGatewayService:
             log.error("GRPC configuration for connector with key: %s - not found", connector_key)
 
     def __unregister_connector(self, session_id, connector_key):
-        if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key][
-                'name'] in self.available_connectors:
+        if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key]['name'] in self.available_connectors:
             connector_name = self.__grpc_connectors[connector_key]['name']
             target_connector: GrpcConnector = self.available_connectors.pop(connector_name)
             self.__grpc_manager.unregister(Status.SUCCESS, session_id, target_connector)
@@ -817,7 +815,8 @@ class TBGatewayService:
                                 }
                             })
 
-                            thread = Thread(target=self._run_connector, args=(connector_abs_path, connector_config_json,),
+                            thread = Thread(target=self._run_connector,
+                                            args=(connector_abs_path, connector_config_json,),
                                             daemon=True, name='Separate DRPC Connector')
                             thread.start()
 
@@ -1011,11 +1010,11 @@ class TBGatewayService:
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
         log.debug("Send data Thread has been started successfully.")
+        log.debug("Maximal size of the client message queue is: %r", self.tb_client.client._client._max_queued_messages)
 
         while not self.stopped:
             try:
                 if self.tb_client.is_connected():
-                    size = self.__get_data_size(devices_data_in_event_pack) - 2
                     events = []
 
                     if self.__remote_configurator is None or not self.__remote_configurator.in_process:
@@ -1023,7 +1022,6 @@ class TBGatewayService:
 
                     if events:
                         for event in events:
-                            self.counter += 1
                             try:
                                 current_event = loads(event)
                             except Exception as e:
@@ -1057,9 +1055,8 @@ class TBGatewayService:
                             if not self.tb_client.is_connected():
                                 continue
                             while self.__rpc_reply_sent:
-                                sleep(.2)
+                                sleep(.01)
                             self.__send_data(devices_data_in_event_pack)
-                            sleep(self.__min_pack_send_delay_ms)
 
                         if self.tb_client.is_connected() and (
                                 self.__remote_configurator is None or not self.__remote_configurator.in_process):
@@ -1087,7 +1084,6 @@ class TBGatewayService:
                                     except Exception as e:
                                         log.exception(e)
                                         success = False
-                                    sleep(self.__min_pack_send_delay_ms)
                             if success and self.tb_client.is_connected():
                                 self._event_storage.event_pack_processing_done()
                                 del devices_data_in_event_pack
@@ -1097,7 +1093,7 @@ class TBGatewayService:
                     else:
                         sleep(self.__min_pack_send_delay_ms)
                 else:
-                    sleep(self.__min_pack_send_delay_ms)
+                    sleep(1)
             except Exception as e:
                 log.exception(e)
                 sleep(1)
@@ -1302,20 +1298,19 @@ class TBGatewayService:
 
     def __form_statistics(self):
         summary_messages = {"eventsProduced": 0, "eventsSent": 0}
-        telemetry = {}
         for connector in self.available_connectors:
             connector_camel_case = connector.replace(' ', '')
-            telemetry[(connector_camel_case + ' EventsProduced').replace(' ', '')] = \
-                self.available_connectors[connector].statistics['MessagesReceived']
-            self.available_connectors[connector].statistics['MessagesReceived'] = 0
-            telemetry[(connector_camel_case + ' EventsSent').replace(' ', '')] = \
-                self.available_connectors[connector].statistics['MessagesSent']
-            self.available_connectors[connector].statistics['MessagesSent'] = 0
+            telemetry = {
+                (connector_camel_case + ' EventsProduced').replace(' ', ''): self.available_connectors[
+                    connector].statistics.get('MessagesReceived', 0),
+                (connector_camel_case + ' EventsSent').replace(' ', ''): self.available_connectors[
+                    connector].statistics.get('MessagesSent', 0)
+            }
             summary_messages['eventsProduced'] += telemetry[
                 str(connector_camel_case + ' EventsProduced').replace(' ', '')]
             summary_messages['eventsSent'] += telemetry[
                 str(connector_camel_case + ' EventsSent').replace(' ', '')]
-            summary_messages.update(**telemetry)
+            summary_messages.update(telemetry)
         return summary_messages
 
     def add_device_async(self, data):
@@ -1360,7 +1355,7 @@ class TBGatewayService:
         return self.__connected_devices if connector_name is None else {
             device_name: self.__connected_devices[device_name]["device_type"] for device_name in
             self.__connected_devices.keys() if self.__connected_devices[device_name].get("connector") is not None and
-            self.__connected_devices[device_name]["connector"].get_name() == connector_name}
+                                               self.__connected_devices[device_name]["connector"].get_name() == connector_name}
 
     def __process_async_device_actions(self):
         while not self.stopped:
