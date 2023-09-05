@@ -25,7 +25,7 @@ class CustomSerialUplinkConverter(Converter):
             'deviceType': self.__config.get('deviceType', 'default'),
             'attributes': [],
             'telemetry': []
-        }
+        }        
         keys = ['attributes', 'telemetry']
         for key in keys:
             dict_result[key] = []

@@ -21,6 +21,10 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
     def __init__(self, config):
         self.__config = config.get('converter')
 
+    @property
+    def config(self):
+        return self.__config
+
     def convert(self, topic, body):
         try:
             dict_result = {}
