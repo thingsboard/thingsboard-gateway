@@ -46,11 +46,13 @@ class SQLiteEventStorage(EventStorage):
 
     def get_event_pack(self):
         if not self.stopped:
-            self.delete_time_point = self.last_read
-            data_from_storage = self.read_data(self.last_read)
-            self.last_read = time()
-
-            return [item[0] for item in data_from_storage or []]
+            data_from_storage = self.read_data()
+            try:                
+                event_pack_timestamps, event_pack_messages = zip(*([(item[0],item[1]) for item in data_from_storage]))
+            except ValueError as e:
+                return []
+            self.delete_time_point = max(event_pack_timestamps)            
+            return event_pack_messages
         else:
             return []
 
@@ -58,9 +60,9 @@ class SQLiteEventStorage(EventStorage):
         if not self.stopped:
             self.delete_data(self.delete_time_point)
 
-    def read_data(self, ts):
+    def read_data(self):
         self.db.__stopped = True
-        data = self.db.read_data(ts)
+        data = self.db.read_data()
         self.db.__stopped = False
         return data
 
