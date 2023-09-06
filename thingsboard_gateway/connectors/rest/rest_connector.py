@@ -221,10 +221,23 @@ class RESTConnector(Connector, Thread):
 
     def server_side_rpc_handler(self, content):
         try:
+            if content.get('data') is None:
+                content['data'] = {'params': content['params'], 'method': content['method']}
+
             rpc_method = content['data']['method']
+
+            # check if RPC type is connector RPC (can be only 'get' or 'set')
+            try:
+                (connector_type, rpc_method_name) = rpc_method.split('_')
+                if connector_type == self._connector_type:
+                    rpc_method = rpc_method_name
+                    content['device'] = content['params'].split(' ')[0].split('=')[-1]
+            except (IndexError, ValueError):
+                pass
 
             # check if RPC method is reserved get/set
             if rpc_method == 'get' or rpc_method == 'set':
+                device = content.get('device')
                 params = {}
                 for param in content['data']['params'].split(';'):
                     try:
@@ -244,8 +257,8 @@ class RESTConnector(Connector, Thread):
                 response = self.__send_request(request_dict, Queue(1), self.__log, with_queue=False)
 
                 self.__log.debug('Response from RPC request: %s', response)
-                self.__gateway.send_rpc_reply(device=content["device"],
-                                              req_id=content["data"]["id"],
+                self.__gateway.send_rpc_reply(device=device,
+                                              req_id=content["data"].get('id'),
                                               content=response[2] if response and len(
                                                   response) >= 3 else response)
             else:

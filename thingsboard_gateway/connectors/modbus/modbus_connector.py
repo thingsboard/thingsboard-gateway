@@ -546,17 +546,30 @@ class ModbusConnector(Connector, Thread):
 
     def server_side_rpc_handler(self, server_rpc_request):
         try:
+            if server_rpc_request.get('data') is None:
+                server_rpc_request['data'] = {'params': server_rpc_request['params'],
+                                              'method': server_rpc_request['method']}
+
+            rpc_method = server_rpc_request['data']['method']
+
+            # check if RPC type is connector RPC (can be only 'set')
+            try:
+                (connector_type, rpc_method_name) = rpc_method.split('_')
+                if connector_type == self._connector_type:
+                    rpc_method = rpc_method_name
+                    server_rpc_request['device'] = server_rpc_request['params'].split(' ')[0].split('=')[-1]
+            except (IndexError, ValueError):
+                pass
+
             if server_rpc_request.get(DEVICE_SECTION_PARAMETER) is not None:
                 self.__log.debug("Modbus connector received rpc request for %s with server_rpc_request: %s",
-                          server_rpc_request[DEVICE_SECTION_PARAMETER],
-                          server_rpc_request)
+                                 server_rpc_request[DEVICE_SECTION_PARAMETER],
+                                 server_rpc_request)
                 device = tuple(
                     filter(
                         lambda slave: slave.name == server_rpc_request[DEVICE_SECTION_PARAMETER], self.__slaves
                     )
                 )[0]
-
-                rpc_method = server_rpc_request[DATA_PARAMETER].get(RPC_METHOD_PARAMETER)
 
                 # check if RPC method is reserved get/set
                 if rpc_method == 'get' or rpc_method == 'set':
@@ -635,8 +648,8 @@ class ModbusConnector(Connector, Thread):
                             },
                     data=to_converter)
                 self.__log.debug("Received %s method: %s, result: %r", request_type,
-                          content[DATA_PARAMETER][RPC_METHOD_PARAMETER],
-                          response)
+                                 content[DATA_PARAMETER][RPC_METHOD_PARAMETER],
+                                 response)
             elif isinstance(response, (WriteMultipleRegistersResponse,
                                        WriteMultipleCoilsResponse,
                                        WriteSingleCoilResponse,
@@ -648,13 +661,14 @@ class ModbusConnector(Connector, Thread):
                     content.get(DATA_PARAMETER) is not None and content[DATA_PARAMETER].get(
                     RPC_ID_PARAMETER)) is not None:
                 if isinstance(response, Exception):
-                    self.__gateway.send_rpc_reply(content[DEVICE_SECTION_PARAMETER],
-                                                  content[DATA_PARAMETER][RPC_ID_PARAMETER],
-                                                  {content[DATA_PARAMETER][RPC_METHOD_PARAMETER]: str(response)})
+                    self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
+                                                  req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                                                  content={
+                                                      content[DATA_PARAMETER][RPC_METHOD_PARAMETER]: str(response)})
                 else:
-                    self.__gateway.send_rpc_reply(content[DEVICE_SECTION_PARAMETER],
-                                                  content[DATA_PARAMETER][RPC_ID_PARAMETER],
-                                                  response)
+                    self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
+                                                  req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                                                  content=response)
 
             self.__log.debug("%r", response)
 

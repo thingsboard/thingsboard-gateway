@@ -771,9 +771,11 @@ class MqttConnector(Connector, Thread):
         # 2-way RPC setup
         if expects_response and defines_timeout:
             expected_response_topic = rpc_config["responseTopicExpression"] \
-                .replace("${deviceName}", str(content["device"])) \
                 .replace("${methodName}", str(content['data']['method'])) \
                 .replace("${requestId}", str(content["data"]["id"]))
+
+            if content.get('device'):
+                expected_response_topic.replace("${deviceName}", str(content["device"]))
 
             expected_response_topic = TBUtility.replace_params_tags(expected_response_topic, content)
 
@@ -807,9 +809,11 @@ class MqttConnector(Connector, Thread):
 
         # Actually reach out for the device
         request_topic: str = rpc_config.get("requestTopicExpression") \
-            .replace("${deviceName}", str(content["device"])) \
             .replace("${methodName}", str(content['data']['method'])) \
             .replace("${requestId}", str(content["data"]["id"]))
+
+        if content['data'].get('device'):
+            request_topic.replace("${deviceName}", str(content["device"]))
 
         request_topic = TBUtility.replace_params_tags(request_topic, content)
 
@@ -842,7 +846,18 @@ class MqttConnector(Connector, Thread):
     def server_side_rpc_handler(self, content):
         self.__log.info("Incoming server-side RPC: %s", content)
 
+        if content.get('data') is None:
+            content['data'] = {'params': content['params'], 'method': content['method']}
+
         rpc_method = content['data']['method']
+
+        # check if RPC type is connector RPC (can be only 'get' or 'set')
+        try:
+            (connector_type, rpc_method_name) = rpc_method.split('_')
+            if connector_type == self._connector_type:
+                rpc_method = rpc_method_name
+        except ValueError:
+            pass
 
         # check if RPC method is reserved get/set
         if rpc_method == 'get' or rpc_method == 'set':

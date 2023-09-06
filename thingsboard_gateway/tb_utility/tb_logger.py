@@ -83,12 +83,14 @@ class TbLogger(logging.Logger):
         self._is_on_init_state = False
 
     def error(self, msg, *args, **kwargs):
-        super(TbLogger, self).error(msg, *args, **kwargs, stacklevel=2)
+        kwargs['stacklevel'] = 2
+        super(TbLogger, self).error(msg, *args, **kwargs)
         self._send_error_count()
 
     def exception(self, msg, *args, **kwargs) -> None:
         attr_name = kwargs.pop('attr_name', None)
-        super(TbLogger, self).exception(msg, *args, **kwargs, stacklevel=2)
+        kwargs['stacklevel'] = 2
+        super(TbLogger, self).exception(msg, *args, **kwargs)
         self._send_error_count(error_attr_name=attr_name)
 
     def _send_error_count(self, error_attr_name=None):

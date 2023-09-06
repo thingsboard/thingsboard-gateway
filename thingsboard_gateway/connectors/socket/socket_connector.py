@@ -342,10 +342,24 @@ class SocketConnector(Connector, Thread):
     @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         try:
+            if content.get('data') is None:
+                content['data'] = {'params': content['params'], 'method': content['method']}
+
+            rpc_method = content['data']['method']
+
+            # check if RPC type is connector RPC (can be only 'set')
+            try:
+                (connector_type, rpc_method_name) = rpc_method.split('_')
+                if connector_type == self._connector_type:
+                    rpc_method = rpc_method_name
+                    content['device'] = content['params'].split(' ')[0].split('=')[-1]
+            except (IndexError, ValueError):
+                pass
+
             device = tuple(filter(lambda item: item['deviceName'] == content['device'], self.__config['devices']))[0]
 
             # check if RPC method is reserved set
-            if content['data']['method'] == 'set':
+            if rpc_method == 'set':
                 params = {}
                 for param in content['data']['params'].split(';'):
                     try:
@@ -363,12 +377,13 @@ class SocketConnector(Connector, Thread):
                     else:
                         self.__write_value_via_udp(params['address'], int(params['port']), params['value'])
                 except KeyError:
-                    self.__gateway.send_rpc_reply(content['device'], content['data']['id'], 'Not enough params')
+                    self.__gateway.send_rpc_reply(device=device, req_id=content['data'].get('id'),
+                                                  content='Not enough params')
                 except ValueError:
-                    self.__gateway.send_rpc_reply(content['device'], content['data']['id'],
-                                                  'Param "port" have to be int type')
+                    self.__gateway.send_rpc_reply(device=device, req_id=content['data']['id'],
+                                                  content='Param "port" have to be int type')
                 else:
-                    self.__gateway.send_rpc_reply(content['device'], content['data']['id'], str(result))
+                    self.__gateway.send_rpc_reply(device=device, req_id=content['data'].get('id'), content=str(result))
             else:
                 for rpc_config in device['serverSideRpc']:
                     for (key, value) in content['data'].items():

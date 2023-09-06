@@ -440,12 +440,25 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
 
     def server_side_rpc_handler(self, content):
         try:
+            if content.get('data') is None:
+                content['data'] = {'params': content['params'], 'method': content['method']}
+
             rpc_method = content["data"].get("method")
+
+            # check if RPC type is connector RPC (can be only 'get' or 'set')
+            try:
+                (connector_type, rpc_method_name) = rpc_method.split('_')
+                if connector_type == self._connector_type:
+                    rpc_method = rpc_method_name
+                    content['device'] = content['params'].split(' ')[0].split('=')[-1]
+            except (ValueError, IndexError):
+                pass
 
             # firstly check if a method is not service
             if rpc_method == 'set' or rpc_method == 'get':
                 full_path = ''
                 args_list = []
+                device = content.get('device')
 
                 try:
                     args_list = content['data']['params'].split(';')
@@ -456,10 +469,11 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                         full_path = args_list[0].split('=')[-1]
                 except IndexError:
                     self.__log.error('Not enough arguments. Expected min 2.')
-                    self.__gateway.send_rpc_reply(content['device'],
-                                                  content['data']['id'],
-                                                  {content['data']['method']: 'Not enough arguments. Expected min 2.',
-                                                   'code': 400})
+                    self.__gateway.send_rpc_reply(device=device,
+                                                  req_id=content['data'].get('id'),
+                                                  content={content['data'][
+                                                               'method']: 'Not enough arguments. Expected min 2.',
+                                                           'code': 400})
 
                 result = {}
                 if rpc_method == 'get':
@@ -474,9 +488,9 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                     while not task.done():
                         sleep(.2)
 
-                self.__gateway.send_rpc_reply(content['device'],
-                                              content['data']['id'],
-                                              {content['data']['method']: result})
+                self.__gateway.send_rpc_reply(device=device,
+                                              req_id=content['data'].get('id'),
+                                              content={content['data']['method']: result})
             else:
                 device = tuple(filter(lambda i: i.name == content['device'], self.__device_nodes))[0]
 
