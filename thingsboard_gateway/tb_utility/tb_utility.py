@@ -137,11 +137,18 @@ class TBUtility:
         return values
 
     @staticmethod
-    def install_package(package, version="upgrade"):
+    def install_package(package, version="upgrade", force_install=False):
         from sys import executable
         from subprocess import check_call, CalledProcessError
         result = False
-        if version.lower() == "upgrade":
+
+        if force_install:
+            try:
+                result = check_call(
+                    [executable, '-m', 'pip', 'install', package + '==' + version, '--force-reinstall', '--user'])
+            except Exception:
+                result = check_call([executable, '-m', 'pip', 'install', package + '==' + version, '--force-reinstall'])
+        elif version.lower() == "upgrade":
             try:
                 result = check_call([executable, "-m", "pip", "install", package, "--upgrade", "--user"])
             except CalledProcessError:
