@@ -72,13 +72,13 @@ class TbLogger(logging.Logger):
 
     def _send_errors(self):
         is_tb_client = False
-        while not is_tb_client:
+        while not is_tb_client and not self._gateway.stopped:
             is_tb_client = hasattr(self._gateway, 'tb_client')
             sleep(1)
 
-        if not TbLogger.IS_ALL_ERRORS_COUNT_RESET:
+        if not TbLogger.IS_ALL_ERRORS_COUNT_RESET and self._gateway.tb_client.is_connected():
             self._gateway.tb_client.client.send_telemetry(
-                {self.attr_name: 0, 'ALL_ERRORS_COUNT': 0})
+                {self.attr_name: 0, 'ALL_ERRORS_COUNT': 0}, quality_of_service=0)
             TbLogger.IS_ALL_ERRORS_COUNT_RESET = True
         self._is_on_init_state = False
 

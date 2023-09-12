@@ -42,7 +42,7 @@ class TBLoggerHandler(logging.Handler):
                         'storage'
                         ]
         for logger in self.loggers:
-            log = TbLogger(logger)
+            log = TbLogger(name=logger, gateway=gateway)
             log.addHandler(self.__gateway.main_handler)
             log.debug("Added remote handler to log %s", logger)
 
@@ -56,10 +56,10 @@ class TBLoggerHandler(logging.Handler):
             for logger in self.loggers:
                 if log_level is not None and logging.getLevelName(log_level) is not None:
                     if logger == 'tb_connection' and log_level == 'DEBUG':
-                        log = TbLogger(logger)
+                        log = TbLogger(logger, gateway=self.__gateway)
                         log.setLevel(logging.getLevelName('INFO'))
                     else:
-                        log = TbLogger(logger)
+                        log = TbLogger(logger, gateway=self.__gateway)
                         self.current_log_level = log_level
                         log.setLevel(logging.getLevelName(log_level))
         except Exception as e:

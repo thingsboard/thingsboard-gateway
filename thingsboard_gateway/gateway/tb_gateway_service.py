@@ -60,7 +60,7 @@ try:
 except ImportError:
     print("Cannot load GRPC connector!")
 
-log = TbLogger('service')
+log = None
 main_handler = logging.handlers.MemoryHandler(-1)
 
 DEFAULT_CONNECTORS = {
@@ -140,7 +140,7 @@ class GatewayManager(multiprocessing.managers.BaseManager):
         self.gateway = gateway
 
     def shutdown(self) -> None:
-        pass
+        super().shutdown()
 
 
 class TBGatewayService:
@@ -509,7 +509,7 @@ class TBGatewayService:
         self.__updater.stop()
         log.info("Stopping...")
 
-        if self.__statistics_service:
+        if hasattr(self, '_TBGatewayService__statistics_service'):
             self.__statistics_service.stop()
 
         if self.__grpc_manager is not None:
