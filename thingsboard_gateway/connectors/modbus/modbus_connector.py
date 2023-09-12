@@ -17,22 +17,32 @@ from time import sleep, time
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
+from packaging import version
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 # Try import Pymodbus library or install it and import
 installation_required = False
+required_version = '3.0.0'
+force_install = False
 
 try:
     from pymodbus import __version__ as pymodbus_version
-    if int(pymodbus_version.split('.')[0]) < 3:
+
+    if version.parse(pymodbus_version) < version.parse(required_version):
         installation_required = True
+
+    if version.parse(
+            pymodbus_version) > version.parse(required_version):
+        installation_required = True
+        force_install = True
+
 except ImportError:
     installation_required = True
 
 if installation_required:
     print("Modbus library not found - installing...")
-    TBUtility.install_package("pymodbus", "3.0.0")
+    TBUtility.install_package("pymodbus", "3.0.0", force_install=force_install)
     TBUtility.install_package('pyserial')
     TBUtility.install_package('pyserial-asyncio')
 
