@@ -314,7 +314,7 @@ class RequestConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
-        self._log.__del__()
+        self._log.reset()
 
     def get_config(self):
         return self.__config

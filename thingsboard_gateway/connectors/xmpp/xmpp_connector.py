@@ -192,7 +192,7 @@ class XMPPConnector(Connector, Thread):
         self.__stopped = True
         self._connected = False
         self.__log.info('%s has been stopped.', self.get_name())
-        self.__log.__del__()
+        self.__log.reset()
 
     def get_name(self):
         return self.name

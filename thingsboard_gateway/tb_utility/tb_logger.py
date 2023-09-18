@@ -56,7 +56,7 @@ class TbLogger(logging.Logger):
         self._errors_sender_thread = Thread(name='Log Errors Sender', daemon=True, target=self._send_errors)
         self._errors_sender_thread.start()
 
-    def __del__(self):
+    def reset(self):
         """
         !!!Need to be called manually in the connector 'close' method!!!
         """

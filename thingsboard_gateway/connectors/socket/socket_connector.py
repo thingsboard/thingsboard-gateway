@@ -287,7 +287,7 @@ class SocketConnector(Connector, Thread):
         self.__stopped = True
         self._connected = False
         self.__connections = {}
-        self.__log.__del__()
+        self.__log.reset()
 
     def get_name(self):
         return self.name

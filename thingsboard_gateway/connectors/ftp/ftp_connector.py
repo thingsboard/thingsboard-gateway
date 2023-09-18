@@ -192,7 +192,7 @@ class FTPConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
-        self.__log.__del__()
+        self.__log.reset()
 
     def get_name(self):
         return self.name

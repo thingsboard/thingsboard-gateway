@@ -92,7 +92,7 @@ class OdbcConnector(Connector, Thread):
         if not self.__stopped:
             self.__stopped = True
             self._log.debug("[%s] Stopping", self.get_name())
-            self._log.__del__()
+            self._log.reset()
 
     def get_name(self):
         return self.name

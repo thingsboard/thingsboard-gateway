@@ -88,10 +88,10 @@ class RemoteConfigurator:
     def _get_active_connectors(self):
         return [connector['name'] for connector in self.connectors_configuration]
 
-    def _get_tb_gateway_general_config_for_save(self):
+    def _get_general_config_in_local_format(self):
         """
-        Method used only for saving data to conf files
-        !!!Don't use it for sending data to TB (use `_get_tb_gateway_general_config_for_remote` instead)!!!
+        Method returns general configuration in format that should be used only for local files
+        !!!Don't use it for sending data to TB (use `_get_general_config_in_remote_format` instead)!!!
         """
 
         connectors_config = [
@@ -105,10 +105,10 @@ class RemoteConfigurator:
             'connectors': connectors_config
         }
 
-    def _get_tb_gateway_general_config_for_remote(self):
+    def _get_general_config_in_remote_format(self):
         """
-        Method used only for saving data to TB
-        !!!Don't use it for saving data to conf files (use `_get_tb_gateway_general_config_for_save`)!!!
+        Method returns general configuration in format that should be used only for sending configuration to the server.
+        !!!Don't use it for saving data to conf files (use `_get_general_config_in_local_format`)!!!
         """
 
         stat_conf_path = self.general_configuration['statistics'].get('configuration')
@@ -137,7 +137,7 @@ class RemoteConfigurator:
 
         LOG.debug('Sending all configurations (init)')
         self._gateway.tb_client.client.send_attributes(
-            {'general_configuration': self._get_tb_gateway_general_config_for_remote()})
+            {'general_configuration': self._get_general_config_in_remote_format()})
         self._gateway.tb_client.client.send_attributes({'storage_configuration': self.storage_configuration})
         self._gateway.tb_client.client.send_attributes({'grpc_configuration': self.grpc_configuration})
         self._gateway.tb_client.client.send_attributes(
@@ -168,6 +168,7 @@ class RemoteConfigurator:
                 return load(logs)
         except Exception as e:
             LOG.exception(e)
+            return {}
 
     def process_config_request(self, config):
         if not self.in_process:
@@ -265,7 +266,7 @@ class RemoteConfigurator:
         self._cleanup()
         with open(self._gateway.get_config_path() + "tb_gateway.json", "w",
                   encoding="UTF-8") as file:
-            file.writelines(dumps(self._get_tb_gateway_general_config_for_save(), indent='  '))
+            file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))
 
     def _handle_storage_configuration_update(self, config):
         LOG.debug('Processing storage configuration update...')
@@ -281,7 +282,7 @@ class RemoteConfigurator:
         else:
             self.storage_configuration = config
             with open(self._gateway.get_config_path() + "tb_gateway.json", "w", encoding="UTF-8") as file:
-                file.writelines(dumps(self._get_tb_gateway_general_config_for_save(), indent='  '))
+                file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))
             self._gateway.tb_client.client.send_attributes({'storage_configuration': self.storage_configuration})
 
             LOG.info('Processed storage configuration update successfully')
@@ -293,7 +294,7 @@ class RemoteConfigurator:
                 self._gateway.init_grpc_service(config)
                 for connector_name in self._gateway.available_connectors:
                     self._gateway.available_connectors[connector_name].close()
-                self._gateway.load_connectors(self._get_tb_gateway_general_config_for_save())
+                self._gateway.load_connectors(self._get_general_config_in_local_format())
                 self._gateway.connect_with_connectors()
             except Exception as e:
                 LOG.error('Something went wrong with applying the new GRPC configuration. Reverting...')
@@ -301,12 +302,12 @@ class RemoteConfigurator:
                 self._gateway.init_grpc_service(self.grpc_configuration)
                 for connector_name in self._gateway.available_connectors:
                     self._gateway.available_connectors[connector_name].close()
-                self._gateway.load_connectors(self._get_tb_gateway_general_config_for_save())
+                self._gateway.load_connectors(self._get_general_config_in_local_format())
                 self._gateway.connect_with_connectors()
             else:
                 self.grpc_configuration = config
                 with open(self._gateway.get_config_path() + "tb_gateway.json", "w", encoding="UTF-8") as file:
-                    file.writelines(dumps(self._get_tb_gateway_general_config_for_save(), indent='  '))
+                    file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))
                 self._gateway.tb_client.client.send_attributes({'grpc_configuration': self.grpc_configuration})
 
                 LOG.info('Processed GRPC configuration update successfully')
@@ -354,7 +355,7 @@ class RemoteConfigurator:
 
             self._delete_connectors_from_config(config)
             with open(self._gateway.get_config_path() + 'tb_gateway.json', 'w') as file:
-                file.writelines(dumps(self._get_tb_gateway_general_config_for_save(), indent='  '))
+                file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))
             self._active_connectors = config
 
         self._gateway.tb_client.client.send_attributes({'active_connectors': config})
@@ -396,9 +397,9 @@ class RemoteConfigurator:
 
                 self.connectors_configuration.append(connector_configuration)
                 with open(self._gateway.get_config_path() + 'tb_gateway.json', 'w') as file:
-                    file.writelines(dumps(self._get_tb_gateway_general_config_for_save(), indent='  '))
+                    file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))
 
-                self._gateway.load_connectors(self._get_tb_gateway_general_config_for_save())
+                self._gateway.load_connectors(self._get_general_config_in_local_format())
                 self._gateway.connect_with_connectors()
             else:
                 found_connector = found_connectors[0]
@@ -439,7 +440,7 @@ class RemoteConfigurator:
                         connector_configuration = found_connector
 
                     self._gateway.available_connectors[connector_configuration['name']].close()
-                    self._gateway.load_connectors(self._get_tb_gateway_general_config_for_save())
+                    self._gateway.load_connectors(self._get_general_config_in_local_format())
                     self._gateway.connect_with_connectors()
 
             self._gateway.tb_client.client.send_attributes({config['name']: config})

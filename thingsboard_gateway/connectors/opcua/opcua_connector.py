@@ -237,7 +237,7 @@ class OpcUaConnector(Thread, Connector):
                 pass
         self.__connected = False
         self._log.info('%s has been stopped.', self.get_name())
-        self._log.__del__()
+        self._log.reset()
 
     def get_name(self):
         return self.name

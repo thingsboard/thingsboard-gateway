@@ -319,7 +319,7 @@ class MqttConnector(Connector, Thread):
             self.__log.exception(e)
         self._client.loop_stop()
         self.__log.info('%s has been stopped.', self.get_name())
-        self.__log.__del__()
+        self.__log.reset()
 
     def get_name(self):
         return self.name

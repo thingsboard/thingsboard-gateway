@@ -20,8 +20,12 @@ class BackwardCompatibilityAdapter:
     config_files_count = 1
     CONFIG_PATH = None
 
-    def __init__(self, config, config_dir):
-        self._log = logging.getLogger('BackwardCompatibilityAdapter')
+    def __init__(self, config, config_dir, logger=None):
+        if logger:
+            self._log = logger
+        else:
+            self._log = logging.getLogger('BackwardCompatibilityAdapter')
+
         self.__config = config
         self.__config_dir = config_dir
         BackwardCompatibilityAdapter.CONFIG_PATH = self.__config_dir

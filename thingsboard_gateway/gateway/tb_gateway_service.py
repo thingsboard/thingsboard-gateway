@@ -335,7 +335,7 @@ class TBGatewayService:
                 except Exception as e:
                     log.exception('Failed to load configuration file:\n %s', e)
         else:
-            log.warning('YAML configuration will be deprecated in the future version. '
+            log.warning('YAML configuration is deprecated. '
                         'Please, use JSON configuration instead.')
             log.warning(
                 'See default configuration on '
@@ -631,7 +631,6 @@ class TBGatewayService:
         if new_configuration is not None and self.__remote_configurator is not None:
             try:
                 self.__remote_configurator.process_config_request(new_configuration)
-                # self.__remote_configurator.send_current_configuration()
             except Exception as e:
                 log.exception(e)
 

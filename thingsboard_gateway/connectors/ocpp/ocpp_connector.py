@@ -212,7 +212,7 @@ class OcppConnector(Connector, Thread):
             sleep(.2)
 
         self._log.info('%s has been stopped.', self.get_name())
-        self._log.__del__()
+        self._log.reset()
 
     async def _close_cp_connections(self):
         for cp in self._connected_charge_points:

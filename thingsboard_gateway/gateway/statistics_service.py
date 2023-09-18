@@ -2,6 +2,7 @@ import datetime
 import subprocess
 from threading import Thread
 from time import time, sleep
+from platform import system as platform_system
 
 import simplejson
 
@@ -61,9 +62,14 @@ class StatisticsService(Thread):
                 data_to_send = {}
                 for attribute in self._config:
                     try:
-                        process = subprocess.run(['/bin/sh', '-c', attribute['command']], stdout=subprocess.PIPE,
-                                                 stderr=subprocess.PIPE,
-                                                 encoding='utf-8', timeout=attribute['timeout'])
+                        if platform_system() == 'Windows':
+                            process = subprocess.run(attribute['command'], stdout=subprocess.PIPE,
+                                                     stderr=subprocess.PIPE,
+                                                     encoding='utf-8', timeout=attribute['timeout'])
+                        else:
+                            process = subprocess.run(['/bin/sh', '-c', attribute['command']], stdout=subprocess.PIPE,
+                                                     stderr=subprocess.PIPE,
+                                                     encoding='utf-8', timeout=attribute['timeout'])
                     except Exception as e:
                         self._log.warning("Statistic parameter %s raise the exception: %s",
                                           attribute['attributeOnGateway'], e)

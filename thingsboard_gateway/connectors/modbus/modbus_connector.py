@@ -105,11 +105,13 @@ class ModbusConnector(Connector, Thread):
         super().__init__()
         self.__gateway = gateway
         self._connector_type = connector_type
-        self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config, gateway.get_config_path())
+        self.__log = init_logger(self.__gateway, config.get('name', self.name),
+                                 config.get('logLevel', 'INFO'))
+        self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config, gateway.get_config_path(),
+                                                                             logger=self.__log)
         self.__config = self.__backward_compatibility_adapter.convert()
         self.setName(self.__config.get("name", 'Modbus Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
-        self.__log = init_logger(self.__gateway, self.__config.get('name', self.name),
-                                 self.__config.get('logLevel', 'INFO'))
+
         self.__connected = False
         self.__stopped = False
         self.daemon = True
@@ -293,7 +295,7 @@ class ModbusConnector(Connector, Thread):
         if reactor.running:
             ServerStop()
         self.__log.info('%s has been stopped.', self.get_name())
-        self.__log.__del__()
+        self.__log.reset()
 
     def get_name(self):
         return self.name
