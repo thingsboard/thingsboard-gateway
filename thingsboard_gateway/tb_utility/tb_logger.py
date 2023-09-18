@@ -72,7 +72,11 @@ class TbLogger(logging.Logger):
 
     def _send_errors(self):
         is_tb_client = False
-        while not is_tb_client and not self._gateway.stopped:
+
+        while not self._gateway:
+            sleep(1)
+
+        while not is_tb_client:
             is_tb_client = hasattr(self._gateway, 'tb_client')
             sleep(1)
 

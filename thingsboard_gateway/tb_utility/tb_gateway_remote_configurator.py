@@ -337,17 +337,26 @@ class RemoteConfigurator:
     def _handle_active_connectors_update(self, config):
         LOG.debug('Processing active connectors configuration update...')
 
+        has_changed = False
+        for_deletion = []
         for active_connector_name in self._gateway.available_connectors:
             if active_connector_name not in config:
                 try:
                     self._gateway.available_connectors[active_connector_name].close()
+                    for_deletion.append(active_connector_name)
+                    has_changed = True
                 except Exception as e:
                     LOG.exception(e)
 
-        self._delete_connectors_from_config(config)
-        with open(self._gateway.get_config_path() + 'tb_gateway.json', 'w') as file:
-            file.writelines(dumps(self._get_tb_gateway_general_config_for_save(), indent='  '))
-        self._active_connectors = config
+        if has_changed:
+            for name in for_deletion:
+                self._gateway.available_connectors.pop(name)
+
+            self._delete_connectors_from_config(config)
+            with open(self._gateway.get_config_path() + 'tb_gateway.json', 'w') as file:
+                file.writelines(dumps(self._get_tb_gateway_general_config_for_save(), indent='  '))
+            self._active_connectors = config
+
         self._gateway.tb_client.client.send_attributes({'active_connectors': config})
 
     def _handle_connector_configuration_update(self, config):
