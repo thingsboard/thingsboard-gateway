@@ -310,12 +310,12 @@ class RESTConnector(Connector, Thread):
                                                                 request_config_object.get("extension",
                                                                                           self._default_converters[
                                                                                               "uplink"]))(
-                    request_config_object)
+                    request_config_object, self.__log)
                 downlink_converter = TBModuleLoader.import_module(self._connector_type,
                                                                   request_config_object.get("extension",
                                                                                             self._default_converters[
                                                                                                 "downlink"]))(
-                    request_config_object)
+                    request_config_object, self.__log)
                 request_dict = {**request_config_object,
                                 "uplink_converter": uplink_converter,
                                 "downlink_converter": downlink_converter,
