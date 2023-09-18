@@ -16,12 +16,13 @@ from re import fullmatch
 from time import time
 from datetime import timezone
 
-from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter, log
+from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class GrpcOpcUaUplinkConverter(OpcUaConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config
 
     def convert(self, config, val, data=None):
@@ -68,4 +69,4 @@ class GrpcOpcUaUplinkConverter(OpcUaConverter):
                             result[information_types[information_type]][full_key] = full_value
             return result
         except Exception as e:
-            log.exception(e)
+            self._log.exception(e)

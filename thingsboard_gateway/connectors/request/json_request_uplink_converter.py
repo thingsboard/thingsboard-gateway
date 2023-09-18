@@ -16,13 +16,14 @@ from time import time
 
 from simplejson import dumps, loads
 
-from thingsboard_gateway.connectors.request.request_converter import RequestConverter, log
+from thingsboard_gateway.connectors.request.request_converter import RequestConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class JsonRequestUplinkConverter(RequestConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self.__log = logger
         self.__config = config
         self.__datatypes = {"attributes": "attributes",
                             "telemetry": "telemetry"}
@@ -49,8 +50,8 @@ class JsonRequestUplinkConverter(RequestConverter):
                                                                                   str(device_name_value)) \
                         if is_valid_key else device_name_tag
             else:
-                log.error("The expression for looking \"deviceName\" not found in config %s",
-                          dumps(self.__config['converter']))
+                self.__log.error("The expression for looking \"deviceName\" not found in config %s",
+                                 dumps(self.__config['converter']))
             if self.__config['converter'].get("deviceTypeJsonExpression") is not None:
                 device_type_tags = TBUtility.get_values(self.__config['converter'].get("deviceTypeJsonExpression"),
                                                         data,
@@ -66,10 +67,10 @@ class JsonRequestUplinkConverter(RequestConverter):
                                                                                   str(device_type_value)) \
                         if is_valid_key else device_type_tag
             else:
-                log.error("The expression for looking \"deviceType\" not found in config %s",
-                          dumps(self.__config['converter']))
+                self.__log.error("The expression for looking \"deviceType\" not found in config %s",
+                                 dumps(self.__config['converter']))
         except Exception as e:
-            log.exception(e)
+            self.__log.exception(e)
 
         try:
             for datatype in self.__datatypes:
@@ -109,6 +110,6 @@ class JsonRequestUplinkConverter(RequestConverter):
                         dict_result[self.__datatypes[datatype]].append({full_key: full_value})
 
         except Exception as e:
-            log.exception(e)
+            self.__log.exception(e)
 
         return dict_result

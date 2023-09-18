@@ -24,6 +24,7 @@ from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.gateway.tb_gateway_service import DEFAULT_CONNECTORS
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
+
 logging.basicConfig(level=logging.ERROR,
                     format='%(asctime)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
@@ -32,7 +33,7 @@ log = logging.getLogger("root")
 
 class ConnectorTestBase(unittest.TestCase):
     DATA_PATH = path.join(path.dirname(path.dirname(path.abspath(__file__))),
-                            "data" + path.sep)
+                          "data" + path.sep)
 
     def setUp(self):
         self.gateway = Mock(spec=TBGatewayService)
@@ -48,7 +49,6 @@ class ConnectorTestBase(unittest.TestCase):
         with open(config_file_path, "r", encoding="UTF-8") as required_file:
             datafile = load(required_file)
         return datafile
-
 
     def _create_connector(self, config_filename, connector_type=None):
         if connector_type is None:

@@ -17,12 +17,13 @@ from pymodbus.exceptions import ModbusIOException
 from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.pdu import ExceptionResponse
 
-from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter, log
+from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BytesModbusUplinkConverter(ModbusConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__datatypes = {
             "timeseries": "telemetry",
             "attributes": "attributes"
@@ -69,7 +70,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
                         elif configuration["functionCode"] in [3, 4]:
                             decoder = None
                             registers = response.registers
-                            log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))
+                            self._log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))
                             try:
                                 decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order,
                                                                              wordorder=word_endian_order)
@@ -84,21 +85,19 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             if configuration.get("multiplier"):
                                 decoded_data = decoded_data * configuration["multiplier"]
                     else:
-                        log.exception(response)
+                        self._log.exception(response)
                         decoded_data = None
                     if config_data == "rpc":
                         return decoded_data
-                    log.debug("datatype: %s \t key: %s \t value: %s", self.__datatypes[config_data], tag,
-                              str(decoded_data))
+                    self._log.debug("datatype: %s \t key: %s \t value: %s", self.__datatypes[config_data], tag, str(decoded_data))
                     if decoded_data is not None:
                         self.__result[self.__datatypes[config_data]].append({tag: decoded_data})
                 except Exception as e:
-                    log.exception(e)
-        log.debug(self.__result)
+                    self._log.exception(e)
+        self._log.debug(self.__result)
         return self.__result
 
-    @staticmethod
-    def decode_from_registers(decoder, configuration):
+    def decode_from_registers(self, decoder, configuration):
         type_ = configuration["type"]
         objects_count = configuration.get("objectsCount",
                                           configuration.get("registersCount", configuration.get("registerCount", 1)))
@@ -154,7 +153,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             decoded = decoder_functions[type_]()
 
         else:
-            log.error("Unknown type: %s", type_)
+            self._log.error("Unknown type: %s", type_)
 
         if isinstance(decoded, int):
             result_data = decoded

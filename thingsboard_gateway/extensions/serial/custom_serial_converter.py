@@ -12,11 +12,12 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.converter import Converter, log
+from thingsboard_gateway.connectors.converter import Converter
 
 
 class CustomSerialUplinkConverter(Converter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config
 
     def convert(self, config, data: bytes):
@@ -25,7 +26,7 @@ class CustomSerialUplinkConverter(Converter):
             'deviceType': self.__config.get('deviceType', 'default'),
             'attributes': [],
             'telemetry': []
-        }        
+        }
         keys = ['attributes', 'telemetry']
         for key in keys:
             dict_result[key] = []
@@ -46,5 +47,5 @@ class CustomSerialUplinkConverter(Converter):
                         data_to_convert = data_to_convert[from_byte:]
                     converted_data = {config_object['key']: data_to_convert.decode('UTF-8')}
                     dict_result[key].append(converted_data)
-        log.debug("Converted data: %s", dict_result)
+        self._log.debug("Converted data: %s", dict_result)
         return dict_result

@@ -24,9 +24,10 @@ from time import sleep
 
 from simplejson import dumps
 
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     import ocpp
@@ -56,15 +57,15 @@ class OcppConnector(Connector, Thread):
 
     def __init__(self, gateway, config, connector_type):
         super().__init__()
-        self._log = log
+        self._config = config
         self._central_system_config = config['centralSystem']
         self._charge_points_config = config.get('chargePoints', [])
         self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self._gateway = gateway
-        self.setName(self._central_system_config.get("name", 'OCPP Connector ' + ''.join(
-            choice(ascii_lowercase) for _ in range(5))))
+        self.setName(self._config.get("name", 'OCPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self._log = init_logger(self._gateway, self.name, self._config.get('logLevel', 'INFO'))
 
         self._default_converters = {'uplink': 'OcppUplinkConverter'}
         self._server = None
@@ -95,7 +96,10 @@ class OcppConnector(Connector, Thread):
     def open(self):
         self.__stopped = False
         self.start()
-        log.info("Starting OCPP Connector")
+        self._log.info("Starting OCPP Connector")
+
+    def get_type(self):
+        return self._connector_type
 
     def run(self):
         self._data_convert_thread.start()
@@ -175,7 +179,7 @@ class OcppConnector(Connector, Thread):
         if is_valid:
             uplink_converter_name = cp_config.get('extension', self._default_converters['uplink'])
             cp = ChargePoint(charge_point_id, websocket, {**cp_config, 'uplink_converter_name': uplink_converter_name},
-                             OcppConnector._callback)
+                             OcppConnector._callback, self._log)
             cp.authorized = True
 
             self._log.info('Connected Charge Point with id: %s', charge_point_id)
@@ -208,6 +212,7 @@ class OcppConnector(Connector, Thread):
             sleep(.2)
 
         self._log.info('%s has been stopped.', self.get_name())
+        self._log.reset()
 
     async def _close_cp_connections(self):
         for cp in self._connected_charge_points:

@@ -14,11 +14,12 @@
 
 from simplejson import dumps
 
-from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
+from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
 
 
 class CustomMqttUplinkConverter(MqttUplinkConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config.get('converter')
 
     @property
@@ -46,5 +47,5 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
             return dict_result
 
         except Exception as e:
-            log.exception('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
-            log.exception(e)
+            self._log.exception('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
+            self._log.exception(e)

@@ -172,7 +172,7 @@ class GrpcModbusConnector(GwGrpcConnector):
     def __load_slaves(self):
         self.__slaves = [
             Slave(**{**device, 'connector': self, 'connector_key': self._connector_key,
-                     'callback': GrpcModbusConnector.callback})
+                     'callback': GrpcModbusConnector.callback, 'logger': log})
             for device in self.__config.get('master', {'slaves': []}).get('slaves', [])]
 
     @classmethod
@@ -189,6 +189,9 @@ class GrpcModbusConnector(GwGrpcConnector):
 
     def get_name(self):
         return self.name
+
+    def get_type(self):
+        return self._connector_type
 
     def __process_slaves(self):
         device = GrpcModbusConnector.process_requests.get()

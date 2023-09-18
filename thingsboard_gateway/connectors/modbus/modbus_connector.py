@@ -20,6 +20,7 @@ from string import ascii_lowercase
 from packaging import version
 
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 # Try import Pymodbus library or install it and import
 installation_required = False
@@ -69,7 +70,7 @@ from pymodbus.datastore import ModbusSlaveContext, ModbusServerContext
 from pymodbus.datastore import ModbusSparseDataBlock
 from pymodbus.pdu import ExceptionResponse
 
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.modbus.constants import *
 from thingsboard_gateway.connectors.modbus.slave import Slave
 from thingsboard_gateway.connectors.modbus.backward_compability_adapter import BackwardCompatibilityAdapter
@@ -114,11 +115,13 @@ class ModbusConnector(Connector, Thread):
         super().__init__()
         self.__gateway = gateway
         self._connector_type = connector_type
-
-        self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config, gateway.get_config_path())
+        self.__log = init_logger(self.__gateway, config.get('name', self.name),
+                                 config.get('logLevel', 'INFO'))
+        self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config, gateway.get_config_path(),
+                                                                             logger=self.__log)
         self.__config = self.__backward_compatibility_adapter.convert()
-
         self.setName(self.__config.get("name", 'Modbus Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+
         self.__connected = False
         self.__stopped = False
         self.daemon = True
@@ -151,6 +154,9 @@ class ModbusConnector(Connector, Thread):
         self.__stopped = False
         self.start()
 
+    def get_type(self):
+        return self._connector_type
+
     def run(self):
         self.__connected = True
 
@@ -162,8 +168,7 @@ class ModbusConnector(Connector, Thread):
 
             sleep(.001)
 
-    @staticmethod
-    def __configure_and_run_slave(config):
+    def __configure_and_run_slave(self, config):
         identity = None
         if config.get('identity'):
             identity = ModbusDeviceIdentification()
@@ -177,7 +182,7 @@ class ModbusConnector(Connector, Thread):
         blocks = {}
         for (key, value) in config.get('values').items():
             values = {}
-            converter = BytesModbusDownlinkConverter({})
+            converter = BytesModbusDownlinkConverter({}, self.__log)
             for item in value:
                 for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
                     for val in item.get(section, []):
@@ -219,7 +224,8 @@ class ModbusConnector(Connector, Thread):
 
     def __load_slaves(self):
         self.__slaves = [
-            Slave(**{**device, 'connector': self, 'gateway': self.__gateway, 'callback': ModbusConnector.callback}) for
+            Slave(**{**device, 'connector': self, 'gateway': self.__gateway, 'logger': self.__log,
+                     'callback': ModbusConnector.callback}) for
             device in self.__config.get('master', {'slaves': []}).get('slaves', [])]
 
     @classmethod
@@ -232,7 +238,7 @@ class ModbusConnector(Connector, Thread):
 
     def __thread_manager(self):
         if len(self.__workers_thread_pool) == 0:
-            worker = ModbusConnector.ConverterWorker("Main", self._convert_msg_queue, self._save_data)
+            worker = ModbusConnector.ConverterWorker("Main", self._convert_msg_queue, self._save_data, self.__log)
             self.__workers_thread_pool.append(worker)
             worker.start()
 
@@ -241,7 +247,7 @@ class ModbusConnector(Connector, Thread):
         if number_of_needed_threads > threads_count < self.__max_number_of_workers:
             thread = ModbusConnector.ConverterWorker(
                 "Worker " + ''.join(choice(ascii_lowercase) for _ in range(5)), self._convert_msg_queue,
-                self._save_data)
+                self._save_data, self.__log)
             self.__workers_thread_pool.append(thread)
             thread.start()
         elif number_of_needed_threads < threads_count and threads_count > 1:
@@ -259,7 +265,7 @@ class ModbusConnector(Connector, Thread):
                 config=config,
                 data=device_responses)
         except Exception as e:
-            log.error(e)
+            self.__log.error(e)
 
         to_send = {DEVICE_NAME_PARAMETER: converted_data[DEVICE_NAME_PARAMETER],
                    DEVICE_TYPE_PARAMETER: converted_data[DEVICE_TYPE_PARAMETER],
@@ -298,7 +304,8 @@ class ModbusConnector(Connector, Thread):
         self.__stop_connections_to_masters()
         if reactor.running:
             ServerStop()
-        log.info('%s has been stopped.', self.get_name())
+        self.__log.info('%s has been stopped.', self.get_name())
+        self.__log.reset()
 
     def get_name(self):
         return self.name
@@ -308,7 +315,7 @@ class ModbusConnector(Connector, Thread):
             if not self.__stopped and not ModbusConnector.process_requests.empty():
                 device = ModbusConnector.process_requests.get()
 
-                log.debug("Device connector type: %s", device.config.get(TYPE_PARAMETER))
+                self.__log.debug("Device connector type: %s", device.config.get(TYPE_PARAMETER))
                 if device.config.get(TYPE_PARAMETER).lower() == 'serial':
                     self.lock.acquire()
 
@@ -325,7 +332,7 @@ class ModbusConnector(Connector, Thread):
                                     current_device_config[config_section]):
                                 error = 'Socket is closed' if not device.config[
                                     'master'].is_socket_open() else 'Config is invalid'
-                                log.error(error)
+                                self.__log.error(error)
                                 continue
 
                             # Reading data from device
@@ -344,8 +351,8 @@ class ModbusConnector(Connector, Thread):
                                     "data_sent": current_data,
                                     "input_data": input_data}
 
-                            log.debug("Checking %s for device %s", config_section, device)
-                            log.debug('Device response: ', device_responses)
+                            self.__log.debug("Checking %s for device %s", config_section, device)
+                            self.__log.debug('Device response: ', device_responses)
 
                     if device_responses.get('timeseries') or device_responses.get('attributes'):
                         self._convert_msg_queue.put((self.__convert_data, (device, current_device_config, {
@@ -358,9 +365,9 @@ class ModbusConnector(Connector, Thread):
 
                 except ConnectionException:
                     sleep(5)
-                    log.error("Connection lost! Reconnecting...")
+                    self.__log.error("Connection lost! Reconnecting...")
                 except Exception as e:
-                    log.exception(e)
+                    self.__log.exception(e)
 
                 # Release mutex if "serial" type only
                 if device.config.get(TYPE_PARAMETER) == 'serial':
@@ -404,12 +411,13 @@ class ModbusConnector(Connector, Thread):
                 device.config['connection_attempt'] = device.config[
                                                           'connection_attempt'] + 1
                 device.config['last_connection_attempt_time'] = current_time
-                log.debug("Modbus trying connect to %s", device)
+                self.__log.debug("Modbus trying connect to %s", device)
                 device.config['master'].connect()
 
                 if device.config['connection_attempt'] == connect_attempt_count:
-                    log.warn("Maximum attempt count (%i) for device \"%s\" - encountered.", connect_attempt_count,
-                             device)
+                    self.__log.warn("Maximum attempt count (%i) for device \"%s\" - encountered.",
+                                    connect_attempt_count,
+                                    device)
 
         if device.config['connection_attempt'] >= 0 and device.config['master'].is_socket_open():
             device.config['connection_attempt'] = 0
@@ -477,8 +485,7 @@ class ModbusConnector(Connector, Thread):
             if slave.config.get('master') is not None and slave.config.get('master').is_socket_open():
                 slave.config['master'].close()
 
-    @staticmethod
-    def __function_to_device(device, config):
+    def __function_to_device(self, device, config):
         function_code = config.get('functionCode')
         result = None
         if function_code == 1:
@@ -519,12 +526,12 @@ class ModbusConnector(Connector, Thread):
                                                                          values=config[PAYLOAD_PARAMETER],
                                                                          slave=device.config['unitId'])
         else:
-            log.error("Unknown Modbus function with code: %s", function_code)
+            self.__log.error("Unknown Modbus function with code: %s", function_code)
 
-        log.debug("With result %s", str(result))
+        self.__log.debug("With result %s", str(result))
 
         if "Exception" in str(result):
-            log.exception(result)
+            self.__log.exception(result)
 
         return result
 
@@ -547,21 +554,34 @@ class ModbusConnector(Connector, Thread):
                         self.__process_request(to_process, attribute_updates_command_config,
                                                request_type='attributeUpdates')
         except Exception as e:
-            log.exception(e)
+            self.__log.exception(e)
 
     def server_side_rpc_handler(self, server_rpc_request):
         try:
+            if server_rpc_request.get('data') is None:
+                server_rpc_request['data'] = {'params': server_rpc_request['params'],
+                                              'method': server_rpc_request['method']}
+
+            rpc_method = server_rpc_request['data']['method']
+
+            # check if RPC type is connector RPC (can be only 'set')
+            try:
+                (connector_type, rpc_method_name) = rpc_method.split('_')
+                if connector_type == self._connector_type:
+                    rpc_method = rpc_method_name
+                    server_rpc_request['device'] = server_rpc_request['params'].split(' ')[0].split('=')[-1]
+            except (IndexError, ValueError):
+                pass
+
             if server_rpc_request.get(DEVICE_SECTION_PARAMETER) is not None:
-                log.debug("Modbus connector received rpc request for %s with server_rpc_request: %s",
-                          server_rpc_request[DEVICE_SECTION_PARAMETER],
-                          server_rpc_request)
+                self.__log.debug("Modbus connector received rpc request for %s with server_rpc_request: %s",
+                                 server_rpc_request[DEVICE_SECTION_PARAMETER],
+                                 server_rpc_request)
                 device = tuple(
                     filter(
                         lambda slave: slave.name == server_rpc_request[DEVICE_SECTION_PARAMETER], self.__slaves
                     )
                 )[0]
-
-                rpc_method = server_rpc_request[DATA_PARAMETER].get(RPC_METHOD_PARAMETER)
 
                 # check if RPC method is reserved get/set
                 if rpc_method == 'get' or rpc_method == 'set':
@@ -589,19 +609,19 @@ class ModbusConnector(Connector, Thread):
                             self.__process_request(server_rpc_request, rpc_command_config)
                             break
                 else:
-                    log.error("Received rpc request, but method %s not found in config for %s.",
+                    self.__log.error("Received rpc request, but method %s not found in config for %s.",
                               rpc_method,
                               self.get_name())
                     self.__gateway.send_rpc_reply(server_rpc_request[DEVICE_SECTION_PARAMETER],
                                                   server_rpc_request[DATA_PARAMETER][RPC_ID_PARAMETER],
                                                   {rpc_method: "METHOD NOT FOUND!"})
             else:
-                log.debug("Received RPC to connector: %r", server_rpc_request)
+                self.__log.debug("Received RPC to connector: %r", server_rpc_request)
         except Exception as e:
-            log.exception(e)
+            self.__log.exception(e)
 
     def __process_request(self, content, rpc_command_config, request_type='RPC'):
-        log.debug('Processing %s request', request_type)
+        self.__log.debug('Processing %s request', request_type)
         if rpc_command_config is not None:
             device = tuple(filter(lambda slave: slave.name == content[DEVICE_SECTION_PARAMETER], self.__slaves))[0]
             rpc_command_config[UNIT_ID_PARAMETER] = device.config['unitId']
@@ -625,7 +645,7 @@ class ModbusConnector(Connector, Thread):
             try:
                 response = self.__function_to_device(device, rpc_command_config)
             except Exception as e:
-                log.exception(e)
+                self.__log.exception(e)
                 response = e
 
             if isinstance(response, (ReadRegistersResponseBase, ReadBitsResponseBase)):
@@ -639,42 +659,43 @@ class ModbusConnector(Connector, Thread):
                             WORD_ORDER_PARAMETER: device.word_order
                             },
                     data=to_converter)
-                log.debug("Received %s method: %s, result: %r", request_type,
-                          content[DATA_PARAMETER][RPC_METHOD_PARAMETER],
-                          response)
+                self.__log.debug("Received %s method: %s, result: %r", request_type,
+                                 content[DATA_PARAMETER][RPC_METHOD_PARAMETER],
+                                 response)
             elif isinstance(response, (WriteMultipleRegistersResponse,
                                        WriteMultipleCoilsResponse,
                                        WriteSingleCoilResponse,
                                        WriteSingleRegisterResponse)):
-                log.debug("Write %r", str(response))
+                self.__log.debug("Write %r", str(response))
                 response = {"success": True}
 
             if content.get(RPC_ID_PARAMETER) or (
                     content.get(DATA_PARAMETER) is not None and content[DATA_PARAMETER].get(
                     RPC_ID_PARAMETER)) is not None:
                 if isinstance(response, Exception):
-                    self.__gateway.send_rpc_reply(content[DEVICE_SECTION_PARAMETER],
-                                                  content[DATA_PARAMETER][RPC_ID_PARAMETER],
-                                                  {content[DATA_PARAMETER][RPC_METHOD_PARAMETER]: str(response)})
+                    self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
+                                                  req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                                                  content={
+                                                      content[DATA_PARAMETER][RPC_METHOD_PARAMETER]: str(response)})
                 else:
-                    self.__gateway.send_rpc_reply(content[DEVICE_SECTION_PARAMETER],
-                                                  content[DATA_PARAMETER][RPC_ID_PARAMETER],
-                                                  response)
+                    self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
+                                                  req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                                                  content=response)
 
-            log.debug("%r", response)
+            self.__log.debug("%r", response)
 
     def get_config(self):
         return self.__config
 
     def update_converter_config(self, converter_name, config):
-        log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
+        self.__log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
                   config)
         for slave in self.__slaves:
             try:
                 if slave.config[UPLINK_PREFIX + CONVERTER_PARAMETER].__class__.__name__ == converter_name:
                     slave.config.update(config)
-                    log.info('Updated converter configuration for: %s with configuration %s',
-                             converter_name, config)
+                    self.__log.info('Updated converter configuration for: %s with configuration %s',
+                                    converter_name, config)
 
                     for slave_config in self.__config['master']['slaves']:
                         if slave_config['deviceName'] == slave.name:
@@ -685,8 +706,9 @@ class ModbusConnector(Connector, Thread):
                 continue
 
     class ConverterWorker(Thread):
-        def __init__(self, name, incoming_queue, send_result):
+        def __init__(self, name, incoming_queue, send_result, logger):
             super().__init__()
+            self._log = logger
             self.stopped = False
             self.setName(name)
             self.setDaemon(True)
@@ -701,7 +723,7 @@ class ModbusConnector(Connector, Thread):
                     convert_function, params = self.__msg_queue.get(True, 10)
                     converted_data = convert_function(params)
                     if converted_data:
-                        log.info(converted_data)
+                        self._log.info(converted_data)
                         self.__send_result(converted_data)
                         self.in_progress = False
                 else:

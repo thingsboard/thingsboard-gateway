@@ -3,13 +3,14 @@ from re import findall
 
 from simplejson import dumps
 
-from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
+from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BytesMqttUplinkConverter(MqttUplinkConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
         self.__config = config.get('converter')
+        self._log = logger
 
     @property
     def config(self):
@@ -41,10 +42,10 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
                     else:
                         dict_result[datatypes[datatype]].append(value_item)
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            str(data), e)
 
-        log.debug('Converted data: %s', dict_result)
+        self._log.debug('Converted data: %s', dict_result)
         return dict_result
 
     @staticmethod

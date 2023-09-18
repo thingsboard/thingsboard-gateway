@@ -20,7 +20,7 @@ from os import path
 from random import choice, randint, uniform
 from string import ascii_lowercase
 from time import sleep
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from can import Notifier, BufferedReader, Bus, Message
@@ -67,14 +67,16 @@ class CanConnectorTestsBase(unittest.TestCase):
 
     def _create_connector(self, config_file_name):
         with open(self.CONFIG_PATH + config_file_name, 'r', encoding="UTF-8") as file:
-            self.config = load(file)
-            self.connector = CanConnector(self.gateway, self.config, "can")
-            self.connector.open()
-            sleep(1)  # some time to init
+            try:
+                self.config = load(file)
+                self.connector = CanConnector(self.gateway, self.config, "can")
+                self.connector.open()
+                sleep(1)  # some time to init
+            except Exception as e:
+                print(e)
 
 
 class CanConnectorPollingTests(CanConnectorTestsBase):
-
     def test_polling_once(self):
         self._create_connector("polling_once.json")
         config = self.config["devices"][0]["attributes"][0]

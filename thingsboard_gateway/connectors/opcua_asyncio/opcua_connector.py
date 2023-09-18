@@ -20,10 +20,11 @@ from threading import Thread
 from time import sleep, time
 from queue import Queue
 
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua_asyncio.device import Device
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     import asyncua
@@ -50,14 +51,14 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
-        self.__log = log
         super().__init__()
         self._connector_type = connector_type
         self.__gateway = gateway
+        self.__config = config
         self.__server_conf = config['server']
-
         self.setName(
-            self.__server_conf.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+            self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
 
         if "opc.tcp" not in self.__server_conf.get("url"):
             self.__opcua_url = "opc.tcp://" + self.__server_conf.get("url")
@@ -82,7 +83,10 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
     def open(self):
         self.__stopped = False
         self.start()
-        log.info("Starting OPC-UA Connector (Async IO)")
+        self.__log.info("Starting OPC-UA Connector (Async IO)")
+
+    def get_type(self):
+        return self._connector_type
 
     def close(self):
         task = self.__loop.create_task(self.__reset_nodes())
@@ -93,6 +97,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         self.__stopped = True
         self.__connected = False
         self.__log.info('%s has been stopped.', self.get_name())
+        self.__log.reset()
 
     async def __reset_node(self, node):
         node['valid'] = False
@@ -156,8 +161,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                     try:
                         await self.__client.load_data_type_definitions()
                     except Exception as e:
-                        self.__log.error("Error on loading type definitions:")
-                        self.__log.error(e)
+                        self.__log.error("Error on loading type definitions:\n %s", e)
 
                     while not self.__stopped:
                         if time() - self.__last_poll >= self.__server_conf.get('scanPeriodInMillis', 5000) / 1000:
@@ -184,7 +188,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
             policy = self.__server_conf["security"]
 
             if cert is None or private_key is None:
-                log.exception("Error in ssl configuration - cert or privateKey parameter not found")
+                self.__log.exception("Error in ssl configuration - cert or privateKey parameter not found")
                 raise RuntimeError("Error in ssl configuration - cert or privateKey parameter not found")
 
             await self.__client.set_security(
@@ -206,10 +210,10 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         module = TBModuleLoader.import_module(self._connector_type, converter_class_name)
 
         if module:
-            log.debug('Converter %s for device %s - found!', converter_class_name, self.name)
+            self.__log.debug('Converter %s for device %s - found!', converter_class_name, self.name)
             return module
 
-        log.error("Cannot find converter for %s device", self.name)
+        self.__log.error("Cannot find converter for %s device", self.name)
         return None
 
     @staticmethod
@@ -290,10 +294,11 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                         converter = self.__load_converter(device)
                         device_config = {**device, 'device_name': device_name}
                         self.__device_nodes.append(
-                            Device(path=node, name=device_name, config=device_config, converter=converter(device_config),
-                                   converter_for_sub=converter(device_config) if not self.__server_conf.get(
+                            Device(path=node, name=device_name, config=device_config,
+                                   converter=converter(device_config, self.__log),
+                                   converter_for_sub=converter(device_config, self.__log) if not self.__server_conf.get(
                                        'disableSubscriptions',
-                                       False) else None))
+                                       False) else None, logger=self.__log))
                         self.__log.info('Added device node: %s', device_name)
 
         for device_name in existing_devices:
@@ -334,11 +339,14 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                                 qualified_path = await self.find_node_name_space_index(path)
                                 if len(qualified_path) == 0:
                                     if node.get('valid', True):
-                                        self.__log.warning('Node not found; device: %s, key: %s, path: %s', device.name, node['key'], node['path'])
+                                        self.__log.warning('Node not found; device: %s, key: %s, path: %s', device.name,
+                                                           node['key'], node['path'])
                                         await self.__reset_node(node)
                                     continue
                                 elif len(qualified_path) > 1:
-                                    self.__log.warning('Multiple matching nodes found; device: %s, key: %s, path: %s; %s', device.name, node['key'], node['path'], qualified_path)
+                                    self.__log.warning(
+                                        'Multiple matching nodes found; device: %s, key: %s, path: %s; %s', device.name,
+                                        node['key'], node['path'], qualified_path)
                                 node['qualified_path'] = qualified_path[0]
                                 path = qualified_path[0]
 
@@ -352,12 +360,13 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                                                                                                           False):
                                 if self.__subscription is None:
                                     self.__subscription = await self.__client.create_subscription(1, SubHandler(
-                                        self.__sub_data_to_convert))
+                                        self.__sub_data_to_convert, self.__log))
                                 handle = await self.__subscription.subscribe_data_change(var)
                                 node['subscription'] = handle
                                 node['sub_on'] = True
                                 node['id'] = var.nodeid.to_string()
-                                self.__log.info("Subscribed on data change; device: %s, key: %s, path: %s", device.name, node['key'], node['id'])
+                                self.__log.info("Subscribed on data change; device: %s, key: %s, path: %s", device.name,
+                                                node['key'], node['id'])
 
                             node['valid'] = True
                     except ConnectionError:
@@ -365,7 +374,8 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                     except (BadNodeIdUnknown, BadConnectionClosed, BadInvalidState, BadAttributeIdInvalid,
                             BadCommunicationError, BadOutOfService):
                         if node.get('valid', True):
-                            self.__log.warning('Node not found (2); device: %s, key: %s, path: %s', device.name, node['key'], node['path'])
+                            self.__log.warning('Node not found (2); device: %s, key: %s, path: %s', device.name,
+                                               node['key'], node['path'])
                             await self.__reset_node(node)
                     except UaStatusCodeError as uae:
                         if node.get('valid', True):
@@ -430,12 +440,25 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
 
     def server_side_rpc_handler(self, content):
         try:
+            if content.get('data') is None:
+                content['data'] = {'params': content['params'], 'method': content['method']}
+
             rpc_method = content["data"].get("method")
+
+            # check if RPC type is connector RPC (can be only 'get' or 'set')
+            try:
+                (connector_type, rpc_method_name) = rpc_method.split('_')
+                if connector_type == self._connector_type:
+                    rpc_method = rpc_method_name
+                    content['device'] = content['params'].split(' ')[0].split('=')[-1]
+            except (ValueError, IndexError):
+                pass
 
             # firstly check if a method is not service
             if rpc_method == 'set' or rpc_method == 'get':
                 full_path = ''
                 args_list = []
+                device = content.get('device')
 
                 try:
                     args_list = content['data']['params'].split(';')
@@ -445,11 +468,12 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                     else:
                         full_path = args_list[0].split('=')[-1]
                 except IndexError:
-                    log.error('Not enough arguments. Expected min 2.')
-                    self.__gateway.send_rpc_reply(content['device'],
-                                                  content['data']['id'],
-                                                  {content['data']['method']: 'Not enough arguments. Expected min 2.',
-                                                   'code': 400})
+                    self.__log.error('Not enough arguments. Expected min 2.')
+                    self.__gateway.send_rpc_reply(device=device,
+                                                  req_id=content['data'].get('id'),
+                                                  content={content['data'][
+                                                               'method']: 'Not enough arguments. Expected min 2.',
+                                                           'code': 400})
 
                 result = {}
                 if rpc_method == 'get':
@@ -464,9 +488,9 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                     while not task.done():
                         sleep(.2)
 
-                self.__gateway.send_rpc_reply(content['device'],
-                                              content['data']['id'],
-                                              {content['data']['method']: result})
+                self.__gateway.send_rpc_reply(device=device,
+                                              req_id=content['data'].get('id'),
+                                              content={content['data']['method']: result})
             else:
                 device = tuple(filter(lambda i: i.name == content['device'], self.__device_nodes))[0]
 
@@ -486,13 +510,13 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                             self.__gateway.send_rpc_reply(content["device"],
                                                           content["data"]["id"],
                                                           {content["data"]["method"]: result, "code": 200})
-                            log.debug("method %s result is: %s", rpc['method'], result)
+                            self.__log.debug("method %s result is: %s", rpc['method'], result)
                         except Exception as e:
-                            log.exception(e)
+                            self.__log.exception(e)
                             self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
                                                           {"error": str(e), "code": 500})
                     else:
-                        log.error("Method %s not found for device %s", rpc_method, content["device"])
+                        self.__log.error("Method %s not found for device %s", rpc_method, content["device"])
                         self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
                                                       {"error": "%s - Method not found" % rpc_method,
                                                        "code": 404})
@@ -525,14 +549,14 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
             result['error'] = e.__str__()
 
     def update_converter_config(self, converter_name, config):
-        log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
-                  config)
+        self.__log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
+                         config)
         for device in self.__device_nodes:
             if device.converter.__class__.__name__ == converter_name:
                 device.config.update(config)
                 device.load_values()
-                log.info('Updated converter configuration for: %s with configuration %s',
-                         converter_name, device.config)
+                self.__log.info('Updated converter configuration for: %s with configuration %s',
+                                converter_name, device.config)
 
                 for node_config in self.__server_conf['mapping']:
                     if node_config['deviceNodePattern'] == device.config['deviceNodePattern']:
@@ -540,24 +564,12 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
 
                 self.__gateway.update_connector_config_file(self.name, {'server': self.__server_conf})
 
+
 class SubHandler:
-    def __init__(self, queue):
+    def __init__(self, queue, logger):
+        self.__log = logger
         self.__queue = queue
 
     def datachange_notification(self, node, _, data):
-        log.debug("New data change event %s %s", node, data)
+        self.__log.debug("New data change event %s %s", node, data)
         self.__queue.put((node, data))
-
-    @staticmethod
-    def event_notification(event):
-        try:
-            log.info("New event %s", event)
-        except Exception as e:
-            log.exception(e)
-
-    @staticmethod
-    def status_change_notification(status):
-        try:
-            log.info("Status change %s", status)
-        except Exception as e:
-            log.exception(e)

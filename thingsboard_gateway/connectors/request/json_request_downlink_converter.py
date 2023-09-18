@@ -14,13 +14,14 @@
 
 from urllib.parse import quote
 
-from thingsboard_gateway.connectors.request.request_converter import RequestConverter, log
+from thingsboard_gateway.connectors.request.request_converter import RequestConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class JsonRequestDownlinkConverter(RequestConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self.__log = logger
         self.__config = config
 
     @StatisticsService.CollectStatistics(start_stat_type='allReceivedBytesFromTB',
@@ -64,4 +65,4 @@ class JsonRequestDownlinkConverter(RequestConverter):
 
             return result
         except Exception as e:
-            log.exception(e)
+            self.__log.exception(e)

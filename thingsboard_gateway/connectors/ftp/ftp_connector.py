@@ -11,6 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
 import io
 import re
 from ftplib import FTP, FTP_TLS
@@ -28,6 +29,7 @@ from thingsboard_gateway.connectors.ftp.ftp_uplink_converter import FTPUplinkCon
 from thingsboard_gateway.connectors.ftp.path import Path
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     from requests import Timeout, request
@@ -36,7 +38,7 @@ except ImportError:
     TBUtility.install_package("requests")
     from requests import Timeout, request
 
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 
 
 class FTPConnector(Connector, Thread):
@@ -44,7 +46,6 @@ class FTPConnector(Connector, Thread):
         super().__init__()
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
-        self.__log = log
         self.__config = config
         self._connector_type = connector_type
         self.__gateway = gateway
@@ -52,6 +53,7 @@ class FTPConnector(Connector, Thread):
             'username': 'anonymous', "password": 'anonymous@'}
         self.__tls_support = self.__config.get("TLSSupport", False)
         self.setName(self.__config.get("name", "".join(choice(ascii_lowercase) for _ in range(5))))
+        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self.daemon = True
         self.__stopped = False
         self.__requests_in_progress = []
@@ -134,7 +136,7 @@ class FTPConnector(Connector, Thread):
             time_point = timer()
             if time_point - path.last_polled_time >= path.poll_period or path.last_polled_time == 0:
                 configuration = path.config
-                converter = FTPUplinkConverter(configuration)
+                converter = FTPUplinkConverter(configuration, self.__log)
                 path.last_polled_time = time_point
 
                 if '*' in path.path:
@@ -186,13 +188,17 @@ class FTPConnector(Connector, Thread):
         if converted_data:
             self.__gateway.send_to_storage(self.getName(), converted_data)
             self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-            log.debug("Data to ThingsBoard: %s", converted_data)
+            self.__log.debug("Data to ThingsBoard: %s", converted_data)
 
     def close(self):
         self.__stopped = True
+        self.__log.reset()
 
     def get_name(self):
         return self.name
+
+    def get_type(self):
+        return self._connector_type
 
     def is_connected(self):
         return self._connected
@@ -235,7 +241,7 @@ class FTPConnector(Connector, Thread):
                                     ftp.storbinary('STOR ' + file.path_to_file, io_stream)
                                     io_stream.close()
                                 else:
-                                    log.error('Invalid json data')
+                                    self.__log.error('Invalid json data')
                             else:
                                 if attribute_request['writingMode'] == 'OVERRIDE':
                                     io_stream = self._get_io_stream(data_expression)
@@ -252,7 +258,7 @@ class FTPConnector(Connector, Thread):
                                     io_stream.close()
 
         except Exception as e:
-            log.exception(e)
+            self.__log.exception(e)
 
     @StatisticsService.CollectAllReceivedBytesStatistics('allBytesSentToDevices')
     def _get_io_stream(self, data_expression):
@@ -282,7 +288,7 @@ class FTPConnector(Connector, Thread):
                                 io_stream.close()
                                 success_sent = True
                             except Exception as e:
-                                log.error(e)
+                                self.__log.error(e)
                                 converted_data = '{"error": "' + str(e) + '"}'
                         else:
                             handle_stream = io.BytesIO()
@@ -293,7 +299,7 @@ class FTPConnector(Connector, Thread):
                         self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
                                                       success_sent=success_sent, content=converted_data)
         except Exception as e:
-            log.exception(e)
+            self.__log.exception(e)
 
     def get_config(self):
         return self.__config

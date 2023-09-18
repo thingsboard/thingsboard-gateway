@@ -49,7 +49,7 @@ class OpcUaConnectorGeneralTest(ConnectorTestBase):
         class SubHandler(object):
             def datachange_notification(self, node, val, data):
                 print("Python: New data change event", node, val)
-                
+
             def event_notification(self, event):
                 print("Python: New event", event)
 

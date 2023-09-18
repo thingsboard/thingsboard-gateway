@@ -16,12 +16,13 @@ import struct
 
 from simplejson import dumps
 
-from thingsboard_gateway.connectors.request.request_converter import RequestConverter, log
+from thingsboard_gateway.connectors.request.request_converter import RequestConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class CustomRequestUplinkConverter(RequestConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config.get('converter')
 
     def convert(self, _, body):
@@ -62,5 +63,5 @@ class CustomRequestUplinkConverter(RequestConverter):
             return dict_result
 
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), body)
+            self._log.exception(e)

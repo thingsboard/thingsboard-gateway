@@ -17,13 +17,14 @@ from re import search
 from simplejson import dumps
 
 from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER
-from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
+from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class JsonMqttUplinkConverter(MqttUplinkConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config.get('converter')
         self.__send_data_on_change = self.__config.get(SEND_ON_CHANGE_PARAMETER)
 
@@ -42,6 +43,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
             converted_data = []
             for item in data:
                 converted_data.append(self._convert_single_item(topic, item))
+            self._log.debug(converted_data)
             return converted_data
         else:
             return self._convert_single_item(topic, data)
@@ -97,8 +99,9 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                             dict_result[datatypes[datatype]].append(
                                 self.create_timeseries_record(full_key, full_value, timestamp))
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            str(data), e)
+        self._log.debug(dict_result)
         return dict_result
 
     @staticmethod
@@ -106,18 +109,15 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         value_item = {key: value}
         return {"ts": timestamp, 'values': value_item} if timestamp else value_item
 
-    @staticmethod
-    def parse_device_name(topic, data, config):
-        return JsonMqttUplinkConverter.parse_device_info(
+    def parse_device_name(self, topic, data, config):
+        return self.parse_device_info(
             topic, data, config, "deviceNameJsonExpression", "deviceNameTopicExpression")
 
-    @staticmethod
-    def parse_device_type(topic, data, config):
-        return JsonMqttUplinkConverter.parse_device_info(
+    def parse_device_type(self, topic, data, config):
+        return self.parse_device_info(
             topic, data, config, "deviceTypeJsonExpression", "deviceTypeTopicExpression")
 
-    @staticmethod
-    def parse_device_info(topic, data, config, json_expression_config_name, topic_expression_config_name):
+    def parse_device_info(self, topic, data, config, json_expression_config_name, topic_expression_config_name):
         result = None
         try:
             if config.get(json_expression_config_name) is not None:
@@ -136,13 +136,12 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                 if search_result is not None:
                     result = search_result.group(0)
                 else:
-                    log.debug(
+                    self._log.debug(
                         "Regular expression result is None. deviceNameTopicExpression parameter will be interpreted "
                         "as a deviceName\n Topic: %s\nRegex: %s", topic, expression)
                     result = expression
             else:
-                log.error("The expression for looking \"deviceName\" not found in config %s", dumps(config))
+                self._log.error("The expression for looking \"deviceName\" not found in config %s", dumps(config))
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(config), data)
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(config), data, e)
         return result

@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 import struct
 import unittest
 from random import randint, uniform, choice
@@ -23,7 +24,7 @@ from thingsboard_gateway.connectors.can.bytes_can_downlink_converter import Byte
 class BytesCanDownlinkConverterTests(unittest.TestCase):
 
     def setUp(self):
-        self.converter = BytesCanDownlinkConverter()
+        self.converter = BytesCanDownlinkConverter(logger=logging.getLogger('converter'))
 
     def test_data_in_hex_in_conf(self):
         expected_can_data = [0, 1, 2, 3]

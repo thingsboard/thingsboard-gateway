@@ -12,16 +12,20 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 from simplejson import dumps
-
-from thingsboard_gateway.connectors.connector import log
 
 
 class BackwardCompatibilityAdapter:
     config_files_count = 1
     CONFIG_PATH = None
 
-    def __init__(self, config, config_dir):
+    def __init__(self, config, config_dir, logger=None):
+        if logger:
+            self._log = logger
+        else:
+            self._log = logging.getLogger('BackwardCompatibilityAdapter')
+
         self.__config = config
         self.__config_dir = config_dir
         BackwardCompatibilityAdapter.CONFIG_PATH = self.__config_dir
@@ -36,8 +40,7 @@ class BackwardCompatibilityAdapter:
             file.writelines(dumps(config, sort_keys=False, indent='  ', separators=(',', ': ')))
         BackwardCompatibilityAdapter.config_files_count += 1
 
-    @staticmethod
-    def __check_slaves_type_connection(config):
+    def __check_slaves_type_connection(self, config):
         is_tcp_or_udp_connection = False
         is_serial_connection = False
 
@@ -48,7 +51,7 @@ class BackwardCompatibilityAdapter:
                 is_serial_connection = True
 
         if is_tcp_or_udp_connection and is_serial_connection:
-            log.warning('It seems that your slaves using different connection type (tcp/udp and serial). '
+            self._log.warning('It seems that your slaves using different connection type (tcp/udp and serial). '
                         'It is recommended to separate tcp/udp slaves and serial slaves in different connectors '
                         'to avoid problems with reading data.')
 
@@ -58,10 +61,10 @@ class BackwardCompatibilityAdapter:
             self.__check_slaves_type_connection(self.__config)
             return self.__config
 
-        log.warning(
+        self._log.warning(
             'You are using old configuration structure for Modbus connector. It will be DEPRECATED in the future '
             'version! New config file "modbus_new.json" was generated in %s folder. Please, use it.', self.CONFIG_PATH)
-        log.warning('You have to manually connect the new generated config file to tb_gateway.yaml!')
+        self._log.warning('You have to manually connect the new generated config file to tb_gateway.yaml!')
 
         slaves = []
         for device in self.__config['server'].get('devices', []):

@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.converter import ABC, abstractmethod, log
+from thingsboard_gateway.connectors.converter import ABC, abstractmethod
 
 
 class CanConverter(ABC):

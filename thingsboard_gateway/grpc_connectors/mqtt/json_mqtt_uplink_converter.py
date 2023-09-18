@@ -17,12 +17,13 @@ from time import time
 
 from simplejson import dumps
 
-from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter, log
+from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class JsonGrpcMqttUplinkConverter(MqttUplinkConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config.get('converter')
 
     def convert(self, config, data):
@@ -50,13 +51,13 @@ class JsonGrpcMqttUplinkConverter(MqttUplinkConverter):
                 if search_result is not None:
                     dict_result["deviceName"] = search_result.group(0)
                 else:
-                    log.debug(
+                    self._log.debug(
                         "Regular expression result is None. deviceNameTopicExpression parameter will be interpreted "
                         "as a deviceName\n Topic: %s\nRegex: %s",
                         config, self.__config.get("deviceNameTopicExpression"))
                     dict_result["deviceName"] = self.__config.get("deviceNameTopicExpression")
             else:
-                log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
+                self._log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
 
             if self.__config.get("deviceTypeJsonExpression") is not None:
                 device_type_tags = TBUtility.get_values(self.__config.get("deviceTypeJsonExpression"), data,
@@ -77,17 +78,18 @@ class JsonGrpcMqttUplinkConverter(MqttUplinkConverter):
                 if search_result is not None:
                     dict_result["deviceType"] = search_result.group(0)
                 else:
-                    log.debug(
+                    self._log.debug(
                         "Regular expression result is None. deviceTypeTopicExpression will be interpreted as "
                         "a deviceType\n Topic: %s\nRegex: %s",
                         config,
                         self.__config.get("deviceTypeTopicExpression"))
                     dict_result["deviceType"] = self.__config.get("deviceTypeTopicExpression")
             else:
-                log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
+                self._log.error("The expression for looking \"deviceType\" not found in config %s",
+                                dumps(self.__config))
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
+                            e)
 
         try:
             for datatype in datatypes:
@@ -128,6 +130,7 @@ class JsonGrpcMqttUplinkConverter(MqttUplinkConverter):
                                 dict_result[datatypes[datatype]] = {}
                             dict_result[datatypes[datatype]][full_key] = full_value
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            str(data), e)
+
         return dict_result

@@ -272,6 +272,12 @@ class GrpcSocketConnector(GwGrpcConnector):
         self.__socket.shutdown(socket.SHUT_RDWR)
         self.__socket.close()
 
+    def get_name(self):
+        return self.name
+
+    def get_type(self):
+        return self._connector_type
+
 
 if __name__ == '__main__':
     import sys

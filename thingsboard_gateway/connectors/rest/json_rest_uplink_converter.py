@@ -16,14 +16,15 @@ from time import time
 
 from simplejson import dumps
 
-from thingsboard_gateway.connectors.rest.rest_converter import RESTConverter, log
+from thingsboard_gateway.connectors.rest.rest_converter import RESTConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class JsonRESTUplinkConverter(RESTConverter):
 
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config
 
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
@@ -46,7 +47,8 @@ class JsonRESTUplinkConverter(RESTConverter):
                                                                                   str(device_name_value)) \
                         if is_valid_key else device_name_tag
             else:
-                log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
+                self._log.error("The expression for looking \"deviceName\" not found in config %s",
+                                dumps(self.__config))
 
             if self.__config.get("deviceTypeExpression") is not None:
                 device_type_tags = TBUtility.get_values(self.__config.get("deviceTypeExpression"), data, get_tag=True)
@@ -60,10 +62,11 @@ class JsonRESTUplinkConverter(RESTConverter):
                                                                                   str(device_type_value)) \
                         if is_valid_key else device_type_tag
             else:
-                log.error("The expression for looking \"deviceType\" not found in config %s", dumps(self.__config))
+                self._log.error("The expression for looking \"deviceType\" not found in config %s",
+                                dumps(self.__config))
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), data)
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
+                            e)
 
         try:
             for datatype in datatypes:
@@ -102,7 +105,7 @@ class JsonRESTUplinkConverter(RESTConverter):
                         else:
                             dict_result[datatypes[datatype]].append({full_key: full_value})
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            str(data), e)
 
         return dict_result

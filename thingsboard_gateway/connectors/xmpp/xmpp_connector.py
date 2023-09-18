@@ -20,10 +20,11 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep
 
-from thingsboard_gateway.connectors.connector import Connector, log
+from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     from slixmpp import ClientXMPP
@@ -44,7 +45,6 @@ class XMPPConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
-        self.__log = log
 
         super().__init__()
 
@@ -54,6 +54,8 @@ class XMPPConnector(Connector, Thread):
         self.__config = config
         self._server_config = config['server']
         self._devices_config = config.get('devices', [])
+        self.setName(config.get("name", 'XMPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
 
         self._devices = {}
         self._reformat_devices_config()
@@ -61,8 +63,6 @@ class XMPPConnector(Connector, Thread):
         # devices dict for RPC and attributes updates
         # {'deviceName': 'device_jid'}
         self._available_device = {}
-
-        self.setName(config.get("name", 'XMPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
 
         self.__stopped = False
         self._connected = False
@@ -81,7 +81,7 @@ class XMPPConnector(Connector, Thread):
                     continue
 
                 self._devices[device_jid] = config
-                self._devices[device_jid]['converter'] = converter(config)
+                self._devices[device_jid]['converter'] = converter(config, self.__log)
             except KeyError as e:
                 self.__log.error('Invalid configuration %s with key error %s', config, e)
                 continue
@@ -90,10 +90,10 @@ class XMPPConnector(Connector, Thread):
         module = TBModuleLoader.import_module(self._connector_type, converter_name)
 
         if module:
-            log.debug('Converter %s for device %s - found!', converter_name, self.name)
+            self.__log.debug('Converter %s for device %s - found!', converter_name, self.name)
             return module
 
-        log.error("Cannot find converter for %s device", self.name)
+        self.__log.error("Cannot find converter for %s device", self.name)
         return None
 
     def open(self):
@@ -192,9 +192,13 @@ class XMPPConnector(Connector, Thread):
         self.__stopped = True
         self._connected = False
         self.__log.info('%s has been stopped.', self.get_name())
+        self.__log.reset()
 
     def get_name(self):
         return self.name
+
+    def get_type(self):
+        return self._connector_type
 
     def is_connected(self):
         return self._connected

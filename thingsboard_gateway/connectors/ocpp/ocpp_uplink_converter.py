@@ -15,12 +15,13 @@
 from simplejson import dumps
 from time import time
 
-from thingsboard_gateway.connectors.ocpp.ocpp_converter import OcppConverter, log
+from thingsboard_gateway.connectors.ocpp.ocpp_converter import OcppConverter
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class OcppUplinkConverter(OcppConverter):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self._log = logger
         self.__config = config
 
     def get_device_name(self, config):
@@ -42,11 +43,11 @@ class OcppUplinkConverter(OcppConverter):
                 return device_name
 
             else:
-                log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
+                self._log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
 
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), config)
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            config, e)
 
     def get_device_type(self, config):
         try:
@@ -66,8 +67,8 @@ class OcppUplinkConverter(OcppConverter):
 
                 return device_type
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), config)
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            config, e)
 
     def convert(self, config, data):
         datatypes = {"attributes": "attributes",
@@ -113,8 +114,8 @@ class OcppUplinkConverter(OcppConverter):
                         else:
                             dict_result[datatypes[datatype]].append({full_key: full_value})
         except Exception as e:
-            log.error('Error in converter, for config: \n%s\n and message: \n%s\n', dumps(self.__config), str(data))
-            log.exception(e)
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
+                            str(data), e)
 
-        log.debug(dict_result)
+        self._log.debug(dict_result)
         return dict_result

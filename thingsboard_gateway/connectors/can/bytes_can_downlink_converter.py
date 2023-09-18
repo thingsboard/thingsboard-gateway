@@ -15,11 +15,13 @@
 import struct
 
 from thingsboard_gateway.connectors.can.can_converter import CanConverter
-from thingsboard_gateway.connectors.converter import log
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class BytesCanDownlinkConverter(CanConverter):
+    def __init__(self, logger):
+        self._log = logger
+
     @StatisticsService.CollectStatistics(start_stat_type='allReceivedBytesFromTB',
                                          end_stat_type='allBytesSentToDevices')
     def convert(self, config, data):
@@ -28,7 +30,7 @@ class BytesCanDownlinkConverter(CanConverter):
                 return list(bytearray.fromhex(config["dataInHex"]))
 
             if not isinstance(data, dict) or not data:
-                log.error("Failed to convert TB data to CAN payload: data is empty or not a dictionary")
+                self._log.error("Failed to convert TB data to CAN payload: data is empty or not a dictionary")
                 return
 
             if data.get("dataInHex", ""):
@@ -41,7 +43,7 @@ class BytesCanDownlinkConverter(CanConverter):
             elif "value" in data:
                 value = data["value"]
             else:
-                log.error("Failed to convert TB data to CAN payload: no `value` or `dataExpression` property")
+                self._log.error("Failed to convert TB data to CAN payload: no `value` or `dataExpression` property")
                 return
 
             can_data = []
@@ -67,5 +69,5 @@ class BytesCanDownlinkConverter(CanConverter):
 
             return can_data
         except Exception as e:
-            log.error("Failed to convert TB data to CAN payload: %s", str(e))
+            self._log.error("Failed to convert TB data to CAN payload: %s", str(e))
             return

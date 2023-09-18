@@ -12,11 +12,9 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 from abc import ABC, abstractmethod
-from thingsboard_gateway.gateway.constants import DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE, DEFAULT_SEND_ON_CHANGE_VALUE
-
-log = logging.getLogger("connector")
+from thingsboard_gateway.gateway.constants import DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE, \
+    DEFAULT_SEND_ON_CHANGE_VALUE
 
 
 class Connector(ABC):
@@ -31,6 +29,10 @@ class Connector(ABC):
 
     @abstractmethod
     def get_name(self):
+        pass
+
+    @abstractmethod
+    def get_type(self):
         pass
 
     @abstractmethod

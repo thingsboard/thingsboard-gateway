@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 import unittest
 from random import randint, uniform, choice
 from string import ascii_lowercase
@@ -22,7 +23,7 @@ from thingsboard_gateway.connectors.odbc.odbc_uplink_converter import OdbcUplink
 class OdbcUplinkConverterTests(unittest.TestCase):
 
     def setUp(self):
-        self.converter = OdbcUplinkConverter()
+        self.converter = OdbcUplinkConverter(logger=logging.getLogger('converter'))
         self.db_data = {"boolValue": True,
                         "intValue": randint(0, 256),
                         "floatValue": uniform(-3.1415926535, 3.1415926535),
