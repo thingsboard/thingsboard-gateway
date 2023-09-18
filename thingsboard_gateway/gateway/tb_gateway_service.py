@@ -269,7 +269,7 @@ class TBGatewayService:
         self.init_grpc_service(self.__config.get('grpc'))
 
         self._load_connectors()
-        self._connect_with_connectors()
+        self.__connect_with_connectors()
         self.__load_persistent_devices()
 
         self.__devices_idle_checker = self.__config['thingsboard'].get('checkingDeviceActivity', {})
@@ -774,9 +774,9 @@ class TBGatewayService:
             log.info("Remote configuration is enabled forcibly!")
 
     def connect_with_connectors(self):
-        self._connect_with_connectors()
+        self.__connect_with_connectors()
 
-    def _connect_with_connectors(self):
+    def __connect_with_connectors(self):
         for connector_type in self.connectors_configs:
             for connector_config in self.connectors_configs[connector_type]:
                 if self._implemented_connectors.get(connector_type.lower()) is not None:
@@ -840,7 +840,7 @@ class TBGatewayService:
         if configuration_changed:
             self.__close_connectors()
             self._load_connectors()
-            self._connect_with_connectors()
+            self.__connect_with_connectors()
 
             # Updating global self.__config['connectors'] configuration for states syncing
             for connector_type in self.connectors_configs:
