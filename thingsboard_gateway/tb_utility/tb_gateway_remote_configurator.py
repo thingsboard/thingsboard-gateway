@@ -440,6 +440,8 @@ class RemoteConfigurator:
                         connector_configuration = found_connector
 
                     self._gateway.available_connectors[connector_configuration['name']].close()
+                    self._gateway.available_connectors.pop(connector_configuration['name'])
+
                     self._gateway.load_connectors(self._get_general_config_in_local_format())
                     self._gateway.connect_with_connectors()
 
