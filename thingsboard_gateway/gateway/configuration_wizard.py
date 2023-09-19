@@ -115,9 +115,19 @@ def generate_config_file(data: {str: str}) -> None:
 def configure():
     try:
         default_config = read_config_file()
+        connectors_list = []
+        grpc_enabled = False
+        base_answers = default_config['thingsboard']
+        statistics_answers = default_config['thingsboard'].get('statistics', {})
+        grpc_api_answers = default_config.get('grpc', {})
+        storage_answers = default_config.get('storage', {})
+        qos_and_storage_type_answers = {
+            'qos': 1,
+            'storage': 'memory'
+        }
 
         # GENERAL SETTINGS ---------------------------------------------------------------------------------------------
-        base_questions = [
+        simple_setup_questions = [
             {
                 'type': 'input',
                 'name': 'host',
@@ -135,14 +145,28 @@ def configure():
             },
             {
                 'type': 'confirm',
-                'name': 'remoteShell',
-                'message': 'Do you want to have access from remote shell? (No)',
+                'name': 'remoteConfiguration',
+                'message': 'Do you want to enable remote configuration feature? (No)',
                 'default': False
             },
             {
+                'type': 'list',
+                'name': 'security',
+                'message': 'What security type do you need?',
+                'choices': [
+                    'Access Token (Basic Security)',
+                    'Username and Password (Basic Security)',
+                    'TLS + Access Token (Advanced Security)',
+                    'TLS + Private Key (Advanced Security)'
+                ]
+            }
+        ]
+
+        base_questions = [
+            {
                 'type': 'confirm',
-                'name': 'remoteConfiguration',
-                'message': 'Do you want to enable remote configuration feature? (No)',
+                'name': 'remoteShell',
+                'message': 'Do you want to have access from remote shell? (No)',
                 'default': False
             },
             {
@@ -184,17 +208,6 @@ def configure():
                 'filter': lambda val: int(val)
             },
             {
-                'type': 'list',
-                'name': 'security',
-                'message': 'What security type do you need?',
-                'choices': [
-                    'Access Token (Basic Security)',
-                    'Username and Password (Basic Security)',
-                    'TLS + Access Token (Advanced Security)',
-                    'TLS + Private Key (Advanced Security)'
-                ]
-            },
-            {
                 'type': 'confirm',
                 'name': 'grpc-enabled',
                 'message': 'Do you want to enable GRPC API on your gateway?',
@@ -214,29 +227,7 @@ def configure():
         print(colored('Welcome to ThingsBoard IoT Gateway configuration Wizard', 'cyan'))
         print(colored('Let\'s configure you Gateway by answering on questions below ⬇\n'))
 
-        base_answers = prompt(base_questions)
-
-        # STATISTICS SETTINGS ------------------------------------------------------------------------------------------
-        statistics_answers = {}
-        if base_answers.pop('statistics-enabled'):
-            statistics_config = [
-                {
-                    'type': 'input',
-                    'name': 'statsSendPeriodInSeconds',
-                    'message': 'Period of time sending statistics (sec.):',
-                    'default': str(default_config['thingsboard']['statistics']['statsSendPeriodInSeconds']),
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                },
-                {
-                    'type': 'input',
-                    'name': 'configuration',
-                    'message': 'Config file of custom statistic commands:'
-                }
-            ]
-
-            statistics_answers = prompt(statistics_config)
-            statistics_answers['enable'] = True
+        simple_setup_answers = prompt(simple_setup_questions)
 
         # SECURITY SETTINGS --------------------------------------------------------------------------------------------
         access_token_config = [
@@ -289,265 +280,296 @@ def configure():
                                      }
                                  ]
 
-        if base_answers['security'] == 'Access Token (Basic Security)':
+        if simple_setup_answers['security'] == 'Access Token (Basic Security)':
             security_questions = access_token_config
-        elif base_answers['security'] == 'TLS + Access Token (Advanced Security)':
+        elif simple_setup_answers['security'] == 'TLS + Access Token (Advanced Security)':
             security_questions = tls_access_token_config
-        elif base_answers['security'] == 'Username and Password (Basic Security)':
+        elif simple_setup_answers['security'] == 'Username and Password (Basic Security)':
             security_questions = basic_config
         else:
             security_questions = tls_private_key_config
 
         security_answers = prompt(security_questions)
 
-        # GRPC SETTINGS ------------------------------------------------------------------------------------------------
-        grpc_enabled = base_answers.pop('grpc-enabled')
-
-        if grpc_enabled:
-            grpc_api_questions = [
-                {
-                    'name': 'serverPort',
-                    'default': 9595,
-                    'message': '[GRPC] Please set port for GRPC server:',
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                },
-                {
-                    'name': 'keepaliveTimeMs',
-                    'default': 10000,
-                    'message': '[GRPC] Keep alive period:',
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                },
-                {
-                    'name': 'keepaliveTimeoutMs',
-                    'default': 5000,
-                    'message': '[GRPC] Keep alive timeout',
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                },
-                {
-                    'name': 'keepalivePermitWithoutCalls',
-                    'default': True,
-                    'message': '[GRPC] Allow send pings from clients without calls:'
-                },
-                {
-                    'name': 'maxPingsWithoutData',
-                    'default': 0,
-                    'message': '[GRPC] Maximal count of pings without data from client to server:',
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                },
-                {
-                    'name': 'minTimeBetweenPingsMs',
-                    'default': 10000,
-                    'message': '[GRPC] Minimal period between ping messages:',
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                },
-                {
-                    'name': 'minPingIntervalWithoutDataMs',
-                    'default': 5000,
-                    'message': '[GRPC] Minimal period between ping messages without data:',
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                },
-            ]
-            grpc_api_answers = prompt(grpc_api_questions)
-        else:
-            grpc_api_answers = default_config.get('grpc', {})
-
-        # QOS AND STORAGE TYPE SETTINGS --------------------------------------------------------------------------------
-        qos_and_storage_type_question = [
+        continue_answer = prompt([
             {
-                'type': 'input',
-                'name': 'qos',
-                'message': 'QoS:',
-                'validate': NumberValidator,
-                'default': str(default_config['thingsboard']['qos']),
-                'filter': lambda val: int(val)
-            },
-            {
-                'type': 'list',
-                'name': 'storage',
-                'message': 'Choose storage type:',
-                'choices': [
-                    'Memory',
-                    'File storage',
-                    'SQLite'
-                ],
-                'filter': lambda val: 'file' if val == 'File storage' else val.lower()
+                'type': 'confirm',
+                'name': 'continue',
+                'message': 'Continue to advance settings?'
             }
-        ]
+        ])
 
-        qos_and_storage_type_answers = prompt(qos_and_storage_type_question)
+        if continue_answer['continue']:
+            base_answers = prompt(base_questions)
 
-        # STORAGE SETTINGS ---------------------------------------------------------------------------------------------
-        if qos_and_storage_type_answers['storage'] == 'memory':
-            storage_questions = [
-                {
-                    'type': 'input',
-                    'name': 'read_records_count',
-                    'message': 'Count of messages to get from storage and send to ThingsBoard:',
-                    'default': str(default_config['storage'].get('read_records_count', '')),
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                },
-                {
-                    'type': 'input',
-                    'name': 'max_records_count',
-                    'message': 'Maximum count of data in storage before send to ThingsBoard:',
-                    'default': str(default_config['storage'].get('max_records_count', '')),
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                }
-            ]
-        elif qos_and_storage_type_answers['storage'] == 'file':
-            storage_questions = [
-                {
-                    'type': 'input',
-                    'name': 'data_folder_path',
-                    'message': 'Path to folder, that will contains data (Relative or Absolute):',
-                    'default': str(default_config['storage'].get('data_folder_path', '')),
-                    'validate': NotNullValidator
-                },
-                {
-                    'type': 'input',
-                    'name': 'max_file_count',
-                    'message': 'Maximum count of file that will be saved:',
-                    'default': str(default_config['storage'].get('max_file_count', '')),
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                },
-                {
-                    'type': 'input',
-                    'name': 'max_read_records_count',
-                    'message': 'Count of messages to get from storage and send to ThingsBoard:',
-                    'default': str(default_config['storage'].get('max_read_records_count', '')),
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                },
-                {
-                    'type': 'input',
-                    'name': 'max_records_per_file',
-                    'message': 'Maximum count of records that will be stored in one file:',
-                    'default': str(default_config['storage'].get('max_records_per_file', '')),
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                }
-            ]
-        else:
-            storage_questions = [
-                {
-                    'type': 'input',
-                    'name': 'data_file_path',
-                    'message': 'Path to folder, that will contains data (Relative or Absolute):',
-                    'default': str(default_config['storage'].get('data_file_path', '')),
-                    'validate': NotNullValidator
-                },
-                {
-                    'type': 'input',
-                    'name': 'messages_ttl_check_in_hours',
-                    'message': 'How often will Gateway check data for obsolescence:',
-                    'default': str(default_config['storage'].get('messages_ttl_check_in_hours', '')),
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                },
-                {
-                    'type': 'input',
-                    'name': 'messages_ttl_in_days',
-                    'message': 'Maximum days that storage will save data:',
-                    'default': str(default_config['storage'].get('messages_ttl_in_days', '')),
-                    'validate': NumberValidator,
-                    'filter': lambda val: int(val)
-                }
-            ]
-
-        storage_answers = prompt(storage_questions)
-
-        # CONNECTORS SETTINGS ------------------------------------------------------------------------------------------
-        connectors_questions = [
-            {
-                'type': 'checkbox',
-                'name': 'connectors',
-                'message': 'Choose connectors you want to use:',
-                'choices': [
+            # STATISTICS SETTINGS --------------------------------------------------------------------------------------
+            statistics_answers = {}
+            if base_answers.pop('statistics-enabled'):
+                statistics_config = [
                     {
-                        'name': 'MQTT',
+                        'type': 'input',
+                        'name': 'statsSendPeriodInSeconds',
+                        'message': 'Period of time sending statistics (sec.):',
+                        'default': str(default_config['thingsboard']['statistics']['statsSendPeriodInSeconds']),
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
                     },
                     {
-                        'name': 'FTP',
-                    },
-                    {
-                        'name': 'Modbus',
-                    },
-                    {
-                        'name': 'CAN',
-                    },
-                    {
-                        'name': 'Bacnet',
-                    },
-                    {
-                        'name': 'BLE',
-                    },
-                    {
-                        'name': 'OPC-UA',
-                    },
-                    {
-                        'name': 'OPC-UA AsyncIO'
-                    },
-                    {
-                        'name': 'ODBC',
-                    },
-                    {
-                        'name': 'Request',
-                    },
-                    {
-                        'name': 'REST',
-                    },
-                    {
-                        'name': 'SNMP'
-                    },
-                    {
-                        'name': 'XMPP'
-                    },
-                    {
-                        'name': 'OCPP'
-                    },
-                    {
-                        'name': 'Socket'
+                        'type': 'input',
+                        'name': 'configuration',
+                        'message': 'Config file of custom statistic commands:'
                     }
-                ],
-                'validate': lambda answer: 'You must choose at least one connector.' if len(answer) == 0 else True
-            }
-        ]
+                ]
 
-        connectors_answers = prompt(connectors_questions)
+                statistics_answers = prompt(statistics_config)
+                statistics_answers['enable'] = True
 
-        connectors_list = []
+            # GRPC SETTINGS ------------------------------------------------------------------------------------------------
+            grpc_enabled = base_answers.pop('grpc-enabled')
 
-        for connector in connectors_answers['connectors']:
-            print(colored(f'Configuration {connector} connector:', 'blue'))
-            connector_questions = [
+            if grpc_enabled:
+                grpc_api_questions = [
+                    {
+                        'name': 'serverPort',
+                        'default': 9595,
+                        'message': '[GRPC] Please set port for GRPC server:',
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    },
+                    {
+                        'name': 'keepaliveTimeMs',
+                        'default': 10000,
+                        'message': '[GRPC] Keep alive period:',
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    },
+                    {
+                        'name': 'keepaliveTimeoutMs',
+                        'default': 5000,
+                        'message': '[GRPC] Keep alive timeout',
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    },
+                    {
+                        'name': 'keepalivePermitWithoutCalls',
+                        'default': True,
+                        'message': '[GRPC] Allow send pings from clients without calls:'
+                    },
+                    {
+                        'name': 'maxPingsWithoutData',
+                        'default': 0,
+                        'message': '[GRPC] Maximal count of pings without data from client to server:',
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    },
+                    {
+                        'name': 'minTimeBetweenPingsMs',
+                        'default': 10000,
+                        'message': '[GRPC] Minimal period between ping messages:',
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    },
+                    {
+                        'name': 'minPingIntervalWithoutDataMs',
+                        'default': 5000,
+                        'message': '[GRPC] Minimal period between ping messages without data:',
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    },
+                ]
+                grpc_api_answers = prompt(grpc_api_questions)
+            else:
+                grpc_api_answers = default_config.get('grpc', {})
+
+            # QOS AND STORAGE TYPE SETTINGS ----------------------------------------------------------------------------
+            qos_and_storage_type_question = [
                 {
                     'type': 'input',
-                    'name': 'name',
-                    'message': 'Name of connector:',
-                    'validate': NotNullValidator
+                    'name': 'qos',
+                    'message': 'QoS:',
+                    'validate': NumberValidator,
+                    'default': str(default_config['thingsboard']['qos']),
+                    'filter': lambda val: int(val)
                 },
                 {
-                    'type': 'input',
-                    'name': 'configuration',
-                    'message': 'Config file of connector:',
-                    'validate': FileExtensionValidator
+                    'type': 'list',
+                    'name': 'storage',
+                    'message': 'Choose storage type:',
+                    'choices': [
+                        'Memory',
+                        'File storage',
+                        'SQLite'
+                    ],
+                    'filter': lambda val: 'file' if val == 'File storage' else val.lower()
                 }
             ]
-            connector_answers = prompt(connector_questions)
-            connectors_list.append({'type': connector.lower(), **connector_answers})
+
+            qos_and_storage_type_answers = prompt(qos_and_storage_type_question)
+
+            # STORAGE SETTINGS -----------------------------------------------------------------------------------------
+            if qos_and_storage_type_answers['storage'] == 'memory':
+                storage_questions = [
+                    {
+                        'type': 'input',
+                        'name': 'read_records_count',
+                        'message': 'Count of messages to get from storage and send to ThingsBoard:',
+                        'default': str(default_config['storage'].get('read_records_count', '')),
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    },
+                    {
+                        'type': 'input',
+                        'name': 'max_records_count',
+                        'message': 'Maximum count of data in storage before send to ThingsBoard:',
+                        'default': str(default_config['storage'].get('max_records_count', '')),
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    }
+                ]
+            elif qos_and_storage_type_answers['storage'] == 'file':
+                storage_questions = [
+                    {
+                        'type': 'input',
+                        'name': 'data_folder_path',
+                        'message': 'Path to folder, that will contains data (Relative or Absolute):',
+                        'default': str(default_config['storage'].get('data_folder_path', '')),
+                        'validate': NotNullValidator
+                    },
+                    {
+                        'type': 'input',
+                        'name': 'max_file_count',
+                        'message': 'Maximum count of file that will be saved:',
+                        'default': str(default_config['storage'].get('max_file_count', '')),
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    },
+                    {
+                        'type': 'input',
+                        'name': 'max_read_records_count',
+                        'message': 'Count of messages to get from storage and send to ThingsBoard:',
+                        'default': str(default_config['storage'].get('max_read_records_count', '')),
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    },
+                    {
+                        'type': 'input',
+                        'name': 'max_records_per_file',
+                        'message': 'Maximum count of records that will be stored in one file:',
+                        'default': str(default_config['storage'].get('max_records_per_file', '')),
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    }
+                ]
+            else:
+                storage_questions = [
+                    {
+                        'type': 'input',
+                        'name': 'data_file_path',
+                        'message': 'Path to folder, that will contains data (Relative or Absolute):',
+                        'default': str(default_config['storage'].get('data_file_path', '')),
+                        'validate': NotNullValidator
+                    },
+                    {
+                        'type': 'input',
+                        'name': 'messages_ttl_check_in_hours',
+                        'message': 'How often will Gateway check data for obsolescence:',
+                        'default': str(default_config['storage'].get('messages_ttl_check_in_hours', '')),
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    },
+                    {
+                        'type': 'input',
+                        'name': 'messages_ttl_in_days',
+                        'message': 'Maximum days that storage will save data:',
+                        'default': str(default_config['storage'].get('messages_ttl_in_days', '')),
+                        'validate': NumberValidator,
+                        'filter': lambda val: int(val)
+                    }
+                ]
+
+            storage_answers = prompt(storage_questions)
+
+            # CONNECTORS SETTINGS --------------------------------------------------------------------------------------
+            connectors_questions = [
+                {
+                    'type': 'checkbox',
+                    'name': 'connectors',
+                    'message': 'Choose connectors you want to use:',
+                    'choices': [
+                        {
+                            'name': 'MQTT',
+                        },
+                        {
+                            'name': 'FTP',
+                        },
+                        {
+                            'name': 'Modbus',
+                        },
+                        {
+                            'name': 'CAN',
+                        },
+                        {
+                            'name': 'Bacnet',
+                        },
+                        {
+                            'name': 'BLE',
+                        },
+                        {
+                            'name': 'OPC-UA',
+                        },
+                        {
+                            'name': 'OPC-UA AsyncIO'
+                        },
+                        {
+                            'name': 'ODBC',
+                        },
+                        {
+                            'name': 'Request',
+                        },
+                        {
+                            'name': 'REST',
+                        },
+                        {
+                            'name': 'SNMP'
+                        },
+                        {
+                            'name': 'XMPP'
+                        },
+                        {
+                            'name': 'OCPP'
+                        },
+                        {
+                            'name': 'Socket'
+                        }
+                    ],
+                    'validate': lambda answer: 'You must choose at least one connector.' if len(answer) == 0 else True
+                }
+            ]
+
+            connectors_answers = prompt(connectors_questions)
+
+            for connector in connectors_answers['connectors']:
+                print(colored(f'Configuration {connector} connector:', 'blue'))
+                connector_questions = [
+                    {
+                        'type': 'input',
+                        'name': 'name',
+                        'message': 'Name of connector:',
+                        'validate': NotNullValidator
+                    },
+                    {
+                        'type': 'input',
+                        'name': 'configuration',
+                        'message': 'Config file of connector:',
+                        'validate': FileExtensionValidator
+                    }
+                ]
+                connector_answers = prompt(connector_questions)
+                connectors_list.append({'type': connector.lower(), **connector_answers})
 
         generate_config_file(
             {
-                'thingsboard': {**base_answers, 'security': security_answers,
+                'thingsboard': {**base_answers, **simple_setup_answers, 'security': security_answers,
                                 'qos': qos_and_storage_type_answers['qos'], 'statistics': statistics_answers},
                 'storage': {'type': qos_and_storage_type_answers['storage'], **storage_answers},
                 'grpc': {'enabled': grpc_enabled, **grpc_api_answers},
