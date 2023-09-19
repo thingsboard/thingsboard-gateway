@@ -8,7 +8,8 @@ requests>=2.31.0
 PyInquirer
 pyfiglet
 termcolor
-grpcio==1.40.0
+grpcio==1.58.0
+mmh3
 protobuf<=3.20.0
 cachetools
 cryptography==3.4.*

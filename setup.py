@@ -65,7 +65,8 @@ setup(
         'PyInquirer',
         'pyfiglet',
         'termcolor',
-        'grpcio<=1.43.0',
+        'mmh3',
+        'grpcio==1.58.0',
         'protobuf',
         'cachetools',
         'tb-mqtt-client>=1.5'

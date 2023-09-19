@@ -1,8 +1,11 @@
-FROM python:3.10-slim
+FROM --platform=$BUILDPLATFORM python:3.11-slim AS build
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+RUN echo "Running on $BUILDPLATFORM, building for $TARGETPLATFORM" > /log
 # Update package lists and install necessary dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc python3-dev build-essential libssl-dev libffi-dev zlib1g-dev && \
-    rm -rf /var/lib/apt/lists/*
+    gcc python3-dev build-essential libssl-dev libffi-dev zlib1g-dev \
+    && apt-get install python3-grpcio -y && rm -rf /var/lib/apt/lists/*
 
 # Copy the application code and configuration
 ADD ./ /
