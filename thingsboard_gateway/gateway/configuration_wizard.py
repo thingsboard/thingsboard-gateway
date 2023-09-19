@@ -147,7 +147,7 @@ def configure():
                 'type': 'confirm',
                 'name': 'remoteConfiguration',
                 'message': 'Do you want to enable remote configuration feature? (No)',
-                'default': False
+                'default': True
             },
             {
                 'type': 'list',
@@ -295,7 +295,8 @@ def configure():
             {
                 'type': 'confirm',
                 'name': 'continue',
-                'message': 'Continue to advance settings?'
+                'message': 'Continue to advance settings(Y) or save and exit(N)?',
+                'default': False
             }
         ])
 
@@ -575,6 +576,8 @@ def configure():
                 'grpc': {'enabled': grpc_enabled, **grpc_api_answers},
                 'connectors': connectors_list
             })
+
+        print(colored('Configuration file updated 🎉\nDon\'t forget to restart your gateway to apply changes!'))
     except Exception as e:
         print(colored('Something went wrong! Please try again.', color='red'))
         raise e
