@@ -19,7 +19,7 @@ elif exists('thingsboard_gateway/config/tb_gateway.yaml'):
     CONFIG_PATH = 'thingsboard_gateway/config/tb_gateway.yaml'
 elif exists(path.dirname(path.abspath(__file__)) + '/config/tb_gateway.yaml'.replace('/', path.sep)):
     CONFIG_PATH = path.dirname(path.abspath(__file__)) + '/config/tb_gateway.yaml'.replace('/', path.sep)
-elif exists("/etc/thingsboard-gateway/config/tb_gateway.yaml".replace('/', path.sep))
+elif exists("/etc/thingsboard-gateway/config/tb_gateway.yaml".replace('/', path.sep)):
     CONFIG_PATH = "/etc/thingsboard-gateway/config/tb_gateway.yaml".replace('/', path.sep)
 
 class NotNullValidator(Validator):
