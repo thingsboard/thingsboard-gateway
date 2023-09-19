@@ -62,7 +62,7 @@ setup(
         'simplejson',
         'urllib3<=1.26.15',
         'requests>=2.31.0',
-        'PyInquirer',
+        'questionary',
         'pyfiglet',
         'termcolor',
         'mmh3',
