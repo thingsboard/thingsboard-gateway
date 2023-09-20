@@ -33,7 +33,7 @@ class BytesCanUplinkConverter(CanConverter):
                 tb_key = config["key"]
                 tb_item = "telemetry" if config["is_ts"] else "attributes"
 
-                data_length = config["length"] if config["length"] != -1 else len(can_data) - config["start"]
+                data_length = config["length"] if config.get("length") is not None and config["length"] != -1 else len(can_data) - config["start"]
 
                 # The 'value' variable is used in eval
                 if config["type"][0] == "b":
