@@ -1,6 +1,6 @@
 %define name thingsboard-gateway
-%define version 3.3
-%define unmangled_version 3.3
+%define version 3.4
+%define unmangled_version 3.4
 %define release 1
 
 Summary: Thingsboard Gateway for IoT devices.
