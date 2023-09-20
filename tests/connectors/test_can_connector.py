@@ -70,6 +70,7 @@ class CanConnectorTestsBase(unittest.TestCase):
             try:
                 self.config = load(file)
                 self.connector = CanConnector(self.gateway, self.config, "can")
+                self.connector._CanConnector_log = Mock()
                 self.connector.open()
                 sleep(1)  # some time to init
             except Exception as e:

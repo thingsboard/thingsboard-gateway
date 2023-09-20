@@ -1,3 +1,4 @@
+import logging
 import unittest
 from os import path
 from time import sleep
@@ -29,10 +30,11 @@ class ModbusConnectorTestsBase(unittest.TestCase):
         with open(self.CONFIG_PATH + config_file_name, 'r', encoding="UTF-8") as file:
             self.config = load(file)
             self.config['master']['slaves'][0]['uplink_converter'] = BytesModbusUplinkConverter(
-                {**self.config['master']['slaves'][0], 'deviceName': 'Test'})
+                {**self.config['master']['slaves'][0], 'deviceName': 'Test'}, logger=logging.getLogger('converter'))
             self.config['master']['slaves'][0]['downlink_converter'] = BytesModbusDownlinkConverter(
-                {**self.config['master']['slaves'][0], 'deviceName': 'Test'})
+                {**self.config['master']['slaves'][0], 'deviceName': 'Test'}, logger=logging.getLogger('converter'))
             self.connector = ModbusConnector(self.gateway, self.config, "modbus")
+            self.connector._ModbusConnector__log = Mock()
             self.connector.open()
             sleep(1)  # some time to init
 

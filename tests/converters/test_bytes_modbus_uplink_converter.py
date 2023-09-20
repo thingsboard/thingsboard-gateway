@@ -13,6 +13,7 @@ class ModbusConverterTests(unittest.TestCase):
             "attributes": [
                 {"string": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "string",
                     "type": "string",
                     "functionCode": 4,
@@ -20,13 +21,23 @@ class ModbusConverterTests(unittest.TestCase):
                 }},
                 {"bits": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "bits",
                     "type": "bits",
                     "functionCode": 4,
-                    "registerCount": 1
+                    "registerCount": 8
+                }},
+                {"bits2": {
+                    "byteOrder": "BIG",
+                    "wordOrder": "BIG",
+                    "tag": "bits",
+                    "type": "bits",
+                    "functionCode": 4,
+                    "registerCount": 2
                 }},
                 {"8int": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "8int",
                     "type": "8int",
                     "functionCode": 4,
@@ -34,6 +45,7 @@ class ModbusConverterTests(unittest.TestCase):
                 }},
                 {"16int": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "16int",
                     "type": "16int",
                     "functionCode": 4,
@@ -41,6 +53,7 @@ class ModbusConverterTests(unittest.TestCase):
                 }},
                 {"long": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "long",
                     "type": "long",
                     "functionCode": 4,
@@ -48,6 +61,7 @@ class ModbusConverterTests(unittest.TestCase):
                 }},
                 {"long_with_divider": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "long",
                     "type": "long",
                     "functionCode": 4,
@@ -56,6 +70,7 @@ class ModbusConverterTests(unittest.TestCase):
                 }},
                 {"32int": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "32int",
                     "type": "32int",
                     "functionCode": 4,
@@ -63,6 +78,7 @@ class ModbusConverterTests(unittest.TestCase):
                 }},
                 {"64int": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "64int",
                     "type": "64int",
                     "functionCode": 4,
@@ -72,48 +88,56 @@ class ModbusConverterTests(unittest.TestCase):
             "timeseries": [
                 {"8uint": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "8uint",
                     "type": "8uint",
                     "functionCode": 4,
                     "registerCount": 1}},
                 {"16uint": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "16uint",
                     "type": "16uint",
                     "functionCode": 4,
                     "registerCount": 2}},
                 {"32uint": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "32uint",
                     "type": "32uint",
                     "functionCode": 4,
                     "registerCount": 4}},
                 {"64uint": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "64uint",
                     "type": "64uint",
                     "functionCode": 4,
                     "registerCount": 1}},
                 {"double": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "double",
                     "type": "double",
                     "functionCode": 4,
                     "registerCount": 2}},
                 {"16float": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "16float",
                     "type": "16float",
                     "functionCode": 4,
                     "registerCount": 1}},
                 {"32float": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "32float",
                     "type": "32float",
                     "functionCode": 4,
                     "registerCount": 2}},
                 {"64float": {
                     "byteOrder": "BIG",
+                    "wordOrder": "BIG",
                     "tag": "64float",
                     "type": "64float",
                     "functionCode": 4,
@@ -135,7 +159,8 @@ class ModbusConverterTests(unittest.TestCase):
                                   {'64float': -123.45}],
                               'attributes': [
                                   {'string': 'abcdefgh'},
-                                  {'bits': [False, True, False, True, True, False, True, False]},
+                                  {'bits': [False, True, False, True, False, False, True, True]},
+                                  {'bits2': [True, True]},
                                   {'8int': -18},
                                   {'16int': -22136},
                                   {'long': -22136},
@@ -146,7 +171,8 @@ class ModbusConverterTests(unittest.TestCase):
 
         builder = BinaryPayloadBuilder(byteorder=Endian.Big)
         builder_registers = {"string": (builder.add_string, 'abcdefgh'),
-                             "bits": (builder.add_bits, [0, 1, 0, 1, 1, 0, 1, 0]),
+                             "bits": (builder.add_bits, [0, 1, 0, 1, 0, 0, 1, 1]),
+                             "bits2": (builder.add_bits, [0, 1, 0, 1, 0, 0, 1, 1]),
                              "8int": (builder.add_8bit_int, -0x12),
                              "16int": (builder.add_16bit_int, -0x5678),
                              "long": (builder.add_16bit_int, -0x5678),
