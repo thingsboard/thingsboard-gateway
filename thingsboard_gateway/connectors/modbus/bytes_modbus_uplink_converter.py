@@ -50,9 +50,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
                     if configuration.get("wordOrder"):
                         word_order = configuration["wordOrder"]
                     elif config.get("wordOrder"):
-                        word_order = config.get("wordOrder", "LITTLE")
+                        word_order = config.get("wordOrder", "BIG")
                     else:
-                        word_order = "LITTLE"
+                        word_order = "BIG"
                     endian_order = Endian.Little if byte_order.upper() == "LITTLE" else Endian.Big
                     word_endian_order = Endian.Little if word_order.upper() == "LITTLE" else Endian.Big
                     decoded_data = None
@@ -127,6 +127,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             decoded_lastbyte = decoder_functions[type_]()
             decoded = decoder_functions[type_]()
             decoded += decoded_lastbyte
+            decoded = decoded[len(decoded)-objects_count:]
 
         elif lower_type == "string":
             decoded = decoder_functions[type_](objects_count * 2)
@@ -165,10 +166,11 @@ class BytesModbusUplinkConverter(ModbusConverter):
             if configuration.get('bit') is not None:
                 result_data = int(decoded[configuration['bit']])
             else:
-                if objects_count == 1 and configuration.get('bitTargetType', 'bool') == 'bool':
-                    result_data = bool(decoded[-1])
+                bitAsBoolean = configuration.get('bitTargetType', 'bool') == 'bool'
+                if objects_count == 1:
+                    result_data = bool(decoded[-1]) if bitAsBoolean else int(decoded[-1])
                 else:
-                    result_data = [int(bit) for bit in decoded]
+                    result_data = [bool(bit) if bitAsBoolean else int(bit) for bit in decoded]
         elif isinstance(decoded, float):
             result_data = decoded
         elif decoded is not None:
