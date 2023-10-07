@@ -108,7 +108,8 @@ class TBUtility:
                     full_value = body.get(target_str.split()[0])
             elif isinstance(body, (dict, list)):
                 try:
-                    jsonpath_expression = parse(target_str)
+                    # Wrap in quotes to support key name with spaces
+                    jsonpath_expression = parse('"' + target_str + '"')
                     jsonpath_match = jsonpath_expression.find(body)
                     if jsonpath_match:
                         full_value = jsonpath_match[0].value
@@ -126,7 +127,7 @@ class TBUtility:
 
     @staticmethod
     def get_values(expression, body=None, value_type="string", get_tag=False, expression_instead_none=False):
-        expression_arr = findall(r'\$\{[${A-Za-z0-9.^\]\[*_:]*\}', expression)
+        expression_arr = findall(r'\$\{[${A-Za-z0-9. ^\]\[*_:]*\}', expression)
 
         values = [TBUtility.get_value(exp, body, value_type=value_type, get_tag=get_tag,
                                       expression_instead_none=expression_instead_none) for exp in expression_arr]
@@ -219,3 +220,20 @@ class TBUtility:
                 return TBUtility.generate_certificate(certificate, key, cert_detail)
             else:
                 return True
+
+    @staticmethod
+    def convert_data_type(data, new_type, use_eval=False):
+        current_type = type(data)
+        # use 'in' check instead of equality for such case like 'str' and 'string'
+        if current_type.__name__ in new_type:
+            return data
+
+        evaluated_data = eval(data, globals(), {}) if use_eval else data
+        if 'int' in new_type or 'long' in new_type:
+            return int(float(evaluated_data))
+        elif 'float' in new_type or 'double' in new_type:
+            return float(evaluated_data)
+        elif 'bool' in new_type:
+            return bool(evaluated_data)
+        else:
+            return str(evaluated_data)

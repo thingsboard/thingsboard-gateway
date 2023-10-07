@@ -23,10 +23,13 @@ from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class JsonMqttUplinkConverter(MqttUplinkConverter):
+    CONFIGURATION_OPTION_USE_EVAL = "useEval"
+
     def __init__(self, config, logger):
         self._log = logger
         self.__config = config.get('converter')
         self.__send_data_on_change = self.__config.get(SEND_ON_CHANGE_PARAMETER)
+        self.__use_eval = self.__config.get(self.CONFIGURATION_OPTION_USE_EVAL, False)
 
     @property
     def config(self):
@@ -82,22 +85,18 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
                         full_key = datatype_config["key"]
                         for (key, key_tag) in zip(keys, keys_tags):
-                            is_valid_key = "${" in datatype_config["key"] and "}" in \
-                                           datatype_config["key"]
-                            full_key = full_key.replace('${' + str(key_tag) + '}',
-                                                        str(key)) if is_valid_key else key_tag
+                            is_valid_key = "${" in datatype_config["key"] and "}" in datatype_config["key"]
+                            full_key = full_key.replace('${' + str(key_tag) + '}', str(key)) if is_valid_key else key_tag
 
                         full_value = datatype_config["value"]
                         for (value, value_tag) in zip(values, values_tags):
-                            is_valid_value = "${" in datatype_config["value"] and "}" in \
-                                             datatype_config["value"]
-
-                            full_value = full_value.replace('${' + str(value_tag) + '}',
-                                                            str(value)) if is_valid_value else value
+                            is_valid_value = "${" in datatype_config["value"] and "}" in datatype_config["value"]
+                            full_value = full_value.replace('${' + str(value_tag) + '}', str(value)) if is_valid_value else value
 
                         if full_key != 'None' and full_value != 'None':
                             dict_result[datatypes[datatype]].append(
-                                self.create_timeseries_record(full_key, full_value, timestamp))
+                                self.create_timeseries_record(full_key, TBUtility.convert_data_type(
+                                    full_value, datatype_config["type"], self.__use_eval), timestamp))
         except Exception as e:
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
                             str(data), e)
