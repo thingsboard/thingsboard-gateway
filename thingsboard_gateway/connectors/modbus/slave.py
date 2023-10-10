@@ -31,16 +31,16 @@ class Slave(Thread):
         self._log = kwargs['logger']
         self.poll_period = kwargs['pollPeriod'] / 1000
 
-        self.byte_order = kwargs['byteOrder']
-        self.word_order = kwargs.get('wordOrder')
+        self.byte_order = kwargs.get('byteOrder', 'LITTLE')
+        self.word_order = kwargs.get('wordOrder', 'LITTLE')
         self.config = {
             'unitId': kwargs['unitId'],
             'deviceType': kwargs.get('deviceType', 'default'),
             'type': kwargs['type'],
             'host': kwargs.get('host'),
             'port': kwargs['port'],
-            'byteOrder': kwargs['byteOrder'],
-            'wordOrder': kwargs['wordOrder'],
+            'byteOrder': kwargs.get('byteOrder', 'LITTLE'),
+            'wordOrder': kwargs.get('wordOrder', 'LITTLE'),
             'tls': kwargs.get('tls'),
             'timeout': kwargs.get('timeout', 35),
             'stopbits': kwargs.get('stopbits', Defaults.Stopbits),
