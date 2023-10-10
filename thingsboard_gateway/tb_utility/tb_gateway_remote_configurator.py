@@ -146,7 +146,7 @@ class RemoteConfigurator:
         self._gateway.tb_client.client.send_attributes({'Version': self._gateway.version.get('current_version', 0.0)})
         for connector in self.connectors_configuration:
             self._gateway.tb_client.client.send_attributes(
-                {connector['name']: {**connector, 'logLevel': connector['configurationJson']['logLevel'],
+                {connector['name']: {**connector, 'logLevel': connector['configurationJson'].get('logLevel', 'INFO'),
                                      'ts': int(time() * 1000)}})
 
     def _load_connectors_configuration(self):
