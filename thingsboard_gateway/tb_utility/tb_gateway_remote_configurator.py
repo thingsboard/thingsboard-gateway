@@ -52,6 +52,7 @@ class RemoteConfigurator:
             'logs_configuration': 'logs.json'
         }
         LOG.info('Remote Configurator started')
+        self.create_configuration_file_backup(config, "tb_gateway.json")
 
     @property
     def general_configuration(self):
@@ -379,20 +380,21 @@ class RemoteConfigurator:
         LOG.debug('Processing connectors configuration update...')
 
         try:
-            configuration = config['configuration']
+            config_file_name = config['configuration']
 
             found_connectors = list(filter(lambda item: item['name'] == config['name'], self.connectors_configuration))
             if not found_connectors:
                 connector_configuration = {'name': config['name'], 'type': config['type'],
-                                           'configuration': configuration}
+                                           'configuration': config_file_name}
                 if config.get('key'):
                     connector_configuration['key'] = config['key']
 
                 if config.get('class'):
                     connector_configuration['class'] = config['class']
 
-                with open(self._gateway.get_config_path() + configuration, 'w') as file:
+                with open(self._gateway.get_config_path() + config_file_name, 'w') as file:
                     config['configurationJson'].update({'logLevel': config['logLevel'], 'name': config['name']})
+                    self.create_configuration_file_backup(config, config_file_name)
                     file.writelines(dumps(config['configurationJson'], indent='  '))
 
                 self.connectors_configuration.append(connector_configuration)
@@ -405,13 +407,15 @@ class RemoteConfigurator:
                 found_connector = found_connectors[0]
                 changed = False
 
-                config_path = self._gateway.get_config_path() + configuration
-                if os.path.exists(config_path):
-                    with open(config_path, 'r') as file:
-                        conf = load(file)
-                        config_hash = hash(str(conf))
+                config_file_path = self._gateway.get_config_path() + config_file_name
+                if os.path.exists(config_file_path):
+                    connector_config_data = None
+                    with open(config_file_path, 'r') as file:
+                        connector_config_data = load(file)
+                        config_hash = hash(str(connector_config_data))
 
                     if config_hash != hash(str(config['configurationJson'])):
+                        self.create_configuration_file_backup(connector_config_data, config_file_name)
                         changed = True
 
                 connector_configuration = None
@@ -421,7 +425,7 @@ class RemoteConfigurator:
                         'logLevel') != config.get('logLevel'):
                     changed = True
                     connector_configuration = {'name': config['name'], 'type': config['type'],
-                                               'configuration': configuration}
+                                               'configuration': config_file_name}
 
                     if config.get('key'):
                         connector_configuration['key'] = config['key']
@@ -432,7 +436,7 @@ class RemoteConfigurator:
                     found_connector.update(connector_configuration)
 
                 if changed:
-                    with open(self._gateway.get_config_path() + configuration, 'w') as file:
+                    with open(self._gateway.get_config_path() + config_file_name, 'w') as file:
                         config['configurationJson'].update({'logLevel': config['logLevel'], 'name': config['name']})
                         file.writelines(dumps(config['configurationJson'], indent='  '))
 
@@ -580,3 +584,14 @@ class RemoteConfigurator:
             LOG.warning('File %s not exist', file_path)
 
         return True
+
+    def create_configuration_file_backup(self, config_data, config_file_name):
+        backup_folder_path = self._gateway.get_config_path() + "backup"
+        if not os.path.exists(backup_folder_path):
+            os.mkdir(backup_folder_path)
+
+        backup_file_path = backup_folder_path + os.path.sep + config_file_name + "_backup_" + str(int(time()))
+        with open(backup_file_path, "w") as backup_file:
+            LOG.debug(f"Backup file created for configuration file {config_file_name} in {backup_file_path}")
+            backup_file.writelines(dumps(config_data, indent='  '))
+            

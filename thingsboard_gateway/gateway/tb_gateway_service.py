@@ -17,7 +17,6 @@ import logging.config
 import logging.handlers
 import multiprocessing.managers
 import os.path
-from signal import signal, SIGINT
 import subprocess
 from os import execv, listdir, path, pathsep, stat, system, environ
 from platform import system as platform_system
@@ -44,12 +43,12 @@ from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.sqlite.sqlite_event_storage import SQLiteEventStorage
 from thingsboard_gateway.tb_utility.tb_gateway_remote_configurator import RemoteConfigurator
-from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
 from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
 GRPC_LOADED = False
 try:
@@ -339,7 +338,7 @@ class TBGatewayService:
                         'Please, use JSON configuration instead.')
             log.warning(
                 'See default configuration on '
-                'https://thingsboard.io/docs/iot-gateway/configuration/?storageConfig=sqlite#storage-configuration')
+                'https://thingsboard.io/docs/iot-gateway/configuration/')
 
             config = {}
             try:

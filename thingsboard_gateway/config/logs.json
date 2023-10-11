@@ -71,8 +71,8 @@
       "class": "thingsboard_gateway.tb_utility.tb_handler.TimedRotatingFileHandler",
       "formatter": "LogFormatter",
       "filename": "./logs/extension.log",
-      "backupCount": 8,
-      "interval": 5,
+      "backupCount": 7,
+      "interval": 3,
       "when": "D",
       "encoding": "utf-8"
     }
