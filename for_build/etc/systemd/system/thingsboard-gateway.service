@@ -1,7 +1,7 @@
 [Unit]
 Description=ThingsBoard Gateway
 After=multi-user.target
-ConditionPathExists=/etc/thingsboard-gateway/config/tb_gateway.yaml
+ConditionPathExists=/etc/thingsboard-gateway/config/tb_gateway.json
 
 [Service]
 Type=simple
