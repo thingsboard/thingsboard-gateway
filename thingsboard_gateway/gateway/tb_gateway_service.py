@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import datetime
 import logging
 import logging.config
 import logging.handlers
@@ -984,8 +985,14 @@ class TBGatewayService:
                 if isinstance(item['ts'], int):
                     telemetry_with_ts.append({"ts": item["ts"], "values": {**item["values"]}})
                 else:
-                    log.warning('Data has invalid TS (timestamp) format! Using generated TS instead.')
-                    telemetry_with_ts.append({"ts": int(time() * 1000), "values": {**item["values"]}})
+                    try:
+                        dt_obj = datetime.datetime.strptime(item["ts"], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc)
+                        timestamp = int(dt_obj.timestamp() * 1000)
+                        telemetry_with_ts.append({"ts": timestamp, "values": {**item["values"]}})
+                        log.warning('Data has string TS (timestamp) format! Convert to integer.')
+                    except:
+                        log.warning('Data has invalid TS (timestamp) format! Using generated TS instead.')
+                        telemetry_with_ts.append({"ts": int(time() * 1000), "values": {**item["values"]}})
 
         if telemetry_with_ts:
             data["telemetry"] = telemetry_with_ts
