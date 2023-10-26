@@ -69,7 +69,8 @@ setup(
         'grpcio==1.58.0',
         'protobuf',
         'cachetools',
-        'tb-mqtt-client>=1.5'
+        'tb-mqtt-client>=1.5',
+        'packaging==23.1'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={
