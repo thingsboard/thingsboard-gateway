@@ -772,7 +772,7 @@ class MqttConnector(Connector, Thread):
         if expects_response and defines_timeout:
             expected_response_topic = rpc_config["responseTopicExpression"] \
                 .replace("${methodName}", str(content['data']['method'])) \
-                .replace("${requestId}", str(content["data"]['id']))
+                .replace("${requestId}", str(content["data"]["id"]))
 
             if content.get('device'):
                 expected_response_topic.replace("${deviceName}", str(content["device"]))
@@ -810,7 +810,7 @@ class MqttConnector(Connector, Thread):
         # Actually reach out for the device
         request_topic: str = rpc_config.get("requestTopicExpression") \
             .replace("${methodName}", str(content['data']['method'])) \
-            .replace("${requestId}", str(content["data"]['id']))
+            .replace("${requestId}", str(content["data"]["id"]))
 
         if content['data'].get('device'):
             request_topic.replace("${deviceName}", str(content["device"]))
@@ -834,7 +834,7 @@ class MqttConnector(Connector, Thread):
 
             if not expects_response or not defines_timeout:
                 self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
-                self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]['id'],
+                self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
                                               success_sent=True)
 
             # Everything went out smoothly: RPC is served
