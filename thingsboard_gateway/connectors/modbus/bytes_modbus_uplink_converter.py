@@ -62,9 +62,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             coils = response.bits
                             try:
                                 decoder = BinaryPayloadDecoder.fromCoils(coils, byteorder=endian_order,
-                                                                         _wordorder=word_endian_order)
+                                                                         wordorder=word_endian_order)
                             except TypeError:
-                                decoder = BinaryPayloadDecoder.fromCoils(coils, _wordorder=word_endian_order)
+                                decoder = BinaryPayloadDecoder.fromCoils(coils, wordorder=word_endian_order)
                             assert decoder is not None
                             decoded_data = self.decode_from_registers(decoder, configuration)
                         elif configuration["functionCode"] in [3, 4]:
