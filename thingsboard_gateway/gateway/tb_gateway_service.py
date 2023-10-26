@@ -1133,6 +1133,7 @@ class TBGatewayService:
             if device is not None:
                 connector_name = self.get_devices()[device].get("connector")
                 if connector_name is not None:
+                    content['id'] = request_id
                     connector_name.server_side_rpc_handler(content)
                 else:
                     log.error("Received RPC request but connector for the device %s not found. Request data: \n %s",
@@ -1152,6 +1153,7 @@ class TBGatewayService:
                                 if self.available_connectors[connector_name]._connector_type == module:
                                     log.debug("Sending command RPC %s to connector %s", content["method"],
                                               connector_name)
+                                    content['id'] = request_id
                                     result = self.available_connectors[connector_name].server_side_rpc_handler(content)
                         elif module == 'gateway' or module in self.__remote_shell.shell_commands:
                             result = self.__rpc_gateway_processing(request_id, content)
