@@ -847,7 +847,7 @@ class MqttConnector(Connector, Thread):
         self.__log.info("Incoming server-side RPC: %s", content)
 
         if content.get('data') is None:
-            content['data'] = {'params': content['params'], 'method': content['method']}
+            content['data'] = {'params': content['params'], 'method': content['method'], 'id': content['id']}
 
         rpc_method = content['data']['method']
 
