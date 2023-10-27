@@ -31,6 +31,24 @@ class BytesModbusUplinkConverter(ModbusConverter):
         self.__result = {"deviceName": config.get("deviceName", "ModbusDevice %s" % (str(config["unitId"]))),
                          "deviceType": config.get("deviceType", "default")}
 
+    @staticmethod
+    def from_coils(coils, endian_order=Endian.Little, word_endian_order=Endian.Big):
+        _is_wordorder = '_wordorder' in BinaryPayloadDecoder.fromCoils.__code__.co_varnames
+        if _is_wordorder:
+            try:
+                decoder = BinaryPayloadDecoder.fromCoils(coils, byteorder=endian_order,
+                                                         _wordorder=word_endian_order)
+            except TypeError:
+                decoder = BinaryPayloadDecoder.fromCoils(coils, _wordorder=word_endian_order)
+        else:
+            try:
+                decoder = BinaryPayloadDecoder.fromCoils(coils, byteorder=endian_order,
+                                                         wordorder=word_endian_order)
+            except TypeError:
+                decoder = BinaryPayloadDecoder.fromCoils(coils, wordorder=word_endian_order)
+
+        return decoder
+
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
@@ -60,11 +78,13 @@ class BytesModbusUplinkConverter(ModbusConverter):
                         if configuration["functionCode"] in [1, 2]:
                             decoder = None
                             coils = response.bits
+
                             try:
-                                decoder = BinaryPayloadDecoder.fromCoils(coils, byteorder=endian_order,
-                                                                         wordorder=word_endian_order)
+                                decoder = self.from_coils(coils, endian_order=endian_order,
+                                                          word_endian_order=word_endian_order)
                             except TypeError:
-                                decoder = BinaryPayloadDecoder.fromCoils(coils, wordorder=word_endian_order)
+                                decoder = self.from_coils(coils, word_endian_order=word_endian_order)
+
                             assert decoder is not None
                             decoded_data = self.decode_from_registers(decoder, configuration)
                         elif configuration["functionCode"] in [3, 4]:
