@@ -146,7 +146,6 @@ class ModbusConnector(Connector, Thread):
 
         self.__slaves = []
         self.__load_slaves()
-        print('Hello')
 
     def is_connected(self):
         return self.__connected
