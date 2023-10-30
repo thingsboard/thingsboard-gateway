@@ -302,6 +302,11 @@ class ModbusConnector(Connector, Thread):
     def close(self):
         self.__stopped = True
         self.__stop_connections_to_masters()
+
+        # Stop all slaves
+        for slave in self.__slaves:
+            slave.close()
+
         if reactor.running:
             ServerStop()
         self.__log.info('%s has been stopped.', self.get_name())

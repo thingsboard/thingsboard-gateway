@@ -71,6 +71,7 @@ class Slave(Thread):
 
         self.last_polled_time = None
         self.daemon = True
+        self.stop = False
 
         self.start()
 
@@ -78,7 +79,7 @@ class Slave(Thread):
         self.callback(self)
         self.last_polled_time = time()
 
-        while True:
+        while not self.stop:
             if time() - self.last_polled_time >= self.poll_period:
                 self.callback(self)
                 self.last_polled_time = time()
@@ -87,6 +88,9 @@ class Slave(Thread):
 
     def run(self):
         self.timer()
+
+    def close(self):
+        self.stop = True
 
     def get_name(self):
         return self.name
