@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+from copy import deepcopy
 from threading import Thread, Lock
 from time import sleep, time
 from queue import Queue
@@ -337,8 +337,8 @@ class ModbusConnector(Connector, Thread):
 
                             # Reading data from device
                             for interested_data in range(len(current_device_config[config_section])):
-                                current_data = current_device_config[config_section][interested_data]
-                                current_data[DEVICE_NAME_PARAMETER] = device
+                                current_data = deepcopy(current_device_config[config_section][interested_data])
+                                current_data[DEVICE_NAME_PARAMETER] = device.name
                                 input_data = self.__function_to_device(device, current_data)
 
                                 # due to issue #1056
@@ -689,7 +689,7 @@ class ModbusConnector(Connector, Thread):
 
     def update_converter_config(self, converter_name, config):
         self.__log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
-                  config)
+                         config)
         for slave in self.__slaves:
             try:
                 if slave.config[UPLINK_PREFIX + CONVERTER_PARAMETER].__class__.__name__ == converter_name:
