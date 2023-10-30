@@ -477,7 +477,8 @@ class TBGatewayService:
                     # self.__check_shared_attributes()
 
                 if cur_time - connectors_configuration_check_time > self.__config["thingsboard"].get(
-                        "checkConnectorsConfigurationInSeconds", 60) * 1000:
+                        "checkConnectorsConfigurationInSeconds", 60) * 1000 and not (
+                        self.__remote_configurator is not None and self.__remote_configurator.in_process):
                     self.check_connector_configuration_updates()
                     connectors_configuration_check_time = time() * 1000
 
