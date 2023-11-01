@@ -19,6 +19,7 @@ from logging.config import dictConfig
 
 from regex import fullmatch
 from simplejson import dumps, load
+from packaging import version
 
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
@@ -51,6 +52,10 @@ class RemoteConfigurator:
         self._modifiable_static_attrs = {
             'logs_configuration': 'logs.json'
         }
+
+        self._remote_gateway_version = None
+        self._fetch_remote_gateway_version()
+
         LOG.info('Remote Configurator started')
         self.create_configuration_file_backup(config, "tb_gateway.json")
 
@@ -85,6 +90,51 @@ class RemoteConfigurator:
             connector.pop('config_updated', None)
             connector.pop('config_file_path', None)
         return connectors
+
+    def _fetch_remote_gateway_version(self):
+        def callback(key, err):
+            if err is not None:
+                LOG.exception(err)
+                self._remote_gateway_version = '0.0'
+
+            try:
+                self._remote_gateway_version = key['client']['Version']
+            except KeyError as e:
+                self._remote_gateway_version = '0.0'
+                LOG.exception('Remote version number error (setting to 0.0): %s', e)
+
+        self._gateway.tb_client.client.request_attributes(client_keys=['Version'], callback=callback)
+
+    def _send_default_connectors_config(self):
+        """
+        If remote gateway version wasn't fetch (default set to '0.0'), remote configurator send all default
+        connectors configs.
+        """
+        from thingsboard_gateway.gateway.tb_gateway_service import DEFAULT_CONNECTORS
+
+        # remote gateway version fetching in __init__ method (_fetch_remote_gateway_version)
+        LOG.info('Waiting for remote gateway version...')
+
+        try_count = 1
+        while not self._remote_gateway_version and try_count <= 3:
+            try_count += 1
+            sleep(1)
+
+        need_update_configs = version.parse(self._gateway.version.get('current_version', '0.0')) > version.parse(
+            str(self._remote_gateway_version))
+
+        if need_update_configs:
+            default_connectors_configs_folder_path = self._gateway.get_config_path() + 'default-configs/'
+
+            for (connector_type, _) in DEFAULT_CONNECTORS.items():
+                connector_filename = connector_type + '.json'
+                try:
+                    with open(default_connectors_configs_folder_path + connector_filename, 'r') as file:
+                        config = load(file)
+                        self._gateway.tb_client.client.send_attributes({connector_type.upper() + '_DEFAULT_CONFIG': config})
+                        LOG.debug('Default config for %s connector sent.', connector_type)
+                except FileNotFoundError:
+                    LOG.error('Default config file for %s connector not found! Passing...', connector_type)
 
     def _get_active_connectors(self):
         return [connector['name'] for connector in self.connectors_configuration]
@@ -144,7 +194,8 @@ class RemoteConfigurator:
         self._gateway.tb_client.client.send_attributes(
             {'logs_configuration': {**self._logs_configuration, 'ts': int(time() * 1000)}})
         self._gateway.tb_client.client.send_attributes({'active_connectors': self._get_active_connectors()})
-        self._gateway.tb_client.client.send_attributes({'Version': self._gateway.version.get('current_version', 0.0)})
+        self._send_default_connectors_config()
+        self._gateway.tb_client.client.send_attributes({'Version': self._gateway.version.get('current_version', '0.0')})
         for connector in self.connectors_configuration:
             self._gateway.tb_client.client.send_attributes(
                 {connector['name']: {**connector, 'logLevel': connector['configurationJson'].get('logLevel', 'INFO'),
@@ -409,7 +460,6 @@ class RemoteConfigurator:
 
                 config_file_path = self._gateway.get_config_path() + config_file_name
                 if os.path.exists(config_file_path):
-                    connector_config_data = None
                     with open(config_file_path, 'r') as file:
                         connector_config_data = load(file)
                         config_hash = hash(str(connector_config_data))
