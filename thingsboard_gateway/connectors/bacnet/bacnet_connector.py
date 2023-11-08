@@ -110,7 +110,20 @@ class BACnetConnector(Thread, Connector):
         self.__stopped = True
         self.__connected = False
         self._log.reset()
+
+        self._application.mux.directPort.connected = False
+        self._application.mux.directPort.accepting = False
+        self._application.mux.directPort.connecting = False
+        self._application.mux.directPort.del_channel()
+        if self._application.mux.directPort.socket is not None:
+            try:
+                sleep(1)
+                self._application.mux.directPort.socket.close()
+            except OSError:
+                pass
+
         stop()
+        self._log.info('BACnet connector has been stopped.')
 
     def get_name(self):
         return self.name
