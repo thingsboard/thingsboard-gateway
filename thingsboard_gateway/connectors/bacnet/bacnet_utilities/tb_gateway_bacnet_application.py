@@ -164,7 +164,7 @@ class TBBACnetApplication(BIPSimpleApplication):
             self._log.debug("Received IAm Response: %s", str(apdu))
             if self.discovered_devices.get(apdu.pduSource) is None:
                 self.discovered_devices[apdu.pduSource] = {}
-            value = self.__connector.default_converters["uplink_converter"]("{}").convert(None, apdu)
+            value = self.__connector.default_converters["uplink_converter"]("{}", self._log).convert(None, apdu)
             self._log.debug("Property: %s is %s", apdu.propertyIdentifier, value)
             self.discovered_devices[apdu.pduSource].update({apdu.propertyIdentifier: value})
             data_to_connector = {
