@@ -78,6 +78,39 @@ class JsonMqttUplinkConverterTests(unittest.TestCase):
         converted_array_data = converter.convert(topic, data)
         self.assertTrue(converted_array_data.get(SEND_ON_CHANGE_PARAMETER))
 
+    def test_parse_device_name_from_spaced_key_name(self):
+        device_key_name = "device name"
+
+        topic, config, data = self._get_device_test_data_with_spaced_key_and_different_out_type(device_key_name)
+        converter = JsonMqttUplinkConverter(config, logger=logging.getLogger('converter'))
+        converted_data = converter.convert(topic, data)
+
+        self.assertEqual(data[device_key_name], converted_data["deviceName"])
+
+    def test_convert_data_from_string_to_int_without_eval(self):
+        use_eval = False
+        device_key_name = "device name"
+        attr_key_name = "test_key"
+
+        topic, config, data = self._get_device_test_data_with_spaced_key_and_different_out_type(
+                                                                device_key_name, attr_key_name, use_eval)
+        converter = JsonMqttUplinkConverter(config, logger=logging.getLogger('converter'))
+        converted_data = converter.convert(topic, data)
+
+        self.assertEqual(converted_data[ATTRIBUTES_PARAMETER][0][attr_key_name], int(float(data[attr_key_name])))
+
+    def test_convert_data_from_string_to_int_with_eval(self):
+        use_eval = True
+        device_key_name = "device name"
+        attr_key_name = "test_key"
+
+        topic, config, data = self._get_device_test_data_with_spaced_key_and_different_out_type(
+                                                                device_key_name, attr_key_name, use_eval)
+        converter = JsonMqttUplinkConverter(config, logger=logging.getLogger('converter'))
+        converted_data = converter.convert(topic, data)
+
+        self.assertEqual(converted_data[ATTRIBUTES_PARAMETER][0][attr_key_name], 2 * int(float(data[attr_key_name])))
+
     @staticmethod
     def _convert_to_dict(data_array):
         data_dict = {}
@@ -125,6 +158,32 @@ class JsonMqttUplinkConverterTests(unittest.TestCase):
         data = {
             "DeviceName": self.DEVICE_NAME,
             "DeviceType": self.DEVICE_TYPE
+        }
+        return topic, config, data
+
+    def _get_device_test_data_with_spaced_key_and_different_out_type(self, device_name_key, attr_key_name="test_key", use_eval=False):
+        topic = "topic"
+        value_expression = "${" + attr_key_name + "}"
+        config = {
+            "topicFilter": topic,
+            "converter": {
+                "type": "json",
+                "useEval": use_eval,
+                "deviceNameJsonExpression": "${" + device_name_key + "}",
+                "deviceTypeJsonExpression": self.DEVICE_TYPE,
+                "attributes": [
+                    {
+                        "type": "int",
+                        "key": attr_key_name,
+                        "value": f"{value_expression} + {value_expression}" if use_eval else value_expression
+                    }
+                ],
+                "timeseries": []
+            }
+        }
+        data = {
+          device_name_key: self.DEVICE_NAME,
+          attr_key_name: "21.420000"
         }
         return topic, config, data
 
