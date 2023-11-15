@@ -52,12 +52,16 @@ class RemoteConfigurator:
         self._modifiable_static_attrs = {
             'logs_configuration': 'logs.json'
         }
+        self._max_backup_files_number = 10
 
         self._remote_gateway_version = None
         self._fetch_remote_gateway_version()
 
+        # creating backups (general and connectors)
+        self.create_configuration_file_backup(self._get_general_config_in_local_format(), "tb_gateway.json")
+        self._create_connectors_backup()
+
         LOG.info('Remote Configurator started')
-        self.create_configuration_file_backup(config, "tb_gateway.json")
 
     @property
     def general_configuration(self):
@@ -131,7 +135,8 @@ class RemoteConfigurator:
                 try:
                     with open(default_connectors_configs_folder_path + connector_filename, 'r') as file:
                         config = load(file)
-                        self._gateway.tb_client.client.send_attributes({connector_type.upper() + '_DEFAULT_CONFIG': config})
+                        self._gateway.tb_client.client.send_attributes(
+                            {connector_type.upper() + '_DEFAULT_CONFIG': config})
                         LOG.debug('Default config for %s connector sent.', connector_type)
                 except FileNotFoundError:
                     LOG.error('Default config file for %s connector not found! Passing...', connector_type)
@@ -196,10 +201,14 @@ class RemoteConfigurator:
         self._gateway.tb_client.client.send_attributes({'active_connectors': self._get_active_connectors()})
         self._send_default_connectors_config()
         self._gateway.tb_client.client.send_attributes({'Version': self._gateway.version.get('current_version', '0.0')})
+
+        # sending remote created connectors
+        already_sent_connectors = []
         for connector in self.connectors_configuration:
             self._gateway.tb_client.client.send_attributes(
                 {connector['name']: {**connector, 'logLevel': connector['configurationJson'].get('logLevel', 'INFO'),
                                      'ts': int(time() * 1000)}})
+            already_sent_connectors.append(connector['configuration'])
 
     def _load_connectors_configuration(self):
         for (_, connector_list) in self._gateway.connectors_configs.items():
@@ -640,8 +649,12 @@ class RemoteConfigurator:
         if not os.path.exists(backup_folder_path):
             os.mkdir(backup_folder_path)
 
-        backup_file_path = backup_folder_path + os.path.sep + config_file_name + "_backup_" + str(int(time()))
+        backup_file_name = config_file_name.split('.')[0] + ".backup." + str(int(time())) + ".json"
+        backup_file_path = backup_folder_path + os.path.sep + backup_file_name
         with open(backup_file_path, "w") as backup_file:
             LOG.debug(f"Backup file created for configuration file {config_file_name} in {backup_file_path}")
             backup_file.writelines(dumps(config_data, indent='  '))
-            
+
+    def _create_connectors_backup(self):
+        for connector in self.connectors_configuration:
+            self.create_configuration_file_backup(connector['configurationJson'], connector['configuration'])
