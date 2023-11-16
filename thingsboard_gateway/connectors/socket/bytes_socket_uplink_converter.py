@@ -20,10 +20,6 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
     def __init__(self, config, logger):
         self._log = logger
         self.__config = config
-        dict_result = {
-            "deviceName": config['deviceName'],
-            "deviceType": config['deviceType']
-        }
 
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
@@ -48,11 +44,13 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
 
                         byte_to = byte_to if byte_to != -1 else len(data)
                         converted_data = data[byte_from:byte_to]
-
-                        try:
-                            converted_data = converted_data.replace(b"\x00", b'').decode(config['encoding'])
-                        except UnicodeDecodeError:
-                            converted_data = str(converted_data)
+                        if config['encoding'] == 'hex':
+                            converted_data = converted_data.hex()
+                        else:
+                            try:
+                                converted_data = converted_data.replace(b"\x00", b'').decode(config['encoding'])
+                            except UnicodeDecodeError:
+                                converted_data = str(converted_data)
 
                         if item.get('key') is not None:
                             dict_result[section].append(

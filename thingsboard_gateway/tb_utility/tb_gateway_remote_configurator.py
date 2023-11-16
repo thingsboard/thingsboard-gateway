@@ -207,7 +207,8 @@ class RemoteConfigurator:
         already_sent_connectors = []
         for connector in self.connectors_configuration:
             self._gateway.tb_client.client.send_attributes(
-                {connector['name']: {**connector, 'logLevel': connector['configurationJson'].get('logLevel', 'INFO'),
+                {connector['name']: {**connector,
+                                     'logLevel': connector.get('configurationJson', {}).get('logLevel', 'INFO'),
                                      'ts': int(time() * 1000)}})
             already_sent_connectors.append(connector['configuration'])
 
@@ -283,7 +284,7 @@ class RemoteConfigurator:
         if config['host'] != self.general_configuration['host'] or config['port'] != self.general_configuration[
             'port'] or config['security'] != self.general_configuration['security'] or config.get('provisioning',
                                                                                                   {}) != self.general_configuration.get(
-                'provisioning', {}) or config['qos'] != self.general_configuration['qos']:
+            'provisioning', {}) or config['qos'] != self.general_configuration['qos']:
             LOG.info('---- Connection configuration changed. Processing...')
             success = self._apply_connection_config(config)
             if not success:
@@ -482,7 +483,7 @@ class RemoteConfigurator:
                 if found_connector.get('name') != config['name'] or found_connector.get('type') != config[
                     'type'] or found_connector.get('class') != config.get('class') or found_connector.get(
                     'key') != config.get('key') or found_connector.get('configurationJson', {}).get(
-                        'logLevel') != config.get('logLevel'):
+                    'logLevel') != config.get('logLevel'):
                     changed = True
                     connector_configuration = {'name': config['name'], 'type': config['type'],
                                                'configuration': config_file_name}
