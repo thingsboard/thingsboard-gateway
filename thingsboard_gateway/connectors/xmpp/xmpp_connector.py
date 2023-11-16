@@ -85,10 +85,10 @@ class XMPPConnector(Connector, Thread):
                     jid=device_jid,
                     device_name_expression=config['deviceNameExpression'],
                     device_type_expression=config['deviceTypeExpression'],
-                    attributes=config['attributes'],
-                    timeseries=config['timeseries'],
-                    attribute_updates=config['attributeUpdates'],
-                    server_side_rpc=config['serverSideRpc']
+                    attributes=config.get('attributes', []),
+                    timeseries=config.get('timeseries', []),
+                    attribute_updates=config.get('attributeUpdates', []),
+                    server_side_rpc=config.get('serverSideRpc', [])
                 )
                 self._devices[device_jid].set_converter(converter(config, self.__log))
             except KeyError as e:
