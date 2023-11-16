@@ -31,7 +31,7 @@ try:
     from slixmpp import ClientXMPP
 except ImportError:
     print("Slixmpp library not found - installing...")
-    TBUtility.install_package("bleak")
+    TBUtility.install_package("slixmpp")
     from slixmpp import ClientXMPP
 
 from slixmpp.exceptions import IqError, IqTimeout
