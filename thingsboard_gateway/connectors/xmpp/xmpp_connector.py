@@ -21,6 +21,7 @@ from threading import Thread
 from time import sleep
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.connectors.xmpp.device import Device
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
@@ -73,15 +74,23 @@ class XMPPConnector(Connector, Thread):
     def _reformat_devices_config(self):
         for config in self._devices_config:
             try:
-                device_jid = config.pop('jid')
+                device_jid = config.get('jid')
 
                 converter_name = config.pop('converter', DEFAULT_UPLINK_CONVERTER)
                 converter = self._load_converter(converter_name)
                 if not converter:
                     continue
 
-                self._devices[device_jid] = config
-                self._devices[device_jid]['converter'] = converter(config, self.__log)
+                self._devices[device_jid] = Device(
+                    jid=device_jid,
+                    device_name_expression=config['deviceNameExpression'],
+                    device_type_expression=config['deviceTypeExpression'],
+                    attributes=config.get('attributes', []),
+                    timeseries=config.get('timeseries', []),
+                    attribute_updates=config.get('attributeUpdates', []),
+                    server_side_rpc=config.get('serverSideRpc', [])
+                )
+                self._devices[device_jid].set_converter(converter(config, self.__log))
             except KeyError as e:
                 self.__log.error('Invalid configuration %s with key error %s', config, e)
                 continue
@@ -161,7 +170,7 @@ class XMPPConnector(Connector, Thread):
                     device_jid = msg.values['from']
                     device = self._devices.get(device_jid)
                     if device:
-                        converted_data = device['converter'].convert(device, msg.values['body'])
+                        converted_data = device.converter.convert(device, msg.values['body'])
 
                         if converted_data:
                             XMPPConnector.DATA_TO_SEND.put(converted_data)
@@ -220,7 +229,7 @@ class XMPPConnector(Connector, Thread):
             if not device_jid:
                 self.__log.error('Device not found')
 
-            attr_updates = self._devices[device_jid].get('attributeUpdates', [])
+            attr_updates = self._devices[device_jid].attribute_updates
             for key, value in content['data'].items():
                 for attr_conf in attr_updates:
                     if attr_conf['attributeOnThingsBoard'] == key:
@@ -240,7 +249,7 @@ class XMPPConnector(Connector, Thread):
             if not device_jid:
                 self.__log.error('Device not found')
 
-            rpcs = self._devices[device_jid].get('serverSideRpc', [])
+            rpcs = self._devices[device_jid].server_side_rpc
             for rpc_conf in rpcs:
                 if rpc_conf['methodRPC'] == content['data']['method']:
                     data_to_send_tags = TBUtility.get_values(rpc_conf.get('valueExpression'), content['data'],
