@@ -23,6 +23,7 @@ from packaging import version
 
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
+from thingsboard_gateway.connectors.converter import Converter
 
 LOG = getLogger("service")
 
@@ -103,9 +104,9 @@ class RemoteConfigurator:
 
             try:
                 self._remote_gateway_version = key['client']['Version']
-            except KeyError as e:
+            except KeyError:
                 self._remote_gateway_version = '0.0'
-                LOG.exception('Remote version number error (setting to 0.0): %s', e)
+                LOG.warn('Cannot fetch version number from server! Version number set to 0.0')
 
         self._gateway.tb_client.client.request_attributes(client_keys=['Version'], callback=callback)
 

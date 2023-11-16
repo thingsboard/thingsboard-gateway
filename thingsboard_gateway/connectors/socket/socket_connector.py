@@ -15,7 +15,7 @@
 import socket
 from queue import Queue
 from random import choice
-from re import findall
+from re import findall, fullmatch, compile
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep
@@ -56,20 +56,27 @@ class SocketConnector(Connector, Thread):
         self.__socket = socket.socket(socket.AF_INET, SOCKET_TYPE[self.__socket_type])
         self.__converting_requests = Queue(-1)
 
-        self.__devices = self.__convert_devices_list()
+        self.__devices, self.__device_converters = self.__convert_devices_list()
         self.__connections = {}
 
     def __convert_devices_list(self):
         devices = self.__config.get('devices', [])
 
         converted_devices = {}
+        converters_for_devices = {}
         for device in devices:
-            address = device.get('address')
+            address = device.get('addressFilter', device.get('address', None))
+            address_key = address
+            try:
+                address_key = compile(address)
+            except Exception as e:
+                self.__log.debug("Cannot compile device address with regex! %r", e)
+
             module = self.__load_converter(device)
             converter = module(
                 {'deviceName': device['deviceName'],
                  'deviceType': device.get('deviceType', 'default')}, self.__log) if module else None
-            device['converter'] = converter
+            converters_for_devices[address_key] = converter
 
             # validate attributeRequests requestExpression
             attr_requests = device.get('attributeRequests', [])
@@ -79,10 +86,9 @@ class SocketConnector(Connector, Thread):
                     'client': self.__gateway.tb_client.client.gw_request_client_attributes,
                     'shared': self.__gateway.tb_client.client.gw_request_shared_attributes
                 }
+            converted_devices[address_key] = device
 
-            converted_devices[address] = device
-
-        return converted_devices
+        return converted_devices, converters_for_devices
 
     def __load_converter(self, device):
         converter_class_name = device.get('converter', DEFAULT_UPLINK_CONVERTER)
@@ -189,41 +195,42 @@ class SocketConnector(Connector, Thread):
         while not self.__stopped:
             if not self.__converting_requests.empty():
                 (address, port), data = self.__converting_requests.get()
-
-                device = self.__devices.get(f'{address}:{port}', None)
-                if not device:
-                    self.__log.error('Can\'t convert data from %s:%s - not in config file', address, port)
-
-                # check data for attribute requests
-                is_attribute_request = False
-                attr_requests = device.get('attributeRequests', [])
-                if len(attr_requests):
-                    for attr in attr_requests:
-                        equal = data
-                        if attr['haveIndex']:
-                            if attr.get('requestIndexFrom') and attr.get('requestIndexTo'):
-                                index_from = int(attr['requestIndexFrom']) if attr['requestIndexFrom'] != '' else None
-                                index_to = int(attr['requestIndexTo']) if attr['requestIndexTo'] != '' else None
-                                equal = data[index_from:index_to]
-                            else:
-                                equal = data[int(attr['requestIndex'])]
-
-                        if attr['requestEqual'] == equal.decode('utf-8'):
-                            is_attribute_request = True
-                            self.__process_attribute_request(device['deviceName'], attr, data)
-
-                    if is_attribute_request:
+                for conf_device_address in self.__devices:
+                    client_address = f"{address}:{port}"
+                    if client_address != conf_device_address and not fullmatch(conf_device_address, client_address):
                         continue
+                    device = self.__devices.get(conf_device_address)
+                    # check data for attribute requests
+                    is_attribute_request = False
+                    attr_requests = device.get('attributeRequests', [])
+                    if len(attr_requests):
+                        for attr in attr_requests:
+                            equal = data
+                            if attr['haveIndex']:
+                                if attr.get('requestIndexFrom') and attr.get('requestIndexTo'):
+                                    index_from = int(attr['requestIndexFrom']) if attr['requestIndexFrom'] != '' else None
+                                    index_to = int(attr['requestIndexTo']) if attr['requestIndexTo'] != '' else None
+                                    equal = data[index_from:index_to]
+                                else:
+                                    equal = data[int(attr['requestIndex'])]
+    
+                            if attr['requestEqual'] == equal.decode('utf-8'):
+                                is_attribute_request = True
+                                self.__process_attribute_request(device['deviceName'], attr, data)
+    
+                        if is_attribute_request:
+                            continue
 
-                self.__convert_data(device, data)
+                    converter = self.__device_converters.get(conf_device_address)
+                    self.__convert_data(device, data, converter)
 
             sleep(.2)
 
-    def __convert_data(self, device, data):
+    def __convert_data(self, device, data, converter):
         address, port = device['address'].split(':')
-        converter = device['converter']
         if not converter:
             self.__log.error('Converter not found for %s:%s', address, port)
+            return
 
         try:
             device_config = {
