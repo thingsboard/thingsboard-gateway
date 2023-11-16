@@ -137,7 +137,7 @@
       "deviceNameFilter": "SD.*",
       "attributeFilter": "send_data",
       "requestUrlExpression": "sensor/${deviceName}/${attributeKey}",
-      "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
+      "requestValueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
     }
   ],
   "serverSideRpc": [
@@ -147,7 +147,8 @@
       "requestUrlExpression": "sensor/${deviceName}/request/${methodName}/${requestId}",
       "responseTimeout": 1,
       "httpMethod": "GET",
-      "valueExpression": "${params}",
+      "requestValueExpression": "${params}",
+      "responseValueExpression": "${temp}",
       "timeout": 0.5,
       "tries": 3,
       "httpHeaders": {
@@ -159,7 +160,7 @@
       "methodFilter": "no-reply",
       "requestUrlExpression": "sensor/${deviceName}/request/${methodName}/${requestId}",
       "httpMethod": "POST",
-      "valueExpression": "${params}",
+      "requestValueExpression": "${params}",
       "httpHeaders": {
         "Content-Type": "application/json"
       }

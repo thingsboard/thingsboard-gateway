@@ -8,41 +8,39 @@
   },
   "mapping": [
     {
-      "endpoint": "/device1",
+      "endpoint": "/my_devices",
       "HTTPMethods": [
         "POST"
       ],
       "security": {
-        "type": "basic",
-        "username": "user",
-        "password": "passwd"
+        "type": "anonymous"
       },
       "converter": {
         "type": "json",
-        "deviceNameExpression": "Device ${name}",
-        "deviceTypeExpression": "default",
+        "deviceNameExpression": "${sensorName}",
+        "deviceTypeExpression": "${sensorType}",
         "attributes": [
           {
             "type": "string",
             "key": "model",
             "value": "${sensorModel}"
+          },
+          {
+            "type": "string",
+            "key": "certificateNumber",
+            "value": "${certificateNumber}"
           }
         ],
         "timeseries": [
           {
             "type": "double",
-            "key": "${sensorModel}",
+            "key": "temperature",
             "value": "${temp}"
           },
           {
             "type": "double",
             "key": "humidity",
             "value": "${hum}"
-          },
-          {
-            "type": "string",
-            "key": "combine",
-            "value": "${hum}:${temp}"
           }
         ]
       }
@@ -108,6 +106,21 @@
       }
     }
   ],
+  "attributeRequests": [
+    {
+      "endpoint": "/sharedAttributes",
+      "type": "shared",
+      "HTTPMethods": [
+        "POST"
+      ],
+      "security": {
+        "type": "anonymous"
+      },
+      "timeout": 10.0,
+      "deviceNameExpression": "${deviceName}",
+      "attributeNameExpression": "${attribute}${attribute1}"
+    }
+  ],
   "attributeUpdates": [
     {
       "HTTPMethod": "POST",
@@ -116,17 +129,15 @@
         "CONTENT-TYPE": "application/json"
       },
       "security": {
-        "type": "basic",
-        "username": "user",
-        "password": "passwd"
+        "type": "anonymous"
       },
       "timeout": 0.5,
       "tries": 3,
       "allowRedirects": true,
-      "deviceNameFilter": ".*REST$",
-      "attributeFilter": "data",
-      "requestUrlExpression": "sensor/${deviceName}/${attributeKey}",
-      "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
+      "deviceNameFilter": "SN.*",
+      "attributeFilter": ".*",
+      "requestUrlExpression": "http://127.0.0.1:5001/",
+      "valueExpression": "{\"deviceName\":\"${deviceName}\",\"${attributeKey}\":\"${attributeValue}\"}"
     }
   ],
   "serverSideRpc": [
@@ -137,6 +148,22 @@
       "responseTimeout": 1,
       "HTTPMethod": "GET",
       "valueExpression": "${params}",
+      "timeout": 10.0,
+      "tries": 3,
+      "httpHeaders": {
+        "Content-Type": "application/json"
+      },
+      "security": {
+        "type": "anonymous"
+      }
+    },
+    {
+      "deviceNameFilter": "SN.*",
+      "methodFilter": "post_attributes",
+      "requestUrlExpression": "http://127.0.0.1:5000/my_devices",
+      "responseTimeout": 1,
+      "HTTPMethod": "POST",
+      "valueExpression": "{\"sensorName\":\"${deviceName}\", \"sensorModel\":\"${params.sensorModel}\", \"certificateNumber\":\"${params.certificateNumber}\", \"temp\":\"${params.temp}\", \"hum\":\"${params.hum}\"}",
       "timeout": 10.0,
       "tries": 3,
       "httpHeaders": {

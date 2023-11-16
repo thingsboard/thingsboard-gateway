@@ -6,7 +6,7 @@
   "bufferSize": 1024,
   "devices": [
     {
-      "address": "127.0.0.1:50001",
+      "addressFilter": "127.0.0.1:*",
       "deviceName": "Device Example",
       "deviceType": "default",
       "encoding": "utf-8",
