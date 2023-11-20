@@ -774,8 +774,9 @@ class MqttConnector(Connector, Thread):
                 .replace("${methodName}", str(content['data']['method'])) \
                 .replace("${requestId}", str(content["data"]["id"]))
 
+            ##bugfix:should assign the replace result to expected_response_topic
             if content.get('device'):
-                expected_response_topic.replace("${deviceName}", str(content["device"]))
+                expected_response_topic= expected_response_topic.replace("${deviceName}", str(content["device"]))
 
             expected_response_topic = TBUtility.replace_params_tags(expected_response_topic, content)
 
@@ -812,8 +813,10 @@ class MqttConnector(Connector, Thread):
             .replace("${methodName}", str(content['data']['method'])) \
             .replace("${requestId}", str(content["data"]["id"]))
 
-        if content['data'].get('device'):
-            request_topic.replace("${deviceName}", str(content["device"]))
+        #bugfix:deviceName is not in content['data'] but in content, and should assign the replace result to request_topic
+        #if content['data'].get('device'):
+        if content['device']:
+            request_topic = request_topic.replace("${deviceName}", str(content["device"]))
 
         request_topic = TBUtility.replace_params_tags(request_topic, content)
 
