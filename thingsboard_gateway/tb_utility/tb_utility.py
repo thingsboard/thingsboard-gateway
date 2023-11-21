@@ -141,6 +141,8 @@ class TBUtility:
     def install_package(package, version="upgrade", force_install=False):
         from sys import executable
         from subprocess import check_call, CalledProcessError
+        import site
+        from importlib import reload
         result = False
 
         if force_install:
@@ -168,6 +170,13 @@ class TBUtility:
                         [executable, "-m", "pip", "install", package + installation_sign + version, "--user"])
                 except CalledProcessError:
                     result = check_call([executable, "-m", "pip", "install", package + installation_sign + version])
+
+        # Because `pip` is running in a subprocess the newly installed modules and libraries are
+        # not immediately available to the current runtime. 
+        # Refreshing sys.path fixes this. See:
+        # https://stackoverflow.com/questions/4271494/what-sets-up-sys-path-with-python-and-when
+        reload(site)
+
         return result
 
     @staticmethod
