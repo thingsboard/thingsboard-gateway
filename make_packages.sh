@@ -19,11 +19,12 @@ if [ "$1" = "clean" ] || [ "$1" = "only_clean" ] ; then
   sudo rm -rf dist/
   sudo rm -rf thingsboard-gateway.egg-info/
   sudo rm -rf /etc/thingsboard-gateway/
-  sudo rm -rf thingsboard-gateway-$CURRENT_VERSION.tar.gz
-  sudo rm -rf thingsboard-gateway-$CURRENT_VERSION.deb
+  sudo rm -rf thingsboard-gateway-*.tar.gz
+  sudo rm -rf configs.tar.gz
+  sudo rm -rf thingsboard-gateway-*.deb
   sudo rm -rf python3-thingsboard-gateway.deb
   sudo rm -rf python3-thingsboard-gateway.rpm
-  sudo rm -rf thingsboard-gateway-$CURRENT_VERSION.noarch.rpm
+  sudo rm -rf thingsboard-gateway-*.noarch.rpm
   sudo rm -rf thingsboard_gateway.egg-info
   sudo rm -rf /home/zenx/rpmbuild/BUILDROOT/*
   sudo rm -rf build/
