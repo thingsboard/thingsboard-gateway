@@ -23,7 +23,6 @@ from packaging import version
 
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
-from thingsboard_gateway.connectors.converter import Converter
 
 LOG = getLogger("service")
 
@@ -100,7 +99,9 @@ class RemoteConfigurator:
         def callback(key, err):
             if err is not None:
                 LOG.exception(err)
+            if key is None:
                 self._remote_gateway_version = '0.0'
+                return
 
             try:
                 self._remote_gateway_version = key['client']['Version']
@@ -125,7 +126,10 @@ class RemoteConfigurator:
             try_count += 1
             sleep(1)
 
-        need_update_configs = version.parse(self._gateway.version.get('current_version', '0.0')) > version.parse(
+        if self._remote_gateway_version is None:
+            self._remote_gateway_version = "0.0"
+
+        need_update_configs = self._remote_gateway_version == "0.0" or version.parse(self._gateway.version.get('current_version', '0.0')) > version.parse(
             str(self._remote_gateway_version))
 
         if need_update_configs:
