@@ -537,14 +537,18 @@ class TBGatewayService:
             log.debug("Received data: %s", content)
             if content is not None:
                 shared_attributes = content.get("shared", {})
-
-                # client attributes now required for now, can be used in future
-                # client_attributes = content.get("client", {})
+                client_attributes = content.get("client", {})
+                if shared_attributes or client_attributes:
+                    self.__process_attributes_response(shared_attributes, client_attributes)
+                else:
+                    self.__process_attribute_update(content)
 
                 if shared_attributes:
-                    self.__process_attribute_update(shared_attributes)
                     log.debug("Shared attributes received (%s).",
                               ", ".join([attr for attr in shared_attributes.keys()]))
+                if client_attributes:
+                    log.debug("Client attributes received (%s).",
+                              ", ".join([attr for attr in client_attributes.keys()]))
         except Exception as e:
             log.exception(e)
 
@@ -552,6 +556,10 @@ class TBGatewayService:
         self.__process_remote_logging_update(content.get("RemoteLoggingLevel"))
         self.__process_remote_configuration(content)
         self.__process_remote_converter_configuration_update(content)
+
+    def __process_attributes_response(self, shared_attributes, client_attributes):
+        self.__process_remote_logging_update(shared_attributes.get('RemoteLoggingLevel'))
+        self.__process_remote_configuration(shared_attributes)
 
     def __process_remote_logging_update(self, remote_logging_level):
         if remote_logging_level == 'NONE':
