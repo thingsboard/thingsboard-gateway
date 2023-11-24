@@ -217,7 +217,7 @@ class TBGatewayService:
         self.__subscribed_to_rpc_topics = True
         if logging_error is not None:
             self.tb_client.client.send_telemetry({"ts": time() * 1000, "values": {
-                "LOGS": "Logging loading exception, logs.conf is wrong: %s" % (str(logging_error),)}})
+                "LOGS": "Logging loading exception, logs.json is wrong: %s" % (str(logging_error),)}})
             TBLoggerHandler.set_default_handler()
         self.__rpc_reply_sent = False
         self.remote_handler = TBLoggerHandler(self)
@@ -225,7 +225,7 @@ class TBGatewayService:
         # self.main_handler.setTarget(self.remote_handler)
         self._default_connectors = DEFAULT_CONNECTORS
         self.__converted_data_queue = SimpleQueue()
-        self.__save_converted_data_thread = Thread(name="Save converted data", daemon=True,
+        self.__save_converted_data_thread = Thread(name="Storage fill thread", daemon=True,
                                                    target=self.__send_to_storage)
         self.__save_converted_data_thread.start()
         self._implemented_connectors = {}
@@ -798,7 +798,7 @@ class TBGatewayService:
                                     else:
                                         break
                                 else:
-                                    log.info("Config not found or empty for %s", connector_type)
+                                    log.warning("Config not found or empty for %s", connector_type)
                             except Exception as e:
                                 log.exception(e, attr_name=connector_name)
                                 if connector is not None:
