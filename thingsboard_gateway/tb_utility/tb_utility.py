@@ -101,15 +101,14 @@ class TBUtility:
         try:
             if isinstance(body, dict) and target_str.split()[0] in body:
                 if value_type.lower() == "string":
-                    full_value = str(expression[0: max(p1 - 2, 0)]) + str(body[target_str.split()[0]]) + str(expression[
-                                                                                                             p2 + 1:len(
-                                                                                                                 expression)])
+                    full_value = str(expression[0: max(p1 - 2, 0)]) + str(body[target_str.split()[0]]) + str(expression[p2 + 1:len(expression)])
                 else:
                     full_value = body.get(target_str.split()[0])
             elif isinstance(body, (dict, list)):
                 try:
-                    # Wrap in quotes to support key name with spaces
-                    jsonpath_expression = parse('"' + target_str + '"')
+                    if " " in target_str:
+                        target_str = '.'.join('"' + section_key + '"' if " " in section_key else section_key for section_key in target_str.split('.'))
+                    jsonpath_expression = parse(target_str)
                     jsonpath_match = jsonpath_expression.find(body)
                     if jsonpath_match:
                         full_value = jsonpath_match[0].value
