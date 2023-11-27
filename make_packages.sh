@@ -26,7 +26,7 @@ if [ "$1" = "clean" ] || [ "$1" = "only_clean" ] ; then
   sudo rm -rf python3-thingsboard-gateway.rpm
   sudo rm -rf thingsboard-gateway-*.noarch.rpm
   sudo rm -rf thingsboard_gateway.egg-info
-  sudo rm -rf /home/zenx/rpmbuild/BUILDROOT/*
+  sudo rm -rf thingsboard_gateway/config/backup
   sudo rm -rf build/
   sudo rm -rf docker/config || echo ''
   sudo rm -rf docker/extensions || echo ''
