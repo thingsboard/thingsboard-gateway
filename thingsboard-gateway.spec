@@ -46,7 +46,7 @@ sudo /usr/bin/chown thingsboard_gateway:thingsboard_gateway $RPM_BUILD_ROOT/var/
 # sudo find %{buildroot} -name ".pyc" -delete
 
 %post
-/usr/bin/sed -i 's/\.\/logs/\/var\/log\/thingsboard-gateway/g' /etc/thingsboard-gateway/config/logs.conf >> /etc/thingsboard-gateway/config/logs.conf
+/usr/bin/sed -i 's/\.\/logs/\/var\/log\/thingsboard-gateway/g' /etc/thingsboard-gateway/config/logs.json >> /etc/thingsboard-gateway/config/logs.json
 /usr/bin/rm -rf $RPM_BUILD_ROOT/etc/thingsboard-gateway/thingsboard-gateway
 /usr/bin/rm -f $RPM_BUILD_ROOT/etc/thingsboard-gateway/configs.tar.gz
 /usr/bin/systemctl enable thingsboard-gateway.service
