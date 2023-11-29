@@ -67,22 +67,27 @@ class TBLoggerHandler(logging.Handler):
                 count = 1
                 while count <= self._max_message_count_batch:
                     try:
-                        logs_for_sending_list.append(self._logs_queue.get(block=False))
+                        log_msg = self._logs_queue.get(block=False)
+
+                        logs_msg_size = self.__gateway.get_data_size(log_msg)
+                        if logs_msg_size > self.__gateway.get_max_payload_size_bytes():
+                            log = TbLogger('service')
+                            log.warning('Too big message size to send. Skip...')
+                            continue
+
+                        if self.__gateway.get_data_size(
+                                logs_for_sending_list) + logs_msg_size > self.__gateway.get_max_payload_size_bytes():
+                            self.__gateway.tb_client.client.send_telemetry(logs_for_sending_list)
+                            logs_for_sending_list = [log_msg]
+                        else:
+                            logs_for_sending_list.append(log_msg)
+
                         count += 1
                     except Empty:
                         break
 
-                if self.__gateway.get_data_size(logs_for_sending_list) <= self.__gateway.get_max_payload_size_bytes():
+                if logs_for_sending_list:
                     self.__gateway.tb_client.client.send_telemetry(logs_for_sending_list)
-                else:
-                    adopted_logs_batch = []
-                    for item in logs_for_sending_list:
-                        if self.__gateway.get_data_size(
-                                adopted_logs_batch) <= self.__gateway.get_max_payload_size_bytes():
-                            adopted_logs_batch.append(item)
-                        else:
-                            self.__gateway.tb_client.client.send_telemetry(adopted_logs_batch)
-                            adopted_logs_batch = []
 
             sleep(1)
 
