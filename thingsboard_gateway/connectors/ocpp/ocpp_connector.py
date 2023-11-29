@@ -105,7 +105,8 @@ class OcppConnector(Connector, Thread):
         self._data_convert_thread.start()
         self._data_send_thread.start()
 
-        self.__loop.run_until_complete(self.start_server())
+        self.__loop.create_task(self.start_server())
+        self.__loop.run_forever()
 
     async def start_server(self):
         host = self._central_system_config.get('host', '0.0.0.0')
@@ -207,16 +208,17 @@ class OcppConnector(Connector, Thread):
         self.__stopped = True
         self.__connected = False
 
-        task = self.__loop.create_task(self._close_cp_connections())
-        while not task.done():
-            sleep(.2)
+        tasks = asyncio.all_tasks(self.__loop)
+        for task in tasks:
+            task.cancel()
+
+        for socket in self._server.server.sockets:
+            socket._sock.close()
+
+        self.__loop.stop()
 
         self._log.info('%s has been stopped.', self.get_name())
         self._log.reset()
-
-    async def _close_cp_connections(self):
-        for cp in self._connected_charge_points:
-            await cp.close()
 
     def get_name(self):
         return self.name
