@@ -71,8 +71,7 @@ class TBLoggerHandler(logging.Handler):
 
                         logs_msg_size = self.__gateway.get_data_size(log_msg)
                         if logs_msg_size > self.__gateway.get_max_payload_size_bytes():
-                            log = TbLogger('service')
-                            log.warning('Too big message size to send. Skip...')
+                            print(f'Too big LOG message size to send ({logs_msg_size}). Skipping...')
                             continue
 
                         if self.__gateway.get_data_size(
