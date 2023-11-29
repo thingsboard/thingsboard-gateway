@@ -61,7 +61,7 @@ class CanConnectorTestsBase(unittest.TestCase):
     def _create_bus(self):
         return Bus(
             channel="virtual_channel",
-            bustype="virtual",
+            interface="virtual",
             receive_own_messages=False
         )
 

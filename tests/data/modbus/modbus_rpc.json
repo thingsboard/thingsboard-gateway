@@ -45,7 +45,7 @@
             "functionCode": 6,
             "objectsCount": 1,
             "address": 2,
-            "params": "11"
+            "params": true
           },
           {
             "tag": "set8Int",

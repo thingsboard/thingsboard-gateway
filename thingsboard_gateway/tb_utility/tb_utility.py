@@ -233,13 +233,14 @@ class TBUtility:
     def convert_data_type(data, new_type, use_eval=False):
         current_type = type(data)
         # use 'in' check instead of equality for such case like 'str' and 'string'
+        new_type = new_type.lower()
         if current_type.__name__ in new_type:
             return data
 
         evaluated_data = eval(data, globals(), {}) if use_eval else data
         if 'int' in new_type or 'long' in new_type:
             return int(float(evaluated_data))
-        elif 'float' in new_type or 'double' in new_type:
+        elif 'float' == new_type or 'double' == new_type:
             return float(evaluated_data)
         elif 'bool' in new_type:
             return bool(evaluated_data)

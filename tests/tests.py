@@ -29,6 +29,8 @@ logging.basicConfig(level=logging.ERROR,
                     format='%(asctime)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 
+LOG = logging.getLogger("TEST")
+
 
 class ConvertersTests(unittest.TestCase):
     def test_mqtt_getting_values(self):
@@ -62,16 +64,16 @@ class ConvertersTests(unittest.TestCase):
             "t": 42.0
         }
         test_mqtt_convert_config = "sensor/temperature/SensorA"
-        test_mqtt_result = {
+        expected_result = {
             "deviceName": "SensorA",
             "deviceType": "temperature-sensor",
             "attributes": [{"model": "T1000"}],
-            "telemetry": [{"temperature": '42.0'}]
+            "telemetry": [{"temperature": 42.0}]
         }
 
-        converter = JsonMqttUplinkConverter(test_mqtt_config)
+        converter = JsonMqttUplinkConverter(test_mqtt_config, LOG)
         result = converter.convert(test_mqtt_convert_config, test_mqtt_body_to_convert)
-        self.assertDictEqual(result, test_mqtt_result)
+        self.assertDictEqual(expected_result, result)
 
     def test_opcua_getting_values(self):
         test_opcua_config = {'deviceNodePattern': 'Root\\.Objects\\.Device1',
@@ -87,7 +89,7 @@ class ConvertersTests(unittest.TestCase):
                         ('Root\\.Objects\\.Device1\\.TemperatureAndHumiditySensor\\.Humidity',
                          'Root\\.Objects\\.Device1\\.TemperatureAndHumiditySensor\\.Humidity'),
                         ('Battery\\.batteryLevel', 'Root\\\\.Objects\\\\.Device1\\\\.Battery\\\\.batteryLevel')]
-        test_opcua_result = [
+        expected_result = [
             {'deviceName': 'Device Number One', 'deviceType': 'default', 'attributes': [{'temperature °C': '24.1'}],
              'telemetry': []},
             {'deviceName': 'Device Number One', 'deviceType': 'default', 'attributes': [],
@@ -95,11 +97,11 @@ class ConvertersTests(unittest.TestCase):
             {'deviceName': 'Device Number One', 'deviceType': 'default', 'attributes': [],
              'telemetry': [{'batteryLevel': '59.8'}]}]
 
-        converter = OpcUaUplinkConverter(test_opcua_config)
+        converter = OpcUaUplinkConverter(test_opcua_config, LOG)
         result = []
         for index, config in enumerate(test_configs):
             result.append(converter.convert(config, test_data_list[index]))
-        self.assertListEqual(result, test_opcua_result)
+        self.assertListEqual(expected_result, result)
 
     def test_ble_getting_values(self):
         test_ble_config = {
@@ -150,7 +152,7 @@ class ConvertersTests(unittest.TestCase):
                          "type": "attributes",
                          "clean": False}
                         ]
-        test_result = {'deviceName': 'Temperature and humidity sensor',
+        expected_result = {'deviceName': 'Temperature and humidity sensor',
                        'deviceType': 'BLEDevice',
                        'telemetry': [
                            {'temperature': '54.7'},
@@ -162,17 +164,15 @@ class ConvertersTests(unittest.TestCase):
 
         result = {}
 
-        converter = BytesBLEUplinkConverter(test_ble_config)
+        converter = BytesBLEUplinkConverter(test_ble_config, LOG)
         for index, config in enumerate(test_configs):
             result = converter.convert(config, test_data_list[index])
-        self.assertDictEqual(result, test_result)
+        self.assertDictEqual(expected_result, result)
 
     def test_request_getting_values(self):
         test_request_config = {
           "url": "/last",
           "httpMethod": "GET",
-          "deviceNameJsonExpression": "${$.sensor}",
-          "deviceTypeJsonExpression": "default",
           "httpHeaders": {
             "ACCEPT": "application/json"
           },
@@ -180,6 +180,8 @@ class ConvertersTests(unittest.TestCase):
           "timeout": 0.5,
           "scanPeriod": 5,
           "converter": {
+            "deviceNameJsonExpression": "${$.sensor}",
+            "deviceTypeJsonExpression": "default",
             "type": "json",
             "attributes": [
             ],
@@ -200,16 +202,16 @@ class ConvertersTests(unittest.TestCase):
                                         "value": "66"}
 
         test_request_convert_config = "127.0.0.1:5000/last"
-        test_request_result = {
+        expected_result = {
             "deviceName": "aranet:358151000412:100886",
             "deviceType": "default",
             "attributes": [],
             "telemetry": [{"Humidity": '66'}]
         }
 
-        converter = JsonRequestUplinkConverter(test_request_config)
+        converter = JsonRequestUplinkConverter(test_request_config, LOG)
         result = converter.convert(test_request_convert_config, test_request_body_to_convert)
-        self.assertDictEqual(result, test_request_result)
+        self.assertDictEqual(expected_result, result)
 
 
 class TestStorage(unittest.TestCase):
