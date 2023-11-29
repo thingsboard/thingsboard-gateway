@@ -13,6 +13,7 @@
 #     limitations under the License.
 
 import random
+import socket
 import ssl
 import string
 from queue import Queue
@@ -307,7 +308,7 @@ class MqttConnector(Connector, Thread):
                 self._client.loop_start()
                 if not self._connected:
                     sleep(1)
-            except ConnectionRefusedError as e:
+            except (ConnectionRefusedError, socket.timeout) as e:
                 self.__log.error(e)
                 sleep(10)
 

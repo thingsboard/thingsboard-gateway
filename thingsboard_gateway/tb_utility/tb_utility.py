@@ -101,15 +101,14 @@ class TBUtility:
         try:
             if isinstance(body, dict) and target_str.split()[0] in body:
                 if value_type.lower() == "string":
-                    full_value = str(expression[0: max(p1 - 2, 0)]) + str(body[target_str.split()[0]]) + str(expression[
-                                                                                                             p2 + 1:len(
-                                                                                                                 expression)])
+                    full_value = str(expression[0: max(p1 - 2, 0)]) + str(body[target_str.split()[0]]) + str(expression[p2 + 1:len(expression)])
                 else:
                     full_value = body.get(target_str.split()[0])
             elif isinstance(body, (dict, list)):
                 try:
-                    # Wrap in quotes to support key name with spaces
-                    jsonpath_expression = parse('"' + target_str + '"')
+                    if " " in target_str:
+                        target_str = '.'.join('"' + section_key + '"' if " " in section_key else section_key for section_key in target_str.split('.'))
+                    jsonpath_expression = parse(target_str)
                     jsonpath_match = jsonpath_expression.find(body)
                     if jsonpath_match:
                         full_value = jsonpath_match[0].value
@@ -141,6 +140,8 @@ class TBUtility:
     def install_package(package, version="upgrade", force_install=False):
         from sys import executable
         from subprocess import check_call, CalledProcessError
+        import site
+        from importlib import reload
         result = False
 
         if force_install:
@@ -168,6 +169,13 @@ class TBUtility:
                         [executable, "-m", "pip", "install", package + installation_sign + version, "--user"])
                 except CalledProcessError:
                     result = check_call([executable, "-m", "pip", "install", package + installation_sign + version])
+
+        # Because `pip` is running in a subprocess the newly installed modules and libraries are
+        # not immediately available to the current runtime. 
+        # Refreshing sys.path fixes this. See:
+        # https://stackoverflow.com/questions/4271494/what-sets-up-sys-path-with-python-and-when
+        reload(site)
+
         return result
 
     @staticmethod

@@ -38,7 +38,7 @@ class TBUpdater(Thread):
             self.__version = {"current_version": get_distribution('thingsboard_gateway').version,
                               "latest_version": get_distribution('thingsboard_gateway').version}
         except DistributionNotFound:
-            self.__version = {"current_version": "0", "latest_version": "0"}
+            self.__version = {"current_version": "0.0", "latest_version": "0.0"}
 
         self.__instance_id = str(uuid1())
         self.__platform = system()

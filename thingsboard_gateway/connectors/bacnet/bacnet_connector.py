@@ -280,7 +280,7 @@ class BACnetConnector(Thread, Connector):
                     try:
                         config_address = Address(device["address"])
                         device_name_tag = TBUtility.get_value(device["deviceName"], get_tag=True)
-                        device_name = device["deviceName"].replace("${" + device_name_tag + "}", data.pop("name"))
+                        device_name = device["deviceName"].replace("${" + device_name_tag + "}", data["name"])
                         device_information = {
                             **data,
                             **self.__get_requests_configs(device),

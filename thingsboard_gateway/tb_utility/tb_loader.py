@@ -69,7 +69,7 @@ class TBModuleLoader:
                                         TBModuleLoader.LOADED_CONNECTORS[buffered_module_name] = extension_class[1]
                                         return extension_class[1]
                             except ImportError as e:
-                                log.exception(e)
+                                log.error(e.msg)
                                 continue
         except Exception as e:
             log.exception(e)

@@ -90,18 +90,19 @@ class FTPConnector(Connector, Thread):
 
     def run(self):
         try:
-            with self.__ftp() as ftp:
-                self.__connect(ftp)
+            while not self.__stopped:
+                with self.__ftp() as ftp:
+                    self.__connect(ftp)
 
-                for path in self.paths:
-                    path.find_files(ftp)
+                    if self._connected:
+                        for path in self.paths:
+                            path.find_files(ftp)
 
-                while True:
-                    sleep(.2)
-                    self.__process_paths(ftp)
-                    if self.__stopped:
-                        break
-
+                        while True:
+                            sleep(.2)
+                            self.__process_paths(ftp)
+                            if self.__stopped:
+                                break
         except Exception as e:
             self.__log.exception(e)
             try:

@@ -217,7 +217,7 @@ class TBGatewayService:
         self.__subscribed_to_rpc_topics = True
         if logging_error is not None:
             self.tb_client.client.send_telemetry({"ts": time() * 1000, "values": {
-                "LOGS": "Logging loading exception, logs.conf is wrong: %s" % (str(logging_error),)}})
+                "LOGS": "Logging loading exception, logs.json is wrong: %s" % (str(logging_error),)}})
             TBLoggerHandler.set_default_handler()
         self.__rpc_reply_sent = False
         self.remote_handler = TBLoggerHandler(self)
@@ -225,7 +225,7 @@ class TBGatewayService:
         # self.main_handler.setTarget(self.remote_handler)
         self._default_connectors = DEFAULT_CONNECTORS
         self.__converted_data_queue = SimpleQueue()
-        self.__save_converted_data_thread = Thread(name="Save converted data", daemon=True,
+        self.__save_converted_data_thread = Thread(name="Storage fill thread", daemon=True,
                                                    target=self.__send_to_storage)
         self.__save_converted_data_thread.start()
         self._implemented_connectors = {}
@@ -252,7 +252,7 @@ class TBGatewayService:
         self.__rpc_processing_queue = SimpleQueue()
         self.__rpc_scheduled_methods_functions = {
             "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
-            "reboot": {"function": system, "arguments": ("reboot 0",)},
+            "reboot": {"function": system, "arguments": ("shutdown -r now",)},
         }
         self.__rpc_processing_thread = Thread(target=self.__send_rpc_reply_processing, daemon=True,
                                               name="RPC processing thread")
@@ -520,7 +520,8 @@ class TBGatewayService:
         log.info("The gateway has been stopped.")
         self.tb_client.disconnect()
         self.tb_client.stop()
-        self.manager.shutdown()
+        if hasattr(self, "manager"):
+            self.manager.shutdown()
 
     def __init_remote_configuration(self, force=False):
         if (self.__config["thingsboard"].get("remoteConfiguration") or force) and self.__remote_configurator is None:
@@ -731,7 +732,7 @@ class TBGatewayService:
                                                                                connector.get('class')))
 
                         if connector_class is None:
-                            log.warning("Connector implementation not found for %s", connector["name"])
+                            log.warning("Connector implementation not found for %s", connector['name'])
                         else:
                             self._implemented_connectors[connector['type']] = connector_class
                     elif connector['type'] == "grpc":
@@ -758,10 +759,8 @@ class TBGatewayService:
                     if connector['type'] != 'grpc' and isinstance(connector_conf, dict):
                         connector_conf["name"] = connector['name']
                     self.connectors_configs[connector['type']].append({"name": connector['name'],
-                                                                       "config": {connector[
-                                                                                      'configuration']: connector_conf} if
-                                                                       connector[
-                                                                           'type'] != 'grpc' else connector_conf,
+                                                                       "config": {connector['configuration']: connector_conf} if
+                                                                       connector['type'] != 'grpc' else connector_conf,
                                                                        "config_updated": stat(config_file_path),
                                                                        "config_file_path": config_file_path,
                                                                        "grpc_key": connector_persistent_key})
@@ -786,7 +785,7 @@ class TBGatewayService:
                             connector = None
                             connector_name = None
                             try:
-                                if connector_config["config"][config] is not None:
+                                if connector_config["config"][config] is not None and len(connector_config["config"][config].keys()) > 2:
                                     connector_name = connector_config["name"]
 
                                     if not self.available_connectors.get(connector_name):
@@ -800,7 +799,7 @@ class TBGatewayService:
                                     else:
                                         break
                                 else:
-                                    log.info("Config not found for %s", connector_type)
+                                    log.warning("Config not found or empty for %s", connector_type)
                             except Exception as e:
                                 log.exception(e, attr_name=connector_name)
                                 if connector is not None:
