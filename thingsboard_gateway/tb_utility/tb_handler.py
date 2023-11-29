@@ -13,10 +13,12 @@
 #     limitations under the License.
 
 import logging
+import threading
 import logging.handlers
 from sys import stdout
-from time import time
+from time import time, sleep
 from os import environ
+from queue import Queue, Empty
 
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
@@ -35,6 +37,12 @@ class TBLoggerHandler(logging.Handler):
         self.setLevel(logging.getLevelName('DEBUG'))
         self.__gateway = gateway
         self.activated = False
+
+        self._max_message_count_batch = 20
+        self._logs_queue = Queue(1000)
+        # start() method calls in activate() method
+        self._send_logs_thread = threading.Thread(target=self._send_logs, name='Logs Sending Thread', daemon=True)
+
         self.setFormatter(logging.Formatter('%(asctime)s - |%(levelname)s| - [%(filename)s] - %(module)s - %(lineno)d - %(message)s'))
         self.loggers = ['service',
                         'extension',
@@ -51,6 +59,37 @@ class TBLoggerHandler(logging.Handler):
         log.addHandler(self.__gateway.main_handler)
         log.debug("Added remote handler to log %s", name)
 
+    def _send_logs(self):
+        while self.activated:
+            if not self._logs_queue.empty():
+                logs_for_sending_list = []
+
+                count = 1
+                while count <= self._max_message_count_batch:
+                    try:
+                        log_msg = self._logs_queue.get(block=False)
+
+                        logs_msg_size = self.__gateway.get_data_size(log_msg)
+                        if logs_msg_size > self.__gateway.get_max_payload_size_bytes():
+                            print(f'Too big LOG message size to send ({logs_msg_size}). Skipping...')
+                            continue
+
+                        if self.__gateway.get_data_size(
+                                logs_for_sending_list) + logs_msg_size > self.__gateway.get_max_payload_size_bytes():
+                            self.__gateway.tb_client.client.send_telemetry(logs_for_sending_list)
+                            logs_for_sending_list = [log_msg]
+                        else:
+                            logs_for_sending_list.append(log_msg)
+
+                        count += 1
+                    except Empty:
+                        break
+
+                if logs_for_sending_list:
+                    self.__gateway.tb_client.client.send_telemetry(logs_for_sending_list)
+
+            sleep(1)
+
     def activate(self, log_level=None):
         try:
             for logger in self.loggers:
@@ -66,6 +105,7 @@ class TBLoggerHandler(logging.Handler):
             log = TbLogger('service')
             log.exception(e)
         self.activated = True
+        self._send_logs_thread.start()
 
     def handle(self, record):
         if self.activated and not self.__gateway.stopped:
@@ -76,8 +116,7 @@ class TBLoggerHandler(logging.Handler):
             except KeyError:
                 telemetry_key = name + '_LOGS'
 
-            self.__gateway.tb_client.client.send_telemetry(
-                {'ts': int(time() * 1000), 'values': {telemetry_key: record, 'LOGS': record}})
+            self._logs_queue.put({'ts': int(time() * 1000), 'values': {telemetry_key: record, 'LOGS': record}})
 
     def deactivate(self):
         self.activated = False

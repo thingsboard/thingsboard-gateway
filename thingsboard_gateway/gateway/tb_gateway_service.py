@@ -974,6 +974,10 @@ class TBGatewayService:
         return getsizeof(str(data))
 
     @staticmethod
+    def get_data_size(data):
+        return TBGatewayService.__get_data_size(data)
+
+    @staticmethod
     def __convert_telemetry_to_ts(data):
         telemetry = {}
         telemetry_with_ts = []
@@ -1476,6 +1480,9 @@ class TBGatewayService:
     # GETTERS --------------------
     def ping(self):
         return self.name
+
+    def get_max_payload_size_bytes(self):
+        return self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
 
     # ----------------------------
     # Storage --------------------
