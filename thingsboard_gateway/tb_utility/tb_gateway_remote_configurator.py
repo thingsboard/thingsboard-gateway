@@ -197,24 +197,22 @@ class RemoteConfigurator:
         """
 
         LOG.debug('Sending all configurations (init)')
-        self._gateway.tb_client.client.send_attributes(
-            {'general_configuration': self._get_general_config_in_remote_format()})
-        self._gateway.tb_client.client.send_attributes({'storage_configuration': self.storage_configuration})
-        self._gateway.tb_client.client.send_attributes({'grpc_configuration': self.grpc_configuration})
-        self._gateway.tb_client.client.send_attributes(
-            {'logs_configuration': {**self._logs_configuration, 'ts': int(time() * 1000)}})
-        self._gateway.tb_client.client.send_attributes({'active_connectors': self._get_active_connectors()})
-        self._send_default_connectors_config()
-        self._gateway.tb_client.client.send_attributes({'Version': self._gateway.version.get('current_version', '0.0')})
+        init_config_message = {
+            'general_configuration': self._get_general_config_in_remote_format(),
+            'storage_configuration': self.storage_configuration,
+            'grpc_configuration': self.grpc_configuration,
+            'logs_configuration': {**self._logs_configuration, 'ts': int(time() * 1000)},
+            'active_connectors': self._get_active_connectors(),
+            'Version': self._gateway.version.get('current_version', '0.0')
+        }
+        self._gateway.tb_client.client.send_attributes(init_config_message)
 
         # sending remote created connectors
-        already_sent_connectors = []
         for connector in self.connectors_configuration:
             self._gateway.tb_client.client.send_attributes(
                 {connector['name']: {**connector,
                                      'logLevel': connector.get('configurationJson', {}).get('logLevel', 'INFO'),
                                      'ts': int(time() * 1000)}})
-            already_sent_connectors.append(connector['configuration'])
 
     def _load_connectors_configuration(self):
         for (_, connector_list) in self._gateway.connectors_configs.items():
