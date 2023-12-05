@@ -342,11 +342,12 @@ class TBGatewayService:
 
             config = {}
             try:
-                with open(''.join(config_file.split('.')[:-1]) + '.yaml') as general_config:
+                filename = ''.join(config_file.split('.')[:-1])
+                with open(filename + '.yaml') as general_config:
                     config = safe_load(general_config)
 
-                with open(config_file, 'w') as file:
-                    file.writelines(dumps(config))
+                with open(filename + '.json', 'w') as file:
+                    file.writelines(dumps(config, indent='  '))
             except Exception as e:
                 log.exception('Failed to load configuration file:\n %s', e)
 
