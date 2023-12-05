@@ -769,7 +769,7 @@ class TBGatewayService:
             if connectors_persistent_keys:
                 self.__save_persistent_keys(connectors_persistent_keys)
         else:
-            log.error("Connectors - not found! Check your configuration!")
+            log.warning("Connectors - not found!")
             self.__init_remote_configuration(force=True)
             log.info("Remote configuration is enabled forcibly!")
 
