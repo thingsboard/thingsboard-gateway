@@ -659,11 +659,12 @@ class OpcUaConnector(Thread, Connector):
                                 self._log.debug("SHOW MAP: Current node path: %s - NODE FOUND", new_node_path)
                             if new_node_class == ua.NodeClass.Object:
                                 if self.__show_map:
-                                    self._log.debug("SHOW MAP: Search in %s", new_node_path)
+                                    self._log.debug("SHOW MAP: Search for %s in %s", fullpath, new_node_path)
                                 self.__search_node(child_node, fullpath, result=result)
-                            # elif new_node_class == ua.NodeClass.Variable:
-                            #     self._log.debug("Found in %s", new_node_path)
-                            #     result.append(child_node)
+                            elif new_node_class == ua.NodeClass.Variable:
+                                if self.__show_map:
+                                    self._log.debug("SHOW MAP: Search for %s in %s", fullpath, new_node_path)
+                                self.__search_node(child_node, fullpath, result=result)
                             elif new_node_class == ua.NodeClass.Method and search_method:
                                 self._log.debug("Found in %s", new_node_path)
                                 result.append(child_node)
