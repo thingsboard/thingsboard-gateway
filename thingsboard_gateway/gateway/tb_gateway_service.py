@@ -342,11 +342,12 @@ class TBGatewayService:
 
             config = {}
             try:
-                with open(''.join(config_file.split('.')[:-1]) + '.yaml') as general_config:
+                filename = ''.join(config_file.split('.')[:-1])
+                with open(filename + '.yaml') as general_config:
                     config = safe_load(general_config)
 
-                with open(config_file, 'w') as file:
-                    file.writelines(dumps(config))
+                with open(filename + '.json', 'w') as file:
+                    file.writelines(dumps(config, indent='  '))
             except Exception as e:
                 log.exception('Failed to load configuration file:\n %s', e)
 
@@ -768,7 +769,7 @@ class TBGatewayService:
             if connectors_persistent_keys:
                 self.__save_persistent_keys(connectors_persistent_keys)
         else:
-            log.error("Connectors - not found! Check your configuration!")
+            log.warning("Connectors - not found!")
             self.__init_remote_configuration(force=True)
             log.info("Remote configuration is enabled forcibly!")
 
@@ -972,6 +973,10 @@ class TBGatewayService:
     @staticmethod
     def __get_data_size(data: dict):
         return getsizeof(str(data))
+
+    @staticmethod
+    def get_data_size(data):
+        return TBGatewayService.__get_data_size(data)
 
     @staticmethod
     def __convert_telemetry_to_ts(data):
@@ -1476,6 +1481,9 @@ class TBGatewayService:
     # GETTERS --------------------
     def ping(self):
         return self.name
+
+    def get_max_payload_size_bytes(self):
+        return self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
 
     # ----------------------------
     # Storage --------------------
