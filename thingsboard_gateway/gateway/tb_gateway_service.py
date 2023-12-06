@@ -59,7 +59,7 @@ try:
 except ImportError:
     print("Cannot load GRPC connector!")
 
-log = None
+log:TbLogger = None
 main_handler = logging.handlers.MemoryHandler(-1)
 
 DEFAULT_CONNECTORS = {
@@ -515,6 +515,8 @@ class TBGatewayService:
 
         if self.__grpc_manager is not None:
             self.__grpc_manager.stop()
+        if os.path.exists("/tmp/gateway"):
+            os.remove("/tmp/gateway")
         self.__close_connectors()
         self._event_storage.stop()
         log.info("The gateway has been stopped.")

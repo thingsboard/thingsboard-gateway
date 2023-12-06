@@ -14,12 +14,12 @@
 
 import os.path
 from logging import getLogger
-from time import sleep, time
 from logging.config import dictConfig
+from time import sleep, time
 
+from packaging import version
 from regex import fullmatch
 from simplejson import dumps, load
-from packaging import version
 
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
@@ -231,8 +231,8 @@ class RemoteConfigurator:
         try:
             with open(self._gateway.get_config_path() + 'logs.json', 'r') as logs:
                 return load(logs)
-        except Exception as e:
-            LOG.exception(e)
+        except Exception:
+            LOG.warning("Cannot open logs configuration file. Using default logs configuration.")
             return {}
 
     def process_config_request(self, config):
@@ -383,7 +383,17 @@ class RemoteConfigurator:
         try:
             LOG = getLogger('service')
             logs_conf_file_path = self._gateway.get_config_path() + 'logs.json'
-
+            target_handlers = {}
+            for handler in config['handlers']:
+                filename = config['handlers'][handler].get('filename')
+                if "consoleHandler" == handler or (filename is not None and os.path.exists(filename)):
+                    target_handlers[handler] = config['handlers'][handler]
+                else:
+                    LOG.warning('Handler %s not found. Removing from configuration...', handler)
+                    for logger in config['loggers']:
+                        if handler in config['loggers'][logger]['handlers']:
+                            config['loggers'][logger]['handlers'].remove(handler)
+            config['handlers'] = target_handlers
             dictConfig(config)
             LOG = getLogger('service')
             self._gateway.remote_handler = TBLoggerHandler(self._gateway)
@@ -397,7 +407,7 @@ class RemoteConfigurator:
             LOG.debug("Logs configuration has been updated.")
             self._gateway.tb_client.client.send_attributes({'logs_configuration': config})
         except Exception as e:
-            LOG.error("Remote logging configuration is wrong!")
+            LOG.error("Remote logging configuration is wrong, cannot apply it!")
             LOG.exception(e)
 
     def _handle_active_connectors_update(self, config):

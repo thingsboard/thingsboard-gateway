@@ -20,9 +20,10 @@ from typing import Union
 
 import simplejson
 from simplejson import dumps
+
+from thingsboard_gateway.gateway.proto.messages_pb2 import *
 from thingsboard_gateway.grpc_connectors.gw_grpc_client import GrpcClient
 from thingsboard_gateway.grpc_connectors.gw_grpc_msg_creator import GrpcMsgCreator, Status
-from thingsboard_gateway.gateway.proto.messages_pb2 import *
 
 log = getLogger('connector')
 
@@ -30,7 +31,7 @@ log = getLogger('connector')
 class GwGrpcConnector(Thread):
     def __init__(self, connector_config: str, config_dir_path: str):
         super().__init__()
-        fileConfig(config_dir_path + 'logs.conf')
+        fileConfig(config_dir_path + 'logs.json')
         global log
         log = getLogger('connector')
         self.stopped = False
