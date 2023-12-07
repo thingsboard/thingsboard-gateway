@@ -206,6 +206,7 @@ class RemoteConfigurator:
             'Version': self._gateway.version.get('current_version', '0.0')
         }
         self._gateway.tb_client.client.send_attributes(init_config_message)
+        self._send_default_connectors_config()
 
         # sending remote created connectors
         for connector in self.connectors_configuration:
