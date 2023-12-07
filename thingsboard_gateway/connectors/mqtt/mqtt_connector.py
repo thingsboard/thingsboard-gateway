@@ -401,8 +401,7 @@ class MqttConnector(Connector, Thread):
                     regex_topic = mapping["topicFilter"]
                     if not regex_topic.startswith('$aws') and regex_topic.startswith('$'):
                         regex_topic = '/'.join(regex_topic.split('/')[2:])
-                    else:
-                        regex_topic = TBUtility.topic_to_regex(regex_topic)
+                    regex_topic = TBUtility.topic_to_regex(regex_topic)
 
                     # There may be more than one converter per topic, so I'm using vectors
                     if not self.__mapping_sub_topics.get(regex_topic):
