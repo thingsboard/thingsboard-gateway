@@ -13,6 +13,7 @@
 #     limitations under the License.
 
 import json
+from asyncio import CancelledError, run_coroutine_threadsafe
 from queue import Queue
 from random import choice
 from re import fullmatch
@@ -136,7 +137,7 @@ class RESTConnector(Connector, Thread):
     def __run_server(self):
         self.endpoints = self.load_endpoints()
 
-        self._app = web.Application(debug=self.__config.get('debugMode', False))
+        self._app = web.Application(debug=self.__config.get('debugMode', False), logger=self.__log)
 
         ssl_context = None
         cert = None
@@ -162,7 +163,8 @@ class RESTConnector(Connector, Thread):
 
         self.load_handlers()
         web.run_app(self._app, host=self.__config['host'], port=self.__config['port'], handle_signals=False,
-                    ssl_context=ssl_context, reuse_port=self.__config['port'], reuse_address=self.__config['host'])
+                    ssl_context=ssl_context, reuse_port=self.__config['port'], reuse_address=self.__config['host'],
+                    access_log=self.__log)
 
     def run(self):
         self._connected = True
@@ -171,10 +173,20 @@ class RESTConnector(Connector, Thread):
             self.__run_server()
         except Exception as e:
             self.__log.exception(e)
+        except CancelledError:
+            pass
+
+    async def stop_server(self):
+        await self._app.shutdown()
+        await self._app.cleanup()
 
     def close(self):
         self.__stopped = True
         self._connected = False
+        loop = self._app.loop
+        run_coroutine_threadsafe(self.stop_server(), loop)
+        sleep(1)
+        self.__log.info('REST connector stopped.')
         self.__log.reset()
 
     def get_name(self):
