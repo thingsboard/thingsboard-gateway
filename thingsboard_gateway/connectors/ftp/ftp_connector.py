@@ -257,8 +257,7 @@ class FTPConnector(Connector, Thread):
 
     @StatisticsService.CollectAllReceivedBytesStatistics('allBytesSentToDevices')
     def _get_io_stream(self, data_expression):
-        _io = io.BytesIO(str.encode(data_expression))
-        return _io
+        return io.BytesIO(str.encode(data_expression))
 
     def __fill_rpc_requests(self):
         for rpc_request in self.__config.get("serverSideRpc", []):
