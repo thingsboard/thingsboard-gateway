@@ -787,7 +787,7 @@ class TBGatewayService:
                             connector = None
                             connector_name = None
                             try:
-                                if connector_config["config"][config] is not None and len(connector_config["config"][config].keys()) > 2:
+                                if connector_config["config"][config] is not None and len(connector_config["config"][config].keys()) > 1:
                                     connector_name = connector_config["name"]
 
                                     if not self.available_connectors.get(connector_name):
