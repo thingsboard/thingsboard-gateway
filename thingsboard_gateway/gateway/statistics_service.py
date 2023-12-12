@@ -125,7 +125,8 @@ class StatisticsService(Thread):
                 except ValueError:
                     pass
 
-                func(*args, **kwargs)
+                result = func(*args, **kwargs)
+                return result
 
             return inner
 

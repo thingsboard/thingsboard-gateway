@@ -28,15 +28,7 @@ from thingsboard_gateway.connectors.ftp.file import File
 from thingsboard_gateway.connectors.ftp.ftp_uplink_converter import FTPUplinkConverter
 from thingsboard_gateway.connectors.ftp.path import Path
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
-
-try:
-    from requests import Timeout, request
-except ImportError:
-    print("Requests library not found - installing...")
-    TBUtility.install_package("requests")
-    from requests import Timeout, request
 
 from thingsboard_gateway.connectors.connector import Connector
 
@@ -83,6 +75,7 @@ class FTPConnector(Connector, Thread):
                 )
             for obj in self.__config['paths']
             ]
+        self.__log.info('FTP Connector started.')
 
     def open(self):
         self.__stopped = False
@@ -193,6 +186,7 @@ class FTPConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
+        self.__log.info('FTP Connector stopped.')
         self.__log.reset()
 
     def get_name(self):
@@ -276,7 +270,7 @@ class FTPConnector(Connector, Thread):
                 if fullmatch(rpc_request['deviceNameFilter'], content['device']) and fullmatch(
                         rpc_request['methodFilter'], content['data']['method']):
                     with self.__ftp() as ftp:
-                        if not self._connected:
+                        if not self._connected or not ftp.sock:
                             self.__connect(ftp)
 
                         converted_data = None
