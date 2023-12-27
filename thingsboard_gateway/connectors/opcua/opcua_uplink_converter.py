@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from re import fullmatch
 from time import time
 from datetime import timezone
 
@@ -37,6 +36,8 @@ class OpcUaUplinkConverter(OpcUaConverter):
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
     def convert(self, config, val, data=None, key=None):
+        information = config[0]
+        information_type = config[1]
         device_name = self.__config["deviceName"]
         result = {"deviceName": device_name,
                   "deviceType": self.__config.get("deviceType", "OPC-UA Device"),
@@ -44,31 +45,21 @@ class OpcUaUplinkConverter(OpcUaConverter):
                   "telemetry": [], }
         try:
             information_types = {"attributes": "attributes", "timeseries": "telemetry"}
-            for information_type in information_types:
-                for information in self.__config[information_type]:
-                    path = TBUtility.get_value(information["path"], get_tag=True)
-                    if isinstance(config, tuple):
-                        config_information = config[0].replace('\\\\', '\\') if path == config[0].replace('\\\\', '\\') or fullmatch(path,
-                                                                                                                                     config[0].replace('\\\\',
-                                                                                                                                                       '\\')) else \
-                        config[1].replace('\\\\', '\\')
-                    else:
-                        config_information = config.replace('\\\\', '\\')
-                    if path == config_information or fullmatch(path, config_information) or path.replace('\\\\', '\\') == config_information:
-                        full_key = key if key else information["key"]
-                        full_value = information["path"].replace("${"+path+"}", str(val))
-                        if information_type == 'timeseries' and data is not None and not self.__config.get(
-                                'subOverrideServerTime', False):
-                            # Note: SourceTimestamp and ServerTimestamp may be naive datetime objects, hence for the timestamp() the tz must first be overwritten to UTC (which it is according to the spec)
-                            if data.monitored_item.Value.SourceTimestamp is not None:
-                                timestamp = int(data.monitored_item.Value.SourceTimestamp.replace(tzinfo=timezone.utc).timestamp()*1000)
-                            elif data.monitored_item.Value.ServerTimestamp is not None:
-                                timestamp = int(data.monitored_item.Value.ServerTimestamp.replace(tzinfo=timezone.utc).timestamp()*1000)
-                            else:
-                                timestamp = int(time()*1000)
-                            result[information_types[information_type]].append({"ts": timestamp, 'values': {full_key: full_value}})
-                        else:
-                            result[information_types[information_type]].append({full_key: full_value})
+            path = TBUtility.get_value(information["path"], get_tag=True)
+            full_key = key if key else information["key"]
+            full_value = information["path"].replace("${"+path+"}", str(val))
+            if information_type == 'timeseries' and data is not None and not self.__config.get(
+                    'subOverrideServerTime', False):
+                # Note: SourceTimestamp and ServerTimestamp may be naive datetime objects, hence for the timestamp() the tz must first be overwritten to UTC (which it is according to the spec)
+                if data.monitored_item.Value.SourceTimestamp is not None:
+                    timestamp = int(data.monitored_item.Value.SourceTimestamp.replace(tzinfo=timezone.utc).timestamp()*1000)
+                elif data.monitored_item.Value.ServerTimestamp is not None:
+                    timestamp = int(data.monitored_item.Value.ServerTimestamp.replace(tzinfo=timezone.utc).timestamp()*1000)
+                else:
+                    timestamp = int(time()*1000)
+                result[information_types[information_type]].append({"ts": timestamp, 'values': {full_key: full_value}})
+            else:
+                result[information_types[information_type]].append({full_key: full_value})
             return result
         except Exception as e:
             self._log.exception(e)

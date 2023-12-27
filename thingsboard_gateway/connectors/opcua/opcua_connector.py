@@ -36,9 +36,9 @@ except ImportError:
     TBUtility.install_package("opcua")
     from opcua import Client, Node, ua
 
-try:   
+try:
     from opcua.crypto import uacrypto
-except ImportError: 
+except ImportError:
     TBUtility.install_package("cryptography")
     from opcua.crypto import uacrypto
 
@@ -414,6 +414,8 @@ class OpcUaConnector(Thread, Connector):
                 information["path"] = '${%s}' % information_path
                 information_nodes = []
                 self.__search_node(device_info["deviceNode"], information_path, result=information_nodes)
+                if len(information_nodes) == 0:
+                    self._log.error("No nodes found for: %s - %s -  %s", information_type, information["key"], information_path)
 
                 for information_node in information_nodes:
                     changed_key = False
@@ -440,8 +442,8 @@ class OpcUaConnector(Thread, Connector):
                             converter = device_info["uplink_converter"]
 
                         self.subscribed[information_node] = {"converter": converter,
-                                                             "path": information_path,
-                                                             "config_path": config_path}
+                                                             "information": information,
+                                                             "information_type": information_type}
 
                         # Use Node name if param "key" not found in config
                         if not information.get('key'):
@@ -460,7 +462,7 @@ class OpcUaConnector(Thread, Connector):
                         if not device_info.get(information_types[information_type]):
                             device_info[information_types[information_type]] = []
 
-                        converted_data = converter.convert((config_path, information_path), information_value)
+                        converted_data = converter.convert((information, information_type), information_value)
                         self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                         self.data_to_send.append(converted_data)
                         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
@@ -470,7 +472,7 @@ class OpcUaConnector(Thread, Connector):
                             sub_nodes.append(information_node)
                     else:
                         self._log.error("Node for %s \"%s\" with path %s - NOT FOUND!", information_type,
-                                        information_key, information_path)
+                                        information['key'], information_path)
 
                     if changed_key:
                         information['key'] = None
@@ -729,8 +731,8 @@ class SubHandler(object):
         try:
             self.connector._log.debug("Python: New data change event on node %s, with val: %s and data %s", node, val, str(data))
             subscription = self.connector.subscribed[node]
-            converted_data = subscription["converter"].convert((subscription["config_path"], subscription["path"]), val,
-                                                               data, key=subscription.get('key'))
+            converted_data = subscription["converter"].convert(
+                (subscription["information"], subscription["information_type"]), val, data, key=subscription.get('key'))
             self.connector.statistics['MessagesReceived'] = self.connector.statistics['MessagesReceived'] + 1
             self.connector.data_to_send.append(converted_data)
             self.connector.statistics['MessagesSent'] = self.connector.statistics['MessagesSent'] + 1
