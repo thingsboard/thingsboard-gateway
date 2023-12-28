@@ -685,13 +685,13 @@ class OpcUaConnector(Thread, Connector):
         if re.search(r"^root", config_path.lower()) is None:
             node_path = self.get_node_path(node)
             # node_path = '\\\\.'.join(char.split(":")[1] for char in node.get_path(200000, True))
-            if config_path[-3:] != '\\.':
-                information_path = (node_path + '\\.' + config_path).replace('\\', '\\\\')
+            if config_path[:2] != '\\.':
+                information_path = node_path + '\\.' + config_path
             else:
-                information_path = node_path + config_path.replace('\\', '\\\\')
+                information_path = node_path + config_path
         else:
             information_path = config_path
-        result = information_path[:]
+        result = information_path[:].replace('\\', '\\\\')
         return result
 
     @property
