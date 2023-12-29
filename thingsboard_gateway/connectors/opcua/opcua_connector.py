@@ -691,8 +691,7 @@ class OpcUaConnector(Thread, Connector):
                 information_path = node_path + config_path
         else:
             information_path = config_path
-        result = information_path[:].replace('\\', '\\\\')
-        return result
+        return information_path.replace('\\', '\\\\')
 
     @property
     def subscribed(self):
