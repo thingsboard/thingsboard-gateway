@@ -162,8 +162,8 @@ class RESTConnector(Connector, Thread):
             ssl_context.load_cert_chain(cert, key)
 
         self.load_handlers()
-        web.run_app(self._app, host=self.__config['host'], port=self.__config['port'], handle_signals=False,
-                    ssl_context=ssl_context, reuse_port=self.__config['port'], reuse_address=self.__config['host'],
+        web.run_app(self._app, host=self.__config['host'], port=int(self.__config.get('port', 5000)),
+                    handle_signals=False, ssl_context=ssl_context, reuse_port=True, reuse_address=self.__config['host'],
                     access_log=self.__log)
 
     def run(self):
@@ -287,10 +287,10 @@ class RESTConnector(Connector, Thread):
                         response = self.__send_request(request_dict, Queue(1), self.__log, with_queue=False)
 
                         self.__log.debug('Response from RPC request: %s', response)
-                        self.__gateway.send_rpc_reply(device=content["device"],
-                                                      req_id=content["data"]["id"],
-                                                      content=response[2] if response and len(
-                                                          response) >= 3 else response)
+                        if (content['data'].get('id') is not None) and (response is not None):
+                            self.__gateway.send_rpc_reply(device=content["device"],
+                                                          req_id=content["data"]["id"],
+                                                          content=response[2] if response and len(response) >= 3 else response)
         except Exception as e:
             self.__log.exception(e)
 
