@@ -163,7 +163,7 @@ class RESTConnector(Connector, Thread):
 
         self.load_handlers()
         web.run_app(self._app, host=self.__config['host'], port=int(self.__config.get('port', 5000)),
-                    handle_signals=False, ssl_context=ssl_context, reuse_port=True, reuse_address=self.__config['host'],
+                    handle_signals=False, ssl_context=ssl_context, reuse_port=True, reuse_address=True,
                     access_log=self.__log)
 
     def run(self):
