@@ -294,6 +294,7 @@ class SocketConnector(Connector, Thread):
     def close(self):
         self.__stopped = True
         self._connected = False
+        self.__socket.close()
         self.__connections = {}
         self.__log.info('%s connector has been stopped.', self.get_name())
         self.__log.reset()
