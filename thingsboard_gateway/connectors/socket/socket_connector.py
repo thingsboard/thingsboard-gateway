@@ -54,6 +54,7 @@ class SocketConnector(Connector, Thread):
         self.__socket_port = config['port']
         self.__socket_buff_size = config['bufferSize']
         self.__socket = socket.socket(socket.AF_INET, SOCKET_TYPE[self.__socket_type])
+        self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.__converting_requests = Queue(-1)
 
         self.__devices, self.__device_converters = self.__convert_devices_list()
@@ -294,7 +295,7 @@ class SocketConnector(Connector, Thread):
         self.__stopped = True
         self._connected = False
         self.__connections = {}
-        self.__socket.close()
+        self.__log.info('%s connector has been stopped.', self.get_name())
         self.__log.reset()
 
     def get_name(self):
