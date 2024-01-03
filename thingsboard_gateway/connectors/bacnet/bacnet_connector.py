@@ -134,6 +134,9 @@ class BACnetConnector(Thread, Connector):
     def is_connected(self):
         return self.__connected
 
+    def is_stopped(self):
+        return self.__stopped
+
     @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         try:

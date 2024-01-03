@@ -120,10 +120,11 @@ class ModbusConnector(Connector, Thread):
         self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config, gateway.get_config_path(),
                                                                              logger=self.__log)
         self.__config = self.__backward_compatibility_adapter.convert()
-        self.setName(self.__config.get("name", 'Modbus Default ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.setName(self.__config.get("name", 'Modbus Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
 
         self.__connected = False
         self.__stopped = False
+        self.__stopping = False
         self.daemon = True
 
         self.lock = Lock()
@@ -138,7 +139,7 @@ class ModbusConnector(Connector, Thread):
 
         if self.__config.get('slave'):
             self.__slave_thread = Thread(target=self.__configure_and_run_slave, args=(self.__config['slave'],),
-                                         daemon=True, name='Gateway as a slave')
+                                         daemon=True, name='Gateway modbus slave')
             self.__slave_thread.start()
 
             if config['slave'].get('sendDataToThingsBoard', False):
@@ -150,8 +151,18 @@ class ModbusConnector(Connector, Thread):
     def is_connected(self):
         return self.__connected
 
+    def is_stopped(self):
+        return self.__stopped
+
     def open(self):
+        stopping_started = time()
+        while self.__stopping:
+            sleep(.1)
+            if (time() - stopping_started) > TIMEOUT:
+                self.__log.error("Stopping timeout exceeded!")
+                break
         self.__stopped = False
+        self.__log.debug("Starting %s...", self.get_name())
         self.start()
 
     def get_type(self):
@@ -160,9 +171,10 @@ class ModbusConnector(Connector, Thread):
     def run(self):
         self.__connected = True
 
-        thread = Thread(target=self.__process_slaves, daemon=True)
+        thread = Thread(target=self.__process_slaves, daemon=True, name="Modbus connector master processor thread")
         thread.start()
 
+        self.__log.debug("%s connector with name %s started.", self.connector_type, self.get_name())
         while not self.__stopped:
             self.__thread_manager()
 
@@ -180,6 +192,9 @@ class ModbusConnector(Connector, Thread):
             identity.MajorMinorRevision = version.short()
 
         blocks = {}
+        if (config.get('values') is None) or (not len(config.get('values'))):
+            self.__log.error("No values to read from device %s", config.get('deviceName', 'Modbus Slave'))
+            return
         for (key, value) in config.get('values').items():
             values = {}
             converter = BytesModbusDownlinkConverter({}, self.__log)
@@ -191,11 +206,17 @@ class ModbusConnector(Connector, Thread):
                         converted_value = converter.convert(
                             {**val,
                              'device': config.get('deviceName', 'Gateway'), 'functionCode': function_code,
-                             'byteOrder': config['byteOrder'], 'wordOrder': config['wordOrder']},
+                             'byteOrder': config['byteOrder'], 'wordOrder': config.get('wordOrder', 'BIG')},
                             {'data': {'params': val['value']}})
-                        values[val['address'] + 1] = converted_value
+                        if converted_value is not None:
+                            values[val['address'] + 1] = converted_value
+                        else:
+                            self.__log.error("Failed to convert value %s with type %s, skipping...", val['value'], val['type'])
+            if len(values):
+                blocks[FUNCTION_TYPE[key]] = ModbusSparseDataBlock(values)
 
-            blocks[FUNCTION_TYPE[key]] = ModbusSparseDataBlock(values)
+        if not len(blocks):
+            self.__log.info("%s - will be initialized without values", config.get('deviceName', 'Modbus Slave'))
 
         context = ModbusServerContext(slaves=ModbusSlaveContext(**blocks), single=True)
         SLAVE_TYPE[config['type']](context=context, identity=identity,
@@ -246,7 +267,7 @@ class ModbusConnector(Connector, Thread):
         threads_count = len(self.__workers_thread_pool)
         if number_of_needed_threads > threads_count < self.__max_number_of_workers:
             thread = ModbusConnector.ConverterWorker(
-                "Worker " + ''.join(choice(ascii_lowercase) for _ in range(5)), self._convert_msg_queue,
+                "Converter worker " + ''.join(choice(ascii_lowercase) for _ in range(5)), self._convert_msg_queue,
                 self._save_data, self.__log)
             self.__workers_thread_pool.append(thread)
             thread.start()
@@ -301,6 +322,8 @@ class ModbusConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
+        self.__stopping = True
+        self.__log.debug("Stopping %s...", self.get_name())
         self.__stop_connections_to_masters()
 
         # Stop all slaves
@@ -311,6 +334,7 @@ class ModbusConnector(Connector, Thread):
             ServerStop()
         self.__log.info('%s has been stopped.', self.get_name())
         self.__log.reset()
+        self.__stopping = False
 
     def get_name(self):
         return self.name

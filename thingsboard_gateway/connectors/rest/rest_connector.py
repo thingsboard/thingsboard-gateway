@@ -198,6 +198,9 @@ class RESTConnector(Connector, Thread):
     def is_connected(self):
         return self._connected
 
+    def is_stopped(self):
+        return self.__stopped
+
     def get_config(self):
         return self.__config
 

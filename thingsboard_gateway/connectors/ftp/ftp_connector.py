@@ -198,6 +198,9 @@ class FTPConnector(Connector, Thread):
     def is_connected(self):
         return self._connected
 
+    def is_stopped(self):
+        return self.__stopped
+
     def __fill_attributes_update(self):
         for attribute_request in self.__config.get('attributeUpdates', []):
             self.__attribute_updates.append(attribute_request)

@@ -85,6 +85,9 @@ class OpcUaConnector(Thread, Connector):
     def is_connected(self):
         return self.__connected
 
+    def is_stopped(self):
+        return self.__stopped
+
     def get_type(self):
         return self._connector_type
 

@@ -103,6 +103,9 @@ class OdbcConnector(Connector, Thread):
     def is_connected(self):
         return self.__connection is not None
 
+    def is_stopped(self):
+        return self.__stopped
+
     def on_attributes_update(self, content):
         pass
 

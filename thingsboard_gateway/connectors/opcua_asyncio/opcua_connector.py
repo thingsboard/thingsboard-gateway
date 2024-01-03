@@ -130,6 +130,9 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
     def is_connected(self):
         return self.__connected
 
+    def is_stopped(self):
+        return self.__stopped
+
     def get_config(self):
         return self.__server_conf
 

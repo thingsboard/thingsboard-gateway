@@ -31,6 +31,7 @@ from time import sleep, time
 from simplejson import JSONDecodeError, dumps, load, loads
 from yaml import safe_load
 
+from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME
@@ -198,7 +199,7 @@ class TBGatewayService:
         self.__updates_check_time = 0
         self.version = self.__updater.get_version()
         log.info("ThingsBoard IoT gateway version: %s", self.version["current_version"])
-        self.available_connectors = {}
+        self.available_connectors: dict[str, Connector] = {}
         self.__connector_incoming_messages = {}
         self.__connected_devices = {}
         self.__renamed_devices = {}
@@ -701,6 +702,7 @@ class TBGatewayService:
         self._load_connectors(config=config)
 
     def _load_connectors(self, config=None):
+        global log
         self.connectors_configs = {}
         connectors_persistent_keys = self.__load_persistent_connector_keys()
 
@@ -779,6 +781,7 @@ class TBGatewayService:
         self.__connect_with_connectors()
 
     def __connect_with_connectors(self):
+        global log
         for connector_type in self.connectors_configs:
             for connector_config in self.connectors_configs[connector_type]:
                 if self._implemented_connectors.get(connector_type.lower()) is not None:
@@ -790,16 +793,17 @@ class TBGatewayService:
                                 if connector_config["config"][config] is not None and len(connector_config["config"][config].keys()) > 2:
                                     connector_name = connector_config["name"]
 
-                                    if not self.available_connectors.get(connector_name):
+                                    available_connector = self.available_connectors.get(connector_name)
+
+                                    if available_connector is None or available_connector.is_stopped():
                                         connector = self._implemented_connectors[connector_type](self,
-                                                                                                 connector_config["config"][
-                                                                                                     config],
+                                                                                                 connector_config["config"][config],
                                                                                                  connector_type)
                                         connector.setName(connector_name)
                                         self.available_connectors[connector.get_name()] = connector
                                         connector.open()
                                     else:
-                                        break
+                                        log.warning("Connector with name %s already exists and not stopped!", connector_name)
                                 else:
                                     log.warning("Config not found or empty for %s", connector_type)
                             except Exception as e:

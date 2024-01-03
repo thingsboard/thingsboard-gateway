@@ -110,6 +110,9 @@ class CanConnector(Connector, Thread):
     def is_connected(self):
         return self.__connected
 
+    def is_stopped(self):
+        return self.__stopped
+
     def on_attributes_update(self, content):
         for attr_name, attr_value in content["data"].items():
             attr_config = self.__shared_attributes.get(content["device"], {}).get(attr_name)

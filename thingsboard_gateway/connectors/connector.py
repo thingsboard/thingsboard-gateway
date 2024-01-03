@@ -44,6 +44,10 @@ class Connector(ABC):
         pass
 
     @abstractmethod
+    def is_stopped(self):
+        pass
+
+    @abstractmethod
     def on_attributes_update(self, content):
         pass
 

@@ -89,6 +89,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
             builder_functions[lower_type](value)
         else:
             self._log.error("Unknown variable type")
+            return None
 
         builder_converting_functions = {5: builder.to_coils,
                                         15: builder.to_coils,
@@ -99,7 +100,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
 
         if function_code in builder_converting_functions:
             builder = builder_converting_functions[function_code]()
-            self._log.debug(builder)
+            self._log.debug("Created builder %r.", builder)
             if "Exception" in str(builder):
                 self._log.exception(builder)
                 builder = str(builder)

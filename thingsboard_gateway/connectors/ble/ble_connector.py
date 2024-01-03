@@ -108,6 +108,9 @@ class BLEConnector(Connector, Thread):
     def is_connected(self):
         return self.__connected
 
+    def is_stopped(self):
+        return self.__stopped
+
     def __process_data(self):
         while not self.__stopped:
             if not BLEConnector.process_data.empty():

@@ -226,6 +226,9 @@ class OcppConnector(Connector, Thread):
     def is_connected(self):
         return self.__connected
 
+    def is_stopped(self):
+        return self.__stopped
+
     @classmethod
     def _callback(cls, data):
         cls.DATA_TO_CONVERT.put(data)

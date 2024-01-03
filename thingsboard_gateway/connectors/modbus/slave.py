@@ -99,13 +99,13 @@ class Slave(Thread):
         try:
             if self.config.get(UPLINK_PREFIX + CONVERTER_PARAMETER) is not None:
                 converter = TBModuleLoader.import_module(connector.connector_type,
-                                                         self.config[UPLINK_PREFIX + CONVERTER_PARAMETER])(self)
+                                                         self.config[UPLINK_PREFIX + CONVERTER_PARAMETER])(self, self._log)
             else:
                 converter = BytesModbusUplinkConverter({**self.config, 'deviceName': self.name}, self._log)
 
             if self.config.get(DOWNLINK_PREFIX + CONVERTER_PARAMETER) is not None:
                 downlink_converter = TBModuleLoader.import_module(connector.connector_type, self.config[
-                    DOWNLINK_PREFIX + CONVERTER_PARAMETER])(self)
+                    DOWNLINK_PREFIX + CONVERTER_PARAMETER])(self, self._log)
             else:
                 downlink_converter = BytesModbusDownlinkConverter(self.config, self._log)
 

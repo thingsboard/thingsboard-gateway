@@ -278,6 +278,9 @@ class MqttConnector(Connector, Thread):
     def is_connected(self):
         return self._connected
 
+    def is_stopped(self):
+        return self.__stopped
+
     def open(self):
         self.__stopped = False
         self.start()

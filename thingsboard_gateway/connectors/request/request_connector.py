@@ -308,6 +308,9 @@ class RequestConnector(Connector, Thread):
     def is_connected(self):
         return self.__connected
 
+    def is_stopped(self):
+        return self.__stopped
+
     def open(self):
         self.__stopped = False
         self.start()

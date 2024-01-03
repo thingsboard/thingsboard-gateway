@@ -65,3 +65,7 @@ RETRY_ON_INVALID_PARAMETER = "retryOnInvalid"
 
 PAYLOAD_PARAMETER = "payload"
 TAG_PARAMETER = "tag"
+
+# Default values
+
+TIMEOUT = 30
