@@ -53,7 +53,6 @@ except ImportError:
     TBUtility.install_package('twisted')
     from twisted.internet import reactor
 
-from twisted.internet import reactor
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
 from pymodbus.register_read_message import ReadRegistersResponseBase
@@ -137,6 +136,9 @@ class ModbusConnector(Connector, Thread):
         self.__max_msg_number_for_worker = config.get('maxMessageNumberPerWorker', 10)
         self.__max_number_of_workers = config.get('maxNumberOfWorkers', 100)
 
+        self.__slaves = []
+        self.__slave_thread = None
+
         if self.__config.get('slave'):
             self.__slave_thread = Thread(target=self.__configure_and_run_slave, args=(self.__config['slave'],),
                                          daemon=True, name='Gateway modbus slave')
@@ -144,8 +146,6 @@ class ModbusConnector(Connector, Thread):
 
             if config['slave'].get('sendDataToThingsBoard', False):
                 self.__modify_main_config()
-
-        self.__slaves = []
         self.__load_slaves()
 
     def is_connected(self):
@@ -206,7 +206,7 @@ class ModbusConnector(Connector, Thread):
                         converted_value = converter.convert(
                             {**val,
                              'device': config.get('deviceName', 'Gateway'), 'functionCode': function_code,
-                             'byteOrder': config['byteOrder'], 'wordOrder': config.get('wordOrder', 'BIG')},
+                             'byteOrder': config['byteOrder'], 'wordOrder': config.get('wordOrder', 'LITTLE')},
                             {'data': {'params': val['value']}})
                         if converted_value is not None:
                             values[val['address'] + 1] = converted_value
@@ -244,10 +244,9 @@ class ModbusConnector(Connector, Thread):
         self.__config['master']['slaves'].append(device)
 
     def __load_slaves(self):
-        self.__slaves = [
-            Slave(**{**device, 'connector': self, 'gateway': self.__gateway, 'logger': self.__log,
-                     'callback': ModbusConnector.callback}) for
-            device in self.__config.get('master', {'slaves': []}).get('slaves', [])]
+        for device in self.__config.get('master', {'slaves': []}).get('slaves', []):
+            self.__slaves.append(Slave(**{**device, 'connector': self, 'gateway': self.__gateway, 'logger': self.__log,
+                     'callback': ModbusConnector.callback}))
 
     @classmethod
     def callback(cls, slave):
@@ -274,7 +273,7 @@ class ModbusConnector(Connector, Thread):
         elif number_of_needed_threads < threads_count and threads_count > 1:
             worker: ModbusConnector.ConverterWorker = self.__workers_thread_pool[-1]
             if not worker.in_progress:
-                worker.stopped = True
+                worker.close()
                 self.__workers_thread_pool.remove(worker)
 
     def __convert_data(self, params):
@@ -330,8 +329,14 @@ class ModbusConnector(Connector, Thread):
         for slave in self.__slaves:
             slave.close()
 
-        if reactor.running:
+        if self.__slave_thread is not None:
             ServerStop()
+
+        # Stop all workers
+        for worker in self.__workers_thread_pool:
+            worker.close()
+
+        # self.__slave_thread.join()
         self.__log.info('%s has been stopped.', self.get_name())
         self.__log.reset()
         self.__stopping = False
@@ -340,7 +345,7 @@ class ModbusConnector(Connector, Thread):
         return self.name
 
     def __process_slaves(self):
-        while True:
+        while not self.__stopped:
             if not self.__stopped and not ModbusConnector.process_requests.empty():
                 device = ModbusConnector.process_requests.get()
 
@@ -738,7 +743,7 @@ class ModbusConnector(Connector, Thread):
         def __init__(self, name, incoming_queue, send_result, logger):
             super().__init__()
             self._log = logger
-            self.stopped = False
+            self.__stopped = False
             self.setName(name)
             self.setDaemon(True)
             self.__msg_queue = incoming_queue
@@ -746,7 +751,7 @@ class ModbusConnector(Connector, Thread):
             self.__send_result = send_result
 
         def run(self):
-            while not self.stopped:
+            while not self.__stopped:
                 if not self.__msg_queue.empty():
                     self.in_progress = True
                     convert_function, params = self.__msg_queue.get(True, 10)
@@ -757,3 +762,6 @@ class ModbusConnector(Connector, Thread):
                         self.in_progress = False
                 else:
                     sleep(.001)
+
+        def close(self):
+            self.__stopped = True

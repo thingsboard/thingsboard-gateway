@@ -73,6 +73,9 @@ class Slave(Thread):
         self.daemon = True
         self.stop = False
 
+        self.name = "Modbus slave processor for unit " + str(self.config['unitId']) + " on host " + str(
+            self.config['host']) + ":" + str(self.config['port'])
+
         self.start()
 
     def timer(self):
