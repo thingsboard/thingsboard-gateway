@@ -70,7 +70,8 @@ setup(
         'protobuf',
         'cachetools',
         'tb-mqtt-client>=1.5',
-        'packaging==23.1'
+        'packaging==23.1',
+        'service-identity'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
     entry_points={
