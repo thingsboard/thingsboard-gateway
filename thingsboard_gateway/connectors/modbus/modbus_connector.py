@@ -347,7 +347,7 @@ class ModbusConnector(Connector, Thread):
     def __process_slaves(self):
         while not self.__stopped:
             if not self.__stopped and not ModbusConnector.process_requests.empty():
-                device = ModbusConnector.process_requests.get()
+                device: Slave = ModbusConnector.process_requests.get()
 
                 self.__log.debug("Checking %s", device)
                 if device.config.get(TYPE_PARAMETER).lower() == 'serial':
@@ -361,10 +361,10 @@ class ModbusConnector(Connector, Thread):
                             current_device_config = device.config
 
                             if self.__connect_to_current_master(device):
-                                self.__gateway.add_device(device.name, {CONNECTOR_PARAMETER: self},
+                                self.__gateway.add_device(device.device_name, {CONNECTOR_PARAMETER: self},
                                                           device_type=device.config.get(DEVICE_TYPE_PARAMETER))
                             else:
-                                self.__gateway.del_device(device.name)
+                                self.__gateway.del_device(device.device_name)
                                 continue
 
                             if not device.config['master'].is_socket_open() or not len(

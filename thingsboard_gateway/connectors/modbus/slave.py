@@ -27,7 +27,7 @@ class Slave(Thread):
     def __init__(self, **kwargs):
         super().__init__()
         self.timeout = kwargs.get('timeout')
-        self.name = kwargs['deviceName']
+        self.device_name = kwargs['deviceName']
         self._log = kwargs['logger']
         self.poll_period = kwargs['pollPeriod'] / 1000
 
@@ -96,7 +96,7 @@ class Slave(Thread):
         self.stop = True
 
     def get_name(self):
-        return self.name
+        return self.device_name
 
     def __load_converters(self, connector, gateway):
         try:
@@ -104,7 +104,7 @@ class Slave(Thread):
                 converter = TBModuleLoader.import_module(connector.connector_type,
                                                          self.config[UPLINK_PREFIX + CONVERTER_PARAMETER])(self, self._log)
             else:
-                converter = BytesModbusUplinkConverter({**self.config, 'deviceName': self.name}, self._log)
+                converter = BytesModbusUplinkConverter({**self.config, 'deviceName': self.device_name}, self._log)
 
             if self.config.get(DOWNLINK_PREFIX + CONVERTER_PARAMETER) is not None:
                 downlink_converter = TBModuleLoader.import_module(connector.connector_type, self.config[
@@ -112,8 +112,8 @@ class Slave(Thread):
             else:
                 downlink_converter = BytesModbusDownlinkConverter(self.config, self._log)
 
-            if self.name not in gateway.get_devices():
-                gateway.add_device(self.name, {CONNECTOR_PARAMETER: connector},
+            if self.device_name not in gateway.get_devices():
+                gateway.add_device(self.device_name, {CONNECTOR_PARAMETER: connector},
                                    device_type=self.config.get(DEVICE_TYPE_PARAMETER))
 
             self.config[UPLINK_PREFIX + CONVERTER_PARAMETER] = converter
@@ -122,4 +122,4 @@ class Slave(Thread):
             self._log.exception(e)
 
     def __str__(self):
-        return f'{self.name}'
+        return f'{self.device_name}'
