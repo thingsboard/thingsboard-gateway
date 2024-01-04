@@ -349,7 +349,7 @@ class ModbusConnector(Connector, Thread):
             if not self.__stopped and not ModbusConnector.process_requests.empty():
                 device = ModbusConnector.process_requests.get()
 
-                self.__log.debug("Device connector type: %s", device.config.get(TYPE_PARAMETER))
+                self.__log.debug("Checking %s", device)
                 if device.config.get(TYPE_PARAMETER).lower() == 'serial':
                     self.lock.acquire()
 
@@ -360,7 +360,12 @@ class ModbusConnector(Connector, Thread):
                         if device.config.get(config_section) is not None and len(device.config.get(config_section)):
                             current_device_config = device.config
 
-                            self.__connect_to_current_master(device)
+                            if self.__connect_to_current_master(device):
+                                self.__gateway.add_device(device.name, {CONNECTOR_PARAMETER: self},
+                                                          device_type=device.config.get(DEVICE_TYPE_PARAMETER))
+                            else:
+                                self.__gateway.del_device(device.name)
+                                continue
 
                             if not device.config['master'].is_socket_open() or not len(
                                     current_device_config[config_section]):
@@ -378,6 +383,7 @@ class ModbusConnector(Connector, Thread):
                                 # due to issue #1056
                                 if isinstance(input_data, ModbusIOException) or isinstance(input_data, ExceptionResponse):
                                     device.config.pop('master', None)
+                                    self.__gateway.del_device(device.name)
                                     self.__connect_to_current_master(device)
                                     break
 
@@ -398,9 +404,11 @@ class ModbusConnector(Connector, Thread):
                         }, device_responses)))
 
                 except ConnectionException:
+                    self.__gateway.del_device(device.name)
                     sleep(5)
                     self.__log.error("Connection lost! Reconnecting...")
                 except Exception as e:
+                    self.__gateway.del_device(device.name)
                     self.__log.exception(e)
 
                 # Release mutex if "serial" type only
@@ -410,7 +418,7 @@ class ModbusConnector(Connector, Thread):
             sleep(.001)
 
     def __connect_to_current_master(self, device=None):
-        # TODO: write documentation
+
         connect_attempt_count = 5
         connect_attempt_time_ms = 100
         wait_after_failed_attempts_ms = 300000
@@ -452,10 +460,12 @@ class ModbusConnector(Connector, Thread):
                     self.__log.warn("Maximum attempt count (%i) for device \"%s\" - encountered.",
                                     connect_attempt_count,
                                     device)
+                    return False
 
         if device.config['connection_attempt'] >= 0 and device.config['master'].is_socket_open():
             device.config['connection_attempt'] = 0
             device.config['last_connection_attempt_time'] = current_time
+            return True
 
     @staticmethod
     def __configure_master(config):

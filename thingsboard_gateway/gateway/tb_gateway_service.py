@@ -1361,10 +1361,11 @@ class TBGatewayService:
             return Status.FAILURE
 
     def del_device(self, device_name):
-        self.tb_client.client.gw_disconnect_device(device_name)
-        self.__connected_devices.pop(device_name)
-        self.__saved_devices.pop(device_name)
-        self.__save_persistent_devices()
+        if device_name in self.__connected_devices:
+            self.tb_client.client.gw_disconnect_device(device_name)
+            self.__connected_devices.pop(device_name)
+            self.__saved_devices.pop(device_name)
+            self.__save_persistent_devices()
 
     def get_devices(self, connector_name: str = None):
         return self.__connected_devices if connector_name is None else {
