@@ -165,14 +165,20 @@ class SocketConnector(Connector, Thread):
         while not self.__stopped:
             try:
                 if self.__socket_type == 'TCP':
-                    conn, address = self.__socket.accept()
-                    self.__connections[address] = conn
+                    try:
+                        if self.__socket.fileno() != -1:  # Check if the socket is open
+                            conn, address = self.__socket.accept()
+                            self.__connections[address] = conn
 
-                    self.__log.debug('New connection %s established', address)
-                    thread = Thread(target=self.__process_tcp_connection, daemon=True,
-                                    name=f'Processing {address} connection',
-                                    args=(conn, address))
-                    thread.start()
+                            self.__log.debug('New connection %s established', address)
+                            thread = Thread(target=self.__process_tcp_connection, daemon=True,
+                                            name=f'Processing {address} connection',
+                                            args=(conn, address))
+                            thread.start()
+                    except OSError as e:
+                        if self.__stopped:
+                            break
+                        self.__log.error('Error accepting connection: %s', e)
                 else:
                     data, client_address = self.__socket.recvfrom(self.__socket_buff_size)
                     self.__converting_requests.put((client_address, data))
