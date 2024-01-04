@@ -297,6 +297,10 @@ class SocketConnector(Connector, Thread):
         self.__log.info('%s connector has been stopped.', self.get_name())
         self.__connections = {}
         while self.__socket.fileno() != -1:
+            try:
+                self.__socket.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass  # Ignore errors when socket is already closed
             self.__socket.close()
             sleep(0.01)
         self.__log.reset()
