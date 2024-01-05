@@ -538,6 +538,9 @@ class OpcUaConnector(Thread, Connector):
         match_devices = []
         self.__search_node(self.__opcua_nodes["root"], TBUtility.get_value(device["deviceNodePattern"], get_tag=True),
                            result=match_devices)
+        if len(match_devices) == 0:
+            self._log.warning("Device node not found with expression: %s",
+                              TBUtility.get_value(device["deviceNodePattern"], get_tag=True))
         for device_node in match_devices:
             if device_node is not None:
                 result_device_dict = {"deviceName": None, "deviceType": None, "deviceNode": device_node,
@@ -598,7 +601,7 @@ class OpcUaConnector(Thread, Connector):
                     result_device_dict["deviceType"] = "default"
                 result.append(result_device_dict)
             else:
-                self._log.error("Device node not found with expression: %s",
+                self._log.error("Device node not found with expression (2): %s",
                                 TBUtility.get_value(device["deviceNodePattern"], get_tag=True))
         return result
 
