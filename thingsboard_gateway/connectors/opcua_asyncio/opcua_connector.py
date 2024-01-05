@@ -231,7 +231,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         for node in children:
             child_node = await node.read_browse_name()
 
-            if re.fullmatch(node_list[0], child_node.Name):
+            if re.fullmatch(re.escape(node_list[0]), child_node.Name):
                 new_nodes = [*nodes, f'{child_node.NamespaceIndex}:{child_node.Name}']
                 if len(node_list) == 1:
                     final.append(new_nodes)
