@@ -14,7 +14,7 @@ log = logging.getLogger("root")
 
 EMPTY_CONFIG = {'server': {'mapping': [], 'url': 'opc.tcp://localhost:4840'}}
 
-class TestOpcUaConnector(unittest.TestCase):
+class TestOpcUaCheckPath(unittest.TestCase):
     def test_check_path_browsepath_partial(self):
         connector = OpcUaConnector(None, EMPTY_CONFIG, None)
         with mock.patch.object(OpcUaConnector, 'get_node_path', return_value='Root\\.Objects\\.Machine'):
