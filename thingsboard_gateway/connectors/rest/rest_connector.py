@@ -62,6 +62,7 @@ class RESTConnector(Connector, Thread):
             'STATISTICS_MESSAGE_SEND': self.statistic_message_send
         }
         self.__config = config
+        self.__id = self.__config.get('id')
         self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
@@ -123,8 +124,8 @@ class RESTConnector(Connector, Thread):
                                    mapping['security']['password'])
                 for http_method in mapping['HTTPMethods']:
                     handler = data_handlers[security_type](self.collect_statistic_and_send, self.get_name(),
-                                                           self.endpoints[mapping["endpoint"]], self.__log,
-                                                           provider=self.__event_provider)
+                                                           self.get_id(), self.endpoints[mapping["endpoint"]],
+                                                           self.__log, provider=self.__event_provider)
                     handlers.append(web.route(http_method, mapping['endpoint'], handler))
             except Exception as e:
                 self.__log.error("Error on creating handlers - %s", str(e))
@@ -188,6 +189,9 @@ class RESTConnector(Connector, Thread):
         sleep(1)
         self.__log.info('REST connector stopped.')
         self.__log.reset()
+
+    def get_id(self):
+        return self.__id
 
     def get_name(self):
         return self.name
@@ -309,9 +313,9 @@ class RESTConnector(Connector, Thread):
     def statistic_message_send(self):
         self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
 
-    def collect_statistic_and_send(self, connector_name, data):
+    def collect_statistic_and_send(self, connector_name, connector_id, data):
         self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
-        self.__gateway.send_to_storage(connector_name, data)
+        self.__gateway.send_to_storage(connector_name, connector_id, data)
         self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
 
     def __fill_requests_from_TB(self):
@@ -417,9 +421,10 @@ class BaseDataHandler:
     responses_queue = Queue()
     response_attribute_request = Queue()
 
-    def __init__(self, send_to_storage, name, endpoint, logger, provider=None):
+    def __init__(self, send_to_storage, name, id, endpoint, logger, provider=None):
         self.log = logger
         self.send_to_storage = send_to_storage
+        self.connector_id = id
         self.__name = name
         self.__endpoint = endpoint
         self.__provider = provider
@@ -551,7 +556,7 @@ class AnonymousDataHandler(BaseDataHandler):
 
             self.modify_data_for_remote_response(converted_data, self.response_expected)
 
-            self.send_to_storage(self.name, converted_data)
+            self.send_to_storage(self.name, self.connector_id, converted_data)
             self.log.info("CONVERTED_DATA: %r", converted_data)
 
             return self.get_response()
@@ -600,7 +605,7 @@ class BasicDataHandler(BaseDataHandler):
 
                 self.modify_data_for_remote_response(converted_data, self.response_expected)
 
-                self.send_to_storage(self.name, converted_data)
+                self.send_to_storage(self.name, self.connector_id, converted_data)
                 self.log.info("CONVERTED_DATA: %r", converted_data)
 
                 return self.get_response()

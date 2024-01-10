@@ -53,6 +53,7 @@ class XMPPConnector(Connector, Thread):
         self.__gateway = gateway
 
         self.__config = config
+        self.__id = self.__config.get('id')
         self._server_config = config['server']
         self._devices_config = config.get('devices', [])
         self.setName(config.get("name", 'XMPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
@@ -191,7 +192,7 @@ class XMPPConnector(Connector, Thread):
             if not XMPPConnector.DATA_TO_SEND.empty():
                 data = XMPPConnector.DATA_TO_SEND.get()
                 self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
-                self.__gateway.send_to_storage(self.get_name(), data)
+                self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                 self.__log.info('Data to ThingsBoard %s', data)
 
@@ -202,6 +203,9 @@ class XMPPConnector(Connector, Thread):
         self._connected = False
         self.__log.info('%s has been stopped.', self.get_name())
         self.__log.reset()
+
+    def get_id(self):
+        return self.__id
 
     def get_name(self):
         return self.name

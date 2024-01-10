@@ -80,26 +80,26 @@ class TBGRPCServerManager(Thread):
                     if msg.response.ByteSize() == 0:
                         outgoing_message = True
                 if msg.HasField("connectorGetConnectedDevicesMsg"):
-                    connector_name = list(self.__connectors_sessions.keys())[
+                    connector_id = list(self.__connectors_sessions.keys())[
                         list(self.__connectors_sessions.values()).index(session_id)]
-                    connected_devices = self.__get_connector_devices(connector_name)
+                    connected_devices = self.__get_connector_devices(connector_id)
                     downlink_converter_config = {
                         "message_type": [DownlinkMessageType.ConnectorGetConnectedDevicesResponseMsg],
                         "additional_message": connected_devices}
                     outgoing_message = self.__downlink_converter.convert(downlink_converter_config, None)
                 if msg.HasField("gatewayTelemetryMsg"):
                     data = self.__convert_with_uplink_converter(msg.gatewayTelemetryMsg)
-                    result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], data)
+                    result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], self.sessions[session_id]['id'], data)
                     outgoing_message = True
                     self.__increase_incoming_statistic(session_id)
                 if msg.HasField("gatewayAttributesMsg"):
                     data = self.__convert_with_uplink_converter(msg.gatewayAttributesMsg)
-                    result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], data)
+                    result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], self.sessions[session_id]['id'], data)
                     outgoing_message = True
                     self.__increase_incoming_statistic(session_id)
                 if msg.HasField("gatewayClaimMsg"):
                     data = self.__convert_with_uplink_converter(msg.gatewayClaimMsg)
-                    result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], data)
+                    result_status = self.__gateway.send_to_storage(self.sessions[session_id]['name'], self.sessions[session_id]['id'], data)
                     outgoing_message = self.__downlink_converter.convert(downlink_converter_config, result_status)
                     self.__increase_incoming_statistic(session_id)
                 if msg.HasField("connectMsg"):
@@ -152,28 +152,30 @@ class TBGRPCServerManager(Thread):
         except ValueError as e:
             log.error("Received unknown GRPC message!", e)
 
-    def write(self, connector_name, msg: FromServiceMessage, session_id=None):
+    def write(self, connector_name, connector_id, msg: FromServiceMessage, session_id=None):
         log.debug("[GRPC] outgoing message: %s", msg)
         if session_id is None:
-            session_id = self.__connectors_sessions.get(connector_name)
+            session_id = self.__connectors_sessions.get(connector_id)
         if session_id is not None:
             self.__grpc_server.write(session_id, msg)
             self.__increase_outgoing_statistic(session_id)
         else:
-            log.warning("Cannot write to connector with name %s, session is not found. Client is not registered!",
-                        connector_name)
+            log.warning("[%r] Cannot write to connector with name %s, session is not found. Client is not registered!",
+                        connector_id, connector_name)
 
     def registration_finished(self, registration_result: Status, session_id, connector_configuration):
         additional_message = FromConnectorMessage()
         additional_message.registerConnectorMsg.MergeFrom(RegisterConnectorMsg())
         if registration_result == Status.SUCCESS:
             connector_name = connector_configuration['name']
+            connector_id = connector_configuration['id']
             self.sessions[session_id] = {"config": connector_configuration, "name": connector_name,
-                                         "statistics": DEFAULT_STATISTICS_DICT}
-            self.__connectors_sessions[connector_name] = session_id
+                                         "id": connector_id, "statistics": DEFAULT_STATISTICS_DICT}
+            self.__connectors_sessions[connector_id] = session_id
             msg = self.__grpc_server.get_response("SUCCESS", additional_message)
             configuration_msg = ConnectorConfigurationMsg()
             configuration_msg.connectorName = connector_name
+            configuration_msg.connectorId = connector_id
             configuration_msg.configuration = dumps(connector_configuration['config'])
             msg.connectorConfigurationMsg.MergeFrom(configuration_msg)
             self.__grpc_server.write(session_id, msg)
@@ -190,7 +192,8 @@ class TBGRPCServerManager(Thread):
         additional_message.unregisterConnectorMsg.MergeFrom(UnregisterConnectorMsg())
         if unregistration_result == Status.SUCCESS:
             connector_name = connector.get_name()
-            connector_session_id = self.__connectors_sessions.pop(connector_name)
+            connector_id = connector.get_id()
+            connector_session_id = self.__connectors_sessions.pop(connector_id)
             del self.sessions[connector_session_id]
             msg = self.__grpc_server.get_response("SUCCESS", additional_message)
             self.__grpc_server.write(session_id, msg)
@@ -247,8 +250,8 @@ class TBGRPCServerManager(Thread):
             loop = asyncio.get_event_loop()
             loop.create_task(self.__aio_server.stop(True))
 
-    def __get_connector_devices(self, connector_name: str):
-        return self.__gateway.get_devices(connector_name)
+    def __get_connector_devices(self, connector_id: str):
+        return self.__gateway.get_devices(connector_id)
 
     def set_gateway_read_callbacks(self, registration_cb, unregistration_cb):
         self.__register_connector = registration_cb

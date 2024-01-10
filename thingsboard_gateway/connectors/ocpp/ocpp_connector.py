@@ -58,6 +58,7 @@ class OcppConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
         self._config = config
+        self.__id = self._config.get('id')
         self._central_system_config = config['centralSystem']
         self._charge_points_config = config.get('chargePoints', [])
         self._connector_type = connector_type
@@ -220,6 +221,9 @@ class OcppConnector(Connector, Thread):
         self._log.info('%s has been stopped.', self.get_name())
         self._log.reset()
 
+    def get_id(self):
+        return self.__id
+
     def get_name(self):
         return self.name
 
@@ -249,7 +253,7 @@ class OcppConnector(Connector, Thread):
         while not self.__stopped:
             if not self.DATA_TO_SEND.empty():
                 converted_data = self.DATA_TO_SEND.get()
-                self._gateway.send_to_storage(self.name, converted_data)
+                self._gateway.send_to_storage(self.name, self.get_id(), converted_data)
                 self.statistics['MessagesSent'] += 1
                 self._log.info("Data to ThingsBoard: %s", converted_data)
 

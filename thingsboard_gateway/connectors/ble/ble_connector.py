@@ -43,6 +43,7 @@ class BLEConnector(Connector, Thread):
         self._connector_type = connector_type
         self.__gateway = gateway
         self.__config = config
+        self.__id = self.__config.get('id')
         self.setName(self.__config.get("name", 'BLE Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
 
@@ -102,6 +103,9 @@ class BLEConnector(Connector, Thread):
     def get_name(self):
         return self.name
 
+    def get_id(self):
+        return self.__id
+
     def get_type(self):
         return self._connector_type
 
@@ -126,7 +130,7 @@ class BLEConnector(Connector, Thread):
                     self.__log.debug(converted_data)
 
                     if converted_data is not None:
-                        self.__gateway.send_to_storage(self.get_name(), converted_data)
+                        self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
                         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                         self.__log.info('Data to ThingsBoard %s', converted_data)
                 except Exception as e:

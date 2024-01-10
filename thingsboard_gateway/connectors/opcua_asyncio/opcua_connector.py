@@ -55,6 +55,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         self._connector_type = connector_type
         self.__gateway = gateway
         self.__config = config
+        self.__id = self.__config.get('id')
         self.__server_conf = config['server']
         self.setName(
             self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
@@ -123,6 +124,9 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
             except:
                 pass
             self.__subscription = None
+
+    def get_id(self):
+        return self.__id
 
     def get_name(self):
         return self.name
@@ -401,7 +405,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                 data = self.__data_to_send.get()
                 self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                 self.__log.debug(data)
-                self.__gateway.send_to_storage(self.get_name(), data)
+                self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                 self.__log.debug('Data to ThingsBoard %s', data)
             else:

@@ -22,6 +22,7 @@ from thingsboard_gateway.gateway.grpc_service.grpc_downlink_converter import Grp
 class GrpcConnector(Connector):
     def __init__(self, gateway, config, tb_grpc_server_manager: TBGRPCServerManager, session_id):
         self.name = None
+        self.__id = config.get("id")
         self.__server_manager = tb_grpc_server_manager
         self.__session_id = session_id
         self.__downlink_converter = GrpcDownlinkConverter()
@@ -36,6 +37,9 @@ class GrpcConnector(Connector):
         converter_config = {"message_type": DownlinkMessageType.UnregisterConnectorMsg}
         message_to_connector = self.__downlink_converter.convert(converter_config, "")
         self.__server_manager.write(self.name, message_to_connector, self.__session_id)
+
+    def get_id(self):
+        return self.__id
 
     def get_name(self):
         return self.name

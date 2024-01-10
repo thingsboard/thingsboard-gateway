@@ -38,6 +38,7 @@ class GwGrpcConnector(Thread):
         self.__started = False
         self.registered = False
         self.connection_config = simplejson.loads(connector_config)
+        self.__connector_id = None
         self.__connector_name = None
         self.__received_configuration = None
         self.__registration_request_sent = False
@@ -130,8 +131,9 @@ class GwGrpcConnector(Thread):
             self.registered = True
             self.__registration_request_sent = False
             self.__received_configuration = data.connectorConfigurationMsg.configuration
+            self.__connector_id = data.connectorConfigurationMsg.connectorId
             self.__connector_name = data.connectorConfigurationMsg.connectorName
-            log.info("Connector %s connected to ThingsBoard IoT gateway", self.__connector_name)
+            log.info("[%r] Connector %s connected to ThingsBoard IoT gateway", self.__connector_id, self.__connector_name)
             log.debug("Configuration - received.")
             log.debug(self.__received_configuration)
             if data.HasField('connectorGetConnectedDevicesResponseMsg'):

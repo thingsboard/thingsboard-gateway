@@ -39,6 +39,7 @@ class FTPConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.__config = config
+        self.__id = self.__config.get('id')
         self._connector_type = connector_type
         self.__gateway = gateway
         self.security = {**self.__config['security']} if self.__config['security']['type'] == 'basic' else {
@@ -180,7 +181,7 @@ class FTPConnector(Connector, Thread):
 
     def __send_data(self, converted_data):
         if converted_data:
-            self.__gateway.send_to_storage(self.getName(), converted_data)
+            self.__gateway.send_to_storage(self.getName(), self.get_id(), converted_data)
             self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
             self.__log.debug("Data to ThingsBoard: %s", converted_data)
 
@@ -191,6 +192,9 @@ class FTPConnector(Connector, Thread):
 
     def get_name(self):
         return self.name
+
+    def get_id(self):
+        return self.__id
 
     def get_type(self):
         return self._connector_type
