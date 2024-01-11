@@ -43,6 +43,7 @@ class BACnetConnector(Thread, Connector):
                            'MessagesSent': 0}
         super().__init__()
         self.__config = config
+        self.__id = self.__config.get('id')
         self.setName(config.get('name', 'BACnet ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self.__devices = []
         self.__device_indexes = {}
@@ -127,6 +128,9 @@ class BACnetConnector(Thread, Connector):
 
     def get_name(self):
         return self.name
+
+    def get_id(self):
+        return self.__id
 
     def get_type(self):
         return self._connector_type
@@ -244,7 +248,7 @@ class BACnetConnector(Thread, Connector):
                                                iocb.ioResponse if iocb.ioResponse else iocb.ioError)
         except Exception as e:
             self._log.exception(e)
-        self.__gateway.send_to_storage(self.name, converted_data)
+        self.__gateway.send_to_storage(self.get_name(), self.__id, converted_data)
 
     def __bacnet_device_mapping_response_cb(self, iocb, callback_params):
         mapping_type = callback_params["mapping_type"]
@@ -261,7 +265,7 @@ class BACnetConnector(Thread, Connector):
                                                iocb.ioResponse if iocb.ioResponse else iocb.ioError)
         except Exception as e:
             self._log.exception(e)
-        self.__gateway.send_to_storage(self.name, converted_data)
+        self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
 
     def __load_converters(self, device):
         datatypes = ["attributes", "telemetry", "attribute_updates", "server_side_rpc"]

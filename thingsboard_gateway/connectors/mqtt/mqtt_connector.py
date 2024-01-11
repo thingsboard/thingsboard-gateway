@@ -109,6 +109,7 @@ class MqttConnector(Connector, Thread):
         self.__gateway = gateway  # Reference to TB Gateway
         self._connector_type = connector_type  # Should be "mqtt"
         self.config = config  # mqtt.json contents
+        self.__id = self.config.get('id')
 
         self.__log = init_logger(self.__gateway, self.config['name'], self.config.get('logLevel', 'INFO'))
         self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
@@ -328,6 +329,9 @@ class MqttConnector(Connector, Thread):
     def get_name(self):
         return self.name
 
+    def get_id(self):
+        return self.__id
+
     def __subscribe(self, topic, qos):
         message = self._client.subscribe(topic, qos)
         try:
@@ -485,7 +489,7 @@ class MqttConnector(Connector, Thread):
         return False
 
     def _save_converted_msg(self, topic, data):
-        if self.__gateway.send_to_storage(self.name, data) == Status.SUCCESS:
+        if self.__gateway.send_to_storage(self.name, self.get_id(), data) == Status.SUCCESS:
             self.statistics['MessagesSent'] += 1
             self.__log.debug("Successfully converted message from topic %s", topic)
 

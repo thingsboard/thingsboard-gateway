@@ -30,6 +30,10 @@ CONFIG_DEVICES_SECTION_PARAMETER = "devices"
 CONNECTED_DEVICES_FILENAME = "connected_devices.json"
 PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME = "persistent_keys.json"
 
+RENAMING_PARAMETER = "renaming"
+CONNECTOR_ID_PARAMETER = "connectorId"
+CONNECTOR_NAME_PARAMETER = "connectorName"
+
 # Data parameter constants
 
 DEVICE_SECTION_PARAMETER = "device"

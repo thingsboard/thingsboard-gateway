@@ -49,6 +49,7 @@ class RequestConnector(Connector, Thread):
                            'MessagesSent': 0}
         self.__rpc_requests = []
         self.__config = config
+        self.__id = self.__config.get('id')
         self._connector_type = connector_type
         self.__gateway = gateway
         self.setName(self.__config.get("name", "".join(choice(ascii_lowercase) for _ in range(5))))
@@ -293,11 +294,14 @@ class RequestConnector(Connector, Thread):
         try:
             if not self.__convert_queue.empty():
                 data = self.__convert_queue.get()
-                self.__gateway.send_to_storage(self.get_name(), data)
+                self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
                 self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
 
         except Exception as e:
             self._log.exception(e)
+
+    def get_id(self):
+        return self.__id
 
     def get_name(self):
         return self.name

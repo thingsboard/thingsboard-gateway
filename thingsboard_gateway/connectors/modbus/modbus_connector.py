@@ -119,6 +119,7 @@ class ModbusConnector(Connector, Thread):
         self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config, gateway.get_config_path(),
                                                                              logger=self.__log)
         self.__config = self.__backward_compatibility_adapter.convert()
+        self.__id = self.__config.get('id')
         self.setName(self.__config.get("name", 'Modbus Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
 
         self.__connected = False
@@ -316,7 +317,7 @@ class ModbusConnector(Connector, Thread):
             return to_send
 
     def _save_data(self, data):
-        self.__gateway.send_to_storage(self.get_name(), data)
+        self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
         self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
 
     def close(self):
@@ -343,6 +344,9 @@ class ModbusConnector(Connector, Thread):
 
     def get_name(self):
         return self.name
+
+    def get_id(self):
+        return self.__id
 
     def __process_slaves(self):
         while not self.__stopped:

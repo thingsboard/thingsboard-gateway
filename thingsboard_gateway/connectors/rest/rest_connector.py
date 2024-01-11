@@ -62,6 +62,7 @@ class RESTConnector(Connector, Thread):
             'STATISTICS_MESSAGE_SEND': self.statistic_message_send
         }
         self.__config = config
+        self.__id = self.__config.get('id')
         self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
@@ -123,8 +124,8 @@ class RESTConnector(Connector, Thread):
                                    mapping['security']['password'])
                 for http_method in mapping['HTTPMethods']:
                     handler = data_handlers[security_type](self.collect_statistic_and_send, self.get_name(),
-                                                           self.endpoints[mapping["endpoint"]], self.__log,
-                                                           provider=self.__event_provider)
+                                                           self.get_id(), self.endpoints[mapping["endpoint"]],
+                                                           self.__log, provider=self.__event_provider)
                     handlers.append(web.route(http_method, mapping['endpoint'], handler))
             except Exception as e:
                 self.__log.error("Error on creating handlers - %s", str(e))
@@ -188,6 +189,9 @@ class RESTConnector(Connector, Thread):
         sleep(1)
         self.__log.info('REST connector stopped.')
         self.__log.reset()
+
+    def get_id(self):
+        return self.__id
 
     def get_name(self):
         return self.name
@@ -274,8 +278,7 @@ class RESTConnector(Connector, Thread):
                 self.__log.debug('Response from RPC request: %s', response)
                 self.__gateway.send_rpc_reply(device=device,
                                               req_id=content["data"].get('id'),
-                                              content=response[2] if response and len(
-                                                  response) >= 3 else response)
+                                              content=response[2] if response and len(response) >= 3 else response)
             else:
                 for rpc_request in self.__rpc_requests:
                     if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and \
@@ -309,9 +312,9 @@ class RESTConnector(Connector, Thread):
     def statistic_message_send(self):
         self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
 
-    def collect_statistic_and_send(self, connector_name, data):
+    def collect_statistic_and_send(self, connector_name, connector_id, data):
         self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
-        self.__gateway.send_to_storage(connector_name, data)
+        self.__gateway.send_to_storage(connector_name, connector_id, data)
         self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
 
     def __fill_requests_from_TB(self):
@@ -321,21 +324,21 @@ class RESTConnector(Connector, Thread):
         }
         for request_section in requests_from_tb:
             for request_config_object in self.__config.get(request_section, []):
-                uplink_converter = TBModuleLoader.import_module(self._connector_type,
-                                                                request_config_object.get("extension",
-                                                                                          self._default_converters[
-                                                                                              "uplink"]))(
-                    request_config_object, self.__log)
-                downlink_converter = TBModuleLoader.import_module(self._connector_type,
-                                                                  request_config_object.get("extension",
-                                                                                            self._default_converters[
-                                                                                                "downlink"]))(
-                    request_config_object, self.__log)
+
+                uplink_imported_class = TBModuleLoader.import_module(self._connector_type, request_config_object.get("extension", self._default_converters["uplink"]))
+                uplink_converter = uplink_imported_class(request_config_object, self.__log)
+
+                downlink_imported_class = TBModuleLoader.import_module(self._connector_type, request_config_object.get("extension", self._default_converters["downlink"]))
+                downlink_converter = downlink_imported_class(request_config_object, self.__log)
+
                 request_dict = {**request_config_object,
                                 "uplink_converter": uplink_converter,
                                 "downlink_converter": downlink_converter,
                                 }
                 requests_from_tb[request_section].append(request_dict)
+        self.__log.debug("Requests from TB: %s", requests_from_tb)
+        self.__rpc_requests = requests_from_tb["serverSideRpc"]
+        self.__attribute_updates = requests_from_tb["attributeUpdates"]
 
     def __send_request(self, request_dict, converter_queue, logger, with_queue=True):
         url = ""
@@ -372,8 +375,21 @@ class RESTConnector(Connector, Thread):
                 params["headers"] = request_dict["config"]["httpHeaders"]
 
             logger.debug("Request to %s will be sent", url)
-            response = request_dict["request"](**params)
-            data_to_storage = [url, request_dict["config"]["uplink_converter"]]
+            response = None
+            data_to_storage = []
+            try:
+                response = request_dict["request"](**params)
+
+            except Timeout:
+                logger.error("Timeout error on request %s.", url)
+                data_to_storage.append({"error": "Timeout", "code": 408})
+            except RequestException as e:
+                logger.error("Cannot connect to %s. Request exception.", url)
+                data_to_storage.append({"error": str(e)})
+                logger.debug(e)
+            except ConnectionError:
+                logger.error("Cannot connect to %s. Connection error.", url)
+                data_to_storage.append({"error": f"Cannot connect to target url: {url}"})
 
             if response and response.ok:
                 try:
@@ -387,12 +403,13 @@ class RESTConnector(Connector, Thread):
                     converter_queue.put(data_to_storage)
                     self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
             else:
-                logger.error("Request to URL: %s finished with code: %i. Cat information: http://http.cat/%i",
-                             url,
-                             response.status_code,
-                             response.status_code)
-                logger.debug("Response: %r", response.text)
-                data_to_storage.append({"error": response.reason, "code": response.status_code})
+                if response is not None:
+                    logger.error("Request to URL: %s finished with code: %i. Cat information: http://http.cat/%i",
+                                 url,
+                                 response.status_code,
+                                 response.status_code)
+                    logger.debug("Response: %r", response.text)
+                    data_to_storage.append({"error": response.reason, "code": response.status_code})
 
                 if with_queue:
                     converter_queue.put(data_to_storage)
@@ -401,14 +418,6 @@ class RESTConnector(Connector, Thread):
 
             if not with_queue:
                 return data_to_storage
-
-        except Timeout:
-            logger.error("Timeout error on request %s.", url)
-        except RequestException as e:
-            logger.error("Cannot connect to %s. Connection error.", url)
-            logger.debug(e)
-        except ConnectionError:
-            logger.error("Cannot connect to %s. Connection error.", url)
         except Exception as e:
             logger.exception(e)
 
@@ -417,9 +426,10 @@ class BaseDataHandler:
     responses_queue = Queue()
     response_attribute_request = Queue()
 
-    def __init__(self, send_to_storage, name, endpoint, logger, provider=None):
+    def __init__(self, send_to_storage, name, id, endpoint, logger, provider=None):
         self.log = logger
         self.send_to_storage = send_to_storage
+        self.connector_id = id
         self.__name = name
         self.__endpoint = endpoint
         self.__provider = provider
@@ -551,7 +561,7 @@ class AnonymousDataHandler(BaseDataHandler):
 
             self.modify_data_for_remote_response(converted_data, self.response_expected)
 
-            self.send_to_storage(self.name, converted_data)
+            self.send_to_storage(self.name, self.connector_id, converted_data)
             self.log.info("CONVERTED_DATA: %r", converted_data)
 
             return self.get_response()
@@ -600,7 +610,7 @@ class BasicDataHandler(BaseDataHandler):
 
                 self.modify_data_for_remote_response(converted_data, self.response_expected)
 
-                self.send_to_storage(self.name, converted_data)
+                self.send_to_storage(self.name, self.connector_id, converted_data)
                 self.log.info("CONVERTED_DATA: %r", converted_data)
 
                 return self.get_response()

@@ -39,6 +39,7 @@ class SocketConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
         self.__config = config
+        self.__id = self.__config.get('id')
         self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
@@ -250,7 +251,7 @@ class SocketConnector(Connector, Thread):
             self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
 
             if converted_data is not None:
-                self.__gateway.send_to_storage(self.get_name(), converted_data)
+                self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                 self.__log.info('Data to ThingsBoard %s', converted_data)
         except Exception as e:

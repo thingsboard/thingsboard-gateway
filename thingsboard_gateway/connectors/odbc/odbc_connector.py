@@ -59,6 +59,7 @@ class OdbcConnector(Connector, Thread):
                            'MessagesSent': 0}
         self.__gateway = gateway
         self.__config = config
+        self.__id = self.__config.get('id')
         self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self._connector_type = connector_type
         self.__stopped = False
@@ -93,6 +94,9 @@ class OdbcConnector(Connector, Thread):
             self.__stopped = True
             self._log.debug("[%s] Stopping", self.get_name())
             self._log.reset()
+
+    def get_id(self):
+        return self.__id
 
     def get_name(self):
         return self.name
@@ -316,7 +320,7 @@ class OdbcConnector(Connector, Thread):
             self._log.debug("[%s] Pushing to TB server '%s' device data: %s", self.get_name(), device_name, to_send)
 
             to_send['telemetry'] = [to_send['telemetry']]
-            self.__gateway.send_to_storage(self.get_name(), to_send)
+            self.__gateway.send_to_storage(self.get_name(), self.get_id(), to_send)
             self.statistics['MessagesSent'] += 1
         else:
             self._log.debug("[%s] '%s' device data has not been changed", self.get_name(), device_name)

@@ -40,7 +40,7 @@ class SDKTests(unittest.TestCase):
     @patch('tb_gateway_mqtt.TBGatewayMqttClient.gw_connect_device')
     def test_add_device(self, mock_func):
         self.gateway.add_device(self.DEVICE_NAME,
-                                {'connector': self.gateway.available_connectors['MQTT Broker Connector']}, self.DEVICE_TYPE)
+                                {'connector': self.gateway.available_connectors_by_name['MQTT Broker Connector']}, self.DEVICE_TYPE)
         mock_func.assert_called_with(self.DEVICE_NAME, self.DEVICE_TYPE)
 
     @patch('tb_gateway_mqtt.TBGatewayMqttClient.gw_disconnect_device')
@@ -53,7 +53,7 @@ class SDKTests(unittest.TestCase):
         data = {self.DEVICE_NAME: {'attributes': {"atr1": 1, "atr2": True, "atr3": "value3"}}}
 
         self.gateway.add_device(self.DEVICE_NAME,
-                                {'connector': self.gateway.available_connectors['MQTT Broker Connector']}, self.DEVICE_TYPE)
+                                {'connector': self.gateway.available_connectors_by_name['MQTT Broker Connector']}, self.DEVICE_TYPE)
         self.gateway._TBGatewayService__send_data(data)
 
         mock_func.assert_called_with(self.DEVICE_NAME, {"atr1": 1, "atr2": True, "atr3": "value3"})
@@ -63,7 +63,7 @@ class SDKTests(unittest.TestCase):
         data = {self.DEVICE_NAME: {'telemetry': {"key1": "11"}}}
 
         self.gateway.add_device(self.DEVICE_NAME,
-                                {'connector': self.gateway.available_connectors['MQTT Broker Connector']}, self.DEVICE_TYPE)
+                                {'connector': self.gateway.available_connectors_by_name['MQTT Broker Connector']}, self.DEVICE_TYPE)
         self.gateway._TBGatewayService__send_data(data)
 
         mock_func.assert_called_with(self.DEVICE_NAME, {"key1": "11"})

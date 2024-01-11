@@ -14,6 +14,7 @@
 import datetime
 from logging import getLogger
 from re import search, findall
+from uuid import uuid4
 
 from cryptography import x509
 from cryptography.x509.oid import NameOID
@@ -246,3 +247,16 @@ class TBUtility:
             return bool(evaluated_data)
         else:
             return str(evaluated_data)
+
+    @staticmethod
+    def get_or_create_connector_id(connector_conf):
+        connector_id = str(uuid4())
+        if isinstance(connector_conf, dict):
+            if connector_conf.get('id') is not None:
+                connector_id = connector_conf['id']
+        elif isinstance(connector_conf, str):
+            start_find = connector_conf.find("{id_var_start}")
+            end_find = connector_conf.find("{id_var_end}")
+            if start_find > -1 and end_find > -1:
+                connector_id = connector_conf[start_find + 13:end_find]
+        return connector_id

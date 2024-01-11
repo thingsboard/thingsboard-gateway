@@ -53,6 +53,7 @@ class SNMPConnector(Connector, Thread):
         self.__stopped = False
         self._connector_type = connector_type
         self.__config = config
+        self.__id = self.__config.get('id')
         self.setName(config.get("name", 'SNMP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
         self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self.__devices = self.__config["devices"]
@@ -99,6 +100,9 @@ class SNMPConnector(Connector, Thread):
         self.__stopped = True
         self._connected = False
 
+    def get_id(self):
+        return self.__id
+
     def get_name(self):
         return self.name
 
@@ -114,9 +118,9 @@ class SNMPConnector(Connector, Thread):
     def get_config(self):
         return self.__config
 
-    def collect_statistic_and_send(self, connector_name, data):
+    def collect_statistic_and_send(self, connector_name, connector_id, data):
         self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
-        self.__gateway.send_to_storage(connector_name, data)
+        self.__gateway.send_to_storage(connector_name, connector_id, data)
         self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
 
     async def __process_data(self, device):
@@ -144,7 +148,7 @@ class SNMPConnector(Connector, Thread):
                     self._log.exception(e)
 
         if isinstance(converted_data, dict) and (converted_data.get("attributes") or converted_data.get("telemetry")):
-            self.collect_statistic_and_send(self.get_name(), converted_data)
+            self.collect_statistic_and_send(self.get_name(), self.get_id(), converted_data)
 
     async def __process_methods(self, method, common_parameters, datatype_config):
         client = Client(ip=common_parameters['ip'],

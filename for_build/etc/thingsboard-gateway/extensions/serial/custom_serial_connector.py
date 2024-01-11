@@ -135,7 +135,7 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
                     try:
                         if len(data_from_device) > 0:
                             converted_data = self.__devices[device]['converter'].convert(self.__devices[device]['device_config'], data_from_device)
-                            self.__gateway.send_to_storage(self.get_name(), converted_data)
+                            self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
                         time.sleep(.1)
                     except Exception as e:
                         log.exception(e)

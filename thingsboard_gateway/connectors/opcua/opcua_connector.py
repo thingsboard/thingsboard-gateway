@@ -54,6 +54,7 @@ class OpcUaConnector(Thread, Connector):
         super().__init__()
         self.__gateway = gateway
         self._config = config
+        self.__id = self._config.get('id')
         self.__server_conf = config.get("server")
         self.setName(
             self._config.get("name", 'OPC-UA ' + ''.join(choice(ascii_lowercase) for _ in range(5)) + " Connector"))
@@ -173,7 +174,7 @@ class OpcUaConnector(Thread, Connector):
                     # NOTE: possible performance improvement: use a map to store only one event per
                     # variable to reduce frequency of messages to platform.
                     while self.data_to_send:
-                        self.__gateway.send_to_storage(self.get_name(), self.data_to_send.pop())
+                        self.__gateway.send_to_storage(self.get_name(), self.get_id(), self.data_to_send.pop())
                 if self.__stopped:
                     self.close()
                     break
@@ -241,6 +242,9 @@ class OpcUaConnector(Thread, Connector):
         self.__connected = False
         self._log.info('%s has been stopped.', self.get_name())
         self._log.reset()
+
+    def get_id(self):
+        return self.__id
 
     def get_name(self):
         return self.name

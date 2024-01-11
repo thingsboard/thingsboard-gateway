@@ -34,7 +34,8 @@ from yaml import safe_load
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
-    PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME
+    PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME, RENAMING_PARAMETER, CONNECTOR_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, \
+    CONNECTOR_ID_PARAMETER
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
 from thingsboard_gateway.gateway.shell.proxy import AutoProxy
@@ -60,7 +61,7 @@ try:
 except ImportError:
     print("Cannot load GRPC connector!")
 
-log:TbLogger = None
+log: TbLogger = None
 main_handler = logging.handlers.MemoryHandler(-1)
 
 DEFAULT_CONNECTORS = {
@@ -199,7 +200,8 @@ class TBGatewayService:
         self.__updates_check_time = 0
         self.version = self.__updater.get_version()
         log.info("ThingsBoard IoT gateway version: %s", self.version["current_version"])
-        self.available_connectors: dict[str, Connector] = {}
+        self.available_connectors_by_name: dict[str, Connector] = {}
+        self.available_connectors_by_id: dict[str, Connector] = {}
         self.__connector_incoming_messages = {}
         self.__connected_devices = {}
         self.__renamed_devices = {}
@@ -298,7 +300,7 @@ class TBGatewayService:
         self.__grpc_manager = None
         self.init_device_filtering(self.__config['thingsboard'].get('deviceFiltering', DEFAULT_DEVICE_FILTER))
 
-        self.__duplicate_detector = DuplicateDetector(self.available_connectors)
+        self.__duplicate_detector = DuplicateDetector(self.available_connectors_by_name)
 
         self.__init_remote_configuration()
 
@@ -424,8 +426,8 @@ class TBGatewayService:
 
                 if self.tb_client.is_connected() and not self.__subscribed_to_rpc_topics:
                     for device in self.__saved_devices:
-                        self.add_device(device, {"connector": self.__saved_devices[device]["connector"]},
-                                        device_type=self.__saved_devices[device]["device_type"], reconnect=True)
+                        self.add_device(device, {CONNECTOR_PARAMETER: self.__saved_devices[device][CONNECTOR_PARAMETER]},
+                                        device_type=self.__saved_devices[device][DEVICE_TYPE_PARAMETER], reconnect=True)
                     self.subscribe_to_required_topics()
                     self.__subscribed_to_rpc_topics = True
 
@@ -499,9 +501,9 @@ class TBGatewayService:
         self.__config['thingsboard'] = {**self.__config['thingsboard'], **env_variables}
 
     def __close_connectors(self):
-        for current_connector in self.available_connectors:
+        for current_connector in self.available_connectors_by_id:
             try:
-                self.available_connectors[current_connector].close()
+                self.available_connectors_by_id[current_connector].close()
                 log.debug("Connector %s closed connection.", current_connector)
             except Exception as e:
                 log.exception(e)
@@ -582,10 +584,10 @@ class TBGatewayService:
             key = list(content.keys())[0]
             connector_name, converter_name = key.split(':')
             log.info('Got remote converter configuration update')
-            if not self.available_connectors.get(connector_name):
+            if not self.available_connectors_by_name.get(connector_name):
                 raise ValueError
 
-            self.available_connectors[connector_name].update_converter_config(converter_name, content[key])
+            self.available_connectors_by_name[connector_name].update_converter_config(converter_name, content[key])
         except (ValueError, AttributeError, IndexError) as e:
             log.debug('Failed to process remote converter update: %s', e)
 
@@ -659,34 +661,36 @@ class TBGatewayService:
         self.tb_client.client.request_attributes(callback=self._attributes_parse)
 
     def __register_connector(self, session_id, connector_key):
-        if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key]['name'] not in self.available_connectors:
+        if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key]['id'] not in self.available_connectors_by_id:
             target_connector = self.__grpc_connectors.get(connector_key)
             connector = GrpcConnector(self, target_connector['config'], self.__grpc_manager, session_id)
             connector.setName(target_connector['name'])
-            self.available_connectors[connector.get_name()] = connector
+            self.available_connectors_by_name[connector.get_name()] = connector
+            self.available_connectors_by_id[connector.get_id()] = connector
             self.__grpc_manager.registration_finished(Status.SUCCESS, session_id, target_connector)
-            log.info("GRPC connector with key %s registered with name %s", connector_key, connector.get_name())
+            log.info("[%r][%r] GRPC connector with key %s registered with name %s", session_id,
+                     connector.get_id(), connector_key, connector.get_name())
         elif self.__grpc_connectors.get(connector_key) is not None:
             self.__grpc_manager.registration_finished(Status.FAILURE, session_id, None)
-            log.error("GRPC connector with key: %s - already registered!", connector_key)
+            log.error("[%r] GRPC connector with key: %s - already registered!", session_id, connector_key)
         else:
             self.__grpc_manager.registration_finished(Status.NOT_FOUND, session_id, None)
-            log.error("GRPC configuration for connector with key: %s - not found", connector_key)
+            log.error("[%r] GRPC configuration for connector with key: %s - not found", session_id, connector_key)
 
     def __unregister_connector(self, session_id, connector_key):
-        if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key]['name'] in self.available_connectors:
-            connector_name = self.__grpc_connectors[connector_key]['name']
-            target_connector: GrpcConnector = self.available_connectors.pop(connector_name)
+        if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key]['id'] in self.available_connectors_by_id:
+            connector_id = self.__grpc_connectors[connector_key]['id']
+            target_connector: GrpcConnector = self.available_connectors_by_id.pop(connector_id)
             self.__grpc_manager.unregister(Status.SUCCESS, session_id, target_connector)
-            log.info("GRPC connector with key %s and name %s - unregistered", connector_key,
+            log.info("[%r] GRPC connector with key %s and name %s - unregistered", session_id, connector_key,
                      target_connector.get_name())
         elif self.__grpc_connectors.get(connector_key) is not None:
             self.__grpc_manager.unregister(Status.NOT_FOUND, session_id, None)
-            log.error("GRPC connector with key: %s - is not registered!", connector_key)
+            log.error("[%r] GRPC connector with key: %s - is not registered!", session_id, connector_key)
         else:
             self.__grpc_manager.unregister(Status.FAILURE, session_id, None)
-            log.error("GRPC configuration for connector with key: %s - not found in configuration and not registered",
-                      connector_key)
+            log.error("[%r] GRPC configuration for connector with key: %s - not found in configuration and not registered",
+                      session_id, connector_key)
 
     @staticmethod
     def _generate_persistent_key(connector, connectors_persistent_keys):
@@ -758,11 +762,25 @@ class TBGatewayService:
                         log.debug(e)
                         log.warning("Cannot parse connector configuration as a JSON, it will be passed as a string.")
 
+                    connector_id = TBUtility.get_or_create_connector_id(connector_conf)
+
+                    if isinstance(connector_conf, dict):
+                        if connector_conf.get('id') is None:
+                            connector_conf['id'] = connector_id
+                            with open(config_file_path, 'w', encoding="UTF-8") as conf_file:
+                                conf_file.write(dumps(connector_conf, indent=2))
+                    elif isinstance(connector_conf, str):
+                        start_find = connector_conf.find("{id_var_start}")
+                        end_find = connector_conf.find("{id_var_end}")
+                        if not (start_find > -1 and end_find > -1):
+                            connector_conf = "{id_var_start}" + str(connector_id) + "{id_var_end}" + connector_conf
+
                     if not self.connectors_configs.get(connector['type']):
                         self.connectors_configs[connector['type']] = []
                     if connector['type'] != 'grpc' and isinstance(connector_conf, dict):
                         connector_conf["name"] = connector['name']
                     self.connectors_configs[connector['type']].append({"name": connector['name'],
+                                                                       "id": connector_id,
                                                                        "config": {connector['configuration']: connector_conf} if
                                                                        connector['type'] != 'grpc' else connector_conf,
                                                                        "config_updated": stat(config_file_path),
@@ -789,24 +807,32 @@ class TBGatewayService:
                         for config in connector_config["config"]:
                             connector = None
                             connector_name = None
+                            connector_id = None
                             try:
-                                if connector_config["config"][config] is not None and len(connector_config["config"][config].keys()) > 2:
-                                    connector_name = connector_config["name"]
+                                if connector_config["config"][config] is not None:
+                                    if ("logLevel" in connector_config["config"][config] and "name" in connector_config["config"][config] and len(connector_config["config"][config].keys()) > 2) or \
+                                        ("logLevel" not in connector_config["config"][config] and "name" not in connector_config["config"][config] and len(connector_config["config"][config].keys()) > 1):
+                                        connector_name = connector_config["name"]
+                                        connector_id = connector_config["id"]
 
-                                    available_connector = self.available_connectors.get(connector_name)
+                                        available_connector = self.available_connectors_by_id.get(connector_id)
 
-                                    if available_connector is None or available_connector.is_stopped():
-                                        connector = self._implemented_connectors[connector_type](self,
-                                                                                                 connector_config["config"][config],
-                                                                                                 connector_type)
-                                        connector.setName(connector_name)
-                                        self.available_connectors[connector.get_name()] = connector
-                                        connector.open()
+                                        if available_connector is None or available_connector.is_stopped():
+                                            connector = self._implemented_connectors[connector_type](self,
+                                                                                                     connector_config["config"][config],
+                                                                                                     connector_type)
+                                            connector.setName(connector_name)
+                                            self.available_connectors_by_id[connector_id] = connector
+                                            self.available_connectors_by_name[connector_name] = connector
+                                            connector.open()
+                                        else:
+                                            log.warning("[%r] Connector with name %s already exists and not stopped!", connector_id, connector_name)
                                     else:
-                                        log.warning("Connector with name %s already exists and not stopped!", connector_name)
+                                        log.warning("Config incorrect for %s", connector_type)
                                 else:
-                                    log.warning("Config not found or empty for %s", connector_type)
+                                    log.warning("Config is empty for %s", connector_type)
                             except Exception as e:
+                                log.error("[%r] Error on loading connector %r: %r", connector_id, connector_name, e)
                                 log.exception(e, attr_name=connector_name)
                                 if connector is not None:
                                     connector.close()
@@ -826,7 +852,7 @@ class TBGatewayService:
 
                             thread = Thread(target=self._run_connector,
                                             args=(connector_abs_path, connector_config_json,),
-                                            daemon=True, name='Separate DRPC Connector')
+                                            daemon=True, name='Separated GRPC Connector')
                             thread.start()
 
     def _run_connector(self, connector_abs_path, connector_config_json):
@@ -859,7 +885,9 @@ class TBGatewayService:
             if self.__remote_configurator is not None:
                 self.__remote_configurator.send_current_configuration()
 
-    def send_to_storage(self, connector_name, data):
+    def send_to_storage(self, connector_name, connector_id, data=None):
+        if data is None:
+            log.error("[%r]Data is empty from connector %r!", connector_id, connector_name)
         try:
             device_valid = True
             if self.__device_filter:
@@ -871,7 +899,7 @@ class TBGatewayService:
 
             filtered_data = self.__duplicate_detector.filter_data(connector_name, data)
             if filtered_data:
-                self.__converted_data_queue.put((connector_name, filtered_data), True, 100)
+                self.__converted_data_queue.put((connector_name, connector_id, filtered_data), True, 100)
                 return Status.SUCCESS
             else:
                 return Status.NO_NEW_DATA
@@ -883,7 +911,7 @@ class TBGatewayService:
         while not self.stopped:
             try:
                 if not self.__converted_data_queue.empty():
-                    connector_name, event = self.__converted_data_queue.get(True, 100)
+                    connector_name, connector_id, event = self.__converted_data_queue.get(True, 100)
                     data_array = event if isinstance(event, list) else [event]
                     for data in data_array:
                         if not connector_name == self.name:
@@ -892,7 +920,7 @@ class TBGatewayService:
                             if 'attributes' not in data:
                                 data['attributes'] = []
                             if not TBUtility.validate_converted_data(data):
-                                log.error("Data from %s connector is invalid.", connector_name)
+                                log.error("[%r] Data from %s connector is invalid.", connector_id, connector_name)
                                 continue
                             if data.get('deviceType') is None:
                                 device_name = data['deviceName']
@@ -904,12 +932,12 @@ class TBGatewayService:
                                     data["deviceType"] = "default"
                             if data["deviceName"] not in self.get_devices() and self.tb_client.is_connected():
                                 self.add_device(data["deviceName"],
-                                                {"connector": self.available_connectors[connector_name]},
+                                                {CONNECTOR_PARAMETER: self.available_connectors_by_id[connector_id]},
                                                 device_type=data["deviceType"])
-                            if not self.__connector_incoming_messages.get(connector_name):
-                                self.__connector_incoming_messages[connector_name] = 0
+                            if not self.__connector_incoming_messages.get(connector_id):
+                                self.__connector_incoming_messages[connector_id] = 0
                             else:
-                                self.__connector_incoming_messages[connector_name] += 1
+                                self.__connector_incoming_messages[connector_id] += 1
                         else:
                             data["deviceName"] = "currentThingsBoardGateway"
                             data['deviceType'] = "gateway"
@@ -935,7 +963,7 @@ class TBGatewayService:
                                 adopted_data_size += self.__get_data_size(attribute)
                                 if adopted_data_size >= max_data_size:
                                     # We have surpassed the max_data_size, so send what we have and clear attributes
-                                    self.__send_data_pack_to_storage(adopted_data, connector_name)
+                                    self.__send_data_pack_to_storage(adopted_data, connector_name, connector_id)
                                     adopted_data['attributes'] = {}
                                     adopted_data_size = empty_adopted_data_size
 
@@ -956,7 +984,7 @@ class TBGatewayService:
                                     adopted_data_size += self.__get_data_size(kv_data)
                                     if adopted_data_size >= max_data_size:
                                         # we have surpassed the max_data_size, so send what we have and clear attributes and telemetry
-                                        self.__send_data_pack_to_storage(adopted_data, connector_name)
+                                        self.__send_data_pack_to_storage(adopted_data, connector_name, connector_id)
                                         adopted_data['telemetry'] = []
                                         adopted_data['attributes'] = {}
                                         adopted_data_size = empty_adopted_data_size
@@ -964,12 +992,12 @@ class TBGatewayService:
 
                             # It is possible that we get here and have some telemetry or attributes not yet sent, so check for that.
                             if len(adopted_data['telemetry']) > 0 or len(adopted_data['attributes']) > 0:
-                                self.__send_data_pack_to_storage(adopted_data, connector_name)
+                                self.__send_data_pack_to_storage(adopted_data, connector_name, connector_id)
                                 # technically unnecessary to clear here, but leaving for consistency.
                                 adopted_data['telemetry'] = []
                                 adopted_data['attributes'] = {}
                         else:
-                            self.__send_data_pack_to_storage(data, connector_name)
+                            self.__send_data_pack_to_storage(data, connector_name, connector_id)
 
                 else:
                     sleep(0.2)
@@ -1004,13 +1032,13 @@ class TBGatewayService:
             data["telemetry"] = {"ts": int(time() * 1000), "values": telemetry}
         return data
 
-    def __send_data_pack_to_storage(self, data, connector_name):
+    def __send_data_pack_to_storage(self, data, connector_name, connector_id=None):
         json_data = dumps(data)
         save_result = self._event_storage.put(json_data)
         if not save_result:
-            log.error('Data from the device "%s" cannot be saved, connector name is %s.',
-                      data["deviceName"],
-                      connector_name)
+            log.error('%rData from the device "%s" cannot be saved, connector name is %s.',
+                      "[" + connector_id + "] " if connector_id is not None else "",
+                      data["deviceName"], connector_name)
 
     def check_size(self, devices_data_in_event_pack):
         if self.__get_data_size(devices_data_in_event_pack) >= self.__config["thingsboard"].get("maxPayloadSizeBytes",
@@ -1142,10 +1170,10 @@ class TBGatewayService:
         try:
             device = content.get("device")
             if device is not None:
-                connector_name = self.get_devices()[device].get("connector")
-                if connector_name is not None:
+                connector = self.get_devices()[device].get(CONNECTOR_PARAMETER)
+                if connector is not None:
                     content['id'] = request_id
-                    connector_name.server_side_rpc_handler(content)
+                    connector.server_side_rpc_handler(content)
                 else:
                     log.error("Received RPC request but connector for the device %s not found. Request data: \n %s",
                               content["device"],
@@ -1160,12 +1188,12 @@ class TBGatewayService:
                         result = None
                         if self.connectors_configs.get(module):
                             log.debug("Connector \"%s\" for RPC request \"%s\" found", module, content["method"])
-                            for connector_name in self.available_connectors:
-                                if self.available_connectors[connector_name]._connector_type == module:
+                            for connector_name in self.available_connectors_by_name:
+                                if self.available_connectors_by_name[connector_name]._connector_type == module:
                                     log.debug("Sending command RPC %s to connector %s", content["method"],
                                               connector_name)
                                     content['id'] = request_id
-                                    result = self.available_connectors[connector_name].server_side_rpc_handler(content)
+                                    result = self.available_connectors_by_name[connector_name].server_side_rpc_handler(content)
                         elif module == 'gateway' or module in self.__remote_shell.shell_commands:
                             result = self.__rpc_gateway_processing(request_id, content)
                         else:
@@ -1221,8 +1249,8 @@ class TBGatewayService:
     def __rpc_devices(self, *args):
         data_to_send = {}
         for device in self.__connected_devices:
-            if self.__connected_devices[device]["connector"] is not None:
-                data_to_send[device] = self.__connected_devices[device]["connector"].get_name()
+            if self.__connected_devices[device][CONNECTOR_PARAMETER] is not None:
+                data_to_send[device] = self.__connected_devices[device][CONNECTOR_PARAMETER].get_name()
         return {"code": 200, "resp": data_to_send}
 
     def __rpc_update(self, *args):
@@ -1305,7 +1333,7 @@ class TBGatewayService:
         log.debug(args)
         if content.get('device') is not None:
             try:
-                self.__connected_devices[content["device"]]["connector"].on_attributes_update(content)
+                self.__connected_devices[content["device"]][CONNECTOR_PARAMETER].on_attributes_update(content)
             except Exception as e:
                 log.exception(e)
         else:
@@ -1313,12 +1341,12 @@ class TBGatewayService:
 
     def __form_statistics(self):
         summary_messages = {"eventsProduced": 0, "eventsSent": 0}
-        for connector in self.available_connectors:
+        for connector in self.available_connectors_by_name:
             connector_camel_case = connector.replace(' ', '')
             telemetry = {
-                (connector_camel_case + ' EventsProduced').replace(' ', ''): self.available_connectors[
+                (connector_camel_case + ' EventsProduced').replace(' ', ''): self.available_connectors_by_name[
                     connector].statistics.get('MessagesReceived', 0),
-                (connector_camel_case + ' EventsSent').replace(' ', ''): self.available_connectors[
+                (connector_camel_case + ' EventsSent').replace(' ', ''): self.available_connectors_by_name[
                     connector].statistics.get('MessagesSent', 0)
             }
             summary_messages['eventsProduced'] += telemetry[
@@ -1338,8 +1366,8 @@ class TBGatewayService:
     def add_device(self, device_name, content, device_type=None, reconnect=False):
         if device_name not in self.__saved_devices or reconnect:
             device_type = device_type if device_type is not None else 'default'
-            self.__connected_devices[device_name] = {**content, "device_type": device_type}
-            self.__saved_devices[device_name] = {**content, "device_type": device_type}
+            self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
+            self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
             self.__save_persistent_devices()
             device_details = {
                 'connectorType': content['connector'].get_type(),
@@ -1349,9 +1377,12 @@ class TBGatewayService:
             self.tb_client.client.gw_send_attributes(device_name, device_details)
 
     def update_device(self, device_name, event, content):
+        should_save = False
         if event == 'connector' and self.__connected_devices[device_name].get(event) != content:
-            self.__save_persistent_devices()
+            should_save = True
         self.__connected_devices[device_name][event] = content
+        if should_save:
+            self.__save_persistent_devices()
 
     def del_device_async(self, data):
         if data['deviceName'] in self.__saved_devices:
@@ -1367,18 +1398,18 @@ class TBGatewayService:
             self.__saved_devices.pop(device_name)
             self.__save_persistent_devices()
 
-    def get_devices(self, connector_name: str = None):
-        return self.__connected_devices if connector_name is None else {
-            device_name: self.__connected_devices[device_name]["device_type"] for device_name in
-            self.__connected_devices.keys() if self.__connected_devices[device_name].get("connector") is not None and
-                                               self.__connected_devices[device_name]["connector"].get_name() == connector_name}
+    def get_devices(self, connector_id: str = None):
+        return self.__connected_devices if connector_id is None else {
+            device_name: self.__connected_devices[device_name][DEVICE_TYPE_PARAMETER] for device_name in
+            self.__connected_devices.keys() if self.__connected_devices[device_name].get(CONNECTOR_PARAMETER) is not None and
+                                               self.__connected_devices[device_name][CONNECTOR_PARAMETER].get_id() == connector_id}
 
     def __process_async_device_actions(self):
         while not self.stopped:
             if not self.__async_device_actions_queue.empty():
                 action, data = self.__async_device_actions_queue.get()
                 if action == DeviceActions.CONNECT:
-                    self.add_device(data['deviceName'], {CONNECTOR_PARAMETER: self.available_connectors[data['name']]},
+                    self.add_device(data['deviceName'], {CONNECTOR_PARAMETER: self.available_connectors_by_name[data['name']]},
                                     data.get('deviceType'))
                 elif action == DeviceActions.DISCONNECT:
                     self.del_device(data['deviceName'])
@@ -1406,33 +1437,43 @@ class TBGatewayService:
             log.exception(e)
 
     def __load_persistent_devices(self):
-        devices = None
+        loaded_connected_devices = None
         if CONNECTED_DEVICES_FILENAME in listdir(self._config_dir) and \
                 path.getsize(self._config_dir + CONNECTED_DEVICES_FILENAME) > 0:
             try:
-                devices = load_file(self._config_dir + CONNECTED_DEVICES_FILENAME)
+                loaded_connected_devices = load_file(self._config_dir + CONNECTED_DEVICES_FILENAME)
             except Exception as e:
                 log.exception(e)
         else:
             open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w').close()
 
-        if devices is not None:
-            log.debug("Loaded devices:\n %s", devices)
-            for device_name in devices:
+        if loaded_connected_devices is not None:
+            log.debug("Loaded devices:\n %s", loaded_connected_devices)
+            for device_name in loaded_connected_devices:
                 try:
-                    if not isinstance(devices[device_name], list):
+                    if isinstance(loaded_connected_devices[device_name], str):
                         open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w').close()
                         log.debug("Old connected_devices file, new file will be created")
                         return
-                    if self.available_connectors.get(devices[device_name][0]):
+                    device_data_to_save = {}
+                    if isinstance(loaded_connected_devices[device_name], list) \
+                            and self.available_connectors_by_name.get(loaded_connected_devices[device_name][0]):
                         device_data_to_save = {
-                            "connector": self.available_connectors[devices[device_name][0]],
-                            "device_type": devices[device_name][1]}
-                        if len(devices[device_name]) > 2 and device_name not in self.__renamed_devices:
-                            new_device_name = devices[device_name][2]
+                            CONNECTOR_PARAMETER: self.available_connectors_by_name[loaded_connected_devices[device_name][0]],
+                            DEVICE_TYPE_PARAMETER: loaded_connected_devices[device_name][1]}
+                        if len(loaded_connected_devices[device_name]) > 2 and device_name not in self.__renamed_devices:
+                            new_device_name = loaded_connected_devices[device_name][2]
                             self.__renamed_devices[device_name] = new_device_name
-                        self.__connected_devices[device_name] = device_data_to_save
-                        self.__saved_devices[device_name] = device_data_to_save
+                    elif isinstance(loaded_connected_devices[device_name], dict):
+                        device_data_to_save = {
+                            CONNECTOR_PARAMETER: self.available_connectors_by_id[loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER]],
+                            DEVICE_TYPE_PARAMETER: loaded_connected_devices[device_name][DEVICE_TYPE_PARAMETER]}
+                        if loaded_connected_devices[device_name].get(RENAMING_PARAMETER) is not None:
+                            new_device_name = loaded_connected_devices[device_name][RENAMING_PARAMETER]
+                            self.__renamed_devices[device_name] = new_device_name
+                    self.__connected_devices[device_name] = device_data_to_save
+                    self.__saved_devices[device_name] = device_data_to_save
+                    
                 except Exception as e:
                     log.exception(e)
                     continue
@@ -1444,13 +1485,13 @@ class TBGatewayService:
         with self.__lock:
             data_to_save = {}
             for device in self.__connected_devices:
-                if self.__connected_devices[device]["connector"] is not None:
-                    data_to_save[device] = [self.__connected_devices[device]["connector"].get_name(),
-                                            self.__connected_devices[device]["device_type"]]
-
-                    if device in self.__renamed_devices:
-                        data_to_save[device].append(self.__renamed_devices.get(device))
-
+                if self.__connected_devices[device][CONNECTOR_PARAMETER] is not None:
+                    data_to_save[device] = {
+                        CONNECTOR_NAME_PARAMETER: self.__connected_devices[device][CONNECTOR_PARAMETER].get_name(),
+                        DEVICE_TYPE_PARAMETER: self.__connected_devices[device][DEVICE_TYPE_PARAMETER],
+                        CONNECTOR_ID_PARAMETER: self.__connected_devices[device][CONNECTOR_PARAMETER].get_id(),
+                        RENAMING_PARAMETER: self.__renamed_devices.get(device)
+                    }
             with open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w') as config_file:
                 try:
                     config_file.write(dumps(data_to_save, indent=2, sort_keys=True))
@@ -1502,18 +1543,18 @@ class TBGatewayService:
 
     # Connectors -----------------
     def get_available_connectors(self):
-        return {num + 1: name for (num, name) in enumerate(self.available_connectors)}
+        return {num + 1: name for (num, name) in enumerate(self.available_connectors_by_name)}
 
     def get_connector_status(self, name):
         try:
-            connector = self.available_connectors[name]
+            connector = self.available_connectors_by_name[name]
             return {'connected': connector.is_connected()}
         except KeyError:
             return f'Connector {name} not found!'
 
     def get_connector_config(self, name):
         try:
-            connector = self.available_connectors[name]
+            connector = self.available_connectors_by_name[name]
             return connector.get_config()
         except KeyError:
             return f'Connector {name} not found!'

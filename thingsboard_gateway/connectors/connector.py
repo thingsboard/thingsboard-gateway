@@ -28,6 +28,10 @@ class Connector(ABC):
         pass
 
     @abstractmethod
+    def get_id(self):
+        pass
+
+    @abstractmethod
     def get_name(self):
         pass
 

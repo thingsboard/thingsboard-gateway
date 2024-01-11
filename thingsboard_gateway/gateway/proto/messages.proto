@@ -67,6 +67,7 @@ message UnregisterConnectorMsg {
 message ConnectorConfigurationMsg {
   string connectorName = 1;
   string configuration = 2;
+  string connectorId = 3;
 }
 
 message ConnectorGetConnectedDevicesMsg {
