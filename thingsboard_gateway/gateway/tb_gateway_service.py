@@ -1377,9 +1377,12 @@ class TBGatewayService:
             self.tb_client.client.gw_send_attributes(device_name, device_details)
 
     def update_device(self, device_name, event, content):
+        should_save = False
         if event == 'connector' and self.__connected_devices[device_name].get(event) != content:
-            self.__save_persistent_devices()
+            should_save = True
         self.__connected_devices[device_name][event] = content
+        if should_save:
+            self.__save_persistent_devices()
 
     def del_device_async(self, data):
         if data['deviceName'] in self.__saved_devices:

@@ -459,11 +459,23 @@ class RemoteConfigurator:
         try:
             config_file_name = config['configuration']
 
-            found_connectors = list(filter(lambda item: item['id'] == config['id'], self.connectors_configuration))
-            connector_id = TBUtility.get_or_create_connector_id(config.get("configurationJson"))
+            identifier_parameter = 'id' if config.get('id') else 'name'
+            found_connectors = list(filter(lambda item: item[identifier_parameter] == config[identifier_parameter],
+                                           self.connectors_configuration))
+
+            if (config.get('configurationJson')
+                    and config.get('configurationJson').get('id') is None
+                    and len(found_connectors) > 0
+                    and found_connectors[0].get('configurationJson') is not None
+                    and found_connectors[0].get('configurationJson').get('id') is not None):
+                connector_id = TBUtility.get_or_create_connector_id(found_connectors[0].get("configurationJson"))
+            else:
+                connector_id = TBUtility.get_or_create_connector_id(config.get('configurationJson'))
             if not found_connectors:
-                connector_configuration = {'name': config['name'], 'type': config['type'],
-                                           'id': connector_id,'configuration': config_file_name}
+                connector_configuration = {'name': config['name'],
+                                           'type': config['type'],
+                                           'id': connector_id,
+                                           'configuration': config_file_name}
                 if config.get('key'):
                     connector_configuration['key'] = config['key']
 
@@ -498,7 +510,7 @@ class RemoteConfigurator:
                         changed = True
 
                 connector_configuration = None
-                if (found_connector.get('id') != config['id']
+                if (found_connector.get('id') != connector_id
                         or found_connector.get('name') != config['name']
                         or found_connector.get('type') != config['type']
                         or found_connector.get('class') != config.get('class')
@@ -528,9 +540,17 @@ class RemoteConfigurator:
 
                     self._gateway.available_connectors_by_id[connector_configuration['id']].close()
                     self._gateway.available_connectors_by_id.pop(connector_configuration['id'])
+                    if self._gateway.available_connectors_by_name.get(connector_configuration['name']):
+                        self._gateway.available_connectors_by_name.pop(connector_configuration['name'])
 
                     self._gateway.load_connectors(self._get_general_config_in_local_format())
                     self._gateway.connect_with_connectors()
+
+            for device_name in self._gateway.get_devices().keys():
+                for connector_id in self._gateway.available_connectors_by_id.keys():
+                    if (self._gateway.available_connectors_by_id.get(connector_id)
+                            and self._gateway.available_connectors_by_id[connector_id].get_id() == connector_id):
+                        self._gateway.update_device(device_name, "connector", self._gateway.available_connectors_by_id[connector_id])
 
             self._gateway.tb_client.client.send_attributes({config['name']: config})
         except Exception as e:
