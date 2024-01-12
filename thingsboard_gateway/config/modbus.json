@@ -35,13 +35,6 @@
             "address": 5
           },
           {
-            "tag": "8int_read",
-            "type": "8int",
-            "functionCode": 4,
-            "objectsCount": 1,
-            "address": 6
-          },
-          {
             "tag": "16int_read",
             "type": "16int",
             "functionCode": 4,
@@ -55,14 +48,6 @@
             "objectsCount": 2,
             "address": 8,
             "divider": 10
-          },
-          {
-            "tag": "8int_read_multiplier",
-            "type": "8int",
-            "functionCode": 4,
-            "objectsCount": 1,
-            "address": 10,
-            "multiplier": 10
           },
           {
             "tag": "32int_read",
@@ -80,13 +65,6 @@
           }
         ],
         "timeseries": [
-          {
-            "tag": "8uint_read",
-            "type": "8uint",
-            "functionCode": 4,
-            "objectsCount": 1,
-            "address": 17
-          },
           {
             "tag": "16uint_read",
             "type": "16uint",
