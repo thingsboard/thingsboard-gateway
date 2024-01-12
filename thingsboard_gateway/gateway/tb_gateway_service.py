@@ -810,7 +810,7 @@ class TBGatewayService:
                             connector_id = None
                             try:
                                 if connector_config["config"][config] is not None:
-                                    if ("logLevel" in connector_config["config"][config] and "name" in connector_config["config"][config] and len(connector_config["config"][config].keys()) > 2) or \
+                                    if ("logLevel" in connector_config["config"][config] and "name" in connector_config["config"][config] and len(connector_config["config"][config].keys()) > 3) or \
                                         ("logLevel" not in connector_config["config"][config] and "name" not in connector_config["config"][config] and len(connector_config["config"][config].keys()) > 1):
                                         connector_name = connector_config["name"]
                                         connector_id = connector_config["id"]
