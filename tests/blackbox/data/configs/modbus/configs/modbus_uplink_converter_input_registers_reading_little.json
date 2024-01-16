@@ -1,0 +1,124 @@
+{
+  "Modbus": {
+    "name": "Modbus",
+    "type": "modbus",
+    "logLevel": "DEBUG",
+    "configuration": "modbus.json",
+    "configurationJson": {
+      "name": "Modbus",
+      "logLevel": "DEBUG",
+      "master": {
+        "slaves": [
+          {
+            "host": "host.docker.internal",
+            "port": 5021,
+            "type": "tcp",
+            "method": "socket",
+            "timeout": 35,
+            "byteOrder": "LITTLE",
+            "wordOrder": "LITTLE",
+            "retries": true,
+            "retryOnEmpty": true,
+            "retryOnInvalid": true,
+            "pollPeriod": 1000,
+            "unitId": 1,
+            "deviceName": "Temp Sensor",
+            "sendDataOnlyOnChange": true,
+            "connectAttemptTimeMs": 5000,
+            "connectAttemptCount": 5,
+            "waitAfterFailedAttemptsMs": 300000,
+            "attributes": [],
+            "timeseries": [
+              {
+                "tag": "string",
+                "type": "string",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 17
+              },
+              {
+                "tag": "bytes",
+                "type": "bytes",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 17
+              },
+              {
+                "tag": "bits",
+                "type": "bits",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 17
+              },
+              {
+                "tag": "16uint",
+                "type": "16uint",
+                "functionCode": 4,
+                "objectsCount": 2,
+                "address": 18
+              },
+              {
+                "tag": "16int",
+                "type": "16int",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 17
+              },
+              {
+                "tag": "16float",
+                "type": "16float",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 25
+              },
+              {
+                "tag": "32uint",
+                "type": "32uint",
+                "functionCode": 4,
+                "objectsCount": 4,
+                "address": 20
+              },
+              {
+                "tag": "32int",
+                "type": "32int",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 17
+              },
+              {
+                "tag": "32float",
+                "type": "32float",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 17
+              },
+              {
+                "tag": "64int",
+                "type": "64int",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 17
+              },
+              {
+                "tag": "64uint",
+                "type": "64uint",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 17
+              },
+              {
+                "tag": "64float",
+                "type": "64float",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 17
+              }
+            ],
+            "attributeUpdates": [],
+            "rpc": []
+          }
+        ]
+      }
+    }
+  }
+}
