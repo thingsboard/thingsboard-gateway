@@ -31,7 +31,7 @@ class SDKTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.gateway = TBGatewayService('data/gateway/gateway.yaml')
+        cls.gateway = TBGatewayService('../data/gateway/gateway.yaml')
 
     @classmethod
     def tearDownClass(cls) -> None:
