@@ -13,7 +13,7 @@ TB_TENANT_PASSWORD_CE = 'tenant'
 
 class ModbusUplinkMessagesTest(unittest.TestCase):
     CONFIG_PATH = path.join(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))),
-                            "data" + path.sep + "configs" + path.sep + "modbus" + path.sep)
+                            "data" + path.sep + "modbus" + path.sep)
 
     client = None
     gateway = None
