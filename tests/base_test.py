@@ -1,6 +1,8 @@
 import logging
 from unittest import TestCase
-from utils.gateway_device_util import GatewayDeviceUtil
+from test_utils.gateway_device_util import GatewayDeviceUtil
+import sys
+sys.path.append('..')
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s',
@@ -11,8 +13,8 @@ LOG = logging.getLogger("TEST")
 
 class BaseTest(TestCase):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.log = LOG
 
     def setUp(self):
