@@ -136,7 +136,7 @@ class ModbusUplinkMessagesTest(unittest.TestCase):
                           slave['timeseries']]
         sleep(2)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
-        must_be_values = self.load_configuration(self.CONFIG_PATH + 'test_values/input_registers_values.json')
+        must_be_values = self.load_configuration(self.CONFIG_PATH + 'test_values/input_registers_values_little.json')
 
         for (_type, value) in must_be_values.items():
             self.assertEqual(value, latest_ts[_type][0]['value'],
@@ -164,12 +164,12 @@ class ModbusUplinkMessagesTest(unittest.TestCase):
         """
 
         (config, _) = self.change_connector_configuration(
-            self.CONFIG_PATH + 'modbus_uplink_converter_holding_registers_reading_little.json')
+            self.CONFIG_PATH + 'configs/modbus_uplink_converter_holding_registers_reading_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
         sleep(2)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
-        must_be_values = self.load_configuration(self.CONFIG_PATH + 'test_values/holding_registers_values.json')
+        must_be_values = self.load_configuration(self.CONFIG_PATH + 'test_values/holding_registers_values_little.json')
 
         for (_type, value) in must_be_values.items():
             self.assertEqual(value, latest_ts[_type][0]['value'],
@@ -197,32 +197,87 @@ class ModbusUplinkMessagesTest(unittest.TestCase):
         """
 
         (config, _) = self.change_connector_configuration(
-            self.CONFIG_PATH + 'modbus_uplink_converter_coils_reading_little.json')
+            self.CONFIG_PATH + 'configs/modbus_uplink_converter_coils_reading_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
         sleep(2)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         must_be_values = self.load_configuration(
-            self.CONFIG_PATH + 'test_values/discrete_and_coils_registers_values.json')
+            self.CONFIG_PATH + 'test_values/discrete_and_coils_registers_values_little.json')
 
         for (_type, value) in must_be_values.items():
             self.assertEqual(value, latest_ts[_type][0]['value'],
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_discrete_input_reading_little_endian(self):
-        pass
+        (config, _) = self.change_connector_configuration(
+            self.CONFIG_PATH + 'configs/modbus_uplink_converter_discrete_input_reading_little.json')
+        telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
+                          slave['timeseries']]
+        sleep(2)
+        latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        must_be_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/discrete_and_coils_registers_values_little.json')
 
-    def test_coils_reading_big_endian(self):
-        pass
-
-    def test_discrete_input_reading_big_endian(self):
-        pass
+        for (_type, value) in must_be_values.items():
+            self.assertEqual(value, latest_ts[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
 
     def test_input_register_reading_big_endian(self):
-        pass
+        (config, _) = self.change_connector_configuration(
+            self.CONFIG_PATH + 'configs/modbus_uplink_converter_input_registers_reading_big.json')
+        telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
+                          slave['timeseries']]
+        sleep(2)
+        latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        must_be_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/input_registers_values_big.json')
+
+        for (_type, value) in must_be_values.items():
+            self.assertEqual(value, latest_ts[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
 
     def test_holding_register_reading_big_endian(self):
-        pass
+        (config, _) = self.change_connector_configuration(
+            self.CONFIG_PATH + 'configs/modbus_uplink_converter_holding_registers_reading_big.json')
+        telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
+                          slave['timeseries']]
+        sleep(2)
+        latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        must_be_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/holding_registers_values_big.json')
+
+        for (_type, value) in must_be_values.items():
+            self.assertEqual(value, latest_ts[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+    def test_coils_reading_big_endian(self):
+        (config, _) = self.change_connector_configuration(
+            self.CONFIG_PATH + 'configs/modbus_uplink_converter_coils_reading_big.json')
+        telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
+                          slave['timeseries']]
+        sleep(2)
+        latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        must_be_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/discrete_and_coils_registers_values_big.json')
+
+        for (_type, value) in must_be_values.items():
+            self.assertEqual(value, latest_ts[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+    def test_discrete_input_reading_big_endian(self):
+        (config, _) = self.change_connector_configuration(
+            self.CONFIG_PATH + 'configs/modbus_uplink_converter_discrete_input_reading_big.json')
+        telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
+                          slave['timeseries']]
+        sleep(2)
+        latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        must_be_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/discrete_and_coils_registers_values_big.json')
+
+        for (_type, value) in must_be_values.items():
+            self.assertEqual(value, latest_ts[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
 
 
 if __name__ == '__main__':

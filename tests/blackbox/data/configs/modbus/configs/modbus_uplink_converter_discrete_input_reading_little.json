@@ -32,14 +32,14 @@
               {
                 "tag": "bits",
                 "type": "bits",
-                "functionCode": 1,
+                "functionCode": 2,
                 "objectsCount": 16,
                 "address": 2
               },
               {
                 "tag": "bit",
                 "type": "bit",
-                "functionCode": 1,
+                "functionCode": 2,
                 "objectsCount": 1,
                 "address": 2
               }
