@@ -1,0 +1,30 @@
+on:
+  issues:
+    types:
+      - opened
+
+name: Create an issue in Jira
+
+jobs:
+  create-issue-in-jira:
+    name: Issue creation
+    runs-on: ubuntu-latest
+    steps:
+    - name: Login
+      uses: atlassian/gajira-login@master
+      env:
+        JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+        JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+        JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        
+    - name: Create
+      id: create
+      uses: atlassian/gajira-create@v3
+      with:
+        project: IOTGW
+        issuetype: Task
+        summary: \[GH issue ${{ github.event.issue.number }}\] ${{ github.event.issue.label }}
+        description: ${{ github.event.issue.body }}
+        
+    - name: Log created issue
+      run: echo "Issue ${{ steps.create.outputs.issue }} was created"
