@@ -23,8 +23,9 @@ jobs:
       with:
         project: IOTGW
         issuetype: Task
-        summary: \[GH issue ${{ github.event.issue.number }}\] ${{ github.event.issue.label }}
+        summary: '[GH issue ${{ github.event.issue.number }}] ${{ github.event.issue.label }}'
         description: ${{ github.event.issue.body }}
+        fields: '{"labels":["IoT_Gateway"]}'
         
     - name: Log created issue
       run: echo "Issue ${{ steps.create.outputs.issue }} was created"
