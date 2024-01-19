@@ -34,6 +34,13 @@ jobs:
           ${{ github.event.issue.html_url }}
         fields: '{"labels":["IoT_Gateway"]}'
 
+    - name: Move to Backlog
+      id: transition
+      uses: atlassian/gajira-transition@v3
+      with:
+        issue: ${{ steps.create.outputs.issue }}
+        transition: "Backlog"
+        
     - name: Add comment with issue name
       id: comment_github_issue
       run: gh issue comment "$NUMBER" --body "$BODY"
