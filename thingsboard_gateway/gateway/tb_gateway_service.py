@@ -255,7 +255,7 @@ class TBGatewayService:
         self.__rpc_processing_queue = SimpleQueue()
         self.__rpc_scheduled_methods_functions = {
             "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
-            "reboot": {"function": system, "arguments": ("shutdown -r now",)},
+            "reboot": {"function": subprocess.call, "arguments": (["shutdown", "-r", "-t", "0"],)},
         }
         self.__rpc_processing_thread = Thread(target=self.__send_rpc_reply_processing, daemon=True,
                                               name="RPC processing thread")
