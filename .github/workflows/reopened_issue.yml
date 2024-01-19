@@ -3,7 +3,7 @@ on:
     types:
       - reopened
 
-name: Move ticket to Baclog if it was reopened
+name: Move ticket to Backlog if it was reopened
 
 jobs:
   close-ticket-in-jira:
@@ -48,4 +48,4 @@ jobs:
       uses: atlassian/gajira-transition@v3
       with:
         issue: ${{ steps.find_ticket.outputs.issue }}
-        transition: "Backlog"
+        transition: "task in backlog"
