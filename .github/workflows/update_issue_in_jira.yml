@@ -38,7 +38,7 @@ jobs:
       if: steps.find_ticket.outputs.issue != ''
       uses: atlassian/gajira-comment@v3
       with:
-        issue: ${{ steps.find_ticket.issue }}
+        issue: ${{ steps.find_ticket.outputs.issue }}
         comment: |
           Github issue was commented by *${{ github.event.comment.user.login }}*:
            
