@@ -39,7 +39,7 @@ jobs:
       uses: atlassian/gajira-transition@v3
       with:
         issue: ${{ steps.create.outputs.issue }}
-        transition: "Backlog"
+        transition: "task in backlog"
         
     - name: Add comment with issue name
       id: comment_github_issue
