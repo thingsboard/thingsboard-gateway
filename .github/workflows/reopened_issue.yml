@@ -3,12 +3,12 @@ on:
     types:
       - reopened
 
-name: Move ticket to Backlog if it was reopened
+name: Move ticket if it was reopened
 
 jobs:
   close-ticket-in-jira:
     if: ${{ !github.event.issue.pull_request }}
-    name: Move ticket to backlog if reopened
+    name: Move ticket if reopened
     runs-on: ubuntu-latest
     steps:
     - name: Login
@@ -44,8 +44,17 @@ jobs:
 
     - name: Move to Backlog
       if: steps.find_ticket.outputs.issue != ''
-      id: transition
+      id: transition_to_backlog
       uses: atlassian/gajira-transition@v3
       with:
         issue: ${{ steps.find_ticket.outputs.issue }}
         transition: "task in backlog"
+        
+    - name: Move to Backlog
+      if: steps.find_ticket.outputs.issue != ''
+      id: transition_to_todo
+      uses: atlassian/gajira-transition@v3
+      with:
+        issue: ${{ steps.find_ticket.outputs.issue }}
+        transition: "Admin permissions only"
+        
