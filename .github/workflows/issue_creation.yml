@@ -1,0 +1,59 @@
+on:
+  issues:
+    types:
+      - opened
+
+name: Create an issue in Jira
+
+jobs:
+  create-issue-in-jira:
+    name: Issue creation
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+    - name: Login
+      uses: atlassian/gajira-login@master
+      env:
+        JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+        JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+        JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        
+    - name: Create
+      id: create
+      uses: atlassian/gajira-create@v3
+      with:
+        project: IOTGW
+        issuetype: Task
+        summary: '[GH issue ${{ github.event.issue.number }}] ${{ github.event.issue.title }}'
+        description: |
+          Github issue was created by *${{ github.event.issue.user.login }}*:
+           
+          ${{ github.event.issue.body }}
+           
+          ${{ github.event.issue.html_url }}
+        fields: '{"labels":["IoT_Gateway"]}'
+
+    - name: Move to Backlog
+      id: transition
+      uses: atlassian/gajira-transition@v3
+      with:
+        issue: ${{ steps.create.outputs.issue }}
+        transition: "task in backlog"
+        
+    - name: Add comment with issue name
+      id: comment_github_issue
+      run: gh issue comment "$NUMBER" --body "$BODY"
+      env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          BODY: |
+            Hi @${{ github.event.issue.user.login }}.  
+            Thank you for your interest in ThingsBoard IoT Gateway.  
+            Your issue was registered, please wait for response from engineer.  
+            
+            ${{ steps.create.outputs.issue }} 
+        
+    - name: Log created issue
+      run: echo "Issue ${{ steps.create.outputs.issue }} was created"

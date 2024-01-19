@@ -1,0 +1,51 @@
+on:
+  issues:
+    types:
+      - closed
+
+name: Move ticket to closed
+
+jobs:
+  close-ticket-in-jira:
+    if: ${{ !github.event.issue.pull_request }}
+    name: Close ticket
+    runs-on: ubuntu-latest
+    steps:
+    - name: Login
+      uses: atlassian/gajira-login@master
+      env:
+        JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+        JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+        JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        
+    - name: Find Comment
+      uses: peter-evans/find-comment@v2
+      id: find_comment
+      with:
+        issue-number: ${{ github.event.issue.number }}
+        comment-author: 'github-actions[bot]'
+        direction: first
+        nth: 0
+        
+    - name: Find Jira ticket
+      if: steps.find_comment.outputs.comment-id != ''
+      id: find_ticket
+      uses: atlassian/gajira-find-issue-key@v3
+      with:
+        string: ${{ steps.find_comment.outputs.comment-body }}
+
+    - name: Update Jira ticket
+      if: steps.find_ticket.outputs.issue != ''
+      uses: atlassian/gajira-comment@v3
+      with:
+        issue: ${{ steps.find_ticket.outputs.issue }}
+        comment: |
+          Github issue was closed by *${{ github.event.sender.login }}*
+
+    - name: Move to Done
+      if: steps.find_ticket.outputs.issue != ''
+      id: transition
+      uses: atlassian/gajira-transition@v3
+      with:
+        issue: ${{ steps.find_ticket.outputs.issue }}
+        transition: "Closed"
