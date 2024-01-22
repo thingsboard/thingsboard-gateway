@@ -4,7 +4,7 @@ try:
     from pymodbus.constants import Endian
 except (ImportError, ModuleNotFoundError):
     from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-    TBUtility.install_package("pymodbus")
+    TBUtility.install_package("pymodbus", version="3.0.0")
     from pymodbus.constants import Endian
 
 from pymodbus.payload import BinaryPayloadBuilder

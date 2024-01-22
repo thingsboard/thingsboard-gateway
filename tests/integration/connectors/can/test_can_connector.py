@@ -20,7 +20,7 @@ from os import path
 from random import choice, randint, uniform
 from string import ascii_lowercase
 from time import sleep
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from tests.base_test import BaseTest
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
@@ -56,12 +56,17 @@ class CanConnectorTestsBase(BaseTest):
                             "data" + path.sep + "can" + path.sep)
 
     def setUp(self):
+        super().setUp()
         self.bus = self._create_bus()
+        self.mock_logger = patch('thingsboard_gateway.tb_utility.tb_logger.TbLogger').start()
         self.gateway = Mock(spec=TBGatewayService)
+        self.gateway.log = self.mock_logger
         self.connector = None
         self.config = None
 
     def tearDown(self):
+        super().tearDown()
+        patch.stopall()
         self.connector.close()
         self.bus.shutdown()
 

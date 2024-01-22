@@ -34,6 +34,7 @@ class OpcUaTestServer:
         return self._idx
 
     def stop(self):
+        self._server.stop()
         self._stop = True
 
     async def create_nodes(self):
@@ -50,7 +51,7 @@ class OpcUaTestServer:
         log.info('Setup test server')
         self._server = Server()
         await self._server.init()
-        self._server.set_endpoint("opc.tcp://0.0.0.0:4840/freeopcua/server/")
+        self._server.set_endpoint("opc.tcp://0.0.0.0:4841/freeopcua/server/")
 
         # setup our own namespace, not really necessary but should as spec
         uri = 'http://examples.freeopcua.github.io'

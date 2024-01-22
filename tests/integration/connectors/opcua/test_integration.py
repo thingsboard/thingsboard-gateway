@@ -44,19 +44,24 @@ logger.setLevel(logging.WARNING)
 
 class BaseOpcUaIntegration(unittest.IsolatedAsyncioTestCase):
 
+    server = None
+    _server_thread = None
+
     def setup_server(self):
         # Overload this method
         pass
 
-    def setUp(self):
-        self.server = None
-        self.setup_server()
-        assert self.server is not None
-        self._server_thread = Thread(name='OpcUa server thread', target=lambda: asyncio.run(self.server.run()), daemon=True)
-        self._server_thread.start()
-        assert wait_until(lambda: hasattr(self.server, 'is_ready') and self.server.is_ready == True, 5)
+    @classmethod
+    def setUpClass(cls):
+        cls.server = None
+        cls.setup_server(None)
+        assert cls.server is not None
+        cls._server_thread = Thread(name='OpcUa server thread', target=lambda: asyncio.run(cls.server.run()), daemon=True)
+        cls._server_thread.start()
+        assert wait_until(lambda: hasattr(cls.server, 'is_ready') and cls.server.is_ready == True, 5)
 
-    def tearDown(self):
+    @classmethod
+    def tearDownClass(self):
         self.server.stop()
         del self._server_thread
         assert wait_until(lambda: hasattr(self.server, 'is_stopped') and self.server.is_stopped == True, 10)

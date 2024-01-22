@@ -40,7 +40,7 @@ class GatewayDeviceUtil:
                                                          access_token=GatewayDeviceUtil.GATEWAY_ACCESS_TOKEN)
                 GatewayDeviceUtil.GATEWAY_DEVICE = gateway_device
 
-                logging.info("Gateway device was created:\n%r\n", gateway_device.name)
+                logging.info("Gateway device was created: %r", gateway_device.name)
 
                 return gateway_device
             except ApiException as e:
@@ -51,7 +51,7 @@ class GatewayDeviceUtil:
                         logging.exception(e)
                         exit(1)
                     else:
-                        logging.info("Gateway device already exists:\n%r\n", GatewayDeviceUtil.GATEWAY_DEVICE_NAME)
+                        logging.info("Gateway device already exists: %r", GatewayDeviceUtil.GATEWAY_DEVICE_NAME)
                         gateway_device = rest_client.get_tenant_device(GatewayDeviceUtil.GATEWAY_DEVICE_NAME)
                         GatewayDeviceUtil.GATEWAY_DEVICE = gateway_device
                         return gateway_device
@@ -59,14 +59,13 @@ class GatewayDeviceUtil:
     @staticmethod
     def delete_gateway_device():
         if GatewayDeviceUtil.GATEWAY_DEVICE is None:
-
             return
+
         with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
             try:
                 rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME, password=GatewayDeviceUtil.DEFAULT_PASSWORD)
                 rest_client.delete_device(GatewayDeviceUtil.GATEWAY_DEVICE.id)
-                logging.info("Gateway device was deleted:\n%r\n", GatewayDeviceUtil.GATEWAY_DEVICE.name)
-
+                logging.info("Gateway device was deleted: %r", GatewayDeviceUtil.GATEWAY_DEVICE.name)
                 GatewayDeviceUtil.GATEWAY_DEVICE = None
             except ApiException as e:
                 logging.exception(e)

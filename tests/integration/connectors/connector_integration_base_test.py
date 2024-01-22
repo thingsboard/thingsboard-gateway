@@ -17,7 +17,7 @@ import sys
 
 from tests.integration.integration_base_test import IntegrationBaseTest
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from os import path
 from time import sleep
 from simplejson import load
@@ -32,11 +32,14 @@ class ConnectorTestBase(IntegrationBaseTest):
                           "data" + path.sep)
 
     def setUp(self):
+        self.mock_logger = patch('thingsboard_gateway.tb_utility.tb_logger.TbLogger').start()
         self.gateway = Mock(spec=TBGatewayService)
+        self.gateway.log = self.mock_logger
         self.connector = None
         self.config = None
 
     def tearDown(self):
+        patch.stopall()
         self.connector.close()
 
     def _load_data_file(self, filename, connector_type):

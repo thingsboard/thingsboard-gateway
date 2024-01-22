@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+    "LogFormatter": {
+      "class": "logging.Formatter",
+      "format": "%(asctime)s - |%(levelname)s| - [%(filename)s] - %(module)s - %(funcName)s - %(lineno)d - %(message)s",
+      "datefmt": "%Y-%m-%d %H:%M:%S"
+    }
+  },
+  "handlers": {
+    "consoleHandler": {
+      "class": "logging.StreamHandler",
+      "formatter": "LogFormatter",
+      "level": "DEBUG",
+      "stream": "ext://sys.stdout"
+    },
+    "databaseHandler": {
+      "class": "thingsboard_gateway.tb_utility.tb_handler.TimedRotatingFileHandler",
+      "formatter": "LogFormatter",
+      "filename": "./logs/database.log",
+      "backupCount": 1,
+      "encoding": "utf-8"
+    },
+    "serviceHandler": {
+      "class": "thingsboard_gateway.tb_utility.tb_handler.TimedRotatingFileHandler",
+      "formatter": "LogFormatter",
+      "filename": "./logs/service.log",
+      "backupCount": 7,
+      "interval": 3,
+      "when": "D",
+      "encoding": "utf-8"
+    },
+    "connectorHandler": {
+      "class": "thingsboard_gateway.tb_utility.tb_handler.TimedRotatingFileHandler",
+      "formatter": "LogFormatter",
+      "filename": "./logs/connector.log",
+      "backupCount": 7,
+      "interval": 3,
+      "when": "D",
+      "encoding": "utf-8"
+    },
+    "converterHandler": {
+      "class": "thingsboard_gateway.tb_utility.tb_handler.TimedRotatingFileHandler",
+      "formatter": "LogFormatter",
+      "filename": "./logs/converter.log",
+      "backupCount": 7,
+      "interval": 3,
+      "when": "D",
+      "encoding": "utf-8"
+    },
+    "tb_connectionHandler": {
+      "class": "thingsboard_gateway.tb_utility.tb_handler.TimedRotatingFileHandler",
+      "formatter": "LogFormatter",
+      "filename": "./logs/tb_connection.log",
+      "backupCount": 7,
+      "interval": 3,
+      "when": "D",
+      "encoding": "utf-8"
+    },
+    "storageHandler": {
+      "class": "thingsboard_gateway.tb_utility.tb_handler.TimedRotatingFileHandler",
+      "formatter": "LogFormatter",
+      "filename": "./logs/storage.log",
+      "backupCount": 7,
+      "interval": 3,
+      "when": "D",
+      "encoding": "utf-8"
+    },
+    "extensionHandler": {
+      "class": "thingsboard_gateway.tb_utility.tb_handler.TimedRotatingFileHandler",
+      "formatter": "LogFormatter",
+      "filename": "./logs/extension.log",
+      "backupCount": 7,
+      "interval": 3,
+      "when": "D",
+      "encoding": "utf-8"
+    }
+  },
+  "loggers": {
+    "database": {
+      "handlers": [
+        "databaseHandler",
+        "consoleHandler"
+      ],
+      "level": "INFO",
+      "propagate": false
+    },
+    "service": {
+      "handlers": [
+        "serviceHandler",
+        "consoleHandler"
+      ],
+      "level": "INFO",
+      "propagate": false
+    },
+    "connector": {
+      "handlers": [
+        "connectorHandler",
+        "consoleHandler"
+      ],
+      "level": "INFO",
+      "propagate": false
+    },
+    "converter": {
+      "handlers": [
+        "converterHandler",
+        "consoleHandler"
+      ],
+      "level": "INFO",
+      "propagate": false
+    },
+    "tb_connection": {
+      "handlers": [
+        "tb_connectionHandler",
+        "consoleHandler"
+      ],
+      "level": "INFO",
+      "propagate": false
+    },
+    "storage": {
+      "handlers": [
+        "storageHandler",
+        "consoleHandler"
+      ],
+      "level": "INFO",
+      "propagate": false
+    },
+    "extension": {
+      "handlers": [
+        "extensionHandler",
+        "consoleHandler"
+      ],
+      "level": "INFO",
+      "propagate": false
+    }
+  },
+  "root": {
+    "level": "ERROR",
+    "handlers": [
+      "consoleHandler"
+    ]
+  }
+}
