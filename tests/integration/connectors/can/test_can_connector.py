@@ -24,7 +24,12 @@ from unittest.mock import Mock
 
 from tests.base_test import BaseTest
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
-from can import Notifier, BufferedReader, Bus, Message
+try :
+    from can import Notifier, BufferedReader, Bus, Message
+except (ImportError, ModuleNotFoundError):
+    from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+    TBUtility.install_package("python-can")
+    from can import Notifier, BufferedReader, Bus, Message
 from simplejson import load
 
 from thingsboard_gateway.connectors.can.can_connector import CanConnector

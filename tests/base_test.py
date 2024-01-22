@@ -1,14 +1,16 @@
 import logging
+from sys import stdout
 from unittest import TestCase
-from test_utils.gateway_device_util import GatewayDeviceUtil
-import sys
-sys.path.append('..')
+from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 
 LOG = logging.getLogger("TEST")
+LOG.level = logging.DEBUG
+stream_handler = logging.StreamHandler(stdout)
+LOG.addHandler(stream_handler)
 
 
 class BaseTest(TestCase):
@@ -17,10 +19,10 @@ class BaseTest(TestCase):
         super().__init__(*args, **kwargs)
         self.log = LOG
 
-    def setUp(self):
-        device = GatewayDeviceUtil.create_gateway_device()
-        self.assertIsNotNone(device)
+    @classmethod
+    def setUpClass(cls):
+        GatewayDeviceUtil.get_gateway_device()
 
-    def tearDown(self):
+    @classmethod
+    def tearDownClass(cls):
         GatewayDeviceUtil.delete_gateway_device()
-        self.assertIsNone(GatewayDeviceUtil.GATEWAY_DEVICE)

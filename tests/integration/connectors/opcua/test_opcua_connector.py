@@ -15,7 +15,7 @@
 from threading import Thread
 from time import sleep
 
-from tests.integration.connectors.connector_integration_test_base import ConnectorTestBase
+from tests.integration.connectors.connector_integration_base_test import ConnectorTestBase
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:

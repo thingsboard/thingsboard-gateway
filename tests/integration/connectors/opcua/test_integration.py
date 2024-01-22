@@ -13,7 +13,7 @@ except (ImportError, ModuleNotFoundError):
 
 from tests.integration.connectors.opcua.helpers import wait_until, read_config, await_until, send_to_storage_to_timeseries, \
     list_intersect_ordered
-from opcua_test_server import OpcUaTestServer
+from tests.integration.connectors.opcua.opcua_test_server import OpcUaTestServer
 from thingsboard_gateway.connectors.opcua.opcua_connector import OpcUaConnector
 from thingsboard_gateway.connectors.opcua_asyncio.opcua_connector import OpcUaConnectorAsyncIO
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService

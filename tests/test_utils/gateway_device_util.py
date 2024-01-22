@@ -1,19 +1,22 @@
 import logging
-from tb_rest_client.rest_client_ce import *
+
+from simplejson import loads
 from tb_rest_client.rest import ApiException
+from tb_rest_client.rest_client_ce import *
 
 LOG = logging.getLogger("TEST")
 
-DEFAULT_URL = "http://localhost:8080"
-
-DEFAULT_USERNAME = "tenant@thingsboard.org"
-DEFAULT_PASSWORD = "tenant"
-
 
 class GatewayDeviceUtil:
+    DEFAULT_URL = "http://localhost:8080"
+
+    DEFAULT_USERNAME = "tenant@thingsboard.org"
+    DEFAULT_PASSWORD = "tenant"
 
     GATEWAY_DEVICE_NAME = "Test Gateway device"
     GATEWAY_DEVICE = None
+
+    GATEWAY_ACCESS_TOKEN = "YOUR_ACCESS_TOKEN"
 
     @classmethod
     def get_gateway_device(cls, url=DEFAULT_URL, username=DEFAULT_USERNAME, password=DEFAULT_PASSWORD) -> Device:
@@ -30,28 +33,37 @@ class GatewayDeviceUtil:
                 additional_info = {"gateway": True,
                                    "overwriteActivityTime": False,
                                    "description": ""}
-                gateway_device = Device(name=GatewayDeviceUtil,
+                gateway_device = Device(name=GatewayDeviceUtil.GATEWAY_DEVICE_NAME,
                                         device_profile_id=gateway_device_profile.id,
                                         additional_info=additional_info)
                 gateway_device = rest_client.save_device(gateway_device,
-                                                         access_token="GatewayAccessToken")
+                                                         access_token=GatewayDeviceUtil.GATEWAY_ACCESS_TOKEN)
                 GatewayDeviceUtil.GATEWAY_DEVICE = gateway_device
 
                 logging.info("Gateway device was created:\n%r\n", gateway_device.name)
 
                 return gateway_device
             except ApiException as e:
-                logging.exception(e)
-                exit(1)
+                response_body = loads(bytes.decode(e.body, encoding='UTF-8'))
+                if response_body:
+                    if not response_body.get("status") == 400 or not response_body.get(
+                            "message") == "Device with such name already exists!":
+                        logging.exception(e)
+                        exit(1)
+                    else:
+                        logging.info("Gateway device already exists:\n%r\n", GatewayDeviceUtil.GATEWAY_DEVICE_NAME)
+                        gateway_device = rest_client.get_tenant_device(GatewayDeviceUtil.GATEWAY_DEVICE_NAME)
+                        GatewayDeviceUtil.GATEWAY_DEVICE = gateway_device
+                        return gateway_device
 
     @staticmethod
     def delete_gateway_device():
         if GatewayDeviceUtil.GATEWAY_DEVICE is None:
 
             return
-        with RestClientCE(base_url=DEFAULT_URL) as rest_client:
+        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
             try:
-                rest_client.login(username=DEFAULT_USERNAME, password=DEFAULT_PASSWORD)
+                rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME, password=GatewayDeviceUtil.DEFAULT_PASSWORD)
                 rest_client.delete_device(GatewayDeviceUtil.GATEWAY_DEVICE.id)
                 logging.info("Gateway device was deleted:\n%r\n", GatewayDeviceUtil.GATEWAY_DEVICE.name)
 

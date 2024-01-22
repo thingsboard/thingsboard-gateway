@@ -1,4 +1,4 @@
-from base_test import BaseTest
+from tests.base_test import BaseTest
 
 
 class BaseUnitTest(BaseTest):

@@ -14,23 +14,21 @@
 #      limitations under the License.
 
 import sys
-sys.path.append('..')
-sys.path.append('../..')
-sys.path.append('../../..')
-sys.path.append('../../../..')
+
+from tests.integration.integration_base_test import IntegrationBaseTest
+
 from unittest.mock import Mock
 from os import path
 from time import sleep
 from simplejson import load
 
-from tests.base_test import BaseTest
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.gateway.tb_gateway_service import DEFAULT_CONNECTORS
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
 
-class ConnectorTestBase(BaseTest):
-    DATA_PATH = path.join(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))),
+class ConnectorTestBase(IntegrationBaseTest):
+    DATA_PATH = path.join(path.dirname(path.dirname(path.abspath(__file__))),
                           "data" + path.sep)
 
     def setUp(self):

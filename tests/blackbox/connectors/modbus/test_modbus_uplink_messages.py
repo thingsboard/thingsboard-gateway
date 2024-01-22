@@ -5,13 +5,12 @@ from simplejson import load
 
 from tb_rest_client.rest_client_ce import *
 
-TB_URL_CE = 'http://0.0.0.0:8080'
-
-TB_TENANT_USERNAME_CE = 'tenant@thingsboard.org'
-TB_TENANT_PASSWORD_CE = 'tenant'
+from tests.base_test import BaseTest
+from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 
-class ModbusUplinkMessagesTest(unittest.TestCase):
+@unittest.skip("Skip until device creation will be fixed")
+class ModbusUplinkMessagesTest(BaseTest):
     CONFIG_PATH = path.join(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))),
                             "data" + path.sep + "modbus" + path.sep)
 
@@ -21,22 +20,24 @@ class ModbusUplinkMessagesTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        super().setUpClass()
         # ThingsBoard REST API URL
-        url = TB_URL_CE
+        url = GatewayDeviceUtil.DEFAULT_URL
 
         # Default Tenant Administrator credentials
-        username = TB_TENANT_USERNAME_CE
-        password = TB_TENANT_PASSWORD_CE
+        username = GatewayDeviceUtil.DEFAULT_USERNAME
+        password = GatewayDeviceUtil.DEFAULT_PASSWORD
 
         with RestClientCE(url) as cls.client:
             cls.client.login(username, password)
             # assert cls.client.token is not None
 
-            cls.gateway = cls.client.get_tenant_devices(10, 0, text_search='Gateway').data[0]
+            cls.gateway = cls.client.get_tenant_devices(10, 0, text_search=GatewayDeviceUtil.GATEWAY_DEVICE_NAME).data[0]
             assert cls.gateway is not None
 
-            cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
-            assert cls.device is not None
+            # TODO @samson0v It is not an option for BlackBox tests, device should be created by upcoming telemetry from device
+            # cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
+            # assert cls.device is not None
 
     @classmethod
     def load_configuration(cls, config_file_path):

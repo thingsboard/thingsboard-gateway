@@ -15,6 +15,7 @@
 import unittest
 from time import time
 
+from tests.unit.BaseUnitTest import BaseUnitTest
 from thingsboard_gateway.gateway.constants import *
 from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
 
@@ -31,7 +32,7 @@ class Connector:
         return self._ttl
 
 
-class TestDuplicateDetector(unittest.TestCase):
+class TestDuplicateDetector(BaseUnitTest):
     CONNECTOR_NAME = "ConnectorName"
     TEST_DEVICE_NAME = "Test device"
     TEST_DEVICE_TYPE = "TimeMachine"

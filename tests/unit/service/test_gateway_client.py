@@ -3,6 +3,9 @@ from unittest.mock import Mock, patch
 
 from simplejson import dumps
 
+from os import path
+
+from tests.unit.BaseUnitTest import BaseUnitTest
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
 
@@ -17,7 +20,7 @@ def assert_not_called_with(self, *args, **kwargs):
 Mock.assert_not_called_with = assert_not_called_with
 
 
-class SDKTests(unittest.TestCase):
+class SDKTests(BaseUnitTest):
     """
     Before running tests: do the next steps:
     1. Make sure you are using right config files in tests/data/gateway/
@@ -31,7 +34,7 @@ class SDKTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.gateway = TBGatewayService('../data/gateway/gateway.yaml')
+        cls.gateway = TBGatewayService(path.join(path.dirname(path.dirname(path.abspath(__file__)))) + '/data/gateway/gateway.json')
 
     @classmethod
     def tearDownClass(cls) -> None:

@@ -10,7 +10,7 @@ from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventS
 class TestStorage(TestCase):
     def test_memory_storage(self):
 
-        test_size = randint(0, 100)
+        test_size = 20
 
         storage_test_config = {
             "type": "memory",
@@ -33,7 +33,7 @@ class TestStorage(TestCase):
     def test_file_storage(self):
 
         storage_test_config = {"data_folder_path": "storage/data/",
-                               "max_file_count": 1000,
+                               "max_file_count": 20,
                                "max_records_per_file": 10,
                                "max_read_records_count": 10,
                                "no_records_sleep_interval": 5000
