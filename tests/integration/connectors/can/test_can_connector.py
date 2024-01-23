@@ -194,6 +194,7 @@ class CanConnectorTsAndAttrTests(CanConnectorTestsBase):
 
         self.assertEqual(self.gateway.send_to_storage.call_count, message_count)
         self.gateway.send_to_storage.assert_called_with(self.connector.get_name(),
+                                                        self.connector.get_id(),
                                                         {"deviceName": device_name,
                                                          "deviceType": self.config["devices"][0]["type"],
                                                          "attributes": [{"serialNumber": string_value}],
@@ -217,6 +218,7 @@ class CanConnectorTsAndAttrTests(CanConnectorTestsBase):
         sleep(1)
 
         self.gateway.send_to_storage.assert_called_once_with(self.connector.get_name(),
+                                                             self.connector.get_id(),
                                                              {"deviceName": self.config["devices"][1]["name"],
                                                               "deviceType": self.connector._connector_type,
                                                               "attributes": [],
@@ -251,6 +253,7 @@ class CanConnectorTsAndAttrTests(CanConnectorTestsBase):
         sleep(1)
 
         self.gateway.send_to_storage.assert_called_with(self.connector.get_name(),
+                                                        self.connector.get_id(),
                                                         {"deviceName": self.config["devices"][2]["name"],
                                                          "deviceType": self.connector._connector_type,
                                                          "attributes": [],
@@ -260,6 +263,7 @@ class CanConnectorTsAndAttrTests(CanConnectorTestsBase):
         sleep(1)
 
         self.gateway.send_to_storage.assert_called_with(self.connector.get_name(),
+                                                        self.connector.get_id(),
                                                         {"deviceName": self.config["devices"][2]["name"],
                                                          "deviceType": self.connector._connector_type,
                                                          "attributes": [],
@@ -294,6 +298,7 @@ class CanConnectorTsAndAttrTests(CanConnectorTestsBase):
         sleep(1)
 
         self.gateway.send_to_storage.assert_called_with(self.connector.get_name(),
+                                                        self.connector.get_id(),
                                                         {"deviceName": self.config["devices"][3]["name"],
                                                          "deviceType": self.connector._connector_type,
                                                          "attributes": [],

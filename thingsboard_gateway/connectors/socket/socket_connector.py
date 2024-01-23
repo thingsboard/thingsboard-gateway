@@ -44,7 +44,7 @@ class SocketConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.__gateway = gateway
-        self.setName(config.get("name", 'TCP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = config.get("name", 'TCP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self.daemon = True
         self.__stopped = False

@@ -513,7 +513,7 @@ class TBGatewayService:
         self.__updater.stop()
         log.info("Stopping...")
 
-        if hasattr(self, '_TBGatewayService__statistics_service'):
+        if hasattr(self, '_TBGatewayService__statistics_service') and self.__statistics_service is not None:
             self.__statistics_service.stop()
 
         if self.__grpc_manager is not None:
@@ -769,6 +769,8 @@ class TBGatewayService:
                             connector_conf['id'] = connector_id
                             with open(config_file_path, 'w', encoding="UTF-8") as conf_file:
                                 conf_file.write(dumps(connector_conf, indent=2))
+                    elif isinstance(connector_conf, str) and not connector_conf:
+                        raise ValueError("Connector configuration is empty!")
                     elif isinstance(connector_conf, str):
                         start_find = connector_conf.find("{id_var_start}")
                         end_find = connector_conf.find("{id_var_end}")
@@ -811,7 +813,7 @@ class TBGatewayService:
                             try:
                                 if connector_config["config"][config] is not None:
                                     if ("logLevel" in connector_config["config"][config] and "name" in connector_config["config"][config] and len(connector_config["config"][config].keys()) > 3) or \
-                                        ("logLevel" not in connector_config["config"][config] and "name" not in connector_config["config"][config] and len(connector_config["config"][config].keys()) > 1):
+                                        "logLevel" not in connector_config["config"][config]:
                                         connector_name = connector_config["name"]
                                         connector_id = connector_config["id"]
 
@@ -821,7 +823,7 @@ class TBGatewayService:
                                             connector = self._implemented_connectors[connector_type](self,
                                                                                                      connector_config["config"][config],
                                                                                                      connector_type)
-                                            connector.setName(connector_name)
+                                            connector.name = connector_name
                                             self.available_connectors_by_id[connector_id] = connector
                                             self.available_connectors_by_name[connector_name] = connector
                                             connector.open()

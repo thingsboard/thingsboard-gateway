@@ -1,7 +1,7 @@
 {
   "thingsboard": {
     "host": "127.0.0.1",
-    "port": 1884,
+    "port": 1883,
     "remoteShell": false,
     "remoteConfiguration": false,
     "statistics": {

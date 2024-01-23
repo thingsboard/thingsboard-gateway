@@ -40,7 +40,7 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
         self._connector_type = connector_type
         self.__config = config  # Save configuration from the configuration file.
         self.__gateway = gateway  # Save gateway object, we will use some gateway methods for adding devices and saving data from them.
-        self.setName(self.__config.get("name",
+        self.name = self.__config.get("name",
                                        "Custom %s connector " % self.get_name() + ''.join(
                                            choice(ascii_lowercase) for _ in range(5))))  # get from the configuration or create name for logs.
         self._log = init_logger(self.__gateway, self.name, level=self.__config.get('logLevel'))

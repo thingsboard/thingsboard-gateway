@@ -37,7 +37,7 @@ class TBGRPCServerManager(Thread):
         super().__init__()
         self.daemon = True
         self.__gateway = gateway
-        self.setName("TB GRPC manager thread")
+        self.name = "TB GRPC manager thread"
         self.__aio_server: grpc.aio.Server = None
         self.__register_connector = None
         self.__unregister_connector = None

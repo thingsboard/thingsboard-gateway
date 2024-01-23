@@ -56,8 +56,7 @@ class OpcUaConnector(Thread, Connector):
         self._config = config
         self.__id = self._config.get('id')
         self.__server_conf = config.get("server")
-        self.setName(
-            self._config.get("name", 'OPC-UA ' + ''.join(choice(ascii_lowercase) for _ in range(5)) + " Connector"))
+        self.name = self._config.get("name", 'OPC-UA ' + ''.join(choice(ascii_lowercase) for _ in range(5)) + " Connector")
         self._log = init_logger(self.__gateway, self.name, self._config.get('logLevel', 'INFO'))
         self.__interest_nodes = []
         self.__available_object_resources = {}

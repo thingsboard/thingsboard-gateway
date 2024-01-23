@@ -43,8 +43,7 @@ class GrpcMqttConnector(GwGrpcConnector):
         self.__config = self.connection_config['config'][list(self.connection_config['config'].keys())[0]]
         self._connector_key = self.connection_config['grpc_key']
         self._connector_type = 'mqtt'
-        self.setName(
-            self.__config.get("name", 'MQTT Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = self.__config.get("name", 'MQTT Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
 
         self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__subscribes_sent = {}

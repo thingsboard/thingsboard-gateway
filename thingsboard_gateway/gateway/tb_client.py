@@ -37,7 +37,7 @@ log = logging.getLogger("tb_connection")
 class TBClient(threading.Thread):
     def __init__(self, config, config_folder_path):
         super().__init__()
-        self.setName('Connection thread.')
+        self.name = 'Connection thread.'
         self.daemon = True
         self.__config_folder_path = config_folder_path
         self.__config = config

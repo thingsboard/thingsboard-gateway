@@ -68,7 +68,7 @@ class CanConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         super().__init__()
-        self.setName(config.get("name", 'CAN Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = config.get("name", 'CAN Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__gateway = gateway
         self._connector_type = connector_type
         self.__config = config

@@ -57,8 +57,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         self.__config = config
         self.__id = self.__config.get('id')
         self.__server_conf = config['server']
-        self.setName(
-            self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
 
         if "opc.tcp" not in self.__server_conf.get("url"):

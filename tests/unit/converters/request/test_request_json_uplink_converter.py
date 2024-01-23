@@ -1,4 +1,4 @@
-from ...BaseUnitTest import BaseUnitTest
+from tests.unit.BaseUnitTest import BaseUnitTest
 from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
 
 

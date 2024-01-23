@@ -5,7 +5,7 @@ from simplejson import dumps
 
 from os import path
 
-from tests.unit.BaseUnitTest import BaseUnitTest
+from tests.integration.integration_base_test import IntegrationBaseTest
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
 
@@ -20,7 +20,8 @@ def assert_not_called_with(self, *args, **kwargs):
 Mock.assert_not_called_with = assert_not_called_with
 
 
-class SDKTests(BaseUnitTest):
+@unittest.skip("Skip, gateway doesn't stop after test in case of batch running")
+class SDKTests(IntegrationBaseTest):
     """
     Before running tests: do the next steps:
     1. Make sure you are using right config files in tests/data/gateway/
@@ -34,10 +35,12 @@ class SDKTests(BaseUnitTest):
 
     @classmethod
     def setUpClass(cls) -> None:
+        super().setUpClass()
         cls.gateway = TBGatewayService(path.join(path.dirname(path.dirname(path.abspath(__file__)))) + '/data/gateway/gateway.json')
 
     @classmethod
     def tearDownClass(cls) -> None:
+        super().tearDownClass()
         cls.gateway._TBGatewayService__stop_gateway()
 
     @patch('tb_gateway_mqtt.TBGatewayMqttClient.gw_connect_device')

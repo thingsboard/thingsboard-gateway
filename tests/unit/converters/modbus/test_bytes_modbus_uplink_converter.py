@@ -4,7 +4,7 @@ try:
     from pymodbus.constants import Endian
 except (ImportError, ModuleNotFoundError):
     from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-    TBUtility.install_package("pymodbus", version="3.0.0")
+    TBUtility.install_package("pymodbus", version="3.0.0", force_install=True)
     from pymodbus.constants import Endian
 
 from pymodbus.payload import BinaryPayloadBuilder
@@ -15,6 +15,7 @@ from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import 
 
 class ModbusConverterTests(BaseUnitTest):
     def test_modbus_getting_values(self):
+        self.maxDiff = None
         test_modbus_config = {
             "attributes": [
                 {"string": {

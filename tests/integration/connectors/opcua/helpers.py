@@ -1,7 +1,9 @@
 import asyncio
 import json
 import math
+import os
 from datetime import datetime, timedelta
+from os import path
 from time import sleep
 
 
@@ -22,7 +24,7 @@ def wait_until(somepredicate, timeout, period=0.25, *args, **kwargs):
 
 
 def read_config(filename):
-    with open(filename, 'r') as f:
+    with open(path.join(path.dirname(path.dirname(path.dirname(path.abspath(__file__))))) + "/data/opcua/" + filename, 'r') as f:
         return json.load(f)
 
 

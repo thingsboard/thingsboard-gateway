@@ -10,7 +10,8 @@ try:
     from pymodbus.client import ModbusTcpClient as ModbusClient
 except (ImportError, ModuleNotFoundError):
     from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-    TBUtility.install_package("pymodbus")
+    TBUtility.install_package("pyserial_asyncio")
+    TBUtility.install_package("pymodbus", version="3.0.0", force_install=True)
     from pymodbus.client import ModbusTcpClient as ModbusClient
 
 from tests.base_test import BaseTest

@@ -44,7 +44,7 @@ class BACnetConnector(Thread, Connector):
         super().__init__()
         self.__config = config
         self.__id = self.__config.get('id')
-        self.setName(config.get('name', 'BACnet ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = config.get('name', 'BACnet ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__devices = []
         self.__device_indexes = {}
         self.__devices_address_name = {}

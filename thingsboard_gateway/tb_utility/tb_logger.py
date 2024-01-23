@@ -53,7 +53,7 @@ class TbLogger(logging.Logger):
         self.errors = 0
         self.attr_name = self.name + '_ERRORS_COUNT'
         self._is_on_init_state = True
-        self._errors_sender_thread = Thread(name='Log Errors Sender', daemon=True, target=self._send_errors)
+        self._errors_sender_thread = Thread(name=str.format('%r Log Errors Sender', self.name), daemon=True, target=self._send_errors)
         self._errors_sender_thread.start()
 
     def reset(self):

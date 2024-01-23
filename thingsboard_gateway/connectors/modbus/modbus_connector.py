@@ -120,7 +120,7 @@ class ModbusConnector(Connector, Thread):
                                                                              logger=self.__log)
         self.__config = self.__backward_compatibility_adapter.convert()
         self.__id = self.__config.get('id')
-        self.setName(self.__config.get("name", 'Modbus Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = self.__config.get("name", 'Modbus Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
 
         self.__connected = False
         self.__stopped = False
@@ -758,8 +758,8 @@ class ModbusConnector(Connector, Thread):
             super().__init__()
             self._log = logger
             self.__stopped = False
-            self.setName(name)
-            self.setDaemon(True)
+            self.name = name
+            self.daemon = True
             self.__msg_queue = incoming_queue
             self.in_progress = False
             self.__send_result = send_result
