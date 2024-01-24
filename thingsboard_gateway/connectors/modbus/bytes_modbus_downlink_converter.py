@@ -74,7 +74,11 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         elif lower_type in ["coil", "bits", "coils", "bit"]:
             assert builder_functions.get("bits") is not None
             if variable_size / 8 > 1.0:
-                builder_functions["bits"](bytes(value, encoding='UTF-8')) if isinstance(value, str) else \
+                if isinstance(value, str):
+                    builder_functions["bits"](bytes(value, encoding='UTF-8'))
+                elif isinstance(value, list):
+                    builder_functions["bits"]([int(x) for x in value])
+                else:
                     builder_functions["bits"]([int(x) for x in bin(value)[2:]])
             else:
                 return bytes(int(value))

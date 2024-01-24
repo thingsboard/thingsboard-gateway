@@ -36,10 +36,6 @@ class ModbusAttributesUpdatesTest(BaseTest):
             cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
             assert cls.device is not None
 
-            # TODO @samson0v It is not an option for BlackBox tests, device should be created by upcoming
-            #  telemetry from device
-            # cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
-
     @classmethod
     def load_configuration(cls, config_file_path):
         with open(config_file_path, 'r', encoding="UTF-8") as config:
@@ -99,7 +95,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
-                                                              ','.join([key for (key, _) in expected_values.items()]))
+                                                          ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
@@ -132,7 +128,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/holding_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
-                                                              ','.join([key for (key, _) in expected_values.items()]))
+                                                          ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
@@ -166,7 +162,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
-                                                              ','.join([key for (key, _) in expected_values.items()]))
+                                                          ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
@@ -196,7 +192,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
-                                                              ','.join([key for (key, _) in expected_values.items()]))
+                                                          ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
@@ -223,7 +219,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
-                                                              ','.join([key for (key, _) in expected_values.items()]))
+                                                          ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
@@ -261,7 +257,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/holding_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
-                                                              ','.join([key for (key, _) in expected_values.items()]))
+                                                          ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
@@ -291,7 +287,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
-                                                              ','.join([key for (key, _) in expected_values.items()]))
+                                                          ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
@@ -319,7 +315,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
-                                                              ','.join([key for (key, _) in expected_values.items()]))
+                                                          ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
