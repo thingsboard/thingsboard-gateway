@@ -226,6 +226,16 @@ class ModbusUplinkMessagesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_discrete_input_reading_little_endian(self):
+        """
+        Test reading little endian discrete input.
+
+        Parameters:
+        self: the object instance
+
+        Returns:
+        None
+        """
+
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_discrete_input_reading_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -240,6 +250,19 @@ class ModbusUplinkMessagesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_input_register_reading_big_endian(self):
+        """
+        Function to test the input register reading in big endian format.
+
+        This function changes the connector configuration, retrieves telemetry keys,
+        retrieves latest timeseries, loads configuration, and performs assertions.
+
+        Parameters:
+            self: the object instance
+
+        Returns:
+            None
+        """
+
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_input_registers_reading_big.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -254,6 +277,16 @@ class ModbusUplinkMessagesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_holding_register_reading_big_endian(self):
+        """
+        Test for holding register reading in big endian format.
+
+        Parameters:
+        self (object): The instance of the test class.
+
+        Returns:
+        None
+        """
+
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_holding_registers_reading_big.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -268,6 +301,17 @@ class ModbusUplinkMessagesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_coils_reading_big_endian(self):
+        """
+        Test the reading of coils in big endian format.
+
+        Parameters:
+        - self: the object instance
+        - No explicit parameters
+
+        Returns:
+        - No explicit return value
+        """
+
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_coils_reading_big.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -282,6 +326,17 @@ class ModbusUplinkMessagesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_discrete_input_reading_big_endian(self):
+        """
+        Test for reading discrete input in big endian format.
+
+        Parameters:
+        - self: the object instance
+        - No input parameters
+
+        Returns:
+        - No return value
+        """
+
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_discrete_input_reading_big.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in

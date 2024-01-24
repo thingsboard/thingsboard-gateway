@@ -111,6 +111,19 @@ class ModbusAttributesUpdatesTest(BaseTest):
         self.reset_slave_default_values()
 
     def test_holding_register_attrs_update_little_endian(self):
+        """
+        Test for updating holding register attributes in little endian format.
+
+        This function updates the device and connector shared attributes using specific JSON
+        configuration files. It then retrieves the expected and actual values and compares them.
+        Finally, it resets the slave values to default.
+
+        Parameters:
+            self (obj): The object instance
+        Returns:
+            None
+        """
+
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_holding_registers_little.json',
             'test_values/attrs_update/holding_registers_values_little.json'
@@ -131,6 +144,21 @@ class ModbusAttributesUpdatesTest(BaseTest):
         self.reset_slave_default_values()
 
     def test_coils_attrs_update_little_endian(self):
+        """
+        Function to test the update of little endian coils attributes.
+
+        This function updates the device and connector shared attributes using the provided configuration
+        files. It then sleeps for 2 seconds. It loads the expected values from the configuration file and
+        retrieves the actual values from the client. It compares the expected and actual values, and resets the
+        slave values to default at the end.
+
+        Parameters:
+            self: the reference to the current instance of the class.
+
+        Returns:
+            None
+        """
+
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_coils_registers_little.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
@@ -150,6 +178,16 @@ class ModbusAttributesUpdatesTest(BaseTest):
         self.reset_slave_default_values()
 
     def test_discrete_input_attrs_update_little_endian(self):
+        """
+        This function tests the update of input register attributes in little endian format.
+
+        Parameters:
+        - self: the test class instance
+
+        Returns:
+        - None
+        """
+
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_discrete_input_little.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_little.json'
@@ -170,6 +208,13 @@ class ModbusAttributesUpdatesTest(BaseTest):
         self.reset_slave_default_values()
 
     def test_input_register_attrs_update_big_endian(self):
+        """
+        Update the shared attributes for input registers in big endian format.
+
+        :param self: The object itself.
+        :return: None
+        """
+
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_input_registers_big.json',
             'test_values/attrs_update/input_registers_values_big.json'
@@ -190,6 +235,24 @@ class ModbusAttributesUpdatesTest(BaseTest):
         self.reset_slave_default_values()
 
     def test_holding_register_attrs_update_big_endian(self):
+        """
+        Test for updating holding register attributes in big endian format.
+
+        This function does the following:
+        - Calls the update_device_and_connector_shared_attributes method with specific JSON files
+        - Waits for 2 seconds
+        - Loads expected values from a configuration file
+        - Retrieves actual values from the client
+        - Compares the expected and actual values
+        - Resets slave values to default
+
+        Parameters:
+        - self: the instance of the test class
+
+        Returns:
+        - None
+        """
+
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_holding_registers_big.json',
             'test_values/attrs_update/holding_registers_values_big.json'
@@ -210,6 +273,16 @@ class ModbusAttributesUpdatesTest(BaseTest):
         self.reset_slave_default_values()
 
     def test_coils_attrs_update_big_endian(self):
+        """
+        Function to test the update of shared attributes in big endian format for coils.
+
+        Parameters:
+        - self: the object itself
+
+        Returns:
+        - None
+        """
+
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_coils_registers_big.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_big.json'
@@ -230,6 +303,14 @@ class ModbusAttributesUpdatesTest(BaseTest):
         self.reset_slave_default_values()
 
     def test_discrete_input_attrs_update_big_endian(self):
+        """
+        Updates shared attributes with a big-endian discrete input configuration
+        and tests the expected values against the actual values.
+
+        :param self: the object itself
+        :return: None
+        """
+
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_discrete_input_big.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_big.json'
