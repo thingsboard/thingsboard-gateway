@@ -1,0 +1,13 @@
+{
+  "string": "abcx",
+  "bits": [false,true,false,true,true,false,true,true,true,true,false,true,false,false,true,true],
+  "16int": "-22137",
+  "16uint": "4661",
+  "16float": "13.34375",
+  "32int": "-4661",
+  "32uint": "305419897",
+  "32float": "223547.34375",
+  "64int": "-3735928550",
+  "64uint": "1311738468603649775",
+  "64float": "133.45"
+}

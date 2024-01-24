@@ -1,0 +1,254 @@
+import unittest
+from os import path
+
+from simplejson import load, loads
+from tb_rest_client.rest_client_ce import *
+
+from tests.base_test import BaseTest
+from tests.test_utils.gateway_device_util import GatewayDeviceUtil
+
+
+class ModbusAttributesUpdatesTest(BaseTest):
+    CONFIG_PATH = path.join(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))),
+                            "data" + path.sep + "modbus" + path.sep)
+
+    client = None
+    gateway = None
+    device = None
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super(ModbusAttributesUpdatesTest, cls).setUpClass()
+
+        # ThingsBoard REST API URL
+        url = GatewayDeviceUtil.DEFAULT_URL
+
+        # Default Tenant Administrator credentials
+        username = GatewayDeviceUtil.DEFAULT_USERNAME
+        password = GatewayDeviceUtil.DEFAULT_PASSWORD
+
+        with RestClientCE(url) as cls.client:
+            cls.client.login(username, password)
+
+            cls.gateway = cls.client.get_tenant_devices(10, 0, text_search='Gateway').data[0]
+            assert cls.gateway is not None
+
+            cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
+            assert cls.device is not None
+
+            # TODO @samson0v It is not an option for BlackBox tests, device should be created by upcoming
+            #  telemetry from device
+            # cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
+
+    @classmethod
+    def load_configuration(cls, config_file_path):
+        with open(config_file_path, 'r', encoding="UTF-8") as config:
+            config = load(config)
+        return config
+
+    def change_connector_configuration(self, config_file_path):
+        """
+        Change the configuration of the connector.
+
+        Args:
+            config_file_path (str): The path to the configuration file.
+
+        Returns:
+            tuple: A tuple containing the modified configuration and the response of the save_device_attributes method.
+        """
+
+        config = self.load_configuration(config_file_path)
+        config['Modbus']['ts'] = int(time() * 1000)
+        response = self.client.save_device_attributes(self.gateway.id, 'SHARED_SCOPE', config)
+        sleep(2)
+        return config, response
+
+    def reset_slave_default_values(self):
+        default_slave_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/default_slave_values.json')
+        self.client.save_device_attributes(self.device.id, 'SHARED_SCOPE', default_slave_values)
+
+    def update_device_shared_attributes(self, config_file_path):
+        config = self.load_configuration(self.CONFIG_PATH + config_file_path)
+        self.client.save_device_attributes(self.device.id, 'SHARED_SCOPE', config)
+
+    def update_device_and_connector_shared_attributes(self, connector_config_file_path, device_config_file_path):
+        self.change_connector_configuration(self.CONFIG_PATH + connector_config_file_path)
+        self.update_device_shared_attributes(device_config_file_path)
+
+    def test_input_register_attrs_update_little_endian(self):
+        """
+        This function tests the update of input register attributes in little endian format.
+
+        It changes the connector configuration, loads must-be values, saves device attributes, sleeps,
+        checks for equality of values, and resets slave values to default.
+
+        Parameters:
+        - self: the test class instance
+
+        Returns:
+        - None
+        """
+
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/attrs_update_input_registers_little.json',
+            'test_values/attrs_update/input_registers_values_little.json'
+        )
+        sleep(2)
+
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_little.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                              ','.join([key for (key, _) in expected_values.items()]))
+        for (_type, value) in expected_values.items():
+            if _type == 'bits':
+                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+        # reset slave values to default
+        self.reset_slave_default_values()
+
+    def test_holding_register_attrs_update_little_endian(self):
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/attrs_update_holding_registers_little.json',
+            'test_values/attrs_update/holding_registers_values_little.json'
+        )
+        sleep(2)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/holding_registers_values_little.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                              ','.join([key for (key, _) in expected_values.items()]))
+        for (_type, value) in expected_values.items():
+            if _type == 'bits':
+                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+        # reset slave values to default
+        self.reset_slave_default_values()
+
+    def test_coils_attrs_update_little_endian(self):
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/attrs_update_coils_registers_little.json',
+            'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
+        sleep(2)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                              ','.join([key for (key, _) in expected_values.items()]))
+        for (_type, value) in expected_values.items():
+            if _type == 'bits':
+                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+        # reset slave values to default
+        self.reset_slave_default_values()
+
+    def test_discrete_input_attrs_update_little_endian(self):
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/attrs_update_discrete_input_little.json',
+            'test_values/attrs_update/discrete_and_coils_registers_values_little.json'
+        )
+        sleep(2)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                              ','.join([key for (key, _) in expected_values.items()]))
+        for (_type, value) in expected_values.items():
+            if _type == 'bits':
+                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+        # reset slave values to default
+        self.reset_slave_default_values()
+
+    def test_input_register_attrs_update_big_endian(self):
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/attrs_update_input_registers_big.json',
+            'test_values/attrs_update/input_registers_values_big.json'
+        )
+        sleep(2)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_big.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                              ','.join([key for (key, _) in expected_values.items()]))
+        for (_type, value) in expected_values.items():
+            if _type == 'bits':
+                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+        # reset slave values to default
+        self.reset_slave_default_values()
+
+    def test_holding_register_attrs_update_big_endian(self):
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/attrs_update_holding_registers_big.json',
+            'test_values/attrs_update/holding_registers_values_big.json'
+        )
+        sleep(2)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/holding_registers_values_big.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                              ','.join([key for (key, _) in expected_values.items()]))
+        for (_type, value) in expected_values.items():
+            if _type == 'bits':
+                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+        # reset slave values to default
+        self.reset_slave_default_values()
+
+    def test_coils_attrs_update_big_endian(self):
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/attrs_update_coils_registers_big.json',
+            'test_values/attrs_update/discrete_and_coils_registers_values_big.json'
+        )
+        sleep(2)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_big.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                              ','.join([key for (key, _) in expected_values.items()]))
+        for (_type, value) in expected_values.items():
+            if _type == 'bits':
+                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+        # reset slave values to default
+        self.reset_slave_default_values()
+
+    def test_discrete_input_attrs_update_big_endian(self):
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/attrs_update_discrete_input_big.json',
+            'test_values/attrs_update/discrete_and_coils_registers_values_big.json'
+        )
+        sleep(2)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_big.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                              ','.join([key for (key, _) in expected_values.items()]))
+        for (_type, value) in expected_values.items():
+            if _type == 'bits':
+                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+        # reset slave values to default
+        self.reset_slave_default_values()
+
+
+if __name__ == '__main__':
+    unittest.main()

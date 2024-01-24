@@ -26,3 +26,4 @@ class BaseTest(TestCase):
     @classmethod
     def tearDownClass(cls):
         GatewayDeviceUtil.delete_gateway_device()
+        assert GatewayDeviceUtil.GATEWAY_DEVICE is None
