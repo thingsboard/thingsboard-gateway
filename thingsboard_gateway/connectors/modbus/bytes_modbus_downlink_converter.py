@@ -57,7 +57,10 @@ class BytesModbusDownlinkConverter(ModbusConverter):
 
         if lower_type == "error":
             self._log.error('"type" and "tag" - not found in configuration.')
-        variable_size = config.get("objectsCount", config.get("registersCount", config.get("registerCount", 1))) * 16
+
+        initial_objects_count = config.get("objectsCount", config.get("registersCount", config.get("registerCount", 1)))
+        variable_size = initial_objects_count * 16 if lower_type not in ["coils", "bits", "coil",
+                                                                         "bit"] else initial_objects_count
 
         if lower_type in ["integer", "dword", "dword/integer", "word", "int"]:
             lower_type = str(variable_size) + "int"
@@ -118,8 +121,10 @@ class BytesModbusDownlinkConverter(ModbusConverter):
                         builder = builder[0]
                 else:
                     if isinstance(builder, list) and len(builder) not in (2, 4):
-                        self._log.warning("There is a problem with the value builder. Only the first register is written.")
+                        self._log.warning("There is a problem with the value builder. "
+                                          "Only the first register is written.")
                         builder = builder[0]
             return builder
-        self._log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter", config["device"])
+        self._log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter",
+                          config["device"])
         return None

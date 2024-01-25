@@ -158,13 +158,13 @@ class ModbusAttributesUpdatesTest(BaseTest):
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_coils_registers_little.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
-        sleep(2)
+        sleep(3)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
-            if _type == 'bits':
+            if _type == 'bits' or _type == 'bit':
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
 
             self.assertEqual(value, actual_values[_type][0]['value'],
@@ -188,13 +188,13 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_discrete_input_little.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_little.json'
         )
-        sleep(2)
+        sleep(3)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
-            if _type == 'bits':
+            if _type == 'bits' or _type == 'bit':
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
 
             self.assertEqual(value, actual_values[_type][0]['value'],
@@ -283,13 +283,13 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_coils_registers_big.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_big.json'
         )
-        sleep(2)
+        sleep(3)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
-            if _type == 'bits':
+            if _type == 'bits' or _type == 'bit':
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
 
             self.assertEqual(value, actual_values[_type][0]['value'],
@@ -311,13 +311,13 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_discrete_input_big.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_big.json'
         )
-        sleep(2)
+        sleep(3)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
-            if _type == 'bits':
+            if _type == 'bits' or _type == 'bit':
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
 
             self.assertEqual(value, actual_values[_type][0]['value'],

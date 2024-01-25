@@ -34,30 +34,30 @@
                 "type": "bits",
                 "functionCode": 1,
                 "objectsCount": 16,
-                "address": 2
+                "address": 0
               },
               {
                 "tag": "bit",
                 "type": "bit",
                 "functionCode": 1,
                 "objectsCount": 1,
-                "address": 2
+                "address": 0
               }
             ],
             "attributeUpdates": [
               {
                 "tag": "bits",
                 "type": "coils",
-                "functionCode": 5,
+                "functionCode": 15,
                 "objectsCount": 16,
-                "address": 2
+                "address": 0
               },
               {
                 "tag": "bit",
                 "type": "coil",
                 "functionCode": 5,
                 "objectsCount": 1,
-                "address": 2
+                "address": 0
               }
             ],
             "rpc": []
