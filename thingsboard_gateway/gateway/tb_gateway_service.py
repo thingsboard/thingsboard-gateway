@@ -457,6 +457,7 @@ class TBGatewayService:
                         new_rpc_request_in_progress = {key: value for key, value in
                                                        self.__rpc_requests_in_progress.items() if value != 'del'}
                     if not self.__rpc_register_queue.empty():
+                        new_rpc_request_in_progress = self.__rpc_requests_in_progress
                         rpc_request_from_queue = self.__rpc_register_queue.get(False)
                         topic = rpc_request_from_queue["topic"]
                         data = rpc_request_from_queue["data"]
