@@ -720,31 +720,35 @@ class TBGatewayService:
             for connector in configuration:
                 try:
                     connector_persistent_key = None
-                    if connector['type'] == "grpc" and self.__grpc_manager is None:
+                    connector_type = connector["type"].lower() if connector.get("type") is not None else None
+                    if connector_type is None:
+                        log.error("Connector type is not defined!")
+                        continue
+                    if connector_type == "grpc" and self.__grpc_manager is None:
                         log.error("Cannot load connector with name: %s and type grpc. GRPC server is disabled!",
                                   connector['name'])
                         continue
 
-                    if connector['type'] != "grpc":
+                    if connector_type != "grpc":
                         connector_class = None
                         if connector.get('useGRPC', False):
-                            module_name = f'Grpc{self._default_connectors.get(connector["type"], connector.get("class"))}'
-                            connector_class = TBModuleLoader.import_module(connector['type'], module_name)
+                            module_name = f'Grpc{self._default_connectors.get(connector_type, connector.get("class"))}'
+                            connector_class = TBModuleLoader.import_module(connector_type, module_name)
 
                         if self.__grpc_manager and self.__grpc_manager.is_alive() and connector_class:
                             connector_persistent_key = self._generate_persistent_key(connector,
                                                                                      connectors_persistent_keys)
                         else:
-                            connector_class = TBModuleLoader.import_module(connector['type'],
+                            connector_class = TBModuleLoader.import_module(connector_type,
                                                                            self._default_connectors.get(
-                                                                               connector['type'],
+                                                                               connector_type,
                                                                                connector.get('class')))
 
                         if connector_class is None:
                             log.warning("Connector implementation not found for %s", connector['name'])
                         else:
-                            self._implemented_connectors[connector['type']] = connector_class
-                    elif connector['type'] == "grpc":
+                            self._implemented_connectors[connector_type] = connector_class
+                    elif connector_type == "grpc":
                         if connector.get('key') == "auto":
                             self._generate_persistent_key(connector, connectors_persistent_keys)
                         else:
@@ -776,14 +780,14 @@ class TBGatewayService:
                         if not (start_find > -1 and end_find > -1):
                             connector_conf = "{id_var_start}" + str(connector_id) + "{id_var_end}" + connector_conf
 
-                    if not self.connectors_configs.get(connector['type']):
-                        self.connectors_configs[connector['type']] = []
-                    if connector['type'] != 'grpc' and isinstance(connector_conf, dict):
+                    if not self.connectors_configs.get(connector_type):
+                        self.connectors_configs[connector_type] = []
+                    if connector_type != 'grpc' and isinstance(connector_conf, dict):
                         connector_conf["name"] = connector['name']
-                    self.connectors_configs[connector['type']].append({"name": connector['name'],
+                    self.connectors_configs[connector_type].append({"name": connector['name'],
                                                                        "id": connector_id,
                                                                        "config": {connector['configuration']: connector_conf} if
-                                                                       connector['type'] != 'grpc' else connector_conf,
+                                                                       connector_type != 'grpc' else connector_conf,
                                                                        "config_updated": stat(config_file_path),
                                                                        "config_file_path": config_file_path,
                                                                        "grpc_key": connector_persistent_key})
@@ -802,9 +806,10 @@ class TBGatewayService:
     def __connect_with_connectors(self):
         global log
         for connector_type in self.connectors_configs:
+            connector_type = connector_type.lower()
             for connector_config in self.connectors_configs[connector_type]:
-                if self._implemented_connectors.get(connector_type.lower()) is not None:
-                    if connector_type.lower() != 'grpc' and 'Grpc' not in self._implemented_connectors[connector_type.lower()].__name__:
+                if self._implemented_connectors.get(connector_type) is not None:
+                    if connector_type != 'grpc' and 'Grpc' not in self._implemented_connectors[connector_type].__name__:
                         for config in connector_config["config"]:
                             connector = None
                             connector_name = None
@@ -839,7 +844,7 @@ class TBGatewayService:
                                     connector.close()
                     else:
                         self.__grpc_connectors.update({connector_config['grpc_key']: connector_config})
-                        if connector_type.lower() != 'grpc':
+                        if connector_type != 'grpc':
                             connector_dir_abs = "/".join(self._config_dir.split("/")[:-2])
                             connector_file_name = f'{connector_type}_connector.py'
                             connector_abs_path = f'{connector_dir_abs}/grpc_connectors/{connector_type}/{connector_file_name}'
