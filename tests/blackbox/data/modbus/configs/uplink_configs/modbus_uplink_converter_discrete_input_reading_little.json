@@ -10,13 +10,13 @@
       "master": {
         "slaves": [
           {
-            "host": "0.0.0.0",
+            "host": "modbus-server",
             "port": 5021,
             "type": "tcp",
             "method": "socket",
             "timeout": 35,
-            "byteOrder": "BIG",
-            "wordOrder": "BIG",
+            "byteOrder": "LITTLE",
+            "wordOrder": "LITTLE",
             "retries": true,
             "retryOnEmpty": true,
             "retryOnInvalid": true,

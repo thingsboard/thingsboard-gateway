@@ -585,7 +585,7 @@ class ModbusConnector(Connector, Thread):
 
     def on_attributes_update(self, content):
         try:
-            device = tuple(filter(lambda slave: slave.name == content[DEVICE_SECTION_PARAMETER], self.__slaves))[0]
+            device = tuple(filter(lambda slave: slave.device_name == content[DEVICE_SECTION_PARAMETER], self.__slaves))[0]
 
             for attribute_updates_command_config in device.config['attributeUpdates']:
                 for attribute_updated in content[DATA_PARAMETER]:
@@ -671,7 +671,7 @@ class ModbusConnector(Connector, Thread):
     def __process_request(self, content, rpc_command_config, request_type='RPC'):
         self.__log.debug('Processing %s request', request_type)
         if rpc_command_config is not None:
-            device = tuple(filter(lambda slave: slave.name == content[DEVICE_SECTION_PARAMETER], self.__slaves))[0]
+            device = tuple(filter(lambda slave: slave.device_name == content[DEVICE_SECTION_PARAMETER], self.__slaves))[0]
             rpc_command_config[UNIT_ID_PARAMETER] = device.config['unitId']
             rpc_command_config[BYTE_ORDER_PARAMETER] = device.config.get("byteOrder", "LITTLE")
             rpc_command_config[WORD_ORDER_PARAMETER] = device.config.get("wordOrder", "LITTLE")
@@ -687,7 +687,6 @@ class ModbusConnector(Connector, Thread):
             elif rpc_command_config.get(FUNCTION_CODE_PARAMETER) in (15, 16):
                 converted_data = device.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER].convert(rpc_command_config,
                                                                                               content)
-                converted_data.reverse()
                 rpc_command_config[PAYLOAD_PARAMETER] = converted_data
 
             try:

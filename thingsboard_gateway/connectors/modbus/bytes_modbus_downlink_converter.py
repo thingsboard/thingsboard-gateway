@@ -57,7 +57,10 @@ class BytesModbusDownlinkConverter(ModbusConverter):
 
         if lower_type == "error":
             self._log.error('"type" and "tag" - not found in configuration.')
-        variable_size = config.get("objectsCount", config.get("registersCount", config.get("registerCount", 1))) * 16
+
+        initial_objects_count = config.get("objectsCount", config.get("registersCount", config.get("registerCount", 1)))
+        variable_size = initial_objects_count * 16 if lower_type not in ["coils", "bits", "coil",
+                                                                         "bit"] else initial_objects_count
 
         if lower_type in ["integer", "dword", "dword/integer", "word", "int"]:
             lower_type = str(variable_size) + "int"
@@ -74,7 +77,11 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         elif lower_type in ["coil", "bits", "coils", "bit"]:
             assert builder_functions.get("bits") is not None
             if variable_size / 8 > 1.0:
-                builder_functions["bits"](bytes(value, encoding='UTF-8')) if isinstance(value, str) else \
+                if isinstance(value, str):
+                    builder_functions["bits"](bytes(value, encoding='UTF-8'))
+                elif isinstance(value, list):
+                    builder_functions["bits"]([int(x) for x in value])
+                else:
                     builder_functions["bits"]([int(x) for x in bin(value)[2:]])
             else:
                 return bytes(int(value))
@@ -114,8 +121,10 @@ class BytesModbusDownlinkConverter(ModbusConverter):
                         builder = builder[0]
                 else:
                     if isinstance(builder, list) and len(builder) not in (2, 4):
-                        self._log.warning("There is a problem with the value builder. Only the first register is written.")
+                        self._log.warning("There is a problem with the value builder. "
+                                          "Only the first register is written.")
                         builder = builder[0]
             return builder
-        self._log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter", config["device"])
+        self._log.warning("Unsupported function code, for the device %s in the Modbus Downlink converter",
+                          config["device"])
         return None

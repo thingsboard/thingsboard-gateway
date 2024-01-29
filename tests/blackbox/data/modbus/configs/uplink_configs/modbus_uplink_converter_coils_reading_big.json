@@ -10,13 +10,13 @@
       "master": {
         "slaves": [
           {
-            "host": "0.0.0.0",
+            "host": "modbus-server",
             "port": 5021,
             "type": "tcp",
             "method": "socket",
             "timeout": 35,
-            "byteOrder": "LITTLE",
-            "wordOrder": "LITTLE",
+            "byteOrder": "BIG",
+            "wordOrder": "BIG",
             "retries": true,
             "retryOnEmpty": true,
             "retryOnInvalid": true,
@@ -32,16 +32,16 @@
               {
                 "tag": "bits",
                 "type": "bits",
-                "functionCode": 2,
+                "functionCode": 1,
                 "objectsCount": 16,
-                "address": 2
+                "address": 0
               },
               {
                 "tag": "bit",
                 "type": "bit",
-                "functionCode": 2,
+                "functionCode": 1,
                 "objectsCount": 1,
-                "address": 2
+                "address": 0
               }
             ],
             "attributeUpdates": [],
