@@ -16,7 +16,7 @@ class GatewayDeviceUtil:
     GATEWAY_DEVICE_NAME = "Test Gateway device"
     GATEWAY_DEVICE = None
 
-    GATEWAY_ACCESS_TOKEN = "YOUR_ACCESS_TOKEN"
+    GATEWAY_ACCESS_TOKEN = "GatewayAccessToken"
 
     @classmethod
     def get_gateway_device(cls, url=DEFAULT_URL, username=DEFAULT_USERNAME, password=DEFAULT_PASSWORD) -> Device:
@@ -24,8 +24,8 @@ class GatewayDeviceUtil:
             cls.create_gateway_device(url=url, username=username, password=password)
         return cls.GATEWAY_DEVICE
 
-    @classmethod
-    def create_gateway_device(cls, url=DEFAULT_URL, username=DEFAULT_USERNAME, password=DEFAULT_PASSWORD) -> Device:
+    @staticmethod
+    def create_gateway_device(url=DEFAULT_URL, username=DEFAULT_USERNAME, password=DEFAULT_PASSWORD) -> Device:
         with RestClientCE(base_url=url) as rest_client:
             try:
                 rest_client.login(username=username, password=password)

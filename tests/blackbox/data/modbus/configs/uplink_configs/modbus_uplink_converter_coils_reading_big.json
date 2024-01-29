@@ -10,7 +10,7 @@
       "master": {
         "slaves": [
           {
-            "host": "0.0.0.0",
+            "host": "modbus-server",
             "port": 5021,
             "type": "tcp",
             "method": "socket",
@@ -34,14 +34,14 @@
                 "type": "bits",
                 "functionCode": 1,
                 "objectsCount": 16,
-                "address": 2
+                "address": 0
               },
               {
                 "tag": "bit",
                 "type": "bit",
                 "functionCode": 1,
                 "objectsCount": 1,
-                "address": 2
+                "address": 0
               }
             ],
             "attributeUpdates": [],
