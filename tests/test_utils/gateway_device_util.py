@@ -16,7 +16,7 @@ class GatewayDeviceUtil:
     GATEWAY_DEVICE_NAME = "Test Gateway device"
     GATEWAY_DEVICE = None
 
-    GATEWAY_ACCESS_TOKEN = "GatewayAccessToken"
+    GATEWAY_ACCESS_TOKEN = "YOUR_ACCESS_TOKEN"
 
     @classmethod
     def get_gateway_device(cls, url=DEFAULT_URL, username=DEFAULT_USERNAME, password=DEFAULT_PASSWORD) -> Device:
