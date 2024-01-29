@@ -350,6 +350,31 @@ class ModbusAttributesUpdatesTest(BaseTest):
         # reset slave values to default
         self.reset_slave_default_values()
 
+    def test_gateway_restarted(self):
+        self.client.handle_two_way_device_rpc_request(self.gateway.id, {"method": "gateway_restart"})
+        sleep(5)
+        while not self.is_gateway_connected():
+            LOG.info('Gateway connecting to TB...')
+            sleep(1)
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/attrs_update_input_registers_little.json',
+            'test_values/attrs_update/input_registers_values_little.json'
+        )
+        sleep(3)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_little.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                          ','.join([key for (key, _) in expected_values.items()]))
+        for (_type, value) in expected_values.items():
+            if _type == 'bits' or _type == 'bit':
+                actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
+
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+        # reset slave values to default
+        self.reset_slave_default_values()
+
 
 if __name__ == '__main__':
     unittest.main()
