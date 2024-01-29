@@ -1,0 +1,3 @@
+simplejson
+pyjwt==2.6.0
+tb-rest-client
