@@ -114,6 +114,25 @@ def get_env_variables():
         'password': environ.get('password')
     }
 
+    if environ.get('TB_GW_HOST'):
+        env_variables['host'] = environ.get('TB_GW_HOST')
+    if environ.get('TB_GW_PORT'):
+        env_variables['port'] = int(environ.get('TB_GW_PORT'))
+    if environ.get('TB_GW_ACCESS_TOKEN'):
+        env_variables['accessToken'] = environ.get('TB_GW_ACCESS_TOKEN')
+    if environ.get('TB_GW_CA_CERT'):
+        env_variables['caCert'] = environ.get('TB_GW_CA_CERT')
+    if environ.get('TB_GW_PRIVATE_KEY'):
+        env_variables['privateKey'] = environ.get('TB_GW_PRIVATE_KEY')
+    if environ.get('TB_GW_CERT'):
+        env_variables['cert'] = environ.get('TB_GW_CERT')
+    if environ.get('TB_GW_CLIENT_ID'):
+        env_variables['clientId'] = environ.get('TB_GW_CLIENT_ID')
+    if environ.get('TB_GW_USERNAME'):
+        env_variables['username'] = environ.get('TB_GW_USERNAME')
+    if environ.get('TB_GW_PASSWORD'):
+        env_variables['password'] = environ.get('TB_GW_PASSWORD')
+
     converted_env_variables = {}
 
     for (key, value) in env_variables.items():
@@ -457,6 +476,7 @@ class TBGatewayService:
                         new_rpc_request_in_progress = {key: value for key, value in
                                                        self.__rpc_requests_in_progress.items() if value != 'del'}
                     if not self.__rpc_register_queue.empty():
+                        new_rpc_request_in_progress = self.__rpc_requests_in_progress
                         rpc_request_from_queue = self.__rpc_register_queue.get(False)
                         topic = rpc_request_from_queue["topic"]
                         data = rpc_request_from_queue["data"]
@@ -719,31 +739,35 @@ class TBGatewayService:
             for connector in configuration:
                 try:
                     connector_persistent_key = None
-                    if connector['type'] == "grpc" and self.__grpc_manager is None:
+                    connector_type = connector["type"].lower() if connector.get("type") is not None else None
+                    if connector_type is None:
+                        log.error("Connector type is not defined!")
+                        continue
+                    if connector_type == "grpc" and self.__grpc_manager is None:
                         log.error("Cannot load connector with name: %s and type grpc. GRPC server is disabled!",
                                   connector['name'])
                         continue
 
-                    if connector['type'] != "grpc":
+                    if connector_type != "grpc":
                         connector_class = None
                         if connector.get('useGRPC', False):
-                            module_name = f'Grpc{self._default_connectors.get(connector["type"], connector.get("class"))}'
-                            connector_class = TBModuleLoader.import_module(connector['type'], module_name)
+                            module_name = f'Grpc{self._default_connectors.get(connector_type, connector.get("class"))}'
+                            connector_class = TBModuleLoader.import_module(connector_type, module_name)
 
                         if self.__grpc_manager and self.__grpc_manager.is_alive() and connector_class:
                             connector_persistent_key = self._generate_persistent_key(connector,
                                                                                      connectors_persistent_keys)
                         else:
-                            connector_class = TBModuleLoader.import_module(connector['type'],
+                            connector_class = TBModuleLoader.import_module(connector_type,
                                                                            self._default_connectors.get(
-                                                                               connector['type'],
+                                                                               connector_type,
                                                                                connector.get('class')))
 
                         if connector_class is None:
                             log.warning("Connector implementation not found for %s", connector['name'])
                         else:
-                            self._implemented_connectors[connector['type']] = connector_class
-                    elif connector['type'] == "grpc":
+                            self._implemented_connectors[connector_type] = connector_class
+                    elif connector_type == "grpc":
                         if connector.get('key') == "auto":
                             self._generate_persistent_key(connector, connectors_persistent_keys)
                         else:
@@ -777,14 +801,14 @@ class TBGatewayService:
                         if not (start_find > -1 and end_find > -1):
                             connector_conf = "{id_var_start}" + str(connector_id) + "{id_var_end}" + connector_conf
 
-                    if not self.connectors_configs.get(connector['type']):
-                        self.connectors_configs[connector['type']] = []
-                    if connector['type'] != 'grpc' and isinstance(connector_conf, dict):
+                    if not self.connectors_configs.get(connector_type):
+                        self.connectors_configs[connector_type] = []
+                    if connector_type != 'grpc' and isinstance(connector_conf, dict):
                         connector_conf["name"] = connector['name']
-                    self.connectors_configs[connector['type']].append({"name": connector['name'],
+                    self.connectors_configs[connector_type].append({"name": connector['name'],
                                                                        "id": connector_id,
                                                                        "config": {connector['configuration']: connector_conf} if
-                                                                       connector['type'] != 'grpc' else connector_conf,
+                                                                       connector_type != 'grpc' else connector_conf,
                                                                        "config_updated": stat(config_file_path),
                                                                        "config_file_path": config_file_path,
                                                                        "grpc_key": connector_persistent_key})
@@ -803,9 +827,10 @@ class TBGatewayService:
     def __connect_with_connectors(self):
         global log
         for connector_type in self.connectors_configs:
+            connector_type = connector_type.lower()
             for connector_config in self.connectors_configs[connector_type]:
-                if self._implemented_connectors.get(connector_type.lower()) is not None:
-                    if connector_type.lower() != 'grpc' and 'Grpc' not in self._implemented_connectors[connector_type.lower()].__name__:
+                if self._implemented_connectors.get(connector_type) is not None:
+                    if connector_type != 'grpc' and 'Grpc' not in self._implemented_connectors[connector_type].__name__:
                         for config in connector_config["config"]:
                             connector = None
                             connector_name = None
@@ -840,7 +865,7 @@ class TBGatewayService:
                                     connector.close()
                     else:
                         self.__grpc_connectors.update({connector_config['grpc_key']: connector_config})
-                        if connector_type.lower() != 'grpc':
+                        if connector_type != 'grpc':
                             connector_dir_abs = "/".join(self._config_dir.split("/")[:-2])
                             connector_file_name = f'{connector_type}_connector.py'
                             connector_abs_path = f'{connector_dir_abs}/grpc_connectors/{connector_type}/{connector_file_name}'
@@ -1467,8 +1492,19 @@ class TBGatewayService:
                             new_device_name = loaded_connected_devices[device_name][2]
                             self.__renamed_devices[device_name] = new_device_name
                     elif isinstance(loaded_connected_devices[device_name], dict):
+                        connector = None
+                        if not self.available_connectors_by_id.get(loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER]):
+                            log.warning("Connector with id %s not found, trying to use connector by name!", loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER])
+                            connector = self.available_connectors_by_name.get(loaded_connected_devices[device_name][CONNECTOR_NAME_PARAMETER])
+                        else:
+                            connector = self.available_connectors_by_id.get(loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER])
+                        if connector is None:
+                            log.warning("Connector with name %s not found! probably it is disabled, device %s will be "
+                                        "removed from the saved devices",
+                                        loaded_connected_devices[device_name][CONNECTOR_NAME_PARAMETER], device_name)
+                            continue
                         device_data_to_save = {
-                            CONNECTOR_PARAMETER: self.available_connectors_by_id[loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER]],
+                            CONNECTOR_PARAMETER: connector,
                             DEVICE_TYPE_PARAMETER: loaded_connected_devices[device_name][DEVICE_TYPE_PARAMETER]}
                         if loaded_connected_devices[device_name].get(RENAMING_PARAMETER) is not None:
                             new_device_name = loaded_connected_devices[device_name][RENAMING_PARAMETER]

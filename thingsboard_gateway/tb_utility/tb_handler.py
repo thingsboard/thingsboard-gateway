@@ -40,7 +40,7 @@ class TBLoggerHandler(logging.Handler):
 
         self._max_message_count_batch = 20
         self._logs_queue = Queue(1000)
-        # start() method calls in activate() method
+
         self._send_logs_thread = threading.Thread(target=self._send_logs, name='Logs Sending Thread', daemon=True)
 
         self.setFormatter(logging.Formatter('%(asctime)s - |%(levelname)s| - [%(filename)s] - %(module)s - %(lineno)d - %(message)s'))
@@ -105,7 +105,8 @@ class TBLoggerHandler(logging.Handler):
             log = TbLogger('service')
             log.exception(e)
         self.activated = True
-        self._send_logs_thread.start()
+        if not self._send_logs_thread.is_alive():
+            self._send_logs_thread.start()
 
     def handle(self, record):
         if self.activated and not self.__gateway.stopped:
