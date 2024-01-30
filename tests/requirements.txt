@@ -1,3 +1,5 @@
+wheel
+twine
 packaging==23.1
 jsonpath-rw
 regex
