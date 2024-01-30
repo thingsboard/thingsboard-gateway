@@ -114,6 +114,18 @@ def get_env_variables():
         'password': environ.get('password')
     }
 
+    env_variables = {
+        'host': environ.get('TB_GW_HOST'),
+        'port': int(environ.get('TB_GW_PORT')) if environ.get('TB_GW_PORT') else None,
+        'accessToken': environ.get('TB_GW_ACCESS_TOKEN'),
+        'caCert': environ.get('TB_GW_CA_CERT'),
+        'privateKey': environ.get('TB_GW_PRIVATE_KEY'),
+        'cert': environ.get('TB_GW_CERT'),
+        'clientId': environ.get('TB_GW_CLIENT_ID'),
+        'username': environ.get('TB_GW_USERNAME'),
+        'password': environ.get('TB_GW_PASSWORD')
+    }
+
     converted_env_variables = {}
 
     for (key, value) in env_variables.items():
