@@ -1471,8 +1471,19 @@ class TBGatewayService:
                             new_device_name = loaded_connected_devices[device_name][2]
                             self.__renamed_devices[device_name] = new_device_name
                     elif isinstance(loaded_connected_devices[device_name], dict):
+                        connector = None
+                        if not self.available_connectors_by_id.get(loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER]):
+                            log.warning("Connector with id %s not found, trying to use connector by name!", loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER])
+                            connector = self.available_connectors_by_name.get(loaded_connected_devices[device_name][CONNECTOR_NAME_PARAMETER])
+                        else:
+                            connector = self.available_connectors_by_id.get(loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER])
+                        if connector is None:
+                            log.warning("Connector with name %s not found! probably it is disabled, device %s will be "
+                                        "removed from the saved devices",
+                                        loaded_connected_devices[device_name][CONNECTOR_NAME_PARAMETER], device_name)
+                            continue
                         device_data_to_save = {
-                            CONNECTOR_PARAMETER: self.available_connectors_by_id[loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER]],
+                            CONNECTOR_PARAMETER: connector,
                             DEVICE_TYPE_PARAMETER: loaded_connected_devices[device_name][DEVICE_TYPE_PARAMETER]}
                         if loaded_connected_devices[device_name].get(RENAMING_PARAMETER) is not None:
                             new_device_name = loaded_connected_devices[device_name][RENAMING_PARAMETER]
