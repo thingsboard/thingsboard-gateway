@@ -114,17 +114,24 @@ def get_env_variables():
         'password': environ.get('password')
     }
 
-    env_variables = {
-        'host': environ.get('TB_GW_HOST'),
-        'port': int(environ.get('TB_GW_PORT')) if environ.get('TB_GW_PORT') else None,
-        'accessToken': environ.get('TB_GW_ACCESS_TOKEN'),
-        'caCert': environ.get('TB_GW_CA_CERT'),
-        'privateKey': environ.get('TB_GW_PRIVATE_KEY'),
-        'cert': environ.get('TB_GW_CERT'),
-        'clientId': environ.get('TB_GW_CLIENT_ID'),
-        'username': environ.get('TB_GW_USERNAME'),
-        'password': environ.get('TB_GW_PASSWORD')
-    }
+    if environ.get('TB_GW_HOST'):
+        env_variables['host'] = environ.get('TB_GW_HOST')
+    if environ.get('TB_GW_PORT'):
+        env_variables['port'] = int(environ.get('TB_GW_PORT'))
+    if environ.get('TB_GW_ACCESS_TOKEN'):
+        env_variables['accessToken'] = environ.get('TB_GW_ACCESS_TOKEN')
+    if environ.get('TB_GW_CA_CERT'):
+        env_variables['caCert'] = environ.get('TB_GW_CA_CERT')
+    if environ.get('TB_GW_PRIVATE_KEY'):
+        env_variables['privateKey'] = environ.get('TB_GW_PRIVATE_KEY')
+    if environ.get('TB_GW_CERT'):
+        env_variables['cert'] = environ.get('TB_GW_CERT')
+    if environ.get('TB_GW_CLIENT_ID'):
+        env_variables['clientId'] = environ.get('TB_GW_CLIENT_ID')
+    if environ.get('TB_GW_USERNAME'):
+        env_variables['username'] = environ.get('TB_GW_USERNAME')
+    if environ.get('TB_GW_PASSWORD'):
+        env_variables['password'] = environ.get('TB_GW_PASSWORD')
 
     converted_env_variables = {}
 
