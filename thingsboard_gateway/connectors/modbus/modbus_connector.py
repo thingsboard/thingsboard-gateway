@@ -627,7 +627,7 @@ class ModbusConnector(Connector, Thread):
                                  server_rpc_request)
                 device = tuple(
                     filter(
-                        lambda slave: slave.name == server_rpc_request[DEVICE_SECTION_PARAMETER], self.__slaves
+                        lambda slave: slave.device_name == server_rpc_request[DEVICE_SECTION_PARAMETER], self.__slaves
                     )
                 )[0]
 
