@@ -4,9 +4,9 @@ import logging
 from pymodbus.constants import Endian
 from pymodbus.framer.rtu_framer import ModbusRtuFramer
 from pymodbus.payload import BinaryPayloadBuilder
+import pymodbus.client as ModbusClient
 from tb_rest_client.rest_client_ce import *
 from simplejson import load, loads
-import pymodbus.client as ModbusClient
 
 from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
