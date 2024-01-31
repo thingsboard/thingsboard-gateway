@@ -1,8 +1,12 @@
 from os import path
 import logging
 
+from pymodbus.constants import Endian
+from pymodbus.framer.rtu_framer import ModbusRtuFramer
+from pymodbus.payload import BinaryPayloadBuilder
 from tb_rest_client.rest_client_ce import *
 from simplejson import load, loads
+import pymodbus.client as ModbusClient
 
 from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
@@ -45,6 +49,34 @@ class ModbusRpcTest(BaseTest):
             assert cls.device is not None
 
     @classmethod
+    def tearDownClass(cls):
+        super(ModbusRpcTest, cls).tearDownClass()
+
+        client = ModbusClient.ModbusTcpClient('modbus-server', port=5021, framer=ModbusRtuFramer)
+        client.connect()
+        builder = BinaryPayloadBuilder(byteorder=Endian.Little,
+                                       wordorder=Endian.Little)
+        builder.add_string('abcd')
+        builder.add_bits(
+            [False, True, False, True, True, False, True, True, True, True, False, True, False, False, True, False])
+        builder.add_8bit_int(-0x12)
+        builder.add_8bit_uint(0x12)
+        builder.add_16bit_int(-0x5678)
+        builder.add_16bit_uint(0x1234)
+        builder.add_32bit_int(-0x1234)
+        builder.add_32bit_uint(0x12345678)
+        builder.add_16bit_float(12.34375)
+        builder.add_32bit_float(223546.34375)
+        builder.add_32bit_float(-22.34)
+        builder.add_64bit_int(-0xDEADBEEF)
+        builder.add_64bit_uint(0x12345678DEADBEEF)
+        builder.add_64bit_uint(0xDEADBEEFDEADBEED)
+        builder.add_64bit_float(123.45)
+        builder.add_64bit_float(-123.45)
+        client.write_registers(0, builder.to_registers(), slave=1)
+        client.close()
+
+    @classmethod
     def is_gateway_connected(cls):
         """
         Check if the gateway is connected.
@@ -81,11 +113,8 @@ class ModbusRpcTest(BaseTest):
         sleep(3)
         return config, response
 
-    def reset_slave_default_values(self):
-        default_slave_values = self.load_configuration(
-            self.CONFIG_PATH + 'test_values/default_slave_values.json')
-        self.client.save_device_attributes(self.device.id, 'SHARED_SCOPE', default_slave_values)
 
+class ModbusRpcReadingTest(ModbusRpcTest):
     def test_input_registers_reading_rpc_little(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/input_registers_reading_rpc_little.json')
@@ -214,6 +243,8 @@ class ModbusRpcTest(BaseTest):
                                                                    })
             self.assertEqual(result, expected_values[rpc_tag], f'Value is not equal for the next rpc: {rpc_tag}')
 
+
+class ModbusRpcWritingTest(ModbusRpcTest):
     def test_writing_input_registers_rpc_little(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/input_registers_writing_rpc_little.json')
@@ -233,7 +264,7 @@ class ModbusRpcTest(BaseTest):
         sleep(3)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
-            if _type == 'bits':
+            if _type == 'bits' and _type == '4bits':
                 latest_ts[_type][0]['value'] = loads(latest_ts[_type][0]['value'])
             else:
                 value = str(value)

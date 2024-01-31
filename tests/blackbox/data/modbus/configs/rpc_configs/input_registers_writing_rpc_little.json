@@ -44,6 +44,13 @@
                 "address": 2
               },
               {
+                "tag": "4bits",
+                "type": "bits",
+                "functionCode": 4,
+                "objectsCount": 4,
+                "address": 2
+              },
+              {
                 "tag": "16int",
                 "type": "16int",
                 "functionCode": 4,
@@ -124,10 +131,10 @@
                 "address": 0
               },
               {
-                "tag": "bits",
+                "tag": "4bits",
                 "type": "bits",
                 "functionCode": 6,
-                "objectsCount": 16,
+                "objectsCount": 4,
                 "address": 2
               },
               {
