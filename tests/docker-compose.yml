@@ -10,8 +10,6 @@ services:
     network_mode: host
   gw:
     image: "tb-gateway"
-    ports:
-      - "5000:5000"
     environment:
       - host=tb
       - port=1883
