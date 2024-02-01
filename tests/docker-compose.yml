@@ -12,6 +12,7 @@ services:
     volumes:
       - tb-data:/data
       - tb-logs:/var/log/thingsboard
+    network_mode: host
   gw:
     image: "tb-gateway"
     ports:
@@ -24,18 +25,22 @@ services:
       - tb-gw-config:/thingsboard_gateway/config
       - tb-gw-logs:/thingsboard_gateway/logs
       - tb-gw-extensions:/thingsboard_gateway/extensions
+    network_mode: host
   mqtt-broker:
     image: "thingsboard/tb-gw-mqtt-broker"
     ports:
       - "1884:1884"
+    network_mode: host
   modbus-server:
     image: "thingsboard/tb-gw-modbus-server"
     ports:
       - "5021:5021"
+    network_mode: host
   opcua-server:
     image: "thingsboard/tb-gw-opcua-server"
     ports:
       - "4840:4840"
+    network_mode: host
 volumes:
   tb-data:
     name: tb-data
