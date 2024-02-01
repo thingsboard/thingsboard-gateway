@@ -2,11 +2,6 @@ version: '3.5'
 services:
   tb:
     image: "thingsboard/tb-postgres"
-    ports:
-      - "8080:9090"
-      - "1883:1883"
-      - "7070:7070"
-      - "5683-5688:5683-5688/udp"
     environment:
       TB_QUEUE_TYPE: in-memory
     volumes:
@@ -28,18 +23,12 @@ services:
     network_mode: host
   mqtt-broker:
     image: "thingsboard/tb-gw-mqtt-broker"
-    ports:
-      - "1884:1884"
     network_mode: host
   modbus-server:
     image: "thingsboard/tb-gw-modbus-server"
-    ports:
-      - "5021:5021"
     network_mode: host
   opcua-server:
     image: "thingsboard/tb-gw-opcua-server"
-    ports:
-      - "4840:4840"
     network_mode: host
 volumes:
   tb-data:
