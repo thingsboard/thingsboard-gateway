@@ -8,6 +8,8 @@ from tb_rest_client.rest_client_ce import *
 from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
+CONNECTION_TIMEOUT = 300
+
 
 LOG = logging.getLogger("TEST")
 
@@ -37,9 +39,13 @@ class ModbusAttributesUpdatesTest(BaseTest):
             cls.gateway = cls.client.get_tenant_devices(10, 0, text_search='Gateway').data[0]
             assert cls.gateway is not None
 
+            start_connecting_time = time()
+
             while not cls.is_gateway_connected():
                 LOG.info('Gateway connecting to TB...')
                 sleep(1)
+                if time() - start_connecting_time > CONNECTION_TIMEOUT:
+                    raise TimeoutError('Gateway is not connected to TB')
 
             LOG.info('Gateway connected to TB')
 
