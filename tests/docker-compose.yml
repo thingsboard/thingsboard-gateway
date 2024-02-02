@@ -11,7 +11,7 @@ services:
   gw:
     image: "tb-gateway"
     environment:
-      - host=tb
+      - host=localhost
       - port=1883
       - accessToken=GatewayAccessToken
     volumes:
