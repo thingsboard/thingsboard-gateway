@@ -8,7 +8,7 @@ LOG = logging.getLogger("TEST")
 
 
 class GatewayDeviceUtil:
-    DEFAULT_URL = "http://tb:8080"
+    DEFAULT_URL = "http://localhost:9090"
 
     DEFAULT_USERNAME = "tenant@thingsboard.org"
     DEFAULT_PASSWORD = "tenant"
