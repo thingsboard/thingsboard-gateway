@@ -39,7 +39,9 @@ class ModbusAttributesUpdatesTest(BaseTest):
             cls.gateway = cls.client.get_tenant_devices(10, 0, text_search='Gateway').data[0]
             assert cls.gateway is not None
 
-            while not cls.is_gateway_connected():
+            start_time = time()
+            timeout = 300
+            while not cls.is_gateway_connected() or time() - start_time >= timeout:
                 LOG.info('Gateway connecting to TB...')
                 sleep(1)
 
