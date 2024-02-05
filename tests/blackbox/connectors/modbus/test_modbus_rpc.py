@@ -22,7 +22,7 @@ class ModbusRpcTest(BaseTest):
 
     @classmethod
     def setUpClass(cls) -> None:
-        # super(ModbusRpcTest, cls).setUpClass()
+        super(ModbusRpcTest, cls).setUpClass()
 
         # ThingsBoard REST API URL
         url = GatewayDeviceUtil.DEFAULT_URL
@@ -41,6 +41,10 @@ class ModbusRpcTest(BaseTest):
                 LOG.info('Gateway connecting to TB...')
                 sleep(1)
 
+            (config, _) = cls.change_connector_configuration(
+                cls.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_only_on_change_config.json')
+            sleep(3)
+
             LOG.info('Gateway connected to TB')
 
             cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
@@ -49,6 +53,7 @@ class ModbusRpcTest(BaseTest):
     @classmethod
     def tearDownClass(cls):
         super(ModbusRpcTest, cls).tearDownClass()
+        GatewayDeviceUtil.delete_device(cls.device.id)
 
         client = ModbusClient.ModbusTcpClient('modbus-server', port=5021)
         client.connect()
@@ -81,7 +86,8 @@ class ModbusRpcTest(BaseTest):
             config = load(config)
         return config
 
-    def change_connector_configuration(self, config_file_path):
+    @classmethod
+    def change_connector_configuration(cls, config_file_path):
         """
         Change the configuration of the connector.
 
@@ -92,9 +98,9 @@ class ModbusRpcTest(BaseTest):
             tuple: A tuple containing the modified configuration and the response of the save_device_attributes method.
         """
 
-        config = self.load_configuration(config_file_path)
+        config = cls.load_configuration(config_file_path)
         config['Modbus']['ts'] = int(time() * 1000)
-        response = self.client.save_device_attributes(self.gateway.id, 'SHARED_SCOPE', config)
+        response = cls.client.save_device_attributes(cls.gateway.id, 'SHARED_SCOPE', config)
         sleep(3)
         return config, response
 

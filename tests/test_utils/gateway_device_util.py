@@ -63,10 +63,23 @@ class GatewayDeviceUtil:
 
         with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
             try:
-                rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME, password=GatewayDeviceUtil.DEFAULT_PASSWORD)
+                rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
+                                  password=GatewayDeviceUtil.DEFAULT_PASSWORD)
                 rest_client.delete_device(GatewayDeviceUtil.GATEWAY_DEVICE.id)
                 logging.info("Gateway device was deleted: %r", GatewayDeviceUtil.GATEWAY_DEVICE.name)
                 GatewayDeviceUtil.GATEWAY_DEVICE = None
+            except ApiException as e:
+                logging.exception(e)
+                exit(1)
+
+    @staticmethod
+    def delete_device(device_id):
+        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+            try:
+                rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
+                                  password=GatewayDeviceUtil.DEFAULT_PASSWORD)
+                rest_client.delete_device(device_id)
+                logging.info("Device was deleted: %r", device_id)
             except ApiException as e:
                 logging.exception(e)
                 exit(1)
