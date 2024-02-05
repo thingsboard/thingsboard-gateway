@@ -51,6 +51,10 @@ class ModbusRpcTest(BaseTest):
                 cls.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_only_on_change_config.json')
             sleep(3)
 
+            (config, _) = cls.change_connector_configuration(
+                cls.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_only_on_change_config.json')
+            sleep(3)
+
             LOG.info('Gateway connected to TB')
 
             cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
