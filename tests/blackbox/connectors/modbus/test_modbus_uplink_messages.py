@@ -2,9 +2,7 @@ import unittest
 from os import path
 import logging
 
-from pymodbus.constants import Endian
-from pymodbus.framer.rtu_framer import ModbusRtuFramer
-from pymodbus.payload import BinaryPayloadBuilder
+from pymodbus.exceptions import ConnectionException
 import pymodbus.client as ModbusClient
 from simplejson import load
 from tb_rest_client.rest_client_ce import *
@@ -57,29 +55,17 @@ class ModbusUplinkMessagesTest(BaseTest):
     def tearDownClass(cls):
         super(ModbusUplinkMessagesTest, cls).tearDownClass()
 
-        client = ModbusClient.ModbusTcpClient('modbus-server', port=5021, framer=ModbusRtuFramer)
+        client = ModbusClient.ModbusTcpClient('modbus-server', port=5021)
         client.connect()
-        builder = BinaryPayloadBuilder(byteorder=Endian.Little,
-                                       wordorder=Endian.Little)
-        builder.add_string('abcd')
-        builder.add_bits(
-            [False, True, False, True, True, False, True, True, True, True, False, True, False, False, True, False])
-        builder.add_8bit_int(-0x12)
-        builder.add_8bit_uint(0x12)
-        builder.add_16bit_int(-0x5678)
-        builder.add_16bit_uint(0x1234)
-        builder.add_32bit_int(-0x1234)
-        builder.add_32bit_uint(0x12345678)
-        builder.add_16bit_float(12.34375)
-        builder.add_32bit_float(223546.34375)
-        builder.add_32bit_float(-22.34)
-        builder.add_64bit_int(-0xDEADBEEF)
-        builder.add_64bit_uint(0x12345678DEADBEEF)
-        builder.add_64bit_uint(0xDEADBEEFDEADBEED)
-        builder.add_64bit_float(123.45)
-        builder.add_64bit_float(-123.45)
-        client.write_registers(0, builder.to_registers(), slave=1)
+
+        try:
+            client.write_register(28, 10, 1)
+        except ConnectionException:
+            # will call pymodbus.exceptions.ConnectionException because of restarting the server
+            pass
+
         client.close()
+        sleep(2)
 
     @classmethod
     def load_configuration(cls, config_file_path):
