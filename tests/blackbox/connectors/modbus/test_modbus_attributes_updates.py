@@ -11,6 +11,7 @@ from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 CONNECTION_TIMEOUT = 300
+DEVICE_CREATION_TIMEOUT = 60
 
 
 LOG = logging.getLogger("TEST")
@@ -50,13 +51,18 @@ class ModbusAttributesUpdatesTest(BaseTest):
                     raise TimeoutError('Gateway is not connected to TB')
 
             (config, _) = cls.change_connector_configuration(
-                cls.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_only_on_change_config.json')
-            sleep(3)
+                cls.CONFIG_PATH + 'configs/default_modbus_config.json')
 
             LOG.info('Gateway connected to TB')
 
-            cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
-            assert cls.device is not None
+            start_device_creation_time = time()
+            while time() - start_device_creation_time > DEVICE_CREATION_TIMEOUT:
+                try:
+                    cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
+                except IndexError:
+                    sleep(1)
+                else:
+                    break
 
     @classmethod
     def tearDownClass(cls):
