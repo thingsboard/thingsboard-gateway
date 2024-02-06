@@ -56,7 +56,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             LOG.info('Gateway connected to TB')
 
             start_device_creation_time = time()
-            while time() - start_device_creation_time > DEVICE_CREATION_TIMEOUT:
+            while time() - start_device_creation_time < DEVICE_CREATION_TIMEOUT:
                 try:
                     cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
                 except IndexError:

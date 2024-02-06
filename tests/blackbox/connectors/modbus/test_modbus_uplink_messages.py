@@ -11,6 +11,7 @@ from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 CONNECTION_TIMEOUT = 300
+DEVICE_CREATION_TIMEOUT = 60
 
 LOG = logging.getLogger("TEST")
 
@@ -58,7 +59,15 @@ class ModbusUplinkMessagesTest(BaseTest):
 
             LOG.info('Gateway connected to TB')
 
-            cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
+            start_device_creation_time = time()
+            while time() - start_device_creation_time < DEVICE_CREATION_TIMEOUT:
+                try:
+                    cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
+                except IndexError:
+                    sleep(1)
+                else:
+                    break
+
             assert cls.device is not None
 
     @classmethod
