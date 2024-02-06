@@ -48,15 +48,10 @@ class ModbusRpcTest(BaseTest):
                 if time() - start_connecting_time > CONNECTION_TIMEOUT:
                     raise TimeoutError('Gateway is not connected to TB')
 
-            (config, _) = cls.change_connector_configuration(
-                cls.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_only_on_change_config.json')
-            sleep(3)
-
-            (config, _) = cls.change_connector_configuration(
-                cls.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_only_on_change_config.json')
-            sleep(3)
-
             LOG.info('Gateway connected to TB')
+
+            (config, _) = cls.change_connector_configuration(
+                cls.CONFIG_PATH + 'configs/default_modbus_config.json')
 
             start_device_creation_time = time()
             while time() - start_device_creation_time < DEVICE_CREATION_TIMEOUT:
