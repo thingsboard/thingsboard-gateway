@@ -64,6 +64,8 @@ class ModbusAttributesUpdatesTest(BaseTest):
                 else:
                     break
 
+            assert cls.device is not None
+
     @classmethod
     def tearDownClass(cls):
         super(ModbusAttributesUpdatesTest, cls).tearDownClass()
