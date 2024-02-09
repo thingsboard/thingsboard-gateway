@@ -701,4 +701,7 @@ class RemoteConfigurator:
 
     def _create_connectors_backup(self):
         for connector in self.connectors_configuration:
-            self.create_configuration_file_backup(connector['configurationJson'], connector['configuration'])
+            if connector.get('configurationJson'):
+                self.create_configuration_file_backup(connector['configurationJson'], connector['configuration'])
+            else:
+                LOG.debug(f"Configuration for {connector['name']} connector is not found, backup wasn't created")
