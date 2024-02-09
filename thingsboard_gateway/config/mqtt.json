@@ -16,7 +16,7 @@
   },
   "mapping": [
     {
-      "topicFilter": "/sensor/data",
+      "topicFilter": "sensor/data",
       "converter": {
         "type": "json",
         "deviceNameJsonExpression": "${serialNumber}",
@@ -55,7 +55,7 @@
       }
     },
     {
-      "topicFilter": "/sensor/+/data",
+      "topicFilter": "sensor/+/data",
       "converter": {
         "type": "json",
         "deviceNameTopicExpression": "(?<=sensor\/)(.*?)(?=\/data)",
@@ -84,7 +84,7 @@
       }
     },
     {
-      "topicFilter": "/sensor/raw_data",
+      "topicFilter": "sensor/raw_data",
       "converter": {
         "type": "bytes",
         "deviceNameExpression": "[0:4]",
@@ -108,7 +108,7 @@
       }
     },
     {
-      "topicFilter": "/custom/sensors/+",
+      "topicFilter": "custom/sensors/+",
       "converter": {
         "type": "custom",
         "extension": "CustomMqttUplinkConverter",
@@ -124,7 +124,7 @@
   "connectRequests": [
     {
       "topicFilter": "sensor/connect",
-      "deviceNameJsonExpression": "${SerialNumber}"
+      "deviceNameJsonExpression": "${serialNumber}"
     },
     {
       "topicFilter": "sensor/+/connect",
@@ -134,7 +134,7 @@
   "disconnectRequests": [
     {
       "topicFilter": "sensor/disconnect",
-      "deviceNameJsonExpression": "${SerialNumber}"
+      "deviceNameJsonExpression": "${serialNumber}"
     },
     {
       "topicFilter": "sensor/+/disconnect",
@@ -154,8 +154,8 @@
   "attributeUpdates": [
     {
       "retain": true,
-      "deviceNameFilter": "SmartMeter.*",
-      "attributeFilter": "uploadFrequency",
+      "deviceNameFilter": ".*",
+      "attributeFilter": "firmwareVersion",
       "topicExpression": "sensor/${deviceName}/${attributeKey}",
       "valueExpression": "{\"${attributeKey}\":\"${attributeValue}\"}"
     }

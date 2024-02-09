@@ -1,6 +1,4 @@
 {
-  "name": "XMPP Connector",
-  "logLevel": "INFO",
   "server": {
     "jid": "gateway@localhost",
     "password": "password",

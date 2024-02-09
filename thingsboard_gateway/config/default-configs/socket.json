@@ -1,6 +1,4 @@
 {
-  "name": "TCP Connector Example",
-  "logLevel": "INFO",
   "type": "TCP",
   "address": "127.0.0.1",
   "port": 50000,

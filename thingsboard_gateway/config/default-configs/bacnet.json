@@ -1,6 +1,4 @@
 {
-  "name": "BACnet Connector",
-  "logLevel": "INFO",
   "general": {
     "objectName": "TB_gateway",
     "address": "0.0.0.0:47808",

@@ -1,6 +1,4 @@
 {
-  "name": "CAN Connector",
-  "logLevel": "INFO",
   "interface": "socketcan",
   "channel": "vcan0",
   "backend": {

@@ -1,6 +1,4 @@
 {
-  "name": "FTP Connector",
-  "logLevel": "INFO",
   "host": "0.0.0.0",
   "port": 21,
   "TLSSupport": false,
