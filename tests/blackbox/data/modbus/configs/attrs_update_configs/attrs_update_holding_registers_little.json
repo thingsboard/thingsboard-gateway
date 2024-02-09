@@ -10,7 +10,7 @@
       "master": {
         "slaves": [
           {
-            "host": "modbus-server",
+            "host": "localhost",
             "port": 5021,
             "type": "tcp",
             "method": "socket",
