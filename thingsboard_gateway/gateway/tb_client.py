@@ -1,4 +1,4 @@
-#     Copyright 2022. ThingsBoard
+#     Copyright 2024. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -12,13 +12,12 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
-import threading
 import random
 import string
-from time import sleep, time
+import threading
 from os.path import exists
 from ssl import CERT_REQUIRED, PROTOCOL_TLSv1_2
+from time import sleep, time
 
 from simplejson import dumps, load
 
@@ -31,11 +30,10 @@ except ImportError:
     TBUtility.install_package('tb-mqtt-client')
     from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient
 
-log = logging.getLogger("tb_connection")
-
 
 class TBClient(threading.Thread):
-    def __init__(self, config, config_folder_path):
+    def __init__(self, config, config_folder_path, logger):
+        self.__logger = logger
         super().__init__()
         self.setName('Connection thread.')
         self.daemon = True
@@ -55,6 +53,7 @@ class TBClient(threading.Thread):
         self.__stopped = False
         self.__paused = False
         self._last_cert_check_time = 0
+        self.__service_subscription_callbacks = []
 
         # check if provided creds or provisioning strategy
         if config.get('security'):
@@ -66,7 +65,7 @@ class TBClient(threading.Thread):
                 creds = self._get_provisioned_creds(credentials)
             else:
                 credentials = config['provisioning']
-                log.info('Starting provisioning gateway...')
+                logger.info('Starting provisioning gateway...')
 
                 credentials_type = credentials.pop('type', 'ACCESS_TOKEN')
                 if credentials_type.upper() == 'ACCESS_TOKEN':
@@ -98,7 +97,7 @@ class TBClient(threading.Thread):
                 with open(self.__config_folder_path + 'credentials.json', 'w') as file:
                     creds['caCert'] = self._ca_cert_name
                     file.writelines(dumps(creds))
-                log.info('Gateway provisioned')
+                logger.info('Gateway provisioned')
 
                 creds = self._get_provisioned_creds(creds)
 
@@ -178,7 +177,7 @@ class TBClient(threading.Thread):
         while not self.__stopped and not self.__paused:
             if time() - self._last_cert_check_time >= self.__check_cert_period:
                 if self.__cert:
-                    log.info('Will generate new certificate')
+                    self.__logger.info('Will generate new certificate')
                     new_cert = TBUtility.check_certificate(self.__cert, key=self.__private_key,
                                                            days_left=self.__certificate_days_left)
 
@@ -206,16 +205,18 @@ class TBClient(threading.Thread):
         return self.__is_connected
 
     def _on_connect(self, client, userdata, flags, result_code, *extra_params):
-        log.debug('TB client %s connected to ThingsBoard', str(client))
+        self.__logger.debug('TB client %s connected to ThingsBoard', str(client))
         if result_code == 0:
             self.__is_connected = True
         # pylint: disable=protected-access
         self.client._on_connect(client, userdata, flags, result_code, *extra_params)
+        for callback in self.__service_subscription_callbacks:
+            callback()
 
     def _on_disconnect(self, client, userdata, result_code):
         # pylint: disable=protected-access
         if self.client._client != client:
-            log.info("TB client %s has been disconnected. Current client for connection is: %s", str(client), str(self.client._client))
+            self.__logger.info("TB client %s has been disconnected. Current client for connection is: %s", str(client), str(self.client._client))
             client.disconnect()
             client.loop_stop()
         else:
@@ -248,17 +249,17 @@ class TBClient(threading.Thread):
                 if not self.__paused:
                     if self.__stopped:
                         break
-                    log.debug("connecting to ThingsBoard")
+                    self.__logger.debug("connecting to ThingsBoard")
                     try:
                         self.client.connect(keepalive=keep_alive,
                                             min_reconnect_delay=self.__min_reconnect_delay)
                     except ConnectionRefusedError:
                         pass
                     except Exception as e:
-                        log.exception(e)
+                        self.__logger.exception(e)
                 sleep(1)
         except Exception as e:
-            log.exception(e)
+            self.__logger.exception(e)
             sleep(10)
 
         while not self.__stopped:
@@ -270,7 +271,10 @@ class TBClient(threading.Thread):
             except KeyboardInterrupt:
                 self.__stopped = True
             except Exception as e:
-                log.exception(e)
+                self.__logger.exception(e)
 
     def get_config_folder_path(self):
         return self.__config_folder_path
+
+    def register_service_subscription_callback(self, subscribe_to_required_topics):
+        self.__service_subscription_callbacks.append(subscribe_to_required_topics)
