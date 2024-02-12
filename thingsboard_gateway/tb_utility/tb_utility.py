@@ -139,37 +139,32 @@ class TBUtility:
 
     @staticmethod
     def install_package(package, version="upgrade", force_install=False):
-        from sys import executable
-        from subprocess import check_call, CalledProcessError
+        from sys import executable, prefix, base_prefix
+        from subprocess import check_call
         import site
         from importlib import reload
-        result = False
 
-        if force_install:
-            try:
-                result = check_call(
-                    [executable, '-m', 'pip', 'install', package + '==' + version, '--force-reinstall', '--user'])
-            except Exception:
+        result = False
+        installation_sign = "==" if ">=" not in version else ""
+
+        if prefix != base_prefix:
+            if force_install:
                 result = check_call([executable, '-m', 'pip', 'install', package + '==' + version, '--force-reinstall'])
-        elif version.lower() == "upgrade":
-            try:
-                result = check_call([executable, "-m", "pip", "install", package, "--upgrade", "--user"])
-            except CalledProcessError:
+            elif version.lower() == "upgrade":
                 result = check_call([executable, "-m", "pip", "install", package, "--upgrade"])
+            else:
+                if TBUtility.get_package_version(package) is None:
+                    result = check_call([executable, "-m", "pip", "install", package + installation_sign + version])
         else:
-            from pkg_resources import get_distribution
-            current_package_version = None
-            try:
-                current_package_version = get_distribution(package)
-            except Exception:
-                pass
-            if current_package_version is None or current_package_version != version:
-                installation_sign = "==" if ">=" not in version else ""
-                try:
+            if force_install:
+                result = check_call(
+                    [executable, '-m', 'pip', 'install', package + '==' + version, '--force-reinstall', "--user"])
+            elif version.lower() == "upgrade":
+                result = check_call([executable, "-m", "pip", "install", package, "--upgrade", "--user"])
+            else:
+                if TBUtility.get_package_version(package) is None:
                     result = check_call(
                         [executable, "-m", "pip", "install", package + installation_sign + version, "--user"])
-                except CalledProcessError:
-                    result = check_call([executable, "-m", "pip", "install", package + installation_sign + version])
 
         # Because `pip` is running in a subprocess the newly installed modules and libraries are
         # not immediately available to the current runtime. 
@@ -178,6 +173,16 @@ class TBUtility:
         reload(site)
 
         return result
+
+    @staticmethod
+    def get_package_version(package):
+        from pkg_resources import get_distribution
+        current_package_version = None
+        try:
+            current_package_version = get_distribution(package)
+        except Exception:
+            pass
+        return current_package_version
 
     @staticmethod
     def replace_params_tags(text, data):
