@@ -10,8 +10,8 @@ from tb_rest_client.rest_client_ce import *
 from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
-CONNECTION_TIMEOUT = 900
-DEVICE_CREATION_TIMEOUT = 600
+CONNECTION_TIMEOUT = 300
+DEVICE_CREATION_TIMEOUT = 60
 
 
 LOG = logging.getLogger("TEST")
