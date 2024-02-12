@@ -160,7 +160,7 @@ class GatewayManager(multiprocessing.managers.BaseManager):
         self.gateway = gateway
 
     def shutdown(self) -> None:
-        super().shutdown()
+        super().__exit__(None, None, None)
 
 
 class TBGatewayService:
