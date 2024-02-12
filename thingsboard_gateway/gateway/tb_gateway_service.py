@@ -538,7 +538,7 @@ class TBGatewayService:
         self.__updater.stop()
         log.info("Stopping...")
 
-        if hasattr(self, '_TBGatewayService__statistics_service'):
+        if self.__statistics_service is not None:
             self.__statistics_service.stop()
 
         if self.__grpc_manager is not None:
