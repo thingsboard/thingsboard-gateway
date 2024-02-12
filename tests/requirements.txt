@@ -23,7 +23,7 @@ tb-rest-client
 opcua
 asyncua
 twisted
-pymodbus
+pymodbus==3.0.0
 pyserial
 pyserial-asyncio
 python-can
