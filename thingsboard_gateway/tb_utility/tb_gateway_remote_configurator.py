@@ -541,11 +541,18 @@ class RemoteConfigurator:
                         connector_configuration = found_connector
                     if connector_configuration.get('id') in self._gateway.available_connectors_by_id:
                         self._gateway.available_connectors_by_id[connector_configuration['id']].close()
+                    elif connector_configuration.get('name') in self._gateway.available_connectors_by_name:
+                        self._gateway.available_connectors_by_name[connector_configuration['name']].close()
                     else:
-                        LOG.warning('Connector with id %s not found in available connectors', connector_configuration['id'])
-                    self._gateway.available_connectors_by_id.pop(connector_configuration['id'])
-                    if self._gateway.available_connectors_by_name.get(connector_configuration['name']):
+                        LOG.warning('Connector with id %s not found in available connectors', connector_configuration.get('id'))
+                    if connector_configuration.get('id') in self._gateway.available_connectors_by_id:
+                        self._gateway.available_connectors_by_id.pop(connector_configuration['id'])
+                        connector_configuration['id'] = connector_id
+                    elif connector_configuration.get('name') in self._gateway.available_connectors_by_name:
                         self._gateway.available_connectors_by_name.pop(connector_configuration['name'])
+                        connector_configuration['id'] = connector_id
+                    else:
+                        LOG.warning('Connector with id %s not found in available connectors', connector_configuration.get('id'))
 
                     self._gateway.load_connectors(self._get_general_config_in_local_format())
                     self._gateway.connect_with_connectors()

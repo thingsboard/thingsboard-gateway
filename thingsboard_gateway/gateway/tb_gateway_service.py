@@ -554,7 +554,10 @@ class TBGatewayService:
             self.manager.shutdown()
 
     def __init_remote_configuration(self, force=False):
-        if (self.__config["thingsboard"].get("remoteConfiguration") or force) and self.__remote_configurator is None:
+        remote_configuration_enabled = self.__config["thingsboard"].get("remoteConfiguration")
+        if not remote_configuration_enabled and force:
+            log.info("Remote configuration is enabled forcibly!")
+        if (remote_configuration_enabled or force) and self.__remote_configurator is None:
             try:
                 self.__remote_configurator = RemoteConfigurator(self, self.__config)
                 if self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
@@ -688,8 +691,8 @@ class TBGatewayService:
         self.tb_client.client.request_attributes(callback=self._attributes_parse)
 
     def __register_connector(self, session_id, connector_key):
-        if self.__grpc_connectors.get(connector_key) is not None and self.__grpc_connectors[connector_key][
-            'id'] not in self.available_connectors_by_id:
+        if (self.__grpc_connectors.get(connector_key) is not None
+                and self.__grpc_connectors[connector_key]['id'] not in self.available_connectors_by_id):
             target_connector = self.__grpc_connectors.get(connector_key)
             connector = GrpcConnector(self, target_connector['config'], self.__grpc_manager, session_id)
             connector.setName(target_connector['name'])
@@ -830,7 +833,6 @@ class TBGatewayService:
         else:
             log.warning("Connectors - not found!")
             self.__init_remote_configuration(force=True)
-            log.info("Remote configuration is enabled forcibly!")
 
     def connect_with_connectors(self):
         self.__connect_with_connectors()
@@ -849,10 +851,8 @@ class TBGatewayService:
                             try:
                                 if connector_config["config"][config] is not None:
                                     if ("logLevel" in connector_config["config"][config]
-                                        and "name" in connector_config["config"][config]
                                         and len(connector_config["config"][config].keys()) > 3) or \
                                             ("logLevel" not in connector_config["config"][config]
-                                             and "name" not in connector_config["config"][config]
                                              and len(connector_config["config"][config].keys()) >= 1):
                                         connector_name = connector_config["name"]
                                         connector_id = connector_config["id"]
@@ -861,9 +861,7 @@ class TBGatewayService:
 
                                         if available_connector is None or available_connector.is_stopped():
                                             connector = self._implemented_connectors[connector_type](self,
-                                                                                                     connector_config[
-                                                                                                         "config"][
-                                                                                                         config],
+                                                                                                     connector_config["config"][config],
                                                                                                      connector_type)
                                             connector.setName(connector_name)
                                             self.available_connectors_by_id[connector_id] = connector
