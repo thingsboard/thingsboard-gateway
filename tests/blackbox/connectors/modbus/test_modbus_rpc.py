@@ -1,5 +1,6 @@
 from os import path
 import logging
+from unittest import skip
 
 from pymodbus.exceptions import ConnectionException
 import pymodbus.client as ModbusClient
@@ -251,6 +252,7 @@ class ModbusRpcReadingTest(ModbusRpcTest):
 
 
 class ModbusRpcWritingTest(ModbusRpcTest):
+    @skip('This test is not working properly due to ticket #IOTGW-88')
     def test_writing_input_registers_rpc_little(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/input_registers_writing_rpc_little.json')

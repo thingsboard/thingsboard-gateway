@@ -381,13 +381,13 @@ class ModbusConnector(Connector, Thread):
                             # Reading data from device
                             for interested_data in range(len(current_device_config[config_section])):
                                 current_data = deepcopy(current_device_config[config_section][interested_data])
-                                current_data[DEVICE_NAME_PARAMETER] = device.name
+                                current_data[DEVICE_NAME_PARAMETER] = device.device_name
                                 input_data = self.__function_to_device(device, current_data)
 
                                 # due to issue #1056
                                 if isinstance(input_data, ModbusIOException) or isinstance(input_data, ExceptionResponse):
                                     device.config.pop('master', None)
-                                    self.__gateway.del_device(device.name)
+                                    self.__gateway.del_device(device.device_name)
                                     self.__connect_to_current_master(device)
                                     break
 
@@ -408,11 +408,11 @@ class ModbusConnector(Connector, Thread):
                         }, device_responses)))
 
                 except ConnectionException:
-                    self.__gateway.del_device(device.name)
+                    self.__gateway.del_device(device.device_name)
                     sleep(5)
                     self.__log.error("Connection lost! Reconnecting...")
                 except Exception as e:
-                    self.__gateway.del_device(device.name)
+                    self.__gateway.del_device(device.device_name)
                     self.__log.exception(e)
 
                 # Release mutex if "serial" type only
@@ -625,11 +625,7 @@ class ModbusConnector(Connector, Thread):
                 self.__log.debug("Modbus connector received rpc request for %s with server_rpc_request: %s",
                                  server_rpc_request[DEVICE_SECTION_PARAMETER],
                                  server_rpc_request)
-                device = tuple(
-                    filter(
-                        lambda slave: slave.device_name == server_rpc_request[DEVICE_SECTION_PARAMETER], self.__slaves
-                    )
-                )[0]
+                device = tuple(filter(lambda slave: slave.device_name == server_rpc_request[DEVICE_SECTION_PARAMETER], self.__slaves))[0]
 
                 # check if RPC method is reserved get/set
                 if rpc_method == 'get' or rpc_method == 'set':
@@ -745,7 +741,7 @@ class ModbusConnector(Connector, Thread):
                                     converter_name, config)
 
                     for slave_config in self.__config['master']['slaves']:
-                        if slave_config['deviceName'] == slave.name:
+                        if slave_config['deviceName'] == slave.device_name:
                             slave_config.update(config)
 
                     self.__gateway.update_connector_config_file(self.name, self.__config)
