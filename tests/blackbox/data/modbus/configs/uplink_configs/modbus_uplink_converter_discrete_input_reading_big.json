@@ -10,7 +10,7 @@
       "master": {
         "slaves": [
           {
-            "host": "modbus-server",
+            "host": "localhost",
             "port": 5021,
             "type": "tcp",
             "method": "socket",
@@ -20,7 +20,7 @@
             "retries": true,
             "retryOnEmpty": true,
             "retryOnInvalid": true,
-            "pollPeriod": 2000,
+            "pollPeriod": 1000,
             "unitId": 1,
             "deviceName": "Temp Sensor",
             "sendDataOnlyOnChange": false,
@@ -34,14 +34,14 @@
                 "type": "bits",
                 "functionCode": 2,
                 "objectsCount": 16,
-                "address": 2
+                "address": 0
               },
               {
                 "tag": "bit",
                 "type": "bit",
                 "functionCode": 2,
                 "objectsCount": 1,
-                "address": 2
+                "address": 0
               }
             ],
             "attributeUpdates": [],

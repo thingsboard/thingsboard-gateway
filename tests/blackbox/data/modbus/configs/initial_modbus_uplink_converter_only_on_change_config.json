@@ -10,7 +10,7 @@
       "master": {
         "slaves": [
           {
-            "host": "host.docker.internal",
+            "host": "localhost",
             "port": 5021,
             "type": "tcp",
             "method": "socket",
@@ -33,7 +33,7 @@
                 "type": "string",
                 "functionCode": 4,
                 "objectsCount": 4,
-                "address": 1
+                "address": 0
               },
               {
                 "tag": "bits_read",

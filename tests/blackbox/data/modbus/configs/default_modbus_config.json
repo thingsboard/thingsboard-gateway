@@ -27,39 +27,25 @@
             "connectAttemptTimeMs": 5000,
             "connectAttemptCount": 5,
             "waitAfterFailedAttemptsMs": 300000,
-            "attributes": [],
+            "attributes": [
+              {
+                "tag": "string_read",
+                "type": "string",
+                "functionCode": 4,
+                "objectsCount": 2,
+                "address": 0
+              }
+            ],
             "timeseries": [
               {
-                "tag": "bits",
-                "type": "bits",
-                "functionCode": 2,
-                "objectsCount": 16,
-                "address": 0
-              },
-              {
-                "tag": "bit",
-                "type": "bit",
-                "functionCode": 2,
+                "tag": "8uint_read",
+                "type": "8uint",
+                "functionCode": 4,
                 "objectsCount": 1,
-                "address": 0
+                "address": 17
               }
             ],
-            "attributeUpdates": [
-              {
-                "tag": "bits",
-                "type": "bits",
-                "functionCode": 6,
-                "objectsCount": 16,
-                "address": 0
-              },
-              {
-                "tag": "bit",
-                "type": "bit",
-                "functionCode": 6,
-                "objectsCount": 1,
-                "address": 0
-              }
-            ],
+            "attributeUpdates": [],
             "rpc": []
           }
         ]

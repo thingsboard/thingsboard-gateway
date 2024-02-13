@@ -2,6 +2,8 @@ import unittest
 from os import path
 import logging
 
+from pymodbus.exceptions import ConnectionException
+import pymodbus.client as ModbusClient
 from simplejson import load, loads
 from tb_rest_client.rest_client_ce import *
 
@@ -9,6 +11,7 @@ from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 CONNECTION_TIMEOUT = 300
+DEVICE_CREATION_TIMEOUT = 60
 
 
 LOG = logging.getLogger("TEST")
@@ -49,8 +52,36 @@ class ModbusAttributesUpdatesTest(BaseTest):
 
             LOG.info('Gateway connected to TB')
 
-            cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
+            (config, _) = cls.change_connector_configuration(
+                cls.CONFIG_PATH + 'configs/default_modbus_config.json')
+
+            start_device_creation_time = time()
+            while time() - start_device_creation_time < DEVICE_CREATION_TIMEOUT:
+                try:
+                    cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
+                except IndexError:
+                    sleep(1)
+                else:
+                    break
+
             assert cls.device is not None
+
+    @classmethod
+    def tearDownClass(cls):
+        super(ModbusAttributesUpdatesTest, cls).tearDownClass()
+        GatewayDeviceUtil.delete_device(cls.device.id)
+
+        client = ModbusClient.ModbusTcpClient('modbus-server', port=5021)
+        client.connect()
+        try:
+            # trigger register 28 to restart the modbus server
+            client.write_register(28, 10, 1)
+        except ConnectionException:
+            # will call pymodbus.exceptions.ConnectionException because of restarting the server
+            pass
+
+        client.close()
+        sleep(2)
 
     @classmethod
     def load_configuration(cls, config_file_path):
@@ -72,7 +103,8 @@ class ModbusAttributesUpdatesTest(BaseTest):
         except IndexError:
             return False
 
-    def change_connector_configuration(self, config_file_path):
+    @classmethod
+    def change_connector_configuration(cls, config_file_path):
         """
         Change the configuration of the connector.
 
@@ -83,9 +115,9 @@ class ModbusAttributesUpdatesTest(BaseTest):
             tuple: A tuple containing the modified configuration and the response of the save_device_attributes method.
         """
 
-        config = self.load_configuration(config_file_path)
+        config = cls.load_configuration(config_file_path)
         config['Modbus']['ts'] = int(time() * 1000)
-        response = self.client.save_device_attributes(self.gateway.id, 'SHARED_SCOPE', config)
+        response = cls.client.save_device_attributes(cls.gateway.id, 'SHARED_SCOPE', config)
         sleep(3)
         return config, response
 

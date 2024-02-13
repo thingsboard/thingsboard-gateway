@@ -1,7 +1,6 @@
 {
   "string": "abcd",
   "bits": [false,true,false,true,true,false,true,true,true,true,false,true,false,false,true,false],
-  "4bits": [false,false,true,false],
   "16int": -22136,
   "16uint": 4660,
   "16float": 12.34375,
