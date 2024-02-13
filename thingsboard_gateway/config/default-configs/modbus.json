@@ -1,6 +1,4 @@
 {
-  "name": "Modbus Connector",
-  "logLevel": "INFO",
   "master": {
     "slaves": [
       {

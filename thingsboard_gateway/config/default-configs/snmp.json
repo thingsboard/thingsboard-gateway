@@ -1,6 +1,4 @@
 {
-  "name": "SNMP Connector",
-  "logLevel": "INFO",
   "devices": [
     {
       "deviceName": "SNMP router",

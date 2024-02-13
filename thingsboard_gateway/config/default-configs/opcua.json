@@ -1,6 +1,4 @@
 {
-  "name": "OPC-UA Connector",
-  "logLevel": "INFO",
   "server": {
     "name": "OPC-UA Default Server",
     "url": "localhost:4840/freeopcua/server/",

@@ -1,4 +1,4 @@
-#     Copyright 2023. ThingsBoard
+#     Copyright 2024. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -245,7 +245,7 @@ class MqttConnector(Connector, Thread):
 
     def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list):
         if handler_flavor not in self.config:
-            self.__log.error("'%s' section missing from configuration", handler_flavor)
+            self.__log.warning("'%s' section missing from configuration", handler_flavor)
         else:
             for handler in self.config.get(handler_flavor):
                 discard = False
@@ -261,7 +261,7 @@ class MqttConnector(Connector, Thread):
                                          key, handler_flavor, simplejson.dumps(handler))
 
                 if discard:
-                    self.__log.error("%s handler is missing some mandatory keys => rejected: %s",
+                    self.__log.warning("%s handler is missing some mandatory keys => rejected: %s",
                                      handler_flavor, simplejson.dumps(handler))
                 else:
                     accepted_handlers_list.append(handler)
@@ -272,7 +272,7 @@ class MqttConnector(Connector, Thread):
                             handler_flavor,
                             len(accepted_handlers_list))
 
-            self.__log.info("Number of rejected %s handlers: %d",
+            self.__log.debug("Number of rejected %s handlers: %d",
                             handler_flavor,
                             len(self.config.get(handler_flavor)) - len(accepted_handlers_list))
 
@@ -743,18 +743,29 @@ class MqttConnector(Connector, Thread):
                 if match(attribute_update["deviceNameFilter"], content["device"]):
                     for attribute_key in content["data"]:
                         if match(attribute_update["attributeFilter"], attribute_key):
+                            received_value = content["data"][attribute_key]
+                            if isinstance(received_value, dict) or isinstance(received_value, list):
+                                received_value = simplejson.dumps(received_value)
+                            elif isinstance(received_value, bool):
+                                received_value = str(received_value).lower()
+                            elif isinstance(received_value, str):
+                                received_value = '"' + received_value + '"'
+                            elif isinstance(received_value, float) or isinstance(received_value, int):
+                                received_value = str(received_value)
+                            elif received_value is None:
+                                received_value = "null"
                             try:
                                 topic = attribute_update["topicExpression"] \
                                     .replace("${deviceName}", str(content["device"])) \
                                     .replace("${attributeKey}", str(attribute_key)) \
-                                    .replace("${attributeValue}", str(content["data"][attribute_key]))
+                                    .replace("${attributeValue}", received_value)
                             except KeyError as e:
                                 self.__log.exception("Cannot form topic, key %s - not found", e)
                                 raise e
                             try:
                                 data = attribute_update["valueExpression"] \
                                     .replace("${attributeKey}", str(attribute_key)) \
-                                    .replace("${attributeValue}", str(content["data"][attribute_key]))
+                                    .replace("${attributeValue}", received_value)
                             except KeyError as e:
                                 self.__log.exception("Cannot form topic, key %s - not found", e)
                                 raise e
@@ -790,7 +801,7 @@ class MqttConnector(Connector, Thread):
 
             timeout = time() * 1000 + rpc_config.get("responseTimeout")
 
-            # Start listenting on the response topic
+            # Start listening on the response topic
             self.__log.info("Subscribing to: %s", expected_response_topic)
             self.__subscribe(expected_response_topic, rpc_config.get("responseTopicQoS", 1))
 
@@ -841,8 +852,14 @@ class MqttConnector(Connector, Thread):
 
         try:
             self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
-            self._publish(request_topic, data_to_send, rpc_config.get('retain', False))
-
+            try:
+                self._publish(request_topic, data_to_send, rpc_config.get('retain', False))
+            except Exception as e:
+                self.__log.exception("Error during publishing to target broker: %r", e)
+                self.__gateway.send_rpc_reply(device=content["device"],
+                                              req_id=content["data"]["id"],
+                                              content={"error": str.format("Error during publishing to target broker: %r", str(e))},
+                                              success_sent=False)
             if not expects_response or not defines_timeout:
                 self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
                 self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
