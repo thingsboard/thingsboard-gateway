@@ -546,7 +546,7 @@ class RemoteConfigurator:
                     self._gateway.load_connectors(self._get_general_config_in_local_format())
                     self._gateway.connect_with_connectors()
 
-            for device_name in self._gateway.get_devices().keys():
+            for device_name in list(self._gateway.get_devices().keys()):
                 for connector_id in self._gateway.available_connectors_by_id.keys():
                     if (self._gateway.available_connectors_by_id.get(connector_id)
                             and self._gateway.available_connectors_by_id[connector_id].get_id() == connector_id):
