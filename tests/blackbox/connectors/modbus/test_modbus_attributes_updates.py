@@ -71,7 +71,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         super(ModbusAttributesUpdatesTest, cls).tearDownClass()
         GatewayDeviceUtil.delete_device(cls.device.id)
 
-        client = ModbusClient.ModbusTcpClient('modbus-server', port=5021)
+        client = ModbusClient.ModbusTcpClient('localhost', port=5021)
         client.connect()
         try:
             # trigger register 28 to restart the modbus server
@@ -380,6 +380,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
             if _type == 'bits' or _type == 'bit':
+                LOG.info(f'Actual value: {actual_values[_type][0]["value"]}')
                 actual_values[_type][0]['value'] = loads(actual_values[_type][0]['value'])
 
             self.assertEqual(value, actual_values[_type][0]['value'],

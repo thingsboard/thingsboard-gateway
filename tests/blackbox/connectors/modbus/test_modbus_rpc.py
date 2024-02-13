@@ -69,7 +69,7 @@ class ModbusRpcTest(BaseTest):
         super(ModbusRpcTest, cls).tearDownClass()
         GatewayDeviceUtil.delete_device(cls.device.id)
 
-        client = ModbusClient.ModbusTcpClient('modbus-server', port=5021)
+        client = ModbusClient.ModbusTcpClient('localhost', port=5021)
         client.connect()
         try:
             # trigger register 28 to restart the modbus server
