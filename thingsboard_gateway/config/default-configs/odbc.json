@@ -1,6 +1,4 @@
 {
-  "name": "ODBC Connector",
-  "logLevel": "INFO",
   "connection": {
     "str": "Driver={PostgreSQL};Server=localhost;Port=5432;Database=thingsboard;Uid=postgres;Pwd=postgres;",
     "attributes": {

@@ -1,6 +1,4 @@
 {
-  "name": "OCPP Connector",
-  "logLevel": "INFO",
   "centralSystem": {
     "name": "Central System",
     "host": "127.0.0.1",

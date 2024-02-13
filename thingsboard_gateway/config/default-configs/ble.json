@@ -1,6 +1,4 @@
 {
-  "name": "BLE Connector",
-  "logLevel": "INFO",
   "passiveScanMode": true,
   "showMap": false,
   "scanner": {
