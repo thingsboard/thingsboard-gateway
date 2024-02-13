@@ -165,8 +165,8 @@ class ModbusAttributesUpdatesTest(BaseTest):
             self.assertEqual(value, actual_values[_type][0]['value'],
                              f'Value is not equal for the next telemetry key: {_type}')
 
-        # reset slave values to default
-        self.reset_slave_default_values()
+        # # reset slave values to default
+        # self.reset_slave_default_values()
 
     def test_holding_register_attrs_update_little_endian(self):
         """
@@ -199,7 +199,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
-        self.reset_slave_default_values()
+        # self.reset_slave_default_values()
 
     def test_coils_attrs_update_little_endian(self):
         """
@@ -233,7 +233,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
-        self.reset_slave_default_values()
+        # self.reset_slave_default_values()
 
     def test_discrete_input_attrs_update_little_endian(self):
         """
@@ -263,7 +263,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
-        self.reset_slave_default_values()
+        # self.reset_slave_default_values()
 
     def test_input_register_attrs_update_big_endian(self):
         """
@@ -290,7 +290,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
-        self.reset_slave_default_values()
+        # self.reset_slave_default_values()
 
     def test_holding_register_attrs_update_big_endian(self):
         """
@@ -328,7 +328,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
-        self.reset_slave_default_values()
+        # self.reset_slave_default_values()
 
     def test_coils_attrs_update_big_endian(self):
         """
@@ -358,7 +358,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
-        self.reset_slave_default_values()
+        # self.reset_slave_default_values()
 
     def test_discrete_input_attrs_update_big_endian(self):
         """
@@ -387,7 +387,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
-        self.reset_slave_default_values()
+        # self.reset_slave_default_values()
 
     def test_gateway_restarted(self):
         self.client.handle_two_way_device_rpc_request(self.gateway.id, {"method": "gateway_restart"})
@@ -412,7 +412,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset slave values to default
-        self.reset_slave_default_values()
+        # self.reset_slave_default_values()
 
 
 if __name__ == '__main__':
