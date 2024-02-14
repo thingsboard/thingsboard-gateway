@@ -34,14 +34,14 @@
                 "type": "bits",
                 "functionCode": 2,
                 "objectsCount": 16,
-                "address": 2
+                "address": 0
               },
               {
                 "tag": "bit",
                 "type": "bit",
                 "functionCode": 2,
                 "objectsCount": 1,
-                "address": 2
+                "address": 0
               }
             ],
             "attributeUpdates": [],
@@ -51,7 +51,7 @@
                 "type": "bits",
                 "functionCode": 6,
                 "objectsCount": 16,
-                "address": 2
+                "address": 0
               }
             ]
           }
