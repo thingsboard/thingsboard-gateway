@@ -70,7 +70,7 @@ class ModbusRpcTest(BaseTest):
         super(ModbusRpcTest, cls).tearDownClass()
         GatewayDeviceUtil.delete_device(cls.device.id)
 
-        client = ModbusClient.ModbusTcpClient('modbus-server', port=5021)
+        client = ModbusClient.ModbusTcpClient('localhost', port=5021)
         client.connect()
         try:
             # trigger register 28 to restart the modbus server
@@ -256,7 +256,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
     def test_writing_input_registers_rpc_little(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/input_registers_writing_rpc_little.json')
-        sleep(3)
+        sleep(5)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/input_registers_values_writing_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in

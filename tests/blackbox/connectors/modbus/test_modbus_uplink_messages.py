@@ -70,7 +70,7 @@ class ModbusUplinkMessagesTest(BaseTest):
         super(ModbusUplinkMessagesTest, cls).tearDownClass()
         GatewayDeviceUtil.delete_device(cls.device.id)
 
-        client = ModbusClient.ModbusTcpClient('modbus-server', port=5021)
+        client = ModbusClient.ModbusTcpClient('localhost', port=5021)
         client.connect()
 
         try:
