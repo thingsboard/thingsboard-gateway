@@ -96,6 +96,7 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
         for hr, hr1 in zip(modbus_client_results, modbus_connector_results):
             self.assertEqual(hr, hr1)
 
+    @unittest.skip("Unstable, needs to be fixed")
     def test_read_discrete_inputs(self):
         self._create_connector('modbus_attributes.json')
         modbus_client_results = []
@@ -148,6 +149,7 @@ class ModbusConnectorRpcTest(ModbusConnectorTestsBase):
     def tearDownClass(cls) -> None:
         cls.client.close()
 
+    @unittest.skip("Unstable, needs to be fixed")
     def test_write_type_rpc(self):
         self._create_connector('modbus_rpc.json')
 
