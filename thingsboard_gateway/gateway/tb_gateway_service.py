@@ -809,6 +809,8 @@ class TBGatewayService:
                             connector_conf['id'] = connector_id
                             with open(config_file_path, 'w', encoding="UTF-8") as conf_file:
                                 conf_file.write(dumps(connector_conf, indent=2))
+                    elif isinstance(connector_conf, str) and not connector_conf:
+                        raise ValueError("Connector configuration is empty!")
                     elif isinstance(connector_conf, str):
                         start_find = connector_conf.find("{id_var_start}")
                         end_find = connector_conf.find("{id_var_end}")
@@ -863,7 +865,7 @@ class TBGatewayService:
                                             connector = self._implemented_connectors[connector_type](self,
                                                                                                      connector_config["config"][config],
                                                                                                      connector_type)
-                                            connector.setName(connector_name)
+                                            connector.name = connector_name
                                             self.available_connectors_by_id[connector_id] = connector
                                             self.available_connectors_by_name[connector_name] = connector
                                             connector.open()

@@ -52,7 +52,7 @@ class RequestConnector(Connector, Thread):
         self.__id = self.__config.get('id')
         self._connector_type = connector_type
         self.__gateway = gateway
-        self.setName(self.__config.get("name", "".join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = self.__config.get("name", "".join(choice(ascii_lowercase) for _ in range(5)))
         self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self.__security = HTTPBasicAuth(self.__config["security"]["username"], self.__config["security"]["password"]) if \
             self.__config["security"]["type"] == "basic" else None

@@ -1,0 +1,14 @@
+{
+  "string": "abcd",
+  "bits": [false,true,false,true,true,false,true,true,true,true,false,true,false,false,true,false],
+  "4bits": [false,false,true,false],
+  "16int": -22136,
+  "16uint": 4660,
+  "16float": 12.34375,
+  "32int": -4660,
+  "32uint": 305419896,
+  "32float": 223546.34375,
+  "64int": -3735928559,
+  "64uint": 1311768468603649775,
+  "64float": 123.45
+}

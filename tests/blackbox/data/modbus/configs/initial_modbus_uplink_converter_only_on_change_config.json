@@ -1,0 +1,127 @@
+{
+  "Modbus": {
+    "name": "Modbus",
+    "type": "modbus",
+    "logLevel": "DEBUG",
+    "configuration": "modbus.json",
+    "configurationJson": {
+      "name": "Modbus",
+      "logLevel": "DEBUG",
+      "master": {
+        "slaves": [
+          {
+            "host": "localhost",
+            "port": 5021,
+            "type": "tcp",
+            "method": "socket",
+            "timeout": 35,
+            "byteOrder": "LITTLE",
+            "wordOrder": "LITTLE",
+            "retries": true,
+            "retryOnEmpty": true,
+            "retryOnInvalid": true,
+            "pollPeriod": 1000,
+            "unitId": 1,
+            "deviceName": "Temp Sensor",
+            "sendDataOnlyOnChange": true,
+            "connectAttemptTimeMs": 5000,
+            "connectAttemptCount": 5,
+            "waitAfterFailedAttemptsMs": 300000,
+            "attributes": [
+              {
+                "tag": "string_read",
+                "type": "string",
+                "functionCode": 4,
+                "objectsCount": 2,
+                "address": 0
+              },
+              {
+                "tag": "bits_read",
+                "type": "bits",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 5
+              },
+              {
+                "tag": "8int_read",
+                "type": "8int",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 6
+              },
+              {
+                "tag": "16int_read",
+                "type": "16int",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 7
+              },
+              {
+                "tag": "32int_read_divider",
+                "type": "32int",
+                "functionCode": 4,
+                "objectsCount": 2,
+                "address": 8,
+                "divider": 10
+              },
+              {
+                "tag": "8int_read_multiplier",
+                "type": "8int",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 10,
+                "multiplier": 10
+              },
+              {
+                "tag": "32int_read",
+                "type": "32int",
+                "functionCode": 4,
+                "objectsCount": 2,
+                "address": 11
+              },
+              {
+                "tag": "64int_read",
+                "type": "64int",
+                "functionCode": 4,
+                "objectsCount": 4,
+                "address": 13
+              }
+            ],
+            "timeseries": [
+              {
+                "tag": "8uint_read",
+                "type": "8uint",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 17
+              },
+              {
+                "tag": "16uint_read",
+                "type": "16uint",
+                "functionCode": 4,
+                "objectsCount": 2,
+                "address": 18
+              },
+              {
+                "tag": "32uint_read",
+                "type": "32uint",
+                "functionCode": 4,
+                "objectsCount": 4,
+                "address": 20
+              },
+              {
+                "tag": "16float_read",
+                "type": "16float",
+                "functionCode": 4,
+                "objectsCount": 1,
+                "address": 25
+              }
+            ],
+            "attributeUpdates": [],
+            "rpc": []
+          }
+        ]
+      }
+    }
+  }
+}

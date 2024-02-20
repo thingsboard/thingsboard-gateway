@@ -557,7 +557,7 @@ class RemoteConfigurator:
                     self._gateway.load_connectors(self._get_general_config_in_local_format())
                     self._gateway.connect_with_connectors()
 
-            for device_name in self._gateway.get_devices().keys():
+            for device_name in list(self._gateway.get_devices().keys()):
                 for connector_id in self._gateway.available_connectors_by_id.keys():
                     if (self._gateway.available_connectors_by_id.get(connector_id)
                             and self._gateway.available_connectors_by_id[connector_id].get_id() == connector_id):
@@ -710,7 +710,7 @@ class RemoteConfigurator:
         backup_file_path = backup_folder_path + os.path.sep + backup_file_name
         with open(backup_file_path, "w") as backup_file:
             LOG.debug(f"Backup file created for configuration file {config_file_name} in {backup_file_path}")
-            backup_file.writelines(dumps(config_data, indent='  '))
+            backup_file.writelines(dumps(config_data, indent='  ', skipkeys=True))
 
     def _create_connectors_backup(self):
         for connector in self.connectors_configuration:

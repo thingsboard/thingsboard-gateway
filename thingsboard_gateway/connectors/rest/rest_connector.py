@@ -66,7 +66,7 @@ class RESTConnector(Connector, Thread):
         self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
-        self.setName(config.get("name", 'REST Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = config.get("name", 'REST Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__gateway = gateway
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self._default_downlink_converter = TBModuleLoader.import_module(self._connector_type,

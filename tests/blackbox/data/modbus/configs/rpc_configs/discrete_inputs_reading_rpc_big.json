@@ -1,0 +1,69 @@
+{
+  "Modbus": {
+    "name": "Modbus",
+    "type": "modbus",
+    "logLevel": "DEBUG",
+    "configuration": "modbus.json",
+    "configurationJson": {
+      "name": "Modbus",
+      "logLevel": "DEBUG",
+      "master": {
+        "slaves": [
+          {
+            "host": "localhost",
+            "port": 5021,
+            "type": "tcp",
+            "method": "socket",
+            "timeout": 35,
+            "byteOrder": "BIG",
+            "wordOrder": "BIG",
+            "retries": true,
+            "retryOnEmpty": true,
+            "retryOnInvalid": true,
+            "pollPeriod": 2000,
+            "unitId": 1,
+            "deviceName": "Temp Sensor",
+            "sendDataOnlyOnChange": false,
+            "connectAttemptTimeMs": 5000,
+            "connectAttemptCount": 5,
+            "waitAfterFailedAttemptsMs": 300000,
+            "attributes": [],
+            "timeseries": [
+              {
+                "tag": "bits",
+                "type": "bits",
+                "functionCode": 2,
+                "objectsCount": 16,
+                "address": 0
+              },
+              {
+                "tag": "bit",
+                "type": "bit",
+                "functionCode": 2,
+                "objectsCount": 1,
+                "address": 0
+              }
+            ],
+            "attributeUpdates": [],
+            "rpc": [
+              {
+                "tag": "bits",
+                "type": "bits",
+                "functionCode": 2,
+                "objectsCount": 16,
+                "address": 0
+              },
+              {
+                "tag": "bit",
+                "type": "bit",
+                "functionCode": 2,
+                "objectsCount": 1,
+                "address": 0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

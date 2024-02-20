@@ -962,8 +962,8 @@ class MqttConnector(Connector, Thread):
         def __init__(self, name, incoming_queue, send_result):
             super().__init__()
             self.stopped = False
-            self.setName(name)
-            self.setDaemon(True)
+            self.name = name
+            self.daemon = True
             self.__msg_queue = incoming_queue
             self.in_progress = False
             self.__send_result = send_result

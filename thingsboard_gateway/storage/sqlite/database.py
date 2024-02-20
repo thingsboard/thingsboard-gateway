@@ -38,7 +38,7 @@ class Database(Thread):
 
     def __init__(self, config, processing_queue: Queue):
         super().__init__()
-        self.setDaemon(True)
+        self.daemon = True
         self.settings = StorageSettings(config)
 
         if not exists(self.settings.data_folder_path):

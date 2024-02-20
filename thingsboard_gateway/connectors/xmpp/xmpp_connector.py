@@ -56,7 +56,7 @@ class XMPPConnector(Connector, Thread):
         self.__id = self.__config.get('id')
         self._server_config = config['server']
         self._devices_config = config.get('devices', [])
-        self.setName(config.get("name", 'XMPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = config.get("name", 'XMPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
 
         self._devices = {}

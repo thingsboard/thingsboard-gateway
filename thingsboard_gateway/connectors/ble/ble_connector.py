@@ -44,7 +44,7 @@ class BLEConnector(Connector, Thread):
         self.__gateway = gateway
         self.__config = config
         self.__id = self.__config.get('id')
-        self.setName(self.__config.get("name", 'BLE Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = self.__config.get("name", 'BLE Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
 
         self.daemon = True

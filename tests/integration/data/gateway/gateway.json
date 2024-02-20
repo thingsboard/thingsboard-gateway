@@ -1,0 +1,37 @@
+{
+  "thingsboard": {
+    "host": "127.0.0.1",
+    "port": 1883,
+    "remoteShell": false,
+    "remoteConfiguration": false,
+    "statistics": {
+      "enable": false,
+      "statsSendPeriodInSeconds": 3600,
+      "configuration": "statistics.json"
+    },
+    "minPackSendDelayMS": 0,
+    "checkConnectorsConfigurationInSeconds": 60,
+    "handleDeviceRenaming": true,
+    "checkingDeviceActivity": {
+      "checkDeviceInactivity": false,
+      "inactivityTimeoutSeconds": 120,
+      "inactivityCheckPeriodSeconds": 10
+    },
+    "security": {
+      "accessToken": "YOUR_ACCESS_TOKEN"
+    },
+    "qos": 1
+  },
+  "storage": {
+    "type": "memory",
+    "read_records_count": 100,
+    "max_records_count": 100000
+  },
+  "connectors": [
+    {
+      "name": "MQTT Broker Connector",
+      "type": "mqtt",
+      "configuration": "mqtt.json"
+    }
+  ]
+}

@@ -53,7 +53,7 @@ class OdbcConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
         self.daemon = True
-        self.setName(config.get("name", 'ODBC Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = config.get("name", 'ODBC Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
 
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}

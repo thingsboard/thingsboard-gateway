@@ -1,0 +1,209 @@
+{
+  "Modbus": {
+    "name": "Modbus",
+    "type": "modbus",
+    "logLevel": "DEBUG",
+    "configuration": "modbus.json",
+    "configurationJson": {
+      "name": "Modbus",
+      "logLevel": "DEBUG",
+      "master": {
+        "slaves": [
+          {
+            "host": "localhost",
+            "port": 5021,
+            "type": "tcp",
+            "method": "socket",
+            "timeout": 35,
+            "byteOrder": "LITTLE",
+            "wordOrder": "LITTLE",
+            "retries": true,
+            "retryOnEmpty": true,
+            "retryOnInvalid": true,
+            "pollPeriod": 1000,
+            "unitId": 1,
+            "deviceName": "Temp Sensor",
+            "sendDataOnlyOnChange": false,
+            "connectAttemptTimeMs": 5000,
+            "connectAttemptCount": 5,
+            "waitAfterFailedAttemptsMs": 300000,
+            "attributes": [],
+            "timeseries": [
+              {
+                "tag": "string",
+                "type": "string",
+                "functionCode": 3,
+                "objectsCount": 2,
+                "address": 0
+              },
+              {
+                "tag": "bits",
+                "type": "bits",
+                "functionCode": 3,
+                "objectsCount": 16,
+                "address": 2
+              },
+              {
+                "tag": "16int",
+                "type": "16int",
+                "functionCode": 3,
+                "objectsCount": 1,
+                "address": 4
+              },
+              {
+                "tag": "16uint",
+                "type": "16uint",
+                "functionCode": 3,
+                "objectsCount": 1,
+                "address": 5
+              },
+              {
+                "tag": "32int",
+                "type": "32int",
+                "functionCode": 3,
+                "objectsCount": 2,
+                "address": 6
+              },
+              {
+                "tag": "32uint",
+                "type": "32uint",
+                "functionCode": 3,
+                "objectsCount": 2,
+                "address": 8
+              },
+              {
+                "tag": "16float",
+                "type": "16float",
+                "functionCode": 3,
+                "objectsCount": 1,
+                "address": 10
+              },
+              {
+                "tag": "32float",
+                "type": "32float",
+                "functionCode": 3,
+                "objectsCount": 2,
+                "address": 11
+              },
+              {
+                "tag": "-32float",
+                "type": "32float",
+                "functionCode": 3,
+                "objectsCount": 2,
+                "address": 13
+              },
+              {
+                "tag": "64int",
+                "type": "64int",
+                "functionCode": 3,
+                "objectsCount": 4,
+                "address": 15
+              },
+              {
+                "tag": "64uint",
+                "type": "64uint",
+                "functionCode": 3,
+                "objectsCount": 4,
+                "address": 19
+              },
+              {
+                "tag": "64float",
+                "type": "64float",
+                "functionCode": 3,
+                "objectsCount": 4,
+                "address": 27
+              }
+            ],
+            "attributeUpdates": [
+              {
+                "tag": "string",
+                "type": "string",
+                "functionCode": 16,
+                "objectsCount": 2,
+                "address": 0
+              },
+              {
+                "tag": "bits",
+                "type": "bits",
+                "functionCode": 6,
+                "objectsCount": 16,
+                "address": 2
+              },
+              {
+                "tag": "16int",
+                "type": "16int",
+                "functionCode": 6,
+                "objectsCount": 1,
+                "address": 4
+              },
+              {
+                "tag": "16uint",
+                "type": "16uint",
+                "functionCode": 6,
+                "objectsCount": 1,
+                "address": 5
+              },
+              {
+                "tag": "32int",
+                "type": "32int",
+                "functionCode": 16,
+                "objectsCount": 2,
+                "address": 6
+              },
+              {
+                "tag": "32uint",
+                "type": "32uint",
+                "functionCode": 16,
+                "objectsCount": 2,
+                "address": 8
+              },
+              {
+                "tag": "16float",
+                "type": "16float",
+                "functionCode": 16,
+                "objectsCount": 1,
+                "address": 10
+              },
+              {
+                "tag": "32float",
+                "type": "32float",
+                "functionCode": 16,
+                "objectsCount": 2,
+                "address": 11
+              },
+              {
+                "tag": "-32float",
+                "type": "32float",
+                "functionCode": 16,
+                "objectsCount": 2,
+                "address": 13
+              },
+              {
+                "tag": "64int",
+                "type": "64int",
+                "functionCode": 16,
+                "objectsCount": 4,
+                "address": 15
+              },
+              {
+                "tag": "64uint",
+                "type": "64uint",
+                "functionCode": 16,
+                "objectsCount": 4,
+                "address": 19
+              },
+              {
+                "tag": "64float",
+                "type": "64float",
+                "functionCode": 16,
+                "objectsCount": 4,
+                "address": 27
+              }
+            ],
+            "rpc": []
+          }
+        ]
+      }
+    }
+  }
+}

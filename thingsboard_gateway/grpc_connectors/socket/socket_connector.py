@@ -37,8 +37,7 @@ class GrpcSocketConnector(GwGrpcConnector):
         self.__config = self.connection_config['config'][list(self.connection_config['config'].keys())[0]]
         self._connector_type = 'socket'
         self.__bind = False
-        self.setName(
-            self.__config.get("name", 'TCP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = self.__config.get("name", 'TCP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__socket_type = self.__config['type'].upper()
         self.__socket_address = self.__config['address']
         self.__socket_port = self.__config['port']

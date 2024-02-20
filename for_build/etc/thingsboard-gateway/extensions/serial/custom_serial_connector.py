@@ -38,9 +38,8 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
                            'MessagesSent': 0}  # Dictionary, will save information about count received and sent messages.
         self.__config = config  # Save configuration from the configuration file.
         self.__gateway = gateway  # Save gateway object, we will use some gateway methods for adding devices and saving data from them.
-        self.setName(self.__config.get("name",
-                                       "Custom %s connector " % self.get_name() + ''.join(
-                                           choice(ascii_lowercase) for _ in range(5))))  # get from the configuration or create name for logs.
+        self.name = self.__config.get("name",
+                                      "Custom %s connector " % self.get_name() + ''.join(choice(ascii_lowercase) for _ in range(5)))  # get from the configuration or create name for logs.
         log.info("Starting Custom %s connector", self.get_name())  # Send message to logger
         self.daemon = True  # Set self thread as daemon
         self.stopped = True  # Service variable for check state

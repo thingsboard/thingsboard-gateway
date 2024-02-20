@@ -65,7 +65,7 @@ class OcppConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self._gateway = gateway
-        self.setName(self._config.get("name", 'OCPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = self._config.get("name", 'OCPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self._log = init_logger(self._gateway, self.name, self._config.get('logLevel', 'INFO'))
 
         self._default_converters = {'uplink': 'OcppUplinkConverter'}

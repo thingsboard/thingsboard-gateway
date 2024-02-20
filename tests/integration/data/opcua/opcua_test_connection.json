@@ -1,0 +1,71 @@
+{
+  "server": {
+    "name": "OPC-UA Default Server",
+    "url": "localhost:4841",
+    "timeoutInMillis": 5000,
+    "scanPeriodInMillis": 5000,
+    "disableSubscriptions":false,
+    "subCheckPeriodInMillis": 100,
+    "showMap": false,
+    "security": "Basic256Sha256",
+    "identity": {
+      "type": "anonymous"
+    },
+    "mapping": [
+      {
+        "deviceNodePattern": "Root\\.Objects\\.Machine1",
+        "deviceNamePattern": "Machine 1",
+        "attributes": [
+          {
+            "key": "SerialNumber",
+            "path": "${SerialNumber}"
+          }
+        ],
+        "timeseries": [
+          {
+            "key": "IntState",
+            "path": "${IntState}"
+          }
+        ],
+        "rpc_methods": [],
+        "attributes_updates": [ ]
+      },
+      {
+        "deviceNodePattern": "Root\\.Objects\\.Machine2",
+        "deviceNamePattern": "Machine 2",
+        "attributes": [
+          {
+            "key": "SerialNumber",
+            "path": "${ns=2;i=5}"
+          }
+        ],
+        "timeseries": [
+          {
+            "key": "IntState",
+            "path": "${ns=2;i=6}"
+          }
+        ],
+        "rpc_methods": [],
+        "attributes_updates": [ ]
+      },
+      {
+        "deviceNodePattern": "Root\\.Objects\\.Collection",
+        "deviceNamePattern": "Machine 3",
+        "attributes": [
+          {
+            "key": "SerialNumber",
+            "path": "${Machine3\\.SerialNumber}"
+          }
+        ],
+        "timeseries": [
+          {
+            "key": "IntState",
+            "path": "${Machine3\\.Int\\State}"
+          }
+        ],
+        "rpc_methods": [],
+        "attributes_updates": [ ]
+      }
+    ]
+  }
+}

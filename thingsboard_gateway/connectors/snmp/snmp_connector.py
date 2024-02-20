@@ -54,7 +54,7 @@ class SNMPConnector(Connector, Thread):
         self._connector_type = connector_type
         self.__config = config
         self.__id = self.__config.get('id')
-        self.setName(config.get("name", 'SNMP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5))))
+        self.name = config.get("name", 'SNMP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self.__devices = self.__config["devices"]
         self.statistics = {'MessagesReceived': 0,
