@@ -60,3 +60,6 @@ RPC_ID_PARAMETER = "id"
 RPC_METHOD_PARAMETER = "method"
 RPC_PARAMS_PARAMETER = "params"
 DATA_PARAMETER = "data"
+
+# Attribute constants
+ATTRIBUTES_FOR_REQUEST = ["RemoteLoggingLevel", "general_configuration", "storage_configuration", "grpc_configuration", "logs_configuration", "active_connectors"]

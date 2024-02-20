@@ -417,6 +417,10 @@ class RemoteConfigurator:
     def _handle_active_connectors_update(self, config):
         LOG.debug('Processing active connectors configuration update...')
 
+        for connector_name in config:
+            if self._gateway.connectors_configs.get(connector_name) is None:
+                self._gateway._check_shared_attributes(shared_keys=[connector_name])
+
         has_changed = False
         for_deletion = []
         for active_connector_name in self._gateway.available_connectors_by_name:
