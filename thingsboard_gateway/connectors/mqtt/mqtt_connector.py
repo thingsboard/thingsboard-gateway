@@ -722,7 +722,7 @@ class MqttConnector(Connector, Thread):
             return
 
         device_name = incoming_data.get("device")
-        attribute_values = incoming_data.get('value') or incoming_data.get('values')
+        attribute_values = incoming_data.get("value", incoming_data.get("values"))
 
         topic = topic_expression \
             .replace("${deviceName}", str(device_name)) \
