@@ -631,6 +631,9 @@ class OpcUaConnector(Thread, Connector):
                     if node.nodeid.NodeIdType == ua.NodeIdType.Guid:
                         node.nodeid = ua.NodeId(UUID(node.nodeid.Identifier), node.nodeid.NamespaceIndex,
                                                 nodeidtype=ua.NodeIdType.Guid)
+                    elif node.nodeid.NodeIdType == ua.NodeIdType.ByteString:
+                        node.nodeid = ua.NodeId(node.nodeid.Identifier.encode('utf-8'), node.nodeid.NamespaceIndex,
+                                                nodeidtype=ua.NodeIdType.ByteString)
                     # --------------------------------------------------------------------------------------------------
 
                     result.append(node)
