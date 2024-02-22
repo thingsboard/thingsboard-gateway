@@ -14,6 +14,7 @@
 
 import re
 import time
+from uuid import UUID
 from concurrent.futures import CancelledError, TimeoutError as FuturesTimeoutError
 from copy import deepcopy
 from random import choice
@@ -624,6 +625,14 @@ class OpcUaConnector(Thread, Connector):
                     self._log.warning("NODE NOT FOUND - using configuration %s", fullpath)
                 else:
                     self._log.debug("Found in %s", node)
+
+                    # this unnecessary code is added to fix the issue with the to_string method of the NodeId class
+                    # and can be deleted after the fix of the issue in the library
+                    if node.nodeid.NodeIdType == ua.NodeIdType.Guid:
+                        node.nodeid = ua.NodeId(UUID(node.nodeid.Identifier), node.nodeid.NamespaceIndex,
+                                                nodeidtype=ua.NodeIdType.Guid)
+                    # --------------------------------------------------------------------------------------------------
+
                     result.append(node)
             else:
                 fullpath_pattern = regex.compile(fullpath)
