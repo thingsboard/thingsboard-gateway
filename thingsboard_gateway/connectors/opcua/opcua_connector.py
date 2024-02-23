@@ -419,6 +419,7 @@ class OpcUaConnector(Thread, Connector):
                 config_path = TBUtility.get_value(information["path"], get_tag=True)
                 information_path = self._check_path(config_path, device_info["deviceNode"])
                 information["path"] = '${%s}' % information_path
+                information_key = information['key']
                 information_nodes = []
                 self.__search_node(device_info["deviceNode"], information_path, result=information_nodes)
                 if len(information_nodes) == 0:
@@ -448,17 +449,16 @@ class OpcUaConnector(Thread, Connector):
                         else:
                             converter = device_info["uplink_converter"]
 
-                        self.subscribed[information_node] = {"converter": converter,
-                                                             "information": information,
-                                                             "information_type": information_type}
+                        self.subscribed[information_key] = {"converter": converter,
+                                                            "information_node": information_node,
+                                                            "information": information,
+                                                            "information_type": information_type}
 
                         # Use Node name if param "key" not found in config
                         if not information.get('key'):
                             information['key'] = information_node.get_browse_name().Name
-                            self.subscribed[information_node]['key'] = information['key']
+                            self.subscribed[information_key]['key'] = information['key']
                             changed_key = True
-
-                        information_key = information['key']
 
                         self._log.debug("Node for %s \"%s\" with path: %s - FOUND! Current values is: %s",
                                         information_type,
@@ -749,14 +749,18 @@ class SubHandler(object):
 
     def datachange_notification(self, node, val, data):
         try:
-            self.connector._log.debug("Python: New data change event on node %s, with val: %s and data %s", node, val, str(data))
-            subscription = self.connector.subscribed[node]
-            converted_data = subscription["converter"].convert(
-                (subscription["information"], subscription["information_type"]), val, data, key=subscription.get('key'))
-            self.connector.statistics['MessagesReceived'] = self.connector.statistics['MessagesReceived'] + 1
-            self.connector.data_to_send.append(converted_data)
-            self.connector.statistics['MessagesSent'] = self.connector.statistics['MessagesSent'] + 1
-            self.connector._log.debug("[SUBSCRIPTION] Data to ThingsBoard: %s", converted_data)
+            self.connector._log.debug("Python: New data change event on node %s, with val: %s and data %s", node, val,
+                                      str(data))
+            subscriptions = list(
+                filter(lambda node_info: node_info["information_node"] == node, self.connector.subscribed.values()))
+            for subscription in subscriptions:
+                converted_data = subscription["converter"].convert(
+                    (subscription["information"], subscription["information_type"]), val, data,
+                    key=subscription.get('key'))
+                self.connector.statistics['MessagesReceived'] = self.connector.statistics['MessagesReceived'] + 1
+                self.connector.data_to_send.append(converted_data)
+                self.connector.statistics['MessagesSent'] = self.connector.statistics['MessagesSent'] + 1
+                self.connector._log.debug("[SUBSCRIPTION] Data to ThingsBoard: %s", converted_data)
         except KeyError:
             self.connector.scan_nodes_from_config()
         except Exception as e:
