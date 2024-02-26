@@ -140,7 +140,7 @@ class ModbusConnector(Connector, Thread):
         self.__slaves = []
         self.__slave_thread = None
 
-        if self.__config.get('slave'):
+        if self.__config.get('slave') and self.__config.get('slave', {}).get('sendDataToThingsBoard', False):
             self.__slave_thread = Thread(target=self.__configure_and_run_slave, args=(self.__config['slave'],),
                                          daemon=True, name='Gateway modbus slave')
             self.__slave_thread.start()
