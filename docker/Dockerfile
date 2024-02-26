@@ -5,6 +5,7 @@ RUN echo "Running on $BUILDPLATFORM, building for $TARGETPLATFORM" > /log
 # Update package lists and install necessary dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc python3-dev build-essential libssl-dev libffi-dev zlib1g-dev \
+    unixODBC unixODBC-dev odbc-postgresql \
     && apt-get install python3-grpcio -y && rm -rf /var/lib/apt/lists/*
 
 # Copy the application code and configuration
