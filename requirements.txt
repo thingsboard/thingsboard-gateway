@@ -14,5 +14,5 @@ mmh3
 protobuf<=3.20.0
 cachetools
 cryptography==3.4.*
-tb-mqtt-client>=1.7.1
+tb-mqtt-client>=1.8
 service-identity
