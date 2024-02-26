@@ -11,7 +11,7 @@ services:
   gw:
     image: "tb-gateway"
     environment:
-      - TB_GW_HOST=localhost
+      - TB_GW_HOST=127.0.0.1
       - TB_GW_PORT=1883
       - TB_GW_ACCESS_TOKEN=YOUR_ACCESS_TOKEN
     volumes:
