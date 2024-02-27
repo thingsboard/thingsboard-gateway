@@ -322,7 +322,10 @@ class MqttConnector(Connector, Thread):
             self._client.disconnect()
         except Exception as e:
             self.__log.exception(e)
+        self._connected = False
         self._client.loop_stop()
+        for worker in self.__workers_thread_pool:
+            worker.stopped = True
         self.__log.info('%s has been stopped.', self.get_name())
         self.__log.reset()
 
@@ -495,7 +498,7 @@ class MqttConnector(Connector, Thread):
 
     def __threads_manager(self):
         if len(self.__workers_thread_pool) == 0:
-            worker = MqttConnector.ConverterWorker("Main", self.__msg_queue, self._save_converted_msg)
+            worker = MqttConnector.ConverterWorker("Main Worker", self.__msg_queue, self._save_converted_msg)
             self.__workers_thread_pool.append(worker)
             worker.start()
 
@@ -860,6 +863,7 @@ class MqttConnector(Connector, Thread):
                                               req_id=content["data"]["id"],
                                               content={"error": str.format("Error during publishing to target broker: %r", str(e))},
                                               success_sent=False)
+                return
             if not expects_response or not defines_timeout:
                 self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
                 self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
