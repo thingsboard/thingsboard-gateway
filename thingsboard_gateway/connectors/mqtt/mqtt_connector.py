@@ -322,10 +322,9 @@ class MqttConnector(Connector, Thread):
             self._client.disconnect()
         except Exception as e:
             self.__log.exception(e)
-        self._connected = False
         self._client.loop_stop()
         for worker in self.__workers_thread_pool:
-            worker.stopped = True
+            worker.stop()
         self.__log.info('%s has been stopped.', self.get_name())
         self.__log.reset()
 
@@ -586,9 +585,7 @@ class MqttConnector(Connector, Thread):
                         # Get device type (if any), either from topic or from content
                         if handler.get("deviceTypeTopicExpression"):
                             device_type_match = search(handler["deviceTypeTopicExpression"], message.topic)
-                            found_device_type = device_type_match.group(0) if device_type_match is not None else \
-                                handler[
-                                    "deviceTypeTopicExpression"]
+                            found_device_type = device_type_match.group(0) if device_type_match is not None else handler["deviceTypeTopicExpression"]
                         elif handler.get("deviceTypeJsonExpression"):
                             found_device_type = TBUtility.get_value(handler["deviceTypeJsonExpression"], content)
 
@@ -796,7 +793,6 @@ class MqttConnector(Connector, Thread):
                 .replace("${methodName}", str(content['data']['method'])) \
                 .replace("${requestId}", str(content["data"]["id"]))
 
-            # bugfix:should assign the replace() result to expected_response_topic
             if content.get('device'):
                 expected_response_topic = expected_response_topic.replace("${deviceName}", str(content["device"]))
 
@@ -835,8 +831,6 @@ class MqttConnector(Connector, Thread):
             .replace("${methodName}", str(content['data']['method'])) \
             .replace("${requestId}", str(content["data"]["id"]))
 
-        # bugfix:deviceName is not in content['data'] but in content, and should assign
-        # the replace result to request_topic if content['data'].get('device'):
         if content['device']:
             request_topic = request_topic.replace("${deviceName}", str(content["device"]))
 
@@ -861,9 +855,7 @@ class MqttConnector(Connector, Thread):
                 self.__log.exception("Error during publishing to target broker: %r", e)
                 self.__gateway.send_rpc_reply(device=content["device"],
                                               req_id=content["data"]["id"],
-                                              content={
-                                                  "error": str.format("Error during publishing to target broker: %r",
-                                                                      str(e))},
+                                              content={"error": str.format("Error during publishing to target broker: %r",str(e))},
                                               success_sent=False)
                 return
             if not expects_response or not defines_timeout:
@@ -987,3 +979,6 @@ class MqttConnector(Connector, Thread):
                     self.in_progress = False
                 else:
                     sleep(.2)
+
+        def stop(self):
+            self.stopped = True
