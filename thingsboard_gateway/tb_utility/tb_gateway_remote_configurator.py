@@ -358,7 +358,7 @@ class RemoteConfigurator:
 
     def _handle_grpc_configuration_update(self, config):
         LOG.debug('Processing GRPC configuration update...')
-        if config != self.grpc_configuration:
+        if config.get('enabled', False) != self.grpc_configuration.get('enabled', False):
             try:
                 self._gateway.init_grpc_service(config)
                 for connector_name in self._gateway.available_connectors_by_name:

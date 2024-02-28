@@ -262,7 +262,7 @@ class MqttConnector(Connector, Thread):
 
                 if discard:
                     self.__log.warning("%s handler is missing some mandatory keys => rejected: %s",
-                                     handler_flavor, simplejson.dumps(handler))
+                                       handler_flavor, simplejson.dumps(handler))
                 else:
                     accepted_handlers_list.append(handler)
                     self.__log.debug("%s handler has all mandatory keys => accepted: %s",
@@ -273,8 +273,8 @@ class MqttConnector(Connector, Thread):
                             len(accepted_handlers_list))
 
             self.__log.debug("Number of rejected %s handlers: %d",
-                            handler_flavor,
-                            len(self.config.get(handler_flavor)) - len(accepted_handlers_list))
+                             handler_flavor,
+                             len(self.config.get(handler_flavor)) - len(accepted_handlers_list))
 
     def is_connected(self):
         return self._connected
@@ -323,6 +323,8 @@ class MqttConnector(Connector, Thread):
         except Exception as e:
             self.__log.exception(e)
         self._client.loop_stop()
+        for worker in self.__workers_thread_pool:
+            worker.stop()
         self.__log.info('%s has been stopped.', self.get_name())
         self.__log.reset()
 
@@ -495,7 +497,7 @@ class MqttConnector(Connector, Thread):
 
     def __threads_manager(self):
         if len(self.__workers_thread_pool) == 0:
-            worker = MqttConnector.ConverterWorker("Main", self.__msg_queue, self._save_converted_msg)
+            worker = MqttConnector.ConverterWorker("Main Worker", self.__msg_queue, self._save_converted_msg)
             self.__workers_thread_pool.append(worker)
             worker.start()
 
@@ -583,9 +585,7 @@ class MqttConnector(Connector, Thread):
                         # Get device type (if any), either from topic or from content
                         if handler.get("deviceTypeTopicExpression"):
                             device_type_match = search(handler["deviceTypeTopicExpression"], message.topic)
-                            found_device_type = device_type_match.group(0) if device_type_match is not None else \
-                            handler[
-                                "deviceTypeTopicExpression"]
+                            found_device_type = device_type_match.group(0) if device_type_match is not None else handler["deviceTypeTopicExpression"]
                         elif handler.get("deviceTypeJsonExpression"):
                             found_device_type = TBUtility.get_value(handler["deviceTypeJsonExpression"], content)
 
@@ -793,9 +793,8 @@ class MqttConnector(Connector, Thread):
                 .replace("${methodName}", str(content['data']['method'])) \
                 .replace("${requestId}", str(content["data"]["id"]))
 
-            ##bugfix:should assign the replace result to expected_response_topic
             if content.get('device'):
-                expected_response_topic= expected_response_topic.replace("${deviceName}", str(content["device"]))
+                expected_response_topic = expected_response_topic.replace("${deviceName}", str(content["device"]))
 
             expected_response_topic = TBUtility.replace_params_tags(expected_response_topic, content)
 
@@ -832,8 +831,6 @@ class MqttConnector(Connector, Thread):
             .replace("${methodName}", str(content['data']['method'])) \
             .replace("${requestId}", str(content["data"]["id"]))
 
-        #bugfix:deviceName is not in content['data'] but in content, and should assign the replace result to request_topic
-        #if content['data'].get('device'):
         if content['device']:
             request_topic = request_topic.replace("${deviceName}", str(content["device"]))
 
@@ -858,8 +855,9 @@ class MqttConnector(Connector, Thread):
                 self.__log.exception("Error during publishing to target broker: %r", e)
                 self.__gateway.send_rpc_reply(device=content["device"],
                                               req_id=content["data"]["id"],
-                                              content={"error": str.format("Error during publishing to target broker: %r", str(e))},
+                                              content={"error": str.format("Error during publishing to target broker: %r",str(e))},
                                               success_sent=False)
+                return
             if not expects_response or not defines_timeout:
                 self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
                 self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
@@ -932,7 +930,7 @@ class MqttConnector(Connector, Thread):
                 converter_obj.config = config
                 self._send_current_converter_config(self.name + ':' + converter_name, config)
                 self.__log.info('Updated converter configuration for: %s with configuration %s',
-                         converter_name, converter_obj.config)
+                                converter_name, converter_obj.config)
 
                 for device_config in self.config['mapping']:
                     try:
@@ -981,3 +979,6 @@ class MqttConnector(Connector, Thread):
                     self.in_progress = False
                 else:
                     sleep(.2)
+
+        def stop(self):
+            self.stopped = True
