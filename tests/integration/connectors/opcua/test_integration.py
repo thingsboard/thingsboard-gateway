@@ -6,6 +6,10 @@ from unittest.mock import Mock
 
 try:
     from asyncua import Node
+except AttributeError:
+    # Ignoring the issue with the import of Node from asyncua
+    # TODO - investigate the issue with the import of Node from asyncua and Cryptography in the tests
+    pass
 except (ImportError, ModuleNotFoundError):
     from thingsboard_gateway.tb_utility.tb_utility import TBUtility
     TBUtility.install_package("asyncua")
