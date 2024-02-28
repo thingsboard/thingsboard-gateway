@@ -20,6 +20,7 @@ tb-mqtt-client>=1.7.1
 service-identity
 pyjwt==2.6.0
 tb-rest-client
+pyopenssl
 opcua
 asyncua
 twisted
