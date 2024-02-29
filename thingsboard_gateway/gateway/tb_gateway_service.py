@@ -175,11 +175,10 @@ class TBGatewayService:
     ]
 
     def __init__(self, config_file=None):
-        self.__subscribed_to_rpc_topics = False
+        self.__init_variables()
         if current_thread() is main_thread():
             signal(SIGINT, lambda _, __: self.__stop_gateway())
 
-        self.stopped = False
         self.__lock = RLock()
         self.async_device_actions = {
             DeviceActions.CONNECT: self.add_device,
@@ -242,7 +241,6 @@ class TBGatewayService:
             self.tb_client.client.send_telemetry({"ts": time() * 1000, "values": {
                 "LOGS": "Logging loading exception, logs.json is wrong: %s" % (str(logging_error),)}})
             TBLoggerHandler.set_default_handler()
-        self.__rpc_reply_sent = False
         self.remote_handler = TBLoggerHandler(self)
         log.addHandler(self.remote_handler)
         # self.main_handler.setTarget(self.remote_handler)
@@ -267,10 +265,8 @@ class TBGatewayService:
             "device_deleted": self.__process_deleted_gateway_devices,
         }
 
-        self.__remote_shell = None
         self.init_remote_shell(self.__config["thingsboard"].get("remoteShell"))
 
-        self.__rpc_remote_shell_command_in_progress = None
         self.__scheduled_rpc_calls = []
         self.__rpc_processing_queue = SimpleQueue()
         self.__rpc_scheduled_methods_functions = {
@@ -282,17 +278,8 @@ class TBGatewayService:
         self.__rpc_processing_thread.start()
         self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"])
         self.connectors_configs = {}
-        self.__remote_configurator = None
-        self.__request_config_after_connect = False
 
-        self.__grpc_config = None
-        self.__grpc_connectors = None
-        self.__grpc_manager = None
         self.init_grpc_service(self.__config.get('grpc'))
-
-        self._load_connectors()
-        self.__connect_with_connectors()
-        self.__load_persistent_devices()
 
         self.__devices_idle_checker = self.__config['thingsboard'].get('checkingDeviceActivity', {})
         self.__check_devices_idle = self.__devices_idle_checker.get('checkDeviceInactivity', False)
@@ -301,8 +288,6 @@ class TBGatewayService:
             thread.start()
             log.info('Start checking devices idle time')
 
-        self.__statistics = None
-        self.__statistics_service = None
         self.init_statistics_service(self.__config['thingsboard'].get('statistics', DEFAULT_STATISTIC))
 
         self._published_events = SimpleQueue()
@@ -315,19 +300,20 @@ class TBGatewayService:
                                    name="Send data to Thingsboard Thread")
         self._send_thread.start()
 
-        self.__device_filter_config = None
-        self.__device_filter = None
-        self.__grpc_manager = None
         self.init_device_filtering(self.__config['thingsboard'].get('deviceFiltering', DEFAULT_DEVICE_FILTER))
 
         self.__duplicate_detector = DuplicateDetector(self.available_connectors_by_name)
-
-        self.__init_remote_configuration()
 
         log.info("Gateway started.")
 
         self._watchers_thread = Thread(target=self._watchers, name='Watchers', daemon=True)
         self._watchers_thread.start()
+
+        self._load_connectors()
+        self.__connect_with_connectors()
+        self.__load_persistent_devices()
+
+        self.__init_remote_configuration()
 
         if path.exists('/tmp/gateway'):
             try:
@@ -349,6 +335,23 @@ class TBGatewayService:
                                     create_method=False)
             self.server = self.manager.get_server()
             self.server.serve_forever()
+
+    def __init_variables(self):
+        self.stopped = False
+        self.__device_filter_config = None
+        self.__device_filter = None
+        self.__grpc_manager = None
+        self.__remote_shell = None
+        self.__statistics = None
+        self.__statistics_service = None
+        self.__grpc_config = None
+        self.__grpc_connectors = None
+        self.__grpc_manager = None
+        self.__remote_configurator = None
+        self.__request_config_after_connect = False
+        self.__rpc_reply_sent = False
+        self.__subscribed_to_rpc_topics = False
+        self.__rpc_remote_shell_command_in_progress = None
 
     @staticmethod
     def __load_general_config(config_file):
