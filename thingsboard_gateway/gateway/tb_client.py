@@ -15,6 +15,7 @@
 import random
 import string
 import threading
+import inspect
 from os.path import exists
 from ssl import CERT_REQUIRED, PROTOCOL_TLSv1_2
 from time import sleep, time
@@ -213,7 +214,7 @@ class TBClient(threading.Thread):
         for callback in self.__service_subscription_callbacks:
             callback()
 
-    def _on_disconnect(self, client, userdata, result_code):
+    def _on_disconnect(self, client, userdata, result_code, properties=None):
         # pylint: disable=protected-access
         if self.client._client != client:
             self.__logger.info("TB client %s has been disconnected. Current client for connection is: %s", str(client), str(self.client._client))
@@ -221,7 +222,10 @@ class TBClient(threading.Thread):
             client.loop_stop()
         else:
             self.__is_connected = False
-            self.client._on_disconnect(client, userdata, result_code)
+            if len(inspect.signature(self.client._on_disconnect).parameters) == 4:
+                self.client._on_disconnect(client, userdata, result_code, properties)
+            else:
+                self.client._on_disconnect(client, userdata, result_code)
 
     def stop(self):
         # self.disconnect()
