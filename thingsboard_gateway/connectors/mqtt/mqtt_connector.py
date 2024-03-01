@@ -134,7 +134,7 @@ class MqttConnector(Connector, Thread):
         self.__shared_custom_converters = {}
 
         mandatory_keys = {
-            "mapping": ['topicFilter', 'converter'],
+            "mapping": ['topicFilter', 'converter' ],
             "serverSideRpc": ['deviceNameFilter', 'methodFilter', 'requestTopicExpression', 'valueExpression'],
             "connectRequests": ['topicFilter'],
             "disconnectRequests": ['topicFilter'],
