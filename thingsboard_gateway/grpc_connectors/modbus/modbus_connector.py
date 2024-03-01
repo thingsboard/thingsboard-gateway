@@ -45,7 +45,7 @@ except ImportError:
 
 if installation_required:
     print("Modbus library not found - installing...")
-    TBUtility.install_package("pymodbus", ">=3.0.0")
+    TBUtility.install_package("pymodbus", "3.0.0")
     TBUtility.install_package('pyserial')
     TBUtility.install_package('pyserial-asyncio')
 
