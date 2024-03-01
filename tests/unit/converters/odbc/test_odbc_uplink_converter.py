@@ -63,7 +63,9 @@ class OdbcUplinkConverterTests(BaseUnitTest):
 
     def test_one_valid_one_invalid_configs(self):
         config = ["unkownColumnValue", "stringValue"]
-        converted_data = self.converter.convert(config, self.db_data)
+        with self.assertLogs(level="ERROR") as log:
+            converted_data = self.converter.convert(config, self.db_data)
+            self.assertTrue(log.output, "Failed to convert SQL data to TB format: 'unkownColumnValue'")
         self.assertDictEqual(converted_data, {config[1]: self.db_data[config[1]]})
 
 
