@@ -132,9 +132,15 @@ class TBClient(threading.Thread):
         if credentials.get("clientId") is not None:
             self.__client_id = str(credentials["clientId"])
 
-        self.client = TBGatewayMqttClient(self.__host, self.__port, self.__username, self.__password, self,
-                                          quality_of_service=self.__default_quality_of_service,
-                                          client_id=self.__client_id)
+        if self.__config.get('rateLimits'):
+            self.client = TBGatewayMqttClient(self.__host, self.__port, self.__username, self.__password, self,
+                                              quality_of_service=self.__default_quality_of_service,
+                                              client_id=self.__client_id, rate_limit=self.__config['rateLimits'])
+        else:
+            self.client = TBGatewayMqttClient(self.__host, self.__port, self.__username, self.__password, self,
+                                              quality_of_service=self.__default_quality_of_service,
+                                              client_id=self.__client_id)
+
         if self.__tls:
             self.__ca_cert = self.__config_folder_path + credentials.get("caCert") if credentials.get(
                 "caCert") is not None else None
