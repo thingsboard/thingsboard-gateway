@@ -247,7 +247,12 @@ class MqttConnector(Connector, Thread):
         if handler_flavor not in self.config:
             self.__log.warning("'%s' section missing from configuration", handler_flavor)
         else:
-            for handler in self.config.get(handler_flavor):
+
+            config = self.config.get(handler_flavor, [])
+            if self.config.get("requestsMapping") is not None:
+                config = self.config["requestsMapping"].get(handler_flavor, [])
+
+            for handler in config:
                 discard = False
 
                 for key in mandatory_keys:
