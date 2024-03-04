@@ -134,7 +134,8 @@ class ModbusRpcReadingTest(ModbusRpcTest):
             result = self.client.handle_two_way_device_rpc_request(self.device.id,
                                                                    {
                                                                        "method": rpc_tag,
-                                                                       "params": rpc
+                                                                       "params": rpc,
+                                                                       "timeout": 5000
                                                                    })
             self.assertEqual(result, expected_values[rpc_tag], f'Value is not equal for the next rpc: {rpc_tag}')
 
@@ -150,7 +151,8 @@ class ModbusRpcReadingTest(ModbusRpcTest):
             result = self.client.handle_two_way_device_rpc_request(self.device.id,
                                                                    {
                                                                        "method": rpc_tag,
-                                                                       "params": rpc
+                                                                       "params": rpc,
+                                                                       "timeout": 5000
                                                                    })
             self.assertEqual(result, expected_values[rpc_tag], f'Value is not equal for the next rpc: {rpc_tag}')
 
@@ -166,7 +168,8 @@ class ModbusRpcReadingTest(ModbusRpcTest):
             result = self.client.handle_two_way_device_rpc_request(self.device.id,
                                                                    {
                                                                        "method": rpc_tag,
-                                                                       "params": rpc
+                                                                       "params": rpc,
+                                                                       "timeout": 5000
                                                                    })
             self.assertEqual(result, expected_values[rpc_tag], f'Value is not equal for the next rpc: {rpc_tag}')
 
@@ -182,7 +185,8 @@ class ModbusRpcReadingTest(ModbusRpcTest):
             result = self.client.handle_two_way_device_rpc_request(self.device.id,
                                                                    {
                                                                        "method": rpc_tag,
-                                                                       "params": rpc
+                                                                       "params": rpc,
+                                                                       "timeout": 5000
                                                                    })
             self.assertEqual(result, expected_values[rpc_tag], f'Value is not equal for the next rpc: {rpc_tag}')
 
@@ -198,7 +202,8 @@ class ModbusRpcReadingTest(ModbusRpcTest):
             result = self.client.handle_two_way_device_rpc_request(self.device.id,
                                                                    {
                                                                        "method": rpc_tag,
-                                                                       "params": rpc
+                                                                       "params": rpc,
+                                                                       "timeout": 5000
                                                                    })
             self.assertEqual(result, expected_values[rpc_tag], f'Value is not equal for the next rpc: {rpc_tag}')
 
@@ -214,7 +219,8 @@ class ModbusRpcReadingTest(ModbusRpcTest):
             result = self.client.handle_two_way_device_rpc_request(self.device.id,
                                                                    {
                                                                        "method": rpc_tag,
-                                                                       "params": rpc
+                                                                       "params": rpc,
+                                                                       "timeout": 5000
                                                                    })
             self.assertEqual(result, expected_values[rpc_tag], f'Value is not equal for the next rpc: {rpc_tag}')
 
@@ -230,7 +236,8 @@ class ModbusRpcReadingTest(ModbusRpcTest):
             result = self.client.handle_two_way_device_rpc_request(self.device.id,
                                                                    {
                                                                        "method": rpc_tag,
-                                                                       "params": rpc
+                                                                       "params": rpc,
+                                                                       "timeout": 5000
                                                                    })
             self.assertEqual(result, expected_values[rpc_tag], f'Value is not equal for the next rpc: {rpc_tag}')
 
@@ -246,7 +253,8 @@ class ModbusRpcReadingTest(ModbusRpcTest):
             result = self.client.handle_two_way_device_rpc_request(self.device.id,
                                                                    {
                                                                        "method": rpc_tag,
-                                                                       "params": rpc
+                                                                       "params": rpc,
+                                                                       "timeout": 5000
                                                                    })
             self.assertEqual(result, expected_values[rpc_tag], f'Value is not equal for the next rpc: {rpc_tag}')
 
@@ -267,7 +275,8 @@ class ModbusRpcWritingTest(ModbusRpcTest):
             self.client.handle_two_way_device_rpc_request(self.device.id,
                                                           {
                                                               "method": rpc_tag,
-                                                              "params": expected_values[rpc_tag]
+                                                              "params": expected_values[rpc_tag],
+                                                              "timeout": 5000
                                                           })
         sleep(3)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
@@ -294,7 +303,8 @@ class ModbusRpcWritingTest(ModbusRpcTest):
             self.client.handle_two_way_device_rpc_request(self.device.id,
                                                           {
                                                               "method": rpc_tag,
-                                                              "params": expected_values[rpc_tag]
+                                                              "params": expected_values[rpc_tag],
+                                                              "timeout": 5000
                                                           })
         sleep(3)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
@@ -321,7 +331,8 @@ class ModbusRpcWritingTest(ModbusRpcTest):
             self.client.handle_two_way_device_rpc_request(self.device.id,
                                                           {
                                                               "method": rpc_tag,
-                                                              "params": expected_values[rpc_tag]
+                                                              "params": expected_values[rpc_tag],
+                                                              "timeout": 5000
                                                           })
         sleep(3)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
@@ -348,7 +359,8 @@ class ModbusRpcWritingTest(ModbusRpcTest):
             self.client.handle_two_way_device_rpc_request(self.device.id,
                                                           {
                                                               "method": rpc_tag,
-                                                              "params": expected_values[rpc_tag]
+                                                              "params": expected_values[rpc_tag],
+                                                              "timeout": 5000
                                                           })
         sleep(3)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
@@ -375,7 +387,8 @@ class ModbusRpcWritingTest(ModbusRpcTest):
             self.client.handle_two_way_device_rpc_request(self.device.id,
                                                           {
                                                               "method": rpc_tag,
-                                                              "params": expected_values[rpc_tag]
+                                                              "params": expected_values[rpc_tag],
+                                                              "timeout": 5000
                                                           })
         sleep(3)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
@@ -402,7 +415,8 @@ class ModbusRpcWritingTest(ModbusRpcTest):
             self.client.handle_two_way_device_rpc_request(self.device.id,
                                                           {
                                                               "method": rpc_tag,
-                                                              "params": expected_values[rpc_tag]
+                                                              "params": expected_values[rpc_tag],
+                                                              "timeout": 5000
                                                           })
         sleep(3)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
@@ -429,7 +443,8 @@ class ModbusRpcWritingTest(ModbusRpcTest):
             self.client.handle_two_way_device_rpc_request(self.device.id,
                                                           {
                                                               "method": rpc_tag,
-                                                              "params": expected_values[rpc_tag]
+                                                              "params": expected_values[rpc_tag],
+                                                              "timeout": 5000
                                                           })
         sleep(3)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
@@ -456,7 +471,8 @@ class ModbusRpcWritingTest(ModbusRpcTest):
             self.client.handle_two_way_device_rpc_request(self.device.id,
                                                           {
                                                               "method": rpc_tag,
-                                                              "params": expected_values[rpc_tag]
+                                                              "params": expected_values[rpc_tag],
+                                                              "timeout": 5000
                                                           })
         sleep(3)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
