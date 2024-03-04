@@ -1533,7 +1533,7 @@ class TBGatewayService:
                             new_device_name = loaded_connected_devices[device_name][RENAMING_PARAMETER]
                             self.__renamed_devices[device_name] = new_device_name
                     self.__connected_devices[device_name] = device_data_to_save
-                    for device in self.__connected_devices:
+                    for device in list(self.__connected_devices.keys()):
                         self.add_device(device, self.__connected_devices[device], self.__connected_devices[device][
                             DEVICE_TYPE_PARAMETER])
                     self.__saved_devices[device_name] = device_data_to_save
