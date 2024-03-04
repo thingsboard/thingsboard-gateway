@@ -132,6 +132,8 @@ def get_env_variables():
         env_variables['username'] = environ.get('TB_GW_USERNAME')
     if environ.get('TB_GW_PASSWORD'):
         env_variables['password'] = environ.get('TB_GW_PASSWORD')
+    if environ.get('TB_GW_RATE_LIMITS'):
+        env_variables['rateLimits'] = environ.get('TB_GW_RATE_LIMITS')
 
     converted_env_variables = {}
 
