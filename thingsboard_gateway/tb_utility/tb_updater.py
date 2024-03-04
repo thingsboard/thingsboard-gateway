@@ -23,6 +23,7 @@ from pkg_resources import get_distribution
 from requests import ConnectionError, post
 from simplejson import loads
 
+import version
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 log = getLogger("service")
@@ -35,10 +36,10 @@ class TBUpdater(Thread):
         super().__init__()
 
         try:
-            self.__version = {"current_version": get_distribution('thingsboard_gateway').version,
-                              "latest_version": get_distribution('thingsboard_gateway').version}
+            distribution_version = get_distribution('thingsboard_gateway').version
+            self.__version = {"current_version": distribution_version, "latest_version": distribution_version}
         except DistributionNotFound:
-            self.__version = {"current_version": "0.0", "latest_version": "0.0"}
+            self.__version = {"current_version": version.VERSION, "latest_version": version.VERSION}
 
         self.__instance_id = str(uuid1())
         self.__platform = system()
