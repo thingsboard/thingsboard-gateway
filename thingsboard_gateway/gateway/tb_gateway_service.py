@@ -957,7 +957,7 @@ class TBGatewayService:
             else:
                 return Status.NO_NEW_DATA
         except Exception as e:
-            log.exception("Cannot put converted data!", e)
+            log.exception("Cannot put converted data!", exc_info=e)
             return Status.FAILURE
 
     def __send_to_storage(self):
