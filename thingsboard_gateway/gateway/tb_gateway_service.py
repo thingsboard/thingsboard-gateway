@@ -449,10 +449,10 @@ class TBGatewayService:
             while not self.stopped:
                 cur_time = time() * 1000
 
-                if not self.tb_client.is_connected() and self.__subscribed_to_rpc_topics:
+                if not self.tb_client.client.is_connected() and self.__subscribed_to_rpc_topics:
                     self.__subscribed_to_rpc_topics = False
 
-                if self.tb_client.is_connected() and not self.__subscribed_to_rpc_topics:
+                if self.tb_client.is_connected() and not self.tb_client.is_stopped() and not self.__subscribed_to_rpc_topics:
                     for device in list(self.__saved_devices.keys()):
                         self.add_device(device,
                                         {CONNECTOR_PARAMETER: self.__saved_devices[device][CONNECTOR_PARAMETER]},
