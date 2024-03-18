@@ -259,8 +259,8 @@ class RemoteConfigurator:
                         if fullmatch(name, attr_name):
                             func(request_config)
                             break
-            except (KeyError, AttributeError):
-                LOG.error('Unknown attribute update name (Available: %s)', ', '.join(self._handlers.keys()))
+            except (KeyError, AttributeError) as e:
+                LOG.error('Unknown attribute update name (Available: %s), %r', ', '.join(self._handlers.keys()), exc_info=e)
             finally:
                 self.in_process = False
         else:
@@ -295,7 +295,7 @@ class RemoteConfigurator:
                 or config['qos'] != self.general_configuration['qos']):
             LOG.debug('---- Connection configuration changed. Processing...')
             success = self._apply_connection_config(config)
-            if self._gateway.is_stopped():
+            if self._gateway.stopped:
                 return
             if not success:
                 config.update(self.general_configuration)
