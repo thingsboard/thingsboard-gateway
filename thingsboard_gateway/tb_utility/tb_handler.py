@@ -60,7 +60,7 @@ class TBLoggerHandler(logging.Handler):
         log.debug("Added remote handler to log %s", name)
 
     def _send_logs(self):
-        while self.activated:
+        while self.activated and not self.__gateway.stopped:
             if not self._logs_queue.empty():
                 logs_for_sending_list = []
 
