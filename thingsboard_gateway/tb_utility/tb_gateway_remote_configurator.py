@@ -124,6 +124,8 @@ class RemoteConfigurator:
 
         try_count = 1
         while not self._remote_gateway_version and try_count <= 3:
+            if self._gateway.stopped:
+                return
             try_count += 1
             sleep(1)
 
@@ -293,6 +295,8 @@ class RemoteConfigurator:
                 or config['qos'] != self.general_configuration['qos']):
             LOG.debug('---- Connection configuration changed. Processing...')
             success = self._apply_connection_config(config)
+            if self._gateway.is_stopped():
+                return
             if not success:
                 config.update(self.general_configuration)
         else:
@@ -610,6 +614,8 @@ class RemoteConfigurator:
                         sleep(1)
                     apply_start = time() * 1000
                     use_new_config = not use_new_config
+                if self._gateway.stopped:
+                    return False
         except Exception as e:
             LOG.exception(e)
             self._revert_connection()
