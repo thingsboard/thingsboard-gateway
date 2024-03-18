@@ -254,7 +254,6 @@ class TBClient(threading.Thread):
         self.__stopped = False
         self.__min_reconnect_delay = min_reconnect_delay
 
-    def run(self):
         keep_alive = self.__config.get("keep_alive", 120)
         try:
             while not self.client.is_connected() and not self.__stopped:
@@ -274,6 +273,7 @@ class TBClient(threading.Thread):
             self.__logger.exception(e)
             sleep(10)
 
+    def run(self):
         while not self.__stopped:
             try:
                 if not self.__stopped:
@@ -290,3 +290,10 @@ class TBClient(threading.Thread):
 
     def register_service_subscription_callback(self, subscribe_to_required_topics):
         self.__service_subscription_callbacks.append(subscribe_to_required_topics)
+
+    @property
+    def config(self):
+        return self.__config
+
+    def is_stopped(self):
+        return self.__stopped
