@@ -583,18 +583,18 @@ class RemoteConfigurator:
             self._gateway.tb_client.disconnect()
             self._gateway.tb_client.stop()
 
-            while self._gateway.tb_client.client.is_connected():
+            while not self._gateway.stopped and self._gateway.tb_client.client.is_connected():
                 sleep(1)
 
             apply_start = time()
 
             connection_state = False
             use_new_config = True
-            while not connection_state:
+            while not self._gateway.stopped and not connection_state:
                 self._gateway.__subscribed_to_rpc_topics = False
                 new_tb_client = TBClient(config if use_new_config else old_tb_client_config, old_tb_client_config_path, connection_logger)
                 new_tb_client.connect()
-                while time() - apply_start <= 30 and not connection_state:
+                while not self._gateway.stopped and time() - apply_start <= 30 and not connection_state:
                     connection_state = new_tb_client.is_connected()
                     sleep(.1)
 
@@ -606,7 +606,7 @@ class RemoteConfigurator:
                 else:
                     new_tb_client.disconnect()
                     new_tb_client.stop()
-                    while new_tb_client.client.is_connected():
+                    while not self._gateway.stopped and new_tb_client.client.is_connected():
                         sleep(1)
                     apply_start = time() * 1000
                     use_new_config = not use_new_config
