@@ -403,11 +403,6 @@ class RemoteConfigurator:
                             config['loggers'][logger]['handlers'].remove(handler)
             config['handlers'] = target_handlers
             dictConfig(config)
-            LOG = getLogger('service')
-            self._gateway.remote_handler = TBLoggerHandler(self._gateway)
-            self._gateway.remote_handler.activate(self._gateway.main_handler.level)
-            self._gateway.main_handler.setTarget(self._gateway.remote_handler)
-            LOG.addHandler(self._gateway.remote_handler)
 
             with open(logs_conf_file_path, 'w') as logs:
                 logs.write(dumps(config, indent='  '))

@@ -105,8 +105,8 @@ class TBLoggerHandler(logging.Handler):
             log = TbLogger('service')
             log.exception(e)
         self.activated = True
-        if not self._send_logs_thread.is_alive():
-            self._send_logs_thread.start()
+        self._send_logs_thread = threading.Thread(target=self._send_logs, name='Logs Sending Thread', daemon=True)
+        self._send_logs_thread.start()
 
     def handle(self, record):
         if self.activated and not self.__gateway.stopped:
@@ -121,6 +121,7 @@ class TBLoggerHandler(logging.Handler):
 
     def deactivate(self):
         self.activated = False
+        self._send_logs_thread.join()
 
     @staticmethod
     def set_default_handler():
