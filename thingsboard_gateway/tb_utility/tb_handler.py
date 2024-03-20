@@ -121,7 +121,11 @@ class TBLoggerHandler(logging.Handler):
 
     def deactivate(self):
         self.activated = False
-        self._send_logs_thread.join()
+        try:
+            self._send_logs_thread.join()
+        except Exception as e:
+            log = TbLogger('service')
+            log.debug("Exception while joining logs sending thread.", exc_info=e)
 
     @staticmethod
     def set_default_handler():
