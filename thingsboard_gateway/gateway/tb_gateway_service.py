@@ -1424,6 +1424,8 @@ class TBGatewayService:
 
     def update_device(self, device_name, event, content):
         should_save = False
+        if self.__connected_devices.get(device_name) is None:
+            return
         if event == 'connector' and self.__connected_devices[device_name].get(event) != content:
             should_save = True
         self.__connected_devices[device_name][event] = content
