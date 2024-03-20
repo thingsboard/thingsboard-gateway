@@ -16,7 +16,7 @@ mmh3
 protobuf<=3.20.0
 cachetools
 cryptography<40.0.0
-tb-mqtt-client>=1.8.8
+tb-mqtt-client>=1.8.9
 service-identity
 pyjwt==2.6.0
 tb-rest-client
