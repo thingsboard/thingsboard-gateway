@@ -551,7 +551,8 @@ class TBGatewayService:
         if os.path.exists("/tmp/gateway"):
             os.remove("/tmp/gateway")
         self.__close_connectors()
-        self._event_storage.stop()
+        if hasattr(self, "_event_storage"):
+            self._event_storage.stop()
         log.info("The gateway has been stopped.")
         self.tb_client.disconnect()
         self.tb_client.stop()
