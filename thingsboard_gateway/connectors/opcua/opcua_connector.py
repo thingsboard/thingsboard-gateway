@@ -59,6 +59,7 @@ class OpcUaConnector(Thread, Connector):
         self.__server_conf = config.get("server")
         self.name = self._config.get("name", 'OPC-UA ' + ''.join(choice(ascii_lowercase) for _ in range(5)) + " Connector")
         self._log = init_logger(self.__gateway, self.name, self._config.get('logLevel', 'INFO'))
+        self._log.warning("OPC-UA Connector is deprecated and will be removed in the release v.4.0")
         self.__interest_nodes = []
         self.__available_object_resources = {}
         self.__show_map = self.__server_conf.get("showMap", False)

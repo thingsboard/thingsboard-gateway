@@ -185,6 +185,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
             finally:
                 await self.__reset_nodes()
                 self.__connected = False
+                await asyncio.sleep(1)
 
     async def __set_auth_settings_by_cert(self):
         try:
