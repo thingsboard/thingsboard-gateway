@@ -157,10 +157,16 @@ class RemoteConfigurator:
         Method returns general configuration in format that should be used only for local files
         !!!Don't use it for sending data to TB (use `_get_general_config_in_remote_format` instead)!!!
         """
-
-        connectors_config = [
-            {'type': connector['type'], 'name': connector['name'], 'configuration': connector['configuration']} for
-            connector in self.connectors_configuration]
+        connectors_config = []
+        for connector in self.connectors_configuration:
+            config = {
+                'type': connector['type'],
+                'name': connector['name'],
+                'configuration': connector['configuration']
+            }
+            if connector['class'] is not None:
+                config['class'] = connector['class']
+            connectors_config.append(config)
 
         return {
             'thingsboard': self.general_configuration,
