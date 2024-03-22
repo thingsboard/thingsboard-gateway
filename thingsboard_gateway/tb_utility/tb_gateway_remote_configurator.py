@@ -164,8 +164,8 @@ class RemoteConfigurator:
                 'name': connector['name'],
                 'configuration': connector['configuration']
             }
-            if connector['class'] is not None:
-                config['class'] = connector['class']
+            if connector.get('class') is not None:
+                config['class'] = connector.get('class')
             connectors_config.append(config)
 
         return {
