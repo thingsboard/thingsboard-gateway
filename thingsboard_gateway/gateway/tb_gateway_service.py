@@ -762,6 +762,11 @@ class TBGatewayService:
                 try:
                     connector_persistent_key = None
                     connector_type = connector["type"].lower() if connector.get("type") is not None else None
+
+                    # can be removed in future releases
+                    if connector_type == 'opcua':
+                        connector_type = 'opcua_asyncio'
+
                     if connector_type is None:
                         log.error("Connector type is not defined!")
                         continue
