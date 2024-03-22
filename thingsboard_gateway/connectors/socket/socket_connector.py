@@ -327,6 +327,9 @@ class SocketConnector(Connector, Thread):
     def get_config(self):
         return self.__config
 
+    def get_id(self):
+        return self.__id
+
     @CustomCollectStatistics(start_stat_type='allBytesSentToDevices')
     def __write_value_via_tcp(self, address, port, value):
         try:
