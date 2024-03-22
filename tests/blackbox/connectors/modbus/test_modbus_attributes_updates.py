@@ -391,7 +391,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
 
     def test_gateway_restarted(self):
         self.client.handle_two_way_device_rpc_request(self.gateway.id, {"method": "gateway_restart"})
-        sleep(5)
+        sleep(15)
         while not self.is_gateway_connected():
             LOG.info('Gateway connecting to TB...')
             sleep(1)
@@ -399,7 +399,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_input_registers_little.json',
             'test_values/attrs_update/input_registers_values_little.json'
         )
-        sleep(3)
+        sleep(5)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
