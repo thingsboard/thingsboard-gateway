@@ -15,6 +15,7 @@ import datetime
 from logging import getLogger
 from re import search, findall
 from uuid import uuid4
+from distutils.util import strtobool
 
 from cryptography import x509
 from cryptography.x509.oid import NameOID
@@ -127,7 +128,7 @@ class TBUtility:
 
     @staticmethod
     def get_values(expression, body=None, value_type="string", get_tag=False, expression_instead_none=False):
-        expression_arr = findall(r'\$\{[${A-Za-z0-9. ^\]\[*_:]*\}', expression)
+        expression_arr = findall(r'\$\{[${A-Za-z0-9. ^\]\[*_:"]*\}', expression)
 
         values = [TBUtility.get_value(exp, body, value_type=value_type, get_tag=get_tag,
                                       expression_instead_none=expression_instead_none) for exp in expression_arr]
@@ -249,7 +250,7 @@ class TBUtility:
         elif 'float' == new_type or 'double' == new_type:
             return float(evaluated_data)
         elif 'bool' in new_type:
-            return bool(evaluated_data)
+            return bool(strtobool(evaluated_data))
         else:
             return str(evaluated_data)
 
