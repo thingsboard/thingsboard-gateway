@@ -110,17 +110,21 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
     def parse_device_name(self, topic, data, config):
         return self.parse_device_info(
-            topic, data, config, "deviceNameJsonExpression", "deviceNameTopicExpression")
+            topic, data, config, "deviceNameExpressionSource", "deviceNameExpression")
 
     def parse_device_type(self, topic, data, config):
         return self.parse_device_info(
-            topic, data, config, "deviceTypeJsonExpression", "deviceTypeTopicExpression")
+            topic, data, config, "deviceProfileExpressionSource", "deviceProfileExpression")
 
-    def parse_device_info(self, topic, data, config, json_expression_config_name, topic_expression_config_name):
+    def parse_device_info(self, topic, data, config, expression_source, expression):
         result = None
+        device_info = config.get('deviceInfo', {})
+
+        expression = device_info.get('deviceNameExpression') if expression == 'deviceNameExpression' \
+            else device_info.get('deviceProfileExpression')
+
         try:
-            if config.get(json_expression_config_name) is not None:
-                expression = config.get(json_expression_config_name)
+            if device_info.get(expression_source) == 'message':
                 result_tags = TBUtility.get_values(expression, data, get_tag=True)
                 result_values = TBUtility.get_values(expression, data, expression_instead_none=True)
 
@@ -129,8 +133,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                     is_valid_key = "${" in expression and "}" in expression
                     result = result.replace('${' + str(result_tag) + '}',
                                             str(result_value)) if is_valid_key else result_tag
-            elif config.get(topic_expression_config_name) is not None:
-                expression = config.get(topic_expression_config_name)
+            elif device_info.get(expression_source) == 'topic':
                 search_result = search(expression, topic)
                 if search_result is not None:
                     result = search_result.group(0)
