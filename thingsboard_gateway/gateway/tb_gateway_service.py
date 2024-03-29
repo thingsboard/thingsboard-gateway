@@ -1364,6 +1364,10 @@ class TBGatewayService:
                 self.tb_client.client.send_rpc_reply(req_id, dumps(rpc_response), quality_of_service=quality_of_service,
                                                      wait_for_publish=wait_for_publish)
             elif device is None and content is not None:
+                try:
+                    content = loads(content)
+                except Exception as e:
+                    pass
                 self.tb_client.client.send_rpc_reply(req_id, content, quality_of_service=quality_of_service,
                                                      wait_for_publish=wait_for_publish)
             self.__rpc_reply_sent = False
