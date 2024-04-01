@@ -1,3 +1,4 @@
+setuptools
 packaging==23.1
 jsonpath-rw
 regex
@@ -9,7 +10,7 @@ requests>=2.31.0
 questionary
 pyfiglet
 termcolor
-grpcio==1.58.0
+grpcio
 mmh3
 protobuf<=3.20.0
 cachetools
