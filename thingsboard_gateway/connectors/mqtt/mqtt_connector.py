@@ -543,7 +543,7 @@ class MqttConnector(Connector, Thread):
             if device_name_match is not None:
                 found_device_name = device_name_match.group(0)
         elif device_info.get('deviceNameExpressionSource') == 'message' or device_info.get(
-                'deviceNameExpression') == 'const':
+                'deviceNameExpression') == 'constant':
             found_device_name = TBUtility.get_value(device_info["deviceNameExpression"], content,
                                                     expression_instead_none=True)
 
@@ -553,7 +553,7 @@ class MqttConnector(Connector, Thread):
             found_device_type = device_type_match.group(0) if device_type_match is not None else device_info[
                 "deviceProfileExpression"]
         elif device_info.get("deviceProfileExpressionSource") == 'message' or device_info.get(
-                'deviceNameExpression') == 'const':
+                'deviceNameExpression') == 'constant':
             found_device_type = TBUtility.get_value(device_info["deviceProfileExpression"], content,
                                                     expression_instead_none=True)
 
@@ -679,7 +679,7 @@ class MqttConnector(Connector, Thread):
                                 if attribute_name_match is not None:
                                     found_attribute_names = attribute_name_match.group(0)
                             elif handler.get("attributeNameExpressionSource") == "message" or handler.get(
-                                    "attributeNameExpressionSource") == "const":
+                                    "attributeNameExpressionSource") == "constant":
                                 found_attribute_names = list(filter(lambda x: x is not None,
                                                                     TBUtility.get_values(
                                                                         handler["attributeNameExpression"],
