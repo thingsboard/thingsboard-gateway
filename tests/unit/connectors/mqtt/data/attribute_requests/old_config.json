@@ -1,0 +1,26 @@
+{
+  "broker": {
+    "name": "Default Local Broker",
+    "host": "127.0.0.1",
+    "port": 1883,
+    "clientId": "ThingsBoard_gateway",
+    "version": 5,
+    "maxMessageNumberPerWorker": 10,
+    "maxNumberOfWorkers": 100,
+    "sendDataOnlyOnChange": false,
+    "security": {
+      "type": "anonymous"
+    }
+  },
+  "mapping": [],
+  "attributeRequests": [
+    {
+      "retain": false,
+      "topicFilter": "v1/devices/me/attributes/request",
+      "deviceNameJsonExpression": "${serialNumber}",
+      "attributeNameJsonExpression": "${versionAttribute}, ${pduAttribute}",
+      "topicExpression": "devices/${deviceName}/attrs",
+      "valueExpression": "${attributeKey}: ${attributeValue}"
+    }
+  ]
+}
