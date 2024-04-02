@@ -124,7 +124,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
             else device_info.get('deviceProfileExpression')
 
         try:
-            if device_info.get(expression_source) == 'message':
+            if device_info.get(expression_source) == 'message' or device_info.get(expression_source) == 'constant':
                 result_tags = TBUtility.get_values(expression, data, get_tag=True)
                 result_values = TBUtility.get_values(expression, data, expression_instead_none=True)
 
