@@ -129,8 +129,12 @@ class JsonMqttUplinkConverterTests(BaseUnitTest):
           "topicFilter": topic,
           "converter": {
             "type": "json",
-            "deviceNameTopicExpression": "(.*?)(?=/.*)",
-            "deviceTypeTopicExpression": f"(?<={self.DEVICE_NAME}/)(.*)",
+            "deviceInfo": {
+                "deviceNameExpressionSource": "topic",
+                "deviceNameExpression": "(.*?)(?=/.*)",
+                "deviceProfileExpressionSource": "topic",
+                "deviceProfileExpression": f"(?<={self.DEVICE_NAME}/)(.*)"
+            },
             "timeout": 60000,
             "attributes": "*",
             "timeseries": "*"
@@ -148,8 +152,12 @@ class JsonMqttUplinkConverterTests(BaseUnitTest):
           "topicFilter": topic,
           "converter": {
             "type": "json",
-            "deviceNameJsonExpression": "${DeviceName}",
-            "deviceTypeJsonExpression": "${DeviceType}",
+            "deviceInfo": {
+                "deviceNameExpressionSource": "message",
+                "deviceNameExpression": "${DeviceName}",
+                "deviceProfileExpressionSource": "message",
+                "deviceProfileExpression": "${DeviceType}"
+            },
             "timeout": 60000,
             "attributes": "*",
             "timeseries": "*"
@@ -169,8 +177,12 @@ class JsonMqttUplinkConverterTests(BaseUnitTest):
             "converter": {
                 "type": "json",
                 "useEval": use_eval,
-                "deviceNameJsonExpression": "${" + device_name_key + "}",
-                "deviceTypeJsonExpression": self.DEVICE_TYPE,
+                "deviceInfo": {
+                    "deviceNameExpressionSource": "message",
+                    "deviceNameExpression": "${" + device_name_key + "}",
+                    "deviceProfileExpressionSource": "message",
+                    "deviceProfileExpression": self.DEVICE_TYPE
+                },
                 "attributes": [
                     {
                         "type": "int",
