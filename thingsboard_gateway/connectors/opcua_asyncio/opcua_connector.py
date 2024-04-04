@@ -98,6 +98,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         self.__connected = False
         self.__log.info('%s has been stopped.', self.get_name())
         self.__log.reset()
+        self.join()
 
     async def __reset_node(self, node):
         node['valid'] = False
