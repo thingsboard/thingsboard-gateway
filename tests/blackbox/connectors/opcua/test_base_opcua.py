@@ -13,7 +13,6 @@ DEVICE_CREATION_TIMEOUT = 60
 
 LOG = logging.getLogger("TEST")
 
-
 class BaseOpcuaTest(BaseTest):
     CONFIG_PATH = path.join(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))),
                             "data" + path.sep + "opcua" + path.sep)
@@ -53,7 +52,7 @@ class BaseOpcuaTest(BaseTest):
 
             (config, _) = GatewayDeviceUtil.update_connector_config(
                 cls.CONNECTOR_NAME,
-                cls.CONFIG_PATH + 'configs/default_modbus_config.json')
+                cls.CONFIG_PATH + 'configs/default_opcua_config.json')
 
             start_device_creation_time = time()
             while time() - start_device_creation_time < DEVICE_CREATION_TIMEOUT:
@@ -90,8 +89,6 @@ class BaseOpcuaTest(BaseTest):
         config = self.load_configuration(self.CONFIG_PATH + config_file_path)
         self.client.save_device_attributes(self.device.id, 'SHARED_SCOPE', config)
 
-    def update_device_and_connector_shared_attributes(self, connector_config_file_path, device_config_file_path,
-                                                      connector_type=None):
-        GatewayDeviceUtil.update_connector_config(self.CONNECTOR_NAME, self.CONFIG_PATH + connector_config_file_path,
-                                                  connector_type=connector_type)
+    def update_device_and_connector_shared_attributes(self, connector_config_file_path, device_config_file_path):
+        GatewayDeviceUtil.update_connector_config(self.CONNECTOR_NAME, self.CONFIG_PATH + connector_config_file_path)
         self.update_device_shared_attributes(device_config_file_path)
