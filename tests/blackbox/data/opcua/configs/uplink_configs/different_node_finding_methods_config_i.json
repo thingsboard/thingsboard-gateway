@@ -6,7 +6,7 @@
     "configuration": "opcua.json",
     "configurationJson": {
       "server": {
-        "name": "OPC-UA Default Server",
+        "name": "OPC-UA Demo Server",
         "url": "opc.tcp://0.0.0.0:4840/freeopcua/server/",
         "timeoutInMillis": 5000,
         "scanPeriodInMillis": 5000,
@@ -19,31 +19,34 @@
         },
         "mapping": [
           {
-            "deviceNodePattern": "Root\\.Objects\\.TempSensor",
+            "deviceNodePattern": "${ns=3;i=1}",
             "deviceNamePattern": "Temp Sensor",
             "deviceTypePattern": "default",
-            "attributes": [
+            "attributes": [],
+            "timeseries": [
               {
-                "key": "Path",
+                "key": "path",
                 "path": "${Humidity}"
+              },
+              {
+                "key": "i",
+                "path": "${ns=3;i=2}"
+              },
+              {
+                "key": "s",
+                "path": "${ns=3;s=Humidity_S}"
+              },
+              {
+                "key": "g",
+                "path": "${ns=3;g=018dd02c-fd22-754a-b6d3-5fcae91cd38d}"
+              },
+              {
+                "key": "b",
+                "path": "${ns=3;b=Status_S}"
               }
             ],
-            "timeseries": [],
-            "rpc_methods": [
-              {
-                "method": "multiply",
-                "arguments": [
-                  2,
-                  4
-                ]
-              }
-            ],
-            "attributes_updates": [
-              {
-                "attributeOnThingsBoard": "path",
-                "attributeOnDevice": ".Humidity"
-              }
-            ]
+            "rpc_methods": [],
+            "attributes_updates": []
           }
         ]
       }

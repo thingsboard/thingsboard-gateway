@@ -6,7 +6,7 @@
     "configuration": "opcua.json",
     "configurationJson": {
       "server": {
-        "name": "OPC-UA Default Server",
+        "name": "OPC-UA Demo Server",
         "url": "opc.tcp://0.0.0.0:4840/freeopcua/server/",
         "timeoutInMillis": 5000,
         "scanPeriodInMillis": 5000,
@@ -22,28 +22,15 @@
             "deviceNodePattern": "Root\\.Objects\\.TempSensor",
             "deviceNamePattern": "Temp Sensor",
             "deviceTypePattern": "default",
-            "attributes": [
+            "attributes": [],
+            "timeseries": [
               {
-                "key": "Path",
+                "key": "path",
                 "path": "${Humidity}"
               }
             ],
-            "timeseries": [],
-            "rpc_methods": [
-              {
-                "method": "multiply",
-                "arguments": [
-                  2,
-                  4
-                ]
-              }
-            ],
-            "attributes_updates": [
-              {
-                "attributeOnThingsBoard": "path",
-                "attributeOnDevice": ".Humidity"
-              }
-            ]
+            "rpc_methods": [],
+            "attributes_updates": []
           }
         ]
       }
