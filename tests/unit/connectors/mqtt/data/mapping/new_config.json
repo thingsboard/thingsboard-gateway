@@ -1,0 +1,139 @@
+{
+  "broker": {
+    "name": "Default Local Broker",
+    "host": "127.0.0.1",
+    "port": 1883,
+    "clientId": "ThingsBoard_gateway",
+    "version": 5,
+    "maxMessageNumberPerWorker": 10,
+    "maxNumberOfWorkers": 100,
+    "sendDataOnlyOnChange": false,
+    "security": {
+      "type": "anonymous"
+    }
+  },
+  "dataMapping": [
+    {
+      "topicFilter": "sensor/data",
+      "converter": {
+        "type": "json",
+        "deviceInfo": {
+          "deviceNameExpressionSource": "message",
+          "deviceNameExpression": "${serialNumber}",
+          "deviceProfileExpressionSource": "message",
+          "deviceProfileExpression": "${sensorType}"
+        },
+        "sendDataOnlyOnChange": false,
+        "timeout": 60000,
+        "attributes": [
+          {
+            "type": "string",
+            "key": "model",
+            "value": "${sensorModel}"
+          },
+          {
+            "type": "string",
+            "key": "${sensorModel}",
+            "value": "on"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "double",
+            "key": "temperature",
+            "value": "${temp}"
+          },
+          {
+            "type": "double",
+            "key": "humidity",
+            "value": "${hum}"
+          },
+          {
+            "type": "string",
+            "key": "combine",
+            "value": "${hum}:${temp}"
+          }
+        ]
+      }
+    },
+    {
+      "topicFilter": "sensor/+/data",
+      "converter": {
+        "type": "json",
+        "deviceInfo": {
+          "deviceNameExpressionSource": "topic",
+          "deviceNameExpression": "(?<=sensor/)(.*?)(?=/data)",
+          "deviceProfileExpressionSource": "topic",
+          "deviceProfileExpression": "Thermometer"
+        },
+        "sendDataOnlyOnChange": false,
+        "timeout": 60000,
+        "attributes": [
+          {
+            "type": "string",
+            "key": "model",
+            "value": "${sensorModel}"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "double",
+            "key": "temperature",
+            "value": "${temp}"
+          },
+          {
+            "type": "double",
+            "key": "humidity",
+            "value": "${hum}"
+          }
+        ]
+      }
+    },
+    {
+      "topicFilter": "sensor/raw_data",
+      "converter": {
+        "type": "bytes",
+        "deviceInfo": {
+          "deviceNameExpression": "[0:4]",
+          "deviceProfileExpression": "default"
+        },
+        "sendDataOnlyOnChange": false,
+        "timeout": 60000,
+        "attributes": [
+          {
+            "type": "raw",
+            "key": "rawData",
+            "value": "[:]"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "raw",
+            "key": "temp",
+            "value": "[4:]"
+          }
+        ]
+      }
+    },
+    {
+      "topicFilter": "custom/sensors/+",
+      "converter": {
+        "type": "custom",
+        "extension": "CustomMqttUplinkConverter",
+        "cached": true,
+        "extensionConfig": {
+          "temperatureBytes": 2,
+          "humidityBytes": 2,
+          "batteryLevelBytes": 1
+        }
+      }
+    }
+  ],
+  "requestsMapping": {
+    "connectRequests": {},
+    "disconnectRequests": {},
+    "attributeRequests": {},
+    "serverSideRpc": {},
+    "attributeUpdates": {}
+  }
+}
