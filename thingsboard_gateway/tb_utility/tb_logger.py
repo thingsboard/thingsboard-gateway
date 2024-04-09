@@ -36,7 +36,11 @@ def init_logger(gateway, name, level):
     log_level_conf = level
     if log_level_conf:
         log_level = logging.getLevelName(log_level_conf)
-        log.setLevel(log_level)
+
+        try:
+            log.setLevel(log_level)
+        except ValueError:
+            log.setLevel(logging.NOTSET)
 
     return log
 
