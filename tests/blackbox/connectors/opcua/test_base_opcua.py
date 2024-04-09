@@ -91,4 +91,5 @@ class BaseOpcuaTest(BaseTest):
 
     def update_device_and_connector_shared_attributes(self, connector_config_file_path, device_config_file_path):
         GatewayDeviceUtil.update_connector_config(self.CONNECTOR_NAME, self.CONFIG_PATH + connector_config_file_path)
+        sleep(5)
         self.update_device_shared_attributes(device_config_file_path)

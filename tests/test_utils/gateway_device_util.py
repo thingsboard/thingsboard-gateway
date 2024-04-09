@@ -98,7 +98,7 @@ class GatewayDeviceUtil:
             config = cls.load_configuration(config_file_path)
             config[connector_name]['ts'] = int(time() * 1000)
             response = rest_client.save_device_attributes(cls.GATEWAY_DEVICE.id, 'SHARED_SCOPE', config)
-            sleep(3)
+            sleep(4)
             return config, response
 
     @classmethod
@@ -128,3 +128,13 @@ class GatewayDeviceUtil:
         while not cls.is_gateway_connected():
             LOG.info('Gateway connecting to TB...')
             sleep(1)
+
+    @classmethod
+    def update_credentials(cls, creds):
+        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+            rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
+                              password=GatewayDeviceUtil.DEFAULT_PASSWORD)
+            current_creds = rest_client.get_device_credentials_by_device_id(cls.GATEWAY_DEVICE.id)
+            current_creds.credentials_id = creds['credentialsId']
+            cls.GATEWAY_ACCESS_TOKEN = creds['credentialsId']
+            rest_client.update_device_credentials(current_creds)

@@ -97,65 +97,73 @@ class OpcuaAsyncioUplinkMessagesTest(BaseOpcuaTest):
             self.assertEqual(value, actual_values[_type][0]['value'],
                              f'Value is not equal for the next telemetry key: {_type}')
 
-    # def test_different_node_finding_methods_i(self):
-    #     config = self.load_configuration(
-    #         self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_i.json')
-    #     GatewayDeviceUtil.update_connector_config(self.CONNECTOR_NAME, config)
-    #     sleep(3)
-    #     telemetry_keys = [key['key'] for node in config['Opcua']['configurationJson']['mapping'] for key in
-    #                       node['timeseries']]
-    #     actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
-    #     expected_values = self.load_configuration(
-    #         self.CONFIG_PATH + 'test_values/uplink/different_node_finding_methods_values.json')
-    #
-    #     for (_type, value) in expected_values.items():
-    #         self.assertEqual(value, actual_values[_type][0]['value'],
-    #                          f'Value is not equal for the next telemetry key: {_type}')
-    #
-    # def test_different_node_finding_methods_s(self):
-    #     config = self.load_configuration(
-    #         self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_s.json')
-    #     GatewayDeviceUtil.update_connector_config(self.CONNECTOR_NAME, config)
-    #     sleep(3)
-    #     telemetry_keys = [key['key'] for node in config['Opcua']['configurationJson']['mapping'] for key in
-    #                       node['timeseries']]
-    #     actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
-    #     expected_values = self.load_configuration(
-    #         self.CONFIG_PATH + 'test_values/uplink/different_node_finding_methods_values.json')
-    #
-    #     for (_type, value) in expected_values.items():
-    #         self.assertEqual(value, actual_values[_type][0]['value'],
-    #                          f'Value is not equal for the next telemetry key: {_type}')
-    #
-    # def test_different_node_finding_methods_g(self):
-    #     config = self.load_configuration(
-    #         self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_g.json')
-    #     GatewayDeviceUtil.update_connector_config(self.CONNECTOR_NAME, config)
-    #     sleep(3)
-    #     telemetry_keys = [key['key'] for node in config['Opcua']['configurationJson']['mapping'] for key in
-    #                       node['timeseries']]
-    #     actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
-    #     expected_values = self.load_configuration(
-    #         self.CONFIG_PATH + 'test_values/uplink/different_node_finding_methods_values.json')
-    #
-    #     for (_type, value) in expected_values.items():
-    #         self.assertEqual(value, actual_values[_type][0]['value'],
-    #                          f'Value is not equal for the next telemetry key: {_type}')
-    #
-    # def test_different_node_finding_methods_b(self):
-    #     config = self.load_configuration(
-    #         self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_b.json')
-    #     GatewayDeviceUtil.update_connector_config(self.CONNECTOR_NAME, config)
-    #     sleep(3)
-    #     telemetry_keys = [key['key'] for node in config['Opcua']['configurationJson']['mapping'] for key in
-    #                       node['timeseries']]
-    #     actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
-    #     expected_values = self.load_configuration(
-    #         self.CONFIG_PATH + 'test_values/uplink/different_node_finding_methods_values.json')
-    #
-    #     for (_type, value) in expected_values.items():
-    #         self.assertEqual(value, actual_values[_type][0]['value'],
-    #                          f'Value is not equal for the next telemetry key: {_type}')
+    def test_different_node_finding_methods_i(self):
+        config = self.load_configuration(
+            self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_i.json')
+        GatewayDeviceUtil.update_connector_config(
+            self.CONNECTOR_NAME,
+            self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_i.json')
+        sleep(3)
+        telemetry_keys = [key['key'] for node in config['Opcua']['configurationJson']['mapping'] for key in
+                          node['timeseries']]
+        actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/uplink/different_node_finding_methods_values.json')
+
+        for (_type, value) in expected_values.items():
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+    def test_different_node_finding_methods_s(self):
+        config = self.load_configuration(
+            self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_s.json')
+        GatewayDeviceUtil.update_connector_config(
+            self.CONNECTOR_NAME,
+            self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_s.json')
+        sleep(3)
+        telemetry_keys = [key['key'] for node in config['Opcua']['configurationJson']['mapping'] for key in
+                          node['timeseries']]
+        actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/uplink/different_node_finding_methods_values.json')
+
+        for (_type, value) in expected_values.items():
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+    def test_different_node_finding_methods_g(self):
+        config = self.load_configuration(
+            self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_g.json')
+        GatewayDeviceUtil.update_connector_config(
+            self.CONNECTOR_NAME,
+            self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_g.json')
+        sleep(3)
+        telemetry_keys = [key['key'] for node in config['Opcua']['configurationJson']['mapping'] for key in
+                          node['timeseries']]
+        actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/uplink/different_node_finding_methods_values.json')
+
+        for (_type, value) in expected_values.items():
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+    def test_different_node_finding_methods_b(self):
+        config = self.load_configuration(
+            self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_b.json')
+        GatewayDeviceUtil.update_connector_config(
+            self.CONNECTOR_NAME,
+            self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_b.json')
+        sleep(3)
+        telemetry_keys = [key['key'] for node in config['Opcua']['configurationJson']['mapping'] for key in
+                          node['timeseries']]
+        actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/uplink/different_node_finding_methods_values.json')
+
+        for (_type, value) in expected_values.items():
+            self.assertEqual(value, actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
 
 
 if __name__ == '__main__':
