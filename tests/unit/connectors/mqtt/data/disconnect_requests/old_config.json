@@ -1,0 +1,26 @@
+{
+  "broker": {
+    "name": "Default Local Broker",
+    "host": "127.0.0.1",
+    "port": 1883,
+    "clientId": "ThingsBoard_gateway",
+    "version": 5,
+    "maxMessageNumberPerWorker": 10,
+    "maxNumberOfWorkers": 100,
+    "sendDataOnlyOnChange": false,
+    "security": {
+      "type": "anonymous"
+    }
+  },
+  "mapping": [],
+  "disconnectRequests": [
+    {
+      "topicFilter": "sensor/disconnect",
+      "deviceNameJsonExpression": "${serialNumber}"
+    },
+    {
+      "topicFilter": "sensor/+/disconnect",
+      "deviceNameTopicExpression": "(?<=sensor/)(.*?)(?=/disconnect)"
+    }
+  ]
+}
