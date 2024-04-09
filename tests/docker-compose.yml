@@ -1,6 +1,7 @@
 version: '3.5'
 services:
   tb:
+    container_name: tests_gw_1
     image: "thingsboard/tb-postgres"
     environment:
       TB_QUEUE_TYPE: in-memory
