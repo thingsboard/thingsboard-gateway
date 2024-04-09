@@ -245,13 +245,16 @@ class TBUtility:
             return data
 
         evaluated_data = eval(data, globals(), {}) if use_eval else data
-        if 'int' in new_type or 'long' in new_type:
-            return int(float(evaluated_data))
-        elif 'float' == new_type or 'double' == new_type:
-            return float(evaluated_data)
-        elif 'bool' in new_type:
-            return bool(strtobool(evaluated_data))
-        else:
+        try:
+            if 'int' in new_type or 'long' in new_type:
+                return int(float(evaluated_data))
+            elif 'float' == new_type or 'double' == new_type:
+                return float(evaluated_data)
+            elif 'bool' in new_type:
+                return bool(strtobool(evaluated_data))
+            else:
+                return str(evaluated_data)
+        except ValueError:
             return str(evaluated_data)
 
     @staticmethod
