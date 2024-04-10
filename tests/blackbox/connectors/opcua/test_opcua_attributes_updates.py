@@ -1,27 +1,21 @@
 from time import sleep
 
-from tb_rest_client.models.models_ce import DeviceCredentials
-
 from tests.blackbox.connectors.opcua.test_base_opcua import BaseOpcuaTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 
 class OpcuaAsyncioAttributesUpdatesTest(BaseOpcuaTest):
-    @classmethod
-    def tearDownClass(cls):
-        pass
-
     def test_attr_update(self):
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_node.json',
             'test_values/attrs_update/attrs_update_node_values.json')
-        sleep(6)
+        sleep(self.GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/attrs_update_node_values.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(str(value), actual_values[_type][0]['value'],
                              f'Value is not equal for the next telemetry key: {_type}')
 
     def test_attr_update_after_gateway_restart(self):
@@ -30,40 +24,38 @@ class OpcuaAsyncioAttributesUpdatesTest(BaseOpcuaTest):
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_node.json',
             'test_values/attrs_update/attrs_update_restart_node_values.json')
-        sleep(3)
+        sleep(self.GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/attrs_update_restart_node_values.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
                                                           ','.join([key for (key, _) in expected_values.items()]))
         for (_type, value) in expected_values.items():
-            self.assertEqual(value, actual_values[_type][0]['value'],
+            self.assertEqual(str(value), actual_values[_type][0]['value'],
                              f'Value is not equal for the next telemetry key: {_type}')
 
         # reset node values to default
         self.reset_node_default_values()
 
-    # def test_attr_update_after_connection_lost(self):
-    #     self.client.update_device_credentials(DeviceCredentials())
-    #     sleep(5)
-    #
-    #     self.client.update_device_credentials(DeviceCredentials())
-    #     sleep(5)
-    #
-    #     config = self.load_configuration(self.CONFIG_PATH + 'configs/default_opcua_config.json')
-    #     GatewayDeviceUtil.update_connector_config(self.CONNECTOR_NAME, config)
-    #     sleep(2)
-    #
-    #     self.update_device_and_connector_shared_attributes(
-    #         'configs/attrs_update_configs/attrs_update_connection_lost_node.json',
-    #         'test_values/attrs_update/discrete_and_coils_registers_values_big.json')
-    #     sleep(3)
-    #     expected_values = self.load_configuration(
-    #         self.CONFIG_PATH + 'test_values/attrs_update/attrs_update_connection_lost_node.json')
-    #     actual_values = self.client.get_latest_timeseries(self.device.id,
-    #                                                       ','.join([key for (key, _) in expected_values.items()]))
-    #     for (_type, value) in expected_values.items():
-    #         self.assertEqual(value, actual_values[_type][0]['value'],
-    #                          f'Value is not equal for the next telemetry key: {_type}')
-    #
-    #     # reset node values to default
-    #     self.reset_node_default_values()
+    def test_attr_update_after_connection_lost(self):
+        GatewayDeviceUtil.update_credentials({"credentialsType": "ACCESS_TOKEN",
+                                              "credentialsId": "SOME_ACCESS_TOKEN"})
+        sleep(self.GENERAL_TIMEOUT)
+
+        GatewayDeviceUtil.update_credentials({"credentialsType": "ACCESS_TOKEN",
+                                              "credentialsId": "YOUR_ACCESS_TOKEN"})
+        sleep(self.GENERAL_TIMEOUT)
+
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/attrs_update_node.json',
+            'test_values/attrs_update/attrs_update_restart_node_values.json')
+        sleep(self.GENERAL_TIMEOUT)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/attrs_update_restart_node_values.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                          ','.join([key for (key, _) in expected_values.items()]))
+        for (_type, value) in expected_values.items():
+            self.assertEqual(str(value), actual_values[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+
+        # reset node values to default
+        self.reset_node_default_values()

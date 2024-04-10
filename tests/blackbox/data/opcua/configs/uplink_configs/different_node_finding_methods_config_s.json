@@ -7,7 +7,7 @@
     "configurationJson": {
       "server": {
         "name": "OPC-UA Demo Server",
-        "url": "opc.tcp://0.0.0.0:4840/freeopcua/server/",
+        "url": "opc.tcp://localhost:4840/freeopcua/server/",
         "timeoutInMillis": 5000,
         "scanPeriodInMillis": 5000,
         "disableSubscriptions": true,
@@ -19,7 +19,7 @@
         },
         "mapping": [
           {
-            "deviceNodePattern": "${ns=3;s=TestDevice}",
+            "deviceNodePattern": "${ns=4;s=TestDevice}",
             "deviceNamePattern": "Temp Sensor",
             "deviceTypePattern": "default",
             "attributes": [],
@@ -30,19 +30,19 @@
               },
               {
                 "key": "i",
-                "path": "${ns=3;i=2}"
+                "path": "${ns=4;i=2}"
               },
               {
                 "key": "s",
-                "path": "${ns=3;s=Humidity_S}"
+                "path": "${ns=4;s=Humidity_S}"
               },
               {
                 "key": "g",
-                "path": "${ns=3;g=018dd02c-fd22-754a-b6d3-5fcae91cd38d}"
+                "path": "${ns=4;g=018dd02c-fd22-754a-b6d3-5fcae91cd38d}"
               },
               {
                 "key": "b",
-                "path": "${ns=3;b=Status_S}"
+                "path": "${ns=4;b=Status_S}"
               }
             ],
             "rpc_methods": [],

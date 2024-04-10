@@ -13,10 +13,12 @@ DEVICE_CREATION_TIMEOUT = 60
 
 LOG = logging.getLogger("TEST")
 
+
 class BaseOpcuaTest(BaseTest):
     CONFIG_PATH = path.join(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))),
                             "data" + path.sep + "opcua" + path.sep)
     CONNECTION_TIMEOUT = 300
+    GENERAL_TIMEOUT = 10
     CONNECTOR_NAME = 'Opcua'
 
     client = None
