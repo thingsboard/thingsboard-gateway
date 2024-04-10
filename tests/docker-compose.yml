@@ -14,6 +14,7 @@ services:
       - TB_GW_HOST=127.0.0.1
       - TB_GW_PORT=1883
       - TB_GW_ACCESS_TOKEN=YOUR_ACCESS_TOKEN
+      - TB_GW_RATE_LIMITS=0:0
     volumes:
       - tb-gw-config:/thingsboard_gateway/config
       - tb-gw-logs:/thingsboard_gateway/logs

@@ -7,7 +7,7 @@
     "configurationJson": {
       "server": {
         "name": "OPC-UA Demo Server",
-        "url": "opc.tcp://0.0.0.0:4840/freeopcua/server/",
+        "url": "opc.tcp://localhost:4840/freeopcua/server/",
         "timeoutInMillis": 5000,
         "scanPeriodInMillis": 5000,
         "disableSubscriptions": true,
@@ -34,22 +34,6 @@
               {
                 "attributeOnThingsBoard": "path",
                 "attributeOnDevice": "Humidity"
-              },
-              {
-                "attributeOnThingsBoard": "i",
-                "attributeOnDevice": "Root\\.Objects\\.Device1\\.serialNumber"
-              },
-              {
-                "attributeOnThingsBoard": "s",
-                "attributeOnDevice": "Root\\.Objects\\.Device1\\.serialNumber"
-              },
-              {
-                "attributeOnThingsBoard": "g",
-                "attributeOnDevice": "Root\\.Objects\\.Device1\\.serialNumber"
-              },
-              {
-                "attributeOnThingsBoard": "b",
-                "attributeOnDevice": "Root\\.Objects\\.Device1\\.serialNumber"
               }
             ]
           }

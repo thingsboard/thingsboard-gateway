@@ -1,17 +1,10 @@
 from time import sleep
 
-from tb_rest_client.models.models_ce import DeviceCredentials
-
 from tests.blackbox.connectors.opcua.test_base_opcua import BaseOpcuaTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 
 class OpcuaAsyncioRPCTest(BaseOpcuaTest):
-    # TODO: remove it
-    @classmethod
-    def tearDownClass(cls):
-        pass
-
     def test_rpc_set(self):
         """
         (AsyncIO) Test method for the RPC set operation (with different nodes and vars finding methods).
@@ -25,7 +18,7 @@ class OpcuaAsyncioRPCTest(BaseOpcuaTest):
         (config, _) = GatewayDeviceUtil.update_connector_config(
             self.CONNECTOR_NAME,
             self.CONFIG_PATH + 'configs/rpc_configs/rpc_set_method.json')
-        sleep(5)
+        sleep(self.GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/rpc_set_method_values.json')
         telemetry_keys = [key['key'] for node in config[self.CONNECTOR_NAME]['configurationJson']['server']['mapping']
@@ -37,7 +30,7 @@ class OpcuaAsyncioRPCTest(BaseOpcuaTest):
                                                           "method": "set",
                                                           "params": "ns=3;i=2;12"
                                                       })
-        sleep(3)
+        sleep(self.GENERAL_TIMEOUT)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             self.assertEqual(value, latest_ts[_type][0]['value'],
@@ -51,7 +44,7 @@ class OpcuaAsyncioRPCTest(BaseOpcuaTest):
         (config, _) = GatewayDeviceUtil.update_connector_config(
             self.CONNECTOR_NAME,
             self.CONFIG_PATH + 'configs/rpc_configs/rpc_get_method.json')
-        sleep(5)
+        sleep(self.GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/rpc_get_method_values.json')
 
@@ -60,7 +53,7 @@ class OpcuaAsyncioRPCTest(BaseOpcuaTest):
                                                                    "method": "get",
                                                                    "params": "ns=3;i=3;"
                                                                })
-        sleep(3)
+        sleep(self.GENERAL_TIMEOUT)
         self.assertEqual(
             result['get']['value'], expected_values["s"], f'Value is not equal for the next rpc: get')
 
@@ -73,7 +66,7 @@ class OpcuaAsyncioRPCTest(BaseOpcuaTest):
 
         (config, _) = GatewayDeviceUtil.update_connector_config(
             self.CONNECTOR_NAME, self.CONFIG_PATH + 'configs/rpc_configs/rpc_server_method.json')
-        sleep(5)
+        sleep(self.GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/rpc_server_method_values.json')
 
@@ -100,7 +93,7 @@ class OpcuaAsyncioRPCTest(BaseOpcuaTest):
         GatewayDeviceUtil.restart_gateway()
         (config, _) = GatewayDeviceUtil.update_connector_config(
             self.CONNECTOR_NAME, self.CONFIG_PATH + 'configs/rpc_configs/rpc_server_method.json')
-        sleep(8)
+        sleep(self.GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/rpc_server_method_values.json')
 
@@ -127,15 +120,15 @@ class OpcuaAsyncioRPCTest(BaseOpcuaTest):
 
         GatewayDeviceUtil.update_credentials({"credentialsType": "ACCESS_TOKEN",
                                               "credentialsId": "SOME_ACCESS_TOKEN"})
-        sleep(8)
+        sleep(self.GENERAL_TIMEOUT)
 
         GatewayDeviceUtil.update_credentials({"credentialsType": "ACCESS_TOKEN",
                                               "credentialsId": "YOUR_ACCESS_TOKEN"})
-        sleep(8)
+        sleep(self.GENERAL_TIMEOUT)
 
         (config, _) = GatewayDeviceUtil.update_connector_config(
             self.CONNECTOR_NAME, self.CONFIG_PATH + 'configs/rpc_configs/rpc_server_method.json')
-        sleep(8)
+        sleep(self.GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/rpc_server_method_values.json')
 

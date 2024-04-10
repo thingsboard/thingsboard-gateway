@@ -123,7 +123,7 @@ class GatewayDeviceUtil:
             rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
                               password=GatewayDeviceUtil.DEFAULT_PASSWORD)
             rest_client.handle_two_way_device_rpc_request(cls.GATEWAY_DEVICE.id, {"method": "gateway_restart"})
-            sleep(5)
+            sleep(10)
 
         while not cls.is_gateway_connected():
             LOG.info('Gateway connecting to TB...')
