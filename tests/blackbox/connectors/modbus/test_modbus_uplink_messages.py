@@ -81,6 +81,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             pass
 
         client.close()
+        GatewayDeviceUtil.clear_connectors()
         sleep(2)
 
     @classmethod

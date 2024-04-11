@@ -139,3 +139,11 @@ class GatewayDeviceUtil:
             current_creds.credentials_id = creds['credentialsId']
             cls.GATEWAY_ACCESS_TOKEN = creds['credentialsId']
             rest_client.update_device_credentials(current_creds)
+
+    @classmethod
+    def clear_connectors(cls):
+        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+            rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
+                              password=GatewayDeviceUtil.DEFAULT_PASSWORD)
+            rest_client.save_device_attributes(cls.GATEWAY_DEVICE.id, 'SHARED_SCOPE', {"active_connectors": []})
+            sleep(5)

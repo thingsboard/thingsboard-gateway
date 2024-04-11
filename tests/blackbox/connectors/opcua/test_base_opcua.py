@@ -72,8 +72,7 @@ class BaseOpcuaTest(BaseTest):
         super(BaseOpcuaTest, cls).tearDownClass()
         GatewayDeviceUtil.delete_device(cls.device.id)
 
-        # TODO: trigger server restart
-
+        GatewayDeviceUtil.clear_connectors()
         sleep(2)
 
     @classmethod
