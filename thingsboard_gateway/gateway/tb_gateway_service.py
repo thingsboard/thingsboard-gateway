@@ -1415,16 +1415,16 @@ class TBGatewayService:
 
     def add_device(self, device_name, content, device_type=None):
         device_type = device_type if device_type is not None else 'default'
+        self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
+        self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
+        self.__save_persistent_devices()
+        self.tb_client.client.gw_connect_device(device_name, device_type)
         device_details = None
         if device_name in self.__saved_devices:
             device_details = {
                 'connectorType': content['connector'].get_type(),
                 'connectorName': content['connector'].get_name()
             }
-        self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
-        self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
-        self.__save_persistent_devices()
-        self.tb_client.client.gw_connect_device(device_name, device_type)
         if device_details is not None:
             self.tb_client.client.gw_send_attributes(device_name, device_details)
 
