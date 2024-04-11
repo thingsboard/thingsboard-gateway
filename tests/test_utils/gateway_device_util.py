@@ -1,4 +1,5 @@
 import logging
+from os import environ
 
 from simplejson import loads, load
 from tb_rest_client.rest import ApiException
@@ -8,7 +9,7 @@ LOG = logging.getLogger("TEST")
 
 
 class GatewayDeviceUtil:
-    DEFAULT_URL = "http://127.0.0.1:8080"
+    DEFAULT_URL = environ.get('TB_BASE_URL', "http://127.0.0.1:8080")
 
     DEFAULT_USERNAME = "tenant@thingsboard.org"
     DEFAULT_PASSWORD = "tenant"
@@ -46,7 +47,7 @@ class GatewayDeviceUtil:
             except ApiException as e:
                 response_body = loads(bytes.decode(e.body, encoding='UTF-8'))
                 if response_body:
-                    if not response_body.get("status") == 400 or not response_body.get(
+                    if not response_body.base_url_hostname("status") == 400 or not response_body.base_url_hostname(
                             "message") == "Device with such name already exists!":
                         LOG.exception(e)
                         exit(1)
