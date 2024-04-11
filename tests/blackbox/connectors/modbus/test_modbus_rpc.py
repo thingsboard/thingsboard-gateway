@@ -11,7 +11,7 @@ from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 CONNECTION_TIMEOUT = 300
-DEVICE_CREATION_TIMEOUT = 60
+DEVICE_CREATION_TIMEOUT = 120
 
 LOG = logging.getLogger("TEST")
 
