@@ -67,7 +67,7 @@ class ModbusRpcTest(BaseTest):
 
     @classmethod
     def tearDownClass(cls):
-        super(ModbusRpcTest, cls).tearDownClass()
+        GatewayDeviceUtil.clear_connectors()
         GatewayDeviceUtil.delete_device(cls.device.id)
 
         client = ModbusClient.ModbusTcpClient('localhost', port=5021)
@@ -80,7 +80,7 @@ class ModbusRpcTest(BaseTest):
             pass
 
         client.close()
-        GatewayDeviceUtil.clear_connectors()
+        super(ModbusRpcTest, cls).tearDownClass()
         sleep(2)
 
     @classmethod

@@ -69,10 +69,9 @@ class BaseOpcuaTest(BaseTest):
 
     @classmethod
     def tearDownClass(cls):
-        super(BaseOpcuaTest, cls).tearDownClass()
-        GatewayDeviceUtil.delete_device(cls.device.id)
-
         GatewayDeviceUtil.clear_connectors()
+        GatewayDeviceUtil.delete_device(cls.device.id)
+        super(BaseOpcuaTest, cls).tearDownClass()
         sleep(2)
 
     @classmethod

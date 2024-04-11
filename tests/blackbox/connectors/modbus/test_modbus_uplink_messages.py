@@ -67,7 +67,7 @@ class ModbusUplinkMessagesTest(BaseTest):
 
     @classmethod
     def tearDownClass(cls):
-        super(ModbusUplinkMessagesTest, cls).tearDownClass()
+        GatewayDeviceUtil.clear_connectors()
         GatewayDeviceUtil.delete_device(cls.device.id)
 
         client = ModbusClient.ModbusTcpClient('localhost', port=5021)
@@ -81,7 +81,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             pass
 
         client.close()
-        GatewayDeviceUtil.clear_connectors()
+        super(ModbusUplinkMessagesTest, cls).tearDownClass()
         sleep(2)
 
     @classmethod

@@ -68,7 +68,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
 
     @classmethod
     def tearDownClass(cls):
-        super(ModbusAttributesUpdatesTest, cls).tearDownClass()
+        GatewayDeviceUtil.clear_connectors()
         GatewayDeviceUtil.delete_device(cls.device.id)
 
         client = ModbusClient.ModbusTcpClient('localhost', port=5021)
@@ -81,8 +81,8 @@ class ModbusAttributesUpdatesTest(BaseTest):
             pass
 
         client.close()
+        super(ModbusAttributesUpdatesTest, cls).tearDownClass()
 
-        GatewayDeviceUtil.clear_connectors()
         sleep(2)
 
     @classmethod

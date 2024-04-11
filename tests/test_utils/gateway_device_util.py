@@ -47,7 +47,7 @@ class GatewayDeviceUtil:
             except ApiException as e:
                 response_body = loads(bytes.decode(e.body, encoding='UTF-8'))
                 if response_body:
-                    if not response_body.base_url_hostname("status") == 400 or not response_body.base_url_hostname(
+                    if not response_body.get("status") == 400 or not response_body.get(
                             "message") == "Device with such name already exists!":
                         LOG.exception(e)
                         exit(1)
