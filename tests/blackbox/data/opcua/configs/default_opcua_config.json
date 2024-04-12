@@ -7,7 +7,7 @@
     "configurationJson": {
       "server": {
         "name": "OPC-UA Default Server",
-        "url": "opc.tcp://localhost:4840/freeopcua/server/",
+        "url": "opc.tcp://127.0.0.1:4840/freeopcua/server/",
         "timeoutInMillis": 5000,
         "scanPeriodInMillis": 5000,
         "disableSubscriptions": true,
