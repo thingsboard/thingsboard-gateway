@@ -6,7 +6,7 @@
     "configuration": "opcua.json",
     "configurationJson": {
       "server": {
-        "name": "OPC-UA Default Server",
+        "name": "OPC-UA Demo Server",
         "url": "opc.tcp://127.0.0.1:4840/freeopcua/server/",
         "timeoutInMillis": 5000,
         "scanPeriodInMillis": 5000,
@@ -24,7 +24,7 @@
             "deviceTypePattern": "default",
             "attributes": [
               {
-                "key": "Path",
+                "key": "path",
                 "path": "${Humidity}"
               }
             ],

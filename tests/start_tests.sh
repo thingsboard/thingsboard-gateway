@@ -1,7 +1,7 @@
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt --no-cache-dir
+pip install -r tests/requirements.txt --no-cache-dir
 pip install pyjwt==2.6.0 --no-cache-dir
 pip install tb-rest-client --no-cache-dir
 cp docker/Dockerfile .
