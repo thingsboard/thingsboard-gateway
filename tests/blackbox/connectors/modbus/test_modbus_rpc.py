@@ -11,7 +11,8 @@ from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 CONNECTION_TIMEOUT = 300
-DEVICE_CREATION_TIMEOUT = 120
+DEVICE_CREATION_TIMEOUT = 200
+GENERAL_TIMEOUT = 6
 
 LOG = logging.getLogger("TEST")
 
@@ -118,7 +119,7 @@ class ModbusRpcTest(BaseTest):
         config = cls.load_configuration(config_file_path)
         config['Modbus']['ts'] = int(time() * 1000)
         response = cls.client.save_device_attributes(cls.gateway.id, 'SHARED_SCOPE', config)
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         return config, response
 
 
@@ -126,7 +127,7 @@ class ModbusRpcReadingTest(ModbusRpcTest):
     def test_input_registers_reading_rpc_little(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/input_registers_reading_rpc_little.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/input_registers_values_reading_little.json')
 
@@ -143,7 +144,7 @@ class ModbusRpcReadingTest(ModbusRpcTest):
     def test_input_registers_reading_rpc_big(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/input_registers_reading_rpc_big.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/input_registers_values_reading_big.json')
 
@@ -160,7 +161,7 @@ class ModbusRpcReadingTest(ModbusRpcTest):
     def test_holding_registers_reading_rpc_little(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/holding_registers_reading_rpc_little.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/holding_registers_values_reading_little.json')
 
@@ -177,7 +178,7 @@ class ModbusRpcReadingTest(ModbusRpcTest):
     def test_holding_registers_reading_rpc_big(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/holding_registers_reading_rpc_big.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/holding_registers_values_reading_big.json')
 
@@ -194,7 +195,7 @@ class ModbusRpcReadingTest(ModbusRpcTest):
     def test_coils_reading_rpc_little(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/coils_reading_rpc_little.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/discrete_and_coils_registers_values_reading_little.json')
 
@@ -211,7 +212,7 @@ class ModbusRpcReadingTest(ModbusRpcTest):
     def test_coils_reading_rpc_big(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/coils_reading_rpc_big.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/discrete_and_coils_registers_values_reading_big.json')
 
@@ -228,7 +229,7 @@ class ModbusRpcReadingTest(ModbusRpcTest):
     def test_discrete_inputs_reading_rpc_little(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/discrete_inputs_reading_rpc_little.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/discrete_and_coils_registers_values_reading_little.json')
 
@@ -245,7 +246,7 @@ class ModbusRpcReadingTest(ModbusRpcTest):
     def test_discrete_inputs_reading_rpc_big(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/discrete_inputs_reading_rpc_big.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/discrete_and_coils_registers_values_reading_little.json')
 
@@ -293,7 +294,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
     def test_writing_input_registers_rpc_big(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/input_registers_writing_rpc_big.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/input_registers_values_writing_big.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -321,7 +322,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
     def test_writing_holding_registers_rpc_little(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/holding_registers_writing_rpc_little.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/holding_registers_values_writing_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -335,7 +336,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
                                                               "params": expected_values[rpc_tag],
                                                               "timeout": 5000
                                                           })
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
@@ -349,7 +350,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
     def test_writing_holding_registers_rpc_big(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/holding_registers_writing_rpc_big.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/holding_registers_values_writing_big.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -363,7 +364,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
                                                               "params": expected_values[rpc_tag],
                                                               "timeout": 5000
                                                           })
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
@@ -377,7 +378,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
     def test_writing_coils_rpc_little(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/coils_writing_rpc_little.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/discrete_and_coils_registers_values_writing_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -391,7 +392,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
                                                               "params": expected_values[rpc_tag],
                                                               "timeout": 5000
                                                           })
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
@@ -405,7 +406,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
     def test_writing_coils_rpc_big(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/coils_writing_rpc_big.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/discrete_and_coils_registers_values_writing_big.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -419,7 +420,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
                                                               "params": expected_values[rpc_tag],
                                                               "timeout": 5000
                                                           })
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
@@ -433,7 +434,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
     def test_writing_discrete_inputs_rpc_little(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/discrete_inputs_writing_rpc_little.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/discrete_and_coils_registers_values_writing_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -447,7 +448,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
                                                               "params": expected_values[rpc_tag],
                                                               "timeout": 5000
                                                           })
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
@@ -461,7 +462,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
     def test_writing_discrete_inputs_rpc_big(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/discrete_inputs_writing_rpc_big.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/discrete_and_coils_registers_values_writing_big.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -475,7 +476,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
                                                               "params": expected_values[rpc_tag],
                                                               "timeout": 5000
                                                           })
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':

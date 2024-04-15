@@ -11,7 +11,8 @@ from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 CONNECTION_TIMEOUT = 300
-DEVICE_CREATION_TIMEOUT = 120
+DEVICE_CREATION_TIMEOUT = 200
+GENERAL_TIMEOUT = 6
 
 
 LOG = logging.getLogger("TEST")
@@ -120,7 +121,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         config = cls.load_configuration(config_file_path)
         config['Modbus']['ts'] = int(time() * 1000)
         response = cls.client.save_device_attributes(cls.gateway.id, 'SHARED_SCOPE', config)
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         return config, response
 
     def reset_slave_default_values(self):
@@ -154,7 +155,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_input_registers_little.json',
             'test_values/attrs_update/input_registers_values_little.json'
         )
-        sleep(2)
+        sleep(GENERAL_TIMEOUT)
 
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_little.json')
@@ -188,7 +189,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_holding_registers_little.json',
             'test_values/attrs_update/holding_registers_values_little.json'
         )
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/holding_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -222,7 +223,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_coils_registers_little.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -252,7 +253,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_discrete_input_little.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_little.json'
         )
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -279,7 +280,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_input_registers_big.json',
             'test_values/attrs_update/input_registers_values_big.json'
         )
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -317,7 +318,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_holding_registers_big.json',
             'test_values/attrs_update/holding_registers_values_big.json'
         )
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/holding_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -347,7 +348,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_coils_registers_big.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_big.json'
         )
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -375,7 +376,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_discrete_input_big.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_big.json'
         )
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -401,7 +402,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_input_registers_little.json',
             'test_values/attrs_update/input_registers_values_little.json'
         )
-        sleep(5)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,

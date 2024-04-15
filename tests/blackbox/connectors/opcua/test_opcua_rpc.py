@@ -93,7 +93,7 @@ class OpcuaAsyncioRPCTest(BaseOpcuaTest):
         GatewayDeviceUtil.restart_gateway()
         (config, _) = GatewayDeviceUtil.update_connector_config(
             self.CONNECTOR_NAME, self.CONFIG_PATH + 'configs/rpc_configs/rpc_server_method.json')
-        sleep(self.GENERAL_TIMEOUT)
+        sleep(15)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/rpc_server_method_values.json')
 
@@ -120,11 +120,11 @@ class OpcuaAsyncioRPCTest(BaseOpcuaTest):
 
         GatewayDeviceUtil.update_credentials({"credentialsType": "ACCESS_TOKEN",
                                               "credentialsId": "SOME_ACCESS_TOKEN"})
-        sleep(self.GENERAL_TIMEOUT)
+        sleep(15)
 
         GatewayDeviceUtil.update_credentials({"credentialsType": "ACCESS_TOKEN",
                                               "credentialsId": "YOUR_ACCESS_TOKEN"})
-        sleep(self.GENERAL_TIMEOUT)
+        sleep(15)
 
         (config, _) = GatewayDeviceUtil.update_connector_config(
             self.CONNECTOR_NAME, self.CONFIG_PATH + 'configs/rpc_configs/rpc_server_method.json')
