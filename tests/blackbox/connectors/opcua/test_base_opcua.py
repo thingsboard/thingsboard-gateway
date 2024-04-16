@@ -52,6 +52,8 @@ class BaseOpcuaTest(BaseTest):
 
             LOG.info('Gateway connected to TB')
 
+            sleep(3)
+
             (config, _) = GatewayDeviceUtil.update_connector_config(
                 cls.CONNECTOR_NAME,
                 cls.CONFIG_PATH + 'configs/default_opcua_config.json')
