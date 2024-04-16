@@ -9,7 +9,7 @@
         "name": "OPC-UA Demo Server",
         "url": "opc.tcp://127.0.0.1:4840/freeopcua/server/",
         "timeoutInMillis": 5000,
-        "scanPeriodInMillis": 5000,
+        "scanPeriodInMillis": 1000,
         "disableSubscriptions": true,
         "subCheckPeriodInMillis": 100,
         "showMap": false,
