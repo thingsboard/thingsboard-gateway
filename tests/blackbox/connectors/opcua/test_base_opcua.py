@@ -52,7 +52,7 @@ class BaseOpcuaTest(BaseTest):
 
             LOG.info('Gateway connected to TB')
 
-            sleep(3)
+            sleep(cls.GENERAL_TIMEOUT)
 
             (config, _) = GatewayDeviceUtil.update_connector_config(
                 cls.CONNECTOR_NAME,
