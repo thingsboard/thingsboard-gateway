@@ -395,7 +395,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         self.reset_slave_default_values()
 
     def test_gateway_restarted(self):
-        self.client.handle_two_way_device_rpc_request(self.gateway.id, {"method": "gateway_restart"})
+        self.client.handle_two_way_device_rpc_request(self.gateway.id, {"method": "gateway_restart", "timeout": 5000})
         sleep(15)
         while not self.is_gateway_connected():
             LOG.info('Gateway connecting to TB...')

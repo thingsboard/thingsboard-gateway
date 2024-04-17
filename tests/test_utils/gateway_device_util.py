@@ -123,7 +123,8 @@ class GatewayDeviceUtil:
         with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
             rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
                               password=GatewayDeviceUtil.DEFAULT_PASSWORD)
-            rest_client.handle_two_way_device_rpc_request(cls.GATEWAY_DEVICE.id, {"method": "gateway_restart"})
+            rest_client.handle_two_way_device_rpc_request(cls.GATEWAY_DEVICE.id,
+                                                          {"method": "gateway_restart", "timeout": 5000})
             sleep(10)
 
         while not cls.is_gateway_connected():
