@@ -39,7 +39,7 @@ class BaseOpcuaTest(BaseTest):
         with RestClientCE(url) as cls.client:
             cls.client.login(username, password)
 
-            cls.gateway = cls.client.get_tenant_devices(10, 0, text_search='Gateway').data[0]
+            cls.gateway = cls.client.get_tenant_devices(20, 0, text_search='Gateway').data[0]
             assert cls.gateway is not None
 
             start_connecting_time = time()
@@ -61,7 +61,7 @@ class BaseOpcuaTest(BaseTest):
             start_device_creation_time = time()
             while time() - start_device_creation_time < DEVICE_CREATION_TIMEOUT:
                 try:
-                    cls.device = cls.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
+                    cls.device = cls.client.get_tenant_devices(20, 0, text_search='Temp Sensor').data[0]
                 except IndexError:
                     sleep(1)
                 else:

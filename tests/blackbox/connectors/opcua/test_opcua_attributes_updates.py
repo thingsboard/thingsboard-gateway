@@ -35,6 +35,7 @@ class OpcuaAsyncioAttributesUpdatesTest(BaseOpcuaTest):
 
         # reset node values to default
         self.reset_node_default_values()
+        sleep(self.GENERAL_TIMEOUT)
 
     def test_attr_update_after_connection_lost(self):
         GatewayDeviceUtil.update_credentials({"credentialsType": "ACCESS_TOKEN",
@@ -59,3 +60,4 @@ class OpcuaAsyncioAttributesUpdatesTest(BaseOpcuaTest):
 
         # reset node values to default
         self.reset_node_default_values()
+        sleep(self.GENERAL_TIMEOUT)
