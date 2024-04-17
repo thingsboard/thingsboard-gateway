@@ -68,7 +68,8 @@ class RESTConnector(Connector, Thread):
                            'MessagesSent': 0}
         self.name = config.get("name", 'REST Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__gateway = gateway
-        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
+        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
+                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False))
         self._default_downlink_converter = TBModuleLoader.import_module(self._connector_type,
                                                                         self._default_converters['downlink'])
         self._default_uplink_converter = TBModuleLoader.import_module(self._connector_type,

@@ -456,6 +456,7 @@ class RemoteConfigurator:
             "id": "bee7caf1-fd37-4026-8782-d480915d4d1a"
             "type": "mqtt",
             "configuration": "mqtt.json",
+            "enableRemoteLogging": false,
             "logLevel": "INFO",
             "key?type=>grpc": "auto",
             "class?type=>custom": "",
@@ -482,10 +483,12 @@ class RemoteConfigurator:
                 connector_id = TBUtility.get_or_create_connector_id(found_connectors[0].get("configurationJson"))
             else:
                 connector_id = TBUtility.get_or_create_connector_id(config.get('configurationJson'))
+
             if not found_connectors:
                 connector_configuration = {'name': config['name'],
                                            'type': config['type'],
                                            'id': connector_id,
+                                           'enableRemoteLogging': config.get('enableRemoteLogging', False),
                                            'configuration': config_file_name}
                 if config.get('key'):
                     connector_configuration['key'] = config['key']
@@ -496,6 +499,7 @@ class RemoteConfigurator:
                 with open(self._gateway.get_config_path() + config_file_name, 'w') as file:
                     config['configurationJson'].update({'logLevel': config['logLevel'],
                                                         'name': config['name'],
+                                                        'enableRemoteLogging': config.get('enableRemoteLogging', False),
                                                         'id': connector_id})
                     self.create_configuration_file_backup(config, config_file_name)
                     file.writelines(dumps(config['configurationJson'], indent='  '))
@@ -526,10 +530,15 @@ class RemoteConfigurator:
                         or found_connector.get('type') != config['type']
                         or found_connector.get('class') != config.get('class')
                         or found_connector.get('key') != config.get('key')
-                        or found_connector.get('configurationJson', {}).get('logLevel') != config.get('logLevel')):
+                        or found_connector.get('configurationJson', {}).get('logLevel') != config.get('logLevel')
+                        or found_connector.get('enableRemoteLogging', False) != config.get('enableRemoteLogging',
+                                                                                           False)):
                     changed = True
-                    connector_configuration = {'name': config['name'], 'type': config['type'],
-                                               'id': connector_id, 'configuration': config_file_name}
+                    connector_configuration = {'name': config['name'],
+                                               'type': config['type'],
+                                               'id': connector_id,
+                                               'enableRemoteLogging': config.get('enableRemoteLogging', False),
+                                               'configuration': config_file_name}
 
                     if config.get('key'):
                         connector_configuration['key'] = config['key']
@@ -543,6 +552,8 @@ class RemoteConfigurator:
                     with open(self._gateway.get_config_path() + config_file_name, 'w') as file:
                         config['configurationJson'].update({'logLevel': config['logLevel'],
                                                             'name': config['name'],
+                                                            'enableRemoteLogging': config.get('enableRemoteLogging',
+                                                                                              False),
                                                             'id': connector_id})
                         file.writelines(dumps(config['configurationJson'], indent='  '))
 

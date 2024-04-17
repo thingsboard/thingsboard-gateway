@@ -120,7 +120,8 @@ class MqttConnector(Connector, Thread):
 
         self.__id = self.config.get('id')
 
-        self.__log = init_logger(self.__gateway, self.config['name'], self.config.get('logLevel', 'INFO'))
+        self.__log = init_logger(self.__gateway, self.config['name'], self.config.get('logLevel', 'INFO'),
+                                 enable_remote_logging=self.config.get('enableRemoteLogging', False))
         self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__subscribes_sent = {}
 
