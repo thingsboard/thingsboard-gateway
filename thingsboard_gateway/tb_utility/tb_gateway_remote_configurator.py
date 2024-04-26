@@ -412,15 +412,17 @@ class RemoteConfigurator:
         try:
             config_file_name = config['configuration']
 
-            identifier_parameter = 'id' if config.get('id') else 'name'
-            found_connectors = list(filter(lambda item: item[identifier_parameter] == config[identifier_parameter],
-                                           self.connectors_configuration))
+            identifier_parameter = 'id' if config.get('configurationJson', {}).get('id') else 'name'
+            found_connectors = list(filter(
+                lambda item: item[identifier_parameter] == config.get('configurationJson', {}).get(
+                    identifier_parameter),
+                self.connectors_configuration))
 
-            if (config.get('configurationJson')
-                    and config.get('configurationJson').get('id') is None
+            if (config.get('configurationJson', {})
+                    and config.get('configurationJson', {}).get('id') is None
                     and len(found_connectors) > 0
                     and found_connectors[0].get('configurationJson') is not None
-                    and found_connectors[0].get('configurationJson').get('id') is not None):
+                    and found_connectors[0].get('configurationJson', {}).get('id') is not None):
                 connector_id = TBUtility.get_or_create_connector_id(found_connectors[0].get("configurationJson"))
             else:
                 connector_id = TBUtility.get_or_create_connector_id(config.get('configurationJson'))
