@@ -505,7 +505,7 @@ class RemoteConfigurator:
                     if connector_configuration.get('id') in self._gateway.available_connectors_by_id:
                         try:
                             close_start = monotonic()
-                            while not self._gateway.available_connectors_by_id[connector_configuration['id']].stopped:
+                            while not self._gateway.available_connectors_by_id[connector_configuration['id']].is_stopped():
                                 self._gateway.available_connectors_by_id[connector_configuration['id']].close()
                                 if monotonic() - close_start > 5:
                                     LOG.error('Connector %s not stopped in 5 seconds', connector_configuration['id'])
