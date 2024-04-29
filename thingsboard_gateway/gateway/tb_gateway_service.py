@@ -883,6 +883,14 @@ class TBGatewayService:
                                             self.available_connectors_by_id[connector_id] = connector
                                             self.available_connectors_by_name[connector_name] = connector
                                             connector.open()
+                                        elif available_connector is not None \
+                                            and not available_connector.is_stopped() \
+                                            and connector_name != available_connector.name:
+                                            available_connector.name = connector_name
+                                            del self.available_connectors_by_name[available_connector.name]
+                                            self.available_connectors_by_name[connector_name] = available_connector
+                                            log.info("[%r] Connector %s was renamed to %s", connector_id,
+                                                     available_connector.name, connector_name)
                                         else:
                                             log.warning("[%r] Connector with name %s already exists and not stopped!",
                                                         connector_id, connector_name)
