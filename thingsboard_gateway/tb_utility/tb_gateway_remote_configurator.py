@@ -15,7 +15,7 @@
 import os.path
 from logging import getLogger
 from logging.config import dictConfig
-from time import sleep, time
+from time import sleep, time, monotonic
 
 from regex import fullmatch
 from simplejson import dumps, load
@@ -503,9 +503,25 @@ class RemoteConfigurator:
                     if connector_configuration is None:
                         connector_configuration = found_connector
                     if connector_configuration.get('id') in self._gateway.available_connectors_by_id:
-                        self._gateway.available_connectors_by_id[connector_configuration['id']].close()
+                        try:
+                            close_start = monotonic()
+                            while not self._gateway.available_connectors_by_id[connector_configuration['id']].stopped:
+                                self._gateway.available_connectors_by_id[connector_configuration['id']].close()
+                                if monotonic() - close_start > 5:
+                                    LOG.error('Connector %s not stopped in 5 seconds', connector_configuration['id'])
+                                    break
+                        except Exception as e:
+                            LOG.exception("Exception on closing connector occurred:", exc_info=e)
                     elif connector_configuration.get('name') in self._gateway.available_connectors_by_name:
-                        self._gateway.available_connectors_by_name[connector_configuration['name']].close()
+                        try:
+                            close_start = monotonic()
+                            while not self._gateway.available_connectors_by_name[connector_configuration['name']].stopped:
+                                self._gateway.available_connectors_by_name[connector_configuration['name']].close()
+                                if monotonic() - close_start > 5:
+                                    LOG.error('Connector %s not stopped in 5 seconds', connector_configuration['name'])
+                                    break
+                        except Exception as e:
+                            LOG.exception("Exception on closing connector occurred:", exc_info=e)
                     else:
                         LOG.warning('Connector with id %s not found in available connectors', connector_configuration.get('id'))
                     if connector_configuration.get('id') in self._gateway.available_connectors_by_id:
