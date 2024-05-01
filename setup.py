@@ -17,15 +17,14 @@
 from setuptools import setup
 from os import path
 
+import version
 
 current_directory = path.abspath(path.dirname(__file__))
 with open(path.join(current_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
-VERSION = "3.4.6"
-
 setup(
-    version=VERSION,
+    version=version.VERSION,
     name="thingsboard-gateway",
     author="ThingsBoard",
     author_email="info@thingsboard.io",
@@ -73,7 +72,7 @@ setup(
         'packaging==23.1',
         'service-identity'
     ],
-    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % VERSION,
+    download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % version.VERSION,
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon',
