@@ -6,9 +6,7 @@
     "remoteConfiguration": true,
     "statistics": {
       "enable": true,
-      "statsSendPeriodInSeconds": 3600,
-      "configuration": null,
-      "commands": []
+      "statsSendPeriodInSeconds": 3600
     },
     "deviceFiltering": {
       "enable": false,
@@ -21,7 +19,7 @@
     "handleDeviceRenaming": true,
     "security": {
       "type": "accessToken",
-      "accessToken": "2VKu5PPEg6ADsMhaGlxh"
+      "accessToken": "YOUR_ACCESS_TOKEN"
     },
     "qos": 1,
     "checkingDeviceActivity": {
@@ -54,11 +52,5 @@
     "keepAliveTimeMs": 10000,
     "keepAliveTimeoutMs": 5000
   },
-  "connectors": [
-    {
-      "type": "modbus",
-      "name": "Temperature_Sensor_1",
-      "configuration": "temperatureSensor1.json"
-    }
-  ]
+  "connectors": []
 }
