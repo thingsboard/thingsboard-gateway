@@ -32,7 +32,7 @@ except ImportError:
     from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient
 
 import tb_device_mqtt
-tb_device_mqtt.DEFAULT_TIMEOUT = 1
+tb_device_mqtt.DEFAULT_TIMEOUT = 3
 
 class TBClient(threading.Thread):
     def __init__(self, config, config_folder_path, logger):
