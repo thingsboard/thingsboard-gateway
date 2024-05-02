@@ -70,7 +70,8 @@ setup(
         'cachetools',
         'tb-mqtt-client>=1.5',
         'packaging==23.1',
-        'service-identity'
+        'service-identity',
+        'Adafruit_DHT==1.4.0'
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % version.VERSION,
     entry_points={
