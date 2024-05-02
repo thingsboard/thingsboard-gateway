@@ -40,7 +40,6 @@ class RemoteConfigurator:
         self.in_process = False
         self._active_connectors = []
         self._handlers = {
-            'general_configuration': self._handle_general_configuration_update,
             'storage_configuration': self._handle_storage_configuration_update,
             'grpc_configuration': self._handle_grpc_configuration_update,
             'logs_configuration': self._handle_logs_configuration_update,
@@ -192,6 +191,10 @@ class RemoteConfigurator:
             LOG.debug('Got config update request: %s', config)
 
             self.in_process = True
+
+            if 'general_configuration' in config.keys():
+                self._handle_general_configuration_update(config['general_configuration'])
+                config.pop('general_configuration', None)
 
             try:
                 for attr_name in config.keys():
