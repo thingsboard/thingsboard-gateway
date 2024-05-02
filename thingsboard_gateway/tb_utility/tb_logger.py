@@ -17,33 +17,26 @@ from time import sleep
 from threading import Thread
 
 
-def init_logger(gateway, name, level, enable_remote_logging=False):
+def init_logger(gateway, name, level):
     """
     For creating a Logger with all config automatically
     Create a Logger manually only if you know what you are doing!
     """
     log = TbLogger(name=name, gateway=gateway)
 
-    if enable_remote_logging:
-        from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
-        remote_handler = TBLoggerHandler(gateway)
-        log.addHandler(remote_handler)
+    if hasattr(gateway, 'remote_handler'):
+        log.addHandler(gateway.remote_handler)
         log.setLevel(gateway.main_handler.level)
-        remote_handler.add_logger(name)
-        remote_handler.activate()
+        gateway.remote_handler.add_logger(name)
 
     if hasattr(gateway, 'main_handler'):
         log.addHandler(gateway.main_handler)
-        log.setLevel(gateway.main_handler.level)
+        log.setLevel(gateway.remote_handler.level)
 
     log_level_conf = level
     if log_level_conf:
         log_level = logging.getLevelName(log_level_conf)
-
-        try:
-            log.setLevel(log_level)
-        except ValueError:
-            log.setLevel(logging.NOTSET)
+        log.setLevel(log_level)
 
     return log
 

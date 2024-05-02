@@ -26,8 +26,8 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
         datatypes = {"attributes": "attributes",
                      "timeseries": "telemetry"}
         dict_result = {
-            "deviceName": self.parse_data(self.__config['deviceInfo']['deviceNameExpression'], data),
-            "deviceType": self.parse_data(self.__config['deviceInfo']['deviceProfileExpression'], data),
+            "deviceName": self.parse_data(self.__config['deviceNameExpression'], data),
+            "deviceType": self.parse_data(self.__config['deviceTypeExpression'], data),
             "attributes": [],
             "telemetry": []
         }

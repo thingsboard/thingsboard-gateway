@@ -49,8 +49,7 @@ class BACnetConnector(Thread, Connector):
         self.__device_indexes = {}
         self.__devices_address_name = {}
         self.__gateway = gateway
-        self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+        self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self._application = TBBACnetApplication(self, self.__config, self._log)
         self.__bacnet_core_thread = Thread(target=run, name="BACnet core thread", daemon=True,
                                            kwargs={"sigterm": None, "sigusr1": None})

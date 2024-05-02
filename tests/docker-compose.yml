@@ -1,7 +1,6 @@
 version: '3.5'
 services:
   tb:
-    container_name: tests_tb_1
     image: "thingsboard/tb-postgres"
     environment:
       TB_QUEUE_TYPE: in-memory
@@ -10,7 +9,6 @@ services:
       - tb-logs:/var/log/thingsboard
     network_mode: host
   gw:
-    container_name: tests_gw_1
     image: "tb-gateway"
     environment:
       - TB_GW_HOST=127.0.0.1

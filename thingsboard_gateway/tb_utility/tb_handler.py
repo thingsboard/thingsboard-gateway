@@ -145,7 +145,7 @@ class TBLoggerHandler(logging.Handler):
 class TimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
     def __init__(self, filename, when='h', interval=1, backupCount=0,
                  encoding=None, delay=False, utc=False):
-        config_path = environ.get('TB_GW_LOGS_PATH')
+        config_path = environ.get('logs')
         if config_path:
             filename = config_path + '/' + filename.split('/')[-1]
 

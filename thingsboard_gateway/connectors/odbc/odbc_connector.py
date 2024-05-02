@@ -60,8 +60,7 @@ class OdbcConnector(Connector, Thread):
         self.__gateway = gateway
         self.__config = config
         self.__id = self.__config.get('id')
-        self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+        self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self._connector_type = connector_type
         self.__stopped = False
 

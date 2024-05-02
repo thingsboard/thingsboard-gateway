@@ -45,8 +45,7 @@ class SocketConnector(Connector, Thread):
                            'MessagesSent': 0}
         self.__gateway = gateway
         self.name = config.get("name", 'TCP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
-        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'))
         self.daemon = True
         self.__stopped = False
         self._connected = False
