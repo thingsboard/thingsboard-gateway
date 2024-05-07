@@ -68,7 +68,7 @@ setup(
         'grpcio==1.58.0',
         'protobuf',
         'cachetools',
-        'tb-mqtt-client>=1.5',
+        'tb-mqtt-client>=1.9.1',
         'packaging==23.1',
         'service-identity'
     ],
