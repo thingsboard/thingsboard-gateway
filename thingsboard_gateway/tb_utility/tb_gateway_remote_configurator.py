@@ -417,7 +417,7 @@ class RemoteConfigurator:
             identifier_parameter = 'id' if config.get('configurationJson', {}).get('id') else 'name'
             found_connectors = list(filter(
                 lambda item: item[identifier_parameter] == config.get('configurationJson', {}).get(
-                    identifier_parameter),
+                    identifier_parameter) or config.get(identifier_parameter),
                 self.connectors_configuration))
 
             if (config.get('configurationJson', {})
@@ -517,7 +517,7 @@ class RemoteConfigurator:
                     elif connector_configuration.get('name') in self._gateway.available_connectors_by_name:
                         try:
                             close_start = monotonic()
-                            while not self._gateway.available_connectors_by_name[connector_configuration['name']].stopped:
+                            while not self._gateway.available_connectors_by_name[connector_configuration['name']].is_stopped():
                                 self._gateway.available_connectors_by_name[connector_configuration['name']].close()
                                 if monotonic() - close_start > 5:
                                     LOG.error('Connector %s not stopped in 5 seconds', connector_configuration['name'])
