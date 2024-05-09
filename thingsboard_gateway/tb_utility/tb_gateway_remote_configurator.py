@@ -539,10 +539,9 @@ class RemoteConfigurator:
                     self._gateway.connect_with_connectors()
 
             for device_name in list(self._gateway.get_devices().keys()):
-                for connector_id in self._gateway.available_connectors_by_id.keys():
-                    if (self._gateway.available_connectors_by_id.get(connector_id)
-                            and self._gateway.available_connectors_by_id[connector_id].get_id() == connector_id):
-                        self._gateway.update_device(device_name, "connector", self._gateway.available_connectors_by_id[connector_id])
+                device_connector = self._gateway.get_devices()[device_name]
+                if device_connector is None:
+                    self._gateway.update_device(device_name, "connector", device_connector)
 
             self._gateway.tb_client.client.send_attributes({config['name']: config})
         except Exception as e:
