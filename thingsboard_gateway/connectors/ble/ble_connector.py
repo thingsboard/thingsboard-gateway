@@ -97,7 +97,14 @@ class BLEConnector(Connector, Thread):
         thread.start()
 
     def close(self):
+        self.__connected = False
         self.__stopped = True
+
+        for device in self.__devices:
+            device.stop()
+
+        self.__devices = []
+
         self.__log.info('%s has been stopped.', self.get_name())
         self.__log.reset()
 
