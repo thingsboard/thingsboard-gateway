@@ -101,7 +101,7 @@ class BLEConnector(Connector, Thread):
         self.__stopped = True
 
         for device in self.__devices:
-            device.stopped = True
+            device.stop()
 
         self.__devices = []
 
