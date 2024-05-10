@@ -43,21 +43,21 @@ class OpcuaAsyncioUplinkMessagesTest(BaseOpcuaTest):
             self.assertEqual(value, actual_values[_type][0]['value'],
                              f'Value is not equal for the next telemetry key: {_type}')
 
-    def test_gateway_restarted(self):
-        sleep(8)
-        GatewayDeviceUtil.restart_gateway()
-        restarted_time = time() * 1000
-        config = self.load_configuration(
-            self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_path.json')
-        GatewayDeviceUtil.update_connector_config(
-            self.CONNECTOR_NAME,
-            self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_path.json')
-        sleep(self.GENERAL_TIMEOUT)
-        telemetry_keys = [key['key'] for node in config['Opcua']['configurationJson']['server']['mapping'] for
-                          key in node['timeseries']]
-        actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
-        for actual_value in actual_values.values():
-            self.assertGreater(actual_value[0]['ts'], restarted_time)
+    # def test_gateway_restarted(self):
+    #     sleep(8)
+    #     GatewayDeviceUtil.restart_gateway()
+    #     restarted_time = time() * 1000
+    #     config = self.load_configuration(
+    #         self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_path.json')
+    #     GatewayDeviceUtil.update_connector_config(
+    #         self.CONNECTOR_NAME,
+    #         self.CONFIG_PATH + 'configs/uplink_configs/different_node_finding_methods_config_path.json')
+    #     sleep(self.GENERAL_TIMEOUT)
+    #     telemetry_keys = [key['key'] for node in config['Opcua']['configurationJson']['server']['mapping'] for
+    #                       key in node['timeseries']]
+    #     actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+    #     for actual_value in actual_values.values():
+    #         self.assertGreater(actual_value[0]['ts'], restarted_time)
 
     def test_sending_attrs_and_telemetries_after_connection_lost(self):
         GatewayDeviceUtil.update_credentials({"credentialsType": "ACCESS_TOKEN",

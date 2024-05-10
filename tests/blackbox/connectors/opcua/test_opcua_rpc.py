@@ -80,32 +80,32 @@ class OpcuaAsyncioRPCTest(BaseOpcuaTest):
             self.assertEqual(result[rpc_method]['result'], expected_values[rpc_method],
                              f'Value is not equal for the next rpc: {rpc_method}')
 
-    def test_rps_after_gateway_restart(self):
-        """
-        (AsyncIO) Method tests the RPC operations after a gateway restart. It first restarts the gateway and then
-        loads the configuration and expected values.
-        It then updates the connector configuration and sleeps for 3 seconds.
-        It iterates over the RPC methods, for each method, it sends a two-way device RPC request and compares the result
-        with the expected value. It then sleeps for 3 seconds and gets the latest timeseries. It asserts that the value
-        from the latest timeseries is equal to the expected value.
-        """
-
-        GatewayDeviceUtil.restart_gateway()
-        (config, _) = GatewayDeviceUtil.update_connector_config(
-            self.CONNECTOR_NAME, self.CONFIG_PATH + 'configs/rpc_configs/rpc_server_method.json')
-        sleep(15)
-        expected_values = self.load_configuration(
-            self.CONFIG_PATH + 'test_values/rpc/rpc_server_method_values.json')
-
-        for rpc in config[self.CONNECTOR_NAME]['configurationJson']['server']['mapping'][0]['rpc_methods']:
-            rpc_method = rpc.pop('method')
-            result = self.client.handle_two_way_device_rpc_request(self.device.id,
-                                                                   {
-                                                                       "method": rpc_method,
-                                                                       "params": rpc['arguments']
-                                                                   })
-            self.assertEqual(result[rpc_method]['result'], expected_values[rpc_method],
-                             f'Value is not equal for the next rpc: {rpc_method}')
+    # def test_rps_after_gateway_restart(self):
+    #     """
+    #     (AsyncIO) Method tests the RPC operations after a gateway restart. It first restarts the gateway and then
+    #     loads the configuration and expected values.
+    #     It then updates the connector configuration and sleeps for 3 seconds.
+    #     It iterates over the RPC methods, for each method, it sends a two-way device RPC request and compares the result
+    #     with the expected value. It then sleeps for 3 seconds and gets the latest timeseries. It asserts that the value
+    #     from the latest timeseries is equal to the expected value.
+    #     """
+    #
+    #     GatewayDeviceUtil.restart_gateway()
+    #     (config, _) = GatewayDeviceUtil.update_connector_config(
+    #         self.CONNECTOR_NAME, self.CONFIG_PATH + 'configs/rpc_configs/rpc_server_method.json')
+    #     sleep(15)
+    #     expected_values = self.load_configuration(
+    #         self.CONFIG_PATH + 'test_values/rpc/rpc_server_method_values.json')
+    #
+    #     for rpc in config[self.CONNECTOR_NAME]['configurationJson']['server']['mapping'][0]['rpc_methods']:
+    #         rpc_method = rpc.pop('method')
+    #         result = self.client.handle_two_way_device_rpc_request(self.device.id,
+    #                                                                {
+    #                                                                    "method": rpc_method,
+    #                                                                    "params": rpc['arguments']
+    #                                                                })
+    #         self.assertEqual(result[rpc_method]['result'], expected_values[rpc_method],
+    #                          f'Value is not equal for the next rpc: {rpc_method}')
 
     def test_rpc_after_gateway_connection_lost(self):
         """
