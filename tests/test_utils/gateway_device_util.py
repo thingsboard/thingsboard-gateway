@@ -9,7 +9,7 @@ LOG = logging.getLogger("TEST")
 
 
 class GatewayDeviceUtil:
-    DEFAULT_URL = environ.get('TB_BASE_URL', "http://127.0.0.1:8080")
+    DEFAULT_URL = environ.get('TB_BASE_URL', "http://192.168.0.9:8080")
 
     DEFAULT_USERNAME = "tenant@thingsboard.org"
     DEFAULT_PASSWORD = "tenant"
@@ -103,7 +103,7 @@ class GatewayDeviceUtil:
             return config, response
 
     @classmethod
-    def is_gateway_connected(cls):
+    def is_gateway_connected(cls, start_time):
         """
         Check if the gateway is connected.
 
@@ -114,7 +114,11 @@ class GatewayDeviceUtil:
             try:
                 rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
                                   password=GatewayDeviceUtil.DEFAULT_PASSWORD)
-                return rest_client.get_attributes_by_scope(cls.GATEWAY_DEVICE.id, 'SERVER_SCOPE', 'active')[0]['value']
+                result = rest_client.get_attributes_by_scope(cls.GATEWAY_DEVICE.id, 'CLIENT_SCOPE', 'logs_configuration')
+                if len(result):
+                    return result[0].get('lastUpdateTs', 0) / 1000 >= start_time
+
+                return False
             except IndexError:
                 return False
 

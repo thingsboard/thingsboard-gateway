@@ -39,12 +39,12 @@ class BaseOpcuaTest(BaseTest):
         with RestClientCE(url) as cls.client:
             cls.client.login(username, password)
 
+            start_connecting_time = time()
+
             cls.gateway = cls.client.get_tenant_devices(20, 0, text_search='Gateway').data[0]
             assert cls.gateway is not None
 
-            start_connecting_time = time()
-
-            while not GatewayDeviceUtil.is_gateway_connected():
+            while not GatewayDeviceUtil.is_gateway_connected(start_connecting_time):
                 LOG.info('Gateway connecting to TB...')
                 sleep(1)
                 if time() - start_connecting_time > CONNECTION_TIMEOUT:
