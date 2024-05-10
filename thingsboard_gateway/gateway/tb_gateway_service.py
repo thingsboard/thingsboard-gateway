@@ -26,7 +26,7 @@ from signal import signal, SIGINT
 from string import ascii_lowercase, hexdigits
 from sys import argv, executable, getsizeof
 from threading import RLock, Thread, main_thread, current_thread
-from time import sleep, time
+from time import sleep, time, monotonic
 
 from simplejson import JSONDecodeError, dumps, load, loads
 from yaml import safe_load
@@ -533,10 +533,15 @@ class TBGatewayService:
     def __close_connectors(self):
         for current_connector in self.available_connectors_by_id:
             try:
-                self.available_connectors_by_id[current_connector].close()
+                close_start = monotonic()
+                while not self.available_connectors_by_id[current_connector].is_stopped():
+                    self.available_connectors_by_id[current_connector].close()
+                    if monotonic() - close_start > 5:
+                        log.error("Connector %s close timeout", current_connector)
+                        break
                 log.debug("Connector %s closed connection.", current_connector)
             except Exception as e:
-                log.exception(e)
+                log.exception("Error while closing connector %s", current_connector, exc_info=e)
 
     def __stop_gateway(self):
         self.stopped = True
@@ -893,7 +898,7 @@ class TBGatewayService:
                             except Exception as e:
                                 log.error("[%r] Error on loading connector %r: %r", connector_id, connector_name, e)
                                 log.exception(e, attr_name=connector_name)
-                                if connector is not None:
+                                if connector is not None and not connector.is_stopped():
                                     connector.close()
                     else:
                         self.__grpc_connectors.update({connector_config['grpc_key']: connector_config})

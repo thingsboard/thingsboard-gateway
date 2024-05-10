@@ -19,10 +19,11 @@ from time import sleep, time
 from uuid import uuid1
 
 from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version
+from importlib.metadata import version as metadata_version
 from requests import ConnectionError, post
 from simplejson import loads
 
+import version
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 log = getLogger("service")
@@ -35,10 +36,10 @@ class TBUpdater(Thread):
         super().__init__()
 
         try:
-            self.__version = {"current_version": version('thingsboard_gateway'),
-                              "latest_version": version('thingsboard_gateway')}
+            distribution_version = metadata_version('thingsboard_gateway')
+            self.__version = {"current_version": distribution_version, "latest_version": distribution_version}
         except PackageNotFoundError:
-            self.__version = {"current_version": "0.0", "latest_version": "0.0"}
+            self.__version = {"current_version": version.VERSION, "latest_version": version.VERSION}
 
         self.__instance_id = str(uuid1())
         self.__platform = system()

@@ -21,9 +21,10 @@ services:
 
     # Environment variables
     environment:
-      - host=host.docker.internal
-      - port=1883
-      - accessToken=YOUR_ACCESS_TOKEN
+      - TB_GW_HOST=host.docker.internal
+      - TB_GW_PORT=1883
+      - TB_GW_ACCESS_TOKEN=YOUR_ACCESS_TOKEN
+      - TB_GW_LOGS_PATH=/thingsboard_gateway/logs
 
     # Volumes bind
     volumes:
