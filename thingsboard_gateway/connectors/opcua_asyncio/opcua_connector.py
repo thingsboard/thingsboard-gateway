@@ -46,6 +46,12 @@ SECURITY_POLICIES = {
     "Basic256Sha256": SecurityPolicyBasic256Sha256,
 }
 
+MESSAGE_SECURITY_MODES = {
+    "None": asyncua.ua.MessageSecurityMode.None_,
+    "Sign": asyncua.ua.MessageSecurityMode.Sign,
+    "SignAndEncrypt": asyncua.ua.MessageSecurityMode.SignAndEncrypt
+}
+
 
 class OpcUaConnectorAsyncIO(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
@@ -194,6 +200,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
             private_key = self.__server_conf["identity"].get("privateKey")
             cert = self.__server_conf["identity"].get("cert")
             policy = self.__server_conf["security"]
+            mode = self.__server_conf["identity"].get("mode", "SignAndEncrypt")
 
             if cert is None or private_key is None:
                 self.__log.exception("Error in ssl configuration - cert or privateKey parameter not found")
@@ -203,7 +210,8 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                 SECURITY_POLICIES[policy],
                 certificate=cert,
                 private_key=private_key,
-                server_certificate=ca_cert
+                server_certificate=ca_cert,
+                mode=MESSAGE_SECURITY_MODES[mode]
             )
         except Exception as e:
             self.__log.exception(e)
