@@ -159,7 +159,7 @@ class CustomSerialConnector(Thread, Connector):  # Define a connector class, it 
             self.__gateway.del_device(self.__devices[device]["device_config"]["name"])
             if self.__devices[device]['serial'].isOpen():
                 self.__devices[device]['serial'].close()
-        self._log.reset()
+        self._log.stop()
 
     def on_attributes_update(self, content):  # Function used for processing attribute update requests from ThingsBoard
         self._log.debug(content)

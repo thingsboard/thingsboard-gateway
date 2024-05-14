@@ -106,7 +106,7 @@ class BLEConnector(Connector, Thread):
         self.__devices = []
 
         self.__log.info('%s has been stopped.', self.get_name())
-        self.__log.reset()
+        self.__log.stop()
 
     def get_name(self):
         return self.name

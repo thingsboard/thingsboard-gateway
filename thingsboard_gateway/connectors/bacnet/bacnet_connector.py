@@ -111,7 +111,7 @@ class BACnetConnector(Thread, Connector):
     def close(self):
         self.__stopped = True
         self.__connected = False
-        self._log.reset()
+        self._log.stop()
 
         self._application.mux.directPort.connected = False
         self._application.mux.directPort.accepting = False
