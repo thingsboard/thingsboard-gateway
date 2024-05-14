@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-CURRENT_VERSION=$( grep -Po 'VERSION[ ,]=[ ,]\"\K(([0-9])+(\.){0,1})+' version.py )
+CURRENT_VERSION=$( grep -Po 'VERSION[ ,]=[ ,]\"\K(([0-9])+(\.){0,1})+' thingsboard_gateway/version.py )
 if [ "$1" = "clean" ] || [ "$1" = "only_clean" ] ; then
   sudo rm -rf /var/log/thingsboard-gateway/
   sudo rm -rf deb_dist/

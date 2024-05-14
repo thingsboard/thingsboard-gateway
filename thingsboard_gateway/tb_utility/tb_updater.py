@@ -23,7 +23,7 @@ from importlib.metadata import version as metadata_version
 from requests import ConnectionError, post
 from simplejson import loads
 
-import version
+from thingsboard_gateway import version
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 log = getLogger("service")
