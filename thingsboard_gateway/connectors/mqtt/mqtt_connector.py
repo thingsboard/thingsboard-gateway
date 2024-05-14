@@ -341,7 +341,7 @@ class MqttConnector(Connector, Thread):
         for worker in self.__workers_thread_pool:
             worker.stop()
         self.__log.info('%s has been stopped.', self.get_name())
-        self.__log.reset()
+        self.__log.stop()
 
     def get_name(self):
         return self.name

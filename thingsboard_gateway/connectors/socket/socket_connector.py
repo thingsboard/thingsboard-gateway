@@ -311,7 +311,7 @@ class SocketConnector(Connector, Thread):
                 pass  # Ignore errors when socket is already closed
             self.__socket.close()
             sleep(0.01)
-        self.__log.reset()
+        self.__log.stop()
 
     def get_name(self):
         return self.name

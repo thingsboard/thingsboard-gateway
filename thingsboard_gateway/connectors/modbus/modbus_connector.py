@@ -343,7 +343,7 @@ class ModbusConnector(Connector, Thread):
 
         # self.__slave_thread.join()
         self.__log.info('%s has been stopped.', self.get_name())
-        self.__log.reset()
+        self.__log.stop()
         self.__stopping = False
 
     def get_name(self):
