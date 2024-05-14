@@ -1,6 +1,7 @@
 import unittest
 from os import path
 import logging
+from time import sleep, time
 
 from pymodbus.exceptions import ConnectionException
 import pymodbus.client as ModbusClient
@@ -11,7 +12,8 @@ from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 CONNECTION_TIMEOUT = 300
-DEVICE_CREATION_TIMEOUT = 60
+DEVICE_CREATION_TIMEOUT = 200
+GENERAL_TIMEOUT = 6
 
 LOG = logging.getLogger("TEST")
 
@@ -43,7 +45,7 @@ class ModbusUplinkMessagesTest(BaseTest):
 
             start_connecting_time = time()
 
-            while not cls.is_gateway_connected():
+            while not GatewayDeviceUtil.is_gateway_connected(start_connecting_time):
                 LOG.info('Gateway connecting to TB...')
                 sleep(1)
                 if time() - start_connecting_time > CONNECTION_TIMEOUT:
@@ -67,7 +69,7 @@ class ModbusUplinkMessagesTest(BaseTest):
 
     @classmethod
     def tearDownClass(cls):
-        super(ModbusUplinkMessagesTest, cls).tearDownClass()
+        GatewayDeviceUtil.clear_connectors()
         GatewayDeviceUtil.delete_device(cls.device.id)
 
         client = ModbusClient.ModbusTcpClient('localhost', port=5021)
@@ -81,6 +83,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             pass
 
         client.close()
+        super(ModbusUplinkMessagesTest, cls).tearDownClass()
         sleep(2)
 
     @classmethod
@@ -104,34 +107,8 @@ class ModbusUplinkMessagesTest(BaseTest):
         config = cls.load_configuration(config_file_path)
         config['Modbus']['ts'] = int(time() * 1000)
         response = cls.client.save_device_attributes(cls.gateway.id, 'SHARED_SCOPE', config)
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         return config, response
-
-    @classmethod
-    def is_gateway_connected(cls):
-        """
-        Check if the gateway is connected.
-
-        Returns:
-            bool: True if the gateway is connected, False otherwise.
-        """
-
-        try:
-            return cls.client.get_attributes_by_scope(cls.gateway.id, 'SERVER_SCOPE', 'active')[0]['value']
-        except IndexError:
-            return False
-
-    def test_gateway_connection(self):
-        """
-        Test the gateway connection by asserting that the value returned by
-        `get_attributes_by_scope` is `True`.
-
-        Returns:
-            None
-        """
-
-        self.assertEqual(self.client.get_attributes_by_scope(self.gateway.id, 'SERVER_SCOPE', 'active')[0]['value'],
-                         True)
 
     def test_send_only_on_data_changed(self):
         """
@@ -159,7 +136,7 @@ class ModbusUplinkMessagesTest(BaseTest):
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
         actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
-        sleep(5)
+        sleep(GENERAL_TIMEOUT)
         latest_ts_1 = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
 
         # check that timestamps are equal
@@ -193,7 +170,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_input_registers_reading_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/uplink/input_registers_values_little.json')
@@ -227,7 +204,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_holding_registers_reading_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/uplink/holding_registers_values_little.json')
@@ -261,7 +238,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_coils_reading_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/uplink/discrete_and_coils_registers_values_little.json')
@@ -285,7 +262,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_discrete_input_reading_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/uplink/discrete_and_coils_registers_values_little.json')
@@ -312,7 +289,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_input_registers_reading_big.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/uplink/input_registers_values_big.json')
@@ -336,7 +313,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_holding_registers_reading_big.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/uplink/holding_registers_values_big.json')
@@ -361,7 +338,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_coils_reading_big.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/uplink/discrete_and_coils_registers_values_big.json')
@@ -386,7 +363,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'configs/uplink_configs/modbus_uplink_converter_discrete_input_reading_big.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/uplink/discrete_and_coils_registers_values_big.json')

@@ -36,15 +36,7 @@
                 "address": 0
               }
             ],
-            "timeseries": [
-              {
-                "tag": "8uint_read",
-                "type": "8uint",
-                "functionCode": 4,
-                "objectsCount": 1,
-                "address": 17
-              }
-            ],
+            "timeseries": [],
             "attributeUpdates": [],
             "rpc": []
           }

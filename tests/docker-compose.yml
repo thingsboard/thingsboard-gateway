@@ -22,13 +22,16 @@ services:
       - tb-gw-extensions:/thingsboard_gateway/extensions
     network_mode: host
   mqtt-broker:
-    image: "thingsboard/tb-gw-mqtt-broker"
+    container_name: tests_mqtt_broker_1
+    image: "thingsboard/tb-gw-mqtt-broker:latest"
     network_mode: host
   modbus-server:
-    image: "thingsboard/tb-gw-modbus-server"
+    container_name: tests_modbus_server_1
+    image: "thingsboard/tb-gw-modbus-server:latest"
     network_mode: host
   opcua-server:
-    image: "thingsboard/tb-gw-opcua-server"
+    container_name: tests_opcua_server_1
+    image: "thingsboard/tb-gw-opcua-server:latest"
     network_mode: host
 volumes:
   tb-data:

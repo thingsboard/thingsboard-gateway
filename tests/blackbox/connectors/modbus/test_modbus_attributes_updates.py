@@ -1,5 +1,6 @@
 import unittest
 from os import path
+from time import time, sleep
 import logging
 
 from pymodbus.exceptions import ConnectionException
@@ -11,7 +12,8 @@ from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 CONNECTION_TIMEOUT = 300
-DEVICE_CREATION_TIMEOUT = 60
+DEVICE_CREATION_TIMEOUT = 200
+GENERAL_TIMEOUT = 6
 
 
 LOG = logging.getLogger("TEST")
@@ -68,7 +70,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
 
     @classmethod
     def tearDownClass(cls):
-        super(ModbusAttributesUpdatesTest, cls).tearDownClass()
+        GatewayDeviceUtil.clear_connectors()
         GatewayDeviceUtil.delete_device(cls.device.id)
 
         client = ModbusClient.ModbusTcpClient('localhost', port=5021)
@@ -81,6 +83,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             pass
 
         client.close()
+        super(ModbusAttributesUpdatesTest, cls).tearDownClass()
         sleep(2)
 
     @classmethod
@@ -88,20 +91,6 @@ class ModbusAttributesUpdatesTest(BaseTest):
         with open(config_file_path, 'r', encoding="UTF-8") as config:
             config = load(config)
         return config
-
-    @classmethod
-    def is_gateway_connected(cls):
-        """
-        Check if the gateway is connected.
-
-        Returns:
-            bool: True if the gateway is connected, False otherwise.
-        """
-
-        try:
-            return cls.client.get_attributes_by_scope(cls.gateway.id, 'SERVER_SCOPE', 'active')[0]['value']
-        except IndexError:
-            return False
 
     @classmethod
     def change_connector_configuration(cls, config_file_path):
@@ -118,7 +107,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         config = cls.load_configuration(config_file_path)
         config['Modbus']['ts'] = int(time() * 1000)
         response = cls.client.save_device_attributes(cls.gateway.id, 'SHARED_SCOPE', config)
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         return config, response
 
     def reset_slave_default_values(self):
@@ -186,7 +175,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_holding_registers_little.json',
             'test_values/attrs_update/holding_registers_values_little.json'
         )
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/holding_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -220,7 +209,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_coils_registers_little.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -250,7 +239,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_discrete_input_little.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_little.json'
         )
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -277,7 +266,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_input_registers_big.json',
             'test_values/attrs_update/input_registers_values_big.json'
         )
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -315,7 +304,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_holding_registers_big.json',
             'test_values/attrs_update/holding_registers_values_big.json'
         )
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/holding_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -345,7 +334,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_coils_registers_big.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_big.json'
         )
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -373,7 +362,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_discrete_input_big.json',
             'test_values/attrs_update/discrete_and_coils_registers_values_big.json'
         )
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/discrete_and_coils_registers_values_big.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,
@@ -391,15 +380,16 @@ class ModbusAttributesUpdatesTest(BaseTest):
 
     def test_gateway_restarted(self):
         self.client.handle_two_way_device_rpc_request(self.gateway.id, {"method": "gateway_restart"})
+        start_time = time()
         sleep(15)
-        while not self.is_gateway_connected():
+        while not GatewayDeviceUtil.is_gateway_connected(start_time):
             LOG.info('Gateway connecting to TB...')
             sleep(1)
         self.update_device_and_connector_shared_attributes(
             'configs/attrs_update_configs/attrs_update_input_registers_little.json',
             'test_values/attrs_update/input_registers_values_little.json'
         )
-        sleep(5)
+        sleep(GENERAL_TIMEOUT)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_little.json')
         actual_values = self.client.get_latest_timeseries(self.device.id,

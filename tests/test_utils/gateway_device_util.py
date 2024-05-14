@@ -1,4 +1,5 @@
 import logging
+from os import environ
 
 from simplejson import loads
 from tb_rest_client.rest import ApiException
@@ -8,7 +9,7 @@ LOG = logging.getLogger("TEST")
 
 
 class GatewayDeviceUtil:
-    DEFAULT_URL = "http://127.0.0.1:9090"
+    DEFAULT_URL = environ.get('TB_BASE_URL', "http://127.0.0.1:9090")
 
     DEFAULT_USERNAME = "tenant@thingsboard.org"
     DEFAULT_PASSWORD = "tenant"
@@ -83,3 +84,70 @@ class GatewayDeviceUtil:
             except ApiException as e:
                 LOG.exception(e)
                 exit(1)
+
+    @classmethod
+    def load_configuration(cls, config_file_path):
+        with open(config_file_path, 'r', encoding="UTF-8") as config:
+            config = load(config)
+        return config
+
+    @classmethod
+    def update_connector_config(cls, connector_name, config_file_path):
+        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+            rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
+                              password=GatewayDeviceUtil.DEFAULT_PASSWORD)
+            config = cls.load_configuration(config_file_path)
+            config[connector_name]['ts'] = int(time() * 1000)
+            response = rest_client.save_device_attributes(cls.GATEWAY_DEVICE.id, 'SHARED_SCOPE', config)
+            sleep(4)
+            return config, response
+
+    @classmethod
+    def is_gateway_connected(cls, start_time):
+        """
+        Check if the gateway is connected.
+        Returns:
+            bool: True if the gateway is connected, False otherwise.
+        """
+        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+            try:
+                rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
+                                  password=GatewayDeviceUtil.DEFAULT_PASSWORD)
+                result = rest_client.get_attributes_by_scope(cls.GATEWAY_DEVICE.id, 'CLIENT_SCOPE', 'logs_configuration')
+                if len(result):
+                    return result[0].get('lastUpdateTs', 0) / 1000 >= start_time
+
+                return False
+            except IndexError:
+                return False
+
+    @classmethod
+    def restart_gateway(cls):
+        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+            rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
+                              password=GatewayDeviceUtil.DEFAULT_PASSWORD)
+            rest_client.handle_two_way_device_rpc_request(cls.GATEWAY_DEVICE.id,
+                                                          {"method": "gateway_restart", "timeout": 60000})
+            sleep(10)
+
+        while not cls.is_gateway_connected():
+            LOG.info('Gateway connecting to TB...')
+            sleep(1)
+
+    @classmethod
+    def update_credentials(cls, creds):
+        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+            rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
+                              password=GatewayDeviceUtil.DEFAULT_PASSWORD)
+            current_creds = rest_client.get_device_credentials_by_device_id(cls.GATEWAY_DEVICE.id)
+            current_creds.credentials_id = creds['credentialsId']
+            cls.GATEWAY_ACCESS_TOKEN = creds['credentialsId']
+            rest_client.update_device_credentials(current_creds)
+
+    @classmethod
+    def clear_connectors(cls):
+        with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
+            rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
+                              password=GatewayDeviceUtil.DEFAULT_PASSWORD)
+            rest_client.save_device_attributes(cls.GATEWAY_DEVICE.id, 'SHARED_SCOPE', {"active_connectors": []})
+            sleep(5)
