@@ -512,7 +512,7 @@ class TBGatewayService:
                     # self.__check_shared_attributes()
 
                 if (cur_time - connectors_configuration_check_time > self.__config["thingsboard"].get("checkConnectorsConfigurationInSeconds", 60) * 1000
-                        and not (self.__remote_configurator is not None and self.__remote_configurator.in_process)):
+                        and self.__remote_configurator is not None):
                     self.check_connector_configuration_updates()
                     connectors_configuration_check_time = time() * 1000
 
@@ -1124,7 +1124,7 @@ class TBGatewayService:
                 if self.tb_client.is_connected():
                     events = []
 
-                    if self.__remote_configurator is None or not self.__remote_configurator.in_process:
+                    if self.__remote_configurator is None:
                         events = self._event_storage.get_event_pack()
 
                     if events:
