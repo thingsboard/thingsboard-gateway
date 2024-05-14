@@ -1442,8 +1442,8 @@ class TBGatewayService:
         self.__connected_devices[device_name][event] = content
         if should_save:
             self.__save_persistent_devices()
-            self.send_to_storage(connector_name=content,
-                                 connector_id=self.available_connectors_by_name[content.name].get_id(),
+            self.send_to_storage(connector_name=content.get_name(),
+                                 connector_id=content.get_id(),
                                  data={"deviceName": device_name,
                                        "deviceType": self.__connected_devices[device_name][DEVICE_TYPE_PARAMETER],
                                        "attributes": [{"connectorName": content.name}]})
