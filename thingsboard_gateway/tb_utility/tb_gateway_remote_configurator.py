@@ -15,6 +15,7 @@
 import os.path
 from logging import getLogger
 from logging.config import dictConfig
+from queue import Queue
 from time import sleep, time, monotonic
 
 from regex import fullmatch
@@ -33,11 +34,11 @@ class RemoteConfigurator:
     }
 
     def __init__(self, gateway, config):
+        self._request_queue = Queue()
         self._gateway = gateway
         self._config = config
         self._load_connectors_configuration()
         self._logs_configuration = self._load_logs_configuration()
-        self.in_process = False
         self._active_connectors = []
         self._handlers = {
             'storage_configuration': self._handle_storage_configuration_update,
@@ -186,35 +187,37 @@ class RemoteConfigurator:
             return {}
 
     def process_config_request(self, config):
-        if not self.in_process:
-            LOG.info('Configuration update request received.')
-            LOG.debug('Got config update request: %s', config)
+        self._request_queue.put(config)
 
-            self.in_process = True
+    def _process_config_request(self):
+        while not self._gateway.stopped:
+            if not self._request_queue.empty():
+                config = self._request_queue.get()
+                LOG.info('Configuration update request received.')
+                LOG.debug('Got config update request: %s', config)
 
-            if 'general_configuration' in config.keys():
-                self._handle_general_configuration_update(config['general_configuration'])
-                config.pop('general_configuration', None)
+                if 'general_configuration' in config.keys():
+                    self._handle_general_configuration_update(config['general_configuration'])
+                    config.pop('general_configuration', None)
 
-            try:
-                for attr_name in config.keys():
-                    if 'deleted' in attr_name:
-                        continue
+                try:
+                    for attr_name in config.keys():
+                        if 'deleted' in attr_name:
+                            continue
 
-                    request_config = config[attr_name]
-                    if not self._is_modified(attr_name, request_config):
-                        continue
+                        request_config = config[attr_name]
+                        if not self._is_modified(attr_name, request_config):
+                            continue
 
-                    for (name, func) in self._handlers.items():
-                        if fullmatch(name, attr_name):
-                            func(request_config)
-                            break
-            except (KeyError, AttributeError) as e:
-                LOG.error('Unknown attribute update name (Available: %s), %r', ', '.join(self._handlers.keys()), exc_info=e)
-            finally:
-                self.in_process = False
-        else:
-            LOG.error("Remote configuration is already in processing")
+                        for (name, func) in self._handlers.items():
+                            if fullmatch(name, attr_name):
+                                func(request_config)
+                                break
+                except (KeyError, AttributeError) as e:
+                    LOG.error('Unknown attribute update name (Available: %s), %r', ', '.join(self._handlers.keys()),
+                              exc_info=e)
+            else:
+                sleep(.2)
 
     # HANDLERS ---------------------------------------------------------------------------------------------------------
     def _handle_general_configuration_update(self, config):
