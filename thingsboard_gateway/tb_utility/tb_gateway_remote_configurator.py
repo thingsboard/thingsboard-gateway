@@ -36,6 +36,7 @@ class RemoteConfigurator:
 
     def __init__(self, gateway, config):
         self._request_queue = Queue()
+        self.in_process = False
         self._gateway = gateway
         self._config = config
         self._load_connectors_configuration()
@@ -197,15 +198,16 @@ class RemoteConfigurator:
     def _process_config_request(self):
         while not self._gateway.stopped:
             if not self._request_queue.empty():
+                self.in_process = True
                 config = self._request_queue.get()
                 LOG.info('Configuration update request received.')
                 LOG.debug('Got config update request: %s', config)
 
-                if 'general_configuration' in config.keys():
-                    self._handle_general_configuration_update(config['general_configuration'])
-                    config.pop('general_configuration', None)
-
                 try:
+                    if 'general_configuration' in config.keys():
+                        self._handle_general_configuration_update(config['general_configuration'])
+                        config.pop('general_configuration', None)
+
                     for attr_name in config.keys():
                         if 'deleted' in attr_name:
                             continue
@@ -221,6 +223,8 @@ class RemoteConfigurator:
                 except (KeyError, AttributeError) as e:
                     LOG.error('Unknown attribute update name (Available: %s), %r', ', '.join(self._handlers.keys()),
                               exc_info=e)
+
+                self.in_process = False
             else:
                 sleep(.2)
 
