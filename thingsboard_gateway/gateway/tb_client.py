@@ -265,7 +265,7 @@ class TBClient(threading.Thread):
                         self.client.connect(keepalive=keep_alive,
                                             min_reconnect_delay=self.__min_reconnect_delay)
                     except ConnectionRefusedError:
-                        pass
+                        self.__logger.error("Connection refused. Check ThingsBoard is running.")
                     except Exception as e:
                         self.__logger.exception(e)
                 sleep(1)
