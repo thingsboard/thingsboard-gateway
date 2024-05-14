@@ -46,7 +46,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
 
             start_connecting_time = time()
 
-            while not cls.is_gateway_connected():
+            while not GatewayDeviceUtil.is_gateway_connected():
                 LOG.info('Gateway connecting to TB...')
                 sleep(1)
                 if time() - start_connecting_time > CONNECTION_TIMEOUT:
