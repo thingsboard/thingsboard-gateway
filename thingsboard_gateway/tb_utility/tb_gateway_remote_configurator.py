@@ -16,6 +16,7 @@ import os.path
 from logging import getLogger
 from logging.config import dictConfig
 from queue import Queue
+from threading import Thread
 from time import sleep, time, monotonic
 
 from regex import fullmatch
@@ -56,6 +57,9 @@ class RemoteConfigurator:
         # creating backups (general and connectors)
         self.create_configuration_file_backup(self._get_general_config_in_local_format(), "tb_gateway.json")
         self._create_connectors_backup()
+
+        self._requests_processing_thread = Thread(target=self._process_config_request, daemon=True)
+        self._requests_processing_thread.start()
 
         LOG.info('Remote Configurator started')
 
