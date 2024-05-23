@@ -21,6 +21,7 @@ from time import sleep, time
 from queue import Queue
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.connectors.opcua_asyncio.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua_asyncio.device import Device
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -61,8 +62,15 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         self._connector_type = connector_type
         self.__gateway = gateway
         self.__config = config
+
+        # check if config is in old format and convert it to new format
+        if len(tuple(filter(lambda node_config: not node_config.get('deviceInfo'),
+                            self.__config.get('server', {}).get('mapping', [])))):
+            backward_compatibility_adapter = BackwardCompatibilityAdapter(self.__config)
+            self.__config = backward_compatibility_adapter.convert()
+
         self.__id = self.__config.get('id')
-        self.__server_conf = config['server']
+        self.__server_conf = self.__config.get('server', {})
         self.name = self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
                                  enable_remote_logging=self.__config.get('enableRemoteLogging', False))
@@ -282,12 +290,12 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         existing_devices = list(map(lambda dev: dev.name, self.__device_nodes))
 
         scanned_devices = []
-        for device in self.__server_conf.get('mapping', []):
+        for device in self.__config.get('mapping', []):
             nodes = await self.find_nodes(device['deviceNodePattern'])
             self.__log.debug('Found devices: %s', nodes)
 
             device_names = []
-            device_name_pattern = device['deviceNamePattern']
+            device_name_pattern = device.get('deviceInfo', {}).get('deviceNameExpression')
             if re.match(r"\${([A-Za-z.:\d]*)}", device_name_pattern):
                 device_name_nodes = await self.find_nodes(device_name_pattern)
                 self.__log.debug('Found device name nodes: %s', device_name_nodes)
@@ -435,11 +443,11 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
 
             for (key, value) in content['data'].items():
                 for attr_update in device.config['attributes_updates']:
-                    if attr_update['attributeOnThingsBoard'] == key:
+                    if attr_update['key'] == key:
                         result = {}
                         task = self.__loop.create_task(
                             self.get_shared_attr_node_id(
-                                device.path + attr_update['attributeOnDevice'].replace('\\', '').split('.'), result))
+                                device.path + attr_update['value'].replace('\\', '').split('.'), result))
 
                         while not task.done():
                             sleep(.1)
@@ -574,11 +582,12 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                 self.__log.info('Updated converter configuration for: %s with configuration %s',
                                 converter_name, device.config)
 
-                for node_config in self.__server_conf['mapping']:
+                for node_config in self.__config['mapping']:
                     if node_config['deviceNodePattern'] == device.config['deviceNodePattern']:
                         node_config.update(config)
 
-                self.__gateway.update_connector_config_file(self.name, {'server': self.__server_conf})
+                self.__gateway.update_connector_config_file(self.name, {'server': self.__server_conf,
+                                                                        'mapping': self.__config.get('mapping', [])})
 
 
 class SubHandler:
