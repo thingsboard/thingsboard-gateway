@@ -368,7 +368,8 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
 
                             var = await self.__client.nodes.root.get_child(path)
 
-                        if node.get('valid', True):
+                        if (node.get('valid') is None or
+                                (node.get('valid') and self.__server_conf.get('disableSubscriptions', False))):
                             value = await var.read_data_value()
                             device.converter.convert(config={'section': section, 'key': node['key']}, val=value)
 
