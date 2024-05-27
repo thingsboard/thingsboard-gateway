@@ -244,7 +244,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         for node in children:
             child_node = await node.read_browse_name()
 
-            if re.fullmatch(re.escape(node_list[0]), child_node.Name):
+            if re.fullmatch(re.escape(node_list[0]), child_node.Name) or node_list[0].split(':')[-1] == child_node.Name:
                 new_nodes = [*nodes, f'{child_node.NamespaceIndex}:{child_node.Name}']
                 if len(node_list) == 1:
                     final.append(new_nodes)
@@ -368,7 +368,7 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
 
                             var = await self.__client.nodes.root.get_child(path)
 
-                        if not node.get('valid', False) or self.__server_conf.get('disableSubscriptions', False):
+                        if node.get('valid', True):
                             value = await var.read_data_value()
                             device.converter.convert(config={'section': section, 'key': node['key']}, val=value)
 
