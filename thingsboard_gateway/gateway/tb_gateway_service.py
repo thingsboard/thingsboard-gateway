@@ -17,6 +17,7 @@ import logging.config
 import logging.handlers
 import multiprocessing.managers
 import os.path
+from getpass import getuser
 import subprocess
 from os import execv, listdir, path, pathsep, stat, system, environ
 from platform import system as platform_system
@@ -109,9 +110,14 @@ def get_env_variables():
         'caCert': environ.get('caCert'),
         'privateKey': environ.get('privateKey'),
         'cert': environ.get('cert'),
-        'clientId': environ.get('clientId')
+        'clientId': environ.get('clientId'),
+        'password': environ.get('password')
     }
 
+    if platform_system() != 'Windows':
+        env_variables['username'] = environ.get('username')
+    elif environ.get('username') is not None and getuser().lower() != environ.get('username').lower():
+        env_variables['username'] = environ.get('username')
     if environ.get('TB_GW_HOST'):
         env_variables['host'] = environ.get('TB_GW_HOST')
     if environ.get('TB_GW_PORT'):
