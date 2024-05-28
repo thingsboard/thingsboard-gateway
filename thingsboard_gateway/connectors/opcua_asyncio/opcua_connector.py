@@ -17,7 +17,7 @@ import re
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
-from time import sleep, time
+from time import sleep, monotonic
 from queue import Queue
 
 from thingsboard_gateway.connectors.connector import Connector
@@ -177,10 +177,10 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                         self.__log.error("Error on loading type definitions:\n %s", e)
 
                     while not self.__stopped:
-                        if time() - self.__last_poll >= self.__server_conf.get('scanPeriodInMillis', 5000) / 1000:
+                        if monotonic() - self.__last_poll >= self.__server_conf.get('scanPeriodInMillis', 5000) / 1000:
                             await self.__scan_device_nodes()
                             await self.__poll_nodes()
-                            self.__last_poll = time()
+                            self.__last_poll = monotonic()
 
                         await asyncio.sleep(.2)
             except (ConnectionError, BadSessionClosed):
