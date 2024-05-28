@@ -109,9 +109,7 @@ def get_env_variables():
         'caCert': environ.get('caCert'),
         'privateKey': environ.get('privateKey'),
         'cert': environ.get('cert'),
-        'clientId': environ.get('clientId'),
-        'username': environ.get('username'),
-        'password': environ.get('password')
+        'clientId': environ.get('clientId')
     }
 
     if environ.get('TB_GW_HOST'):
