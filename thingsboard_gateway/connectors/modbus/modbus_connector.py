@@ -332,7 +332,10 @@ class ModbusConnector(Connector, Thread):
             slave.close()
 
         if self.__slave_thread is not None:
-            ServerStop()
+            try:
+                ServerStop()
+            except AttributeError:
+                self.__slave_thread.join()
 
         # Stop all workers
         for worker in self.__workers_thread_pool:
@@ -340,7 +343,7 @@ class ModbusConnector(Connector, Thread):
 
         # self.__slave_thread.join()
         self.__log.info('%s has been stopped.', self.get_name())
-        self.__log.reset()
+        self.__log.stop()
         self.__stopping = False
 
     def get_name(self):

@@ -244,7 +244,7 @@ class OpcUaConnector(Thread, Connector):
                 pass
         self.__connected = False
         self._log.info('%s has been stopped.', self.get_name())
-        self._log.reset()
+        self._log.stop()
 
     def get_id(self):
         return self.__id

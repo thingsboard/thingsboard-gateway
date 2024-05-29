@@ -322,7 +322,7 @@ class RequestConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
-        self._log.reset()
+        self._log.stop()
 
     def get_config(self):
         return self.__config

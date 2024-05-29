@@ -1,4 +1,5 @@
 from os import path
+from time import time, sleep
 import logging
 from unittest import skip
 
@@ -44,7 +45,7 @@ class ModbusRpcTest(BaseTest):
 
             start_connecting_time = time()
 
-            while not cls.is_gateway_connected():
+            while not GatewayDeviceUtil.is_gateway_connected(start_connecting_time):
                 LOG.info('Gateway connecting to TB...')
                 sleep(1)
                 if time() - start_connecting_time > CONNECTION_TIMEOUT:
@@ -85,20 +86,6 @@ class ModbusRpcTest(BaseTest):
         client.close()
         super(ModbusRpcTest, cls).tearDownClass()
         sleep(2)
-
-    @classmethod
-    def is_gateway_connected(cls):
-        """
-        Check if the gateway is connected.
-
-        Returns:
-            bool: True if the gateway is connected, False otherwise.
-        """
-
-        try:
-            return cls.client.get_attributes_by_scope(cls.gateway.id, 'SERVER_SCOPE', 'active')[0]['value']
-        except IndexError:
-            return False
 
     @classmethod
     def load_configuration(cls, config_file_path):
@@ -282,7 +269,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
                                                               "params": expected_values[rpc_tag],
                                                               "timeout": 5000
                                                           })
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits' and _type == '4bits':
@@ -310,7 +297,7 @@ class ModbusRpcWritingTest(ModbusRpcTest):
                                                               "params": expected_values[rpc_tag],
                                                               "timeout": 5000
                                                           })
-        sleep(3)
+        sleep(GENERAL_TIMEOUT)
         latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':

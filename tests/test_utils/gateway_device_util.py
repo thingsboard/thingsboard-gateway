@@ -9,7 +9,7 @@ LOG = logging.getLogger("TEST")
 
 
 class GatewayDeviceUtil:
-    DEFAULT_URL = environ.get('TB_BASE_URL', "http://192.168.0.9:8080")
+    DEFAULT_URL = environ.get('TB_BASE_URL', "http://127.0.0.1:9090")
 
     DEFAULT_USERNAME = "tenant@thingsboard.org"
     DEFAULT_PASSWORD = "tenant"
@@ -106,7 +106,6 @@ class GatewayDeviceUtil:
     def is_gateway_connected(cls, start_time):
         """
         Check if the gateway is connected.
-
         Returns:
             bool: True if the gateway is connected, False otherwise.
         """

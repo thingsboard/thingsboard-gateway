@@ -13,7 +13,7 @@
 #     limitations under the License.
 
 import logging
-from time import sleep
+from time import sleep, monotonic
 from threading import Thread
 
 
@@ -51,24 +51,38 @@ def init_logger(gateway, name, level, enable_remote_logging=False):
 class TbLogger(logging.Logger):
     ALL_ERRORS_COUNT = 0
     IS_ALL_ERRORS_COUNT_RESET = False
+    RESET_ERRORS__PERIOD = 60
 
     def __init__(self, name, gateway=None, level=logging.NOTSET):
         super(TbLogger, self).__init__(name=name, level=level)
         self.propagate = True
         self.parent = self.root
         self._gateway = gateway
+        self._stopped = False
         self.errors = 0
         self.attr_name = self.name + '_ERRORS_COUNT'
         self._is_on_init_state = True
         if self._gateway:
-            self._send_errors_thread = Thread(target=self._send_errors, name='Send Errors Thread', daemon=True)
+            self._send_errors_thread = Thread(target=self._send_errors, name='[LOGGER] Send Errors Thread', daemon=True)
             self._send_errors_thread.start()
+
+        self._start_time = monotonic()
+        self._reset_errors_thread = Thread(target=self._reset_errors_timer, name='[LOGGER] Reset Errors Thread',
+                                           daemon=True)
+        self._reset_errors_thread.start()
 
     def reset(self):
         """
         !!!Need to be called manually in the connector 'close' method!!!
         """
-        TbLogger.ALL_ERRORS_COUNT = TbLogger.ALL_ERRORS_COUNT - self.errors
+        if TbLogger.ALL_ERRORS_COUNT > 0 and self.errors > 0:
+            TbLogger.ALL_ERRORS_COUNT = TbLogger.ALL_ERRORS_COUNT - self.errors
+            self.errors = 0
+            self._send_error_count()
+
+    def stop(self):
+        self.reset()
+        self._stopped = True
 
     @property
     def gateway(self):
@@ -94,21 +108,32 @@ class TbLogger(logging.Logger):
             TbLogger.IS_ALL_ERRORS_COUNT_RESET = True
         self._is_on_init_state = False
 
+    def _reset_errors_timer(self):
+        while not self._stopped:
+            if monotonic() - self._start_time >= TbLogger.RESET_ERRORS__PERIOD:
+                self.reset()
+                self._start_time = monotonic()
+
+            sleep(1)
+
     def error(self, msg, *args, **kwargs):
         kwargs['stacklevel'] = 2
         super(TbLogger, self).error(msg, *args, **kwargs)
+        self._add_error()
         self._send_error_count()
 
     def exception(self, msg, *args, **kwargs) -> None:
         attr_name = kwargs.pop('attr_name', None)
         kwargs['stacklevel'] = 2
         super(TbLogger, self).exception(msg, *args, **kwargs)
+        self._add_error()
         self._send_error_count(error_attr_name=attr_name)
 
-    def _send_error_count(self, error_attr_name=None):
+    def _add_error(self):
         TbLogger.ALL_ERRORS_COUNT += 1
         self.errors += 1
 
+    def _send_error_count(self, error_attr_name=None):
         while self._is_on_init_state:
             sleep(.2)
 

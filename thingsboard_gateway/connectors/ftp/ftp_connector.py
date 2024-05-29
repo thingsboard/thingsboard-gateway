@@ -189,7 +189,7 @@ class FTPConnector(Connector, Thread):
     def close(self):
         self.__stopped = True
         self.__log.info('FTP Connector stopped.')
-        self.__log.reset()
+        self.__log.stop()
 
     def get_name(self):
         return self.name

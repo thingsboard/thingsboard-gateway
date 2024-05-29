@@ -341,7 +341,7 @@ class MqttConnector(Connector, Thread):
         for worker in self.__workers_thread_pool:
             worker.stop()
         self.__log.info('%s has been stopped.', self.get_name())
-        self.__log.reset()
+        self.__log.stop()
 
     def get_name(self):
         return self.name
@@ -534,7 +534,7 @@ class MqttConnector(Connector, Thread):
         self._on_message_queue.put((client, userdata, message))
 
     @staticmethod
-    def _parce_device_info(device_info, topic, content):
+    def _parse_device_info(device_info, topic, content):
         found_device_name = None
         found_device_type = 'default'
 
@@ -616,7 +616,7 @@ class MqttConnector(Connector, Thread):
                         # Get device name, either from topic or from content
                         device_info = handler.get("deviceInfo", {})
 
-                        found_device_name, found_device_type = MqttConnector._parce_device_info(device_info,
+                        found_device_name, found_device_type = MqttConnector._parse_device_info(device_info,
                                                                                                 message.topic, content)
 
                         if found_device_name is None:
@@ -641,7 +641,7 @@ class MqttConnector(Connector, Thread):
 
                         # Get device name, either from topic or from content
                         device_info = handler.get("deviceInfo", {})
-                        found_device_name, found_device_type = MqttConnector._parce_device_info(device_info,
+                        found_device_name, found_device_type = MqttConnector._parse_device_info(device_info,
                                                                                                 message.topic, content)
 
                         if found_device_name is None:
@@ -672,7 +672,7 @@ class MqttConnector(Connector, Thread):
 
                             # Get device name, either from topic or from content
                             device_info = handler.get("deviceInfo", {})
-                            found_device_name, _ = MqttConnector._parce_device_info(device_info, message.topic, content)
+                            found_device_name, _ = MqttConnector._parse_device_info(device_info, message.topic, content)
 
                             # Get attribute name, either from topic or from content
                             if handler.get("attributeNameExpressionSource") == "topic":
@@ -696,16 +696,26 @@ class MqttConnector(Connector, Thread):
 
                             self.__log.info("Will retrieve attribute %s of %s", found_attribute_names,
                                             found_device_name)
-                            self.__gateway.tb_client.client.gw_request_shared_attributes(
-                                found_device_name,
-                                found_attribute_names,
-                                lambda data, *args: self.notify_attribute(
-                                    data,
-                                    found_attribute_names,
-                                    handler.get("topicExpression"),
-                                    handler.get("valueExpression"),
-                                    handler.get('retain', False)))
+                            scope = 'shared'
+                            if handler.get('scope') is not None:
+                                scope = handler.get('scope')
+                            if content and TBUtility.get_value(f'${scope}', content, get_tag=True) is not None:
+                                scope = TBUtility.get_value(f'${scope}', content, get_tag=True)
 
+                            request_arguments = (
+                                    found_device_name,
+                                    found_attribute_names,
+                                    lambda data, *args: self.notify_attribute(
+                                        data,
+                                        found_attribute_names,
+                                        handler.get("topicExpression"),
+                                        handler.get("valueExpression"),
+                                        handler.get('retain', False)))
+
+                            if scope == 'client':
+                                self.__gateway.tb_client.client.gw_request_client_attributes(*request_arguments)
+                            else:
+                                self.__gateway.tb_client.client.gw_request_shared_attributes(*request_arguments)
                             break
 
                     except Exception as e:

@@ -1,6 +1,7 @@
 import unittest
 from os import path
 import logging
+from time import sleep, time
 
 from pymodbus.exceptions import ConnectionException
 import pymodbus.client as ModbusClient
@@ -44,7 +45,7 @@ class ModbusUplinkMessagesTest(BaseTest):
 
             start_connecting_time = time()
 
-            while not cls.is_gateway_connected():
+            while not GatewayDeviceUtil.is_gateway_connected(start_connecting_time):
                 LOG.info('Gateway connecting to TB...')
                 sleep(1)
                 if time() - start_connecting_time > CONNECTION_TIMEOUT:
@@ -110,32 +111,6 @@ class ModbusUplinkMessagesTest(BaseTest):
         response = cls.client.save_device_attributes(cls.gateway.id, 'SHARED_SCOPE', config)
         sleep(GENERAL_TIMEOUT)
         return config, response
-
-    @classmethod
-    def is_gateway_connected(cls):
-        """
-        Check if the gateway is connected.
-
-        Returns:
-            bool: True if the gateway is connected, False otherwise.
-        """
-
-        try:
-            return cls.client.get_attributes_by_scope(cls.gateway.id, 'SERVER_SCOPE', 'active')[0]['value']
-        except IndexError:
-            return False
-
-    def test_gateway_connection(self):
-        """
-        Test the gateway connection by asserting that the value returned by
-        `get_attributes_by_scope` is `True`.
-
-        Returns:
-            None
-        """
-
-        self.assertEqual(self.client.get_attributes_by_scope(self.gateway.id, 'SERVER_SCOPE', 'active')[0]['value'],
-                         True)
 
     def test_send_only_on_data_changed(self):
         """

@@ -17,7 +17,7 @@
 from setuptools import setup
 from os import path
 
-import version
+from thingsboard_gateway import version
 
 current_directory = path.abspath(path.dirname(__file__))
 with open(path.join(current_directory, 'README.md'), encoding='utf-8') as f:

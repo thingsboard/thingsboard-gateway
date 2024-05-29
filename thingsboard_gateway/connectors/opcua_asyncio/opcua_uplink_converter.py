@@ -30,7 +30,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
         self.__config = config
         self.data = {
             'deviceName': self.__config['device_name'],
-            'deviceType': 'default',
+            'deviceType': self.__config['device_type'],
             'attributes': [],
             'telemetry': [],
         }
@@ -39,7 +39,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
     def clear_data(self):
         self.data = {
             'deviceName': self.__config['device_name'],
-            'deviceType': 'default',
+            'deviceType': self.__config['device_type'],
             'attributes': [],
             'telemetry': [],
         }

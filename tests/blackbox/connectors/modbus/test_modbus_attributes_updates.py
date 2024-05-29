@@ -1,5 +1,6 @@
 import unittest
 from os import path
+from time import time, sleep
 import logging
 
 from pymodbus.exceptions import ConnectionException
@@ -45,7 +46,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
 
             start_connecting_time = time()
 
-            while not cls.is_gateway_connected():
+            while not GatewayDeviceUtil.is_gateway_connected(start_connecting_time):
                 LOG.info('Gateway connecting to TB...')
                 sleep(1)
                 if time() - start_connecting_time > CONNECTION_TIMEOUT:
@@ -85,7 +86,6 @@ class ModbusAttributesUpdatesTest(BaseTest):
 
         client.close()
         super(ModbusAttributesUpdatesTest, cls).tearDownClass()
-
         sleep(2)
 
     @classmethod
@@ -93,20 +93,6 @@ class ModbusAttributesUpdatesTest(BaseTest):
         with open(config_file_path, 'r', encoding="UTF-8") as config:
             config = load(config)
         return config
-
-    @classmethod
-    def is_gateway_connected(cls):
-        """
-        Check if the gateway is connected.
-
-        Returns:
-            bool: True if the gateway is connected, False otherwise.
-        """
-
-        try:
-            return cls.client.get_attributes_by_scope(cls.gateway.id, 'SERVER_SCOPE', 'active')[0]['value']
-        except IndexError:
-            return False
 
     @classmethod
     def change_connector_configuration(cls, config_file_path):
@@ -395,9 +381,10 @@ class ModbusAttributesUpdatesTest(BaseTest):
         self.reset_slave_default_values()
 
     def test_gateway_restarted(self):
-        self.client.handle_two_way_device_rpc_request(self.gateway.id, {"method": "gateway_restart", "timeout": 60000})
+        self.client.handle_two_way_device_rpc_request(self.gateway.id, {"method": "gateway_restart"})
+        start_time = time()
         sleep(15)
-        while not self.is_gateway_connected():
+        while not GatewayDeviceUtil.is_gateway_connected(start_time):
             LOG.info('Gateway connecting to TB...')
             sleep(1)
         self.update_device_and_connector_shared_attributes(

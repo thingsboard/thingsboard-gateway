@@ -200,7 +200,7 @@ class RESTConnector(Connector, Thread):
         if not self._loop.is_closed():
             self._loop.call_soon_threadsafe(self._loop.stop)
         self.__log.info('REST connector stopped.')
-        self.__log.reset()
+        self.__log.stop()
         self.join()
 
     def get_id(self):
