@@ -13,7 +13,7 @@
 #     limitations under the License.
 
 import logging
-from time import sleep, time
+from time import sleep, monotonic
 from threading import Thread
 
 
@@ -66,7 +66,7 @@ class TbLogger(logging.Logger):
             self._send_errors_thread = Thread(target=self._send_errors, name='[LOGGER] Send Errors Thread', daemon=True)
             self._send_errors_thread.start()
 
-        self._start_time = time()
+        self._start_time = monotonic()
         self._reset_errors_thread = Thread(target=self._reset_errors_timer, name='[LOGGER] Reset Errors Thread',
                                            daemon=True)
         self._reset_errors_thread.start()
@@ -110,9 +110,9 @@ class TbLogger(logging.Logger):
 
     def _reset_errors_timer(self):
         while not self._stopped:
-            if time() - self._start_time >= TbLogger.RESET_ERRORS__PERIOD:
+            if monotonic() - self._start_time >= TbLogger.RESET_ERRORS__PERIOD:
                 self.reset()
-                self._start_time = time()
+                self._start_time = monotonic()
 
             sleep(1)
 

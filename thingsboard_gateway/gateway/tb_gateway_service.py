@@ -243,6 +243,8 @@ class TBGatewayService:
             log.exception(e)
         self.tb_client.register_service_subscription_callback(self.subscribe_to_required_topics)
         self.tb_client.connect()
+        if self.stopped:
+            return
         if logging_error is not None:
             self.tb_client.client.send_telemetry({"ts": time() * 1000, "values": {
                 "LOGS": "Logging loading exception, logs.json is wrong: %s" % (str(logging_error),)}})
