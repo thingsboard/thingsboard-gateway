@@ -286,29 +286,17 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
             nodes = await self.find_nodes(device['deviceNodePattern'])
             self.__log.debug('Found devices: %s', nodes)
 
-            device_names = []
-            device_name_pattern = device['deviceNamePattern']
-            if re.match(r"\${([A-Za-z.:\d]*)}", device_name_pattern):
-                device_name_nodes = await self.find_nodes(device_name_pattern)
-                self.__log.debug('Found device name nodes: %s', device_name_nodes)
-
-                for node in device_name_nodes:
-                    try:
-                        var = await self.__client.nodes.root.get_child(node)
-                        value = await var.read_value()
-                        device_names.append(value)
-                    except Exception as e:
-                        self.__log.exception(e)
-                        continue
-            else:
-                device_names.append(device_name_pattern)
+            device_names = await self._get_device_info_by_pattern(device['deviceNamePattern'])
 
             for device_name in device_names:
                 scanned_devices.append(device_name)
                 if device_name not in existing_devices:
                     for node in nodes:
                         converter = self.__load_converter(device)
-                        device_config = {**device, 'device_name': device_name}
+                        device_type = await self._get_device_info_by_pattern(
+                            device.get('deviceTypePattern', 'default'),
+                            get_first=True)
+                        device_config = {**device, 'device_name': device_name, 'device_type': device_type}
                         self.__device_nodes.append(
                             Device(path=node, name=device_name, config=device_config,
                                    converter=converter(device_config, self.__log),
@@ -322,6 +310,34 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                 await self.__reset_nodes(device_name)
 
         self.__log.debug('Device nodes: %s', self.__device_nodes)
+
+    async def _get_device_info_by_pattern(self, pattern, get_first=False):
+        result = []
+
+        search_result = re.search(r"\${([A-Za-z.:\\\d]+)}", pattern)
+        if search_result:
+            try:
+                group = search_result.group(0)
+                node_path = search_result.group(1)
+            except IndexError:
+                self.__log.error('Invalid pattern: %s', pattern)
+                return result
+
+            nodes = await self.find_nodes(node_path)
+            self.__log.debug('Found device name nodes: %s', nodes)
+
+            for node in nodes:
+                try:
+                    var = await self.__client.nodes.root.get_child(node)
+                    value = await var.read_value()
+                    result.append(pattern.replace(group, str(value)))
+                except Exception as e:
+                    self.__log.exception(e)
+                    continue
+        else:
+            result.append(pattern)
+
+        return result[0] if len(result) > 0 and get_first else result
 
     def __convert_sub_data(self):
         while not self.__stopped:
