@@ -190,10 +190,6 @@ class TBGatewayService:
             signal(SIGINT, lambda _, __: self.__stop_gateway())
 
         self.__lock = RLock()
-        self.async_device_actions = {
-            DeviceActions.CONNECT: self.add_device,
-            DeviceActions.DISCONNECT: self.del_device
-        }
         self.__process_async_actions_thread = Thread(target=self.__process_async_device_actions,
                                                      name="Async device actions processing thread", daemon=True)
 
@@ -224,8 +220,6 @@ class TBGatewayService:
 
         log.info("Gateway starting...")
         self.__updater = TBUpdater()
-        self.__updates_check_period_ms = 300000
-        self.__updates_check_time = 0
         self.version = self.__updater.get_version()
         log.info("ThingsBoard IoT gateway version: %s", self.version["current_version"])
         self.name = ''.join(choice(ascii_lowercase) for _ in range(64))
@@ -250,28 +244,8 @@ class TBGatewayService:
         self.__save_converted_data_thread = Thread(name="Storage fill thread", daemon=True,
                                                    target=self.__send_to_storage)
         self.__save_converted_data_thread.start()
-        self._implemented_connectors = {}
-        self._event_storage_types = {
-            "memory": MemoryEventStorage,
-            "file": FileEventStorage,
-            "sqlite": SQLiteEventStorage,
-        }
-        self.__gateway_rpc_methods = {
-            "ping": self.__rpc_ping,
-            "stats": self.__form_statistics,
-            "devices": self.__rpc_devices,
-            "update": self.__rpc_update,
-            "version": self.__rpc_version,
-            "device_renamed": self.__process_renamed_gateway_devices,
-            "device_deleted": self.__process_deleted_gateway_devices,
-        }
 
         self.init_remote_shell(self.__config["thingsboard"].get("remoteShell"))
-
-        self.__rpc_scheduled_methods_functions = {
-            "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
-            "reboot": {"function": subprocess.call, "arguments": (["shutdown", "-r", "-t", "0"],)},
-        }
         self.__rpc_processing_thread = Thread(target=self.__send_rpc_reply_processing, daemon=True,
                                               name="RPC processing thread")
         self.__rpc_processing_thread.start()
@@ -365,6 +339,33 @@ class TBGatewayService:
         self.__async_device_actions_queue = SimpleQueue()
         self.__rpc_register_queue = SimpleQueue()
         self.__converted_data_queue = SimpleQueue()
+
+        self.__updates_check_period_ms = 300000
+        self.__updates_check_time = 0
+
+        self._implemented_connectors = {}
+        self._event_storage_types = {
+            "memory": MemoryEventStorage,
+            "file": FileEventStorage,
+            "sqlite": SQLiteEventStorage,
+        }
+        self.__gateway_rpc_methods = {
+            "ping": self.__rpc_ping,
+            "stats": self.__form_statistics,
+            "devices": self.__rpc_devices,
+            "update": self.__rpc_update,
+            "version": self.__rpc_version,
+            "device_renamed": self.__process_renamed_gateway_devices,
+            "device_deleted": self.__process_deleted_gateway_devices,
+        }
+        self.__rpc_scheduled_methods_functions = {
+            "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
+            "reboot": {"function": subprocess.call, "arguments": (["shutdown", "-r", "-t", "0"],)},
+        }
+        self.async_device_actions = {
+            DeviceActions.CONNECT: self.add_device,
+            DeviceActions.DISCONNECT: self.del_device
+        }
 
     @staticmethod
     def __load_general_config(config_file):
