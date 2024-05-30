@@ -113,7 +113,7 @@ class GatewayDeviceUtil:
             try:
                 rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
                                   password=GatewayDeviceUtil.DEFAULT_PASSWORD)
-                result = rest_client.get_attributes_by_scope(cls.GATEWAY_DEVICE.id, 'CLIENT_SCOPE', 'logs_configuration')
+                result = rest_client.get_attributes_by_scope(cls.GATEWAY_DEVICE.id, 'SERVER_SCOPE', 'lastActivityTime')
                 if len(result):
                     return result[0].get('lastUpdateTs', 0) / 1000 >= start_time
 
