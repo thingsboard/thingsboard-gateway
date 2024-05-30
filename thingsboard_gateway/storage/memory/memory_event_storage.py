@@ -31,7 +31,7 @@ class MemoryEventStorage(EventStorage):
         success = False
         if not self.__stopped:
             try:
-                self.__events_queue.put(event)
+                self.__events_queue.put_nowait(event)
                 success = True
             except Full:
                 log.error("Memory storage is full!")
@@ -42,7 +42,7 @@ class MemoryEventStorage(EventStorage):
     def get_event_pack(self):
         try:
             if not self.__event_pack:
-                self.__event_pack = [self.__events_queue.get(False) for _ in
+                self.__event_pack = [self.__events_queue.get_nowait() for _ in
                                      range(min(self.__events_per_time, self.__events_queue.qsize()))]
         except Empty:
             pass
