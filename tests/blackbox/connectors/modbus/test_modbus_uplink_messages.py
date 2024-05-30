@@ -53,6 +53,8 @@ class ModbusUplinkMessagesTest(BaseTest):
 
             LOG.info('Gateway connected to TB')
 
+            sleep(3)
+
             (config, _) = cls.change_connector_configuration(
                 cls.CONFIG_PATH + 'configs/default_modbus_config.json')
 

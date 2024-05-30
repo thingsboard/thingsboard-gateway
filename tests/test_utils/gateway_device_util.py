@@ -1,7 +1,7 @@
 import logging
 from os import environ
 
-from simplejson import loads
+from simplejson import loads, load
 from tb_rest_client.rest import ApiException
 from tb_rest_client.rest_client_ce import *
 

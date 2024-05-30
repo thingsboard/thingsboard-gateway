@@ -154,11 +154,12 @@ class RemoteConfigurator:
         """
 
         LOG.debug('Sending all configurations (init)')
+        ts = int(time() * 1000)
         init_config_message = {
-            'general_configuration': self._get_general_config_in_remote_format(),
-            'storage_configuration': self.storage_configuration,
-            'grpc_configuration': self.grpc_configuration,
-            'logs_configuration': {**self._logs_configuration, 'ts': int(time() * 1000)},
+            'general_configuration': {**self._get_general_config_in_remote_format(), 'ts': ts},
+            'storage_configuration': {**self.storage_configuration, 'ts': ts},
+            'grpc_configuration': {**self.grpc_configuration, 'ts': ts},
+            'logs_configuration': {**self._logs_configuration, 'ts': ts},
             'active_connectors': self._get_active_connectors(),
             'Version': self._gateway.version.get('current_version', '0.0')
         }

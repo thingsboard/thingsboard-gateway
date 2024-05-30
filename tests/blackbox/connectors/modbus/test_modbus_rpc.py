@@ -53,6 +53,8 @@ class ModbusRpcTest(BaseTest):
 
             LOG.info('Gateway connected to TB')
 
+            sleep(3)
+
             (config, _) = cls.change_connector_configuration(
                 cls.CONFIG_PATH + 'configs/default_modbus_config.json')
 
@@ -69,7 +71,7 @@ class ModbusRpcTest(BaseTest):
 
     @classmethod
     def tearDownClass(cls):
-        super(ModbusRpcTest, cls).tearDownClass()
+        GatewayDeviceUtil.clear_connectors()
         GatewayDeviceUtil.delete_device(cls.device.id)
 
         client = ModbusClient.ModbusTcpClient('localhost', port=5021)
@@ -82,6 +84,7 @@ class ModbusRpcTest(BaseTest):
             pass
 
         client.close()
+        super(ModbusRpcTest, cls).tearDownClass()
         sleep(2)
 
     @classmethod

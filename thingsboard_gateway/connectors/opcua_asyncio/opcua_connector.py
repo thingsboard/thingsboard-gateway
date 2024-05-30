@@ -532,10 +532,12 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
                         arguments_from_config = rpc["arguments"]
                         arguments = content["data"].get("params") if content["data"].get(
                             "params") is not None else arguments_from_config
+                        method_name = content['data']['method']
 
                         try:
                             result = {}
-                            task = self.__loop.create_task(self.__call_method(device.path, arguments, result))
+                            task = self.__loop.create_task(
+                                self.__call_method(device.path, method_name, arguments, result))
 
                             while not task.done():
                                 sleep(.2)
@@ -574,10 +576,11 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         except Exception as e:
             result['error'] = e.__str__()
 
-    async def __call_method(self, path, arguments, result={}):
+    async def __call_method(self, path, method_name, arguments, result={}):
         try:
-            var = self.__client.get_node(path)
-            result['result'] = await var.call_method(*arguments)
+            var = await self.__client.nodes.root.get_child(path)
+            method_id = '{}:{}'.format(var.nodeid.NamespaceIndex, method_name)
+            result['result'] = await var.call_method(method_id, *arguments)
         except Exception as e:
             result['error'] = e.__str__()
 

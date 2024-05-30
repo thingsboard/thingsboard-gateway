@@ -34,6 +34,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
             'attributes': [],
             'telemetry': [],
         }
+        self._last_node_timestamp = 0
 
     def clear_data(self):
         self.data = {
@@ -75,10 +76,14 @@ class OpcUaUplinkConverter(OpcUaConverter):
                 data = data.isoformat()
 
             if config['section'] == 'timeseries':
-                if val.SourceTimestamp:
+                if val.SourceTimestamp and int(val.SourceTimestamp.replace(
+                        tzinfo=timezone.utc).timestamp() * 1000) != self._last_node_timestamp:
                     timestamp = int(val.SourceTimestamp.replace(tzinfo=timezone.utc).timestamp() * 1000)
-                elif val.ServerTimestamp:
+                    self._last_node_timestamp = timestamp
+                elif val.ServerTimestamp and int(val.ServerTimestamp.replace(
+                        tzinfo=timezone.utc).timestamp() * 1000) != self._last_node_timestamp:
                     timestamp = int(val.ServerTimestamp.replace(tzinfo=timezone.utc).timestamp() * 1000)
+                    self._last_node_timestamp = timestamp
                 else:
                     timestamp = int(time() * 1000)
 

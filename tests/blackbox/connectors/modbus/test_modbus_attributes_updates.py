@@ -54,6 +54,8 @@ class ModbusAttributesUpdatesTest(BaseTest):
 
             LOG.info('Gateway connected to TB')
 
+            sleep(3)
+
             (config, _) = cls.change_connector_configuration(
                 cls.CONFIG_PATH + 'configs/default_modbus_config.json')
 
@@ -141,7 +143,7 @@ class ModbusAttributesUpdatesTest(BaseTest):
             'configs/attrs_update_configs/attrs_update_input_registers_little.json',
             'test_values/attrs_update/input_registers_values_little.json'
         )
-        sleep(2)
+        sleep(GENERAL_TIMEOUT)
 
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_little.json')
