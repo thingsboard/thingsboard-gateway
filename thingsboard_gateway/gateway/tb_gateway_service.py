@@ -73,8 +73,7 @@ main_handler = logging.handlers.MemoryHandler(-1)
 DEFAULT_CONNECTORS = {
     "mqtt": "MqttConnector",
     "modbus": "ModbusConnector",
-    "opcua": "OpcUaConnectorAsyncIO",
-    "opcua_asyncio": "OpcUaConnectorAsyncIO",
+    "opcua": "OpcUaConnector",
     "ble": "BLEConnector",
     "request": "RequestConnector",
     "can": "CanConnector",
@@ -780,8 +779,8 @@ class TBGatewayService:
                     connector_type = connector["type"].lower() if connector.get("type") is not None else None
 
                     # can be removed in future releases
-                    if connector_type == 'opcua':
-                        connector_type = 'opcua_asyncio'
+                    if connector_type == 'opcua_asyncio':
+                        connector_type = 'opcua'
 
                     if connector_type is None:
                         log.error("Connector type is not defined!")

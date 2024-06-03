@@ -16,50 +16,79 @@ from time import time
 from datetime import timezone
 
 from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from asyncua.ua.uatypes import LocalizedText, VariantType
+
+DATA_TYPES = {
+    'attributes': 'attributes',
+    'timeseries': 'telemetry'
+}
 
 
 class OpcUaUplinkConverter(OpcUaConverter):
     def __init__(self, config, logger):
         self._log = logger
         self.__config = config
+        self.data = {
+            'deviceName': self.__config['device_name'],
+            'deviceType': self.__config['device_type'],
+            'attributes': [],
+            'telemetry': [],
+        }
+        self._last_node_timestamp = 0
 
-    @property
-    def config(self):
-        return self.__config
+    def clear_data(self):
+        self.data = {
+            'deviceName': self.__config['device_name'],
+            'deviceType': self.__config['device_type'],
+            'attributes': [],
+            'telemetry': [],
+        }
 
-    @config.setter
-    def config(self, value):
-        self.__config = value
+    def get_data(self):
+        if len(self.data['attributes']) or len(self.data['telemetry']):
+            data_list = []
+            device_names = self.__config.get('device_names')
+            if device_names:
+                for device in device_names:
+                    self.data['deviceName'] = device
+                    data_list.append(self.data)
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
-    def convert(self, config, val, data=None, key=None):
-        information = config[0]
-        information_type = config[1]
-        device_name = self.__config["deviceName"]
-        result = {"deviceName": device_name,
-                  "deviceType": self.__config.get("deviceType", "OPC-UA Device"),
-                  "attributes": [],
-                  "telemetry": [], }
-        try:
-            information_types = {"attributes": "attributes", "timeseries": "telemetry"}
-            path = TBUtility.get_value(information["path"], get_tag=True)
-            full_key = key if key else information["key"]
-            full_value = information["path"].replace("${"+path+"}", str(val))
-            if information_type == 'timeseries' and data is not None and not self.__config.get(
-                    'subOverrideServerTime', False):
-                # Note: SourceTimestamp and ServerTimestamp may be naive datetime objects, hence for the timestamp() the tz must first be overwritten to UTC (which it is according to the spec)
-                if data.monitored_item.Value.SourceTimestamp is not None:
-                    timestamp = int(data.monitored_item.Value.SourceTimestamp.replace(tzinfo=timezone.utc).timestamp()*1000)
-                elif data.monitored_item.Value.ServerTimestamp is not None:
-                    timestamp = int(data.monitored_item.Value.ServerTimestamp.replace(tzinfo=timezone.utc).timestamp()*1000)
+                return data_list
+
+            return [self.data]
+
+        return None
+
+    def convert(self, config, val):
+        if not val:
+            return
+
+        data = val.Value.Value
+
+        if data is not None:
+            if isinstance(data, LocalizedText):
+                data = data.Text
+            elif val.Value.VariantType == VariantType.ExtensionObject:
+                data = str(data)
+            elif val.Value.VariantType == VariantType.DateTime:
+                if data.tzinfo is None:
+                    data = data.replace(tzinfo=timezone.utc)
+                data = data.isoformat()
+
+            if config['section'] == 'timeseries':
+                if val.SourceTimestamp and int(val.SourceTimestamp.replace(
+                        tzinfo=timezone.utc).timestamp() * 1000) != self._last_node_timestamp:
+                    timestamp = int(val.SourceTimestamp.replace(tzinfo=timezone.utc).timestamp() * 1000)
+                    self._last_node_timestamp = timestamp
+                elif val.ServerTimestamp and int(val.ServerTimestamp.replace(
+                        tzinfo=timezone.utc).timestamp() * 1000) != self._last_node_timestamp:
+                    timestamp = int(val.ServerTimestamp.replace(tzinfo=timezone.utc).timestamp() * 1000)
+                    self._last_node_timestamp = timestamp
                 else:
-                    timestamp = int(time()*1000)
-                result[information_types[information_type]].append({"ts": timestamp, 'values': {full_key: full_value}})
+                    timestamp = int(time() * 1000)
+
+                self.data[DATA_TYPES[config['section']]].append({'ts': timestamp, 'values': {config['key']: data}})
             else:
-                result[information_types[information_type]].append({full_key: full_value})
-            return result
-        except Exception as e:
-            self._log.exception(e)
+                self.data[DATA_TYPES[config['section']]].append({config['key']: data})
+
+            self._log.debug('Converted data: %s', self.data)
