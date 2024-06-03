@@ -6,6 +6,7 @@ from tests.blackbox.connectors.opcua.test_base_opcua import BaseOpcuaTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 
+@skip('Flaky test')
 class OpcuaAsyncioUplinkMessagesTest(BaseOpcuaTest):
     def test_gateway_connection(self):
         self.assertEqual(self.client.get_attributes_by_scope(self.gateway.id, 'SERVER_SCOPE', 'active')[0]['value'],

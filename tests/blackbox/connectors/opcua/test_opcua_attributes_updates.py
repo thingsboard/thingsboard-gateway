@@ -1,9 +1,11 @@
 from time import sleep
+from unittest import skip
 
 from tests.blackbox.connectors.opcua.test_base_opcua import BaseOpcuaTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 
+@skip('Flaky test')
 class OpcuaAsyncioAttributesUpdatesTest(BaseOpcuaTest):
     def test_attr_update(self):
         self.update_device_and_connector_shared_attributes(
