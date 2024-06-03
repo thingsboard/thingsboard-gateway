@@ -356,14 +356,27 @@ class RemoteConfigurator:
             logs_conf_file_path = self._gateway.get_config_path() + 'logs.json'
             target_handlers = {}
             for handler in config['handlers']:
-                filename = config['handlers'][handler].get('filename')
+                filename = config['handlers'][handler].get('filename', None)
+
                 if "consoleHandler" == handler or (filename is not None and os.path.exists(filename)):
                     target_handlers[handler] = config['handlers'][handler]
+                elif filename is not None:
+                    LOG.warning('Handler %s not found. Trying to create...', handler)
+
+                    try:
+                        with open(filename, 'w'):
+                            pass
+
+                        target_handlers[handler] = config['handlers'][handler]
+                    except Exception as e:
+                        LOG.error('Cannot create handler %s with %s error. Skipping...', handler, e)
+                        self._delete_handler(config, handler)
+
+                    LOG.info('Handler %s created.', handler)
                 else:
-                    LOG.warning('Handler %s not found. Removing from configuration...', handler)
-                    for logger in config['loggers']:
-                        if handler in config['loggers'][logger]['handlers']:
-                            config['loggers'][logger]['handlers'].remove(handler)
+                    LOG.warning('Config is invalid. Filename is empty in handler %s', handler)
+                    self._delete_handler(config, handler)
+
             config['handlers'] = target_handlers
             dictConfig(config)
 
@@ -729,3 +742,9 @@ class RemoteConfigurator:
                 self.create_configuration_file_backup(connector['configurationJson'], connector['configuration'])
             else:
                 LOG.debug(f"Configuration for {connector['name']} connector is not found, backup wasn't created")
+
+    @staticmethod
+    def _delete_handler(config, handler):
+        for logger in config['loggers']:
+            if handler in config['loggers'][logger]['handlers']:
+                config['loggers'][logger]['handlers'].remove(handler)
