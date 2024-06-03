@@ -75,10 +75,9 @@ class TbLogger(logging.Logger):
         """
         !!!Need to be called manually in the connector 'close' method!!!
         """
-        if TbLogger.ALL_ERRORS_COUNT > 0 and self.errors > 0:
-            TbLogger.ALL_ERRORS_COUNT = TbLogger.ALL_ERRORS_COUNT - self.errors
-            self.errors = 0
-            self._send_error_count()
+        TbLogger.ALL_ERRORS_COUNT = TbLogger.ALL_ERRORS_COUNT - self.errors
+        self.errors = 0
+        self._send_error_count()
 
     def stop(self):
         self.reset()
