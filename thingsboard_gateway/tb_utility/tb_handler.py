@@ -13,8 +13,11 @@
 #     limitations under the License.
 
 import logging
+import os
 import threading
 import logging.handlers
+from os.path import exists, dirname
+from pathlib import Path
 from sys import stdout
 from time import time, sleep
 from os import environ
@@ -147,7 +150,11 @@ class TimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
                  encoding=None, delay=False, utc=False):
         config_path = environ.get('TB_GW_LOGS_PATH')
         if config_path:
-            filename = config_path + '/' + filename.split('/')[-1]
+            filename = config_path + os.pathsep + filename.split(os.pathsep)[-1]
+
+        if not Path(filename).exists():
+            with open(filename, 'w'):
+                pass
 
         super().__init__(filename, when=when, interval=interval, backupCount=backupCount,
                          encoding=encoding, delay=delay, utc=utc)
