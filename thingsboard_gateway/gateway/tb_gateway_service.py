@@ -662,9 +662,11 @@ class TBGatewayService:
         if deleted_device_name in self.__saved_devices:
             del self.__saved_devices[deleted_device_name]
             log.debug("Device %s - was removed from __saved_devices", deleted_device_name)
-        self.__duplicate_detector.delete_device(deleted_device_name)
+        if hasattr(self, "__duplicate_detector"):
+            self.__duplicate_detector.delete_device(deleted_device_name)
         self.__save_persistent_devices()
         self.__load_persistent_devices()
+        return True
 
     def __process_renamed_gateway_devices(self, renamed_device: dict):
         if self.__config.get('handleDeviceRenaming', True):
@@ -683,6 +685,7 @@ class TBGatewayService:
         else:
             log.debug("Received renamed device notification %r, but device renaming handle is disabled",
                       renamed_device)
+        return True
 
     def __process_remote_configuration(self, new_configuration):
         if new_configuration is not None and self.__remote_configurator is not None:
@@ -1275,7 +1278,7 @@ class TBGatewayService:
                                       "code": 404}
                         if result is None:
                             self.send_rpc_reply(None, request_id, success_sent=False)
-                        elif "qos" in result:
+                        elif isinstance(result, dict) and "qos" in result:
                             self.send_rpc_reply(None, request_id,
                                                 dumps({k: v for k, v in result.items() if k != "qos"}),
                                                 quality_of_service=result["qos"])
