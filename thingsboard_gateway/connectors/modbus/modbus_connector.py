@@ -13,7 +13,8 @@
 #     limitations under the License.
 from copy import deepcopy
 from threading import Thread, Lock
-from time import sleep, time
+from time import sleep
+from time import monotonic as time
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
@@ -112,6 +113,7 @@ class ModbusConnector(Connector, Thread):
         self.statistics = {STATISTIC_MESSAGE_RECEIVED_PARAMETER: 0,
                            STATISTIC_MESSAGE_SENT_PARAMETER: 0}
         super().__init__()
+        self.__cached_connections = {}
         self.__gateway = gateway
         self._connector_type = connector_type
         self.__log = init_logger(self.__gateway, config.get('name', self.name),
@@ -439,7 +441,7 @@ class ModbusConnector(Connector, Thread):
         wait_after_failed_attempts_ms = 300000
 
         if device.config.get('master') is None:
-            device.config['master'], device.config['available_functions'] = self.__configure_master(device.config)
+            device.config['master'], device.config['available_functions'] = self.__get_or_create_connection(device.config)
 
         if connect_attempt_count < 1:
             connect_attempt_count = 1
@@ -485,7 +487,7 @@ class ModbusConnector(Connector, Thread):
         current_config = config
         current_config["rtu"] = FRAMER_TYPE[current_config['method']]
 
-        if current_config.get('type') == 'tcp' and current_config.get('tls'):
+        if current_config.get(TYPE_PARAMETER) == 'tcp' and current_config.get('tls'):
             master = ModbusTlsClient(current_config["host"],
                                      current_config["port"],
                                      current_config["rtu"],
@@ -494,7 +496,7 @@ class ModbusConnector(Connector, Thread):
                                      retry_on_invalid=current_config["retry_on_invalid"],
                                      retries=current_config["retries"],
                                      **current_config['tls'])
-        elif current_config.get('type') == 'tcp':
+        elif current_config.get(TYPE_PARAMETER) == 'tcp':
             master = ModbusTcpClient(current_config["host"],
                                      current_config["port"],
                                      current_config["rtu"],
@@ -537,6 +539,17 @@ class ModbusConnector(Connector, Thread):
         }
         return master, available_functions
 
+    def __get_or_create_connection(self, config):
+        keys_for_cache = ('host', 'port', 'method', 'type')
+        if config.get(TYPE_PARAMETER) == 'serial':
+            keys_for_cache = ('port', 'method')
+
+        configuration_values_for_cache = tuple([config[key] for key in keys_for_cache])
+
+        if self.__cached_connections.get(configuration_values_for_cache) is None:
+            self.__cached_connections[configuration_values_for_cache] = self.__configure_master(config)
+        return self.__cached_connections[configuration_values_for_cache]
+
     def __stop_connections_to_masters(self):
         for slave in self.__slaves:
             if (slave.config.get('master') is not None
@@ -547,15 +560,6 @@ class ModbusConnector(Connector, Thread):
         function_code = config.get('functionCode')
         result = None
         if function_code == 1:
-            # why count * 8 ? in my Modbus device one coils is 1bit, tow coils is 2bit,if * 8 can not read right coils
-            # result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
-            #                                                              count=config.get(OBJECTS_COUNT_PARAMETER,
-            #                                                                               config.get("registersCount",
-            #                                                                                          config.get(
-            #                                                                                              "registerCount",
-            #                                                                                              1))) * 8,
-            #                                                              slave=device.config['unitId'])
-
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          count=config.get(OBJECTS_COUNT_PARAMETER,
                                                                                           config.get("registersCount",
@@ -588,8 +592,12 @@ class ModbusConnector(Connector, Thread):
 
         self.__log.debug("With result %s", str(result))
 
-        if "Exception" in str(result):
-            self.__log.exception(result)
+        if "Exception" in str(result) or "Error" in str(result):
+            self.__log.exception("Reading failed with exception:", exc_info=result)
+
+        self.__log.debug("Sending request to device with unit id: %s, on address: %s, function code: %r using "
+                         "connection: %r",
+                         device.config['unitId'], config[ADDRESS_PARAMETER], function_code, device.config['master'])
 
         return result
 
