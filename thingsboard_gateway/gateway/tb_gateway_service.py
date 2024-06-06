@@ -1199,7 +1199,7 @@ class TBGatewayService:
                                         else:
                                             break
                                     except Exception as e:
-                                        log.exception(e)
+                                        log.error("Error while sending data to ThingsBoard, it will be resent.", exc_info=e)
                                         success = False
                             if success and self.tb_client.is_connected():
                                 self._event_storage.event_pack_processing_done()
