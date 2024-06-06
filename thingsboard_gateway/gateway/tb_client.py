@@ -226,7 +226,6 @@ class TBClient(threading.Thread):
         # pylint: disable=protected-access
         if self.client._client != client:
             self.__logger.info("TB client %s has been disconnected. Current client for connection is: %s", str(client), str(self.client._client))
-            client.disconnect()
             client.loop_stop()
         else:
             self.__is_connected = False
