@@ -217,10 +217,14 @@ class RemoteConfigurator:
                         if not self._is_modified(attr_name, request_config):
                             continue
 
+                        request_processed = False
                         for (name, func) in self._handlers.items():
                             if fullmatch(name, attr_name):
                                 func(request_config)
+                                request_processed = True
                                 break
+                        if not request_processed:
+                            LOG.error("Cannot process request for %s", attr_name)
                 except (KeyError, AttributeError) as e:
                     LOG.error('Unknown attribute update name (Available: %s), %r', ', '.join(self._handlers.keys()),
                               exc_info=e)
