@@ -373,10 +373,12 @@ class ModbusConnector(Connector, Thread):
                             current_device_config = device.config
 
                             if self.__connect_to_current_master(device):
-                                if not device_connected:
+                                if not device_connected and device.config['master'].is_socket_open():
                                     device_connected = True
                                     self.__gateway.add_device(device.device_name, {CONNECTOR_PARAMETER: self},
                                                           device_type=device.config.get(DEVICE_TYPE_PARAMETER))
+                                else:
+                                    device_disconnected = True
                             else:
                                 if not device_disconnected:
                                     device_disconnected = True
@@ -386,10 +388,14 @@ class ModbusConnector(Connector, Thread):
                             if (not device.config['master'].is_socket_open()
                                     or not len(current_device_config[config_section])):
                                 if not device.config['master'].is_socket_open():
-                                    error = 'Socket is closed'
+                                    error = 'Socket is closed, connection is lost, for device %s with config %s' % (
+                                        device.device_name, current_device_config)
                                 else:
-                                    error = 'Config is invalid'
+                                    error = 'Config is invalid or empty for device %s, config %s' % (
+                                        device.device_name, current_device_config)
                                 self.__log.error(error)
+                                self.__log.debug("Device %s is not connected, data will not be processed",
+                                                 device.device_name)
                                 continue
 
                             # Reading data from device
