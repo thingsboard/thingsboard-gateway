@@ -217,6 +217,10 @@ class TBGatewayService:
         # change main config if Gateway running with docker env variables
         self.__modify_main_config()
 
+        self.__test_env = False
+        if environ.get('TB_BASE_URL') == 'http://127.0.0.1:9090':
+            self.__test_env = True
+
         log.info("Gateway starting...")
         self.__updater = TBUpdater()
         self.version = self.__updater.get_version()
@@ -1450,7 +1454,7 @@ class TBGatewayService:
             return Status.FAILURE
 
     def add_device(self, device_name, content, device_type=None):
-        if device_name not in self.__added_devices or device_name not in self.__connected_devices\
+        if device_name not in self.__added_devices or self.__test_env \
                 or monotonic() - self.__added_devices[device_name]["last_send_ts"] > 60 \
                 or (self.__added_devices[device_name]["device_details"]["connectorName"] != content['connector'].get_name() # noqa E501
                 or self.__added_devices[device_name]["device_details"]["connectorType"] != content['connector'].get_type()): # noqa E501
