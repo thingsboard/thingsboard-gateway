@@ -179,7 +179,11 @@ class BytesModbusUplinkConverter(ModbusConverter):
         if isinstance(decoded, int):
             result_data = decoded
         elif isinstance(decoded, bytes) and lower_type == "string":
-            result_data = decoded.decode('UTF-8')
+            try:
+                result_data = decoded.decode('UTF-8')
+            except UnicodeDecodeError as e:
+                self._log.error("Error decoding string from bytes, will be saved as hex: %s", decoded, exc_info=e)
+                result_data = decoded.hex()
         elif isinstance(decoded, bytes) and lower_type == "bytes":
             result_data = decoded.hex()
         elif isinstance(decoded, list):
