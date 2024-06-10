@@ -34,6 +34,7 @@ except ImportError:
 import tb_device_mqtt
 tb_device_mqtt.DEFAULT_TIMEOUT = 3
 
+
 class TBClient(threading.Thread):
     def __init__(self, config, config_folder_path, logger):
         self.__logger = logger
@@ -84,8 +85,8 @@ class TBClient(threading.Thread):
                     gen_hash = TBUtility.generate_certificate(new_cert_path, new_private_key_path).decode('utf-8')
                     credentials['hash'] = gen_hash
                 else:
-                    raise RuntimeError(
-                        'Unknown provisioning type (Available options: AUTO, ACCESS_TOKEN, MQTT_BASIC, X509_CERTIFICATE)')
+                    raise RuntimeError('Unknown provisioning type '
+                                       '(Available options: AUTO, ACCESS_TOKEN, MQTT_BASIC, X509_CERTIFICATE)')
 
                 gateway_name = 'Gateway ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5))
                 prov_gateway_key = credentials.pop('provisionDeviceKey')
@@ -110,9 +111,9 @@ class TBClient(threading.Thread):
 
         # pylint: disable=protected-access
         # Adding callbacks
-        self.client._client._on_connect = self._on_connect
-        self.client._client._on_disconnect = self._on_disconnect
-        # self.client._client._on_log = self._on_log
+        self.client._client._on_connect = self._on_connect  # noqa pylint: disable=protected-access
+        self.client._client._on_disconnect = self._on_disconnect  # noqa pylint: disable=protected-access
+        # self.client._client._on_log = self._on_log  # noqa pylint: disable=protected-access
         self.start()
 
     # def _on_log(self, *args):
@@ -161,9 +162,11 @@ class TBClient(threading.Thread):
                                         keyfile=self.__private_key,
                                         tls_version=PROTOCOL_TLSv1_2,
                                         cert_reqs=CERT_REQUIRED,
-                                        ciphers=None)
+                                        ciphers=None)  # noqa pylint: disable=protected-access
             if credentials.get("insecure", False):
-                self.client._client.tls_insecure_set(True)
+                self.client._client.tls_insecure_set(True)  # noqa pylint: disable=protected-access
+            if self.__logger.isEnabledFor('DEBUG'):
+                self.client._client.enable_logger(self.__logger)  # noqa pylint: disable=protected-access
 
     @staticmethod
     def _get_provisioned_creds(credentials):
@@ -218,21 +221,33 @@ class TBClient(threading.Thread):
         if result_code == 0:
             self.__is_connected = True
         # pylint: disable=protected-access
-        self.client._on_connect(client, userdata, flags, result_code, *extra_params)
+        self.client._on_connect(client, userdata, flags, result_code, *extra_params) # noqa pylint: disable=protected-access
+        try:
+            if isinstance(result_code, int) and result_code != 0:
+                if result_code in (159, 151):
+                    self.__logger.warning("Connection rate exceeded.")
+            else:
+                if result_code.getName().lower() == "connection rate exceeded":
+                    # TODO: Add request for rate limits and apply them.
+                    self.__logger.warning("Connection rate exceeded.")
+        except Exception as e:
+            self.__logger.exception("Error in on_connect callback: %s", exc_info=e)
+
         for callback in self.__service_subscription_callbacks:
             callback()
 
     def _on_disconnect(self, client, userdata, result_code, properties=None):
         # pylint: disable=protected-access
-        if self.client._client != client:
-            self.__logger.info("TB client %s has been disconnected. Current client for connection is: %s", str(client), str(self.client._client))
+        if self.client._client != client: # noqa pylint: disable=protected-access
+            self.__logger.info("TB client %s has been disconnected. Current client for connection is: %s", str(client),
+                               str(self.client._client)) # noqa pylint: disable=protected-access
             client.loop_stop()
         else:
             self.__is_connected = False
-            if len(inspect.signature(self.client._on_disconnect).parameters) == 4:
-                self.client._on_disconnect(client, userdata, result_code, properties)
+            if len(inspect.signature(self.client._on_disconnect).parameters) == 4: # noqa pylint: disable=protected-access
+                self.client._on_disconnect(client, userdata, result_code, properties) # noqa pylint: disable=protected-access
             else:
-                self.client._on_disconnect(client, userdata, result_code)
+                self.client._on_disconnect(client, userdata, result_code) # noqa pylint: disable=protected-access
 
     def stop(self):
         # self.disconnect()
@@ -244,9 +259,9 @@ class TBClient(threading.Thread):
         self.unsubscribe('*')
         self.client.disconnect()
 
-    def unsubscribe(self, subsription_id):
-        self.client.gw_unsubscribe(subsription_id)
-        self.client.unsubscribe_from_attribute(subsription_id)
+    def unsubscribe(self, subscription_id):
+        self.client.gw_unsubscribe(subscription_id)
+        self.client.unsubscribe_from_attribute(subscription_id)
 
     def connect(self, min_reconnect_delay=10):
         self.__paused = False
