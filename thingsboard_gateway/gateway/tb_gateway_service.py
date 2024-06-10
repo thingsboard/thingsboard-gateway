@@ -1304,24 +1304,24 @@ class TBGatewayService:
     def __rpc_to_devices_processing(self):
         while not self.stopped:
             if not self.__rpc_to_devices_queue.empty():
-                request_id, content, received_time = self.__rpc_to_devices_queue.get()
-                timeout = content.get("params", {}).get("timeout", self.DEFAULT_TIMEOUT)
-                if monotonic() - received_time > timeout:
-                    log.error("RPC request %s timeout", request_id)
-                    self.send_rpc_reply(content["device"], request_id, "{\"error\":\"Request timeout\", \"code\": 408}")
-                device = content.get("device")
-                if device in self.get_devices():
-                    connector = self.get_devices()[content['device']].get(CONNECTOR_PARAMETER)
-                    if connector is not None:
-                        content['id'] = request_id
-                        connector.server_side_rpc_handler(content)
+                with self.__lock:
+                    request_id, content, received_time = self.__rpc_to_devices_queue.get()
+                    timeout = content.get("params", {}).get("timeout", self.DEFAULT_TIMEOUT)
+                    if monotonic() - received_time > timeout:
+                        log.error("RPC request %s timeout", request_id)
+                        self.send_rpc_reply(content["device"], request_id, "{\"error\":\"Request timeout\", \"code\": 408}")
+                    device = content.get("device")
+                    if device in self.get_devices():
+                        connector = self.get_devices()[content['device']].get(CONNECTOR_PARAMETER)
+                        if connector is not None:
+                            content['id'] = request_id
+                            connector.server_side_rpc_handler(content)
+                        else:
+                            log.error("Received RPC request but connector for the device %s not found. Request data: \n %s",
+                                      content["device"],
+                                      dumps(content))
                     else:
-                        log.error("Received RPC request but connector for the device %s not found. Request data: \n %s",
-                                  content["device"],
-                                  dumps(content))
-                else:
-                    self.__rpc_to_devices_queue.put((request_id, content, received_time))
-                    sleep(.001)
+                        self.__rpc_to_devices_queue.put((request_id, content, received_time))
             else:
                 sleep(.01)
 
