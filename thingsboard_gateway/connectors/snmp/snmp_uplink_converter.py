@@ -20,34 +20,43 @@ class SNMPUplinkConverter(Converter):
     def __init__(self, config, logger):
         self._log = logger
         self.__config = config
-
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
-    def convert(self, config, data):
-        result = {
+        self._data = {
             "deviceName": self.__config["deviceName"],
             "deviceType": self.__config["deviceType"],
             "attributes": [],
             "telemetry": []
-            }
+        }
+
+    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                                         end_stat_type='convertedBytesFromDevice')
+    def convert(self, config, data):
         try:
             if isinstance(data, dict):
-                result[config[0]].append({config[1]["key"]: {str(k): str(v) for k, v in data.items()}})
+                self._data[config[0]].append({config[1]["key"]: {str(k): str(v) for k, v in data.items()}})
             elif isinstance(data, list):
                 if isinstance(data[0], str):
-                    result[config[0]].append({config[1]["key"]: ','.join(data)})
+                    self._data[config[0]].append({config[1]["key"]: ','.join(data)})
                 elif isinstance(data[0], dict):
                     res = {}
                     for item in data:
                         res.update(**item)
-                    result[config[0]].append({config[1]["key"]: {str(k): str(v) for k, v in res.items()}})
+                    self._data[config[0]].append({config[1]["key"]: {str(k): str(v) for k, v in res.items()}})
             elif isinstance(data, str):
-                result[config[0]].append({config[1]["key"]: data})
+                self._data[config[0]].append({config[1]["key"]: data})
             elif isinstance(data, bytes):
-                result[config[0]].append({config[1]["key"]: data.decode("UTF-8")})
+                self._data[config[0]].append({config[1]["key"]: data.decode("UTF-8")})
             else:
-                result[config[0]].append({config[1]["key"]: data})
-            self._log.debug(result)
+                self._data[config[0]].append({config[1]["key"]: data})
+            self._log.debug(self._data)
         except Exception as e:
             self._log.exception(e)
-        return result
+
+    def get_and_clear_data(self):
+        c_data = self._data.copy()
+        self._data = {
+            "deviceName": self.__config["deviceName"],
+            "deviceType": self.__config["deviceType"],
+            "attributes": [],
+            "telemetry": []
+        }
+        return c_data

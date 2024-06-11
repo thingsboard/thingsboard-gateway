@@ -126,11 +126,9 @@ class SNMPConnector(Connector, Thread):
 
     async def __process_data(self, device):
         common_parameters = self.__get_common_parameters(device)
-        converted_data = {}
         for datatype in self.__datatypes:
             for datatype_config in device[datatype]:
                 try:
-                    response = None
                     method = datatype_config.get("method")
                     if method is None:
                         self._log.error("Method not found in configuration: %r", datatype_config)
@@ -140,14 +138,16 @@ class SNMPConnector(Connector, Thread):
                     if method not in self.__methods:
                         self._log.error("Unknown method: %s, configuration is: %r", method, datatype_config)
                     response = await self.__process_methods(method, common_parameters, datatype_config)
-                    converted_data.update(**device["uplink_converter"].convert((datatype, datatype_config), response))
+                    device["uplink_converter"].convert((datatype, datatype_config), response)
                 except SNMPTimeoutException:
-                    self._log.error("Timeout exception on connection to device \"%s\" with ip: \"%s\"", device["deviceName"],
-                              device["ip"])
+                    self._log.error("Timeout exception on connection to device \"%s\" with ip: \"%s\"",
+                                    device["deviceName"],
+                                    device["ip"])
                     return
                 except Exception as e:
                     self._log.exception(e)
 
+        converted_data = device["uplink_converter"].get_and_clear_data()
         if isinstance(converted_data, dict) and (converted_data.get("attributes") or converted_data.get("telemetry")):
             self.collect_statistic_and_send(self.get_name(), self.get_id(), converted_data)
 
