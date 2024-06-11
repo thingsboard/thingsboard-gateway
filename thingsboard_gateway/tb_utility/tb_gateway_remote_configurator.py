@@ -257,11 +257,11 @@ class RemoteConfigurator:
         LOG.debug('--- Checking connection configuration changes...')
         security_section = config.get('security', {})
         security_mismatch = security_section != self.general_configuration.get('security')
-        if (security_mismatch
-                and security_section.get('accessToken') == self.general_configuration.get('security', {}).get('accessToken')
-                and security_section.get("type") == "accessToken"
-                and self.general_configuration.get('security', {}).get('type') is None):
-            security_mismatch = False
+        # if (security_mismatch
+        #         and security_section.get('accessToken') == self.general_configuration.get('security', {}).get('accessToken')
+        #         and security_section.get("type") == "accessToken"
+        #         and self.general_configuration.get('security', {}).get('type') is None):
+        #     security_mismatch = False
         if (config['host'] != self.general_configuration['host']
                 or config['port'] != self.general_configuration['port']
                 or security_mismatch
