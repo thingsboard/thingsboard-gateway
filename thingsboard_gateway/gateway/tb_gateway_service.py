@@ -1020,7 +1020,10 @@ class TBGatewayService:
                                     data["deviceType"] = self.__saved_devices[device_name]['device_type']
                                 else:
                                     data["deviceType"] = "default"
-                            if data["deviceName"] not in self.get_devices() and self.tb_client.is_connected():
+                            if data["deviceName"] in self.__renamed_devices:
+                                data["deviceName"] = self.__renamed_devices[data["deviceName"]]
+                            if self.tb_client.is_connected() and (data["deviceName"] not in self.get_devices() or
+                                 data["deviceName"] not in self.__connected_devices):
                                 self.add_device(data["deviceName"],
                                                 {CONNECTOR_PARAMETER: self.available_connectors_by_id[connector_id]},
                                                 device_type=data["deviceType"])
@@ -1304,24 +1307,23 @@ class TBGatewayService:
     def __rpc_to_devices_processing(self):
         while not self.stopped:
             if not self.__rpc_to_devices_queue.empty():
-                with self.__lock:
-                    request_id, content, received_time = self.__rpc_to_devices_queue.get()
-                    timeout = content.get("params", {}).get("timeout", self.DEFAULT_TIMEOUT)
-                    if monotonic() - received_time > timeout:
-                        log.error("RPC request %s timeout", request_id)
-                        self.send_rpc_reply(content["device"], request_id, "{\"error\":\"Request timeout\", \"code\": 408}")
-                    device = content.get("device")
-                    if device in self.get_devices():
-                        connector = self.get_devices()[content['device']].get(CONNECTOR_PARAMETER)
-                        if connector is not None:
-                            content['id'] = request_id
-                            connector.server_side_rpc_handler(content)
-                        else:
-                            log.error("Received RPC request but connector for the device %s not found. Request data: \n %s",
-                                      content["device"],
-                                      dumps(content))
+                request_id, content, received_time = self.__rpc_to_devices_queue.get()
+                timeout = content.get("params", {}).get("timeout", self.DEFAULT_TIMEOUT)
+                if monotonic() - received_time > timeout:
+                    log.error("RPC request %s timeout", request_id)
+                    self.send_rpc_reply(content["device"], request_id, "{\"error\":\"Request timeout\", \"code\": 408}")
+                device = content.get("device")
+                if device in self.get_devices():
+                    connector = self.get_devices()[content['device']].get(CONNECTOR_PARAMETER)
+                    if connector is not None:
+                        content['id'] = request_id
+                        connector.server_side_rpc_handler(content)
                     else:
-                        self.__rpc_to_devices_queue.put((request_id, content, received_time))
+                        log.error("Received RPC request but connector for the device %s not found. Request data: \n %s",
+                                  content["device"],
+                                  dumps(content))
+                else:
+                    self.__rpc_to_devices_queue.put((request_id, content, received_time))
             else:
                 sleep(.01)
 
@@ -1329,6 +1331,7 @@ class TBGatewayService:
         log.info("Received RPC request to the gateway, id: %s, method: %s", str(request_id), content["method"])
         arguments = content.get('params', {})
         method_to_call = content["method"].replace("gateway_", "")
+        result = None
         if self.__remote_shell is not None:
             method_function = self.__remote_shell.shell_commands.get(method_to_call,
                                                                      self.__gateway_rpc_methods.get(method_to_call))
@@ -1474,25 +1477,25 @@ class TBGatewayService:
             return Status.FAILURE
 
     def add_device(self, device_name, content, device_type=None):
-        if (device_name not in self.__added_devices
-                or device_name not in self.__connected_devices
-                or device_name not in self.__saved_devices
-                or monotonic() - self.__added_devices[device_name]["last_send_ts"] > 60
-                or (self.__added_devices[device_name]["device_details"]["connectorName"] != content['connector'].get_name() # noqa E501
-                or self.__added_devices[device_name]["device_details"]["connectorType"] != content['connector'].get_type())): # noqa E501
+        # if (device_name not in self.__added_devices
+        #         or device_name not in self.__connected_devices
+        #         or device_name not in self.__saved_devices
+        #         or monotonic() - self.__added_devices[device_name]["last_send_ts"] > 60
+        #         or (self.__added_devices[device_name]["device_details"]["connectorName"] != content['connector'].get_name() # noqa E501
+        #         or self.__added_devices[device_name]["device_details"]["connectorType"] != content['connector'].get_type())): # noqa E501
 
-            device_type = device_type if device_type is not None else 'default'
-            self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
-            self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
-            self.__save_persistent_devices()
-            self.tb_client.client.gw_connect_device(device_name, device_type)
-            if device_name in self.__saved_devices:
-                device_details = {
-                    'connectorType': content['connector'].get_type(),
-                    'connectorName': content['connector'].get_name()
-                }
-                self.__added_devices[device_name] = {"device_details": device_details, "last_send_ts": monotonic()}
-                self.tb_client.client.gw_send_attributes(device_name, device_details)
+        device_type = device_type if device_type is not None else 'default'
+        self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
+        self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
+        self.__save_persistent_devices()
+        self.tb_client.client.gw_connect_device(device_name, device_type)
+        if device_name in self.__saved_devices:
+            device_details = {
+                'connectorType': content['connector'].get_type(),
+                'connectorName': content['connector'].get_name()
+            }
+            self.__added_devices[device_name] = {"device_details": device_details, "last_send_ts": monotonic()}
+            self.tb_client.client.gw_send_attributes(device_name, device_details)
 
     def update_device(self, device_name, event, content):
         should_save = False
@@ -1592,6 +1595,7 @@ class TBGatewayService:
                             new_device_name = loaded_connected_devices[device_name][2]
                             self.__renamed_devices[device_name] = new_device_name
                     elif isinstance(loaded_connected_devices[device_name], dict):
+                        connector = None
                         if not self.available_connectors_by_id.get(
                                 loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER]):
                             log.warning("Connector with id %s not found, trying to use connector by name!",
