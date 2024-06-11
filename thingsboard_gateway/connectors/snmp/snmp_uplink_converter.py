@@ -20,43 +20,40 @@ class SNMPUplinkConverter(Converter):
     def __init__(self, config, logger):
         self._log = logger
         self.__config = config
-        self._data = {
-            "deviceName": self.__config["deviceName"],
-            "deviceType": self.__config["deviceType"],
-            "attributes": [],
-            "telemetry": []
-        }
 
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
+        converted_data = {
+            "deviceName": self.__config["deviceName"],
+            "deviceType": self.__config["deviceType"],
+            'telemetry': [],
+            'attributes': []
+        }
+
         try:
-            if isinstance(data, dict):
-                self._data[config[0]].append({config[1]["key"]: {str(k): str(v) for k, v in data.items()}})
-            elif isinstance(data, list):
-                if isinstance(data[0], str):
-                    self._data[config[0]].append({config[1]["key"]: ','.join(data)})
-                elif isinstance(data[0], dict):
-                    res = {}
-                    for item in data:
-                        res.update(**item)
-                    self._data[config[0]].append({config[1]["key"]: {str(k): str(v) for k, v in res.items()}})
-            elif isinstance(data, str):
-                self._data[config[0]].append({config[1]["key"]: data})
-            elif isinstance(data, bytes):
-                self._data[config[0]].append({config[1]["key"]: data.decode("UTF-8")})
-            else:
-                self._data[config[0]].append({config[1]["key"]: data})
-            self._log.debug(self._data)
+            for datatype in ('attributes', 'telemetry'):
+                for datatype_config in config[datatype]:
+                    data_key = datatype_config["key"]
+                    item_data = data.get(data_key)
+                    if isinstance(item_data, dict):
+                        converted_data[datatype].append({data_key: {str(k): str(v) for k, v in item_data.items()}})
+                    elif isinstance(item_data, list):
+                        if isinstance(item_data[0], str):
+                            converted_data[datatype].append({data_key: ','.join(item_data)})
+                        elif isinstance(item_data[0], dict):
+                            res = {}
+                            for item in item_data:
+                                res.update(**item)
+                            converted_data[datatype].append({data_key: {str(k): str(v) for k, v in res.items()}})
+                    elif isinstance(item_data, str):
+                        converted_data[datatype].append({data_key: item_data})
+                    elif isinstance(item_data, bytes):
+                        converted_data[datatype].append({data_key: item_data.decode("UTF-8")})
+                    else:
+                        converted_data[datatype].append({data_key: item_data})
         except Exception as e:
             self._log.exception(e)
 
-    def get_and_clear_data(self):
-        c_data = self._data.copy()
-        self._data = {
-            "deviceName": self.__config["deviceName"],
-            "deviceType": self.__config["deviceType"],
-            "attributes": [],
-            "telemetry": []
-        }
-        return c_data
+        self._log.debug(converted_data)
+        return converted_data
