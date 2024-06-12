@@ -76,6 +76,10 @@ class BaseOpcuaTest(BaseTest):
         super(BaseOpcuaTest, cls).tearDownClass()
         sleep(2)
 
+    def tearDown(self):
+        GatewayDeviceUtil.clear_connectors()
+        super(BaseOpcuaTest, self).tearDown()
+
     @classmethod
     def load_configuration(cls, config_file_path):
         with open(config_file_path, 'r', encoding="UTF-8") as config:
