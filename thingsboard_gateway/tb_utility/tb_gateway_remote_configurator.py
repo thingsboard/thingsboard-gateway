@@ -605,6 +605,8 @@ class RemoteConfigurator:
 
             connection_state = False
             use_new_config = True
+            config['rateLimits'] = old_tb_client_config.get('rateLimits', 'DEFAULT_RATE_LIMIT')
+            config['dpRateLimits'] = old_tb_client_config.get('dpRateLimits', 'DEFAULT_RATE_LIMIT')
             while not self._gateway.stopped and not connection_state:
                 self._gateway.__subscribed_to_rpc_topics = False
                 new_tb_client = TBClient(config if use_new_config else old_tb_client_config, old_tb_client_config_path, connection_logger)
