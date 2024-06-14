@@ -141,6 +141,8 @@ def get_env_variables():
         env_variables['password'] = environ.get('TB_GW_PASSWORD')
     if environ.get('TB_GW_RATE_LIMITS'):
         env_variables['rateLimits'] = environ.get('TB_GW_RATE_LIMITS')
+    if environ.get('TB_GW_DP_RATE_LIMITS'):
+        env_variables['dpRateLimits'] = environ.get('TB_GW_DP_RATE_LIMITS')
 
     converted_env_variables = {}
 
@@ -1521,7 +1523,10 @@ class TBGatewayService:
 
     def del_device(self, device_name):
         if device_name in self.__connected_devices:
-            self.tb_client.client.gw_disconnect_device(device_name)
+            try:
+                self.tb_client.client.gw_disconnect_device(device_name)
+            except Exception as e:
+                log.exception("Error on disconnecting device %s", device_name, exc_info=e)
             self.__connected_devices.pop(device_name)
             self.__saved_devices.pop(device_name)
             self.__save_persistent_devices()
