@@ -35,10 +35,11 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
             dict_result["telemetry"] = []  # template for telemetry array
             bytes_to_read = body.replace("0x", "")  # Replacing the 0x (if '0x' in body), needs for converting to bytearray
             converted_bytes = bytearray.fromhex(bytes_to_read)  # Converting incoming data to bytearray
-            if self.__config.get("extension-config") is not None:
-                for telemetry_key in self.__config["extension-config"]:  # Processing every telemetry key in config for extension
+            extension_config_key = "extensionConfig" if self.__config.get("extensionConfig") is not None else "extension-config"
+            if self.__config.get(extension_config_key) is not None:
+                for telemetry_key in self.__config[extension_config_key]:  # Processing every telemetry key in config for extension
                     value = 0
-                    for _ in range(self.__config["extension-config"][telemetry_key]):  # reading every value with value length from config
+                    for _ in range(self.__config[extension_config_key][telemetry_key]):  # reading every value with value length from config
                         value = value * 256 + converted_bytes.pop(0)  # process and remove byte from processing
                     telemetry_to_send = {telemetry_key.replace("Bytes", ""): value}  # creating telemetry data for sending into Thingsboard
                     dict_result["telemetry"].append(telemetry_to_send)  # adding data to telemetry array
