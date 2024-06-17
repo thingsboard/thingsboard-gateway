@@ -14,5 +14,5 @@ grpcio
 mmh3
 protobuf<=3.20.0
 cachetools
-tb-mqtt-client>=1.9.6
+tb-mqtt-client>=1.9.7
 service-identity

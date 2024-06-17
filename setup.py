@@ -53,7 +53,7 @@ setup(
               'thingsboard_gateway.extensions.socket', 'thingsboard_gateway.extensions.xmpp',
               ],
     install_requires=[
-        'cryptography==3.4.*',
+        'cryptography',
         'jsonpath-rw',
         'regex',
         'pip',
@@ -65,10 +65,10 @@ setup(
         'pyfiglet',
         'termcolor',
         'mmh3',
-        'grpcio==1.58.0',
+        'grpcio',
         'protobuf',
         'cachetools',
-        'tb-mqtt-client>=1.9.6',
+        'tb-mqtt-client>=1.9.7',
         'packaging==23.1',
         'service-identity'
     ],
