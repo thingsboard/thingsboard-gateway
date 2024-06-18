@@ -14,11 +14,14 @@
 
 import asyncio
 import re
+import threading
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic
 from queue import Queue
+
+threading._SHUTTING_DOWN = False
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.device import Device
@@ -96,14 +99,11 @@ class OpcUaConnector(Connector, Thread):
         return self._connector_type
 
     def close(self):
-        task = self.__loop.create_task(self.__reset_nodes())
-        start_time = monotonic()
-        while not task.done():
-            if monotonic() - start_time > 10:
-                self.__log.error('Failed to stop connector in 10 seconds, stopping it forcefully')
-                self.__loop.stop()
-                break
-            sleep(.2)
+        self.__log.info("Stopping OPC-UA Connector")
+        try:
+            self.join(.01)
+        except Exception as e:
+            self.__log.exception("Error stopping connector: %s", e)
 
         self.__stopped = True
         self.__connected = False
@@ -163,15 +163,15 @@ class OpcUaConnector(Connector, Thread):
 
     async def start_client(self):
         while not self.__stopped:
-            self.__client = asyncua.Client(url=self.__opcua_url,
-                                           timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
-
-            if self.__server_conf["identity"].get("type") == "cert.PEM":
-                await self.__set_auth_settings_by_cert()
-            if self.__server_conf["identity"].get("username"):
-                self.__set_auth_settings_by_username()
-
             try:
+                self.__client = asyncua.Client(url=self.__opcua_url,
+                                               timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
+
+                if self.__server_conf["identity"].get("type") == "cert.PEM":
+                    await self.__set_auth_settings_by_cert()
+                if self.__server_conf["identity"].get("username"):
+                    self.__set_auth_settings_by_username()
+
                 async with self.__client:
                     self.__connected = True
 
@@ -194,7 +194,8 @@ class OpcUaConnector(Connector, Thread):
             except Exception as e:
                 self.__log.exception(e)
             finally:
-                await self.__reset_nodes()
+                if self.__client is not None:
+                    await self.__client.disconnect()
                 self.__connected = False
                 await asyncio.sleep(1)
 
@@ -393,8 +394,9 @@ class OpcUaConnector(Connector, Thread):
                             value = await var.read_data_value()
                             device.converter.convert(config={'section': section, 'key': node['key']}, val=value)
 
-                            if not self.__server_conf.get('disableSubscriptions', False) and not node.get('sub_on',
-                                                                                                          False):
+                            if (not self.__server_conf.get('disableSubscriptions', False)
+                                    and not node.get('sub_on', False)
+                                    and not self.__stopped):
                                 if self.__subscription is None:
                                     self.__subscription = await self.__client.create_subscription(1, SubHandler(
                                         self.__sub_data_to_convert, self.__log))
