@@ -740,6 +740,12 @@ class RemoteConfigurator:
 
         return True
 
+    def _is_running(self, attr_name, config):
+        if (config.get(attr_name, {}).get('configurationJson', {}).get('id') in self._gateway.available_connectors_by_id
+                or attr_name in self._gateway.available_connectors_by_name):
+            return True
+        return False
+
     def create_configuration_file_backup(self, config_data, config_file_name):
         backup_folder_path = self._gateway.get_config_path() + "backup"
         if not os.path.exists(backup_folder_path):

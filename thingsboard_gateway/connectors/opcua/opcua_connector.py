@@ -96,15 +96,6 @@ class OpcUaConnector(Connector, Thread):
         return self._connector_type
 
     def close(self):
-        task = self.__loop.create_task(self.__reset_nodes())
-        start_time = monotonic()
-        while not task.done():
-            if monotonic() - start_time > 10:
-                self.__log.error('Failed to stop connector in 10 seconds, stopping it forcefully')
-                self.__loop.stop()
-                break
-            sleep(.2)
-
         self.__stopped = True
         self.__connected = False
         self.__log.info('%s has been stopped.', self.get_name())
@@ -162,9 +153,11 @@ class OpcUaConnector(Connector, Thread):
         self.__loop.run_until_complete(self.start_client())
 
     async def start_client(self):
+        client = None
         while not self.__stopped:
             self.__client = asyncua.Client(url=self.__opcua_url,
                                            timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
+            client = self.__client
 
             if self.__server_conf["identity"].get("type") == "cert.PEM":
                 await self.__set_auth_settings_by_cert()
@@ -194,7 +187,8 @@ class OpcUaConnector(Connector, Thread):
             except Exception as e:
                 self.__log.exception(e)
             finally:
-                await self.__reset_nodes()
+                if client is not None:
+                    await client.disconnect()
                 self.__connected = False
                 await asyncio.sleep(1)
 
@@ -393,8 +387,9 @@ class OpcUaConnector(Connector, Thread):
                             value = await var.read_data_value()
                             device.converter.convert(config={'section': section, 'key': node['key']}, val=value)
 
-                            if not self.__server_conf.get('disableSubscriptions', False) and not node.get('sub_on',
-                                                                                                          False):
+                            if (not self.__server_conf.get('disableSubscriptions', False)
+                                    and not node.get('sub_on', False)
+                                    and not self.__stopped):
                                 if self.__subscription is None:
                                     self.__subscription = await self.__client.create_subscription(1, SubHandler(
                                         self.__sub_data_to_convert, self.__log))
