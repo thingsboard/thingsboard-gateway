@@ -214,7 +214,7 @@ class RemoteConfigurator:
                             continue
 
                         request_config = config[attr_name]
-                        if not self._is_modified(attr_name, request_config):
+                        if not self._is_modified(attr_name, request_config) and self.__is_running(request_config):
                             continue
 
                         request_processed = False
@@ -583,8 +583,10 @@ class RemoteConfigurator:
                                                 self._gateway.available_connectors_by_id[connector_id])
 
             self._gateway.tb_client.client.send_attributes({config['name']: config})
+            with open(self._gateway.get_config_path() + 'tb_gateway.json', 'w') as file:
+                file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))
         except Exception as e:
-            LOG.exception(e)
+            LOG.exception("Exception on connector configuration update occurred:", exc_info=e)
 
     def _handle_remote_logging_level_update(self, config):
         self._gateway.tb_client.client.send_attributes({'RemoteLoggingLevel': config})
@@ -761,3 +763,7 @@ class RemoteConfigurator:
         for logger in config['loggers']:
             if handler in config['loggers'][logger]['handlers']:
                 config['loggers'][logger]['handlers'].remove(handler)
+
+    def __is_running(self, request_config):
+        return (request_config.get('configurationJson', {}).get('id') in self._gateway.available_connectors_by_id or
+                request_config.get('name') in self._gateway.available_connectors_by_name)

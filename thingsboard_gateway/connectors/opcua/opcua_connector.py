@@ -97,8 +97,12 @@ class OpcUaConnector(Connector, Thread):
 
     def close(self):
         task = self.__loop.create_task(self.__reset_nodes())
-
+        start_time = monotonic()
         while not task.done():
+            if monotonic() - start_time > 10:
+                self.__log.error('Failed to stop connector in 10 seconds, stopping it forcefully')
+                self.__loop.stop()
+                break
             sleep(.2)
 
         self.__stopped = True

@@ -292,26 +292,26 @@ class TBGatewayService:
 
         self.__init_remote_configuration()
 
-        if path.exists('/tmp/gateway'):
-            try:
-                # deleting old manager if it was closed incorrectly
-                system('rm -rf /tmp/gateway')
-            except OSError as e:
-                log.exception(e)
+        if self.__config['thingsboard'].get('managerEnabled', False):
+            if path.exists('/tmp/gateway'):
+                try:
+                    # deleting old manager if it was closed incorrectly
+                    system('rm -rf /tmp/gateway')
+                except OSError as e:
+                    log.exception(e)
+                manager_address = '/tmp/gateway'
+            if platform_system() == 'Windows':
+                manager_address = ('127.0.0.1', 9999)
+            self.manager = GatewayManager(address=manager_address, authkey=b'gateway')
 
-        manager_address = '/tmp/gateway'
-        if platform_system() == 'Windows':
-            manager_address = ('127.0.0.1', 9999)
-        self.manager = GatewayManager(address=manager_address, authkey=b'gateway')
-
-        if current_thread() is main_thread():
-            GatewayManager.register('get_gateway',
-                                    self.get_gateway,
-                                    proxytype=AutoProxy,
-                                    exposed=self.EXPOSED_GETTERS,
-                                    create_method=False)
-            self.server = self.manager.get_server()
-            self.server.serve_forever()
+            if current_thread() is main_thread():
+                GatewayManager.register('get_gateway',
+                                        self.get_gateway,
+                                        proxytype=AutoProxy,
+                                        exposed=self.EXPOSED_GETTERS,
+                                        create_method=False)
+                self.server = self.manager.get_server()
+                self.server.serve_forever()
 
     def __init_variables(self):
         self.stopped = False
