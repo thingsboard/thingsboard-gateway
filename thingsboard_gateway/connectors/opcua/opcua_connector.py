@@ -14,11 +14,14 @@
 
 import asyncio
 import re
+import threading
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic
 from queue import Queue
+
+threading._SHUTTING_DOWN = False
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.device import Device
@@ -96,6 +99,12 @@ class OpcUaConnector(Connector, Thread):
         return self._connector_type
 
     def close(self):
+        self.__log.info("Stopping OPC-UA Connector")
+        try:
+            self.join(.01)
+        except Exception as e:
+            self.__log.exception("Error stopping connector: %s", e)
+
         self.__stopped = True
         self.__connected = False
         self.__log.info('%s has been stopped.', self.get_name())
@@ -153,18 +162,16 @@ class OpcUaConnector(Connector, Thread):
         self.__loop.run_until_complete(self.start_client())
 
     async def start_client(self):
-        client = None
         while not self.__stopped:
-            self.__client = asyncua.Client(url=self.__opcua_url,
-                                           timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
-            client = self.__client
-
-            if self.__server_conf["identity"].get("type") == "cert.PEM":
-                await self.__set_auth_settings_by_cert()
-            if self.__server_conf["identity"].get("username"):
-                self.__set_auth_settings_by_username()
-
             try:
+                self.__client = asyncua.Client(url=self.__opcua_url,
+                                               timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
+
+                if self.__server_conf["identity"].get("type") == "cert.PEM":
+                    await self.__set_auth_settings_by_cert()
+                if self.__server_conf["identity"].get("username"):
+                    self.__set_auth_settings_by_username()
+
                 async with self.__client:
                     self.__connected = True
 
@@ -187,8 +194,8 @@ class OpcUaConnector(Connector, Thread):
             except Exception as e:
                 self.__log.exception(e)
             finally:
-                if client is not None:
-                    await client.disconnect()
+                if self.__client is not None:
+                    await self.__client.disconnect()
                 self.__connected = False
                 await asyncio.sleep(1)
 
