@@ -17,9 +17,8 @@ import logging.config
 import logging.handlers
 import multiprocessing.managers
 import os.path
-from getpass import getuser
 import subprocess
-from os import execv, listdir, path, pathsep, stat, system, environ
+from os import execv, listdir, path, pathsep, stat, system
 from platform import system as platform_system
 from queue import SimpleQueue
 from random import choice
@@ -96,67 +95,11 @@ DEFAULT_DEVICE_FILTER = {
     'enable': False
 }
 
-SECURITY_VAR = ('accessToken', 'caCert', 'privateKey', 'cert', 'clientId', 'username', 'password')
-
 
 def load_file(path_to_file):
     with open(path_to_file, 'r') as target_file:
         content = load(target_file)
     return content
-
-
-def get_env_variables():
-    env_variables = {
-        'host': environ.get('host'),
-        'port': int(environ.get('port')) if environ.get('port') else None,
-        'accessToken': environ.get('accessToken'),
-        'caCert': environ.get('caCert'),
-        'privateKey': environ.get('privateKey'),
-        'cert': environ.get('cert'),
-        'clientId': environ.get('clientId'),
-        'password': environ.get('password')
-    }
-
-    if platform_system() != 'Windows':
-        env_variables['username'] = environ.get('username')
-    elif environ.get('username') is not None and getuser().lower() != environ.get('username').lower():
-        env_variables['username'] = environ.get('username')
-    if environ.get('TB_GW_HOST'):
-        env_variables['host'] = environ.get('TB_GW_HOST')
-    if environ.get('TB_GW_PORT'):
-        env_variables['port'] = int(environ.get('TB_GW_PORT'))
-    if environ.get('TB_GW_ACCESS_TOKEN'):
-        env_variables['accessToken'] = environ.get('TB_GW_ACCESS_TOKEN')
-    if environ.get('TB_GW_CA_CERT'):
-        env_variables['caCert'] = environ.get('TB_GW_CA_CERT')
-    if environ.get('TB_GW_PRIVATE_KEY'):
-        env_variables['privateKey'] = environ.get('TB_GW_PRIVATE_KEY')
-    if environ.get('TB_GW_CERT'):
-        env_variables['cert'] = environ.get('TB_GW_CERT')
-    if environ.get('TB_GW_CLIENT_ID'):
-        env_variables['clientId'] = environ.get('TB_GW_CLIENT_ID')
-    if environ.get('TB_GW_USERNAME'):
-        env_variables['username'] = environ.get('TB_GW_USERNAME')
-    if environ.get('TB_GW_PASSWORD'):
-        env_variables['password'] = environ.get('TB_GW_PASSWORD')
-    if environ.get('TB_GW_RATE_LIMITS'):
-        env_variables['rateLimits'] = environ.get('TB_GW_RATE_LIMITS')
-    if environ.get('TB_GW_DP_RATE_LIMITS'):
-        env_variables['dpRateLimits'] = environ.get('TB_GW_DP_RATE_LIMITS')
-
-    converted_env_variables = {}
-
-    for (key, value) in env_variables.items():
-        if value is not None:
-            if key in SECURITY_VAR:
-                if not converted_env_variables.get('security'):
-                    converted_env_variables['security'] = {}
-
-                converted_env_variables['security'][key] = value
-            else:
-                converted_env_variables[key] = value
-
-    return converted_env_variables
 
 
 class GatewayManager(multiprocessing.managers.BaseManager):
@@ -434,7 +377,9 @@ class TBGatewayService:
         self.__remote_shell = None
         if enable:
             log.warning("Remote shell is enabled. Please be carefully with this feature.")
-            self.__remote_shell = RemoteShell(platform=self.__updater.get_platform(), release=self.__updater.get_release()) # noqa
+            self.__remote_shell = RemoteShell(platform=self.__updater.get_platform(),
+                                              release=self.__updater.get_release(),
+                                              logger=log) # noqa
 
     @property
     def event_storage_types(self):
@@ -543,7 +488,7 @@ class TBGatewayService:
             self.tb_client.stop()
 
     def __modify_main_config(self):
-        env_variables = get_env_variables()
+        env_variables = TBUtility.get_service_environmental_variables()
         self.__config['thingsboard'] = {**self.__config['thingsboard'], **env_variables}
 
     def __close_connectors(self):

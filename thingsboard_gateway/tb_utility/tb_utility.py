@@ -14,6 +14,9 @@
 import datetime
 from logging import getLogger
 from re import search, findall
+from os import environ
+from platform import system as platform_system
+from getpass import getuser
 from uuid import uuid4
 from distutils.util import strtobool
 
@@ -25,10 +28,14 @@ from cryptography.hazmat.primitives import serialization
 from jsonpath_rw import parse
 from simplejson import JSONDecodeError, dumps, loads
 
+from thingsboard_gateway.gateway.constants import SECURITY_VAR
+
 log = getLogger("service")
 
 
 class TBUtility:
+
+    # Data conversion methods
 
     @staticmethod
     def decode(message):
@@ -139,6 +146,43 @@ class TBUtility:
         return values
 
     @staticmethod
+    def replace_params_tags(text, data):
+        if '${' in text:
+            for item in text.split('/'):
+                if '${' in item:
+                    tag = '${' + TBUtility.get_value(item, data['data'], 'params', get_tag=True) + '}'
+                    value = TBUtility.get_value(item, data['data'], 'params', expression_instead_none=True)
+                    text = text.replace(tag, str(value))
+        return text
+
+    @staticmethod
+    def get_dict_key_by_value(dictionary: dict, value):
+        return list(dictionary.values())[list(dictionary.values()).index(value)]
+
+    @staticmethod
+    def convert_data_type(data, new_type, use_eval=False):
+        current_type = type(data)
+        # use 'in' check instead of equality for such case like 'str' and 'string'
+        new_type = new_type.lower()
+        if current_type.__name__ in new_type:
+            return data
+
+        evaluated_data = eval(data, globals(), {}) if use_eval else data
+        try:
+            if 'int' in new_type or 'long' in new_type:
+                return int(float(evaluated_data))
+            elif 'float' == new_type or 'double' == new_type:
+                return float(evaluated_data)
+            elif 'bool' in new_type:
+                return bool(strtobool(evaluated_data))
+            else:
+                return str(evaluated_data)
+        except ValueError:
+            return str(evaluated_data)
+
+    # Service methods
+
+    @staticmethod
     def install_package(package, version="upgrade", force_install=False):
         from sys import executable, prefix, base_prefix
         from subprocess import check_call
@@ -168,7 +212,7 @@ class TBUtility:
                         [executable, "-m", "pip", "install", package + installation_sign + version, "--user"])
 
         # Because `pip` is running in a subprocess the newly installed modules and libraries are
-        # not immediately available to the current runtime. 
+        # not immediately available to the current runtime.
         # Refreshing sys.path fixes this. See:
         # https://stackoverflow.com/questions/4271494/what-sets-up-sys-path-with-python-and-when
         reload(site)
@@ -186,18 +230,17 @@ class TBUtility:
         return current_package_version
 
     @staticmethod
-    def replace_params_tags(text, data):
-        if '${' in text:
-            for item in text.split('/'):
-                if '${' in item:
-                    tag = '${' + TBUtility.get_value(item, data['data'], 'params', get_tag=True) + '}'
-                    value = TBUtility.get_value(item, data['data'], 'params', expression_instead_none=True)
-                    text = text.replace(tag, str(value))
-        return text
-
-    @staticmethod
-    def get_dict_key_by_value(dictionary: dict, value):
-        return list(dictionary.values())[list(dictionary.values()).index(value)]
+    def get_or_create_connector_id(connector_conf):
+        connector_id = str(uuid4())
+        if isinstance(connector_conf, dict):
+            if connector_conf.get('id') is not None:
+                connector_id = connector_conf['id']
+        elif isinstance(connector_conf, str):
+            start_find = connector_conf.find("{id_var_start}")
+            end_find = connector_conf.find("{id_var_end}")
+            if start_find > -1 and end_find > -1:
+                connector_id = connector_conf[start_find + 13:end_find]
+        return connector_id
 
     @staticmethod
     def generate_certificate(old_certificate_path, old_key_path, old_certificate=None):
@@ -237,35 +280,56 @@ class TBUtility:
                 return True
 
     @staticmethod
-    def convert_data_type(data, new_type, use_eval=False):
-        current_type = type(data)
-        # use 'in' check instead of equality for such case like 'str' and 'string'
-        new_type = new_type.lower()
-        if current_type.__name__ in new_type:
-            return data
+    def get_service_environmental_variables():
+        env_variables = {
+            'host': environ.get('host'),
+            'port': int(environ.get('port')) if environ.get('port') else None,
+            'accessToken': environ.get('accessToken'),
+            'caCert': environ.get('caCert'),
+            'privateKey': environ.get('privateKey'),
+            'cert': environ.get('cert'),
+            'clientId': environ.get('clientId'),
+            'password': environ.get('password')
+        }
 
-        evaluated_data = eval(data, globals(), {}) if use_eval else data
-        try:
-            if 'int' in new_type or 'long' in new_type:
-                return int(float(evaluated_data))
-            elif 'float' == new_type or 'double' == new_type:
-                return float(evaluated_data)
-            elif 'bool' in new_type:
-                return bool(strtobool(evaluated_data))
-            else:
-                return str(evaluated_data)
-        except ValueError:
-            return str(evaluated_data)
+        if platform_system() != 'Windows':
+            env_variables['username'] = environ.get('username')
+        elif environ.get('username') is not None and getuser().lower() != environ.get('username').lower():
+            env_variables['username'] = environ.get('username')
+        if environ.get('TB_GW_HOST'):
+            env_variables['host'] = environ.get('TB_GW_HOST')
+        if environ.get('TB_GW_PORT'):
+            env_variables['port'] = int(environ.get('TB_GW_PORT'))
+        if environ.get('TB_GW_ACCESS_TOKEN'):
+            env_variables['accessToken'] = environ.get('TB_GW_ACCESS_TOKEN')
+        if environ.get('TB_GW_CA_CERT'):
+            env_variables['caCert'] = environ.get('TB_GW_CA_CERT')
+        if environ.get('TB_GW_PRIVATE_KEY'):
+            env_variables['privateKey'] = environ.get('TB_GW_PRIVATE_KEY')
+        if environ.get('TB_GW_CERT'):
+            env_variables['cert'] = environ.get('TB_GW_CERT')
+        if environ.get('TB_GW_CLIENT_ID'):
+            env_variables['clientId'] = environ.get('TB_GW_CLIENT_ID')
+        if environ.get('TB_GW_USERNAME'):
+            env_variables['username'] = environ.get('TB_GW_USERNAME')
+        if environ.get('TB_GW_PASSWORD'):
+            env_variables['password'] = environ.get('TB_GW_PASSWORD')
+        if environ.get('TB_GW_RATE_LIMITS'):
+            env_variables['rateLimits'] = environ.get('TB_GW_RATE_LIMITS')
+        if environ.get('TB_GW_DP_RATE_LIMITS'):
+            env_variables['dpRateLimits'] = environ.get('TB_GW_DP_RATE_LIMITS')
 
-    @staticmethod
-    def get_or_create_connector_id(connector_conf):
-        connector_id = str(uuid4())
-        if isinstance(connector_conf, dict):
-            if connector_conf.get('id') is not None:
-                connector_id = connector_conf['id']
-        elif isinstance(connector_conf, str):
-            start_find = connector_conf.find("{id_var_start}")
-            end_find = connector_conf.find("{id_var_end}")
-            if start_find > -1 and end_find > -1:
-                connector_id = connector_conf[start_find + 13:end_find]
-        return connector_id
+        converted_env_variables = {}
+
+        for (key, value) in env_variables.items():
+            if value is not None:
+                if key in SECURITY_VAR:
+                    if not converted_env_variables.get('security'):
+                        converted_env_variables['security'] = {}
+
+                    converted_env_variables['security'][key] = value
+                else:
+                    converted_env_variables[key] = value
+
+        return converted_env_variables
+
