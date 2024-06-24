@@ -17,11 +17,10 @@ from logging import getLogger
 from os import chdir, getcwd
 from subprocess import PIPE, Popen, STDOUT, TimeoutExpired
 
-log = getLogger("service")
-
 
 class RemoteShell:
-    def __init__(self, platform, release):
+    def __init__(self, platform, release, logger):
+        self.__logger = logger
         self.__session_active = False
         self.__platform = platform
         self.__release = release
@@ -40,24 +39,24 @@ class RemoteShell:
 
     def send_command(self, *args):
         result = {"ok": False, "qos": 0}
-        log.debug("Received command to shell with args: %r", args)
+        self.__logger.debug("Received command to shell with args: %r", args)
         command = args[0]['command']
         cwd = args[0].get('cwd')
         if cwd is not None and str(getcwd()) != cwd:
             chdir(cwd)
         if command.split():
             if self.command_in_progress is not None:
-                log.debug("Received a new command: \"%s\", during old command is running, terminating old command...", command)
+                self.__logger.debug("Received a new command: \"%s\", during old command is running, terminating old command...", command)
                 old_command = self.command_in_progress.args
                 self.terminate_command()
-                log.debug("Old command: \"%s\" terminated.", old_command)
+                self.__logger.debug("Old command: \"%s\" terminated.", old_command)
             if command.split()[0] in ["quit", "exit"]:
                 self.command_in_progress = None
             elif command.split()[0] == "cd":
                 chdir(command.split()[1])
                 self.command_in_progress = "cd"
             else:
-                log.debug("Run command in remote shell: %s", command)
+                self.__logger.debug("Run command in remote shell: %s", command)
                 self.command_in_progress = Popen(command, shell=True, stdout=PIPE, stdin=PIPE, stderr=STDOUT, universal_newlines=True)
             result.update({"ok": True})
         return result
@@ -79,7 +78,7 @@ class RemoteShell:
             try:
                 stdout_value, stderr_value = self.command_in_progress.communicate(timeout=.1)
             except TimeoutExpired as e:
-                log.debug("Process is run")
+                self.__logger.debug("Process is run")
                 stdout_value = b"" if e.stdout is None else e.stdout.replace(self.__previous_stdout, b"")
                 stderr_value = b"" if e.stderr is None else e.stderr.replace(self.__previous_stderr, b"")
                 stdout_value = stdout_value[:-1] if len(stdout_value) and stdout_value[-1] == b"\n" else stdout_value
@@ -106,7 +105,7 @@ class RemoteShell:
                 self.__previous_stdout = b""
                 result.update({"ok": True})
             except Exception as e:
-                log.exception(e)
+                self.__logger.exception(e)
                 result["error"] = str(e)
         else:
             result["error"] = "Process for termination not found."
