@@ -78,7 +78,11 @@ class OpcUaConnector(Connector, Thread):
         self.__data_to_send = Queue(-1)
         self.__sub_data_to_convert = Queue(-1)
 
-        self.__loop = asyncio.new_event_loop()
+        current_loop = asyncio.get_event_loop()
+        if current_loop.is_running() and not current_loop.is_closed():
+            self.__loop = current_loop
+        else:
+            self.__loop = asyncio.new_event_loop()
 
         self.__client = None
         self.__subscription = None
@@ -99,16 +103,25 @@ class OpcUaConnector(Connector, Thread):
         return self._connector_type
 
     def close(self):
+        self.__stopped = True
+        self.__connected = False
         self.__log.info("Stopping OPC-UA Connector")
+        for task in asyncio.all_tasks(self.__loop):
+            task.cancel()
+
+        asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.__loop)
+
         try:
             self.join(.01)
         except Exception as e:
             self.__log.exception("Error stopping connector: %s", e)
-
-        self.__stopped = True
-        self.__connected = False
         self.__log.info('%s has been stopped.', self.get_name())
         self.__log.stop()
+
+    async def __cancel_all_tasks(self):
+        await asyncio.gather(*asyncio.all_tasks(self.__loop), return_exceptions=True)
+        self.__loop.stop()
+        self.__loop.close()
 
     async def __reset_node(self, node):
         node['valid'] = False
@@ -159,7 +172,10 @@ class OpcUaConnector(Connector, Thread):
                                              daemon=True)
             sub_data_convert_thread.start()
 
-        self.__loop.run_until_complete(self.start_client())
+        try:
+            self.__loop.run_until_complete(self.start_client())
+        except Exception as e:
+            self.__log.exception("Error in main loop: %s", e)
 
     async def start_client(self):
         while not self.__stopped:
@@ -172,6 +188,8 @@ class OpcUaConnector(Connector, Thread):
                 if self.__server_conf["identity"].get("username"):
                     self.__set_auth_settings_by_username()
 
+                if self.__stopped:
+                    break
                 async with self.__client:
                     self.__connected = True
 
@@ -191,8 +209,15 @@ class OpcUaConnector(Connector, Thread):
                 self.__log.warning('Connection lost for %s', self.get_name())
             except asyncio.exceptions.TimeoutError:
                 self.__log.warning('Failed to connect %s', self.get_name())
+            except asyncio.CancelledError as e:
+                if self.__stopped:
+                    self.__log.debug('Task was cancelled due to connector stop: %s', e.__str__())
+                    break
+                else:
+                    self.__log.exception('Task was cancelled: %s', e.__str__())
             except Exception as e:
-                self.__log.exception(e)
+                self.__log.exception("Error in main loop: %s", e)
+                break
             finally:
                 if self.__client is not None:
                     await self.__client.disconnect()
