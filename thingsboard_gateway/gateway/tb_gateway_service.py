@@ -1164,6 +1164,10 @@ class TBGatewayService:
                                                 success = True
                                         else:
                                             break
+                                    except RuntimeError as e:
+                                        log.error("Error while sending data to ThingsBoard, it will be resent.",
+                                                  exc_info=e)
+                                        success = False
                                     except Exception as e:
                                         log.error("Error while sending data to ThingsBoard, it will be resent.",
                                                   exc_info=e)
