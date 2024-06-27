@@ -77,11 +77,13 @@ class OpcUaConnector(Connector, Thread):
 
         self.__data_to_send = Queue(-1)
         self.__sub_data_to_convert = Queue(-1)
-
-        current_loop = asyncio.get_event_loop()
-        if current_loop.is_running() and not current_loop.is_closed():
-            self.__loop = current_loop
-        else:
+        try:
+            current_loop = asyncio.get_event_loop()
+            if current_loop.is_running() and not current_loop.is_closed():
+                self.__loop = current_loop
+            else:
+                self.__loop = asyncio.new_event_loop()
+        except RuntimeError:
             self.__loop = asyncio.new_event_loop()
 
         self.__client = None
