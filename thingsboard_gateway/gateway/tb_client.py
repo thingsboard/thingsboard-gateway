@@ -171,7 +171,7 @@ class TBClient(threading.Thread):
                                         ciphers=None)  # noqa pylint: disable=protected-access
             if credentials.get("insecure", False):
                 self.client._client.tls_insecure_set(True)  # noqa pylint: disable=protected-access
-            if self.__logger.isEnabledFor('DEBUG'):
+            if self.__logger.isEnabledFor(10):
                 self.client._client.enable_logger(self.__logger)  # noqa pylint: disable=protected-access
 
     @staticmethod
