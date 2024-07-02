@@ -220,6 +220,12 @@ class OpcUaConnector(Connector, Thread):
                     break
                 else:
                     self.__log.exception('Task was cancelled: %s', e.__str__())
+            except UaStatusCodeError as e:
+                self.__log.error('Error in main loop, trying to reconnect: %s', exc_info=e)
+                if self.__connected:
+                    await self.__client.disconnect()
+                    self.__connected = False
+                break
             except Exception as e:
                 self.__log.exception("Error in main loop: %s", e)
                 break
