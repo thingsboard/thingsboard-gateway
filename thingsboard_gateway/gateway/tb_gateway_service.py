@@ -256,6 +256,13 @@ class TBGatewayService:
                 self.server = self.manager.get_server()
                 self.server.serve_forever()
 
+        while not self.stopped:
+            try:
+                sleep(1)
+            except KeyboardInterrupt:
+                self.__stop_gateway()
+                break
+
     def __init_variables(self):
         self.stopped = False
         self.__device_filter_config = None

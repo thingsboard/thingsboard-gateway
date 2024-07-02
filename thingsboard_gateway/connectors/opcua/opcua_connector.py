@@ -14,14 +14,11 @@
 
 import asyncio
 import re
-import threading
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic
 from queue import Queue
-
-threading._SHUTTING_DOWN = False
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.device import Device
@@ -31,7 +28,7 @@ from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
     import asyncua
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     print("OPC-UA library not found")
     TBUtility.install_package("asyncua")
     import asyncua
@@ -77,14 +74,12 @@ class OpcUaConnector(Connector, Thread):
 
         self.__data_to_send = Queue(-1)
         self.__sub_data_to_convert = Queue(-1)
+
         try:
-            current_loop = asyncio.get_event_loop()
-            if current_loop.is_running() and not current_loop.is_closed():
-                self.__loop = current_loop
-            else:
-                self.__loop = asyncio.new_event_loop()
-        except RuntimeError:
             self.__loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.__loop)
+        except RuntimeError:
+            self.__loop = asyncio.get_event_loop()
 
         self.__client = None
         self.__subscription = None
@@ -108,22 +103,23 @@ class OpcUaConnector(Connector, Thread):
         self.__stopped = True
         self.__connected = False
         self.__log.info("Stopping OPC-UA Connector")
-        for task in asyncio.all_tasks(self.__loop):
-            task.cancel()
 
         asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.__loop)
 
-        try:
-            self.join(.01)
-        except Exception as e:
-            self.__log.exception("Error stopping connector: %s", e)
+        start_time = monotonic()
+
+        while self.is_alive():
+            if monotonic() - start_time > 5:
+                self.__log.error("Failed to stop connector %s", self.get_name())
+                break
+            sleep(.1)
+
         self.__log.info('%s has been stopped.', self.get_name())
         self.__log.stop()
 
     async def __cancel_all_tasks(self):
-        await asyncio.gather(*asyncio.all_tasks(self.__loop), return_exceptions=True)
-        self.__loop.stop()
-        self.__loop.close()
+        for task in asyncio.all_tasks(self.__loop):
+            task.cancel()
 
     async def __reset_node(self, node):
         node['valid'] = False
@@ -131,8 +127,8 @@ class OpcUaConnector(Connector, Thread):
             try:
                 if self.__subscription:
                     await self.__subscription.unsubscribe(node['subscription'])
-            except:
-                pass
+            except Exception as e:
+                self.__log.exception('Error unsubscribing on data change: %s', e)
             node['subscription'] = None
             node['sub_on'] = False
 
@@ -146,8 +142,8 @@ class OpcUaConnector(Connector, Thread):
         if device_name is None and self.__subscription:
             try:
                 await self.__subscription.delete()
-            except:
-                pass
+            except Exception as e:
+                self.__log.exception('Error deleting subscription: %s', e)
             self.__subscription = None
 
     def get_id(self):
@@ -176,6 +172,8 @@ class OpcUaConnector(Connector, Thread):
 
         try:
             self.__loop.run_until_complete(self.start_client())
+        except asyncio.CancelledError:
+            pass
         except Exception as e:
             self.__log.exception("Error in main loop: %s", e)
 
@@ -192,21 +190,26 @@ class OpcUaConnector(Connector, Thread):
 
                 if self.__stopped:
                     break
-                async with self.__client:
-                    self.__connected = True
 
-                    try:
-                        await self.__client.load_data_type_definitions()
-                    except Exception as e:
-                        self.__log.error("Error on loading type definitions:\n %s", e)
+                await self.__client.connect()
+                self.__connected = True
 
-                    while not self.__stopped:
-                        if monotonic() - self.__last_poll >= self.__server_conf.get('scanPeriodInMillis', 5000) / 1000:
-                            await self.__scan_device_nodes()
-                            await self.__poll_nodes()
-                            self.__last_poll = monotonic()
+                try:
+                    await self.__client.load_data_type_definitions()
+                except Exception as e:
+                    self.__log.error("Error on loading type definitions:\n %s", e)
 
-                        await asyncio.sleep(.2)
+                scan_period = self.__server_conf.get('scanPeriodInMillis', 5000) / 1000
+                while not self.__stopped:
+                    if monotonic() - self.__last_poll >= scan_period:
+                        await self.__scan_device_nodes()
+                        await self.__poll_nodes()
+                        self.__last_poll = monotonic()
+
+                    if not scan_period < 0.2:
+                        await asyncio.sleep(0.2)
+                    else:
+                        await asyncio.sleep(scan_period)
             except (ConnectionError, BadSessionClosed):
                 self.__log.warning('Connection lost for %s', self.get_name())
             except asyncio.exceptions.TimeoutError:
@@ -221,7 +224,7 @@ class OpcUaConnector(Connector, Thread):
                 self.__log.exception("Error in main loop: %s", e)
                 break
             finally:
-                if self.__client is not None:
+                if self.__connected:
                     await self.__client.disconnect()
                 self.__connected = False
                 await asyncio.sleep(1)
@@ -518,7 +521,7 @@ class OpcUaConnector(Connector, Thread):
                     rpc_method = rpc_method_name
                     content['device'] = content['params'].split(' ')[0].split('=')[-1]
             except (ValueError, IndexError):
-                pass
+                self.__log.error('Invalid RPC method name: %s', rpc_method)
 
             # firstly check if a method is not service
             if rpc_method == 'set' or rpc_method == 'get':
