@@ -124,9 +124,12 @@ class TBClient(threading.Thread):
 
     def _create_mqtt_client(self, credentials):
         self.__tls = bool(credentials.get('tls', False) or credentials.get('caCert', False))
-        if credentials.get("accessToken") is not None:
+        credentials_type = credentials.get('type')
+        if credentials_type is None and credentials.get('accessToken') is not None:
+            credentials_type = 'accessToken'
+        if credentials_type == 'accessToken':
             self.__username = str(credentials["accessToken"])
-        if credentials.get('type') == 'usernamePassword':
+        if credentials_type == 'usernamePassword':
             if credentials.get("username") is not None:
                 self.__username = str(credentials["username"])
             if credentials.get("password") is not None:

@@ -116,8 +116,20 @@ class RemoteConfigurator:
                 config['class'] = connector.get('class')
             connectors_config.append(config)
 
+        adopted_general_config = {}
+        adopted_general_config.update(self.general_configuration)
+
+        security_section = adopted_general_config.get('security')
+        security_type = security_section.get('type', 'accessToken')
+        if security_type == 'accessToken':
+            security_section.pop('clientId', None)
+            security_section.pop('username', None)
+            security_section.pop('password', None)
+        elif security_type == 'usernamePassword':
+            security_section.pop('accessToken', None)
+
         return {
-            'thingsboard': self.general_configuration,
+            'thingsboard': adopted_general_config,
             'storage': self.storage_configuration,
             'grpc': self.grpc_configuration,
             'connectors': connectors_config
@@ -456,7 +468,8 @@ class RemoteConfigurator:
             for connector in self.connectors_configuration:
                 connector_identifier = connector.get(identifier_parameter)
                 if connector_identifier is None:
-                    LOG.warning('Connector %s has no identifier parameter %s, it will be skipped.', connector, identifier_parameter)
+                    LOG.warning('Connector %s has no identifier parameter %s, it will be skipped.',
+                                connector, identifier_parameter)
                     continue
                 if connector[identifier_parameter] == config.get(identifier_parameter):
                     found_connectors.append(connector)
