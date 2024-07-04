@@ -452,10 +452,14 @@ class RemoteConfigurator:
             config_file_name = config['configuration']
 
             identifier_parameter = 'id' if config.get('configurationJson', {}).get('id') else 'name'
-            found_connectors = list(filter(
-                lambda item: item[identifier_parameter] == config.get('configurationJson', {}).get(
-                    identifier_parameter) or config.get(identifier_parameter),
-                self.connectors_configuration))
+            found_connectors = []
+            for connector in self.connectors_configuration:
+                connector_identifier = connector.get(identifier_parameter)
+                if connector_identifier is None:
+                    LOG.warning('Connector %s has no identifier parameter %s, it will be skipped.', connector, identifier_parameter)
+                    continue
+                if connector[identifier_parameter] == config.get(identifier_parameter):
+                    found_connectors.append(connector)
 
             if (config.get('configurationJson', {})
                     and config.get('configurationJson', {}).get('id') is None
