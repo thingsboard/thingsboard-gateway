@@ -126,12 +126,13 @@ class TBClient(threading.Thread):
         self.__tls = bool(credentials.get('tls', False) or credentials.get('caCert', False))
         if credentials.get("accessToken") is not None:
             self.__username = str(credentials["accessToken"])
-        if credentials.get("username") is not None:
-            self.__username = str(credentials["username"])
-        if credentials.get("password") is not None:
-            self.__password = str(credentials["password"])
-        if credentials.get("clientId") is not None:
-            self.__client_id = str(credentials["clientId"])
+        if credentials.get('type') == 'usernamePassword':
+            if credentials.get("username") is not None:
+                self.__username = str(credentials["username"])
+            if credentials.get("password") is not None:
+                self.__password = str(credentials["password"])
+            if credentials.get("clientId") is not None:
+                self.__client_id = str(credentials["clientId"])
 
         rate_limits_config = {}
         if self.__config.get('rateLimits'):
@@ -275,6 +276,7 @@ class TBClient(threading.Thread):
         self.__min_reconnect_delay = min_reconnect_delay
 
         keep_alive = self.__config.get("keep_alive", 120)
+        previous_connection_time = time()
         try:
             while not self.client.is_connected() and not self.__stopped:
                 if not self.__paused:
@@ -282,8 +284,12 @@ class TBClient(threading.Thread):
                         break
                     self.__logger.debug("connecting to ThingsBoard")
                     try:
-                        self.client.connect(keepalive=keep_alive,
-                                            min_reconnect_delay=self.__min_reconnect_delay)
+                        if time() - previous_connection_time < min_reconnect_delay:
+                            self.client.connect(keepalive=keep_alive,
+                                                min_reconnect_delay=self.__min_reconnect_delay)
+                            previous_connection_time = time()
+                        else:
+                            sleep(1)
                     except ConnectionRefusedError:
                         self.__logger.error("Connection refused. Check ThingsBoard is running.")
                     except Exception as e:
