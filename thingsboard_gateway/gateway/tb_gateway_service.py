@@ -1242,7 +1242,7 @@ class TBGatewayService:
                                               connector_name)
                                     content['id'] = request_id
                                     result = self.available_connectors_by_name[connector_name].server_side_rpc_handler(content) # noqa E501
-                        elif module == 'gateway' or module in self.__remote_shell.shell_commands:
+                        elif module == 'gateway' or (self.__remote_shell and module in self.__remote_shell.shell_commands):
                             result = self.__rpc_gateway_processing(request_id, content)
                         else:
                             log.error("Connector \"%s\" not found", module)

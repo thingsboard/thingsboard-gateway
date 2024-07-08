@@ -642,7 +642,7 @@ class ModbusConnector(Connector, Thread):
                 if connector_type == self._connector_type:
                     rpc_method = rpc_method_name
                     server_rpc_request['device'] = server_rpc_request['params'].split(' ')[0].split('=')[-1]
-            except (IndexError, ValueError):
+            except (IndexError, ValueError, AttributeError):
                 pass
 
             if server_rpc_request.get(DEVICE_SECTION_PARAMETER) is not None:
@@ -679,17 +679,24 @@ class ModbusConnector(Connector, Thread):
                             break
                 else:
                     self.__log.error("Received rpc request, but method %s not found in config for %s.",
-                              rpc_method,
-                              self.get_name())
+                                     rpc_method,
+                                     self.get_name())
                     self.__gateway.send_rpc_reply(server_rpc_request[DEVICE_SECTION_PARAMETER],
                                                   server_rpc_request[DATA_PARAMETER][RPC_ID_PARAMETER],
                                                   {rpc_method: "METHOD NOT FOUND!"})
             else:
                 self.__log.debug("Received RPC to connector: %r", server_rpc_request)
+                results = []
+                for device in self.__slaves:
+                    server_rpc_request[DEVICE_SECTION_PARAMETER] = device.device_name
+                    results.append(self.__process_request(server_rpc_request, server_rpc_request['params'], return_result=True))
+
+                return results
+
         except Exception as e:
             self.__log.exception(e)
 
-    def __process_request(self, content, rpc_command_config, request_type='RPC'):
+    def __process_request(self, content, rpc_command_config, request_type='RPC', return_result=False):
         self.__log.debug('Processing %s request', request_type)
         if rpc_command_config is not None:
             device = ModbusConnector.__get_device_by_name(content[DEVICE_SECTION_PARAMETER], self.__slaves)
@@ -745,16 +752,33 @@ class ModbusConnector(Connector, Thread):
             if content.get(RPC_ID_PARAMETER) or (content.get(DATA_PARAMETER) is not None
                     and content[DATA_PARAMETER].get(RPC_ID_PARAMETER)) is not None:
                 if isinstance(response, Exception) or isinstance(response, ExceptionResponse):
-                    self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
-                                                  req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
-                                                  content={
-                                                      content[DATA_PARAMETER][RPC_METHOD_PARAMETER]: str(response)
-                                                  },
-                                                  success_sent=False)
+                    if not return_result:
+                        self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
+                                                      req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                                                      content={
+                                                          content[DATA_PARAMETER][RPC_METHOD_PARAMETER]: str(response)
+                                                      },
+                                                      success_sent=False)
+                    else:
+                        return {
+                            'device': content[DEVICE_SECTION_PARAMETER],
+                            'req_id': content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                            'content': {
+                                content[DATA_PARAMETER][RPC_METHOD_PARAMETER]: str(response)
+                            },
+                            'success_sent': False
+                        }
                 else:
-                    self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
-                                                  req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
-                                                  content=response)
+                    if not return_result:
+                        self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
+                                                      req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                                                      content=response)
+                    else:
+                        return {
+                            'device': content[DEVICE_SECTION_PARAMETER],
+                            'req_id': content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                            'content': response
+                        }
 
             self.__log.debug("%r", response)
 
