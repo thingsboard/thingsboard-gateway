@@ -116,8 +116,20 @@ class RemoteConfigurator:
                 config['class'] = connector.get('class')
             connectors_config.append(config)
 
+        adopted_general_config = {}
+        adopted_general_config.update(self.general_configuration)
+
+        security_section = adopted_general_config.get('security')
+        security_type = security_section.get('type', 'accessToken')
+        if security_type == 'accessToken':
+            security_section.pop('clientId', None)
+            security_section.pop('username', None)
+            security_section.pop('password', None)
+        elif security_type == 'usernamePassword':
+            security_section.pop('accessToken', None)
+
         return {
-            'thingsboard': self.general_configuration,
+            'thingsboard': adopted_general_config,
             'storage': self.storage_configuration,
             'grpc': self.grpc_configuration,
             'connectors': connectors_config
@@ -214,13 +226,17 @@ class RemoteConfigurator:
                             continue
 
                         request_config = config[attr_name]
-                        if not self._is_modified(attr_name, request_config):
+                        if not self._is_modified(attr_name, request_config) and self.__is_running(request_config):
                             continue
 
+                        request_processed = False
                         for (name, func) in self._handlers.items():
                             if fullmatch(name, attr_name):
                                 func(request_config)
+                                request_processed = True
                                 break
+                        if not request_processed:
+                            LOG.error("Cannot process request for %s", attr_name)
                 except (KeyError, AttributeError) as e:
                     LOG.error('Unknown attribute update name (Available: %s), %r', ', '.join(self._handlers.keys()),
                               exc_info=e)
@@ -251,9 +267,16 @@ class RemoteConfigurator:
         LOG.debug('Processing general configuration update')
 
         LOG.debug('--- Checking connection configuration changes...')
+        security_section = config.get('security', {})
+        security_mismatch = security_section != self.general_configuration.get('security')
+        # if (security_mismatch
+        #         and security_section.get('accessToken') == self.general_configuration.get('security', {}).get('accessToken')
+        #         and security_section.get("type") == "accessToken"
+        #         and self.general_configuration.get('security', {}).get('type') is None):
+        #     security_mismatch = False
         if (config['host'] != self.general_configuration['host']
                 or config['port'] != self.general_configuration['port']
-                or config['security'] != self.general_configuration['security']
+                or security_mismatch
                 or config.get('provisioning', {}) != self.general_configuration.get('provisioning', {})
                 or config['qos'] != self.general_configuration['qos']):
             LOG.debug('---- Connection configuration changed. Processing...')
@@ -441,10 +464,15 @@ class RemoteConfigurator:
             config_file_name = config['configuration']
 
             identifier_parameter = 'id' if config.get('configurationJson', {}).get('id') else 'name'
-            found_connectors = list(filter(
-                lambda item: item[identifier_parameter] == config.get('configurationJson', {}).get(
-                    identifier_parameter) or config.get(identifier_parameter),
-                self.connectors_configuration))
+            found_connectors = []
+            for connector in self.connectors_configuration:
+                connector_identifier = connector.get(identifier_parameter)
+                if connector_identifier is None:
+                    LOG.warning('Connector %s has no identifier parameter %s, it will be skipped.',
+                                connector, identifier_parameter)
+                    continue
+                if connector[identifier_parameter] == config.get(identifier_parameter):
+                    found_connectors.append(connector)
 
             if (config.get('configurationJson', {})
                     and config.get('configurationJson', {}).get('id') is None
@@ -572,8 +600,10 @@ class RemoteConfigurator:
                                                 self._gateway.available_connectors_by_id[connector_id])
 
             self._gateway.tb_client.client.send_attributes({config['name']: config})
+            with open(self._gateway.get_config_path() + 'tb_gateway.json', 'w') as file:
+                file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))
         except Exception as e:
-            LOG.exception(e)
+            LOG.exception("Exception on connector configuration update occurred:", exc_info=e)
 
     def _handle_remote_logging_level_update(self, config):
         self._gateway.tb_client.client.send_attributes({'RemoteLoggingLevel': config})
@@ -594,6 +624,8 @@ class RemoteConfigurator:
 
             connection_state = False
             use_new_config = True
+            config['rateLimits'] = old_tb_client_config.get('rateLimits', 'DEFAULT_RATE_LIMIT')
+            config['dpRateLimits'] = old_tb_client_config.get('dpRateLimits', 'DEFAULT_RATE_LIMIT')
             while not self._gateway.stopped and not connection_state:
                 self._gateway.__subscribed_to_rpc_topics = False
                 new_tb_client = TBClient(config if use_new_config else old_tb_client_config, old_tb_client_config_path, connection_logger)
@@ -725,6 +757,12 @@ class RemoteConfigurator:
 
         return True
 
+    def _is_running(self, attr_name, config):
+        if (config.get(attr_name, {}).get('configurationJson', {}).get('id') in self._gateway.available_connectors_by_id
+                or attr_name in self._gateway.available_connectors_by_name):
+            return True
+        return False
+
     def create_configuration_file_backup(self, config_data, config_file_name):
         backup_folder_path = self._gateway.get_config_path() + "backup"
         if not os.path.exists(backup_folder_path):
@@ -748,3 +786,7 @@ class RemoteConfigurator:
         for logger in config['loggers']:
             if handler in config['loggers'][logger]['handlers']:
                 config['loggers'][logger]['handlers'].remove(handler)
+
+    def __is_running(self, request_config):
+        return (request_config.get('configurationJson', {}).get('id') in self._gateway.available_connectors_by_id or
+                request_config.get('name') in self._gateway.available_connectors_by_name)

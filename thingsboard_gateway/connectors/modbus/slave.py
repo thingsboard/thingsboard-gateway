@@ -112,12 +112,12 @@ class Slave(Thread):
             else:
                 downlink_converter = BytesModbusDownlinkConverter(self.config, self._log)
 
+            self.config[UPLINK_PREFIX + CONVERTER_PARAMETER] = converter
+            self.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER] = downlink_converter
+
             if self.device_name not in gateway.get_devices():
                 gateway.add_device(self.device_name, {CONNECTOR_PARAMETER: connector},
                                    device_type=self.config.get(DEVICE_TYPE_PARAMETER))
-
-            self.config[UPLINK_PREFIX + CONVERTER_PARAMETER] = converter
-            self.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER] = downlink_converter
         except Exception as e:
             self._log.exception(e)
 

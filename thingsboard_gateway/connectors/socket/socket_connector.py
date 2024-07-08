@@ -15,7 +15,7 @@
 import socket
 from queue import Queue
 from random import choice
-from re import findall, fullmatch, compile
+from re import findall, compile, fullmatch
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep
@@ -69,6 +69,11 @@ class SocketConnector(Connector, Thread):
         converters_for_devices = {}
         for device in devices:
             address = device.get('addressFilter', device.get('address', None))
+            if address is None:
+                self.__log.error('Device %s has no addressFilter or address', device.get('deviceName', 'Unknown'))
+                continue
+
+            address = address.replace('*', '.*')
             address_key = address
             try:
                 address_key = compile(address)
@@ -209,6 +214,8 @@ class SocketConnector(Connector, Thread):
                     if client_address != conf_device_address and not fullmatch(conf_device_address, client_address):
                         continue
                     device = self.__devices.get(conf_device_address)
+                    device['address'] = client_address
+
                     # check data for attribute requests
                     is_attribute_request = False
                     attr_requests = device.get('attributeRequests', [])

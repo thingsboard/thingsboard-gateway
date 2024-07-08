@@ -31,7 +31,7 @@ RUN mkdir -p /default-config/config /default-config/extensions/ &&  \
     curl https://sh.rustup.rs -sSf | sh -s -- -y --default-host=$DEFAULT_HOST && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* &&  \
-    echo '#! /bin/sh\n\
+    echo '#!/bin/sh\n\
 # Main start script\n\
 CONF_FOLDER="/thingsboard_gateway/config"\n\
 FIRSTLAUNCH="${CONF_FOLDER}/.firstlaunch"\n\

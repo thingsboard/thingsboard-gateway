@@ -13,7 +13,8 @@
 #     limitations under the License.
 from copy import deepcopy
 from threading import Thread, Lock
-from time import sleep, time
+from time import sleep
+from time import monotonic as time
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
@@ -112,6 +113,7 @@ class ModbusConnector(Connector, Thread):
         self.statistics = {STATISTIC_MESSAGE_RECEIVED_PARAMETER: 0,
                            STATISTIC_MESSAGE_SENT_PARAMETER: 0}
         super().__init__()
+        self.__cached_connections = {}
         self.__gateway = gateway
         self._connector_type = connector_type
         self.__log = init_logger(self.__gateway, config.get('name', self.name),
@@ -371,10 +373,12 @@ class ModbusConnector(Connector, Thread):
                             current_device_config = device.config
 
                             if self.__connect_to_current_master(device):
-                                if not device_connected:
+                                if not device_connected and device.config['master'].is_socket_open():
                                     device_connected = True
                                     self.__gateway.add_device(device.device_name, {CONNECTOR_PARAMETER: self},
                                                           device_type=device.config.get(DEVICE_TYPE_PARAMETER))
+                                else:
+                                    device_disconnected = True
                             else:
                                 if not device_disconnected:
                                     device_disconnected = True
@@ -384,10 +388,14 @@ class ModbusConnector(Connector, Thread):
                             if (not device.config['master'].is_socket_open()
                                     or not len(current_device_config[config_section])):
                                 if not device.config['master'].is_socket_open():
-                                    error = 'Socket is closed'
+                                    error = 'Socket is closed, connection is lost, for device %s with config %s' % (
+                                        device.device_name, current_device_config)
                                 else:
-                                    error = 'Config is invalid'
+                                    error = 'Config is invalid or empty for device %s, config %s' % (
+                                        device.device_name, current_device_config)
                                 self.__log.error(error)
+                                self.__log.debug("Device %s is not connected, data will not be processed",
+                                                 device.device_name)
                                 continue
 
                             # Reading data from device
@@ -439,7 +447,7 @@ class ModbusConnector(Connector, Thread):
         wait_after_failed_attempts_ms = 300000
 
         if device.config.get('master') is None:
-            device.config['master'], device.config['available_functions'] = self.__configure_master(device.config)
+            device.config['master'], device.config['available_functions'] = self.__get_or_create_connection(device.config)
 
         if connect_attempt_count < 1:
             connect_attempt_count = 1
@@ -485,7 +493,7 @@ class ModbusConnector(Connector, Thread):
         current_config = config
         current_config["rtu"] = FRAMER_TYPE[current_config['method']]
 
-        if current_config.get('type') == 'tcp' and current_config.get('tls'):
+        if current_config.get(TYPE_PARAMETER) == 'tcp' and current_config.get('tls'):
             master = ModbusTlsClient(current_config["host"],
                                      current_config["port"],
                                      current_config["rtu"],
@@ -494,7 +502,7 @@ class ModbusConnector(Connector, Thread):
                                      retry_on_invalid=current_config["retry_on_invalid"],
                                      retries=current_config["retries"],
                                      **current_config['tls'])
-        elif current_config.get('type') == 'tcp':
+        elif current_config.get(TYPE_PARAMETER) == 'tcp':
             master = ModbusTcpClient(current_config["host"],
                                      current_config["port"],
                                      current_config["rtu"],
@@ -537,6 +545,17 @@ class ModbusConnector(Connector, Thread):
         }
         return master, available_functions
 
+    def __get_or_create_connection(self, config):
+        keys_for_cache = ('host', 'port', 'method', 'type')
+        if config.get(TYPE_PARAMETER) == 'serial':
+            keys_for_cache = ('port', 'method')
+
+        configuration_values_for_cache = tuple([config[key] for key in keys_for_cache])
+
+        if self.__cached_connections.get(configuration_values_for_cache) is None:
+            self.__cached_connections[configuration_values_for_cache] = self.__configure_master(config)
+        return self.__cached_connections[configuration_values_for_cache]
+
     def __stop_connections_to_masters(self):
         for slave in self.__slaves:
             if (slave.config.get('master') is not None
@@ -547,15 +566,6 @@ class ModbusConnector(Connector, Thread):
         function_code = config.get('functionCode')
         result = None
         if function_code == 1:
-            # why count * 8 ? in my Modbus device one coils is 1bit, tow coils is 2bit,if * 8 can not read right coils
-            # result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
-            #                                                              count=config.get(OBJECTS_COUNT_PARAMETER,
-            #                                                                               config.get("registersCount",
-            #                                                                                          config.get(
-            #                                                                                              "registerCount",
-            #                                                                                              1))) * 8,
-            #                                                              slave=device.config['unitId'])
-
             result = device.config['available_functions'][function_code](address=config[ADDRESS_PARAMETER],
                                                                          count=config.get(OBJECTS_COUNT_PARAMETER,
                                                                                           config.get("registersCount",
@@ -588,8 +598,12 @@ class ModbusConnector(Connector, Thread):
 
         self.__log.debug("With result %s", str(result))
 
-        if "Exception" in str(result):
-            self.__log.exception(result)
+        if "Exception" in str(result) or "Error" in str(result):
+            self.__log.exception("Reading failed with exception:", exc_info=result)
+
+        self.__log.debug("Sending request to device with unit id: %s, on address: %s, function code: %r using "
+                         "connection: %r",
+                         device.config['unitId'], config[ADDRESS_PARAMETER], function_code, device.config['master'])
 
         return result
 
@@ -628,7 +642,7 @@ class ModbusConnector(Connector, Thread):
                 if connector_type == self._connector_type:
                     rpc_method = rpc_method_name
                     server_rpc_request['device'] = server_rpc_request['params'].split(' ')[0].split('=')[-1]
-            except (IndexError, ValueError):
+            except (IndexError, ValueError, AttributeError):
                 pass
 
             if server_rpc_request.get(DEVICE_SECTION_PARAMETER) is not None:
@@ -665,17 +679,24 @@ class ModbusConnector(Connector, Thread):
                             break
                 else:
                     self.__log.error("Received rpc request, but method %s not found in config for %s.",
-                              rpc_method,
-                              self.get_name())
+                                     rpc_method,
+                                     self.get_name())
                     self.__gateway.send_rpc_reply(server_rpc_request[DEVICE_SECTION_PARAMETER],
                                                   server_rpc_request[DATA_PARAMETER][RPC_ID_PARAMETER],
                                                   {rpc_method: "METHOD NOT FOUND!"})
             else:
                 self.__log.debug("Received RPC to connector: %r", server_rpc_request)
+                results = []
+                for device in self.__slaves:
+                    server_rpc_request[DEVICE_SECTION_PARAMETER] = device.device_name
+                    results.append(self.__process_request(server_rpc_request, server_rpc_request['params'], return_result=True))
+
+                return results
+
         except Exception as e:
             self.__log.exception(e)
 
-    def __process_request(self, content, rpc_command_config, request_type='RPC'):
+    def __process_request(self, content, rpc_command_config, request_type='RPC', return_result=False):
         self.__log.debug('Processing %s request', request_type)
         if rpc_command_config is not None:
             device = ModbusConnector.__get_device_by_name(content[DEVICE_SECTION_PARAMETER], self.__slaves)
@@ -730,16 +751,34 @@ class ModbusConnector(Connector, Thread):
 
             if content.get(RPC_ID_PARAMETER) or (content.get(DATA_PARAMETER) is not None
                     and content[DATA_PARAMETER].get(RPC_ID_PARAMETER)) is not None:
-                if isinstance(response, Exception):
-                    self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
-                                                  req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
-                                                  content={
-                                                      content[DATA_PARAMETER][RPC_METHOD_PARAMETER]: str(response)
-                                                  })
+                if isinstance(response, Exception) or isinstance(response, ExceptionResponse):
+                    if not return_result:
+                        self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
+                                                      req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                                                      content={
+                                                          content[DATA_PARAMETER][RPC_METHOD_PARAMETER]: str(response)
+                                                      },
+                                                      success_sent=False)
+                    else:
+                        return {
+                            'device': content[DEVICE_SECTION_PARAMETER],
+                            'req_id': content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                            'content': {
+                                content[DATA_PARAMETER][RPC_METHOD_PARAMETER]: str(response)
+                            },
+                            'success_sent': False
+                        }
                 else:
-                    self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
-                                                  req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
-                                                  content=response)
+                    if not return_result:
+                        self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
+                                                      req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                                                      content=response)
+                    else:
+                        return {
+                            'device': content[DEVICE_SECTION_PARAMETER],
+                            'req_id': content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                            'content': response
+                        }
 
             self.__log.debug("%r", response)
 
