@@ -471,7 +471,8 @@ class RemoteConfigurator:
                     LOG.warning('Connector %s has no identifier parameter %s, it will be skipped.',
                                 connector, identifier_parameter)
                     continue
-                if connector[identifier_parameter] == config.get(identifier_parameter):
+                if connector[identifier_parameter] == config.get('configurationJson', {}).get(identifier_parameter) or \
+                        connector[identifier_parameter] == config.get(identifier_parameter):
                     found_connectors.append(connector)
 
             if (config.get('configurationJson', {})
