@@ -120,7 +120,12 @@ class TBLoggerHandler(logging.Handler):
             except KeyError:
                 telemetry_key = name + '_LOGS'
 
-            self._logs_queue.put({'ts': int(time() * 1000), 'values': {telemetry_key: record, 'LOGS': record}})
+            log_msg = {'ts': int(time() * 1000), 'values': {telemetry_key: record}}
+
+            if telemetry_key in self.LOGGER_NAME_TO_ATTRIBUTE_NAME.values():
+                log_msg['values']['LOGS'] = record
+
+            self._logs_queue.put(log_msg)
 
     def deactivate(self):
         self.activated = False
