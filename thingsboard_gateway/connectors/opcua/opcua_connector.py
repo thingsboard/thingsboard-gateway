@@ -516,7 +516,7 @@ class OpcUaConnector(Connector, Thread):
     def server_side_rpc_handler(self, content):
         try:
             if content.get('data') is None:
-                content['data'] = {'params': content['params'], 'method': content['method']}
+                content['data'] = {'params': content['params'], 'method': content['method'], 'id': content['id']}
 
             rpc_method = content["data"].get("method")
 
@@ -528,76 +528,102 @@ class OpcUaConnector(Connector, Thread):
                     content['device'] = content['params'].split(' ')[0].split('=')[-1]
             except (ValueError, IndexError):
                 self.__log.error('Invalid RPC method name: %s', rpc_method)
+            except AttributeError:
+                pass
 
-            # firstly check if a method is not service
-            if rpc_method == 'set' or rpc_method == 'get':
-                full_path = ''
-                args_list = []
-                device = content.get('device')
+            if content.get('device'):
+                # firstly check if a method is not service
+                if rpc_method == 'set' or rpc_method == 'get':
+                    full_path = ''
+                    args_list = []
+                    device = content.get('device')
 
-                try:
-                    args_list = content['data']['params'].split(';')
+                    try:
+                        args_list = content['data']['params'].split(';')
 
-                    if 'ns' in content['data']['params']:
-                        full_path = ';'.join([item for item in (args_list[0:-1] if rpc_method == 'set' else args_list)])
-                    else:
-                        full_path = args_list[0].split('=')[-1]
-                except IndexError:
-                    self.__log.error('Not enough arguments. Expected min 2.')
+                        if 'ns' in content['data']['params']:
+                            full_path = ';'.join(
+                                [item for item in (args_list[0:-1] if rpc_method == 'set' else args_list)])
+                        else:
+                            full_path = args_list[0].split('=')[-1]
+                    except IndexError:
+                        self.__log.error('Not enough arguments. Expected min 2.')
+                        self.__gateway.send_rpc_reply(device=device,
+                                                      req_id=content['data'].get('id'),
+                                                      content={content['data'][
+                                                                   'method']: 'Not enough arguments. Expected min 2.',
+                                                               'code': 400})
+
+                    result = {}
+                    if rpc_method == 'get':
+                        task = self.__loop.create_task(self.__read_value(full_path, result))
+
+                        while not task.done():
+                            sleep(.2)
+                    elif rpc_method == 'set':
+                        value = args_list[2].split('=')[-1]
+                        task = self.__loop.create_task(self.__write_value(full_path, value, result))
+
+                        while not task.done():
+                            sleep(.2)
+
                     self.__gateway.send_rpc_reply(device=device,
                                                   req_id=content['data'].get('id'),
-                                                  content={content['data'][
-                                                               'method']: 'Not enough arguments. Expected min 2.',
-                                                           'code': 400})
+                                                  content={content['data']['method']: result})
+                else:
+                    device = tuple(filter(lambda i: i.name == content['device'], self.__device_nodes))[0]
 
-                result = {}
-                if rpc_method == 'get':
-                    task = self.__loop.create_task(self.__read_value(full_path, result))
+                    for rpc in device.config['rpc_methods']:
+                        if rpc['method'] == content["data"]['method']:
+                            arguments_from_config = rpc["arguments"]
+                            arguments = content["data"].get("params") if content["data"].get(
+                                "params") is not None else arguments_from_config
+                            method_name = content['data']['method']
 
-                    while not task.done():
-                        sleep(.2)
-                elif rpc_method == 'set':
-                    value = args_list[2].split('=')[-1]
-                    task = self.__loop.create_task(self.__write_value(full_path, value, result))
+                            try:
+                                result = {}
+                                task = self.__loop.create_task(
+                                    self.__call_method(device.path, method_name, arguments, result))
 
-                    while not task.done():
-                        sleep(.2)
+                                while not task.done():
+                                    sleep(.2)
 
-                self.__gateway.send_rpc_reply(device=device,
-                                              req_id=content['data'].get('id'),
-                                              content={content['data']['method']: result})
-            else:
-                device = tuple(filter(lambda i: i.name == content['device'], self.__device_nodes))[0]
-
-                for rpc in device.config['rpc_methods']:
-                    if rpc['method'] == content["data"]['method']:
-                        arguments_from_config = rpc["arguments"]
-                        arguments = content["data"].get("params") if content["data"].get(
-                            "params") is not None else arguments_from_config
-                        method_name = content['data']['method']
-
-                        try:
-                            result = {}
-                            task = self.__loop.create_task(
-                                self.__call_method(device.path, method_name, arguments, result))
-
-                            while not task.done():
-                                sleep(.2)
-
-                            self.__gateway.send_rpc_reply(content["device"],
-                                                          content["data"]["id"],
-                                                          {content["data"]["method"]: result, "code": 200})
-                            self.__log.debug("method %s result is: %s", rpc['method'], result)
-                        except Exception as e:
-                            self.__log.exception(e)
+                                self.__gateway.send_rpc_reply(content["device"],
+                                                              content["data"]["id"],
+                                                              {content["data"]["method"]: result, "code": 200})
+                                self.__log.debug("method %s result is: %s", rpc['method'], result)
+                            except Exception as e:
+                                self.__log.exception(e)
+                                self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+                                                              {"error": str(e), "code": 500})
+                        else:
+                            self.__log.error("Method %s not found for device %s", rpc_method, content["device"])
                             self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                          {"error": str(e), "code": 500})
-                    else:
-                        self.__log.error("Method %s not found for device %s", rpc_method, content["device"])
-                        self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                      {"error": "%s - Method not found" % rpc_method,
-                                                       "code": 404})
+                                                          {"error": "%s - Method not found" % rpc_method,
+                                                           "code": 404})
+            else:
+                results = []
+                for device in self.__device_nodes:
+                    content['device'] = device.name
 
+                    arguments = content['data']['params']["arguments"]
+
+                    try:
+                        result = {}
+                        task = self.__loop.create_task(
+                            self.__call_method(device.path, rpc_method, arguments, result))
+
+                        while not task.done():
+                            sleep(.2)
+
+                        results.append(result)
+                        self.__log.debug("method %s result is: %s", rpc_method, result)
+                    except Exception as e:
+                        self.__log.exception(e)
+                        self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+                                                      {"error": str(e), "code": 500})
+
+                return results
         except Exception as e:
             self.__log.exception(e)
 

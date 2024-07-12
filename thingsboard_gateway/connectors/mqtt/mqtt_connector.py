@@ -853,7 +853,7 @@ class MqttConnector(Connector, Thread):
             .replace("${methodName}", str(content['data']['method'])) \
             .replace("${requestId}", str(content["data"]["id"]))
 
-        if content['device']:
+        if content.get('device'):
             request_topic = request_topic.replace("${deviceName}", str(content["device"]))
 
         request_topic = TBUtility.replace_params_tags(request_topic, content)
@@ -882,7 +882,7 @@ class MqttConnector(Connector, Thread):
                 return
             if not expects_response or not defines_timeout:
                 self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
-                self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
+                self.__gateway.send_rpc_reply(device=content.get('device', ''), req_id=content["data"]["id"],
                                               success_sent=True)
 
             # Everything went out smoothly: RPC is served
@@ -907,28 +907,31 @@ class MqttConnector(Connector, Thread):
         except ValueError:
             pass
 
-        # check if RPC method is reserved get/set
-        if rpc_method == 'get' or rpc_method == 'set':
-            params = {}
-            for param in content['data']['params'].split(';'):
-                try:
-                    (key, value) = param.split('=')
-                except ValueError:
-                    continue
+        if content.get('device'):
+            # check if RPC method is reserved get/set
+            if rpc_method == 'get' or rpc_method == 'set':
+                params = {}
+                for param in content['data']['params'].split(';'):
+                    try:
+                        (key, value) = param.split('=')
+                    except ValueError:
+                        continue
 
-                if key and value:
-                    params[key] = value
+                    if key and value:
+                        params[key] = value
 
-            return self.__process_rpc_request(content, params)
+                return self.__process_rpc_request(content, params)
+            else:
+                # Check whether one of my RPC handlers can handle this request
+                for rpc_config in self.__server_side_rpc:
+                    if search(rpc_config["deviceNameFilter"], content["device"]) \
+                            and search(rpc_config["methodFilter"], rpc_method) is not None:
+
+                        return self.__process_rpc_request(content, rpc_config)
+
+                self.__log.error("RPC not handled: %s", content)
         else:
-            # Check whether one of my RPC handlers can handle this request
-            for rpc_config in self.__server_side_rpc:
-                if search(rpc_config["deviceNameFilter"], content["device"]) \
-                        and search(rpc_config["methodFilter"], rpc_method) is not None:
-
-                    return self.__process_rpc_request(content, rpc_config)
-
-            self.__log.error("RPC not handled: %s", content)
+            return self.__process_rpc_request(content, content['data']['params'])
 
     @CustomCollectStatistics(start_stat_type='allBytesSentToDevices')
     def _publish(self, request_topic, data_to_send, retain):
