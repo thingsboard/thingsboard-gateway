@@ -287,7 +287,7 @@ class TBClient(threading.Thread):
                         break
                     self.__logger.debug("connecting to ThingsBoard")
                     try:
-                        if time() - previous_connection_time < min_reconnect_delay:
+                        if time() - previous_connection_time > min_reconnect_delay:
                             self.client.connect(keepalive=keep_alive,
                                                 min_reconnect_delay=self.__min_reconnect_delay)
                             previous_connection_time = time()
