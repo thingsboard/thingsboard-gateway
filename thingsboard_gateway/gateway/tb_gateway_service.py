@@ -1483,8 +1483,8 @@ class TBGatewayService:
                 self.tb_client.client.gw_disconnect_device(device_name)
             except Exception as e:
                 log.exception("Error on disconnecting device %s", device_name, exc_info=e)
-            self.__connected_devices.pop(device_name)
-            self.__saved_devices.pop(device_name)
+            self.__connected_devices.pop(device_name, None)
+            self.__saved_devices.pop(device_name, None)
             self.__save_persistent_devices()
 
     def get_devices(self, connector_id: str = None):
