@@ -400,6 +400,22 @@ class TBGatewayService:
     def config(self, config):
         self.__config.update(config)
 
+    @property
+    def connected_devices(self):
+        return len(self.__connected_devices.keys())
+
+    @property
+    def active_connectors(self):
+        return len(self.available_connectors_by_id.keys())
+
+    @property
+    def inactive_connectors(self):
+        return len(self.connectors_configs.keys()) - len(self.available_connectors_by_id.keys())
+
+    @property
+    def total_connectors(self):
+        return len(self.connectors_configs.keys())
+
     def get_gateway(self):
         if self.manager.has_gateway():
             return self.manager.gateway
@@ -929,6 +945,7 @@ class TBGatewayService:
             if self.__remote_configurator is not None:
                 self.__remote_configurator.send_current_configuration()
 
+    @StatisticsService.CollectStorageEventsStatistics('eventsAdded')
     def send_to_storage(self, connector_name, connector_id, data=None):
         if data is None:
             log.error("[%r]Data is empty from connector %r!", connector_id, connector_name)
@@ -1179,6 +1196,8 @@ class TBGatewayService:
                                         log.error("Error while sending data to ThingsBoard, it will be resent.",
                                                   exc_info=e)
                                         success = False
+
+                                StatisticsService.add_count('eventsProcessed', len(events))
                             if success and self.tb_client.is_connected():
                                 self._event_storage.event_pack_processing_done()
                                 del devices_data_in_event_pack
