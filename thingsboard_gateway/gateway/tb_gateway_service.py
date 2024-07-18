@@ -88,7 +88,7 @@ DEFAULT_CONNECTORS = {
 
 DEFAULT_STATISTIC = {
     'enable': True,
-    'statsSendPeriodInSeconds': 3600
+    'statsSendPeriodInSeconds': 600
 }
 
 DEFAULT_DEVICE_FILTER = {
