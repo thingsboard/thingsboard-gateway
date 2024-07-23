@@ -1,11 +1,9 @@
 from time import sleep
-from unittest import skip
 
 from tests.blackbox.connectors.opcua.test_base_opcua import BaseOpcuaTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
 
-@skip('Flaky test')
 class OpcuaAsyncioRPCTest(BaseOpcuaTest):
     def test_rpc_set(self):
         """

@@ -19,7 +19,6 @@ GENERAL_TIMEOUT = 6
 LOG = logging.getLogger("TEST")
 
 
-@unittest.skip('Flaky test')
 class ModbusAttributesUpdatesTest(BaseTest):
     CONFIG_PATH = path.join(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))),
                             "data" + path.sep + "modbus" + path.sep)
