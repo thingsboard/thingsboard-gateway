@@ -52,19 +52,34 @@ class BackwardCompatibilityAdapter:
 
         if is_tcp_or_udp_connection and is_serial_connection:
             self._log.warning('It seems that your slaves using different connection type (tcp/udp and serial). '
-                        'It is recommended to separate tcp/udp slaves and serial slaves in different connectors '
-                        'to avoid problems with reading data.')
+                              'It is recommended to separate tcp/udp slaves and serial slaves in different connectors '
+                              'to avoid problems with reading data.')
+
+    @staticmethod
+    def _convert_slave_configuration(slave_config):
+        if not slave_config:
+            return {}
+
+        values = slave_config.pop('values', {})
+        slave_config['values'] = {}
+        if len(values):
+            for (key, value) in values.items():
+                slave_config['values'][key] = {k: v for item in value for (k, v) in item.items()}
+
+        return slave_config
 
     def convert(self):
         if not self.__config.get('server'):
             # check if slaves are similar type connection
             self.__check_slaves_type_connection(self.__config)
+            converted_slave_config = self._convert_slave_configuration(self.__config.get('slave'))
+            self.__config['slave'] = converted_slave_config
             return self.__config
 
         self._log.warning(
             'You are using old configuration structure for Modbus connector. It will be DEPRECATED in the future '
             'version! New config file "modbus_new.json" was generated in %s folder. Please, use it.', self.CONFIG_PATH)
-        self._log.warning('You have to manually connect the new generated config file to tb_gateway.yaml!')
+        self._log.warning('You have to manually connect the new generated config file to tb_gateway.json!')
 
         slaves = []
         for device in self.__config['server'].get('devices', []):
