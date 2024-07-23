@@ -35,11 +35,13 @@ from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
-    from paho.mqtt.client import Client
+    from paho.mqtt.client import Client, Properties
+    from paho.mqtt.packettypes import PacketTypes
 except ImportError:
     print("paho-mqtt library not found")
     TBUtility.install_package("tb-paho-mqtt-client")
-    from paho.mqtt.client import Client
+    from paho.mqtt.client import Client, Properties
+    from paho.mqtt.packettypes import PacketTypes
 
 from paho.mqtt.client import MQTTv31, MQTTv311, MQTTv5
 
@@ -182,9 +184,16 @@ class MqttConnector(Connector, Thread):
         # Set up external MQTT broker connection -----------------------------------------------------------------------
         client_id = self.__broker.get("clientId", ''.join(random.choice(string.ascii_lowercase) for _ in range(23)))
 
+        self._cleanSession = self.__broker.get("cleanSession",True)
+        self._cleanStart = self.__broker.get("cleanStart",True)
+        self._sessionExpiryInterval = self.__broker.get("sessionExpiryInterval", 0)
+
         self._mqtt_version = self.__broker.get('version', 5)
         try:
-            self._client = Client(client_id, protocol=MQTT_VERSIONS[self._mqtt_version])
+            if self._mqtt_version != 5:
+                self._client = Client(client_id, clean_session=self._cleanSession, protocol=MQTT_VERSIONS[self._mqtt_version])
+            else:
+                self._client = Client(client_id, protocol=MQTT_VERSIONS[self._mqtt_version])
         except KeyError:
             self.__log.error('Unknown MQTT version. Starting up on version 5...')
             self._client = Client(client_id, protocol=MQTTv5)
@@ -322,8 +331,16 @@ class MqttConnector(Connector, Thread):
     def __connect(self):
         while not self._connected and not self.__stopped:
             try:
-                self._client.connect(self.__broker['host'],
+                if self._mqtt_version != 5:
+                    self._client.connect(self.__broker['host'],
                                      self.__broker.get('port', 1883))
+                else:
+                    properties=Properties(PacketTypes.CONNECT)
+                    properties.SessionExpiryInterval = self._sessionExpiryInterval
+                    self._client.connect(self.__broker['host'],
+                                     self.__broker.get('port', 1883),
+                                     clean_start = self._cleanStart,
+                                     properties = properties)
                 self._client.loop_start()
                 if not self._connected:
                     sleep(1)
