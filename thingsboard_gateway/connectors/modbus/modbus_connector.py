@@ -147,9 +147,6 @@ class ModbusConnector(Connector, Thread):
             self.__slave_thread = Thread(target=self.__configure_and_run_slave, args=(self.__config['slave'],),
                                          daemon=True, name='Gateway modbus slave')
             self.__slave_thread.start()
-
-            if config['slave'].get('sendDataToThingsBoard', False):
-                self.__modify_main_config()
         self.__load_slaves()
 
     def is_connected(self):
@@ -199,28 +196,30 @@ class ModbusConnector(Connector, Thread):
         if (config.get('values') is None) or (not len(config.get('values'))):
             self.__log.error("No values to read from device %s", config.get('deviceName', 'Modbus Slave'))
             return
+
         for (key, value) in config.get('values').items():
             values = {}
             converter = BytesModbusDownlinkConverter({}, self.__log)
-            for item in value:
-                for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
-                    for val in item.get(section, []):
-                        function_code = FUNCTION_CODE_WRITE[key][0] if val['objectsCount'] <= 1 else \
-                            FUNCTION_CODE_WRITE[key][1]
-                        converted_value = converter.convert(
-                            {**val,
-                             'device': config.get('deviceName', 'Gateway'), 'functionCode': function_code,
-                             'byteOrder': config['byteOrder'], 'wordOrder': config.get('wordOrder', 'LITTLE')},
-                            {'data': {'params': val['value']}})
-                        if converted_value is not None:
-                            values[val['address'] + 1] = converted_value
-                        else:
-                            self.__log.error("Failed to convert value %s with type %s, skipping...", val['value'], val['type'])
-            if len(values):
-                blocks[FUNCTION_TYPE[key]] = ModbusSparseDataBlock(values)
+            for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
+                for item in value.get(section, []):
+                    function_code = FUNCTION_CODE_WRITE[key][0] if item['objectsCount'] <= 1 else \
+                        FUNCTION_CODE_WRITE[key][1]
+                    converted_value = converter.convert(
+                        {**item,
+                         'device': config.get('deviceName', 'Gateway'), 'functionCode': function_code,
+                         'byteOrder': config['byteOrder'], 'wordOrder': config.get('wordOrder', 'LITTLE')},
+                        {'data': {'params': item['value']}})
+                    if converted_value is not None:
+                        values[item['address'] + 1] = converted_value
+                    else:
+                        self.__log.error("Failed to convert value %s with type %s, skipping...", item['value'], item['type'])
+                if len(values):
+                    blocks[FUNCTION_TYPE[key]] = ModbusSparseDataBlock(values)
 
         if not len(blocks):
             self.__log.info("%s - will be initialized without values", config.get('deviceName', 'Modbus Slave'))
+
+        self.__add_slave_to_devices()
 
         context = ModbusServerContext(slaves=ModbusSlaveContext(**blocks), single=True)
         SLAVE_TYPE[config['type']](context=context, identity=identity,
@@ -229,21 +228,20 @@ class ModbusConnector(Connector, Thread):
                                    port=config.get('port') if config['type'] == 'serial' else None,
                                    framer=FRAMER_TYPE[config['method']], **config.get('security', {}))
 
-    def __modify_main_config(self):
+    def __add_slave_to_devices(self):
         config = self.__config['slave']
 
         values = config.pop('values')
         device = config
 
         for (register, reg_values) in values.items():
-            for value in reg_values:
-                for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
-                    if not device.get(section):
-                        device[section] = []
+            for (section_name, section_values) in reg_values.items():
+                if not device.get(section_name):
+                    device[section_name] = []
 
-                    for item in value.get(section, []):
-                        device[section].append({**item, 'functionCode': FUNCTION_CODE_READ[
-                            register] if section not in ('attributeUpdates', 'rpc') else item['functionCode']})
+                for item in section_values:
+                    device[section_name].append({**item, 'functionCode': FUNCTION_CODE_READ[
+                        register] if section_name not in ('attributeUpdates', 'rpc') else item['functionCode']})
 
         self.__config['master']['slaves'].append(device)
 
