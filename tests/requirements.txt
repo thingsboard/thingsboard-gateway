@@ -31,3 +31,4 @@ bacpypes>=0.18.0
 aiohttp
 puresnmp>=2.0.0
 slixmpp
+psutil

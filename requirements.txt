@@ -16,3 +16,4 @@ protobuf<=3.20.0
 cachetools
 tb-mqtt-client>=1.9.9
 service-identity
+psutil
