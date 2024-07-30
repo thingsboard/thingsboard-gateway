@@ -51,7 +51,8 @@ def init_logger(gateway, name, level, enable_remote_logging=False):
 class TbLogger(logging.Logger):
     ALL_ERRORS_COUNT = 0
     IS_ALL_ERRORS_COUNT_RESET = False
-    RESET_ERRORS__PERIOD = 60
+    RESET_ERRORS_PERIOD = 60
+    SEND_ERRORS_PERIOD = 5
 
     def __init__(self, name, gateway=None, level=logging.NOTSET):
         super(TbLogger, self).__init__(name=name, level=level)
@@ -59,6 +60,8 @@ class TbLogger(logging.Logger):
         self.parent = self.root
         self._gateway = gateway
         self._stopped = False
+        self.__previous_number_of_errors = -1
+        self.__previous_errors_sent_time = monotonic()
         self.errors = 0
         self.attr_name = self.name + '_ERRORS_COUNT'
         self._is_on_init_state = True
@@ -67,7 +70,7 @@ class TbLogger(logging.Logger):
             self._send_errors_thread.start()
 
         self._start_time = monotonic()
-        self._reset_errors_thread = Thread(target=self._reset_errors_timer, name='[LOGGER] Reset Errors Thread',
+        self._reset_errors_thread = Thread(target=self._processing_errors, name='[LOGGER] Reset Errors Thread',
                                            daemon=True)
         self._reset_errors_thread.start()
 
@@ -107,9 +110,13 @@ class TbLogger(logging.Logger):
             TbLogger.IS_ALL_ERRORS_COUNT_RESET = True
         self._is_on_init_state = False
 
-    def _reset_errors_timer(self):
+    def _processing_errors(self):
         while not self._stopped:
-            if monotonic() - self._start_time >= TbLogger.RESET_ERRORS__PERIOD:
+            if (self.__previous_number_of_errors != self.errors
+                    and monotonic() - self.__previous_errors_sent_time >= TbLogger.SEND_ERRORS_PERIOD):
+                self.__previous_number_of_errors = self.errors
+                self._send_error_count()
+            elif monotonic() - self._start_time >= TbLogger.RESET_ERRORS_PERIOD:
                 self.reset()
                 self._start_time = monotonic()
 
