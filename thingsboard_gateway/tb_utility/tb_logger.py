@@ -126,14 +126,11 @@ class TbLogger(logging.Logger):
         kwargs['stacklevel'] = 2
         super(TbLogger, self).error(msg, *args, **kwargs)
         self._add_error()
-        self._send_error_count()
 
     def exception(self, msg, *args, **kwargs) -> None:
-        attr_name = kwargs.pop('attr_name', None)
         kwargs['stacklevel'] = 2
         super(TbLogger, self).exception(msg, *args, **kwargs)
         self._add_error()
-        self._send_error_count(error_attr_name=attr_name)
 
     def _add_error(self):
         TbLogger.ALL_ERRORS_COUNT += 1
