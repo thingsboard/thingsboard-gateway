@@ -568,19 +568,24 @@ class TBGatewayService:
             self.__remote_configurator.send_current_configuration()
 
     def update_and_send_connector_configuration(self, connector: Connector):
-        if self.__remote_configurator is not None:
-            connector_configuration = list(filter(lambda x: x.get('id') == connector.get_id(),
-                                           self.connectors_configs.get(connector.get_type(), [])))
-            if connector_configuration:
-                currently_saved_connector_configuration = dict(connector_configuration[0])
-                if currently_saved_connector_configuration.get('configurationJson') != connector.get_config():
-                    currently_saved_connector_configuration['configurationJson'] = connector.get_config()
-                    self.update_connector_config_file(connector.get_name(), connector.get_config())
-                    for connector_config in self.connectors_configs.get(connector.get_type()):
-                        if connector_config.get('id') == connector.get_id():
-                            connector_config['configurationJson'] = connector.get_config()
+        try:
+            if self.__remote_configurator is not None:
+                connector_configuration = list(filter(lambda x: x.get('id') == connector.get_id(),
+                                               self.connectors_configs.get(connector.get_type(), [])))
+                if connector_configuration:
+                    currently_saved_connector_configuration = dict(connector_configuration[0])
+                    if currently_saved_connector_configuration.get('configurationJson') != connector.get_config():
+                        currently_saved_connector_configuration['configurationJson'] = connector.get_config()
+                        currently_saved_connector_configuration['type'] = connector.get_type()
+                        connector_filename = next(iter(currently_saved_connector_configuration['config']))
+                        self.__save_connector_config_file(connector_filename, connector.get_config())
+                        for connector_config in self.connectors_configs.get(connector.get_type()):
+                            if connector_config.get('id') == connector.get_id():
+                                connector_config['configurationJson'] = connector.get_config()
 
-                self.__remote_configurator.send_connector_current_configuration(currently_saved_connector_configuration)
+                    self.__remote_configurator.send_connector_current_configuration(currently_saved_connector_configuration)
+        except Exception as e:
+            log.exception("Failed to update and send connector configuration: %s", e)
 
     def _attributes_parse(self, content, *args):
         try:
@@ -641,11 +646,14 @@ class TBGatewayService:
     def update_connector_config_file(self, connector_name, config):
         for connector in self.__config['connectors']:
             if connector['name'] == connector_name:
-                with open(self._config_dir + connector['configuration'], 'w', encoding='UTF-8') as file:
-                    file.writelines(dumps(config))
+                self.__save_connector_config_file(connector['configuration'], config)
 
                 log.info('Updated %s configuration file', connector_name)
                 return
+
+    def __save_connector_config_file(self, connector_filename, config):
+        with open(self._config_dir + connector_filename, 'w', encoding='UTF-8') as file:
+            file.writelines(dumps(config, indent=4))
 
     def __process_deleted_gateway_devices(self, deleted_device_name: str):
         log.info("Received deleted gateway device notification: %s", deleted_device_name)
