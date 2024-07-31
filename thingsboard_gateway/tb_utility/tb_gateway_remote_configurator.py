@@ -184,7 +184,7 @@ class RemoteConfigurator:
     def send_connector_current_configuration(self, connector_configuration: dict):
         self._gateway.tb_client.client.send_attributes({connector_configuration['name']: {**connector_configuration,
                              'logLevel': connector_configuration.get('configurationJson', {}).get('logLevel', 'INFO'),
-                             'ts': int(time() * 1000)}})
+                             'ts': int(time() * 1000)}}, quality_of_service=1)
 
     def _load_connectors_configuration(self):
         for (_, connector_list) in self._gateway.connectors_configs.items():
