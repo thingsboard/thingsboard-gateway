@@ -113,21 +113,22 @@ class MqttConnector(Connector, Thread):
         self._connector_type = connector_type  # Should be "mqtt"
 
         # check if the configuration is in the old format
-        self._using_old_config_format = False
-        if BackwardCompatibilityAdapter.is_old_config_format(config):
-            self._using_old_config_format = True
+        using_old_config_format_detected = BackwardCompatibilityAdapter.is_old_config_format(config)
+        if using_old_config_format_detected:
             self.config = BackwardCompatibilityAdapter(config).convert()
+            self.__id = self.config.get('id')
+
+            self.__gateway.update_and_send_connector_configuration(self)
         else:
             self.config = config
-
-        self.__id = self.config.get('id')
+            self.__id = self.config.get('id')
 
         self.__log = init_logger(self.__gateway, self.config['name'], self.config.get('logLevel', 'INFO'),
                                  enable_remote_logging=self.config.get('enableRemoteLogging', False))
         self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__subscribes_sent = {}
 
-        if self._using_old_config_format:
+        if using_old_config_format_detected:
             self.__log.warning("Old MQTT connector configuration format detected. Automatic conversion is applied.")
 
         # Extract main sections from configuration ---------------------------------------------------------------------

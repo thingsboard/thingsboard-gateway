@@ -64,7 +64,13 @@ class BackwardCompatibilityAdapter:
         slave_config['values'] = {}
         if len(values):
             for (key, value) in values.items():
-                slave_config['values'][key] = {k: v for item in value for (k, v) in item.items()}
+                if isinstance(value, list):
+                    value = value[0]
+                for section_name, section_value in value.items():
+                    if slave_config['values'].get(key) is None:
+                        slave_config['values'][key] = {section_name: section_value}
+                    else:
+                        slave_config['values'][key].update({section_name: section_value})
 
         return slave_config
 

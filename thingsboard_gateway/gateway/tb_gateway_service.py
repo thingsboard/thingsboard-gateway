@@ -222,18 +222,18 @@ class TBGatewayService:
 
         self.init_device_filtering(self.__config['thingsboard'].get('deviceFiltering', DEFAULT_DEVICE_FILTER))
 
-        self.__duplicate_detector = DuplicateDetector(self.available_connectors_by_name)
-
         log.info("Gateway started.")
 
         self._watchers_thread = Thread(target=self._watchers, name='Watchers', daemon=True)
         self._watchers_thread.start()
 
+        self.__init_remote_configuration()
+
         self._load_connectors()
         self.__connect_with_connectors()
-        self.__load_persistent_devices()
 
-        self.__init_remote_configuration()
+        self.__duplicate_detector = DuplicateDetector(self.available_connectors_by_name)
+        self.__load_persistent_devices()
 
         if self.__config['thingsboard'].get('managerEnabled', False):
             if path.exists('/tmp/gateway'):
@@ -275,7 +275,7 @@ class TBGatewayService:
         self.__grpc_connectors = None
         self.__grpc_manager = None
         self.__remote_configurator = None
-        self.__request_config_after_connect = False
+        self.__requested_config_after_connect = False
         self.__rpc_reply_sent = False
         self.__subscribed_to_rpc_topics = False
         self.__rpc_remote_shell_command_in_progress = None
@@ -434,6 +434,11 @@ class TBGatewayService:
                 if not self.tb_client.client.is_connected() and self.__subscribed_to_rpc_topics:
                     self.__subscribed_to_rpc_topics = False
 
+                if (not self.tb_client.is_connected()
+                        and self.__remote_configurator is not None
+                        and self.__requested_config_after_connect):
+                    self.__requested_config_after_connect = False
+
                 if (self.tb_client.is_connected()
                         and not self.tb_client.is_stopped()
                         and not self.__subscribed_to_rpc_topics):
@@ -482,9 +487,9 @@ class TBGatewayService:
                         log.exception(e)
                         break
 
-                if (not self.__request_config_after_connect and self.tb_client.is_connected()
+                if (not self.__requested_config_after_connect and self.tb_client.is_connected()
                         and not self.tb_client.client.get_subscriptions_in_progress()):
-                    self.__request_config_after_connect = True
+                    self.__requested_config_after_connect = True
                     self._check_shared_attributes()
 
                 if (cur_time - gateway_statistic_send > self.__statistics['statsSendPeriodInSeconds'] * 1000
@@ -561,6 +566,21 @@ class TBGatewayService:
                 log.exception(e)
         if self.__remote_configurator is not None:
             self.__remote_configurator.send_current_configuration()
+
+    def update_and_send_connector_configuration(self, connector: Connector):
+        if self.__remote_configurator is not None:
+            connector_configuration = list(filter(lambda x: x.get('id') == connector.get_id(),
+                                           self.connectors_configs.get(connector.get_type(), [])))
+            if connector_configuration:
+                currently_saved_connector_configuration = dict(connector_configuration[0])
+                if currently_saved_connector_configuration.get('configurationJson') != connector.get_config():
+                    currently_saved_connector_configuration['configurationJson'] = connector.get_config()
+                    self.update_connector_config_file(connector.get_name(), connector.get_config())
+                    for connector_config in self.connectors_configs.get(connector.get_type()):
+                        if connector_config.get('id') == connector.get_id():
+                            connector_config['configurationJson'] = connector.get_config()
+
+                self.__remote_configurator.send_connector_current_configuration(currently_saved_connector_configuration)
 
     def _attributes_parse(self, content, *args):
         try:

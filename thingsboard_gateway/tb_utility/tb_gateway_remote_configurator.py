@@ -179,10 +179,12 @@ class RemoteConfigurator:
 
         # sending remote created connectors
         for connector in self.connectors_configuration:
-            self._gateway.tb_client.client.send_attributes(
-                {connector['name']: {**connector,
-                                     'logLevel': connector.get('configurationJson', {}).get('logLevel', 'INFO'),
-                                     'ts': int(time() * 1000)}})
+            self.send_connector_current_configuration(connector)
+
+    def send_connector_current_configuration(self, connector_configuration: dict):
+        self._gateway.tb_client.client.send_attributes({connector_configuration['name']: {**connector_configuration,
+                             'logLevel': connector_configuration.get('configurationJson', {}).get('logLevel', 'INFO'),
+                             'ts': int(time() * 1000)}})
 
     def _load_connectors_configuration(self):
         for (_, connector_list) in self._gateway.connectors_configs.items():
