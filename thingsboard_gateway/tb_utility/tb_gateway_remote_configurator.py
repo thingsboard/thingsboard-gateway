@@ -29,6 +29,8 @@ LOG = getLogger("service")
 
 
 class RemoteConfigurator:
+    ALLOWED_BACKUPS_AMOUNT = 10
+
     DEFAULT_STATISTICS = {
         'enable': True,
         'statsSendPeriodInSeconds': 3600
@@ -776,6 +778,7 @@ class RemoteConfigurator:
         with open(backup_file_path, "w") as backup_file:
             LOG.debug(f"Backup file created for configuration file {config_file_name} in {backup_file_path}")
             backup_file.writelines(dumps(config_data, indent='  ', skipkeys=True))
+        self.check_and_remove_old_backups_for_configuration_file(backup_folder_path, config_file_name)
 
     def _create_connectors_backup(self):
         for connector in self.connectors_configuration:
@@ -783,6 +786,14 @@ class RemoteConfigurator:
                 self.create_configuration_file_backup(connector['configurationJson'], connector['configuration'])
             else:
                 LOG.debug(f"Configuration for {connector['name']} connector is not found, backup wasn't created")
+
+    @staticmethod
+    def check_and_remove_old_backups_for_configuration_file(backup_folder_path, config_file_name):
+        backup_files = [f for f in os.listdir(backup_folder_path) if f.startswith(config_file_name.split('.')[0]) and f.endswith('.json')]
+        if len(backup_files) > RemoteConfigurator.ALLOWED_BACKUPS_AMOUNT:
+            backup_files.sort()
+            for i in range(len(backup_files) - RemoteConfigurator.ALLOWED_BACKUPS_AMOUNT):
+                os.remove(backup_folder_path + os.path.sep + backup_files[i])
 
     @staticmethod
     def _delete_handler(config, handler):
