@@ -267,12 +267,19 @@ class MqttConnector(Connector, Thread):
         return self.__send_data_only_on_change_ttl
 
     def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list):
-        config = self.config.get(handler_flavor) or self.config.get("requestsMapping", {}).get(handler_flavor)
+        handler_configuration = self.config.get(handler_flavor)
+        if handler_configuration is None:
+            request_mapping_config = self.config.get("requestsMapping", {})
+            if isinstance(request_mapping_config, list):
+                handler_configuration = []
+                for request_mapping in request_mapping_config:
+                    if request_mapping.get("requestType") == handler_flavor:
+                        handler_configuration.append(request_mapping.get("requestValue"))
 
-        if config is None:
-            self.__log.warning("'%s' section missing from configuration", handler_flavor)
+        if not handler_configuration:
+            self.__log.debug("'%s' section missing from configuration", handler_flavor)
         else:
-            for handler in config:
+            for handler in handler_configuration:
                 discard = False
 
                 for key in mandatory_keys:
@@ -299,7 +306,7 @@ class MqttConnector(Connector, Thread):
 
             self.__log.debug("Number of rejected %s handlers: %d",
                              handler_flavor,
-                             len(config) - len(accepted_handlers_list))
+                             len(handler_configuration) - len(accepted_handlers_list))
 
     def is_connected(self):
         return self._connected
