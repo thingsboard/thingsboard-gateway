@@ -10,8 +10,9 @@ class BackwardCompatibilityAdapter:
         'bool': 'boolean',
     }
 
-    def __init__(self, config):
+    def __init__(self, config, logger):
         self._config = copy(config)
+        self._log = logger
 
     def convert(self):
         for node_config in self._config.get('server', {}).get('mapping', []):
@@ -56,8 +57,8 @@ class BackwardCompatibilityAdapter:
                         }
                         config['arguments'].append(converted_argument)
             except Exception as e:
-                print('Error during conversion: ', e)
-                print('Config: ', node_config)
+                self._log.error('Error during conversion: ', e)
+                self._log.info('Config: ', node_config)
 
         mapping = self._config.get('server', {}).pop('mapping', [])
         self._config['mapping'] = mapping

@@ -62,18 +62,23 @@ class OpcUaConnector(Connector, Thread):
         self._connector_type = connector_type
         self.__gateway = gateway
         self.__config = config
+        self.__id = self.__config.get('id')
 
         # check if config is in old format and convert it to new format
-        if len(tuple(filter(lambda node_config: not node_config.get('deviceInfo'),
-                            self.__config.get('server', {}).get('mapping', [])))):
-            backward_compatibility_adapter = BackwardCompatibilityAdapter(self.__config)
-            self.__config = backward_compatibility_adapter.convert()
-
-        self.__id = self.__config.get('id')
-        self.__server_conf = self.__config.get('server', {})
-        self.name = self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
+        using_old_configuration_format = len(tuple(filter(lambda node_config: not node_config.get('deviceInfo'),
+                                                          self.__config.get('server', {}).get('mapping', []))))
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
                                  enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+        if using_old_configuration_format:
+            backward_compatibility_adapter = BackwardCompatibilityAdapter(self.__config, self.__log)
+            self.__config = backward_compatibility_adapter.convert()
+            self.__gateway.update_and_send_connector_configuration(self)
+
+        self.__server_conf = self.__config.get('server', {})
+        self.name = self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
+
+        if using_old_configuration_format:
+            self.__log.warning('Connector configuration has been updated to the new format.')
 
         if "opc.tcp" not in self.__server_conf.get("url"):
             self.__opcua_url = "opc.tcp://" + self.__server_conf.get("url")
@@ -167,7 +172,7 @@ class OpcUaConnector(Connector, Thread):
         return self.__stopped
 
     def get_config(self):
-        return self.__server_conf
+        return self.__config
 
     def run(self):
         data_send_thread = Thread(name='Send Data Thread', target=self.__send_data, daemon=True)
