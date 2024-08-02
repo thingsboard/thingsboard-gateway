@@ -63,6 +63,7 @@ class OpcUaConnector(Connector, Thread):
         self.__gateway = gateway
         self.__config = config
         self.__id = self.__config.get('id')
+        self.name = self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
 
         # check if config is in old format and convert it to new format
         using_old_configuration_format = len(tuple(filter(lambda node_config: not node_config.get('deviceInfo'),
@@ -75,7 +76,6 @@ class OpcUaConnector(Connector, Thread):
             self.__gateway.update_and_send_connector_configuration(self)
 
         self.__server_conf = self.__config.get('server', {})
-        self.name = self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
 
         if using_old_configuration_format:
             self.__log.warning('Connector configuration has been updated to the new format.')
