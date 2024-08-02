@@ -73,7 +73,6 @@ class OpcUaConnector(Connector, Thread):
         if using_old_configuration_format:
             backward_compatibility_adapter = BackwardCompatibilityAdapter(self.__config, self.__log)
             self.__config = backward_compatibility_adapter.convert()
-            self.__gateway.update_and_send_connector_configuration(self)
 
         self.__server_conf = self.__config.get('server', {})
 

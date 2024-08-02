@@ -567,26 +567,6 @@ class TBGatewayService:
         if self.__remote_configurator is not None:
             self.__remote_configurator.send_current_configuration()
 
-    def update_and_send_connector_configuration(self, connector: Connector):
-        try:
-            if self.__remote_configurator is not None:
-                connector_configuration = list(filter(lambda x: x.get('id') == connector.get_id(),
-                                               self.connectors_configs.get(connector.get_type(), [])))
-                if connector_configuration:
-                    currently_saved_connector_configuration = dict(connector_configuration[0])
-                    if currently_saved_connector_configuration.get('configurationJson') != connector.get_config():
-                        currently_saved_connector_configuration['configurationJson'] = connector.get_config()
-                        currently_saved_connector_configuration['type'] = connector.get_type()
-                        connector_filename = next(iter(currently_saved_connector_configuration['config']))
-                        self.__save_connector_config_file(connector_filename, connector.get_config())
-                        for connector_config in self.connectors_configs.get(connector.get_type()):
-                            if connector_config.get('id') == connector.get_id():
-                                connector_config['configurationJson'] = connector.get_config()
-
-                    self.__remote_configurator.send_connector_current_configuration(currently_saved_connector_configuration)
-        except Exception as e:
-            log.exception("Failed to update and send connector configuration: %s", e)
-
     def _attributes_parse(self, content, *args):
         try:
             log.debug("Received data: %s, %s", content, args)

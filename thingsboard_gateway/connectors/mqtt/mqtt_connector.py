@@ -117,8 +117,6 @@ class MqttConnector(Connector, Thread):
         if using_old_config_format_detected:
             self.config = BackwardCompatibilityAdapter(config).convert()
             self.__id = self.config.get('id')
-
-            self.__gateway.update_and_send_connector_configuration(self)
         else:
             self.config = config
             self.__id = self.config.get('id')

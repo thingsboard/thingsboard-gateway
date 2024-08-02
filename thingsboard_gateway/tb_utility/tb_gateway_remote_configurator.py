@@ -424,18 +424,24 @@ class RemoteConfigurator:
 
         has_changed = False
         for_deletion = []
+        for_deletion_ids = []
         for active_connector_name in self._gateway.available_connectors_by_name:
             if active_connector_name not in config:
                 try:
                     self._gateway.available_connectors_by_name[active_connector_name].close()
+                    connector_id = self._gateway.available_connectors_by_name[active_connector_name].get_id()
+                    self._gateway.available_connectors_by_id.pop(connector_id)
                     for_deletion.append(active_connector_name)
+                    for_deletion_ids.append(connector_id)
                     has_changed = True
                 except Exception as e:
-                    LOG.exception(e)
+                    LOG.exception("Exception on removing connector occurred:", exc_info=e)
 
         if has_changed:
             for name in for_deletion:
-                self._gateway.available_connectors_by_name.pop(name)
+                self._gateway.available_connectors_by_name.pop(name, None)
+            for connector_id in for_deletion_ids:
+                self._gateway.available_connectors_by_id.pop(connector_id, None)
 
             self._delete_connectors_from_config(config)
             with open(self._gateway.get_config_path() + 'tb_gateway.json', 'w') as file:
