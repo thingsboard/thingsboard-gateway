@@ -69,8 +69,6 @@ except ImportError:
 log: TbLogger = None  # type: ignore
 main_handler = logging.handlers.MemoryHandler(-1)
 
-TEST_ENV = 'TEST' in logging.Logger.manager.loggerDict
-
 DEFAULT_CONNECTORS = {
     "mqtt": "MqttConnector",
     "modbus": "ModbusConnector",
@@ -173,12 +171,11 @@ class TBGatewayService:
         log.info("ThingsBoard IoT gateway version: %s", self.version["current_version"])
         self.name = ''.join(choice(ascii_lowercase) for _ in range(64))
 
-        if not TEST_ENV:
-            self._load_connectors()
+        self.__connectors_not_found = False
+        self._load_connectors()
         self.__connectors_init_start_success = True
         try:
-            if not TEST_ENV:
-                self.__connect_with_connectors()
+            self.__connect_with_connectors()
         except Exception as e:
             log.exception("Error while connecting to connectors: %s", e)
             self.__connectors_init_start_success = False
@@ -241,9 +238,12 @@ class TBGatewayService:
 
         self.__init_remote_configuration()
 
+        if self.__connectors_not_found:
+            self.connectors_configs = {}
+            self.load_connectors()
+
         try:
-            if not TEST_ENV:
-                log.warning("Initials connections with connectors was failed, trying again...")
+            log.warning("Initials connections with connectors was failed, trying again...")
             if not self.__connectors_init_start_success:
                 self.connect_with_connectors()
                 log.info("Initials connections with connectors was successful.")
@@ -876,7 +876,10 @@ class TBGatewayService:
                 self.__save_persistent_keys(connectors_persistent_keys)
         else:
             log.warning("Connectors - not found!")
-            self.__init_remote_configuration(force=True)
+            if self.tb_client is not None and self.tb_client.is_connected():
+                self.__init_remote_configuration(force=True)
+            else:
+                self.__connectors_not_found = True
 
     def connect_with_connectors(self):
         self.__connect_with_connectors()
