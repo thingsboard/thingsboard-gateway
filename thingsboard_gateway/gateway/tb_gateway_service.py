@@ -293,6 +293,7 @@ class TBGatewayService:
         self.__grpc_connectors = None
         self.__grpc_manager = None
         self.__remote_configurator = None
+        self.tb_client = None
         self.__requested_config_after_connect = False
         self.__rpc_reply_sent = False
         self.__subscribed_to_rpc_topics = False
