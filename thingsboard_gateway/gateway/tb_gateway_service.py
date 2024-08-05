@@ -69,6 +69,8 @@ except ImportError:
 log: TbLogger = None  # type: ignore
 main_handler = logging.handlers.MemoryHandler(-1)
 
+TEST_ENV = 'TEST' in logging.Logger.manager.loggerDict
+
 DEFAULT_CONNECTORS = {
     "mqtt": "MqttConnector",
     "modbus": "ModbusConnector",
@@ -171,12 +173,15 @@ class TBGatewayService:
         log.info("ThingsBoard IoT gateway version: %s", self.version["current_version"])
         self.name = ''.join(choice(ascii_lowercase) for _ in range(64))
 
-        self._load_connectors()
+        if not TEST_ENV:
+            self._load_connectors()
         self.__connectors_init_start_success = True
         try:
-            self.__connect_with_connectors()
+            if not TEST_ENV:
+                self.__connect_with_connectors()
         except Exception as e:
             log.exception("Error while connecting to connectors: %s", e)
+            self.__connectors_init_start_success = False
 
         connection_logger = logging.getLogger('tb_connection')
         self.tb_client = TBClient(self.__config["thingsboard"], self._config_dir, connection_logger)
@@ -237,7 +242,8 @@ class TBGatewayService:
         self.__init_remote_configuration()
 
         try:
-            log.warning("Initials connections with connectors was failed, trying again...")
+            if not TEST_ENV:
+                log.warning("Initials connections with connectors was failed, trying again...")
             if not self.__connectors_init_start_success:
                 self.connect_with_connectors()
                 log.info("Initials connections with connectors was successful.")
