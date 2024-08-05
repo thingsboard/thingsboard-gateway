@@ -28,7 +28,7 @@ RUN mkdir -p /default-config/config /default-config/extensions/ &&  \
         *) \
             echo "Unsupported platform detected. Trying to use default value...";; \
         esac && \
-    curl https://sh.rustup.rs -sSf | sh -s -- -y --default-host=$DEFAULT_HOST && \
+    curl https://sh.rustup.rs -sSf | sh -s -- -y --default-host=$DEFAULT_HOST --profile minimal && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* &&  \
     echo '#!/bin/sh\n\
@@ -42,9 +42,10 @@ if [ ! -f "$FIRSTLAUNCH" ]; then\n\
     echo "#Remove this file only if you want to recreate default config files! This will overwrite existing files" > $FIRSTLAUNCH\n\
 fi\n\
 echo "nameserver 8.8.8.8" >> /etc/resolv.conf\n\
-python /thingsboard_gateway/tb_gateway.py' > /start-gateway.sh && chmod +x /start-gateway.sh &&  \
+python /thingsboard_gateway/tb_gateway.py' > /start-gateway.sh && chmod +x /start-gateway.sh && \
     python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    python3 -m pip install --no-cache-dir -r requirements.txt
+    python3 -m pip install --no-cache-dir -r requirements.txt && \
+    rustup self uninstall -y
 
 VOLUME ["${configs}", "${extensions}", "${logs}"]
 
