@@ -170,6 +170,14 @@ class TBGatewayService:
         self.version = self.__updater.get_version()
         log.info("ThingsBoard IoT gateway version: %s", self.version["current_version"])
         self.name = ''.join(choice(ascii_lowercase) for _ in range(64))
+
+        self._load_connectors()
+        self.__connectors_init_start_success = True
+        try:
+            self.__connect_with_connectors()
+        except Exception as e:
+            log.exception("Error while connecting to connectors: %s", e)
+
         connection_logger = logging.getLogger('tb_connection')
         self.tb_client = TBClient(self.__config["thingsboard"], self._config_dir, connection_logger)
         try:
@@ -187,7 +195,6 @@ class TBGatewayService:
         self.remote_handler = TBLoggerHandler(self)
         log.addHandler(self.remote_handler)
         # self.main_handler.setTarget(self.remote_handler)
-        self._default_connectors = DEFAULT_CONNECTORS
         self.__save_converted_data_thread = Thread(name="Storage fill thread", daemon=True,
                                                    target=self.__send_to_storage)
         self.__save_converted_data_thread.start()
@@ -229,8 +236,13 @@ class TBGatewayService:
 
         self.__init_remote_configuration()
 
-        self._load_connectors()
-        self.__connect_with_connectors()
+        try:
+            log.warning("Initials connections with connectors was failed, trying again...")
+            if not self.__connectors_init_start_success:
+                self.connect_with_connectors()
+                log.info("Initials connections with connectors was successful.")
+        except Exception as e:
+            log.exception("Error while connecting to connectors, please update configuration: %s", e)
 
         self.__duplicate_detector = DuplicateDetector(self.available_connectors_by_name)
         self.__load_persistent_devices()
@@ -291,6 +303,7 @@ class TBGatewayService:
         self.__added_devices = {}
         self.__events = []
         self.__grpc_connectors = {}
+        self._default_connectors = DEFAULT_CONNECTORS
 
         self._published_events = SimpleQueue()
         self.__rpc_processing_queue = SimpleQueue()
