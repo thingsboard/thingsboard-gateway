@@ -74,6 +74,24 @@ class OpcUaUplinkConverter(OpcUaConverter):
                 if data.tzinfo is None:
                     data = data.replace(tzinfo=timezone.utc)
                 data = data.isoformat()
+            elif val.Value.VariantType == VariantType.StatusCode:
+                data = data.name
+            elif (val.Value.VariantType == VariantType.QualifiedName
+                  or val.Value.VariantType == VariantType.NodeId
+                  or val.Value.VariantType == VariantType.ExpandedNodeId):
+                data = data.to_string()
+            elif val.Value.VariantType == VariantType.ByteString:
+                data = data.hex()
+            elif val.Value.VariantType == VariantType.XmlElement:
+                data = data.decode('utf-8')
+            elif val.Value.VariantType == VariantType.Guid:
+                data = str(data)
+            elif val.Value.VariantType == VariantType.DiagnosticInfo:
+                data = data.to_string()
+            elif val.Value.VariantType == VariantType.Null:
+                data = None
+
+
 
             if config['section'] == 'timeseries':
                 if val.SourceTimestamp and int(val.SourceTimestamp.replace(
