@@ -37,7 +37,8 @@ except (ImportError, ModuleNotFoundError):
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
-    BadInvalidState, BadSessionClosed, BadAttributeIdInvalid, BadCommunicationError, BadOutOfService
+    BadInvalidState, BadSessionClosed, BadAttributeIdInvalid, BadCommunicationError, BadOutOfService, BadNoMatch, \
+    BadUnexpectedError, UaStatusCodeErrors, BadWaitingForInitialData
 
 DEFAULT_UPLINK_CONVERTER = 'OpcUaUplinkConverter'
 
@@ -460,7 +461,8 @@ class OpcUaConnector(Connector, Thread):
                     except ConnectionError:
                         raise
                     except (BadNodeIdUnknown, BadConnectionClosed, BadInvalidState, BadAttributeIdInvalid,
-                            BadCommunicationError, BadOutOfService):
+                            BadCommunicationError, BadOutOfService, BadNoMatch, BadUnexpectedError, UaStatusCodeErrors,
+                            BadWaitingForInitialData):
                         if node.get('valid', True):
                             self.__log.warning('Node not found (2); device: %s, key: %s, path: %s', device.name,
                                                node['key'], node['path'])
