@@ -131,9 +131,12 @@ class MqttConnector(Connector, Thread):
 
         # Extract main sections from configuration ---------------------------------------------------------------------
         self.__broker = config.get('broker')
-        self.__send_data_only_on_change = self.__broker.get(SEND_ON_CHANGE_PARAMETER, DEFAULT_SEND_ON_CHANGE_VALUE)
+        self.__send_data_only_on_change = self.__broker.get(SEND_ON_CHANGE_PARAMETER,
+                                                            self.config.get(SEND_ON_CHANGE_PARAMETER,
+                                                                            DEFAULT_SEND_ON_CHANGE_VALUE))
         self.__send_data_only_on_change_ttl = self.__broker.get(SEND_ON_CHANGE_TTL_PARAMETER,
-                                                                DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE)
+                                                                self.config.get(SEND_ON_CHANGE_TTL_PARAMETER,
+                                                                                DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE))
 
         # for sendDataOnlyOnChange param
         self.__topic_content = {}
