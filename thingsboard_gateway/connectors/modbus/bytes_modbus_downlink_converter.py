@@ -84,7 +84,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
                 else:
                     builder_functions["bits"]([int(x) for x in bin(value)[2:]])
             else:
-                return bytes(int(value))
+                return int(value).to_bytes(1, byteorder='big')
         elif lower_type in ["string"]:
             assert builder_functions.get("string") is not None
             builder_functions[lower_type](value)
