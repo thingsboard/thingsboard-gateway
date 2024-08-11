@@ -113,22 +113,30 @@ class OpcUaConnector(Connector, Thread):
         return self._connector_type
 
     def close(self):
-        self.__stopped = True
-        self.__connected = False
-        self.__log.info("Stopping OPC-UA Connector")
+        try:
+            self.__stopped = True
+            self.__connected = False
+            self.__log.info("Stopping OPC-UA Connector")
 
-        asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.__loop)
+            asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.__loop)
 
-        start_time = monotonic()
+            start_time = monotonic()
 
-        while self.is_alive():
-            if monotonic() - start_time > 5:
-                self.__log.error("Failed to stop connector %s", self.get_name())
-                break
-            sleep(.1)
+            while self.is_alive():
+                if monotonic() - start_time > 5:
+                    self.__log.error("Failed to stop connector %s", self.get_name())
+                    break
+                sleep(.1)
 
-        self.__log.info('%s has been stopped.', self.get_name())
-        self.__log.stop()
+            self.__log.info('%s has been stopped.', self.get_name())
+            self.__log.stop()
+
+        finally:
+            try:
+                self.__client.disconnect()
+                self.__log.info(f'Disconnected from OPC-UA Server')
+            except:
+                self.__log.warning(f'Could not disconnect from OPC-UA Server')
 
     async def __cancel_all_tasks(self):
         for task in asyncio.all_tasks(self.__loop):
