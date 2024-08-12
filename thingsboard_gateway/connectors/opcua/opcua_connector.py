@@ -113,7 +113,7 @@ class OpcUaConnector(Connector, Thread):
         return self._connector_type
 
     def close(self):
-        self.__stopped = True          
+        self.__stopped = True
         self.__connected = False
         self.__log.info("Stopping OPC-UA Connector")
 
