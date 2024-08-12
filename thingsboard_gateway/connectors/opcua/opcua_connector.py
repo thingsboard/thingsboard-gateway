@@ -213,7 +213,9 @@ class OpcUaConnector(Connector, Thread):
 
                 if self.__stopped:
                     break
-
+                
+                self.__client.session_timeout=60000
+                print(f'***************** HORSE session_timeout=60000 established')
                 await self.__client.connect()
                 self.__connected = True
 

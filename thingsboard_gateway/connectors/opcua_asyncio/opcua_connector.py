@@ -75,6 +75,8 @@ class OpcUaConnectorAsyncIO(Connector, Thread):
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
                                  enable_remote_logging=self.__config.get('enableRemoteLogging', False))
 
+        print("**** HORSE: SE HA CREADO UN CONNECTOR OpcUaConnectorAsyncIO")
+
         if "opc.tcp" not in self.__server_conf.get("url"):
             self.__opcua_url = "opc.tcp://" + self.__server_conf.get("url")
         else:
