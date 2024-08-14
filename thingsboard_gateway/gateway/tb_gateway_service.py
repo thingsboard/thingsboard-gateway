@@ -166,6 +166,7 @@ class TBGatewayService:
         self.__modify_main_config()
 
         log.info("Gateway starting...")
+        self.__duplicate_detector = DuplicateDetector(self.available_connectors_by_name)
         self.__updater = TBUpdater()
         self.version = self.__updater.get_version()
         log.info("ThingsBoard IoT gateway version: %s", self.version["current_version"])
@@ -250,7 +251,6 @@ class TBGatewayService:
         except Exception as e:
             log.exception("Error while connecting to connectors, please update configuration: %s", e)
 
-        self.__duplicate_detector = DuplicateDetector(self.available_connectors_by_name)
         self.__load_persistent_devices()
 
         if self.__config['thingsboard'].get('managerEnabled', False):
