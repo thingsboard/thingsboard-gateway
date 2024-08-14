@@ -59,54 +59,10 @@ class OpcUaUplinkConverter(OpcUaConverter):
 
         return None
 
-    def convert(self, config, val):
-        if not val:
-            return
+    def convert(self, configs, values):
+        for (val, config) in zip(values, configs):
+            if not val:
+                continue
 
-        data = val.Value.Value
-
-        if data is not None:
-            if isinstance(data, LocalizedText):
-                data = data.Text
-            elif val.Value.VariantType == VariantType.ExtensionObject:
-                data = str(data)
-            elif val.Value.VariantType == VariantType.DateTime:
-                if data.tzinfo is None:
-                    data = data.replace(tzinfo=timezone.utc)
-                data = data.isoformat()
-            elif val.Value.VariantType == VariantType.StatusCode:
-                data = data.name
-            elif (val.Value.VariantType == VariantType.QualifiedName
-                  or val.Value.VariantType == VariantType.NodeId
-                  or val.Value.VariantType == VariantType.ExpandedNodeId):
-                data = data.to_string()
-            elif val.Value.VariantType == VariantType.ByteString:
-                data = data.hex()
-            elif val.Value.VariantType == VariantType.XmlElement:
-                data = data.decode('utf-8')
-            elif val.Value.VariantType == VariantType.Guid:
-                data = str(data)
-            elif val.Value.VariantType == VariantType.DiagnosticInfo:
-                data = data.to_string()
-            elif val.Value.VariantType == VariantType.Null:
-                data = None
-
-
-
-            if config['section'] == 'timeseries':
-                if val.SourceTimestamp and int(val.SourceTimestamp.replace(
-                        tzinfo=timezone.utc).timestamp() * 1000) != self._last_node_timestamp:
-                    timestamp = int(val.SourceTimestamp.replace(tzinfo=timezone.utc).timestamp() * 1000)
-                    self._last_node_timestamp = timestamp
-                elif val.ServerTimestamp and int(val.ServerTimestamp.replace(
-                        tzinfo=timezone.utc).timestamp() * 1000) != self._last_node_timestamp:
-                    timestamp = int(val.ServerTimestamp.replace(tzinfo=timezone.utc).timestamp() * 1000)
-                    self._last_node_timestamp = timestamp
-                else:
-                    timestamp = int(time() * 1000)
-
-                self.data[DATA_TYPES[config['section']]].append({'ts': timestamp, 'values': {config['key']: data}})
-            else:
-                self.data[DATA_TYPES[config['section']]].append({config['key']: data})
-
-            self._log.debug('Converted data: %s', self.data)
+            if val is not None:
+                self.data[DATA_TYPES[config['section']]].append({config['key']: val})
