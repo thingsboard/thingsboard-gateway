@@ -118,6 +118,7 @@ class OpcUaConnector(Connector, Thread):
         self.__log.info("Stopping OPC-UA Connector")
 
         asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.__loop)
+        asyncio.run(self.__disconnect())
 
         start_time = monotonic()
 
@@ -133,6 +134,13 @@ class OpcUaConnector(Connector, Thread):
     async def __cancel_all_tasks(self):
         for task in asyncio.all_tasks(self.__loop):
             task.cancel()
+
+    async def __disconnect(self):
+        try:
+            await self.__client.disconnect()
+            self.__log.info('%s has been disconnected from OPC-UA Server.', self.get_name())
+        except:
+             self.__log.warning(f'{self.get_name()} could not be disconnected from OPC-UA Server.') 
 
     async def __reset_node(self, node):
         node['valid'] = False
