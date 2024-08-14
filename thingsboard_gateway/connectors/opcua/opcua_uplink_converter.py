@@ -61,8 +61,37 @@ class OpcUaUplinkConverter(OpcUaConverter):
 
     def convert(self, configs, values):
         for (val, config) in zip(values, configs):
-            if not val:
+            if not val or val is None:
                 continue
 
-            if val is not None:
-                self.data[DATA_TYPES[config['section']]].append({config['key']: val})
+            data = val
+
+            if not isinstance(data, (int, float, str, bool, dict, list, type(None), LocalizedText)):
+                self._log.info(f"Non primitive data type: {type(data)}")
+                data = val.Value.Value
+                if isinstance(data, LocalizedText):
+                    data = data.Text
+                elif val.Value.VariantType == VariantType.ExtensionObject:
+                    data = str(data)
+                elif val.Value.VariantType == VariantType.DateTime:
+                    if data.tzinfo is None:
+                        data = data.replace(tzinfo=timezone.utc)
+                    data = data.isoformat()
+                elif val.Value.VariantType == VariantType.StatusCode:
+                    data = data.name
+                elif (val.Value.VariantType == VariantType.QualifiedName
+                      or val.Value.VariantType == VariantType.NodeId
+                      or val.Value.VariantType == VariantType.ExpandedNodeId):
+                    data = data.to_string()
+                elif val.Value.VariantType == VariantType.ByteString:
+                    data = data.hex()
+                elif val.Value.VariantType == VariantType.XmlElement:
+                    data = data.decode('utf-8')
+                elif val.Value.VariantType == VariantType.Guid:
+                    data = str(data)
+                elif val.Value.VariantType == VariantType.DiagnosticInfo:
+                    data = data.to_string()
+                elif val.Value.VariantType == VariantType.Null:
+                    data = None
+
+            self.data[DATA_TYPES[config['section']]].append({config['key']: data})
