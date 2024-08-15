@@ -497,22 +497,26 @@ class OpcUaConnector(Connector, Thread):
                             await self.__reset_node(node)
 
     async def __poll_nodes(self):
-        values = await self.__client.read_attributes(
-            [node_config['var'] for device in self.__device_nodes for node_config in device.nodes])
+        all_nodes = [node_config['var'] for device in self.__device_nodes for node_config in device.nodes]
 
-        converted_nodes_count = 0
-        for device in self.__device_nodes:
-            nodes_count = len(device.nodes)
-            device_values = values[converted_nodes_count:converted_nodes_count + nodes_count]
-            converted_nodes_count += nodes_count
-            device.converter.convert(device.nodes, device_values)
-            converter_data = device.converter.get_data()
-            if converter_data:
-                self.__data_to_send.put(*converter_data)
+        if len(all_nodes) > 0:
+            values = await self.__client.read_attributes(all_nodes)
 
-                device.converter.clear_data()
+            converted_nodes_count = 0
+            for device in self.__device_nodes:
+                nodes_count = len(device.nodes)
+                device_values = values[converted_nodes_count:converted_nodes_count + nodes_count]
+                converted_nodes_count += nodes_count
+                device.converter.convert(device.nodes, device_values)
+                converter_data = device.converter.get_data()
+                if converter_data:
+                    self.__data_to_send.put(*converter_data)
 
-        self.__log.debug('Converted nodes values count: %s', converted_nodes_count)
+                    device.converter.clear_data()
+
+            self.__log.debug('Converted nodes values count: %s', converted_nodes_count)
+        else:
+            self.__log.info('No nodes to poll')
 
     def __send_data(self):
         while not self.__stopped:
