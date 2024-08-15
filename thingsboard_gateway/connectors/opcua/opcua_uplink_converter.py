@@ -71,7 +71,6 @@ class OpcUaUplinkConverter(OpcUaConverter):
             data = val.Value.Value
 
             if data is not None and not isinstance(data, (int, float, str, bool, dict, list, type(None))):
-                self._log.error("Unsupported data: %s | and data type: %s", data, type(data))
                 if isinstance(data, LocalizedText):
                     data = data.Text
                 elif val.Value.VariantType == VariantType.ExtensionObject:

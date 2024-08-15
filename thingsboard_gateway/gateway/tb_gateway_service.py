@@ -1100,7 +1100,7 @@ class TBGatewayService:
                 else:
                     sleep(0.2)
             except Exception as e:
-                log.error(e)
+                log.exception(e)
 
     @staticmethod
     def __get_data_size(data: dict):
@@ -1131,12 +1131,16 @@ class TBGatewayService:
         return data
 
     def __send_data_pack_to_storage(self, data, connector_name, connector_id=None):
-        json_data = dumps(data)
-        save_result = self._event_storage.put(json_data)
-        if not save_result:
-            log.error('%rData from the device "%s" cannot be saved, connector name is %s.',
-                      "[" + connector_id + "] " if connector_id is not None else "",
-                      data["deviceName"], connector_name)
+        try:
+            json_data = dumps(data)
+            save_result = self._event_storage.put(json_data)
+            if not save_result:
+                log.error('%rData from the device "%s" cannot be saved, connector name is %s.',
+                          "[" + connector_id + "] " if connector_id is not None else "",
+                          data["deviceName"], connector_name)
+        except Exception as e:
+            log.error('CONVERTING ERROR | %s', data)
+            log.exception(e)
 
     def check_size(self, devices_data_in_event_pack):
         if (self.__get_data_size(devices_data_in_event_pack)
