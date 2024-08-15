@@ -68,30 +68,32 @@ class OpcUaUplinkConverter(OpcUaConverter):
 
             if not isinstance(data, (int, float, str, bool, dict, list, type(None), LocalizedText)):
                 self._log.info(f"Non primitive data type: {type(data)}")
-                data = val.Value.Value
                 if isinstance(data, LocalizedText):
                     data = data.Text
-                elif val.Value.VariantType == VariantType.ExtensionObject:
+                elif val.VariantType == VariantType.ExtensionObject:
                     data = str(data)
-                elif val.Value.VariantType == VariantType.DateTime:
+                elif val.VariantType == VariantType.DateTime:
                     if data.tzinfo is None:
                         data = data.replace(tzinfo=timezone.utc)
                     data = data.isoformat()
-                elif val.Value.VariantType == VariantType.StatusCode:
+                elif val.VariantType == VariantType.StatusCode:
                     data = data.name
-                elif (val.Value.VariantType == VariantType.QualifiedName
-                      or val.Value.VariantType == VariantType.NodeId
-                      or val.Value.VariantType == VariantType.ExpandedNodeId):
+                elif (val.VariantType == VariantType.QualifiedName
+                      or val.VariantType == VariantType.NodeId
+                      or val.VariantType == VariantType.ExpandedNodeId):
                     data = data.to_string()
-                elif val.Value.VariantType == VariantType.ByteString:
+                elif val.VariantType == VariantType.ByteString:
                     data = data.hex()
-                elif val.Value.VariantType == VariantType.XmlElement:
+                elif val.VariantType == VariantType.XmlElement:
                     data = data.decode('utf-8')
-                elif val.Value.VariantType == VariantType.Guid:
+                elif val.VariantType == VariantType.Guid:
                     data = str(data)
-                elif val.Value.VariantType == VariantType.DiagnosticInfo:
+                elif val.VariantType == VariantType.DiagnosticInfo:
                     data = data.to_string()
-                elif val.Value.VariantType == VariantType.Null:
+                elif val.VariantType == VariantType.Null:
                     data = None
+                else:
+                    self._log.info(f"Unsupported data type: {val.VariantType}, will be processed as a string.")
+                    data = str(data)
 
             self.data[DATA_TYPES[config['section']]].append({config['key']: data})
