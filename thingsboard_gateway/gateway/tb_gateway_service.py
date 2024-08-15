@@ -1140,7 +1140,7 @@ class TBGatewayService:
 
     def check_size(self, devices_data_in_event_pack):
         if (self.__get_data_size(devices_data_in_event_pack)
-                >= self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)):
+                >= 1000000): #self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)):
             self.__send_data(devices_data_in_event_pack)
             for device in devices_data_in_event_pack:
                 devices_data_in_event_pack[device]["telemetry"] = []
@@ -1690,7 +1690,7 @@ class TBGatewayService:
         return self.name
 
     def get_max_payload_size_bytes(self):
-        return self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
+        return 1000000 #self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
 
     # ----------------------------
     # Storage --------------------
