@@ -142,7 +142,7 @@ class OpcUaConnector(Connector, Thread):
             await self.__client.disconnect()
             self.__log.info('%s has been disconnected from OPC-UA Server.', self.get_name())
         except Exception as e:
-            self.__log.error('%s could not be disconnected from OPC-UA Server: %s', self.name, e)
+            self.__log.warning('%s could not be disconnected from OPC-UA Server: %s', self.name, e)
 
     async def __reset_node(self, node):
         node['valid'] = False
