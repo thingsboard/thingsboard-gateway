@@ -96,7 +96,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
                 elif val.Value.VariantType == VariantType.Null:
                     data = None
                 else:
-                    self._log.warning(f"Unsupported data type: {val.VariantType}, will be processed as a string.")
+                    self._log.warning(f"Unsupported data type: {val.Value.VariantType}, will be processed as a string.")
                     if hasattr(data, 'to_string'):
                         data = data.to_string()
                     else:
