@@ -104,7 +104,7 @@ class OpcUaConnector(Connector, Thread):
         self.daemon = True
 
         self.__device_nodes = []
-        self.__last_poll = 0
+        self.__next_poll = 0
 
     def open(self):
         self.__stopped = False
@@ -227,14 +227,13 @@ class OpcUaConnector(Connector, Thread):
                 await self.__scan_device_nodes()
 
                 while not self.__stopped:
-                    if monotonic() - self.__last_poll >= scan_period:
+                    if monotonic() >= self.__next_poll:
+                        self.__next_poll = monotonic() + scan_period
                         await self.__poll_nodes()
-                        self.__last_poll = monotonic()
 
-                    if not scan_period < 0.2:
-                        await asyncio.sleep(0.2)
-                    else:
-                        await asyncio.sleep(scan_period)
+                    time_to_sleep = self.__next_poll - scan_period - monotonic()
+                    if time_to_sleep > 0:
+                        await asyncio.sleep(time_to_sleep)
             except (ConnectionError, BadSessionClosed):
                 self.__log.warning('Connection lost for %s', self.get_name())
             except asyncio.exceptions.TimeoutError:
