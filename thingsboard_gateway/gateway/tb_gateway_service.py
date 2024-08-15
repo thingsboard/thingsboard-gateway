@@ -154,7 +154,7 @@ class TBGatewayService:
             logging_error = e
 
         global log
-        log = TbLogger('service', gateway=self, level='INFO')
+        log = TbLogger('service', gateway=self, level='DEBUG')
         global main_handler
         self.main_handler = main_handler
         log.addHandler(self.main_handler)
