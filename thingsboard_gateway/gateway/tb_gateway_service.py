@@ -224,7 +224,7 @@ class TBGatewayService:
 
         self.__min_pack_send_delay_ms = 10#self.__config['thingsboard'].get('minPackSendDelayMS', 200)
         self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
-        self.__min_pack_size_to_send = 1000 #self.__config['thingsboard'].get('minPackSizeToSend', 50)
+        self.__min_pack_size_to_send = 10 #self.__config['thingsboard'].get('minPackSizeToSend', 50)
 
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
@@ -1148,8 +1148,8 @@ class TBGatewayService:
 
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
-        log.debug("Send data Thread has been started successfully.")
-        log.debug("Maximal size of the client message queue is: %r",
+        log.info("Send data Thread has been started successfully.")
+        log.info("Maximal size of the client message queue is: %r",
                   self.tb_client.client._client._max_queued_messages) # noqa pylint: disable=protected-access
 
         while not self.stopped:
@@ -1190,8 +1190,10 @@ class TBGatewayService:
                         if devices_data_in_event_pack:
                             if not self.tb_client.is_connected():
                                 continue
+                            log.debug("Await self.__rpc_reply_sent...")
                             while self.__rpc_reply_sent:
                                 sleep(.01)
+                            log.debug("__send_data...")
                             self.__send_data(devices_data_in_event_pack) # noqa
 
                         if self.tb_client.is_connected() and (
@@ -1253,17 +1255,21 @@ class TBGatewayService:
 
                 if devices_data_in_event_pack[device].get("attributes"):
                     if device == self.name or device == "currentThingsBoardGateway":
+                        log.debug("tb_client.client.send_attributes")
                         self._published_events.put(
                             self.tb_client.client.send_attributes(devices_data_in_event_pack[device]["attributes"]))
                     else:
+                        log.debug("tb_client.client.gw_send_attributes")
                         self._published_events.put(self.tb_client.client.gw_send_attributes(final_device_name,
                                                                                             devices_data_in_event_pack[
                                                                                                 device]["attributes"]))
                 if devices_data_in_event_pack[device].get("telemetry"):
                     if device == self.name or device == "currentThingsBoardGateway":
+                        log.debug("tb_client.client.send_telemetry")
                         self._published_events.put(
                             self.tb_client.client.send_telemetry(devices_data_in_event_pack[device]["telemetry"]))
                     else:
+                        log.debug("tb_client.client.gw_send_telemetry")
                         self._published_events.put(self.tb_client.client.gw_send_telemetry(final_device_name,
                                                                                            devices_data_in_event_pack[
                                                                                                device]["telemetry"]))
