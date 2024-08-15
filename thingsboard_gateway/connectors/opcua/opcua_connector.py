@@ -20,6 +20,8 @@ from threading import Thread
 from time import sleep, monotonic
 from queue import Queue
 
+from asyncua import ua
+
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua.device import Device
@@ -495,7 +497,8 @@ class OpcUaConnector(Connector, Thread):
                             await self.__reset_node(node)
 
     async def __poll_nodes(self):
-        values = await self.__client.read_values([node_config['var'] for device in self.__device_nodes for node_config in device.nodes])
+        values = await self.__client.read_attributes(
+            [node_config['var'] for device in self.__device_nodes for node_config in device.nodes])
 
         converted_nodes_count = 0
         for device in self.__device_nodes:

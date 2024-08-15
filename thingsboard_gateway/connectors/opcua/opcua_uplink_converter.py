@@ -60,40 +60,46 @@ class OpcUaUplinkConverter(OpcUaConverter):
         return None
 
     def convert(self, configs, values):
+        if not isinstance(configs, list):
+            configs = [configs]
+        if not isinstance(list, values):
+            values = [values]
         for (val, config) in zip(values, configs):
             if not val or val is None:
                 continue
 
-            data = val
+            data = val.Value.Value
 
-            if not isinstance(data, (int, float, str, bool, dict, list, type(None), LocalizedText)):
-                self._log.info(f"Non primitive data type: {type(data)}")
+            if data is not None:
                 if isinstance(data, LocalizedText):
                     data = data.Text
-                elif val.VariantType == VariantType.ExtensionObject:
+                elif val.Value.VariantType == VariantType.ExtensionObject:
                     data = str(data)
-                elif val.VariantType == VariantType.DateTime:
+                elif val.Value.VariantType == VariantType.DateTime:
                     if data.tzinfo is None:
                         data = data.replace(tzinfo=timezone.utc)
                     data = data.isoformat()
-                elif val.VariantType == VariantType.StatusCode:
+                elif val.Value.VariantType == VariantType.StatusCode:
                     data = data.name
-                elif (val.VariantType == VariantType.QualifiedName
-                      or val.VariantType == VariantType.NodeId
-                      or val.VariantType == VariantType.ExpandedNodeId):
+                elif (val.Value.VariantType == VariantType.QualifiedName
+                      or val.Value.VariantType == VariantType.NodeId
+                      or val.Value.VariantType == VariantType.ExpandedNodeId):
                     data = data.to_string()
-                elif val.VariantType == VariantType.ByteString:
+                elif val.Value.VariantType == VariantType.ByteString:
                     data = data.hex()
-                elif val.VariantType == VariantType.XmlElement:
+                elif val.Value.VariantType == VariantType.XmlElement:
                     data = data.decode('utf-8')
-                elif val.VariantType == VariantType.Guid:
+                elif val.Value.VariantType == VariantType.Guid:
                     data = str(data)
-                elif val.VariantType == VariantType.DiagnosticInfo:
+                elif val.Value.VariantType == VariantType.DiagnosticInfo:
                     data = data.to_string()
-                elif val.VariantType == VariantType.Null:
+                elif val.Value.VariantType == VariantType.Null:
                     data = None
                 else:
-                    self._log.info(f"Unsupported data type: {val.VariantType}, will be processed as a string.")
-                    data = str(data)
+                    self._log.warning(f"Unsupported data type: {val.VariantType}, will be processed as a string.")
+                    if hasattr(data, 'to_string'):
+                        data = data.to_string()
+                    else:
+                        data = str(data)
 
             self.data[DATA_TYPES[config['section']]].append({config['key']: data})
