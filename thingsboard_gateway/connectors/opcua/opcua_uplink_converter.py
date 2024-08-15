@@ -62,7 +62,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
     def convert(self, configs, values):
         if not isinstance(configs, list):
             configs = [configs]
-        if not isinstance(list, values):
+        if not isinstance(values, list):
             values = [values]
         for (val, config) in zip(values, configs):
             if not val or val is None:
