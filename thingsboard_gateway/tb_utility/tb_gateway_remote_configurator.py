@@ -193,7 +193,7 @@ class RemoteConfigurator:
             for connector in connector_list:
                 for general_connector_config in self.connectors_configuration:
                     if general_connector_config['name'] == connector['name']:
-                        config = connector.pop('config')[general_connector_config['configuration']]
+                        config = connector.get('config')[general_connector_config['configuration']]
                         general_connector_config.update(connector)
                         general_connector_config['configurationJson'] = config
 
