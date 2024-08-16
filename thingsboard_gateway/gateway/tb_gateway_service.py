@@ -225,6 +225,7 @@ class TBGatewayService:
         self.__min_pack_send_delay_ms = 10#self.__config['thingsboard'].get('minPackSendDelayMS', 200)
         self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
         self.__min_pack_size_to_send = 1000 #self.__config['thingsboard'].get('minPackSizeToSend', 50)
+        self.__max_payload_size_in_bytes = 1_000_000 #self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
 
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
@@ -502,7 +503,7 @@ class TBGatewayService:
                     self.__rpc_requests_in_progress = new_rpc_request_in_progress
                 else:
                     try:
-                        sleep(0.2)
+                        sleep(0.02)
                     except Exception as e:
                         log.exception(e)
                         break
@@ -1098,7 +1099,7 @@ class TBGatewayService:
                             self.__send_data_pack_to_storage(data, connector_name, connector_id)
 
                 else:
-                    sleep(0.2)
+                    sleep(0.02)
             except Exception as e:
                 log.exception(e)
 
@@ -1140,7 +1141,7 @@ class TBGatewayService:
 
     def check_size(self, devices_data_in_event_pack):
         if (self.__get_data_size(devices_data_in_event_pack)
-                >= self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)):
+                >= self.__max_payload_size_in_bytes):
             self.__send_data(devices_data_in_event_pack)
             for device in devices_data_in_event_pack:
                 devices_data_in_event_pack[device]["telemetry"] = []
@@ -1690,7 +1691,7 @@ class TBGatewayService:
         return self.name
 
     def get_max_payload_size_bytes(self):
-        return self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
+        return self.__max_payload_size_in_bytes
 
     # ----------------------------
     # Storage --------------------
