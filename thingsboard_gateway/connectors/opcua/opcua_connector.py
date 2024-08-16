@@ -105,6 +105,7 @@ class OpcUaConnector(Connector, Thread):
 
         self.__device_nodes = []
         self.__next_poll = 0
+        self.__next_scan = 0
 
     def open(self):
         self.__stopped = False
@@ -222,16 +223,20 @@ class OpcUaConnector(Connector, Thread):
                 except Exception as e:
                     self.__log.error("Error on loading type definitions:\n %s", e)
 
-                scan_period = self.__server_conf.get('scanPeriodInMillis', 5000) / 1000
-
-                await self.__scan_device_nodes()
+                poll_period = int(self.__server_conf.get('pollPeriodInMillis', 5000) / 1000)
+                scan_period = self.__server_conf.get('scanPeriodInSec', 3600)
 
                 while not self.__stopped:
+                    if monotonic() >= self.__next_scan:
+                        self.__next_scan = monotonic() + scan_period
+                        await self.__scan_device_nodes()
+
                     if monotonic() >= self.__next_poll:
-                        self.__next_poll = monotonic() + scan_period
+                        self.__next_poll = monotonic() + poll_period
                         await self.__poll_nodes()
 
-                    time_to_sleep = self.__next_poll - scan_period - monotonic()
+                    current_time = monotonic()
+                    time_to_sleep = min(self.__next_poll - current_time, self.__next_scan - current_time)
                     if time_to_sleep > 0:
                         await asyncio.sleep(time_to_sleep)
             except (ConnectionError, BadSessionClosed):
