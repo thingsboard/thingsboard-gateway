@@ -60,7 +60,7 @@ class BackwardCompatibilityAdapter:
                 self._log.error('Error during conversion: ', e)
                 self._log.info('Config: ', node_config)
 
-        mapping = self._config.get('server', {}).pop('mapping', [])
+        mapping = self._config.get('server', {}).get('mapping', [])
         self._config['mapping'] = mapping
 
         return self._config
