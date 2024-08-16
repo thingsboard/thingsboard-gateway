@@ -20,8 +20,6 @@ from threading import Thread
 from time import sleep, monotonic
 from queue import Queue
 
-from asyncua import ua
-
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua.device import Device
