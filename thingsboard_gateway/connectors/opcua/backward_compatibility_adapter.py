@@ -1,4 +1,4 @@
-from copy import copy
+from copy import deepcopy
 import re
 
 
@@ -11,13 +11,16 @@ class BackwardCompatibilityAdapter:
     }
 
     def __init__(self, config, logger):
-        self._config = copy(config)
+        self._config = deepcopy(config)
         self._log = logger
 
     def convert(self):
-        for node_config in self._config.get('server', {}).get('mapping', []):
+        mapping_configuration = deepcopy(self._config.get('server', {}).get('mapping', []))
+        if not mapping_configuration:
+            return self._config
+        for node_config in mapping_configuration:
             try:
-                node_config['deviceNodeSource'] = self.get_value_source(node_config['deviceNodePattern'])
+                node_config['deviceNodeSource'] = self.get_value_source(node_config['deviceNodePattern'], False)
 
                 device_type_pattern = node_config.pop('deviceTypePattern', 'default')
                 device_name_pattern = node_config.pop('deviceNamePattern', None)
@@ -60,16 +63,18 @@ class BackwardCompatibilityAdapter:
                 self._log.error('Error during conversion: ', e)
                 self._log.info('Config: ', node_config)
 
-        mapping = self._config.get('server', {}).get('mapping', [])
-        self._config['mapping'] = mapping
+        # Removing old mapping section
+        self._config['server'].pop('mapping')
+        # Adding new mapping section
+        self._config['mapping'] = mapping_configuration
 
         return self._config
 
     @staticmethod
-    def get_value_source(value):
+    def get_value_source(value, possible_constant=True):
         if re.search(r"(ns=\d+;[isgb]=[^}]+)", value):
             return 'identifier'
-        elif re.search(r"\${([A-Za-z.:\\\d]+)}", value):
+        elif re.search(r"\${([A-Za-z.:\\\d]+)}", value) or not possible_constant:
             return 'path'
         else:
             return 'constant'
