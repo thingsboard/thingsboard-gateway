@@ -204,6 +204,7 @@ class OpcUaConnector(Connector, Thread):
             try:
                 self.__client = asyncua.Client(url=self.__opcua_url,
                                                timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
+                self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 3600000)
 
                 if self.__server_conf["identity"].get("type") == "cert.PEM":
                     await self.__set_auth_settings_by_cert()
