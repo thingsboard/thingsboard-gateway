@@ -19,6 +19,7 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic
 from queue import Queue
+from copy import deepcopy
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
@@ -62,6 +63,7 @@ class OpcUaConnector(Connector, Thread):
         super().__init__()
         self._connector_type = connector_type
         self.__gateway = gateway
+        self.__original_config = deepcopy(config)
         self.__config = config
         self.__id = self.__config.get('id')
         self.name = self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
@@ -181,7 +183,7 @@ class OpcUaConnector(Connector, Thread):
         return self.__stopped
 
     def get_config(self):
-        return self.__config
+        return self.__original_config
 
     def run(self):
         data_send_thread = Thread(name='Send Data Thread', target=self.__send_data, daemon=True)
@@ -256,12 +258,14 @@ class OpcUaConnector(Connector, Thread):
                 break
             except Exception as e:
                 self.__log.exception("Error in main loop: %s", e)
-                break
+                if self.__stopped:
+                    break
             finally:
-                if self.__connected:
-                    await self.__client.disconnect()
-                self.__connected = False
-                await asyncio.sleep(1)
+                if self.__stopped:
+                    if self.__connected:
+                        await self.__client.disconnect()
+                    self.__connected = False
+                await asyncio.sleep(.5)
 
     async def __set_auth_settings_by_cert(self):
         try:
