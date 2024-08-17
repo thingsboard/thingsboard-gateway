@@ -223,7 +223,7 @@ class OpcUaConnector(Connector, Thread):
                     self.__log.error("Error on loading type definitions:\n %s", e)
 
                 poll_period = int(self.__server_conf.get('pollPeriodInMillis', 5000) / 1000)
-                scan_period = self.__server_conf.get('scanPeriodInSec', 3600)
+                scan_period = int(self.__server_conf.get('scanPeriodInSec', 3600))
 
                 while not self.__stopped:
                     if monotonic() >= self.__next_scan:
