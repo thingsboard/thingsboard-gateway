@@ -510,6 +510,10 @@ class OpcUaConnector(Connector, Thread):
             values = await self.__client.read_attributes(all_nodes)
 
             converted_nodes_count = 0
+            converted_data_dev_count = 0
+            converted_data_attr_count = 0
+            converted_telemetry_ts_count = 0
+
             for device in self.__device_nodes:
                 nodes_count = len(device.nodes)
                 device_values = values[converted_nodes_count:converted_nodes_count + nodes_count]
@@ -517,11 +521,19 @@ class OpcUaConnector(Connector, Thread):
                 device.converter.convert(device.nodes, device_values)
                 converter_data = device.converter.get_data()
                 if converter_data:
+                    converted_data_dev_count = len(converter_data)
+                    for data_entry in converter_data:
+                        converted_data_attr_count += len(data_entry['attributes'])
+                        converted_telemetry_ts_count += len(data_entry['telemetry'])
+
                     self.__data_to_send.put(*converter_data)
 
                     device.converter.clear_data()
 
-            self.__log.debug('Converted nodes values count: %s', converted_nodes_count)
+                self.__log.debug('Converted nodes %s: devices %s, attr %s, telemetry %s',
+                                 converted_nodes_count, converted_data_dev_count,
+                                 converted_data_attr_count, converted_telemetry_ts_count)
+
         else:
             self.__log.info('No nodes to poll')
 
