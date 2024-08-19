@@ -247,7 +247,6 @@ class OpcUaConnector(Connector, Thread):
             except asyncio.CancelledError as e:
                 if self.__stopped:
                     self.__log.debug('Task was cancelled due to connector stop: %s', e.__str__())
-                    break
                 else:
                     self.__log.exception('Task was cancelled: %s', e.__str__())
             except UaStatusCodeError as e:
@@ -255,11 +254,8 @@ class OpcUaConnector(Connector, Thread):
                 if self.__connected:
                     await self.__client.disconnect()
                     self.__connected = False
-                break
             except Exception as e:
                 self.__log.exception("Error in main loop: %s", e)
-                if self.__stopped:
-                    break
             finally:
                 if self.__stopped:
                     if self.__connected:
