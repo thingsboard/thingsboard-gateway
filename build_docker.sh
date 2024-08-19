@@ -33,4 +33,4 @@ docker build . -t sevlamat/tb-gateway:$VERSION_TAG -f docker/Dockerfile -o type=
 #docker buildx build . -t sevlamat/tb-gateway:$VERSION_TAG -f docker/Dockerfile --platform=linux/amd64,linux/arm64,linux/386 -o type=registry
 
 set +x
-echo "$(date) Done."
+echo "$(date) Done. ${VERSION_TAG}"
