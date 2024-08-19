@@ -388,8 +388,8 @@ class OpcUaConnector(Connector, Thread):
                     for section in ('attributes', 'timeseries'):
                         for node in device.values.get(section, []):
                             if node.get('id') == sub_node.__str__():
-                                device.converter_for_sub.convert(config={'section': section, 'key': node['key']},
-                                                                 val=data.monitored_item.Value)
+                                device.converter_for_sub.convert({'section': section, 'key': node['key']},
+                                                                 data.monitored_item.Value)
                                 converter_data = device.converter_for_sub.get_data()
 
                                 if converter_data:
