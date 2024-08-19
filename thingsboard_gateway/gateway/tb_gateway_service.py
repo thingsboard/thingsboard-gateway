@@ -1038,7 +1038,7 @@ class TBGatewayService:
                             data["deviceName"] = "currentThingsBoardGateway"
                             data['deviceType'] = "gateway"
 
-                        if self.__check_devices_idle:
+                        if hasattr(self, "__check_devices_idle") and self.__check_devices_idle:
                             self.__connected_devices[data['deviceName']]['last_receiving_data'] = time()
 
                         data = self.__convert_telemetry_to_ts(data)
