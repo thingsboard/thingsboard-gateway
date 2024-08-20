@@ -27,6 +27,7 @@ from string import ascii_lowercase, hexdigits
 from sys import argv, executable, getsizeof
 from threading import RLock, Thread, main_thread, current_thread
 from time import sleep, time, monotonic
+from copy import deepcopy
 
 from simplejson import JSONDecodeError, dumps, load, loads
 from yaml import safe_load
@@ -910,7 +911,7 @@ class TBGatewayService:
 
                                         if available_connector is None or available_connector.is_stopped():
                                             connector = self._implemented_connectors[connector_type](self,
-                                                                                                     connector_config["config"][config], # noqa
+                                                                                                     deepcopy(connector_config["config"][config]), # noqa
                                                                                                      connector_type)
                                             connector.name = connector_name
                                             self.available_connectors_by_id[connector_id] = connector
