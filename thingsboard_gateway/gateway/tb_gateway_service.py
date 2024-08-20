@@ -1117,13 +1117,13 @@ class TBGatewayService:
         telemetry_with_ts = []
         for item in data["telemetry"]:
             if item.get("ts") is None:
-                telemetry = {**telemetry, **item}
+                telemetry.update(item)
             else:
                 if isinstance(item['ts'], int):
-                    telemetry_with_ts.append({"ts": item["ts"], "values": {**item["values"]}})
+                    telemetry_with_ts.append({"ts": item["ts"], "values": item["values"]})
                 else:
                     log.warning('Data has invalid TS (timestamp) format! Using generated TS instead.')
-                    telemetry_with_ts.append({"ts": int(time() * 1000), "values": {**item["values"]}})
+                    telemetry_with_ts.append({"ts": int(time() * 1000), "values": item["values"]})
 
         if telemetry_with_ts:
             data["telemetry"] = telemetry_with_ts
