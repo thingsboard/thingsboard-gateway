@@ -27,6 +27,7 @@ class Device:
             'timeseries': [],
             'attributes': []
         }
+        self.nodes = []
 
         self.load_values()
 

@@ -104,7 +104,7 @@ class TbLogger(logging.Logger):
             is_tb_client = hasattr(self._gateway, 'tb_client')
             sleep(1)
 
-        if not TbLogger.IS_ALL_ERRORS_COUNT_RESET and self._gateway.tb_client.is_connected():
+        if not TbLogger.IS_ALL_ERRORS_COUNT_RESET and self._gateway.tb_client is not None and self._gateway.tb_client.is_connected():
             self._gateway.tb_client.client.send_telemetry(
                 {self.attr_name: 0, 'ALL_ERRORS_COUNT': 0}, quality_of_service=0)
             TbLogger.IS_ALL_ERRORS_COUNT_RESET = True
@@ -148,6 +148,6 @@ class TbLogger(logging.Logger):
                 error_attr_name = error_attr_name + '_ERRORS_COUNT'
             else:
                 error_attr_name = self.attr_name
-
-            self._gateway.tb_client.client.send_telemetry(
-                {error_attr_name: self.errors, 'ALL_ERRORS_COUNT': TbLogger.ALL_ERRORS_COUNT})
+            if self._gateway.tb_client is not None and self._gateway.tb_client.is_connected():
+                self._gateway.tb_client.client.send_telemetry(
+                    {error_attr_name: self.errors, 'ALL_ERRORS_COUNT': TbLogger.ALL_ERRORS_COUNT})

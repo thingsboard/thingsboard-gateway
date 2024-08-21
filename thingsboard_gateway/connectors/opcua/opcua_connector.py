@@ -102,7 +102,8 @@ class OpcUaConnector(Connector, Thread):
         self.daemon = True
 
         self.__device_nodes = []
-        self.__last_poll = 0
+        self.__next_poll = 0
+        self.__next_scan = 0
 
     def open(self):
         self.__stopped = False
@@ -203,6 +204,7 @@ class OpcUaConnector(Connector, Thread):
             try:
                 self.__client = asyncua.Client(url=self.__opcua_url,
                                                timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
+                self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 3600000)
 
                 if self.__server_conf["identity"].get("type") == "cert.PEM":
                     await self.__set_auth_settings_by_cert()
@@ -220,17 +222,22 @@ class OpcUaConnector(Connector, Thread):
                 except Exception as e:
                     self.__log.error("Error on loading type definitions:\n %s", e)
 
-                scan_period = self.__server_conf.get('scanPeriodInMillis', 5000) / 1000
-                while not self.__stopped:
-                    if monotonic() - self.__last_poll >= scan_period:
-                        await self.__scan_device_nodes()
-                        await self.__poll_nodes()
-                        self.__last_poll = monotonic()
+                poll_period = int(self.__server_conf.get('pollPeriodInMillis', 5000) / 1000)
+                scan_period = int(self.__server_conf.get('scanPeriodInMillis', 3600000) / 1000)
 
-                    if not scan_period < 0.2:
-                        await asyncio.sleep(0.2)
-                    else:
-                        await asyncio.sleep(scan_period)
+                while not self.__stopped:
+                    if monotonic() >= self.__next_scan:
+                        self.__next_scan = monotonic() + scan_period
+                        await self.__scan_device_nodes()
+
+                    if monotonic() >= self.__next_poll:
+                        self.__next_poll = monotonic() + poll_period
+                        await self.__poll_nodes()
+
+                    current_time = monotonic()
+                    time_to_sleep = min(self.__next_poll - current_time, self.__next_scan - current_time)
+                    if time_to_sleep > 0:
+                        await asyncio.sleep(time_to_sleep)
             except (ConnectionError, BadSessionClosed):
                 self.__log.warning('Connection lost for %s', self.get_name())
             except asyncio.exceptions.TimeoutError:
@@ -238,7 +245,6 @@ class OpcUaConnector(Connector, Thread):
             except asyncio.CancelledError as e:
                 if self.__stopped:
                     self.__log.debug('Task was cancelled due to connector stop: %s', e.__str__())
-                    break
                 else:
                     self.__log.exception('Task was cancelled: %s', e.__str__())
             except UaStatusCodeError as e:
@@ -246,15 +252,14 @@ class OpcUaConnector(Connector, Thread):
                 if self.__connected:
                     await self.__client.disconnect()
                     self.__connected = False
-                break
             except Exception as e:
                 self.__log.exception("Error in main loop: %s", e)
-                break
             finally:
-                if self.__connected:
-                    await self.__client.disconnect()
-                self.__connected = False
-                await asyncio.sleep(1)
+                if self.__stopped:
+                    if self.__connected:
+                        await self.__client.disconnect()
+                    self.__connected = False
+                await asyncio.sleep(.5)
 
     async def __set_auth_settings_by_cert(self):
         try:
@@ -340,40 +345,6 @@ class OpcUaConnector(Connector, Thread):
         unresolved = path[resolved_level:]
         return await self.__find_nodes(unresolved, current_parent_node=parent_node, nodes=resolved)
 
-    async def __scan_device_nodes(self):
-        existing_devices = list(map(lambda dev: dev.name, self.__device_nodes))
-
-        scanned_devices = []
-        for device in self.__config.get('mapping', []):
-            nodes = await self.find_nodes(device['deviceNodePattern'])
-            self.__log.debug('Found devices: %s', nodes)
-
-            device_names = await self._get_device_info_by_pattern(
-                device.get('deviceInfo', {}).get('deviceNameExpression'))
-
-            for device_name in device_names:
-                scanned_devices.append(device_name)
-                if device_name not in existing_devices:
-                    for node in nodes:
-                        converter = self.__load_converter(device)
-                        device_type = await self._get_device_info_by_pattern(
-                            device.get('deviceInfo', {}).get('deviceProfileExpression', 'default'),
-                            get_first=True)
-                        device_config = {**device, 'device_name': device_name, 'device_type': device_type}
-                        self.__device_nodes.append(
-                            Device(path=node, name=device_name, config=device_config,
-                                   converter=converter(device_config, self.__log),
-                                   converter_for_sub=converter(device_config, self.__log) if not self.__server_conf.get(
-                                       'disableSubscriptions',
-                                       False) else None, logger=self.__log))
-                        self.__log.info('Added device node: %s', device_name)
-
-        for device_name in existing_devices:
-            if device_name not in scanned_devices:
-                await self.__reset_nodes(device_name)
-
-        self.__log.debug('Device nodes: %s', self.__device_nodes)
-
     async def _get_device_info_by_pattern(self, pattern, get_first=False):
         result = []
 
@@ -411,17 +382,56 @@ class OpcUaConnector(Connector, Thread):
                     for section in ('attributes', 'timeseries'):
                         for node in device.values.get(section, []):
                             if node.get('id') == sub_node.__str__():
-                                device.converter_for_sub.convert(config={'section': section, 'key': node['key']},
-                                                                 val=data.monitored_item.Value)
+                                device.converter_for_sub.convert({'section': section, 'key': node['key']},
+                                                                 data.monitored_item.Value)
                                 converter_data = device.converter_for_sub.get_data()
 
                                 if converter_data:
                                     self.__data_to_send.put(*converter_data)
                                     device.converter_for_sub.clear_data()
             else:
-                sleep(.2)
+                sleep(.05)
 
-    async def __poll_nodes(self):
+    async def __scan_device_nodes(self):
+        await self._create_new_devices()
+        await self._load_devices_nodes()
+
+    async def _create_new_devices(self):
+        existing_devices = list(map(lambda dev: dev.name, self.__device_nodes))
+
+        scanned_devices = []
+        for device in self.__config.get('mapping', []):
+            nodes = await self.find_nodes(device['deviceNodePattern'])
+            self.__log.debug('Found devices: %s', nodes)
+
+            device_names = await self._get_device_info_by_pattern(
+                device.get('deviceInfo', {}).get('deviceNameExpression'))
+
+            for device_name in device_names:
+                scanned_devices.append(device_name)
+                if device_name not in existing_devices:
+                    for node in nodes:
+                        converter = self.__load_converter(device)
+                        device_type = await self._get_device_info_by_pattern(
+                            device.get('deviceInfo', {}).get('deviceProfileExpression', 'default'),
+                            get_first=True)
+                        device_config = {**device, 'device_name': device_name, 'device_type': device_type}
+                        self.__device_nodes.append(
+                            Device(path=node, name=device_name, config=device_config,
+                                   converter=converter(device_config, self.__log),
+                                   converter_for_sub=converter(device_config, self.__log) if not self.__server_conf.get(
+                                       'disableSubscriptions',
+                                       False) else None, logger=self.__log))
+
+                        self.__log.info('Added device node: %s', device_name)
+
+        for device_name in existing_devices:
+            if device_name not in scanned_devices:
+                await self.__reset_nodes(device_name)
+
+        self.__log.debug('Device nodes: %s', self.__device_nodes)
+
+    async def _load_devices_nodes(self):
         for device in self.__device_nodes:
             for section in ('attributes', 'timeseries'):
                 for node in device.values.get(section, []):
@@ -434,24 +444,25 @@ class OpcUaConnector(Connector, Thread):
                                 qualified_path = await self.find_node_name_space_index(path)
                                 if len(qualified_path) == 0:
                                     if node.get('valid', True):
-                                        self.__log.warning('Node not found; device: %s, key: %s, path: %s', device.name,
+                                        self.__log.warning('Node not found; device: %s, key: %s, path: %s',
+                                                           device.name,
                                                            node['key'], node['path'])
                                         await self.__reset_node(node)
                                     continue
                                 elif len(qualified_path) > 1:
                                     self.__log.warning(
-                                        'Multiple matching nodes found; device: %s, key: %s, path: %s; %s', device.name,
+                                        'Multiple matching nodes found; device: %s, key: %s, path: %s; %s',
+                                        device.name,
                                         node['key'], node['path'], qualified_path)
                                 node['qualified_path'] = qualified_path[0]
                                 path = qualified_path[0]
 
                             var = await self.__client.nodes.root.get_child(path)
 
+                        device.nodes.append({'var': var, 'key': node['key'], 'section': section})
+
                         if (node.get('valid') is None or
                                 (node.get('valid') and self.__server_conf.get('disableSubscriptions', False))):
-                            value = await var.read_data_value()
-                            device.converter.convert(config={'section': section, 'key': node['key']}, val=value)
-
                             if (not self.__server_conf.get('disableSubscriptions', False)
                                     and not node.get('sub_on', False)
                                     and not self.__stopped):
@@ -462,14 +473,16 @@ class OpcUaConnector(Connector, Thread):
                                 node['subscription'] = handle
                                 node['sub_on'] = True
                                 node['id'] = var.nodeid.to_string()
-                                self.__log.info("Subscribed on data change; device: %s, key: %s, path: %s", device.name,
+                                self.__log.info("Subscribed on data change; device: %s, key: %s, path: %s",
+                                                device.name,
                                                 node['key'], node['id'])
 
                             node['valid'] = True
                     except ConnectionError:
                         raise
                     except (BadNodeIdUnknown, BadConnectionClosed, BadInvalidState, BadAttributeIdInvalid,
-                            BadCommunicationError, BadOutOfService, BadNoMatch, BadUnexpectedError, UaStatusCodeErrors,
+                            BadCommunicationError, BadOutOfService, BadNoMatch, BadUnexpectedError,
+                            UaStatusCodeErrors,
                             BadWaitingForInitialData):
                         if node.get('valid', True):
                             self.__log.warning('Node not found (2); device: %s, key: %s, path: %s', device.name,
@@ -484,23 +497,38 @@ class OpcUaConnector(Connector, Thread):
                             self.__log.exception(e)
                             await self.__reset_node(node)
 
-            converter_data = device.converter.get_data()
-            if converter_data:
-                self.__data_to_send.put(*converter_data)
+    async def __poll_nodes(self):
+        all_nodes = [node_config['var'] for device in self.__device_nodes for node_config in device.nodes]
 
-                device.converter.clear_data()
+        if len(all_nodes) > 0:
+            values = await self.__client.read_attributes(all_nodes)
+
+            converted_nodes_count = 0
+            for device in self.__device_nodes:
+                nodes_count = len(device.nodes)
+                device_values = values[converted_nodes_count:converted_nodes_count + nodes_count]
+                converted_nodes_count += nodes_count
+                device.converter.convert(device.nodes, device_values)
+                converter_data = device.converter.get_data()
+                if converter_data:
+                    self.__data_to_send.put(*converter_data)
+
+                    device.converter.clear_data()
+
+            self.__log.debug('Converted nodes values count: %s', converted_nodes_count)
+        else:
+            self.__log.info('No nodes to poll')
 
     def __send_data(self):
         while not self.__stopped:
             if not self.__data_to_send.empty():
                 data = self.__data_to_send.get()
                 self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
-                self.__log.debug(data)
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                self.__log.debug('Data to ThingsBoard %s', data)
+                self.__log.debug('Count data packs to ThingsBoard: %s', self.statistics['MessagesSent'])
             else:
-                sleep(.2)
+                sleep(.05)
 
     async def get_shared_attr_node_id(self, path, result={}):
         try:
