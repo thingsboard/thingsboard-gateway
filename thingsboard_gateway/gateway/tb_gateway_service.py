@@ -1689,7 +1689,10 @@ class TBGatewayService:
         return self.name
 
     def get_max_payload_size_bytes(self):
-        return self.__max_payload_size_in_bytes
+        if hasattr(self, '_TBGatewayService__max_payload_size_in_bytes'):
+            return self.__max_payload_size_in_bytes
+
+        return 1024
 
     # ----------------------------
     # Storage --------------------
