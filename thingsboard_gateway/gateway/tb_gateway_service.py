@@ -167,6 +167,7 @@ class TBGatewayService:
         self.__modify_main_config()
 
         log.info("Gateway starting...")
+        self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"])
         self.__duplicate_detector = DuplicateDetector(self.available_connectors_by_name)
         self.__updater = TBUpdater()
         self.version = self.__updater.get_version()
@@ -210,7 +211,6 @@ class TBGatewayService:
         self.__rpc_to_devices_processing_thread = Thread(target=self.__rpc_to_devices_processing, daemon=True,
                                                             name="RPC to devices processing thread")
         self.__rpc_to_devices_processing_thread.start()
-        self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"])
 
         self.init_grpc_service(self.__config.get('grpc'))
 
@@ -1487,12 +1487,8 @@ class TBGatewayService:
             return Status.FAILURE
 
     def add_device(self, device_name, content, device_type=None):
-        # if (device_name not in self.__added_devices
-        #         or device_name not in self.__connected_devices
-        #         or device_name not in self.__saved_devices
-        #         or monotonic() - self.__added_devices[device_name]["last_send_ts"] > 60
-        #         or (self.__added_devices[device_name]["device_details"]["connectorName"] != content['connector'].get_name() # noqa E501
-        #         or self.__added_devices[device_name]["device_details"]["connectorType"] != content['connector'].get_type())): # noqa E501
+        if self.tb_client is None or not self.tb_client.is_connected():
+            return
 
         device_type = device_type if device_type is not None else 'default'
         self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
@@ -1631,8 +1627,9 @@ class TBGatewayService:
                             self.__renamed_devices[device_name] = new_device_name
                     self.__connected_devices[device_name] = device_data_to_save
                     for device in list(self.__connected_devices.keys()):
-                        self.add_device(device, self.__connected_devices[device], self.__connected_devices[device][
-                            DEVICE_TYPE_PARAMETER])
+                        if device in self.__connected_devices:
+                            self.add_device(device, self.__connected_devices[device], self.__connected_devices[device][
+                                DEVICE_TYPE_PARAMETER])
                     self.__saved_devices[device_name] = device_data_to_save
 
                 except Exception as e:
