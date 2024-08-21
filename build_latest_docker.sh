@@ -25,11 +25,9 @@ VERSION_TAG="${BRANCH_NAME}-${COMMIT_ID}"
 echo "$(date) Building project with version tag $VERSION_TAG ..."
 set -x
 
-#docker build . -t sevlamat/tb-gateway:$VERSION_TAG -f docker/Dockerfile -o type=registry
-
 # multi arch
  DOCKER_CLI_EXPERIMENTAL=enabled \
- docker buildx build . -t sevlamat/tb-gateway:$VERSION_TAG -f docker/Dockerfile --platform=linux/amd64,linux/arm64 -o type=registry
+ docker buildx build . -t tb-gateway:$VERSION_TAG -f docker/Dockerfile --platform=linux/amd64,linux/arm64 -o type=registry
 
 set +x
 echo "$(date) Done."

@@ -209,7 +209,7 @@ class TBGatewayService:
                                               name="RPC processing thread")
         self.__rpc_processing_thread.start()
         self.__rpc_to_devices_processing_thread = Thread(target=self.__rpc_to_devices_processing, daemon=True,
-                                                            name="RPC to devices processing thread")
+                                                         name="RPC to devices processing thread")
         self.__rpc_to_devices_processing_thread.start()
 
         self.init_grpc_service(self.__config.get('grpc'))
@@ -223,10 +223,10 @@ class TBGatewayService:
 
         self.init_statistics_service(self.__config['thingsboard'].get('statistics', DEFAULT_STATISTIC))
 
-        self.__min_pack_send_delay_ms = 10#self.__config['thingsboard'].get('minPackSendDelayMS', 200)
+        self.__min_pack_send_delay_ms = self.__config['thingsboard'].get('minPackSendDelayMS', 50)
         self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
-        self.__min_pack_size_to_send = 1000 #self.__config['thingsboard'].get('minPackSizeToSend', 50)
-        self.__max_payload_size_in_bytes = 1_000_000 #self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
+        self.__min_pack_size_to_send = self.__config['thingsboard'].get('minPackSizeToSend', 500)
+        self.__max_payload_size_in_bytes = self.__config["thingsboard"].get("maxPayloadSizeBytes", 8196)
 
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
@@ -674,7 +674,7 @@ class TBGatewayService:
             self.__duplicate_detector.delete_device(deleted_device_name)
         self.__save_persistent_devices()
         self.__load_persistent_devices()
-        return True
+        return {'success': True}
 
     def __process_renamed_gateway_devices(self, renamed_device: dict):
         if self.__config.get('handleDeviceRenaming', True):
@@ -693,7 +693,7 @@ class TBGatewayService:
         else:
             log.debug("Received renamed device notification %r, but device renaming handle is disabled",
                       renamed_device)
-        return True
+        return {'success': True}
 
     def __process_remote_configuration(self, new_configuration):
         if new_configuration is not None and self.__remote_configurator is not None:
@@ -1044,7 +1044,7 @@ class TBGatewayService:
 
                         data = self.__convert_telemetry_to_ts(data)
 
-                        max_data_size = 1000000 #self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
+                        max_data_size = self.__max_payload_size_in_bytes
                         if self.__get_data_size(data) >= max_data_size:
                             # Data is too large, so we will attempt to send in pieces
                             adopted_data = {"deviceName": data['deviceName'],
