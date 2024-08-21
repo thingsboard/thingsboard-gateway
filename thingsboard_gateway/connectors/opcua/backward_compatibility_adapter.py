@@ -15,9 +15,14 @@ class BackwardCompatibilityAdapter:
         self._log = logger
 
     def convert(self):
+        disable_subscriptions = self._config['server'].pop('disableSubscriptions', None)
+        if disable_subscriptions is not None:
+            self._config['server']['enableSubscriptions'] = not disable_subscriptions
+
         mapping_configuration = deepcopy(self._config.get('server', {}).get('mapping', []))
         if not mapping_configuration:
             return self._config
+
         for node_config in mapping_configuration:
             try:
                 node_config['deviceNodeSource'] = self.get_value_source(node_config['deviceNodePattern'], False)
