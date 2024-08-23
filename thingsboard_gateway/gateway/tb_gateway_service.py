@@ -1692,7 +1692,7 @@ class TBGatewayService:
         if hasattr(self, '_TBGatewayService__max_payload_size_in_bytes'):
             return self.__max_payload_size_in_bytes
 
-        return 1024
+        return 8196
 
     # ----------------------------
     # Storage --------------------
