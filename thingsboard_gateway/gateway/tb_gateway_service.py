@@ -27,6 +27,7 @@ from string import ascii_lowercase, hexdigits
 from sys import argv, executable, getsizeof
 from threading import RLock, Thread, main_thread, current_thread
 from time import sleep, time, monotonic
+from copy import deepcopy
 
 from simplejson import JSONDecodeError, dumps, load, loads
 from yaml import safe_load
@@ -166,6 +167,7 @@ class TBGatewayService:
         self.__modify_main_config()
 
         log.info("Gateway starting...")
+        self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"])
         self.__duplicate_detector = DuplicateDetector(self.available_connectors_by_name)
         self.__updater = TBUpdater()
         self.version = self.__updater.get_version()
@@ -207,9 +209,8 @@ class TBGatewayService:
                                               name="RPC processing thread")
         self.__rpc_processing_thread.start()
         self.__rpc_to_devices_processing_thread = Thread(target=self.__rpc_to_devices_processing, daemon=True,
-                                                            name="RPC to devices processing thread")
+                                                         name="RPC to devices processing thread")
         self.__rpc_to_devices_processing_thread.start()
-        self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"])
 
         self.init_grpc_service(self.__config.get('grpc'))
 
@@ -222,7 +223,7 @@ class TBGatewayService:
 
         self.init_statistics_service(self.__config['thingsboard'].get('statistics', DEFAULT_STATISTIC))
 
-        self.__min_pack_send_delay_ms = 10#self.__config['thingsboard'].get('minPackSendDelayMS', 200)
+        self.__min_pack_send_delay_ms = self.__config['thingsboard'].get('minPackSendDelayMS', 50)
         self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
         self.__min_pack_size_to_send = 10 #self.__config['thingsboard'].get('minPackSizeToSend', 50)
         self.__max_payload_size_in_bytes = 1_000_000 #self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
@@ -673,7 +674,7 @@ class TBGatewayService:
             self.__duplicate_detector.delete_device(deleted_device_name)
         self.__save_persistent_devices()
         self.__load_persistent_devices()
-        return True
+        return {'success': True}
 
     def __process_renamed_gateway_devices(self, renamed_device: dict):
         if self.__config.get('handleDeviceRenaming', True):
@@ -692,7 +693,7 @@ class TBGatewayService:
         else:
             log.debug("Received renamed device notification %r, but device renaming handle is disabled",
                       renamed_device)
-        return True
+        return {'success': True}
 
     def __process_remote_configuration(self, new_configuration):
         if new_configuration is not None and self.__remote_configurator is not None:
@@ -910,7 +911,7 @@ class TBGatewayService:
 
                                         if available_connector is None or available_connector.is_stopped():
                                             connector = self._implemented_connectors[connector_type](self,
-                                                                                                     connector_config["config"][config], # noqa
+                                                                                                     deepcopy(connector_config["config"][config]), # noqa
                                                                                                      connector_type)
                                             connector.name = connector_name
                                             self.available_connectors_by_id[connector_id] = connector
@@ -1043,7 +1044,7 @@ class TBGatewayService:
 
                         data = self.__convert_telemetry_to_ts(data)
 
-                        max_data_size = 1000000 #self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
+                        max_data_size = self.get_max_payload_size_bytes()
                         if self.__get_data_size(data) >= max_data_size:
                             # Data is too large, so we will attempt to send in pieces
                             adopted_data = {"deviceName": data['deviceName'],
@@ -1117,13 +1118,13 @@ class TBGatewayService:
         telemetry_with_ts = []
         for item in data["telemetry"]:
             if item.get("ts") is None:
-                telemetry = {**telemetry, **item}
+                telemetry.update(item)
             else:
                 if isinstance(item['ts'], int):
-                    telemetry_with_ts.append({"ts": item["ts"], "values": {**item["values"]}})
+                    telemetry_with_ts.append({"ts": item["ts"], "values": item["values"]})
                 else:
                     log.warning('Data has invalid TS (timestamp) format! Using generated TS instead.')
-                    telemetry_with_ts.append({"ts": int(time() * 1000), "values": {**item["values"]}})
+                    telemetry_with_ts.append({"ts": int(time() * 1000), "values": item["values"]})
 
         if telemetry_with_ts:
             data["telemetry"] = telemetry_with_ts
@@ -1141,7 +1142,7 @@ class TBGatewayService:
 
     def check_size(self, devices_data_in_event_pack):
         if (self.__get_data_size(devices_data_in_event_pack)
-                >= self.__max_payload_size_in_bytes):
+                >= self.get_max_payload_size_bytes()):
             self.__send_data(devices_data_in_event_pack)
             for device in devices_data_in_event_pack:
                 devices_data_in_event_pack[device]["telemetry"] = []
@@ -1191,10 +1192,8 @@ class TBGatewayService:
                         if devices_data_in_event_pack:
                             if not self.tb_client.is_connected():
                                 continue
-                            log.debug("Await self.__rpc_reply_sent...")
                             while self.__rpc_reply_sent:
                                 sleep(.01)
-                            log.debug("__send_data...")
                             self.__send_data(devices_data_in_event_pack) # noqa
 
                         if self.tb_client.is_connected() and (
@@ -1256,21 +1255,17 @@ class TBGatewayService:
 
                 if devices_data_in_event_pack[device].get("attributes"):
                     if device == self.name or device == "currentThingsBoardGateway":
-                        log.debug("tb_client.client.send_attributes")
                         self._published_events.put(
                             self.tb_client.client.send_attributes(devices_data_in_event_pack[device]["attributes"]))
                     else:
-                        log.debug("tb_client.client.gw_send_attributes")
                         self._published_events.put(self.tb_client.client.gw_send_attributes(final_device_name,
                                                                                             devices_data_in_event_pack[
                                                                                                 device]["attributes"]))
                 if devices_data_in_event_pack[device].get("telemetry"):
                     if device == self.name or device == "currentThingsBoardGateway":
-                        log.debug("tb_client.client.send_telemetry")
                         self._published_events.put(
                             self.tb_client.client.send_telemetry(devices_data_in_event_pack[device]["telemetry"]))
                     else:
-                        log.debug("tb_client.client.gw_send_telemetry")
                         self._published_events.put(self.tb_client.client.gw_send_telemetry(final_device_name,
                                                                                            devices_data_in_event_pack[
                                                                                                device]["telemetry"]))
@@ -1492,12 +1487,8 @@ class TBGatewayService:
             return Status.FAILURE
 
     def add_device(self, device_name, content, device_type=None):
-        # if (device_name not in self.__added_devices
-        #         or device_name not in self.__connected_devices
-        #         or device_name not in self.__saved_devices
-        #         or monotonic() - self.__added_devices[device_name]["last_send_ts"] > 60
-        #         or (self.__added_devices[device_name]["device_details"]["connectorName"] != content['connector'].get_name() # noqa E501
-        #         or self.__added_devices[device_name]["device_details"]["connectorType"] != content['connector'].get_type())): # noqa E501
+        if self.tb_client is None or not self.tb_client.is_connected():
+            return
 
         device_type = device_type if device_type is not None else 'default'
         self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
@@ -1636,8 +1627,9 @@ class TBGatewayService:
                             self.__renamed_devices[device_name] = new_device_name
                     self.__connected_devices[device_name] = device_data_to_save
                     for device in list(self.__connected_devices.keys()):
-                        self.add_device(device, self.__connected_devices[device], self.__connected_devices[device][
-                            DEVICE_TYPE_PARAMETER])
+                        if device in self.__connected_devices:
+                            self.add_device(device, self.__connected_devices[device], self.__connected_devices[device][
+                                DEVICE_TYPE_PARAMETER])
                     self.__saved_devices[device_name] = device_data_to_save
 
                 except Exception as e:
@@ -1697,7 +1689,10 @@ class TBGatewayService:
         return self.name
 
     def get_max_payload_size_bytes(self):
-        return self.__max_payload_size_in_bytes
+        if hasattr(self, '_TBGatewayService__max_payload_size_in_bytes'):
+            return self.__max_payload_size_in_bytes
+
+        return 8196
 
     # ----------------------------
     # Storage --------------------

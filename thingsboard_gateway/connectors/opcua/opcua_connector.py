@@ -19,7 +19,6 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic
 from queue import Queue
-from copy import deepcopy
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
@@ -63,7 +62,6 @@ class OpcUaConnector(Connector, Thread):
         super().__init__()
         self._connector_type = connector_type
         self.__gateway = gateway
-        self.__original_config = deepcopy(config)
         self.__config = config
         self.__id = self.__config.get('id')
         self.name = self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
@@ -86,6 +84,8 @@ class OpcUaConnector(Connector, Thread):
             self.__opcua_url = "opc.tcp://" + self.__server_conf.get("url")
         else:
             self.__opcua_url = self.__server_conf.get("url")
+
+        self.__enable_subscriptions = self.__server_conf.get('enableSubscriptions', True)
 
         self.__data_to_send = Queue(-1)
         self.__sub_data_to_convert = Queue(-1)
@@ -183,13 +183,13 @@ class OpcUaConnector(Connector, Thread):
         return self.__stopped
 
     def get_config(self):
-        return self.__original_config
+        return self.__config
 
     def run(self):
         data_send_thread = Thread(name='Send Data Thread', target=self.__send_data, daemon=True)
         data_send_thread.start()
 
-        if not self.__server_conf.get('disableSubscriptions', False):
+        if self.__enable_subscriptions:
             sub_data_convert_thread = Thread(name='Sub Data Convert Thread', target=self.__convert_sub_data,
                                              daemon=True)
             sub_data_convert_thread.start()
@@ -421,9 +421,9 @@ class OpcUaConnector(Connector, Thread):
                         self.__device_nodes.append(
                             Device(path=node, name=device_name, config=device_config,
                                    converter=converter(device_config, self.__log),
-                                   converter_for_sub=converter(device_config, self.__log) if not self.__server_conf.get(
-                                       'disableSubscriptions',
-                                       False) else None, logger=self.__log))
+                                   converter_for_sub=converter(device_config,
+                                                               self.__log) if self.__enable_subscriptions else None,
+                                   logger=self.__log))
 
                         self.__log.info('Added device node: %s', device_name)
 
@@ -463,11 +463,8 @@ class OpcUaConnector(Connector, Thread):
 
                         device.nodes.append({'var': var, 'key': node['key'], 'section': section})
 
-                        if (node.get('valid') is None or
-                                (node.get('valid') and self.__server_conf.get('disableSubscriptions', False))):
-                            if (not self.__server_conf.get('disableSubscriptions', False)
-                                    and not node.get('sub_on', False)
-                                    and not self.__stopped):
+                        if node.get('valid') is None or (node.get('valid') and not self.__enable_subscriptions):
+                            if self.__enable_subscriptions and not node.get('sub_on', False) and not self.__stopped:
                                 if self.__subscription is None:
                                     self.__subscription = await self.__client.create_subscription(1, SubHandler(
                                         self.__sub_data_to_convert, self.__log))
