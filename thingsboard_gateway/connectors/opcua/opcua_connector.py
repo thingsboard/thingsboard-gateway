@@ -220,7 +220,7 @@ class OpcUaConnector(Connector, Thread):
 
                 if not self.__client.uaclient.protocol:
                     self.__log.error("Failed to connect to server, retrying...")
-                    await self.__client.disconnect()
+                    await self.disconnect_if_connected()
                     continue
                 self.__connected = True
 
@@ -250,6 +250,8 @@ class OpcUaConnector(Connector, Thread):
                 self.__log.warning('Connection lost for %s', self.get_name())
             except asyncio.exceptions.TimeoutError:
                 self.__log.warning('Failed to connect %s', self.get_name())
+                await self.disconnect_if_connected()
+                await asyncio.sleep(5)
             except asyncio.CancelledError as e:
                 if self.__stopped:
                     self.__log.debug('Task was cancelled due to connector stop: %s', e.__str__())
@@ -257,17 +259,20 @@ class OpcUaConnector(Connector, Thread):
                     self.__log.exception('Task was cancelled: %s', e.__str__())
             except UaStatusCodeError as e:
                 self.__log.error('Error in main loop, trying to reconnect: %s', exc_info=e)
-                if self.__connected:
-                    await self.__client.disconnect()
-                    self.__connected = False
+                await self.disconnect_if_connected()
             except Exception as e:
                 self.__log.exception("Error in main loop: %s", e)
             finally:
                 if self.__stopped:
-                    if self.__connected:
-                        await self.__client.disconnect()
                     self.__connected = False
                 await asyncio.sleep(.5)
+
+    async def disconnect_if_connected(self):
+        if self.__connected:
+            try:
+                await self.__client.disconnect()
+            except TimeoutError:
+                pass  # ignore
 
     async def retry_with_backoff(self, func, *args, max_retries=8, initial_delay=1, backoff_factor=2):
         delay = initial_delay
