@@ -314,10 +314,16 @@ class TBUtility:
             env_variables['username'] = environ.get('TB_GW_USERNAME')
         if environ.get('TB_GW_PASSWORD'):
             env_variables['password'] = environ.get('TB_GW_PASSWORD')
+
         if environ.get('TB_GW_RATE_LIMITS'):
             env_variables['rateLimits'] = environ.get('TB_GW_RATE_LIMITS')
+            env_variables['messagesRateLimits'] = environ.get('TB_GW_RATE_LIMITS')
+            env_variables['deviceMessagesRateLimits'] = environ.get('TB_GW_RATE_LIMITS')
+            env_variables['deviceRateLimits'] = environ.get('TB_GW_RATE_LIMITS')
         if environ.get('TB_GW_DP_RATE_LIMITS'):
             env_variables['dpRateLimits'] = environ.get('TB_GW_DP_RATE_LIMITS')
+            env_variables['deviceDpRateLimits'] = environ.get('TB_GW_DP_RATE_LIMITS')
+
         if environ.get('TB_GW_MESSAGES_RATE_LIMITS'):
             env_variables['messagesRateLimits'] = environ.get('TB_GW_MESSAGES_RATE_LIMITS')
         if environ.get('TB_GW_DEVICE_MESSAGES_RATE_LIMIT'):
