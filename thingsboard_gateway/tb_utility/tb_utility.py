@@ -318,6 +318,14 @@ class TBUtility:
             env_variables['rateLimits'] = environ.get('TB_GW_RATE_LIMITS')
         if environ.get('TB_GW_DP_RATE_LIMITS'):
             env_variables['dpRateLimits'] = environ.get('TB_GW_DP_RATE_LIMITS')
+        if environ.get('TB_GW_MESSAGES_RATE_LIMITS'):
+            env_variables['messagesRateLimits'] = environ.get('TB_GW_MESSAGES_RATE_LIMITS')
+        if environ.get('TB_GW_DEVICE_MESSAGES_RATE_LIMIT'):
+            env_variables['deviceMessagesRateLimits'] = environ.get('TB_GW_DEVICE_MESSAGES_RATE_LIMIT')
+        if environ.get('TB_GW_DEVICE_RATE_LIMITS'):
+            env_variables['deviceRateLimits'] = environ.get('TB_GW_DEVICE_RATE_LIMITS')
+        if environ.get('TB_GW_DEVICE_DP_RATE_LIMITS'):
+            env_variables['deviceDpRateLimits'] = environ.get('TB_GW_DEVICE_DP_RATE_LIMITS')
 
         converted_env_variables = {}
 
