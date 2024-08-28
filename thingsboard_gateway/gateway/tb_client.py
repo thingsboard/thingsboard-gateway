@@ -138,10 +138,19 @@ class TBClient(threading.Thread):
                 self.__client_id = str(credentials["clientId"])
 
         rate_limits_config = {}
-        if self.__config.get('rateLimits'):
-            rate_limits_config['rate_limit'] = self.__config['rateLimits']
-        if self.__config.get('dpRateLimits'):
-            rate_limits_config['dp_rate_limit'] = self.__config['dpRateLimits']
+        if self.__config.get('messagesRateLimits'):
+            rate_limits_config['messages_rate_limit'] = self.__config['messagesRateLimits']
+        if self.__config.get('telemetryRateLimits'):
+            rate_limits_config['telemetry_rate_limit'] = self.__config['rateLimits']
+        if self.__config.get('telemetryDpRateLimits'):
+            rate_limits_config['telemetry_dp_rate_limit'] = self.__config['dpRateLimits']
+
+        if self.__config.get('deviceMessagesRateLimits'):
+            rate_limits_config['device_messages_rate_limit'] = self.__config['deviceMessagesRateLimits']
+        if self.__config.get('deviceTelemetryRateLimits'):
+            rate_limits_config['device_telemetry_rate_limit'] = self.__config['deviceRateLimits']
+        if self.__config.get('deviceTelemetryDpRateLimits'):
+            rate_limits_config['device_telemetry_dp_rate_limit'] = self.__config['deviceDpRateLimits']
 
         if rate_limits_config:
             self.client = TBGatewayMqttClient(self.__host, self.__port, self.__username, self.__password, self,
