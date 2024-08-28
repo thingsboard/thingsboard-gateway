@@ -1028,9 +1028,17 @@ class TBGatewayService:
                                 data["deviceName"] = self.__renamed_devices[data["deviceName"]]
                             if self.tb_client.is_connected() and (data["deviceName"] not in self.get_devices() or
                                  data["deviceName"] not in self.__connected_devices):
-                                self.add_device(data["deviceName"],
-                                                {CONNECTOR_PARAMETER: self.available_connectors_by_id[connector_id]},
-                                                device_type=data["deviceType"])
+                                if self.available_connectors_by_id.get(connector_id) is not None:
+                                    self.add_device(data["deviceName"],
+                                                    {CONNECTOR_PARAMETER: self.available_connectors_by_id[connector_id]},
+                                                    device_type=data["deviceType"])
+                                elif self.available_connectors_by_name.get(connector_name) is not None:
+                                    self.add_device(data["deviceName"],
+                                                    {CONNECTOR_PARAMETER: self.available_connectors_by_name[connector_name]},
+                                                    device_type=data["deviceType"])
+                                else:
+                                    log.error("Connector %s is not available!", connector_name)
+
                             if not self.__connector_incoming_messages.get(connector_id):
                                 self.__connector_incoming_messages[connector_id] = 0
                             else:
