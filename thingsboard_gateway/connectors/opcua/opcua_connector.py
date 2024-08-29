@@ -232,12 +232,17 @@ class OpcUaConnector(Connector, Thread):
                 poll_period = int(self.__server_conf.get('pollPeriodInMillis', 5000) / 1000)
                 scan_period = int(self.__server_conf.get('scanPeriodInMillis', 3600000) / 1000)
 
+                if self.__enable_subscriptions:
+                    await self.__scan_device_nodes()
+                    self.__next_scan = monotonic() + scan_period
+                    await self.__poll_nodes()
+
                 while not self.__stopped:
                     if monotonic() >= self.__next_scan:
                         self.__next_scan = monotonic() + scan_period
                         await self.__scan_device_nodes()
 
-                    if monotonic() >= self.__next_poll:
+                    if not self.__enable_subscriptions and monotonic() >= self.__next_poll:
                         self.__next_poll = monotonic() + poll_period
                         await self.__poll_nodes()
 
