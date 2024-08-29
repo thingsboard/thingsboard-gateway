@@ -489,7 +489,7 @@ class OpcUaConnector(Connector, Thread):
                         if node.get('valid') is None or (node.get('valid') and not self.__enable_subscriptions):
                             if self.__enable_subscriptions and not node.get('sub_on', False) and not self.__stopped:
                                 if self.__subscription is None:
-                                    self.__subscription = await self.__client.create_subscription(1, SubHandler(
+                                    self.__subscription = await self.__client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 1), SubHandler(
                                         self.__sub_data_to_convert, self.__log))
                                 handle = await self.__subscription.subscribe_data_change(found_node)
                                 node['subscription'] = handle
