@@ -416,8 +416,7 @@ class OpcUaConnector(Connector, Thread):
                                                                                   data.monitored_item.Value)
 
                                 if converter_data:
-                                    self.__data_to_send.put(*converter_data)
-                                    device.converter_for_sub.clear_data()
+                                    self.__data_to_send.put(converter_data)
             else:
                 sleep(.05)
 
