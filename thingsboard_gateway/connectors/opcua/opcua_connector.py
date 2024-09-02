@@ -197,8 +197,10 @@ class OpcUaConnector(Connector, Thread):
         try:
             self.__loop.run_until_complete(self.start_client())
         except asyncio.CancelledError:
-            self.__loop.run_until_complete(self.__client.disconnect())
-            pass
+            try:
+                self.__loop.run_until_complete(self.__client.disconnect())
+            except Exception:
+                pass
         except Exception as e:
             self.__log.exception("Error in main loop: %s", e)
 
