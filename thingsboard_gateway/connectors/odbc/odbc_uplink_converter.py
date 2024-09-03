@@ -43,14 +43,21 @@ class OdbcUplinkConverter(OdbcConverter):
                     elif "value" in config_item:
                         converted_data[name] = eval(config_item["value"], globals(), data)
                     else:
+                        StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                         self._log.error("Failed to convert SQL data to TB format: no column/value configuration item")
                 else:
+                    StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                     self._log.error("Failed to convert SQL data to TB format: unexpected configuration type '%s'",
                               type(config_item))
             except Exception as e:
+                StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                 self._log.error("Failed to convert SQL data to TB format: %s", str(e))
 
         if data.get('ts'):
             converted_data['ts'] = data.get('ts')
 
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(converted_data["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(converted_data["telemetry"]))
         return converted_data

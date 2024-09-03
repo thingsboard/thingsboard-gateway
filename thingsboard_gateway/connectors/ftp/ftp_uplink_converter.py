@@ -73,9 +73,14 @@ class FTPUplinkConverter(FTPConverter):
                         dict_result['deviceType'] = arr[index]
 
         except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
                             e)
 
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(dict_result["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(dict_result["telemetry"]))
         return dict_result
 
     @staticmethod
@@ -108,9 +113,14 @@ class FTPUplinkConverter(FTPConverter):
                         if self.__config['devicePatternType'] == information['value']:
                             dict_result['deviceType'] = val
         except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
                             e)
 
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(dict_result["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(dict_result["telemetry"]))
         return dict_result
 
     def _convert_json_file(self, data):
@@ -148,6 +158,7 @@ class FTPUplinkConverter(FTPConverter):
                                                                                   str(device_type_value)) \
                         if is_valid_key else device_type_tag
         except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
                             e)
 
@@ -188,9 +199,14 @@ class FTPUplinkConverter(FTPConverter):
                     else:
                         dict_result[self.__data_types[datatype]].append({full_key: full_value})
         except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
                             str(data), e)
 
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(dict_result["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(dict_result["telemetry"]))
         return dict_result
 
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
@@ -205,4 +221,5 @@ class FTPUplinkConverter(FTPConverter):
             elif config['file_ext'] == 'json':
                 return self._convert_json_file(data)
             else:
+                StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                 raise Exception('Incorrect file extension or file data view mode')

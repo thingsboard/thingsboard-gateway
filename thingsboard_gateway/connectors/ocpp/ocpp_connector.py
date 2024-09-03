@@ -243,6 +243,11 @@ class OcppConnector(Connector, Thread):
             if not self.DATA_TO_CONVERT.empty():
                 self.statistics['MessagesReceived'] += 1
                 (converter, config, data) = self.DATA_TO_CONVERT.get()
+
+                StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+                StatisticsService.count_connector_bytes(self.name, data,
+                                                        stat_parameter_name='connectorBytesReceived')
+
                 self._log.debug('Data from Charge Point: %s', data)
                 converted_data = converter.convert(config, data)
                 if converted_data and (converted_data.get('attributes') or converted_data.get('telemetry')):

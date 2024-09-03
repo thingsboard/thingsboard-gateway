@@ -237,6 +237,9 @@ class SocketConnector(Connector, Thread):
                         if is_attribute_request:
                             continue
 
+                    StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+                    StatisticsService.count_connector_bytes(self.name, data,
+                                                            stat_parameter_name='connectorBytesReceived')
                     converter = self.__device_converters.get(conf_device_address)
                     self.__convert_data(device, data, converter)
 

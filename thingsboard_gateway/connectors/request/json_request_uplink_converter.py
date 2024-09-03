@@ -70,6 +70,7 @@ class JsonRequestUplinkConverter(RequestConverter):
                 self.__log.error("The expression for looking \"deviceType\" not found in config %s",
                                  dumps(self.__config['converter']))
         except Exception as e:
+            StatisticsService.count_connector_message(self.__log.name, 'convertersMsgDropped')
             self.__log.exception(e)
 
         try:
@@ -110,6 +111,12 @@ class JsonRequestUplinkConverter(RequestConverter):
                         dict_result[self.__datatypes[datatype]].append({full_key: full_value})
 
         except Exception as e:
+            StatisticsService.count_connector_message(self.__log.name, 'convertersMsgDropped')
             self.__log.exception(e)
+
+        StatisticsService.count_connector_message(self.__log.name, 'convertersAttrProduced',
+                                                  count=len(dict_result["attributes"]))
+        StatisticsService.count_connector_message(self.__log.name, 'convertersTsProduced',
+                                                  count=len(dict_result["telemetry"]))
 
         return dict_result

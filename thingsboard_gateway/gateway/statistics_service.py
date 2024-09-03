@@ -404,9 +404,10 @@ class StatisticsService(Thread):
         def __call__(self, func):
             def inner(*args, **kwargs):
                 try:
-                    data = args[3]
+                    data = args[1]
+                    connector_name = args[2]
                     if data:
-                        StatisticsService.add_count(self.start_stat_type)
+                        StatisticsService.count_connector_message(connector_name, self.start_stat_type)
                 except IndexError:
                     pass
 

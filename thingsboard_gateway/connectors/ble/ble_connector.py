@@ -131,6 +131,9 @@ class BLEConnector(Connector, Thread):
                 config = device_config.pop('config')
                 converter = device_config.pop('converter')
 
+                StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+                StatisticsService.count_connector_bytes(self.name, data, stat_parameter_name='connectorBytesReceived')
+
                 try:
                     converter = converter(device_config, self.__log)
                     converted_data = converter.convert(config, data)

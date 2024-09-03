@@ -172,6 +172,11 @@ class XMPPConnector(Connector, Thread):
                     device_jid = msg.values['from']
                     device = self._devices.get(device_jid)
                     if device:
+                        StatisticsService.count_connector_message(self.name,
+                                                                  stat_parameter_name='connectorMsgsReceived')
+                        StatisticsService.count_connector_bytes(self.name, msg.values['body'],
+                                                                stat_parameter_name='connectorBytesReceived')
+
                         converted_data = device.converter.convert(device, msg.values['body'])
 
                         if converted_data:

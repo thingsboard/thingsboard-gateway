@@ -243,6 +243,9 @@ class BACnetConnector(Thread, Connector):
 
     def __convert_and_save_data(self, queue):
         converter, mapping_type, config, iocb = queue.get()
+        StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+        StatisticsService.count_connector_bytes(self.name, iocb.ioResponse if iocb.ioResponse else iocb.ioError,
+                                                stat_parameter_name='connectorBytesReceived')
         converted_data = {}
         try:
             converted_data = converter.convert((mapping_type, config),

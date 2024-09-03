@@ -64,7 +64,14 @@ class BytesCanUplinkConverter(CanConverter):
                 else:
                     result[tb_item][tb_key] = value
             except Exception as e:
+                StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                 self._log.error("Failed to convert CAN data to TB %s '%s': %s",
                                 "time series key" if config["is_ts"] else "attribute", tb_key, str(e))
                 continue
+
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(result["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(result["telemetry"]))
+
         return result

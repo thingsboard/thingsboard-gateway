@@ -20,6 +20,7 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time
 
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
@@ -263,6 +264,9 @@ class RequestConnector(Connector, Thread):
         try:
             url, converter, data = data
             data_to_send = {}
+
+            StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+            StatisticsService.count_connector_bytes(self.name, data, stat_parameter_name='connectorBytesReceived')
 
             if isinstance(data, list):
                 for data_item in data:

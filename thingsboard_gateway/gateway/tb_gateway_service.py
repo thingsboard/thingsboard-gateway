@@ -590,6 +590,7 @@ class TBGatewayService:
         if self.__remote_configurator is not None:
             self.__remote_configurator.send_current_configuration()
 
+    @StatisticsService.CountMessage('msgsReceivedFromPlatform')
     def _attributes_parse(self, content, *args):
         try:
             log.debug("Received data: %s, %s", content, args)
@@ -979,7 +980,6 @@ class TBGatewayService:
             if self.__remote_configurator is not None:
                 self.__remote_configurator.send_current_configuration()
 
-    @StatisticsService.CollectStorageEventsStatistics('eventsAdded')
     def send_to_storage(self, connector_name, connector_id, data=None):
         if data is None:
             log.error("[%r]Data is empty from connector %r!", connector_id, connector_name)
@@ -1141,6 +1141,7 @@ class TBGatewayService:
             data["telemetry"] = {"ts": int(time() * 1000), "values": telemetry}
         return data
 
+    @StatisticsService.CollectStorageEventsStatistics('storageMsgPushed')
     def __send_data_pack_to_storage(self, data, connector_name, connector_id=None):
         json_data = dumps(data)
         save_result = self._event_storage.put(json_data)
@@ -1171,14 +1172,16 @@ class TBGatewayService:
 
                     if self.__remote_configurator is None or not self.__remote_configurator.in_process:
                         events = self._event_storage.get_event_pack()
-                        StatisticsService.add_count('storageMsgPulled', count=len(events))
 
                     if events:
+                        events_len = len(events)
+                        StatisticsService.add_count('storageMsgPulled', count=events_len)
+
                         # telemetry_dp_count and attribute_dp_count using only for statistics
                         telemetry_dp_count = 0
                         attribute_dp_count = 0
 
-                        log.debug("Retrieved %r events from the storage.", len(events))
+                        log.debug("Retrieved %r events from the storage.", events_len)
                         for event in events:
                             try:
                                 current_event = loads(event)
@@ -1194,11 +1197,11 @@ class TBGatewayService:
                                     for item in current_event["telemetry"]:
                                         self.check_size(devices_data_in_event_pack)
                                         devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(item) # noqa
-                                        telemetry_dp_count += 1
+                                        telemetry_dp_count += len(item.get('values', []))
                                 else:
                                     self.check_size(devices_data_in_event_pack)
                                     devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(current_event["telemetry"]) # noqa
-                                    telemetry_dp_count += 1
+                                    telemetry_dp_count += len(current_event["telemetry"].get('values', []))
                             if current_event.get("attributes"):
                                 if isinstance(current_event["attributes"], list):
                                     for item in current_event["attributes"]:

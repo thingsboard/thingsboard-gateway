@@ -53,7 +53,13 @@ class SNMPUplinkConverter(Converter):
                     else:
                         converted_data[datatype].append({data_key: item_data})
         except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.exception(e)
 
         self._log.debug(converted_data)
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(converted_data["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(converted_data["telemetry"]))
+
         return converted_data

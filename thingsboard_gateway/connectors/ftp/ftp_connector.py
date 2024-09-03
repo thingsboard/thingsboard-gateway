@@ -151,6 +151,11 @@ class FTPConnector(Connector, Thread):
                         handled_str = str(handle_stream.getvalue(), 'UTF-8')
                         handled_array = handled_str.split('\n')
 
+                        StatisticsService.count_connector_message(self.name,
+                                                                  stat_parameter_name='connectorMsgsReceived')
+                        StatisticsService.count_connector_bytes(self.name, handled_str,
+                                                                stat_parameter_name='connectorBytesReceived')
+
                         convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
 
                         if convert_conf['file_ext'] == 'json':

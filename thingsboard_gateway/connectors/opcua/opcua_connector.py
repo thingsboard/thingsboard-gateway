@@ -555,7 +555,6 @@ class OpcUaConnector(Connector, Thread):
                 data = self.__data_to_send.get()
                 self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
-                StatisticsService.count_connector_message(self.name, stat_parameter_name='storageMsgPushed')
                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                 self.__log.debug('Count data packs to ThingsBoard: %s', self.statistics['MessagesSent'])
             else:

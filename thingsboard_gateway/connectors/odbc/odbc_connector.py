@@ -241,6 +241,10 @@ class OdbcConnector(Connector, Thread):
         row_count = 0
         for row in rows:
             self._log.debug("[%s] Fetch row: %s", self.get_name(), row)
+            StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+            StatisticsService.count_connector_bytes(self.name, row,
+                                                    stat_parameter_name='connectorBytesReceived')
+
             self.__process_row(row)
             row_count += 1
 

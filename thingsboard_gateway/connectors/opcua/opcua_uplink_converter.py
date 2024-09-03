@@ -64,6 +64,9 @@ class OpcUaUplinkConverter(OpcUaConverter):
                 TELEMETRY_PARAMETER: []}
             telemetry_datapoints = {}
 
+            telemetry_datapoints_count = 0
+            attributes_datapoints_count = 0
+
             for val, config in zip(values, configs):
                 if not val:
                     continue
@@ -85,13 +88,16 @@ class OpcUaUplinkConverter(OpcUaConverter):
                     data = msg
 
                 section = DATA_TYPES[config['section']]
+
                 if val.SourceTimestamp and section == TELEMETRY_PARAMETER:
+                    telemetry_datapoints_count += 1
                     timestamp = int(val.SourceTimestamp.timestamp() * 1000)
                     if timestamp in telemetry_datapoints:
                         telemetry_datapoints[timestamp].update({config['key']: data})
                     else:
                         telemetry_datapoints[timestamp] = {config['key']: data}
                 else:
+                    attributes_datapoints_count += 1
                     result_data[section].append({config['key']: data})
 
             if telemetry_datapoints:
@@ -101,9 +107,9 @@ class OpcUaUplinkConverter(OpcUaConverter):
                 )
 
             StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                      count=len(result_data["attributes"]))
+                                                      count=attributes_datapoints_count)
             StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                      count=len(result_data["telemetry"]))
+                                                      count=telemetry_datapoints_count)
 
             return result_data
         except Exception as e:

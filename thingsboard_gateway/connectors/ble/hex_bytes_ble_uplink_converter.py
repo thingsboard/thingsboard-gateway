@@ -52,7 +52,12 @@ class HexBytesBLEUplinkConverter(BLEUplinkConverter):
                     except Exception as e:
                         self._log.error('\nException caught when processing data for %s\n\n %s', pformat(config), e)
         except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.exception(e)
 
         self._log.debug(dict_result)
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(dict_result["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(dict_result["telemetry"]))
         return dict_result

@@ -28,6 +28,7 @@ import requests
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException
 
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector
@@ -617,6 +618,9 @@ class BasicDataHandler(BaseDataHandler):
                 return result
 
             try:
+                StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+                StatisticsService.count_connector_bytes(self.name, data, stat_parameter_name='connectorBytesReceived')
+
                 self.log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
                 converter = self.endpoint['converter'](endpoint_config['converter'], self.log)
                 converted_data = converter.convert(config=endpoint_config['converter'], data=data)
