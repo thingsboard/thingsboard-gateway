@@ -52,6 +52,8 @@ class BytesModbusUplinkConverter(ModbusConverter):
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
+        StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
+
         self.__result["telemetry"] = []
         self.__result["attributes"] = []
         for config_data in data:
@@ -114,7 +116,14 @@ class BytesModbusUplinkConverter(ModbusConverter):
                         self.__result[self.__datatypes[config_data]].append({tag: decoded_data})
                 except Exception as e:
                     self._log.exception(e)
+                    StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
+
         self._log.debug(self.__result)
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(self.__result["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(self.__result["telemetry"]))
+
         return self.__result
 
     def decode_from_registers(self, decoder, configuration):

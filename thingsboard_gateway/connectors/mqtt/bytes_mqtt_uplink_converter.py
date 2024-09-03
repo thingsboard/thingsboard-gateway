@@ -23,6 +23,8 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
     @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
                                          end_stat_type='convertedBytesFromDevice')
     def convert(self, topic, data):
+        StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
+
         datatypes = {"attributes": "attributes",
                      "timeseries": "telemetry"}
         dict_result = {
@@ -44,8 +46,15 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
         except Exception as e:
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
                             str(data), e)
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
 
         self._log.debug('Converted data: %s', dict_result)
+
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(dict_result["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(dict_result["telemetry"]))
+
         return dict_result
 
     @staticmethod

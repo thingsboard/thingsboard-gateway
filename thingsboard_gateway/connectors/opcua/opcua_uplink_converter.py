@@ -20,6 +20,7 @@ from asyncua.ua.uatypes import LocalizedText, VariantType
 
 from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER, ATTRIBUTES_PARAMETER, DEVICE_NAME_PARAMETER, \
     DEVICE_TYPE_PARAMETER, TELEMETRY_VALUES_PARAMETER, TELEMETRY_TIMESTAMP_PARAMETER
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 DATA_TYPES = {
     'attributes': ATTRIBUTES_PARAMETER,
@@ -48,52 +49,63 @@ class OpcUaUplinkConverter(OpcUaConverter):
         self.__config = config
 
     def convert(self, configs, values):
-        if not isinstance(configs, list):
-            configs = [configs]
-        if not isinstance(values, list):
-            values = [values]
+        StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
 
-        result_data = {
-            DEVICE_NAME_PARAMETER: self.__config['device_name'],
-            DEVICE_TYPE_PARAMETER: self.__config['device_type'],
-            ATTRIBUTES_PARAMETER: [],
-            TELEMETRY_PARAMETER: []}
-        telemetry_datapoints = {}
+        try:
+            if not isinstance(configs, list):
+                configs = [configs]
+            if not isinstance(values, list):
+                values = [values]
 
-        for val, config in zip(values, configs):
-            if not val:
-                continue
+            result_data = {
+                DEVICE_NAME_PARAMETER: self.__config['device_name'],
+                DEVICE_TYPE_PARAMETER: self.__config['device_type'],
+                ATTRIBUTES_PARAMETER: [],
+                TELEMETRY_PARAMETER: []}
+            telemetry_datapoints = {}
 
-            data = val.Value.Value
+            for val, config in zip(values, configs):
+                if not val:
+                    continue
 
-            if isinstance(data, list):
-                data = [str(item) for item in data]
-            elif data is not None and not isinstance(data, (int, float, str, bool, dict, type(None))):
-                handler = VARIANT_TYPE_HANDLERS.get(val.Value.VariantType,
-                                                    lambda data: str(data) if not hasattr(data, 'to_string') else data.to_string())
-                data = handler(data)
+                data = val.Value.Value
 
-            if data is None and val.StatusCode.is_bad():
-                msg = "Bad status code: %r for node: %r with description %r" % (val.StatusCode.name,
-                                                                                val.data_type,
-                                                                                val.StatusCode.doc)
-                self._log.warning(msg)
-                data = msg
+                if isinstance(data, list):
+                    data = [str(item) for item in data]
+                elif data is not None and not isinstance(data, (int, float, str, bool, dict, type(None))):
+                    handler = VARIANT_TYPE_HANDLERS.get(val.Value.VariantType,
+                                                        lambda data: str(data) if not hasattr(data, 'to_string') else data.to_string())
+                    data = handler(data)
 
-            section = DATA_TYPES[config['section']]
-            if val.SourceTimestamp and section == TELEMETRY_PARAMETER:
-                timestamp = int(val.SourceTimestamp.timestamp() * 1000)
-                if timestamp in telemetry_datapoints:
-                    telemetry_datapoints[timestamp].update({config['key']: data})
+                if data is None and val.StatusCode.is_bad():
+                    msg = "Bad status code: %r for node: %r with description %r" % (val.StatusCode.name,
+                                                                                    val.data_type,
+                                                                                    val.StatusCode.doc)
+                    self._log.warning(msg)
+                    data = msg
+
+                section = DATA_TYPES[config['section']]
+                if val.SourceTimestamp and section == TELEMETRY_PARAMETER:
+                    timestamp = int(val.SourceTimestamp.timestamp() * 1000)
+                    if timestamp in telemetry_datapoints:
+                        telemetry_datapoints[timestamp].update({config['key']: data})
+                    else:
+                        telemetry_datapoints[timestamp] = {config['key']: data}
                 else:
-                    telemetry_datapoints[timestamp] = {config['key']: data}
-            else:
-                result_data[section].append({config['key']: data})
+                    result_data[section].append({config['key']: data})
 
-        if telemetry_datapoints:
-            result_data[TELEMETRY_PARAMETER].extend(
-                {TELEMETRY_TIMESTAMP_PARAMETER: timestamp, TELEMETRY_VALUES_PARAMETER: datapoints}
-                for timestamp, datapoints in telemetry_datapoints.items()
-            )
+            if telemetry_datapoints:
+                result_data[TELEMETRY_PARAMETER].extend(
+                    {TELEMETRY_TIMESTAMP_PARAMETER: timestamp, TELEMETRY_VALUES_PARAMETER: datapoints}
+                    for timestamp, datapoints in telemetry_datapoints.items()
+                )
 
-        return result_data
+            StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                      count=len(result_data["attributes"]))
+            StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                      count=len(result_data["telemetry"]))
+
+            return result_data
+        except Exception as e:
+            self._log.exception(e)
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')

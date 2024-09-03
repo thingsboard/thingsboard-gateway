@@ -16,13 +16,17 @@ import logging
 from time import sleep, monotonic
 from threading import Thread
 
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
-def init_logger(gateway, name, level, enable_remote_logging=False):
+
+def init_logger(gateway, name, level, enable_remote_logging=False, is_connector_logger=False,
+                is_converter_logger=False):
     """
     For creating a Logger with all config automatically
     Create a Logger manually only if you know what you are doing!
     """
-    log = TbLogger(name=name, gateway=gateway)
+    log = TbLogger(name=name, gateway=gateway, is_connector_logger=is_connector_logger,
+                   is_converter_logger=is_converter_logger)
 
     if enable_remote_logging:
         from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
@@ -54,7 +58,8 @@ class TbLogger(logging.Logger):
     RESET_ERRORS_PERIOD = 60
     SEND_ERRORS_PERIOD = 5
 
-    def __init__(self, name, gateway=None, level=logging.NOTSET):
+    def __init__(self, name, gateway=None, level=logging.NOTSET, is_connector_logger=False, is_converter_logger=False,
+                 connector_name=None):
         super(TbLogger, self).__init__(name=name, level=level)
         self.propagate = True
         self.parent = self.root
@@ -62,15 +67,24 @@ class TbLogger(logging.Logger):
         self._stopped = False
         self.__previous_number_of_errors = -1
         self.__previous_errors_sent_time = monotonic()
+        self.__is_connector_logger = is_connector_logger
+        self.__is_converter_logger = is_converter_logger
+
+        if self.__is_connector_logger:
+            self.connector_name = name
+        elif connector_name:
+            self.connector_name = connector_name
+        elif self.__is_converter_logger and connector_name is None:
+            raise ValueError("Connector name must be provided for connector logger")
+
         self.errors = 0
         self.attr_name = self.name + '_ERRORS_COUNT'
         self._is_on_init_state = True
         if self._gateway:
-            self._send_errors_thread = Thread(target=self._send_errors, name='[LOGGER] Send Errors Thread', daemon=True)
-            self._send_errors_thread.start()
+            self._send_errors()
 
         self._start_time = monotonic()
-        self._reset_errors_thread = Thread(target=self._processing_errors, name='[LOGGER] Reset Errors Thread',
+        self._reset_errors_thread = Thread(target=self._processing_errors, name='[LOGGER] Process Errors Thread',
                                            daemon=True)
         self._reset_errors_thread.start()
 
@@ -105,8 +119,7 @@ class TbLogger(logging.Logger):
             sleep(1)
 
         if not TbLogger.IS_ALL_ERRORS_COUNT_RESET and self._gateway.tb_client is not None and self._gateway.tb_client.is_connected():
-            self._gateway.tb_client.client.send_telemetry(
-                {self.attr_name: 0, 'ALL_ERRORS_COUNT': 0}, quality_of_service=0)
+            self._gateway.send_telemetry({self.attr_name: 0, 'ALL_ERRORS_COUNT': 0}, quality_of_service=0)
             TbLogger.IS_ALL_ERRORS_COUNT_RESET = True
         self._is_on_init_state = False
 
@@ -125,12 +138,24 @@ class TbLogger(logging.Logger):
     def error(self, msg, *args, **kwargs):
         kwargs['stacklevel'] = 2
         super(TbLogger, self).error(msg, *args, **kwargs)
+
+        if self.__is_connector_logger:
+            StatisticsService.count_connector_message(self.name, 'connectorsErrors')
+        if self.__is_converter_logger:
+            StatisticsService.count_connector_message(self.name, 'convertersErrors')
+
         self._add_error()
 
     def exception(self, msg, *args, **kwargs) -> None:
         attr_name = kwargs.pop('attr_name', None)
         kwargs['stacklevel'] = 2
         super(TbLogger, self).exception(msg, *args, **kwargs)
+
+        if self.__is_connector_logger:
+            StatisticsService.count_connector_message(self.name, 'connectorsErrors')
+        if self.__is_converter_logger:
+            StatisticsService.count_connector_message(self.name, 'convertersErrors')
+
         self._add_error()
         if attr_name is not None:
             self._send_error_count(error_attr_name=attr_name)
@@ -149,5 +174,5 @@ class TbLogger(logging.Logger):
             else:
                 error_attr_name = self.attr_name
             if self._gateway.tb_client is not None and self._gateway.tb_client.is_connected():
-                self._gateway.tb_client.client.send_telemetry(
+                self._gateway.send_telemetry(
                     {error_attr_name: self.errors, 'ALL_ERRORS_COUNT': TbLogger.ALL_ERRORS_COUNT})

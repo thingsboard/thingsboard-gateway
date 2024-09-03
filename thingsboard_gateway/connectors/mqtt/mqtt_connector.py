@@ -122,7 +122,8 @@ class MqttConnector(Connector, Thread):
             self.__id = self.config.get('id')
 
         self.__log = init_logger(self.__gateway, self.config['name'], self.config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.config.get('enableRemoteLogging', False))
+                                 enable_remote_logging=self.config.get('enableRemoteLogging', False),
+                                 is_connector_logger=True)
         self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__subscribes_sent = {}
 
@@ -533,6 +534,7 @@ class MqttConnector(Connector, Thread):
 
     def _save_converted_msg(self, topic, data):
         if self.__gateway.send_to_storage(self.name, self.get_id(), data) == Status.SUCCESS:
+            StatisticsService.count_connector_message(self.name, stat_parameter_name='storageMsgPushed')
             self.statistics['MessagesSent'] += 1
             self.__log.debug("Successfully converted message from topic %s", topic)
 
@@ -557,6 +559,9 @@ class MqttConnector(Connector, Thread):
                 self.__workers_thread_pool.remove(worker)
 
     def _on_message(self, client, userdata, message):
+        StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+        StatisticsService.count_connector_bytes(self.name, message.payload,
+                                                stat_parameter_name='connectorBytesReceived')
         self._on_message_queue.put((client, userdata, message))
 
     @staticmethod
@@ -1000,13 +1005,13 @@ class MqttConnector(Connector, Thread):
     def _init_send_current_converter_config(self):
         for converter_obj in self.get_converters():
             try:
-                self.__gateway.tb_client.client.send_attributes(
+                self.__gateway.send_attributes(
                     {self.name + ':' + converter_obj.__class__.__name__: converter_obj.config})
             except AttributeError:
                 continue
 
     def _send_current_converter_config(self, name, config):
-        self.__gateway.tb_client.client.send_attributes({name: config})
+        self.__gateway.send_attributes({name: config})
 
     class ConverterWorker(Thread):
         def __init__(self, name, incoming_queue, send_result):

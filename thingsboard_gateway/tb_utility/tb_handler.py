@@ -81,7 +81,7 @@ class TBLoggerHandler(logging.Handler):
 
                         if self.__gateway.get_data_size(
                                 logs_for_sending_list) + logs_msg_size > self.__gateway.get_max_payload_size_bytes():
-                            self.__gateway.tb_client.client.send_telemetry(logs_for_sending_list)
+                            self.__gateway.send_telemetry(logs_for_sending_list)
                             logs_for_sending_list = [log_msg]
                         else:
                             logs_for_sending_list.append(log_msg)
@@ -91,7 +91,7 @@ class TBLoggerHandler(logging.Handler):
                         break
 
                 if logs_for_sending_list:
-                    self.__gateway.tb_client.client.send_telemetry(logs_for_sending_list)
+                    self.__gateway.send_telemetry(logs_for_sending_list)
 
             sleep(1)
 
