@@ -46,7 +46,7 @@ class TBLoggerHandler(logging.Handler):
 
         self._send_logs_thread = threading.Thread(target=self._send_logs, name='Logs Sending Thread', daemon=True)
 
-        self.setFormatter(logging.Formatter('%(asctime)s - |%(levelname)s| - [%(filename)s] - %(module)s - %(lineno)d - %(message)s'))
+        self.setFormatter(logging.Formatter('%(asctime)s,%(msecs)03d - |%(levelname)s|<%(threadName)s> [%(filename)s] - %(module)s %(funcName)s - %(lineno)d - %(message)s'))
         self.loggers = ['service',
                         'extension',
                         'tb_connection',

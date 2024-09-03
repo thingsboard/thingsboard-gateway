@@ -13,6 +13,7 @@
 #     limitations under the License.
 
 import os.path
+from copy import deepcopy
 from logging import getLogger
 from logging.config import dictConfig
 from queue import Queue
@@ -385,14 +386,15 @@ class RemoteConfigurator:
             LOG = getLogger('service')
             logs_conf_file_path = self._gateway.get_config_path() + 'logs.json'
             target_handlers = {}
+            original_in_config = deepcopy(config)
+
             for handler in config['handlers']:
                 filename = config['handlers'][handler].get('filename', None)
 
                 if "consoleHandler" == handler or (filename is not None and os.path.exists(filename)):
                     target_handlers[handler] = config['handlers'][handler]
                 elif filename is not None:
-                    LOG.warning('Handler %s not found. Trying to create...', handler)
-
+                    LOG.debug('Handler %s not found. Trying to create...', handler)
                     try:
                         with open(filename, 'w'):
                             pass
@@ -402,16 +404,23 @@ class RemoteConfigurator:
                         LOG.error('Cannot create handler %s with %s error. Skipping...', handler, e)
                         self._delete_handler(config, handler)
 
-                    LOG.info('Handler %s created.', handler)
+                    LOG.debug('Handler %s created.', handler)
                 else:
                     LOG.warning('Config is invalid. Filename is empty in handler %s', handler)
                     self._delete_handler(config, handler)
 
             config['handlers'] = target_handlers
+
+            for logger in config['loggers']:
+                if config['loggers'][logger].get('level', "").lower() == 'none':
+                    config['loggers'][logger]['level'] = 'NOTSET'
+
             dictConfig(config)
 
             with open(logs_conf_file_path, 'w') as logs:
-                logs.write(dumps(config, indent='  '))
+                logs.write(dumps(original_in_config, indent='  '))
+
+            self._gateway.update_loggers()
 
             LOG.debug("Logs configuration has been updated.")
             self._gateway.send_attributes({'logs_configuration': config})

@@ -1029,9 +1029,17 @@ class TBGatewayService:
                                 data["deviceName"] = self.__renamed_devices[data["deviceName"]]
                             if self.tb_client.is_connected() and (data["deviceName"] not in self.get_devices() or
                                  data["deviceName"] not in self.__connected_devices):
-                                self.add_device(data["deviceName"],
-                                                {CONNECTOR_PARAMETER: self.available_connectors_by_id[connector_id]},
-                                                device_type=data["deviceType"])
+                                if self.available_connectors_by_id.get(connector_id) is not None:
+                                    self.add_device(data["deviceName"],
+                                                    {CONNECTOR_PARAMETER: self.available_connectors_by_id[connector_id]},
+                                                    device_type=data["deviceType"])
+                                elif self.available_connectors_by_name.get(connector_name) is not None:
+                                    self.add_device(data["deviceName"],
+                                                    {CONNECTOR_PARAMETER: self.available_connectors_by_name[connector_name]},
+                                                    device_type=data["deviceType"])
+                                else:
+                                    log.error("Connector %s is not available!", connector_name)
+
                             if not self.__connector_incoming_messages.get(connector_id):
                                 self.__connector_incoming_messages[connector_id] = 0
                             else:
@@ -1151,6 +1159,7 @@ class TBGatewayService:
 
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
+        global log
         log.debug("Send data Thread has been started successfully.")
         log.debug("Maximal size of the client message queue is: %r",
                   self.tb_client.client._client._max_queued_messages) # noqa pylint: disable=protected-access
@@ -1169,6 +1178,7 @@ class TBGatewayService:
                         telemetry_dp_count = 0
                         attribute_dp_count = 0
 
+                        log.debug("Retrieved %r events from the storage.", len(events))
                         for event in events:
                             try:
                                 current_event = loads(event)
@@ -1756,6 +1766,12 @@ class TBGatewayService:
     # Gateway ----------------------
     def get_status(self):
         return {'connected': self.tb_client.is_connected()}
+
+    def update_loggers(self):
+        global log
+        log = logging.getLogger('service')
+        self._event_storage.update_logger()
+        self.tb_client.update_logger()
 
 
 if __name__ == '__main__':

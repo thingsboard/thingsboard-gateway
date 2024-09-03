@@ -198,8 +198,10 @@ class OpcUaConnector(Connector, Thread):
         try:
             self.__loop.run_until_complete(self.start_client())
         except asyncio.CancelledError:
-            self.__loop.run_until_complete(self.__client.disconnect())
-            pass
+            try:
+                self.__loop.run_until_complete(self.__client.disconnect())
+            except Exception:
+                pass
         except Exception as e:
             self.__log.exception("Error in main loop: %s", e)
 
@@ -221,7 +223,7 @@ class OpcUaConnector(Connector, Thread):
 
                 if not self.__client.uaclient.protocol:
                     self.__log.error("Failed to connect to server, retrying...")
-                    await self.__client.disconnect()
+                    await self.disconnect_if_connected()
                     continue
                 self.__connected = True
 
@@ -233,12 +235,17 @@ class OpcUaConnector(Connector, Thread):
                 poll_period = int(self.__server_conf.get('pollPeriodInMillis', 5000) / 1000)
                 scan_period = int(self.__server_conf.get('scanPeriodInMillis', 3600000) / 1000)
 
+                if self.__enable_subscriptions:
+                    await self.__scan_device_nodes()
+                    self.__next_scan = monotonic() + scan_period
+                    await self.__poll_nodes()
+
                 while not self.__stopped:
                     if monotonic() >= self.__next_scan:
                         self.__next_scan = monotonic() + scan_period
                         await self.__scan_device_nodes()
 
-                    if monotonic() >= self.__next_poll:
+                    if not self.__enable_subscriptions and monotonic() >= self.__next_poll:
                         self.__next_poll = monotonic() + poll_period
                         await self.__poll_nodes()
 
@@ -251,6 +258,8 @@ class OpcUaConnector(Connector, Thread):
                 self.__log.warning('Connection lost for %s', self.get_name())
             except asyncio.exceptions.TimeoutError:
                 self.__log.warning('Failed to connect %s', self.get_name())
+                await self.disconnect_if_connected()
+                await asyncio.sleep(5)
             except asyncio.CancelledError as e:
                 if self.__stopped:
                     self.__log.debug('Task was cancelled due to connector stop: %s', e.__str__())
@@ -258,17 +267,20 @@ class OpcUaConnector(Connector, Thread):
                     self.__log.exception('Task was cancelled: %s', e.__str__())
             except UaStatusCodeError as e:
                 self.__log.error('Error in main loop, trying to reconnect: %s', exc_info=e)
-                if self.__connected:
-                    await self.__client.disconnect()
-                    self.__connected = False
+                await self.disconnect_if_connected()
             except Exception as e:
                 self.__log.exception("Error in main loop: %s", e)
             finally:
                 if self.__stopped:
-                    if self.__connected:
-                        await self.__client.disconnect()
                     self.__connected = False
                 await asyncio.sleep(.5)
+
+    async def disconnect_if_connected(self):
+        if self.__connected:
+            try:
+                await self.__client.disconnect()
+            except TimeoutError:
+                pass  # ignore
 
     async def retry_with_backoff(self, func, *args, max_retries=8, initial_delay=1, backoff_factor=2):
         delay = initial_delay
@@ -407,8 +419,7 @@ class OpcUaConnector(Connector, Thread):
                                                                                   data.monitored_item.Value)
 
                                 if converter_data:
-                                    self.__data_to_send.put(*converter_data)
-                                    device.converter_for_sub.clear_data()
+                                    self.__data_to_send.put(converter_data)
             else:
                 sleep(.05)
 
@@ -485,7 +496,7 @@ class OpcUaConnector(Connector, Thread):
                         if node.get('valid') is None or (node.get('valid') and not self.__enable_subscriptions):
                             if self.__enable_subscriptions and not node.get('sub_on', False) and not self.__stopped:
                                 if self.__subscription is None:
-                                    self.__subscription = await self.__client.create_subscription(1, SubHandler(
+                                    self.__subscription = await self.__client.create_subscription(self.__server_conf.get("subCheckPeriodInMillis", 1), SubHandler(
                                         self.__sub_data_to_convert, self.__log))
                                 handle = await self.__subscription.subscribe_data_change(found_node)
                                 node['subscription'] = handle
