@@ -16,6 +16,7 @@ import random
 import string
 import threading
 import inspect
+from logging import getLogger
 from os.path import exists
 from ssl import CERT_REQUIRED, PROTOCOL_TLSv1_2
 from time import sleep, time
@@ -335,3 +336,12 @@ class TBClient(threading.Thread):
 
     def is_stopped(self):
         return self.__stopped
+
+    def update_logger(self):
+        self.__logger.setLevel(getLogger("storage").level)
+        self.__logger.handlers = getLogger("storage").handlers
+        self.__logger.manager = getLogger("storage").manager
+        self.__logger.disabled = getLogger("storage").disabled
+        self.__logger.filters = getLogger("storage").filters
+        self.__logger.propagate = getLogger("storage").propagate
+        self.__logger.parent = getLogger("storage").parent

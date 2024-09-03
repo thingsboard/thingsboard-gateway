@@ -90,3 +90,13 @@ class SQLiteEventStorage(EventStorage):
 
     def len(self):
         return self.processQueue.qsize()
+
+    def update_logger(self):
+        global log
+        log.setLevel(getLogger("storage").level)
+        log.handlers = getLogger("storage").handlers
+        log.manager = getLogger("storage").manager
+        log.disabled = getLogger("storage").disabled
+        log.filters = getLogger("storage").filters
+        log.propagate = getLogger("storage").propagate
+        log.parent = getLogger("storage").parent

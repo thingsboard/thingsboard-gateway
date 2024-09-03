@@ -103,3 +103,15 @@ class FileEventStorage(EventStorage):
 
     def len(self):
         return len(self.__writer.files.data_files)
+
+    def update_logger(self):
+        global log
+        log.setLevel(log.level)
+        log.handlers = log.handlers
+        log.manager = log.manager
+        log.disabled = log.disabled
+        log.filters = log.filters
+        log.propagate = log.propagate
+        log.parent = log.parent
+        self.__writer.update_logger()
+        self.__reader.update_logger()

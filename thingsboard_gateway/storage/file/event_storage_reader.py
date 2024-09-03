@@ -169,7 +169,8 @@ class EventStorageReader:
                 remove(self.settings.get_data_folder_path() + current_file.file)
             if current_file.file in data_files:
                 self.files.data_files.remove(current_file.file)
-                log.info("FileStorage_reader -- Cleanup old data file: %s%s!", self.settings.get_data_folder_path(), current_file.file)
+                log.debug("FileStorage_reader -- Cleanup old data file: %s%s!", self.settings.get_data_folder_path(),
+                          current_file.file)
         except Exception as e:
             log.exception(e)
 
@@ -190,3 +191,13 @@ class EventStorageReader:
             if data_files[file_index] == new_pos.get_file():
                 found = True
         return target_file
+
+    def update_logger(self):
+        global log
+        log.setLevel(log.level)
+        log.handlers = log.handlers
+        log.manager = log.manager
+        log.disabled = log.disabled
+        log.filters = log.filters
+        log.propagate = log.propagate
+        log.parent = log.parent
