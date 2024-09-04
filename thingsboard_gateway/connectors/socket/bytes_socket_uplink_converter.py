@@ -13,7 +13,8 @@
 #     limitations under the License.
 
 from thingsboard_gateway.connectors.socket.socket_uplink_converter import SocketUplinkConverter
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 
 
 class BytesSocketUplinkConverter(SocketUplinkConverter):
@@ -21,8 +22,8 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
         self._log = logger
         self.__config = config
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         if data is None:
             return {}

@@ -23,8 +23,9 @@ from time import sleep
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics, CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.connectors.socket.socket_decorators import CustomCollectStatistics
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
@@ -358,13 +359,13 @@ class SocketConnector(Connector, Thread):
                 return e
 
     @staticmethod
-    @StatisticsService.CollectStatistics(start_stat_type='allBytesSentToDevices')
+    @CollectStatistics(start_stat_type='allBytesSentToDevices')
     def __write_value_via_udp(address, port, value):
         new_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         new_socket.sendto(value, (address, int(port)))
         new_socket.close()
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         try:
             device = tuple(filter(lambda item: item['deviceName'] == content['device'], self.__config['devices']))[0]
@@ -379,7 +380,7 @@ class SocketConnector(Connector, Thread):
         except IndexError:
             self.__log.error('Device not found')
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         try:
             if content.get('data') is None:

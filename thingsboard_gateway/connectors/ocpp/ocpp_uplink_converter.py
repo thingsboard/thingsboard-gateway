@@ -16,7 +16,7 @@ from simplejson import dumps
 from time import time
 
 from thingsboard_gateway.connectors.ocpp.ocpp_converter import OcppConverter
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 

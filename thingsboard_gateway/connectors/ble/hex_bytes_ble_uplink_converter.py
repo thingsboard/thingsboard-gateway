@@ -2,16 +2,15 @@ from pprint import pformat
 from re import findall
 
 from thingsboard_gateway.connectors.ble.ble_uplink_converter import BLEUplinkConverter
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 class HexBytesBLEUplinkConverter(BLEUplinkConverter):
     def __init__(self, config, logger):
         self._log = logger
         self.__config = config
-        dict_result = {"deviceName": config['deviceName'],
-                            "deviceType": config['deviceType']
-                            }
+        self.dict_result = {"deviceName": config['deviceName'],
+                            "deviceType": config['deviceType']}
 
     def convert(self, config, data):
         if data is None:

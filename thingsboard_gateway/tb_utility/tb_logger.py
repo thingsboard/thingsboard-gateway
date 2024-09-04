@@ -16,7 +16,7 @@ import logging
 from time import sleep, monotonic
 from threading import Thread
 
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 def init_logger(gateway, name, level, enable_remote_logging=False, is_connector_logger=False,

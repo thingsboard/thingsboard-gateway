@@ -29,9 +29,10 @@ from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER, DEFA
 from thingsboard_gateway.gateway.constant_enums import Status
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectStatistics
+from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
@@ -789,7 +790,7 @@ class MqttConnector(Connector, Thread):
 
         self._client.publish(topic, data, retain=retain).wait_for_publish()
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         if self.__attribute_updates:
             for attribute_update in self.__attribute_updates:
@@ -921,7 +922,7 @@ class MqttConnector(Connector, Thread):
         except Exception as e:
             self.__log.exception(e)
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         self.__log.info("Incoming server-side RPC: %s", content)
 

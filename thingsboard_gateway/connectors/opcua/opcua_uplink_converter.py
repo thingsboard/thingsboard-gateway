@@ -12,15 +12,14 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from time import time
 from datetime import timezone
 
 from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter
-from asyncua.ua.uatypes import LocalizedText, VariantType
+from asyncua.ua.uatypes import VariantType
 
 from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER, ATTRIBUTES_PARAMETER, DEVICE_NAME_PARAMETER, \
     DEVICE_TYPE_PARAMETER, TELEMETRY_VALUES_PARAMETER, TELEMETRY_TIMESTAMP_PARAMETER
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 DATA_TYPES = {
     'attributes': ATTRIBUTES_PARAMETER,

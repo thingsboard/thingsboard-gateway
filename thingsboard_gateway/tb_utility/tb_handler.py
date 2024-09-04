@@ -16,7 +16,6 @@ import logging
 import os
 import threading
 import logging.handlers
-from os.path import exists, dirname
 from pathlib import Path
 from sys import stdout
 from time import time, sleep

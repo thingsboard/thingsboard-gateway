@@ -17,8 +17,9 @@ from time import time
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.rest.rest_converter import RESTConverter
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 class JsonRESTUplinkConverter(RESTConverter):
@@ -27,8 +28,8 @@ class JsonRESTUplinkConverter(RESTConverter):
         self._log = logger
         self.__config = config
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         datatypes = {"attributes": "attributes",
                      "timeseries": "telemetry"}

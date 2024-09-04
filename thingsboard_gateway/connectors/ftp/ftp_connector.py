@@ -27,7 +27,8 @@ import simplejson
 from thingsboard_gateway.connectors.ftp.file import File
 from thingsboard_gateway.connectors.ftp.ftp_uplink_converter import FTPUplinkConverter
 from thingsboard_gateway.connectors.ftp.path import Path
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 from thingsboard_gateway.connectors.connector import Connector
@@ -223,7 +224,7 @@ class FTPConnector(Connector, Thread):
             return False
         return True
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         try:
             for attribute_request in self.__attribute_updates:
@@ -268,7 +269,7 @@ class FTPConnector(Connector, Thread):
         except Exception as e:
             self.__log.exception(e)
 
-    @StatisticsService.CollectAllReceivedBytesStatistics('allBytesSentToDevices')
+    @CollectAllReceivedBytesStatistics('allBytesSentToDevices')
     def _get_io_stream(self, data_expression):
         return io.BytesIO(str.encode(data_expression))
 
@@ -276,7 +277,7 @@ class FTPConnector(Connector, Thread):
         for rpc_request in self.__config.get("serverSideRpc", []):
             self.__rpc_requests.append(rpc_request)
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         try:
             self.__log.info("Incoming server-side RPC: %s", content)

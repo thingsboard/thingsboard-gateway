@@ -13,7 +13,8 @@
 #     limitations under the License.
 
 from thingsboard_gateway.connectors.converter import Converter
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 
 
 class SNMPUplinkConverter(Converter):
@@ -21,8 +22,8 @@ class SNMPUplinkConverter(Converter):
         self._log = logger
         self.__config = config
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         converted_data = {
             "deviceName": self.__config["deviceName"],

@@ -17,7 +17,8 @@ from bacpypes.constructeddata import ArrayOf
 from bacpypes.primitivedata import Tag
 
 from thingsboard_gateway.connectors.bacnet.bacnet_converter import BACnetConverter
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 class BACnetUplinkConverter(BACnetConverter):
@@ -25,8 +26,8 @@ class BACnetUplinkConverter(BACnetConverter):
         self._log = logger
         self.__config = config
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
 

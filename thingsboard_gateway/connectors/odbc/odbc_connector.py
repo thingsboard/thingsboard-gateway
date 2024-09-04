@@ -23,9 +23,11 @@ from time import sleep
 
 from simplejson import dumps, load
 
+from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 try:
     import pyodbc
@@ -37,7 +39,6 @@ except ImportError:
 from thingsboard_gateway.connectors.odbc.odbc_uplink_converter import OdbcUplinkConverter
 
 from thingsboard_gateway.connectors.connector import Connector
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class OdbcConnector(Connector, Thread):
@@ -114,7 +115,7 @@ class OdbcConnector(Connector, Thread):
     def on_attributes_update(self, content):
         pass
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         done = False
         try:

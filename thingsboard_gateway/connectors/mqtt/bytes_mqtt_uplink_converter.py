@@ -4,7 +4,8 @@ from re import findall
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 class BytesMqttUplinkConverter(MqttUplinkConverter):
@@ -20,8 +21,8 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
     def config(self, value):
         self.__config = value
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, topic, data):
         StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
 

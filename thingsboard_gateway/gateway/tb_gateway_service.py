@@ -40,7 +40,9 @@ from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CO
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
 from thingsboard_gateway.gateway.shell.proxy import AutoProxy
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CountMessage, CollectStorageEventsStatistics, \
+    CollectAllSentTBBytesStatistics, CollectRPCReplyStatistics
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
@@ -590,7 +592,7 @@ class TBGatewayService:
         if self.__remote_configurator is not None:
             self.__remote_configurator.send_current_configuration()
 
-    @StatisticsService.CountMessage('msgsReceivedFromPlatform')
+    @CountMessage('msgsReceivedFromPlatform')
     def _attributes_parse(self, content, *args):
         try:
             log.debug("Received data: %s, %s", content, args)
@@ -1141,7 +1143,7 @@ class TBGatewayService:
             data["telemetry"] = {"ts": int(time() * 1000), "values": telemetry}
         return data
 
-    @StatisticsService.CollectStorageEventsStatistics('storageMsgPushed')
+    @CollectStorageEventsStatistics('storageMsgPushed')
     def __send_data_pack_to_storage(self, data, connector_name, connector_id=None):
         json_data = dumps(data)
         save_result = self._event_storage.put(json_data)
@@ -1271,7 +1273,7 @@ class TBGatewayService:
                 sleep(1)
         log.info("Send data Thread has been stopped successfully.")
 
-    @StatisticsService.CollectAllSentTBBytesStatistics(start_stat_type='allBytesSentToTB')
+    @CollectAllSentTBBytesStatistics(start_stat_type='allBytesSentToTB')
     def __send_data(self, devices_data_in_event_pack):
         try:
             for device in devices_data_in_event_pack:
@@ -1298,7 +1300,7 @@ class TBGatewayService:
         except Exception as e:
             log.exception(e)
 
-    @StatisticsService.CountMessage('msgsReceivedFromPlatform')
+    @CountMessage('msgsReceivedFromPlatform')
     def _rpc_request_handler(self, request_id, content):
         try:
             device = content.get("device")
@@ -1433,8 +1435,8 @@ class TBGatewayService:
         log.info("Outgoing RPC. Device: %s, ID: %d", device, req_id)
         self.send_rpc_reply(device, req_id, content)
 
-    @StatisticsService.CollectRPCReplyStatistics(start_stat_type='allBytesSentToTB')
-    @StatisticsService.CountMessage('msgsSentToPlatform')
+    @CollectRPCReplyStatistics(start_stat_type='allBytesSentToTB')
+    @CountMessage('msgsSentToPlatform')
     def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None,
                        quality_of_service=0):
         self.__rpc_processing_queue.put((device, req_id, content, success_sent, wait_for_publish, quality_of_service))
@@ -1478,7 +1480,7 @@ class TBGatewayService:
         content = self.__rpc_requests_in_progress[rpc_request][0]
         self.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=False)
 
-    @StatisticsService.CountMessage('msgsReceivedFromPlatform')
+    @CountMessage('msgsReceivedFromPlatform')
     def _attribute_update_callback(self, content, *args):
         log.debug("Attribute request received with content: \"%s\"", content)
         log.debug(args)
@@ -1712,21 +1714,21 @@ class TBGatewayService:
 
             sleep(check_devices_idle_every_sec)
 
-    @StatisticsService.CountMessage('msgsSentToPlatform')
+    @CountMessage('msgsSentToPlatform')
     def send_telemetry(self, telemetry, quality_of_service=None, wait_for_publish=True):
         return self.tb_client.client.send_telemetry(telemetry, quality_of_service=quality_of_service,
                                                     wait_for_publish=wait_for_publish)
 
-    @StatisticsService.CountMessage('msgsSentToPlatform')
+    @CountMessage('msgsSentToPlatform')
     def gw_send_telemetry(self, device, telemetry, quality_of_service=1):
         return self.tb_client.client.gw_send_telemetry(device, telemetry, quality_of_service=quality_of_service)
 
-    @StatisticsService.CountMessage('msgsSentToPlatform')
+    @CountMessage('msgsSentToPlatform')
     def send_attributes(self, attributes, quality_of_service=None, wait_for_publish=True):
         return self.tb_client.client.send_attributes(attributes, quality_of_service=quality_of_service,
                                                      wait_for_publish=wait_for_publish)
 
-    @StatisticsService.CountMessage('msgsSentToPlatform')
+    @CountMessage('msgsSentToPlatform')
     def gw_send_attributes(self, device, attributes, quality_of_service=1):
         return self.tb_client.client.gw_send_attributes(device, attributes, quality_of_service=quality_of_service)
 

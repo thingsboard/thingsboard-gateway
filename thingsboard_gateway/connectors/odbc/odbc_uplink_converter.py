@@ -13,7 +13,8 @@
 #     limitations under the License.
 
 from thingsboard_gateway.connectors.odbc.odbc_converter import OdbcConverter
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 class OdbcUplinkConverter(OdbcConverter):
@@ -21,8 +22,8 @@ class OdbcUplinkConverter(OdbcConverter):
     def __init__(self, logger):
         self._log = logger
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         if isinstance(config, str) and config == "*":
             return data

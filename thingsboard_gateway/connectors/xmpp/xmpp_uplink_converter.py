@@ -17,8 +17,9 @@ from re import findall
 from time import time
 
 from thingsboard_gateway.connectors.xmpp.xmpp_converter import XmppConverter
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 class XmppUplinkConverter(XmppConverter):
@@ -141,8 +142,8 @@ class XmppUplinkConverter(XmppConverter):
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.exception(e)
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, val):
         # convert data if it is json format
         result = self._convert_json(val)

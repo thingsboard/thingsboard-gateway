@@ -18,8 +18,9 @@ from simplejson import dumps
 
 from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 class JsonMqttUplinkConverter(MqttUplinkConverter):
@@ -39,8 +40,8 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
     def config(self, value):
         self.__config = value
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, topic, data):
         StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
 

@@ -15,15 +15,16 @@
 import struct
 
 from thingsboard_gateway.connectors.can.can_converter import CanConverter
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 class BytesCanUplinkConverter(CanConverter):
     def __init__(self, logger):
         self._log = logger
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, configs, can_data):
         result = {"attributes": {},
                   "telemetry": {}}

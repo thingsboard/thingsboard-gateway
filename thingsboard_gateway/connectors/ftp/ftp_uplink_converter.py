@@ -18,8 +18,9 @@ from time import time
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.ftp.ftp_converter import FTPConverter
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
 
 
 class FTPUplinkConverter(FTPConverter):
@@ -209,8 +210,8 @@ class FTPUplinkConverter(FTPConverter):
                                                   count=len(dict_result["telemetry"]))
         return dict_result
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         if data:
             if config['file_ext'] == 'csv' or (

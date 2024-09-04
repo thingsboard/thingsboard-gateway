@@ -1,90 +1,27 @@
+#      Copyright 2024. ThingsBoard
+#  #
+#      Licensed under the Apache License, Version 2.0 (the "License");
+#      you may not use this file except in compliance with the License.
+#      You may obtain a copy of the License at
+#  #
+#          http://www.apache.org/licenses/LICENSE-2.0
+#  #
+#      Unless required by applicable law or agreed to in writing, software
+#      distributed under the License is distributed on an "AS IS" BASIS,
+#      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#      See the License for the specific language governing permissions and
+#      limitations under the License.
+
 import datetime
-import os
 import subprocess
 from threading import Thread
 from time import sleep, monotonic
 from platform import system as platform_system
 
 import simplejson
-from psutil import cpu_percent, virtual_memory, disk_usage, Process
-from psutil._common import bytes2human
 
-
-SELF_PROCESS = Process(os.getpid())
-
-
-class StatisticsServiceFunctions:
-    @staticmethod
-    def total_memory(_):
-        return bytes2human(virtual_memory().total)
-
-    @staticmethod
-    def total_disk_memory(_):
-        return bytes2human(disk_usage('/').total)
-
-    @staticmethod
-    def cpu_usage(_):
-        return cpu_percent(0.2)
-
-    @staticmethod
-    def gateway_cpu_usage(_):
-        return SELF_PROCESS.cpu_percent(interval=0.2)
-
-    @staticmethod
-    def ram_usage(_):
-        return virtual_memory().percent
-
-    @staticmethod
-    def gateway_ram_usage(_):
-        return round(SELF_PROCESS.memory_percent(), 1)
-
-    @staticmethod
-    def free_disk_space(_):
-        return bytes2human(disk_usage('/').free)
-
-    @staticmethod
-    def connected_device(gateway):
-        return gateway.connected_devices
-
-    @staticmethod
-    def active_connectors(gateway):
-        return gateway.active_connectors
-
-    @staticmethod
-    def inactive_connectors(gateway):
-        return gateway.inactive_connectors
-
-    @staticmethod
-    def total_connectors(gateway):
-        return gateway.total_connectors
-
-    @staticmethod
-    def msgs_sent_to_platform(_):
-        return StatisticsService.STATISTICS_STORAGE.get('msgsSentToPlatform')
-
-    @staticmethod
-    def msgs_received_from_platform(_):
-        return StatisticsService.STATISTICS_STORAGE.get('msgsReceivedFromPlatform')
-
-    @staticmethod
-    def storage_msgs_pulled(_):
-        return StatisticsService.STATISTICS_STORAGE.get('storageMsgPulled')
-
-    @staticmethod
-    def storage_msgs_count(gateway):
-        return gateway.get_storage_events_count()
-
-    @staticmethod
-    def platform_msgs_pushed(_):
-        return StatisticsService.STATISTICS_STORAGE.get('platformMsgPushed')
-
-    @staticmethod
-    def platform_attr_produced(_):
-        return StatisticsService.STATISTICS_STORAGE.get('platformAttrProduced')
-
-    @staticmethod
-    def platform_ts_produced(_):
-        return StatisticsService.STATISTICS_STORAGE.get('platformTsProduced')
+from thingsboard_gateway.gateway.statistics.configs import ONCE_SEND_STATISTICS_CONFIG, SERVICE_STATS_CONFIG, \
+    MACHINE_STATS_CONFIG
 
 
 class StatisticsService(Thread):
@@ -115,71 +52,6 @@ class StatisticsService(Thread):
     #     }
     # }
     CONNECTOR_STATISTICS_STORAGE = {}
-
-    ONCE_SEND_STATISTICS_CONFIG = [
-        {
-            "function": StatisticsServiceFunctions.total_memory,
-            "attributeOnGateway": "totalMemory"
-        },
-        {
-            "function": StatisticsServiceFunctions.total_disk_memory,
-            "attributeOnGateway": "totalDisk"
-        }
-    ]
-
-    SERVICE_STATS_CONFIG = [
-        {
-            "function": StatisticsServiceFunctions.storage_msgs_pulled,
-            "attributeOnGateway": "storageMsgPulled"
-        },
-        {
-            "function": StatisticsServiceFunctions.storage_msgs_count,
-            "attributeOnGateway": "storageMsgCount"
-        },
-        {
-            "function": StatisticsServiceFunctions.platform_msgs_pushed,
-            "attributeOnGateway": "platformMsgPushed"
-        },
-        {
-            "function": StatisticsServiceFunctions.platform_attr_produced,
-            "attributeOnGateway": "platformAttrProduced"
-        },
-        {
-            "function": StatisticsServiceFunctions.platform_ts_produced,
-            "attributeOnGateway": "platformTsProduced"
-        }
-    ]
-
-    MACHINE_STATS_CONFIG = [
-        {
-            "function": StatisticsServiceFunctions.cpu_usage,
-            "attributeOnGateway": "totalCpuUsage"
-        },
-        {
-            "function": StatisticsServiceFunctions.ram_usage,
-            "attributeOnGateway": "freeMemory"
-        },
-        {
-            "function": StatisticsServiceFunctions.free_disk_space,
-            "attributeOnGateway": "freeDisk"
-        },
-        {
-            "function": StatisticsServiceFunctions.gateway_cpu_usage,
-            "attributeOnGateway": "gwProcessCpuUsage"
-        },
-        {
-            "function": StatisticsServiceFunctions.gateway_ram_usage,
-            "attributeOnGateway": "gwMemory"
-        },
-        {
-            "function": StatisticsServiceFunctions.msgs_sent_to_platform,
-            "attributeOnGateway": "msgsSentToPlatform"
-        },
-        {
-            "function": StatisticsServiceFunctions.msgs_received_from_platform,
-            "attributeOnGateway": "msgsReceivedFromPlatform"
-        }
-    ]
 
     def __init__(self, stats_send_period_in_seconds, gateway, log, config_path=None,
                  custom_stats_send_period_in_seconds=3600):
@@ -293,7 +165,7 @@ class StatisticsService(Thread):
     def __collect_service_statistics(self):
         message = {}
 
-        for attribute in self.SERVICE_STATS_CONFIG:
+        for attribute in SERVICE_STATS_CONFIG:
             try:
                 message[attribute['attributeOnGateway']] = attribute['function'](self._gateway)
             except Exception as e:
@@ -308,7 +180,7 @@ class StatisticsService(Thread):
         self._gateway.send_telemetry(custom_command_statistics_message)
 
     def __send_machine_statistics(self):
-        message = self.__collect_statistics_from_config(self.MACHINE_STATS_CONFIG)
+        message = self.__collect_statistics_from_config(MACHINE_STATS_CONFIG)
         self._gateway.send_telemetry({'machineStats': message})
 
     def __send_service_statistics(self):
@@ -319,7 +191,7 @@ class StatisticsService(Thread):
         self._gateway.send_telemetry({'connectorsStats': self.CONNECTOR_STATISTICS_STORAGE})
 
     def __send_general_machine_state(self):
-        message = self.__collect_statistics_from_config(self.ONCE_SEND_STATISTICS_CONFIG)
+        message = self.__collect_statistics_from_config(ONCE_SEND_STATISTICS_CONFIG)
         self._gateway.send_attributes(message)
 
     def __once_send_statistics(self):
@@ -344,82 +216,3 @@ class StatisticsService(Thread):
                 self._last_custom_command_poll = monotonic()
 
             sleep(1)
-
-    class CollectStatistics:
-        def __init__(self, start_stat_type, end_stat_type=None):
-            self.start_stat_type = start_stat_type
-            self.end_stat_type = end_stat_type
-
-        def __call__(self, func):
-            def inner(*args, **kwargs):
-                try:
-                    _, __, data = args
-                    self.collect(self.start_stat_type, data)
-                except ValueError:
-                    pass
-
-                result = func(*args, **kwargs)
-                if result and self.end_stat_type:
-                    self.collect(self.end_stat_type, result)
-
-                return result
-
-            return inner
-
-        @staticmethod
-        def collect(stat_type, data):
-            bytes_count = str(data).__sizeof__()
-            StatisticsService.add_bytes(stat_type, bytes_count)
-
-    class CollectAllReceivedBytesStatistics(CollectStatistics):
-        def __call__(self, func):
-            def inner(*args, **kwargs):
-                try:
-                    _, data = args
-                    self.collect(self.start_stat_type, data)
-                except ValueError:
-                    pass
-
-                result = func(*args, **kwargs)
-                return result
-
-            return inner
-
-    class CollectAllSentTBBytesStatistics(CollectAllReceivedBytesStatistics):
-        def __call__(self, func):
-            return super().__call__(func)
-
-    class CollectRPCReplyStatistics(CollectStatistics):
-        def __call__(self, func):
-            def inner(*args, **kwargs):
-                data = kwargs.get('content')
-                if data:
-                    self.collect(self.start_stat_type, data)
-
-                func(*args, **kwargs)
-
-            return inner
-
-    class CollectStorageEventsStatistics(CollectStatistics):
-        def __call__(self, func):
-            def inner(*args, **kwargs):
-                try:
-                    data = args[1]
-                    connector_name = args[2]
-                    if data:
-                        StatisticsService.count_connector_message(connector_name, self.start_stat_type)
-                except IndexError:
-                    pass
-
-                func(*args, **kwargs)
-
-            return inner
-
-    class CountMessage(CollectStatistics):
-        def __call__(self, func):
-            def inner(*args, **kwargs):
-                StatisticsService.add_count(self.start_stat_type)
-                result = func(*args, **kwargs)
-                return result
-
-            return inner
