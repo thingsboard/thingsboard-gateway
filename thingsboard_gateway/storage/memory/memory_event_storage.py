@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from logging import getLogger
 from queue import Empty, Full, Queue
 
 from thingsboard_gateway.storage.event_storage import EventStorage, log
@@ -56,3 +57,13 @@ class MemoryEventStorage(EventStorage):
 
     def len(self):
         return self.__events_queue.qsize()
+
+    def update_logger(self):
+        global log
+        log.setLevel(getLogger("storage").level)
+        log.handlers = getLogger("storage").handlers
+        log.manager = getLogger("storage").manager
+        log.disabled = getLogger("storage").disabled
+        log.filters = getLogger("storage").filters
+        log.propagate = getLogger("storage").propagate
+        log.parent = getLogger("storage").parent

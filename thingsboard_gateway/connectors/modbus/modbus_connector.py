@@ -543,14 +543,14 @@ class ModbusConnector(Connector, Thread):
         }
         return master, available_functions
 
-    def __get_or_create_connection(self, config):
+    def __get_or_create_connection(self, config, force=False):
         keys_for_cache = ('host', 'port', 'method', 'type')
         if config.get(TYPE_PARAMETER) == 'serial':
             keys_for_cache = ('port', 'method')
 
         configuration_values_for_cache = tuple([config[key] for key in keys_for_cache])
 
-        if self.__cached_connections.get(configuration_values_for_cache) is None:
+        if self.__cached_connections.get(configuration_values_for_cache) is None or force:
             self.__cached_connections[configuration_values_for_cache] = self.__configure_master(config)
         return self.__cached_connections[configuration_values_for_cache]
 
@@ -597,7 +597,14 @@ class ModbusConnector(Connector, Thread):
         self.__log.debug("With result %s", str(result))
 
         if "Exception" in str(result) or "Error" in str(result):
+            self.__log.error("Reading failed for device %s function code %s address %s unit id %s",
+                             device.device_name, function_code, config[ADDRESS_PARAMETER], device.config['unitId'])
             self.__log.exception("Reading failed with exception:", exc_info=result)
+            self.__log.debug("Trying to reconnect to device %s", device.device_name)
+            if device.config.get('master') is not None and device.config['master'].is_socket_open():
+                device.config['master'].close()
+                device.config['master'], device.config['available_functions'] = self.__get_or_create_connection(device.config, force=True)
+            self.__connect_to_current_master(device)
 
         self.__log.debug("Sending request to device with unit id: %s, on address: %s, function code: %r using "
                          "connection: %r",

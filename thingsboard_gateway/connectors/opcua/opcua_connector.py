@@ -14,18 +14,19 @@
 
 import asyncio
 import re
+from queue import Queue
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic
-from queue import Queue
+from typing import List
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua.device import Device
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
     import asyncua
@@ -86,6 +87,7 @@ class OpcUaConnector(Connector, Thread):
             self.__opcua_url = self.__server_conf.get("url")
 
         self.__enable_subscriptions = self.__server_conf.get('enableSubscriptions', True)
+        self.__sub_check_period_in_millis = self.__server_conf.get("subCheckPeriodInMillis", 1)
 
         self.__data_to_send = Queue(-1)
         self.__sub_data_to_convert = Queue(-1)
@@ -96,14 +98,14 @@ class OpcUaConnector(Connector, Thread):
         except RuntimeError:
             self.__loop = asyncio.get_event_loop()
 
-        self.__client = None
+        self.__client: asyncua.Client = None
         self.__subscription = None
 
         self.__connected = False
         self.__stopped = False
         self.daemon = True
 
-        self.__device_nodes = []
+        self.__device_nodes: List[Device] = []
         self.__next_poll = 0
         self.__next_scan = 0
 
@@ -126,7 +128,7 @@ class OpcUaConnector(Connector, Thread):
         start_time = monotonic()
 
         while self.is_alive():
-            if monotonic() - start_time > 5:
+            if monotonic() - start_time > 10:
                 self.__log.error("Failed to stop connector %s", self.get_name())
                 break
             sleep(.1)
@@ -135,40 +137,43 @@ class OpcUaConnector(Connector, Thread):
         self.__log.stop()
 
     async def __cancel_all_tasks(self):
+        await asyncio.sleep(5)
         for task in asyncio.all_tasks(self.__loop):
             task.cancel()
 
     async def __disconnect(self):
         try:
+            if self.__connected:
+                await self.__unsubscribe_from_nodes()
             await self.__client.disconnect()
             self.__log.info('%s has been disconnected from OPC-UA Server.', self.get_name())
         except Exception as e:
             self.__log.warning('%s could not be disconnected from OPC-UA Server: %s', self.name, e)
 
-    async def __reset_node(self, node):
+    async def __unsubscribe_from_node(self, device: Device, node):
         node['valid'] = False
-        if node.get('sub_on', False):
-            try:
-                if self.__subscription:
-                    await self.__subscription.unsubscribe(node['subscription'])
-            except Exception as e:
-                self.__log.exception('Error unsubscribing on data change: %s', e)
-            node['subscription'] = None
-            node['sub_on'] = False
+        if node.get('node') is not None and self.__enable_subscriptions:
+            subscription_id = device.nodes_data_change_subscriptions.get(node['node'].nodeid, {}).get('subscription')
+            if subscription_id is not None:
+                try:
+                    await device.subscription.unsubscribe(subscription_id)
+                except Exception as e:
+                    self.__log.exception('Error unsubscribing from on data change: %s', e)
+                device.nodes_data_change_subscriptions[node['node'].nodeid]['subscription'] = None
 
-    async def __reset_nodes(self, device_name=None):
+    async def __unsubscribe_from_nodes(self, device_name=None):
         for device in self.__device_nodes:
             if device_name is None or device.name == device_name:
                 for section in ('attributes', 'timeseries'):
                     for node in device.values.get(section, []):
-                        await self.__reset_node(node)
+                        await self.__unsubscribe_from_node(device, node)
 
-        if device_name is None and self.__subscription:
-            try:
-                await self.__subscription.delete()
-            except Exception as e:
-                self.__log.exception('Error deleting subscription: %s', e)
-            self.__subscription = None
+            if device_name is None and device.subscription is not None:
+                try:
+                    await device.subscription.delete()
+                except Exception as e:
+                    self.__log.exception('Error deleting subscription: %s', e)
+                device.subscription = None
 
     def get_id(self):
         return self.__id
@@ -197,17 +202,20 @@ class OpcUaConnector(Connector, Thread):
         try:
             self.__loop.run_until_complete(self.start_client())
         except asyncio.CancelledError:
-            pass
+            try:
+                self.__loop.run_until_complete(self.__client.disconnect())
+            except Exception:
+                pass
         except Exception as e:
             self.__log.exception("Error in main loop: %s", e)
 
     async def start_client(self):
+        sleep_for_subscription_work_model = self.__sub_check_period_in_millis / 1000
         while not self.__stopped:
             try:
                 self.__client = asyncua.Client(url=self.__opcua_url,
                                                timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
-                self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 3600000)
-
+                self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 120000)
                 if self.__server_conf["identity"].get("type") == "cert.PEM":
                     await self.__set_auth_settings_by_cert()
                 if self.__server_conf["identity"].get("username"):
@@ -216,7 +224,12 @@ class OpcUaConnector(Connector, Thread):
                 if self.__stopped:
                     break
 
-                await self.__client.connect()
+                await self.retry_with_backoff(self.__client.connect)
+
+                if not self.__client.uaclient.protocol:
+                    self.__log.error("Failed to connect to server, retrying...")
+                    await self.disconnect_if_connected()
+                    continue
                 self.__connected = True
 
                 try:
@@ -227,23 +240,33 @@ class OpcUaConnector(Connector, Thread):
                 poll_period = int(self.__server_conf.get('pollPeriodInMillis', 5000) / 1000)
                 scan_period = int(self.__server_conf.get('scanPeriodInMillis', 3600000) / 1000)
 
+                if self.__enable_subscriptions:
+                    await self.__scan_device_nodes()
+                    self.__next_scan = monotonic() + scan_period
+                    # await self.__poll_nodes()
+
                 while not self.__stopped:
                     if monotonic() >= self.__next_scan:
                         self.__next_scan = monotonic() + scan_period
                         await self.__scan_device_nodes()
 
-                    if monotonic() >= self.__next_poll:
+                    if not self.__enable_subscriptions and monotonic() >= self.__next_poll:
                         self.__next_poll = monotonic() + poll_period
                         await self.__poll_nodes()
 
                     current_time = monotonic()
-                    time_to_sleep = min(self.__next_poll - current_time, self.__next_scan - current_time)
+                    time_to_sleep = min(self.__next_poll - current_time, self.__next_scan - current_time) \
+                        if not self.__enable_subscriptions else sleep_for_subscription_work_model
                     if time_to_sleep > 0:
                         await asyncio.sleep(time_to_sleep)
+
             except (ConnectionError, BadSessionClosed):
                 self.__log.warning('Connection lost for %s', self.get_name())
+                await self.disconnect_if_connected()
             except asyncio.exceptions.TimeoutError:
                 self.__log.warning('Failed to connect %s', self.get_name())
+                await self.disconnect_if_connected()
+                await asyncio.sleep(5)
             except asyncio.CancelledError as e:
                 if self.__stopped:
                     self.__log.debug('Task was cancelled due to connector stop: %s', e.__str__())
@@ -251,17 +274,34 @@ class OpcUaConnector(Connector, Thread):
                     self.__log.exception('Task was cancelled: %s', e.__str__())
             except UaStatusCodeError as e:
                 self.__log.error('Error in main loop, trying to reconnect: %s', exc_info=e)
-                if self.__connected:
-                    await self.__client.disconnect()
-                    self.__connected = False
+                await self.disconnect_if_connected()
             except Exception as e:
                 self.__log.exception("Error in main loop: %s", e)
             finally:
                 if self.__stopped:
-                    if self.__connected:
-                        await self.__client.disconnect()
+                    await self.disconnect_if_connected()
                     self.__connected = False
                 await asyncio.sleep(.5)
+
+    async def disconnect_if_connected(self):
+        if self.__connected:
+            try:
+                await self.__unsubscribe_from_nodes()
+                await self.__client.disconnect()
+            except TimeoutError:
+                pass  # ignore
+
+    async def retry_with_backoff(self, func, *args, max_retries=8, initial_delay=1, backoff_factor=2):
+        delay = initial_delay
+        for attempt in range(max_retries):
+            try:
+                return await func(*args)
+            except Exception as e:
+                self.__log.error('Encountered error: %r. Retrying in %s seconds...', e, delay)
+                await asyncio.sleep(delay)
+                delay *= backoff_factor
+        self.__log.error('Max retries reached. Could not connect due to too many sessions.')
+        return None
 
     async def __set_auth_settings_by_cert(self):
         try:
@@ -384,13 +424,12 @@ class OpcUaConnector(Connector, Thread):
                     for section in ('attributes', 'timeseries'):
                         for node in device.values.get(section, []):
                             if node.get('id') == sub_node.__str__():
-                                device.converter_for_sub.convert({'section': section, 'key': node['key']},
-                                                                 data.monitored_item.Value)
-                                converter_data = device.converter_for_sub.get_data()
+                                converter_data = device.converter_for_sub.convert(
+                                    {'section': section, 'key': node['key']},
+                                    data.monitored_item.Value)
 
                                 if converter_data:
-                                    self.__data_to_send.put(*converter_data)
-                                    device.converter_for_sub.clear_data()
+                                    self.__data_to_send.put(converter_data)
             else:
                 sleep(.05)
 
@@ -429,18 +468,19 @@ class OpcUaConnector(Connector, Thread):
 
         for device_name in existing_devices:
             if device_name not in scanned_devices:
-                await self.__reset_nodes(device_name)
+                await self.__unsubscribe_from_nodes(device_name)
 
         self.__log.debug('Device nodes: %s', self.__device_nodes)
 
     async def _load_devices_nodes(self):
         for device in self.__device_nodes:
+            device.nodes = []
             for section in ('attributes', 'timeseries'):
                 for node in device.values.get(section, []):
                     try:
                         path = node.get('qualified_path', node['path'])
                         if isinstance(path, str) and re.match(r"(ns=\d+;[isgb]=[^}]+)", path):
-                            var = self.__client.get_node(path)
+                            found_node = self.__client.get_node(path)
                         else:
                             if len(path[-1].split(':')) != 2:
                                 qualified_path = await self.find_node_name_space_index(path)
@@ -449,7 +489,8 @@ class OpcUaConnector(Connector, Thread):
                                         self.__log.warning('Node not found; device: %s, key: %s, path: %s',
                                                            device.name,
                                                            node['key'], node['path'])
-                                        await self.__reset_node(node)
+                                        if node.get('node') is not None and self.__enable_subscriptions:
+                                            await self.__unsubscribe_from_node(device, node)
                                     continue
                                 elif len(qualified_path) > 1:
                                     self.__log.warning(
@@ -459,26 +500,31 @@ class OpcUaConnector(Connector, Thread):
                                 node['qualified_path'] = qualified_path[0]
                                 path = qualified_path[0]
 
-                            var = await self.__client.nodes.root.get_child(path)
+                            found_node = await self.__client.nodes.root.get_child(path)
 
-                        device.nodes.append({'var': var, 'key': node['key'], 'section': section})
+                        device.nodes.append({'node': found_node, 'key': node['key'], 'section': section})
+
+                        subscription_exists = (device.subscription is not None
+                                               and found_node.nodeid in device.nodes_data_change_subscriptions
+                                               and device.nodes_data_change_subscriptions[found_node.nodeid][
+                                                   'subscription'] is not None)
 
                         if node.get('valid') is None or (node.get('valid') and not self.__enable_subscriptions):
-                            if self.__enable_subscriptions and not node.get('sub_on', False) and not self.__stopped:
-                                if self.__subscription is None:
-                                    self.__subscription = await self.__client.create_subscription(1, SubHandler(
-                                        self.__sub_data_to_convert, self.__log))
-                                handle = await self.__subscription.subscribe_data_change(var)
-                                node['subscription'] = handle
-                                node['sub_on'] = True
-                                node['id'] = var.nodeid.to_string()
-                                self.__log.info("Subscribed on data change; device: %s, key: %s, path: %s",
-                                                device.name,
-                                                node['key'], node['id'])
+                            if self.__enable_subscriptions and not subscription_exists and not self.__stopped:
+                                if device.subscription is None:
+                                    device.subscription = await self.__client.create_subscription(
+                                        self.__sub_check_period_in_millis, SubHandler(
+                                            self.__sub_data_to_convert, self.__log))
+                                if found_node.nodeid not in device.nodes_data_change_subscriptions:
+                                    device.nodes_data_change_subscriptions[found_node.nodeid] = {"node": found_node,
+                                                                                                 "subscription": None,
+                                                                                                 "key": node['key'],
+                                                                                                 "section": section}
+                                node['id'] = found_node.nodeid.to_string()
 
                             node['valid'] = True
-                    except ConnectionError:
-                        raise
+                    except ConnectionError as e:
+                        raise e
                     except (BadNodeIdUnknown, BadConnectionClosed, BadInvalidState, BadAttributeIdInvalid,
                             BadCommunicationError, BadOutOfService, BadNoMatch, BadUnexpectedError,
                             UaStatusCodeErrors,
@@ -486,18 +532,42 @@ class OpcUaConnector(Connector, Thread):
                         if node.get('valid', True):
                             self.__log.warning('Node not found (2); device: %s, key: %s, path: %s', device.name,
                                                node['key'], node['path'])
-                            await self.__reset_node(node)
+                            await self.__unsubscribe_from_node(device, node)
                     except UaStatusCodeError as uae:
                         if node.get('valid', True):
                             self.__log.exception('Node status code error: %s', uae)
-                            await self.__reset_node(node)
+                            await self.__unsubscribe_from_node(device, node)
                     except Exception as e:
                         if node.get('valid', True):
                             self.__log.exception(e)
-                            await self.__reset_node(node)
+                            await self.__unsubscribe_from_node(device, node)
+            try:
+                if self.__enable_subscriptions and device.subscription is not None:
+                    to_subscribe = zip(*list(map(lambda n: (n[1]['node'], n),
+                                                 filter(lambda n: n[1]['subscription'] is None,
+                                                        device.nodes_data_change_subscriptions.items()))))
+                    nodes_to_subscribe = []
+                    conf = []
+                    if to_subscribe:
+                        try:
+                            nodes_to_subscribe, conf = to_subscribe
+                        except ValueError:
+                            pass
+
+                    if nodes_to_subscribe:
+                        nodes_data_change_subscriptions = await device.subscription.subscribe_data_change(
+                            nodes_to_subscribe)
+                        for node, conf, subscription_id in zip(nodes_to_subscribe, conf,
+                                                               nodes_data_change_subscriptions):
+                            device.nodes_data_change_subscriptions[node.nodeid]['subscription'] = subscription_id
+                            self.__log.info('Subscribed on data change; device: %s, path: %s',
+                                            device.name, node.nodeid.to_string())
+
+            except Exception as e:
+                self.__log.exception(e)
 
     async def __poll_nodes(self):
-        all_nodes = [node_config['var'] for device in self.__device_nodes for node_config in device.nodes]
+        all_nodes = [node_config['node'] for device in self.__device_nodes for node_config in device.nodes]
 
         if len(all_nodes) > 0:
             values = await self.__client.read_attributes(all_nodes)
@@ -511,17 +581,9 @@ class OpcUaConnector(Connector, Thread):
                 nodes_count = len(device.nodes)
                 device_values = values[converted_nodes_count:converted_nodes_count + nodes_count]
                 converted_nodes_count += nodes_count
-                device.converter.convert(device.nodes, device_values)
-                converter_data = device.converter.get_data()
+                converter_data = device.converter.convert(device.nodes, device_values)
                 if converter_data:
-                    converted_data_dev_count = len(converter_data)
-                    for data_entry in converter_data:
-                        converted_data_attr_count += len(data_entry['attributes'])
-                        converted_telemetry_ts_count += len(data_entry['telemetry'])
-
-                    self.__data_to_send.put(*converter_data)
-
-                    device.converter.clear_data()
+                    self.__data_to_send.put(converter_data)
 
                 self.__log.debug('Converted nodes %s: devices %s, attr %s, telemetry %s',
                                  converted_nodes_count, converted_data_dev_count,
@@ -537,15 +599,14 @@ class OpcUaConnector(Connector, Thread):
                 self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                self.__log.debug('Count data packs to ThingsBoard: %s', self.statistics['MessagesSent'])
+                self.__log.debug('Count data msg to storage: %s', self.statistics['MessagesSent'])
             else:
                 sleep(.05)
 
     async def get_shared_attr_node_id(self, path, result={}):
         try:
             q_path = await self.find_node_name_space_index(path)
-            var = await self.__client.nodes.root.get_child(q_path[0])
-            result['result'] = var
+            result['result'] = await self.__client.nodes.root.get_child(q_path[0])
         except Exception as e:
             result['error'] = e.__str__()
 

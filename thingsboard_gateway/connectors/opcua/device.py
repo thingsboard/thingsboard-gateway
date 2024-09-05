@@ -18,6 +18,7 @@ import re
 class Device:
     def __init__(self, path, name, config, converter, converter_for_sub, logger):
         self._log = logger
+        self.__configured_values_count = 0
         self.path = path
         self.name = name
         self.config = config
@@ -28,13 +29,16 @@ class Device:
             'attributes': []
         }
         self.nodes = []
+        self.subscription = None
+        self.nodes_data_change_subscriptions = {}
 
         self.load_values()
 
     def __repr__(self):
-        return f'{self.path}'
+        return f'<Device> Path: {self.path}, Name: {self.name}, Configured values: {self.__configured_values_count}'
 
     def load_values(self):
+        self.__configured_values_count = 0
         for section in ('attributes', 'timeseries'):
             for node_config in self.config.get(section, []):
                 try:
@@ -48,3 +52,4 @@ class Device:
 
                 except KeyError as e:
                     self._log.error('Invalid config for %s (key %s not found)', node_config, e)
+            self.__configured_values_count += len(self.values[section])

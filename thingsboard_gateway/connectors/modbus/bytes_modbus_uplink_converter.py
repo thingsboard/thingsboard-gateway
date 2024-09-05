@@ -102,7 +102,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
                             decoded_data = self.decode_from_registers(decoder, configuration)
                             if configuration.get("divider"):
                                 decoded_data = float(decoded_data) / float(configuration["divider"])
-                            if configuration.get("multiplier"):
+                            elif configuration.get("multiplier"):
                                 decoded_data = decoded_data * configuration["multiplier"]
                     else:
                         self._log.exception(response)
@@ -188,7 +188,8 @@ class BytesModbusUplinkConverter(ModbusConverter):
             result_data = decoded.hex()
         elif isinstance(decoded, list):
             if configuration.get('bit') is not None:
-                result_data = int(decoded[configuration['bit']])
+                result_data = int(decoded[configuration['bit'] if
+                configuration['bit'] < len(decoded) else len(decoded) - 1])
             else:
                 bitAsBoolean = configuration.get('bitTargetType', 'bool') == 'bool'
                 if objects_count == 1:

@@ -42,3 +42,8 @@ class EventStorage(ABC):
     @abstractmethod
     def len(self):
         pass
+
+    @abstractmethod
+    def update_logger(self):
+        pass
+

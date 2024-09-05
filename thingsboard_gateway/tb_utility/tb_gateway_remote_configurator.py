@@ -13,6 +13,7 @@
 #     limitations under the License.
 
 import os.path
+from copy import deepcopy
 from logging import getLogger
 from logging.config import dictConfig
 from queue import Queue
@@ -382,14 +383,15 @@ class RemoteConfigurator:
             LOG = getLogger('service')
             logs_conf_file_path = self._gateway.get_config_path() + 'logs.json'
             target_handlers = {}
+            original_in_config = deepcopy(config)
+
             for handler in config['handlers']:
                 filename = config['handlers'][handler].get('filename', None)
 
                 if "consoleHandler" == handler or (filename is not None and os.path.exists(filename)):
                     target_handlers[handler] = config['handlers'][handler]
                 elif filename is not None:
-                    LOG.warning('Handler %s not found. Trying to create...', handler)
-
+                    LOG.debug('Handler %s not found. Trying to create...', handler)
                     try:
                         with open(filename, 'w'):
                             pass
@@ -399,16 +401,23 @@ class RemoteConfigurator:
                         LOG.error('Cannot create handler %s with %s error. Skipping...', handler, e)
                         self._delete_handler(config, handler)
 
-                    LOG.info('Handler %s created.', handler)
+                    LOG.debug('Handler %s created.', handler)
                 else:
                     LOG.warning('Config is invalid. Filename is empty in handler %s', handler)
                     self._delete_handler(config, handler)
 
             config['handlers'] = target_handlers
+
+            for logger in config['loggers']:
+                if config['loggers'][logger].get('level', "").lower() == 'none':
+                    config['loggers'][logger]['level'] = 'NOTSET'
+
             dictConfig(config)
 
             with open(logs_conf_file_path, 'w') as logs:
-                logs.write(dumps(config, indent='  '))
+                logs.write(dumps(original_in_config, indent='  '))
+
+            self._gateway.update_loggers()
 
             LOG.debug("Logs configuration has been updated.")
             self._gateway.tb_client.client.send_attributes({'logs_configuration': config})
@@ -635,8 +644,15 @@ class RemoteConfigurator:
 
             connection_state = False
             use_new_config = True
-            config['rateLimits'] = old_tb_client_config.get('rateLimits', 'DEFAULT_RATE_LIMIT')
-            config['dpRateLimits'] = old_tb_client_config.get('dpRateLimits', 'DEFAULT_RATE_LIMIT')
+
+            config['rateLimits'] = old_tb_client_config.get('rateLimits', 'DEFAULT_TELEMETRY_RATE_LIMIT')
+            config['messagesRateLimits'] = old_tb_client_config.get('messagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
+            config['deviceMessagesRateLimits'] = old_tb_client_config.get('deviceMessagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
+            config['deviceRateLimits'] = old_tb_client_config.get('deviceRateLimits', 'DEFAULT_TELEMETRY_RATE_LIMIT')
+
+            config['dpRateLimits'] = old_tb_client_config.get('dpRateLimits', 'DEFAULT_TELEMETRY_DP_RATE_LIMIT')
+            config['deviceDpRateLimits'] = old_tb_client_config.get('deviceDpRateLimits', 'DEFAULT_TELEMETRY_DP_RATE_LIMIT')
+
             while not self._gateway.stopped and not connection_state:
                 self._gateway.__subscribed_to_rpc_topics = False
                 new_tb_client = TBClient(config if use_new_config else old_tb_client_config, old_tb_client_config_path, connection_logger)

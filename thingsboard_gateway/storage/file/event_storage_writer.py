@@ -110,3 +110,13 @@ class EventStorageWriter:
             except Exception as e:
                 log.exception(e)
         return self.current_file_records_count
+
+    def update_logger(self):
+        global log
+        log.setLevel(log.level)
+        log.handlers = log.handlers
+        log.manager = log.manager
+        log.disabled = log.disabled
+        log.filters = log.filters
+        log.propagate = log.propagate
+        log.parent = log.parent
