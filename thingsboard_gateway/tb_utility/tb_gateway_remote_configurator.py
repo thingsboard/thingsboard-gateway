@@ -243,7 +243,7 @@ class RemoteConfigurator:
                         if not request_processed:
                             LOG.error("Cannot process request for %s", attr_name)
                 except (KeyError, AttributeError) as e:
-                    LOG.error('Unknown attribute update name (Available: %s), %r', ', '.join(self._handlers.keys()),
+                    LOG.error('Unknown attribute update name (Available: %s), %r', ', ', self._handlers.keys(),
                               exc_info=e)
 
                 self.in_process = False
