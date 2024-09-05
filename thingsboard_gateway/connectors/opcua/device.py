@@ -29,6 +29,8 @@ class Device:
             'attributes': []
         }
         self.nodes = []
+        self.subscription = None
+        self.nodes_data_change_subscriptions = {}
 
         self.load_values()
 
