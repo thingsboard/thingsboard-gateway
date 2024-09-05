@@ -648,12 +648,6 @@ class RemoteConfigurator:
             connection_state = False
             use_new_config = True
 
-            if config['security'].get('type') == 'tlsAccessToken':
-                with open(self._gateway.get_config_path() + 'ca.pem', 'r') as file:
-                    file.write(config['security']['caCert'])
-
-                config['security']['caCert'] = 'ca.pem'
-
             config['rateLimits'] = old_tb_client_config.get('rateLimits', 'DEFAULT_TELEMETRY_RATE_LIMIT')
             config['messagesRateLimits'] = old_tb_client_config.get('messagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
             config['deviceMessagesRateLimits'] = old_tb_client_config.get('deviceMessagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
