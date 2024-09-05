@@ -24,6 +24,7 @@ from typing import List
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua.device import Device
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -580,6 +581,10 @@ class OpcUaConnector(Connector, Thread):
                 converter_data = device.converter.convert(device.nodes, device_values)
                 if converter_data:
                     self.__data_to_send.put(converter_data)
+
+                    StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+                    StatisticsService.count_connector_bytes(self.name, converter_data,
+                                                            stat_parameter_name='connectorBytesReceived')
 
             self.__log.debug('Converted nodes values count: %s', converted_nodes_count)
         else:

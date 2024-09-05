@@ -16,6 +16,7 @@ from simplejson import dumps
 from time import time
 
 from thingsboard_gateway.connectors.ocpp.ocpp_converter import OcppConverter
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -114,8 +115,14 @@ class OcppUplinkConverter(OcppConverter):
                         else:
                             dict_result[datatypes[datatype]].append({full_key: full_value})
         except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
                             str(data), e)
 
         self._log.debug(dict_result)
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(dict_result["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(dict_result["telemetry"]))
+
         return dict_result

@@ -25,7 +25,8 @@ from time import sleep
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.connector import Connector
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
@@ -243,6 +244,11 @@ class OcppConnector(Connector, Thread):
             if not self.DATA_TO_CONVERT.empty():
                 self.statistics['MessagesReceived'] += 1
                 (converter, config, data) = self.DATA_TO_CONVERT.get()
+
+                StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+                StatisticsService.count_connector_bytes(self.name, data,
+                                                        stat_parameter_name='connectorBytesReceived')
+
                 self._log.debug('Data from Charge Point: %s', data)
                 converted_data = converter.convert(config, data)
                 if converted_data and (converted_data.get('attributes') or converted_data.get('telemetry')):
@@ -264,7 +270,7 @@ class OcppConnector(Connector, Thread):
     async def _send_request(cp, request):
         return await cp.call(request)
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         self._log.debug('Got attribute update: %s', content)
 
@@ -291,7 +297,7 @@ class OcppConnector(Connector, Thread):
         except Exception as e:
             self._log.exception(e)
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         self._log.debug('Got RPC: %s', content)
 

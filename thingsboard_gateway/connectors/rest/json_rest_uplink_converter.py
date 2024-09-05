@@ -17,8 +17,9 @@ from time import time
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.rest.rest_converter import RESTConverter
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 class JsonRESTUplinkConverter(RESTConverter):
@@ -27,8 +28,8 @@ class JsonRESTUplinkConverter(RESTConverter):
         self._log = logger
         self.__config = config
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         datatypes = {"attributes": "attributes",
                      "timeseries": "telemetry"}
@@ -65,6 +66,7 @@ class JsonRESTUplinkConverter(RESTConverter):
                 self._log.error("The expression for looking \"deviceType\" not found in config %s",
                                 dumps(self.__config))
         except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
                             e)
 
@@ -105,7 +107,13 @@ class JsonRESTUplinkConverter(RESTConverter):
                         else:
                             dict_result[datatypes[datatype]].append({full_key: full_value})
         except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
                             str(data), e)
+
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(dict_result["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(dict_result["telemetry"]))
 
         return dict_result

@@ -20,6 +20,7 @@ from random import choice
 from string import ascii_lowercase
 from packaging import version
 
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
@@ -318,6 +319,7 @@ class ModbusConnector(Connector, Thread):
             return to_send
 
     def _save_data(self, data):
+        StatisticsService.count_connector_message(self.name, stat_parameter_name='storageMsgPushed')
         self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
         self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
 
@@ -439,7 +441,6 @@ class ModbusConnector(Connector, Thread):
             sleep(.001)
 
     def __connect_to_current_master(self, device=None):
-
         connect_attempt_count = 5
         connect_attempt_time_ms = 100
         wait_after_failed_attempts_ms = 300000
@@ -609,6 +610,9 @@ class ModbusConnector(Connector, Thread):
         self.__log.debug("Sending request to device with unit id: %s, on address: %s, function code: %r using "
                          "connection: %r",
                          device.config['unitId'], config[ADDRESS_PARAMETER], function_code, device.config['master'])
+
+        StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+        StatisticsService.count_connector_bytes(self.name, result, stat_parameter_name='connectorBytesReceived')
 
         return result
 

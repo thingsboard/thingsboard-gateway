@@ -1,7 +1,7 @@
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 
 
-class CustomCollectStatistics(StatisticsService.CollectStatistics):
+class CustomCollectStatistics(CollectStatistics):
     def __call__(self, func):
         def inner(*args, **kwargs):
             try:

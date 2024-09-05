@@ -20,6 +20,7 @@ from random import choice
 from string import ascii_lowercase
 from threading import Thread
 
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
@@ -216,6 +217,10 @@ class CanConnector(Connector, Thread):
                     message = reader.get_message()
                     if message is not None:
                         # log.debug("[%s] New CAN message received %s", self.get_name(), message)
+                        StatisticsService.count_connector_message(self.name,
+                                                                  stat_parameter_name='connectorMsgsReceived')
+                        StatisticsService.count_connector_bytes(self.name, message,
+                                                                stat_parameter_name='connectorBytesReceived')
                         self.__process_message(message)
                     self.__check_if_error_happened()
             except Exception as e:

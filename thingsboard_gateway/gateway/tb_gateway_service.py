@@ -40,7 +40,9 @@ from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CO
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
 from thingsboard_gateway.gateway.shell.proxy import AutoProxy
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CountMessage, CollectStorageEventsStatistics, \
+    CollectAllSentTBBytesStatistics, CollectRPCReplyStatistics
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
@@ -89,7 +91,8 @@ DEFAULT_CONNECTORS = {
 
 DEFAULT_STATISTIC = {
     'enable': True,
-    'statsSendPeriodInSeconds': 600
+    'statsSendPeriodInSeconds': 60,
+    'customStatsSendPeriodInSeconds': 3600
 }
 
 DEFAULT_DEVICE_FILTER = {
@@ -194,7 +197,7 @@ class TBGatewayService:
         if self.stopped:
             return
         if logging_error is not None:
-            self.tb_client.client.send_telemetry({"ts": time() * 1000, "values": {
+            self.send_telemetry({"ts": time() * 1000, "values": {
                 "LOGS": "Logging loading exception, logs.json is wrong: %s" % (str(logging_error),)}})
             TBLoggerHandler.set_default_handler()
         self.remote_handler = TBLoggerHandler(self)
@@ -256,6 +259,7 @@ class TBGatewayService:
         self.__load_persistent_devices()
 
         if self.__config['thingsboard'].get('managerEnabled', False):
+            manager_address = '/tmp/gateway'
             if path.exists('/tmp/gateway'):
                 try:
                     # deleting old manager if it was closed incorrectly
@@ -392,7 +396,9 @@ class TBGatewayService:
             self.__statistics_service = StatisticsService(self.__statistics['statsSendPeriodInSeconds'], self, log,
                                                           config_path=self._config_dir + self.__statistics[
                                                               'configuration'] if self.__statistics.get(
-                                                              'configuration') else None)
+                                                              'configuration') else None,
+                                                          custom_stats_send_period_in_seconds=self.__statistics.get(
+                                                              'customStatsSendPeriodInSeconds', 3600))
         else:
             self.__statistics_service = None # noqa
 
@@ -518,7 +524,7 @@ class TBGatewayService:
                         and self.tb_client.is_connected()):
                     summary_messages = self.__form_statistics()
                     # with self.__lock:
-                    self.tb_client.client.send_telemetry(summary_messages)
+                    self.send_telemetry(summary_messages)
                     gateway_statistic_send = time() * 1000
                     # self.__check_shared_attributes()
 
@@ -589,6 +595,7 @@ class TBGatewayService:
         if self.__remote_configurator is not None:
             self.__remote_configurator.send_current_configuration()
 
+    @CountMessage('msgsReceivedFromPlatform')
     def _attributes_parse(self, content, *args):
         try:
             log.debug("Received data: %s, %s", content, args)
@@ -978,7 +985,6 @@ class TBGatewayService:
             if self.__remote_configurator is not None:
                 self.__remote_configurator.send_current_configuration()
 
-    @StatisticsService.CollectStorageEventsStatistics('eventsAdded')
     def send_to_storage(self, connector_name, connector_id, data=None):
         if data is None:
             log.error("[%r]Data is empty from connector %r!", connector_id, connector_name)
@@ -1140,6 +1146,7 @@ class TBGatewayService:
             data["telemetry"] = {"ts": int(time() * 1000), "values": telemetry}
         return data
 
+    @CollectStorageEventsStatistics('storageMsgPushed')
     def __send_data_pack_to_storage(self, data, connector_name, connector_id=None):
         json_data = dumps(data)
         save_result = self._event_storage.put(json_data)
@@ -1172,7 +1179,14 @@ class TBGatewayService:
                         events = self._event_storage.get_event_pack()
 
                     if events:
-                        log.debug("Retrieved %r events from the storage.", len(events))
+                        events_len = len(events)
+                        StatisticsService.add_count('storageMsgPulled', count=events_len)
+
+                        # telemetry_dp_count and attribute_dp_count using only for statistics
+                        telemetry_dp_count = 0
+                        attribute_dp_count = 0
+
+                        log.debug("Retrieved %r events from the storage.", events_len)
                         for event in events:
                             try:
                                 current_event = loads(event)
@@ -1188,17 +1202,21 @@ class TBGatewayService:
                                     for item in current_event["telemetry"]:
                                         self.check_size(devices_data_in_event_pack)
                                         devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(item) # noqa
+                                        telemetry_dp_count += len(item.get('values', []))
                                 else:
                                     self.check_size(devices_data_in_event_pack)
                                     devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(current_event["telemetry"]) # noqa
+                                    telemetry_dp_count += len(current_event["telemetry"].get('values', []))
                             if current_event.get("attributes"):
                                 if isinstance(current_event["attributes"], list):
                                     for item in current_event["attributes"]:
                                         self.check_size(devices_data_in_event_pack)
                                         devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(item.items()) # noqa
+                                        attribute_dp_count += 1
                                 else:
                                     self.check_size(devices_data_in_event_pack)
                                     devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(current_event["attributes"].items()) # noqa
+                                    attribute_dp_count += 1
                         if devices_data_in_event_pack:
                             if not self.tb_client.is_connected():
                                 continue
@@ -1240,11 +1258,13 @@ class TBGatewayService:
                                                   exc_info=e)
                                         success = False
 
-                                StatisticsService.add_count('eventsProcessed', len(events))
                             if success and self.tb_client.is_connected():
                                 self._event_storage.event_pack_processing_done()
                                 del devices_data_in_event_pack
                                 devices_data_in_event_pack = {}
+                                StatisticsService.add_count('platformTsProduced', count=telemetry_dp_count)
+                                StatisticsService.add_count('platformAttrProduced', count=attribute_dp_count)
+                                StatisticsService.add_count('platformMsgPushed', count=len(events))
                         else:
                             continue
                     else:
@@ -1256,7 +1276,7 @@ class TBGatewayService:
                 sleep(1)
         log.info("Send data Thread has been stopped successfully.")
 
-    @StatisticsService.CollectAllSentTBBytesStatistics(start_stat_type='allBytesSentToTB')
+    @CollectAllSentTBBytesStatistics(start_stat_type='allBytesSentToTB')
     def __send_data(self, devices_data_in_event_pack):
         try:
             for device in devices_data_in_event_pack:
@@ -1266,23 +1286,24 @@ class TBGatewayService:
                 if devices_data_in_event_pack[device].get("attributes"):
                     if device == self.name or device == "currentThingsBoardGateway":
                         self._published_events.put(
-                            self.tb_client.client.send_attributes(devices_data_in_event_pack[device]["attributes"]))
+                            self.send_attributes(devices_data_in_event_pack[device]["attributes"]))
                     else:
-                        self._published_events.put(self.tb_client.client.gw_send_attributes(final_device_name,
-                                                                                            devices_data_in_event_pack[
-                                                                                                device]["attributes"]))
+                        self._published_events.put(self.gw_send_attributes(final_device_name,
+                                                                           devices_data_in_event_pack[
+                                                                               device]["attributes"]))
                 if devices_data_in_event_pack[device].get("telemetry"):
                     if device == self.name or device == "currentThingsBoardGateway":
                         self._published_events.put(
-                            self.tb_client.client.send_telemetry(devices_data_in_event_pack[device]["telemetry"]))
+                            self.send_telemetry(devices_data_in_event_pack[device]["telemetry"]))
                     else:
-                        self._published_events.put(self.tb_client.client.gw_send_telemetry(final_device_name,
-                                                                                           devices_data_in_event_pack[
-                                                                                               device]["telemetry"]))
+                        self._published_events.put(self.gw_send_telemetry(final_device_name,
+                                                                          devices_data_in_event_pack[
+                                                                              device]["telemetry"]))
                 devices_data_in_event_pack[device] = {"telemetry": [], "attributes": {}}
         except Exception as e:
             log.exception(e)
 
+    @CountMessage('msgsReceivedFromPlatform')
     def _rpc_request_handler(self, request_id, content):
         try:
             device = content.get("device")
@@ -1417,7 +1438,8 @@ class TBGatewayService:
         log.info("Outgoing RPC. Device: %s, ID: %d", device, req_id)
         self.send_rpc_reply(device, req_id, content)
 
-    @StatisticsService.CollectRPCReplyStatistics(start_stat_type='allBytesSentToTB')
+    @CollectRPCReplyStatistics(start_stat_type='allBytesSentToTB')
+    @CountMessage('msgsSentToPlatform')
     def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None,
                        quality_of_service=0):
         self.__rpc_processing_queue.put((device, req_id, content, success_sent, wait_for_publish, quality_of_service))
@@ -1461,6 +1483,7 @@ class TBGatewayService:
         content = self.__rpc_requests_in_progress[rpc_request][0]
         self.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=False)
 
+    @CountMessage('msgsReceivedFromPlatform')
     def _attribute_update_callback(self, content, *args):
         log.debug("Attribute request received with content: \"%s\"", content)
         log.debug(args)
@@ -1511,7 +1534,7 @@ class TBGatewayService:
                 'connectorName': content['connector'].get_name()
             }
             self.__added_devices[device_name] = {"device_details": device_details, "last_send_ts": monotonic()}
-            self.tb_client.client.gw_send_attributes(device_name, device_details)
+            self.gw_send_attributes(device_name, device_details)
 
     def update_device(self, device_name, event, content):
         should_save = False
@@ -1693,6 +1716,24 @@ class TBGatewayService:
                           disconnect_device_after_idle)
 
             sleep(check_devices_idle_every_sec)
+
+    @CountMessage('msgsSentToPlatform')
+    def send_telemetry(self, telemetry, quality_of_service=None, wait_for_publish=True):
+        return self.tb_client.client.send_telemetry(telemetry, quality_of_service=quality_of_service,
+                                                    wait_for_publish=wait_for_publish)
+
+    @CountMessage('msgsSentToPlatform')
+    def gw_send_telemetry(self, device, telemetry, quality_of_service=1):
+        return self.tb_client.client.gw_send_telemetry(device, telemetry, quality_of_service=quality_of_service)
+
+    @CountMessage('msgsSentToPlatform')
+    def send_attributes(self, attributes, quality_of_service=None, wait_for_publish=True):
+        return self.tb_client.client.send_attributes(attributes, quality_of_service=quality_of_service,
+                                                     wait_for_publish=wait_for_publish)
+
+    @CountMessage('msgsSentToPlatform')
+    def gw_send_attributes(self, device, attributes, quality_of_service=1):
+        return self.tb_client.client.gw_send_attributes(device, attributes, quality_of_service=quality_of_service)
 
     # GETTERS --------------------
     def ping(self):
