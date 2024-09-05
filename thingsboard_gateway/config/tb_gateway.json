@@ -6,7 +6,8 @@
     "remoteConfiguration": true,
     "statistics": {
       "enable": true,
-      "statsSendPeriodInSeconds": 600
+      "statsSendPeriodInSeconds": 60,
+      "customStatsSendPeriodInSeconds": 3600
     },
     "deviceFiltering": {
       "enable": false,

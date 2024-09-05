@@ -179,16 +179,12 @@ class StatisticsService(Thread):
         custom_command_statistics_message = self.__collect_custom_command_statistics()
         self._gateway.send_telemetry(custom_command_statistics_message)
 
-    def __send_machine_statistics(self):
-        message = self.__collect_statistics_from_config(MACHINE_STATS_CONFIG)
-        self._gateway.send_telemetry({'machineStats': message})
-
-    def __send_service_statistics(self):
-        message = self.__collect_service_statistics()
-        self._gateway.send_telemetry({'service': message})
-
-    def __send_connectors_statistics(self):
-        self._gateway.send_telemetry({'connectorsStats': self.CONNECTOR_STATISTICS_STORAGE})
+    def __send_statistics(self):
+        statistics_message = {'machineStats': self.__collect_statistics_from_config(MACHINE_STATS_CONFIG),
+                              'serviceStats': self.__collect_service_statistics(),
+                              'connectorsStats': self.CONNECTOR_STATISTICS_STORAGE}
+        self._log.info('REGULAR STATS: %s', statistics_message)
+        self._gateway.send_telemetry(statistics_message)
 
     def __send_general_machine_state(self):
         message = self.__collect_statistics_from_config(ONCE_SEND_STATISTICS_CONFIG)
@@ -204,9 +200,7 @@ class StatisticsService(Thread):
             if monotonic() - self._last_service_poll >= self._stats_send_period_in_seconds:
                 self.__check_statistics_storage_must_reset()
 
-                self.__send_machine_statistics()
-                self.__send_service_statistics()
-                self.__send_connectors_statistics()
+                self.__send_statistics()
 
                 self._last_service_poll = monotonic()
 

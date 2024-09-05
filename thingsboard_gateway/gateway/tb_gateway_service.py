@@ -91,7 +91,8 @@ DEFAULT_CONNECTORS = {
 
 DEFAULT_STATISTIC = {
     'enable': True,
-    'statsSendPeriodInSeconds': 600
+    'statsSendPeriodInSeconds': 60,
+    'customStatsSendPeriodInSeconds': 3600
 }
 
 DEFAULT_DEVICE_FILTER = {
@@ -395,7 +396,9 @@ class TBGatewayService:
             self.__statistics_service = StatisticsService(self.__statistics['statsSendPeriodInSeconds'], self, log,
                                                           config_path=self._config_dir + self.__statistics[
                                                               'configuration'] if self.__statistics.get(
-                                                              'configuration') else None)
+                                                              'configuration') else None,
+                                                          custom_stats_send_period_in_seconds=self.__statistics.get(
+                                                              'customStatsSendPeriodInSeconds', 3600))
         else:
             self.__statistics_service = None # noqa
 
