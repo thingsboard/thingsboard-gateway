@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+import inspect
 import os.path
 from copy import deepcopy
 from logging import getLogger
@@ -23,6 +23,7 @@ from time import sleep, time, monotonic
 from regex import fullmatch
 from simplejson import dumps, load
 
+from tb_gateway_mqtt import TBGatewayMqttClient
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -645,12 +646,12 @@ class RemoteConfigurator:
             use_new_config = True
 
             config['rateLimits'] = old_tb_client_config.get('rateLimits', 'DEFAULT_TELEMETRY_RATE_LIMIT')
-            config['messagesRateLimits'] = old_tb_client_config.get('messagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
-            config['deviceMessagesRateLimits'] = old_tb_client_config.get('deviceMessagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
-            config['deviceRateLimits'] = old_tb_client_config.get('deviceRateLimits', 'DEFAULT_TELEMETRY_RATE_LIMIT')
-
             config['dpRateLimits'] = old_tb_client_config.get('dpRateLimits', 'DEFAULT_TELEMETRY_DP_RATE_LIMIT')
-            config['deviceDpRateLimits'] = old_tb_client_config.get('deviceDpRateLimits', 'DEFAULT_TELEMETRY_DP_RATE_LIMIT')
+            if 'messages_rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters:
+                config['messagesRateLimits'] = old_tb_client_config.get('messagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
+                config['deviceMessagesRateLimits'] = old_tb_client_config.get('deviceMessagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
+                config['deviceRateLimits'] = old_tb_client_config.get('deviceRateLimits', 'DEFAULT_TELEMETRY_RATE_LIMIT')
+                config['deviceDpRateLimits'] = old_tb_client_config.get('deviceDpRateLimits', 'DEFAULT_TELEMETRY_DP_RATE_LIMIT')
 
             while not self._gateway.stopped and not connection_state:
                 self._gateway.__subscribed_to_rpc_topics = False
