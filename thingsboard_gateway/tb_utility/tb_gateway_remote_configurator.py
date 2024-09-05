@@ -460,6 +460,8 @@ class RemoteConfigurator:
         self._gateway.tb_client.client.send_attributes({'active_connectors': config})
 
     def _handle_connector_configuration_update(self, config):
+        if not isinstance(config, dict):
+            return
         """
         Expected the following data structure:
         {
