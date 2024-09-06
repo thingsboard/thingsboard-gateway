@@ -933,7 +933,10 @@ class TBGatewayService:
                                     log.warning("Config is empty for %s", connector_type)
                             except Exception as e:
                                 log.error("[%r] Error on loading connector %r: %r", connector_id, connector_name, e)
-                                log.exception(e, attr_name=connector_name)
+                                if isinstance(log, TbLogger):
+                                    log.exception(e, attr_name=connector_name)
+                                else:
+                                    log.exception(e)
                                 if connector is not None and not connector.is_stopped():
                                     connector.close()
                     else:
