@@ -66,6 +66,11 @@ RETRY_ON_INVALID_PARAMETER = "retryOnInvalid"
 PAYLOAD_PARAMETER = "payload"
 TAG_PARAMETER = "tag"
 
+COILS_INITIALIZER = "coils_initializer"
+HOLDING_REGISTERS = "holding_registers"
+INPUT_REGISTERS = "input_registers"
+DISCRETE_INPUTS = "discrete_inputs"
+
 # Default values
 
 TIMEOUT = 30

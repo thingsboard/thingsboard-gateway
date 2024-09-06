@@ -90,20 +90,26 @@ SLAVE_TYPE = {
     'serial': StartSerialServer
 }
 FUNCTION_TYPE = {
-    'coils_initializer': 'co',
-    'holding_registers': 'hr',
-    'input_registers': 'ir',
-    'discrete_inputs': 'di'
+    COILS_INITIALIZER: 'co',
+    HOLDING_REGISTERS: 'hr',
+    INPUT_REGISTERS: 'ir',
+    DISCRETE_INPUTS: 'di'
 }
 FUNCTION_CODE_WRITE = {
-    'holding_registers': (6, 16),
-    'coils_initializer': (5, 15)
+    HOLDING_REGISTERS: (6, 16),
+    COILS_INITIALIZER: (5, 15)
+}
+FUNCTION_CODE_SLAVE_INITIALIZATION = {
+    HOLDING_REGISTERS: (6, 16),
+    COILS_INITIALIZER: (5, 15),
+    INPUT_REGISTERS: (6, 16),
+    DISCRETE_INPUTS: (5, 15)
 }
 FUNCTION_CODE_READ = {
-    'holding_registers': 3,
-    'coils_initializer': 1,
-    'input_registers': 4,
-    'discrete_inputs': 2
+    HOLDING_REGISTERS: 3,
+    COILS_INITIALIZER: 1,
+    INPUT_REGISTERS: 4,
+    DISCRETE_INPUTS: 2
 }
 
 
@@ -203,8 +209,8 @@ class ModbusConnector(Connector, Thread):
             converter = BytesModbusDownlinkConverter({}, self.__log)
             for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
                 for item in value.get(section, []):
-                    function_code = FUNCTION_CODE_WRITE[key][0] if item['objectsCount'] <= 1 else \
-                        FUNCTION_CODE_WRITE[key][1]
+                    function_code = FUNCTION_CODE_SLAVE_INITIALIZATION[key][0] if item['objectsCount'] <= 1 else \
+                        FUNCTION_CODE_SLAVE_INITIALIZATION[key][1]
                     converted_value = converter.convert(
                         {**item,
                          'device': config.get('deviceName', 'Gateway'), 'functionCode': function_code,
