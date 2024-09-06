@@ -356,7 +356,7 @@ class RemoteConfigurator:
 
     def _handle_grpc_configuration_update(self, config):
         LOG.debug('Processing GRPC configuration update...')
-        if config.get('enabled', False) != self.grpc_configuration.get('enabled', False):
+        if config.get('enabled', False):
             try:
                 self._gateway.init_grpc_service(config)
                 for connector_name in self._gateway.available_connectors_by_name:
@@ -372,6 +372,13 @@ class RemoteConfigurator:
                 self._gateway.load_connectors(self._get_general_config_in_local_format())
                 self._gateway.connect_with_connectors()
             else:
+                if 'keepaliveTimeMs' in self.grpc_configuration:
+                    self.grpc_configuration['keepAliveTimeMs'] = self.grpc_configuration.pop('keepaliveTimeMs')
+                if 'keepaliveTimeoutMs' in self.grpc_configuration:
+                    self.grpc_configuration['keepAliveTimeoutMs'] = self.grpc_configuration.pop('keepaliveTimeoutMs')
+                if 'keepalivePermitWithoutCalls' in self.grpc_configuration:
+                    self.grpc_configuration['keepAlivePermitWithoutCalls'] = self.grpc_configuration.pop(
+                        'keepalivePermitWithoutCalls')
                 self.grpc_configuration = config
                 with open(self._gateway.get_config_path() + "tb_gateway.json", "w", encoding="UTF-8") as file:
                     file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))

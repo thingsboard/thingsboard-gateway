@@ -27,7 +27,13 @@
       "checkDeviceInactivity": false,
       "inactivityTimeoutSeconds": 200,
       "inactivityCheckPeriodSeconds": 500
-    }
+    },
+    "rateLimits": "DEFAULT_TELEMETRY_RATE_LIMIT",
+    "dpRateLimits": "DEFAULT_TELEMETRY_DP_RATE_LIMIT",
+    "messagesRateLimits": "DEFAULT_MESSAGES_RATE_LIMIT",
+    "deviceMessagesRateLimits": "DEFAULT_MESSAGES_RATE_LIMIT",
+    "deviceRateLimits": "DEFAULT_TELEMETRY_RATE_LIMIT",
+    "deviceDpRateLimits": "DEFAULT_TELEMETRY_DP_RATE_LIMIT"
   },
   "storage": {
     "type": "memory",
@@ -44,14 +50,12 @@
   "grpc": {
     "enabled": false,
     "serverPort": 9595,
-    "keepaliveTimeMs": 10000,
-    "keepaliveTimeoutMs": 5000,
-    "keepalivePermitWithoutCalls": true,
+    "keepAliveTimeMs": 10001,
+    "keepAliveTimeoutMs": 5000,
+    "keepAlivePermitWithoutCalls": true,
     "maxPingsWithoutData": 0,
     "minTimeBetweenPingsMs": 10000,
     "minPingIntervalWithoutDataMs": 5000,
-    "keepAliveTimeMs": 10000,
-    "keepAliveTimeoutMs": 5000
   },
   "connectors": []
 }
