@@ -55,7 +55,7 @@
     "keepAlivePermitWithoutCalls": true,
     "maxPingsWithoutData": 0,
     "minTimeBetweenPingsMs": 10000,
-    "minPingIntervalWithoutDataMs": 5000,
+    "minPingIntervalWithoutDataMs": 5000
   },
   "connectors": []
 }
