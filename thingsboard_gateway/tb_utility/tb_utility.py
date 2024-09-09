@@ -12,19 +12,19 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 import datetime
+from getpass import getuser
 from logging import getLogger
-from re import search, findall
 from os import environ
 from platform import system as platform_system
-from getpass import getuser
+from re import search, findall
+from sys import getsizeof
 from uuid import uuid4
-from distutils.util import strtobool
 
 from cryptography import x509
-from cryptography.x509.oid import NameOID
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import serialization
+from cryptography.x509.oid import NameOID
+from distutils.util import strtobool
 from jsonpath_rw import parse
 from simplejson import JSONDecodeError, dumps, loads
 
@@ -278,6 +278,16 @@ class TBUtility:
                 return TBUtility.generate_certificate(certificate, key, cert_detail)
             else:
                 return True
+
+    @staticmethod
+    def get_data_size(data):
+        if isinstance(data, dict):
+            return sum((TBUtility.get_data_size(v) for v in data.values())) + sum(
+                (TBUtility.get_data_size(k) for k in data.keys())) + getsizeof(str(data))
+        elif isinstance(data, (list, tuple, set, frozenset)):
+            return sum((TBUtility.get_data_size(i) for i in data)) + getsizeof(str(data))
+        else:
+            return getsizeof(str(data))
 
     @staticmethod
     def get_service_environmental_variables():

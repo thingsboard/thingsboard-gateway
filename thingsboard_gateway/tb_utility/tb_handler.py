@@ -13,16 +13,17 @@
 #     limitations under the License.
 
 import logging
+import logging.handlers
 import os
 import threading
-import logging.handlers
+from os import environ
 from pathlib import Path
+from queue import Queue, Empty
 from sys import stdout
 from time import time, sleep
-from os import environ
-from queue import Queue, Empty
 
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class TBLoggerHandler(logging.Handler):
@@ -73,13 +74,12 @@ class TBLoggerHandler(logging.Handler):
                             continue
                         log_msg = self._logs_queue.get(block=False)
 
-                        logs_msg_size = self.__gateway.get_data_size(log_msg)
+                        logs_msg_size = TBUtility.get_data_size(log_msg)
                         if logs_msg_size > self.__gateway.get_max_payload_size_bytes():
                             print(f'Too big LOG message size to send ({logs_msg_size}). Skipping...')
                             continue
 
-                        if self.__gateway.get_data_size(
-                                logs_for_sending_list) + logs_msg_size > self.__gateway.get_max_payload_size_bytes():
+                        if TBUtility.get_data_size(logs_for_sending_list) + logs_msg_size > self.__gateway.get_max_payload_size_bytes():
                             self.__gateway.send_telemetry(logs_for_sending_list)
                             logs_for_sending_list = [log_msg]
                         else:
