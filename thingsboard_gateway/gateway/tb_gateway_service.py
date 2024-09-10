@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+import concurrent
 import logging
 import logging.config
 import logging.handlers
@@ -28,12 +28,10 @@ from string import ascii_lowercase, hexdigits
 from sys import argv, executable
 from threading import RLock, Thread, main_thread, current_thread
 from time import sleep, time, monotonic
-from typing import List
 
 from simplejson import JSONDecodeError, dumps, load, loads
 from yaml import safe_load
 
-from tb_device_mqtt import TBPublishInfo
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
@@ -1258,35 +1256,7 @@ class TBGatewayService:
                                     success = False
                                     break
 
-                                events: List[TBPublishInfo] = []
-
-                                while not self._published_events.empty():
-                                    events.append(self._published_events.get_nowait())
-                                    # [self._published_events.get(False, 10) for _ in
-                                    #       range(min(self.__min_pack_size_to_send, self._published_events.qsize()))]
-                                event_num = 0
-                                for event in events:
-                                    event_num += 1
-                                    log.debug("Confirming %i event sent to ThingsBoard", event_num)
-                                    try:
-                                        if (self.tb_client.is_connected()
-                                                and (self.__remote_configurator is None
-                                                     or not self.__remote_configurator.in_process)):
-                                            if self.tb_client.client.quality_of_service == 1:
-                                                success = event.get() == event.TB_ERR_SUCCESS
-                                            else:
-                                                success = True
-                                                break
-                                        else:
-                                            break
-                                    except RuntimeError as e:
-                                        log.error("Error while sending data to ThingsBoard, it will be resent.",
-                                                  exc_info=e)
-                                        success = False
-                                    except Exception as e:
-                                        log.error("Error while sending data to ThingsBoard, it will be resent.",
-                                                  exc_info=e)
-                                        success = False
+                                success = self.__handle_published_events()
 
                             if success and self.tb_client.is_connected():
                                 self._event_storage.event_pack_processing_done()
@@ -1305,6 +1275,46 @@ class TBGatewayService:
                 log.exception(e)
                 sleep(1)
         log.info("Send data Thread has been stopped successfully.")
+
+    def __handle_published_events(self):
+        events = []
+
+        while not self._published_events.empty():
+            events.append(self._published_events.get_nowait())
+
+        with concurrent.futures.ThreadPoolExecutor() as executor: # noqa
+            futures = []
+            for event in events:
+
+                if self.tb_client.is_connected() and (
+                        self.__remote_configurator is None or not self.__remote_configurator.in_process):
+                    if self.tb_client.client.quality_of_service == 1:
+                        futures.append(executor.submit(self.__process_published_event, event))
+                    else:
+                        break
+                else:
+                    break
+
+            event_num = 0
+            for future in concurrent.futures.as_completed(futures): # noqa
+                event_num += 1
+                if event_num % 100 == 0:
+                    log.debug("Confirming %i event sent to ThingsBoard", event_num)
+                success = future.result()
+                if not success:
+                    break
+            return success
+
+    @staticmethod
+    def __process_published_event(event):
+        try:
+            return event.get() == event.TB_ERR_SUCCESS
+        except RuntimeError as e:
+            log.error("Error while sending data to ThingsBoard, it will be resent.", exc_info=e)
+            return False
+        except Exception as e:
+            log.error("Error while sending data to ThingsBoard, it will be resent.", exc_info=e)
+            return False
 
     @CollectAllSentTBBytesStatistics(start_stat_type='allBytesSentToTB')
     def __send_data(self, devices_data_in_event_pack):
