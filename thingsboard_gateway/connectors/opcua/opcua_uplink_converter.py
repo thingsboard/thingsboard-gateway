@@ -67,7 +67,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
             telemetry_datapoints_count = 0
             attributes_datapoints_count = 0
 
-            basic_timestamp = time()
+            basic_timestamp = int(time() * 1000)
 
             for val, config in zip(values, configs):
                 if not val:
@@ -97,7 +97,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
                                           "Value timestamp: %s, current timestamp: %s",
                                           val, val.SourceTimestamp.timestamp(), basic_timestamp)
                     else:
-                        basic_timestamp = val.SourceTimestamp.timestamp()
+                        basic_timestamp = val.SourceTimestamp.timestamp() * 1000
 
                 timestamp = basic_timestamp
 
