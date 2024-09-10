@@ -446,13 +446,14 @@ class ModbusConnector(Connector, Thread):
 
             sleep(.001)
 
-    def __connect_to_current_master(self, device=None):
+    def __connect_to_current_master(self, device: Slave=None):
         connect_attempt_count = 5
         connect_attempt_time_ms = 100
         wait_after_failed_attempts_ms = 300000
 
-        if device.config.get('master') is None:
-            device.config['master'], device.config['available_functions'] = self.__get_or_create_connection(device.config)
+        force_update_master = device.config['connection_attempt'] > 0
+        if device.config.get('master') is None or force_update_master:
+            device.config['master'], device.config['available_functions'] = self.__get_or_create_connection(device.config, force_update_master)
 
         if connect_attempt_count < 1:
             connect_attempt_count = 1
@@ -492,6 +493,8 @@ class ModbusConnector(Connector, Thread):
             device.config['connection_attempt'] = 0
             device.config['last_connection_attempt_time'] = current_time
             return True
+        else:
+            return False
 
     @staticmethod
     def __configure_master(config):
