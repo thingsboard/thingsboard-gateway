@@ -13,6 +13,7 @@
 #     limitations under the License.
 
 from datetime import timezone
+from time import time
 
 from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter
 from asyncua.ua.uatypes import VariantType
@@ -66,6 +67,8 @@ class OpcUaUplinkConverter(OpcUaConverter):
             telemetry_datapoints_count = 0
             attributes_datapoints_count = 0
 
+            basic_timestamp = time()
+
             for val, config in zip(values, configs):
                 if not val:
                     continue
@@ -88,9 +91,18 @@ class OpcUaUplinkConverter(OpcUaConverter):
 
                 section = DATA_TYPES[config['section']]
 
+                if val.SourceTimestamp is not None:
+                    if abs(basic_timestamp - val.SourceTimestamp.timestamp()) > 3600:
+                        self._log.warning("Timestamps are not in sync for incoming value: %r. "
+                                          "Value timestamp: %s, current timestamp: %s",
+                                          val, val.SourceTimestamp.timestamp(), basic_timestamp)
+                    else:
+                        basic_timestamp = val.SourceTimestamp.timestamp()
+
+                timestamp = basic_timestamp
+
                 if val.SourceTimestamp and section == TELEMETRY_PARAMETER:
                     telemetry_datapoints_count += 1
-                    timestamp = int(val.SourceTimestamp.timestamp() * 1000)
                     if timestamp in telemetry_datapoints:
                         telemetry_datapoints[timestamp].update({config['key']: data})
                     else:
