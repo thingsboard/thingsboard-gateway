@@ -97,7 +97,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
                                           "Value timestamp: %s, current timestamp: %s",
                                           val, val.SourceTimestamp.timestamp(), basic_timestamp)
                     else:
-                        basic_timestamp = val.SourceTimestamp.timestamp()
+                        basic_timestamp = val.SourceTimestamp.timestamp() * 1000
 
                 timestamp = basic_timestamp
 
