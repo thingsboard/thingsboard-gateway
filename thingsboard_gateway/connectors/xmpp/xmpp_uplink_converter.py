@@ -17,8 +17,9 @@ from re import findall
 from time import time
 
 from thingsboard_gateway.connectors.xmpp.xmpp_converter import XmppConverter
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 class XmppUplinkConverter(XmppConverter):
@@ -96,7 +97,9 @@ class XmppUplinkConverter(XmppConverter):
                             dict_result[self._datatypes[datatype]].append({full_key: full_value})
 
             return dict_result
-        except json.decoder.JSONDecodeError:
+        except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
+            self._log.exception(e)
             return None
 
     def _get_value(self, data, config, key):
@@ -111,6 +114,7 @@ class XmppUplinkConverter(XmppConverter):
                     index = int(indexes[0])
                     return data[index]
             except IndexError:
+                StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
                 self._log.error('deviceName expression invalid (index out of range)')
                 return None
         else:
@@ -120,33 +124,43 @@ class XmppUplinkConverter(XmppConverter):
         dict_result = {'deviceName': self._get_value(val, self.__config, 'deviceNameExpression'),
                        'deviceType': self._get_value(val, self.__config, 'deviceTypeExpression')}
 
-        if dict_result.get('deviceName') and dict_result.get('deviceType'):
-            for datatype in self._datatypes:
-                dict_result[self._datatypes[datatype]] = []
-                for datatype_config in self.__config.get(datatype, []):
-                    key = self._get_value(val, datatype_config, 'key')
-                    value = self._get_value(val, datatype_config, 'value')
+        try:
+            if dict_result.get('deviceName') and dict_result.get('deviceType'):
+                for datatype in self._datatypes:
+                    dict_result[self._datatypes[datatype]] = []
+                    for datatype_config in self.__config.get(datatype, []):
+                        key = self._get_value(val, datatype_config, 'key')
+                        value = self._get_value(val, datatype_config, 'value')
 
-                    if key and value and datatype == 'timeseries':
-                        dict_result[self._datatypes[datatype]].append({'ts': int(time()) * 1000, 'values': {key: value}})
-                    else:
-                        dict_result[self._datatypes[datatype]].append({key: value})
+                        if key and value and datatype == 'timeseries':
+                            dict_result[self._datatypes[datatype]].append({'ts': int(time()) * 1000, 'values': {key: value}})
+                        else:
+                            dict_result[self._datatypes[datatype]].append({key: value})
 
-            return dict_result
+                return dict_result
+        except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
+            self._log.exception(e)
 
-        return None
-
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, val):
         # convert data if it is json format
         result = self._convert_json(val)
         if result:
+            StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                      count=len(result["attributes"]))
+            StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                      count=len(result["telemetry"]))
             return result
 
         # convert data using slices if it is text format
         result = self._convert_text(val)
         if result:
+            StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                      count=len(result["attributes"]))
+            StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                      count=len(result["telemetry"]))
             return result
 
         # if none of above

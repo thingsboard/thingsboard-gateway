@@ -21,6 +21,7 @@ from threading import Thread
 from time import sleep, time
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
@@ -140,6 +141,10 @@ class SNMPConnector(Connector, Thread):
                         self._log.error("Unknown method: %s, configuration is: %r", method, datatype_config)
                     response = await self.__process_methods(method, common_parameters, datatype_config)
                     device_responses[datatype_config['key']] = response
+
+                    StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+                    StatisticsService.count_connector_bytes(self.name, response,
+                                                            stat_parameter_name='connectorBytesReceived')
                 except SNMPTimeoutException:
                     self._log.error("Timeout exception on connection to device \"%s\" with ip: \"%s\"",
                                     device["deviceName"],

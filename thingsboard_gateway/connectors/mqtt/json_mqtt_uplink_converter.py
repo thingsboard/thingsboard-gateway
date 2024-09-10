@@ -18,8 +18,9 @@ from simplejson import dumps
 
 from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 class JsonMqttUplinkConverter(MqttUplinkConverter):
@@ -39,9 +40,11 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
     def config(self, value):
         self.__config = value
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, topic, data):
+        StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
+
         if isinstance(data, list):
             converted_data = []
             for item in data:
@@ -100,7 +103,15 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         except Exception as e:
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
                             str(data), e)
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
+
         self._log.debug(dict_result)
+
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(dict_result["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(dict_result["telemetry"]))
+
         return dict_result
 
     @staticmethod

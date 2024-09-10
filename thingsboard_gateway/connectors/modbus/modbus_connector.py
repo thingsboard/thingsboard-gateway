@@ -20,6 +20,7 @@ from random import choice
 from string import ascii_lowercase
 from packaging import version
 
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
@@ -89,20 +90,26 @@ SLAVE_TYPE = {
     'serial': StartSerialServer
 }
 FUNCTION_TYPE = {
-    'coils_initializer': 'co',
-    'holding_registers': 'hr',
-    'input_registers': 'ir',
-    'discrete_inputs': 'di'
+    COILS_INITIALIZER: 'co',
+    HOLDING_REGISTERS: 'hr',
+    INPUT_REGISTERS: 'ir',
+    DISCRETE_INPUTS: 'di'
 }
 FUNCTION_CODE_WRITE = {
-    'holding_registers': (6, 16),
-    'coils_initializer': (5, 15)
+    HOLDING_REGISTERS: (6, 16),
+    COILS_INITIALIZER: (5, 15)
+}
+FUNCTION_CODE_SLAVE_INITIALIZATION = {
+    HOLDING_REGISTERS: (6, 16),
+    COILS_INITIALIZER: (5, 15),
+    INPUT_REGISTERS: (6, 16),
+    DISCRETE_INPUTS: (5, 15)
 }
 FUNCTION_CODE_READ = {
-    'holding_registers': 3,
-    'coils_initializer': 1,
-    'input_registers': 4,
-    'discrete_inputs': 2
+    HOLDING_REGISTERS: 3,
+    COILS_INITIALIZER: 1,
+    INPUT_REGISTERS: 4,
+    DISCRETE_INPUTS: 2
 }
 
 
@@ -202,8 +209,8 @@ class ModbusConnector(Connector, Thread):
             converter = BytesModbusDownlinkConverter({}, self.__log)
             for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
                 for item in value.get(section, []):
-                    function_code = FUNCTION_CODE_WRITE[key][0] if item['objectsCount'] <= 1 else \
-                        FUNCTION_CODE_WRITE[key][1]
+                    function_code = FUNCTION_CODE_SLAVE_INITIALIZATION[key][0] if item['objectsCount'] <= 1 else \
+                        FUNCTION_CODE_SLAVE_INITIALIZATION[key][1]
                     converted_value = converter.convert(
                         {**item,
                          'device': config.get('deviceName', 'Gateway'), 'functionCode': function_code,
@@ -318,6 +325,7 @@ class ModbusConnector(Connector, Thread):
             return to_send
 
     def _save_data(self, data):
+        StatisticsService.count_connector_message(self.name, stat_parameter_name='storageMsgPushed')
         self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
         self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
 
@@ -438,14 +446,14 @@ class ModbusConnector(Connector, Thread):
 
             sleep(.001)
 
-    def __connect_to_current_master(self, device=None):
-
+    def __connect_to_current_master(self, device: Slave=None):
         connect_attempt_count = 5
         connect_attempt_time_ms = 100
         wait_after_failed_attempts_ms = 300000
 
-        if device.config.get('master') is None:
-            device.config['master'], device.config['available_functions'] = self.__get_or_create_connection(device.config)
+        force_update_master = device.config['connection_attempt'] > 0
+        if device.config.get('master') is None or force_update_master:
+            device.config['master'], device.config['available_functions'] = self.__get_or_create_connection(device.config, force_update_master)
 
         if connect_attempt_count < 1:
             connect_attempt_count = 1
@@ -485,6 +493,8 @@ class ModbusConnector(Connector, Thread):
             device.config['connection_attempt'] = 0
             device.config['last_connection_attempt_time'] = current_time
             return True
+        else:
+            return False
 
     @staticmethod
     def __configure_master(config):
@@ -609,6 +619,9 @@ class ModbusConnector(Connector, Thread):
         self.__log.debug("Sending request to device with unit id: %s, on address: %s, function code: %r using "
                          "connection: %r",
                          device.config['unitId'], config[ADDRESS_PARAMETER], function_code, device.config['master'])
+
+        StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+        StatisticsService.count_connector_bytes(self.name, result, stat_parameter_name='connectorBytesReceived')
 
         return result
 

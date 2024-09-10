@@ -24,6 +24,7 @@ from typing import List
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua.device import Device
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -585,10 +586,13 @@ class OpcUaConnector(Connector, Thread):
                 if converter_data:
                     self.__data_to_send.put(converter_data)
 
-                self.__log.debug('Converted nodes %s: devices %s, attr %s, telemetry %s',
+                    StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+                    StatisticsService.count_connector_bytes(self.name, converter_data,
+                                                            stat_parameter_name='connectorBytesReceived')
+
+            self.__log.debug('Converted nodes %s: devices %s, attr %s, telemetry %s',
                                  converted_nodes_count, converted_data_dev_count,
                                  converted_data_attr_count, converted_telemetry_ts_count)
-
         else:
             self.__log.info('No nodes to poll')
 

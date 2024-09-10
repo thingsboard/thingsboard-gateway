@@ -17,7 +17,8 @@ from bacpypes.constructeddata import ArrayOf
 from bacpypes.primitivedata import Tag
 
 from thingsboard_gateway.connectors.bacnet.bacnet_converter import BACnetConverter
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
 class BACnetUplinkConverter(BACnetConverter):
@@ -25,23 +26,34 @@ class BACnetUplinkConverter(BACnetConverter):
         self._log = logger
         self.__config = config
 
-    @StatisticsService.CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                                         end_stat_type='convertedBytesFromDevice')
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
-        value = None
-        if isinstance(data, ReadPropertyACK):
-            value = self.__property_value_from_apdu(data)
-        if config is not None:
-            datatypes = {"attributes": "attributes",
-                         "timeseries": "telemetry",
-                         "telemetry": "telemetry"}
-            dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
-            dict_result["deviceName"] = self.__config.get("deviceName", config[1].get("name", "BACnet device"))
-            dict_result["deviceType"] = self.__config.get("deviceType", "default")
-            dict_result[datatypes[config[0]]].append({config[1]["key"]: value})
-        else:
-            dict_result = value
-        self._log.debug("%r %r", self, dict_result)
+        dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
+
+        try:
+            value = None
+            if isinstance(data, ReadPropertyACK):
+                value = self.__property_value_from_apdu(data)
+            if config is not None:
+                datatypes = {"attributes": "attributes",
+                             "timeseries": "telemetry",
+                             "telemetry": "telemetry"}
+                dict_result["deviceName"] = self.__config.get("deviceName", config[1].get("name", "BACnet device"))
+                dict_result["deviceType"] = self.__config.get("deviceType", "default")
+                dict_result[datatypes[config[0]]].append({config[1]["key"]: value})
+            else:
+                dict_result = value
+            self._log.debug("%r %r", self, dict_result)
+        except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
+            self._log.exception(e)
+
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=len(dict_result["attributes"]))
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=len(dict_result["telemetry"]))
+
         return dict_result
 
     @staticmethod

@@ -19,8 +19,9 @@ from string import ascii_lowercase
 from threading import Thread
 from queue import Queue
 
+from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
@@ -131,6 +132,9 @@ class BLEConnector(Connector, Thread):
                 config = device_config.pop('config')
                 converter = device_config.pop('converter')
 
+                StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
+                StatisticsService.count_connector_bytes(self.name, data, stat_parameter_name='connectorBytesReceived')
+
                 try:
                     converter = converter(device_config, self.__log)
                     converted_data = converter.convert(config, data)
@@ -146,7 +150,7 @@ class BLEConnector(Connector, Thread):
             else:
                 sleep(.2)
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         try:
             device = tuple(filter(lambda i: i.getName() == content['device'], self.__devices))[0]
@@ -161,7 +165,7 @@ class BLEConnector(Connector, Thread):
         except IndexError:
             self.__log.error('Device not found')
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         try:
             device = tuple(filter(lambda i: i.getName() == content['device'], self.__devices))[0]

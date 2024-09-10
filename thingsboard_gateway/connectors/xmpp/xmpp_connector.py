@@ -22,9 +22,10 @@ from time import sleep
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.xmpp.device import Device
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics, CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
@@ -172,6 +173,11 @@ class XMPPConnector(Connector, Thread):
                     device_jid = msg.values['from']
                     device = self._devices.get(device_jid)
                     if device:
+                        StatisticsService.count_connector_message(self.name,
+                                                                  stat_parameter_name='connectorMsgsReceived')
+                        StatisticsService.count_connector_bytes(self.name, msg.values['body'],
+                                                                stat_parameter_name='connectorBytesReceived')
+
                         converted_data = device.converter.convert(device, msg.values['body'])
 
                         if converted_data:
@@ -223,12 +229,12 @@ class XMPPConnector(Connector, Thread):
     def get_config(self):
         return self.__config
 
-    @StatisticsService.CollectStatistics(start_stat_type='allBytesSentToDevices')
+    @CollectStatistics(start_stat_type='allBytesSentToDevices')
     def _send_message(self, jid, data):
         self._xmpp.send_message(mto=jid, mfrom=self._server_config['jid'], mbody=data,
                                 mtype='chat')
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         self.__log.debug('Got attribute update: %s', content)
 
@@ -248,7 +254,7 @@ class XMPPConnector(Connector, Thread):
         except KeyError as e:
             self.__log.error('Key not found %s during processing attribute update', e)
 
-    @StatisticsService.CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
+    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         self.__log.debug('Got RPC: %s', content)
 

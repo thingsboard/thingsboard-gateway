@@ -16,7 +16,7 @@ from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadBuilder
 
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 
 
 class BytesModbusDownlinkConverter(ModbusConverter):
@@ -25,8 +25,8 @@ class BytesModbusDownlinkConverter(ModbusConverter):
         self._log = logger
         self.__config = config
 
-    @StatisticsService.CollectStatistics(start_stat_type='allReceivedBytesFromTB',
-                                         end_stat_type='allBytesSentToDevices')
+    @CollectStatistics(start_stat_type='allReceivedBytesFromTB',
+                       end_stat_type='allBytesSentToDevices')
     def convert(self, config, data):
         byte_order_str = config.get("byteOrder", "LITTLE")
         word_order_str = config.get("wordOrder", "LITTLE")
