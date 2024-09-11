@@ -562,13 +562,14 @@ class TBGatewayService:
 
     def __stop_gateway(self):
         self.stopped = True
-        self.__updater.stop()
+        if hasattr(self, "__updater"):
+            self.__updater.stop()
         log.info("Stopping...")
 
-        if self.__statistics_service is not None:
+        if hasattr(self, "__statistics_service") and self.__statistics_service is not None:
             self.__statistics_service.stop()
 
-        if self.__grpc_manager is not None:
+        if hasattr(self, "__grpc_manager") and self.__grpc_manager is not None:
             self.__grpc_manager.stop()
         if os.path.exists("/tmp/gateway"):
             os.remove("/tmp/gateway")
@@ -576,8 +577,9 @@ class TBGatewayService:
         if hasattr(self, "_event_storage"):
             self._event_storage.stop()
         log.info("The gateway has been stopped.")
-        self.tb_client.disconnect()
-        self.tb_client.stop()
+        if hasattr(self, "tb_client"):
+            self.tb_client.disconnect()
+            self.tb_client.stop()
         if hasattr(self, "manager"):
             self.manager.shutdown()
 
@@ -1246,17 +1248,8 @@ class TBGatewayService:
 
                         if self.tb_client.is_connected() and (
                                 self.__remote_configurator is None or not self.__remote_configurator.in_process):
-                            success = True
-                            while not self._published_events.empty():
-                                if (self.__remote_configurator is not None
-                                    and self.__remote_configurator.in_process) or \
-                                        not self.tb_client.is_connected() or \
-                                        self._published_events.empty() or \
-                                        self.__rpc_reply_sent:
-                                    success = False
-                                    break
 
-                                success = self.__handle_published_events()
+                            success = self.__handle_published_events()
 
                             if success and self.tb_client.is_connected():
                                 self._event_storage.event_pack_processing_done()
@@ -1282,7 +1275,8 @@ class TBGatewayService:
         while not self._published_events.empty():
             events.append(self._published_events.get_nowait())
 
-        with concurrent.futures.ThreadPoolExecutor() as executor: # noqa
+        executor = concurrent.futures.ThreadPoolExecutor() # noqa
+        try:
             futures = []
             for event in events:
 
@@ -1296,14 +1290,22 @@ class TBGatewayService:
                     break
 
             event_num = 0
+            success = False
             for future in concurrent.futures.as_completed(futures): # noqa
                 event_num += 1
                 if event_num % 100 == 0:
                     log.debug("Confirming %i event sent to ThingsBoard", event_num)
-                success = future.result()
+                try:
+                    success = future.result(timeout=1)
+                except TimeoutError:
+                    event_num -= 1
+                if self.stopped:
+                    return False
                 if not success:
                     break
             return success
+        finally:
+            executor.shutdown(wait=True, cancel_futures=True)
 
     @staticmethod
     def __process_published_event(event):
