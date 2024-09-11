@@ -40,7 +40,7 @@ from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, Secur
     SecurityPolicyBasic128Rsa15
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
     BadInvalidState, BadSessionClosed, BadAttributeIdInvalid, BadCommunicationError, BadOutOfService, BadNoMatch, \
-    BadUnexpectedError, UaStatusCodeErrors, BadWaitingForInitialData
+    BadUnexpectedError, UaStatusCodeErrors, BadWaitingForInitialData, BadSessionIdInvalid
 
 DEFAULT_UPLINK_CONVERTER = 'OpcUaUplinkConverter'
 
@@ -204,7 +204,7 @@ class OpcUaConnector(Connector, Thread):
             self.__loop.run_until_complete(self.start_client())
         except asyncio.CancelledError:
             try:
-                self.__loop.run_until_complete(self.__client.disconnect())
+                self.disconnect_if_connected()
             except Exception:
                 pass
         except Exception as e:
@@ -261,7 +261,7 @@ class OpcUaConnector(Connector, Thread):
                     if time_to_sleep > 0:
                         await asyncio.sleep(time_to_sleep)
 
-            except (ConnectionError, BadSessionClosed):
+            except (ConnectionError, BadSessionClosed, BadSessionIdInvalid):
                 self.__log.warning('Connection lost for %s', self.get_name())
                 await self.disconnect_if_connected()
             except asyncio.exceptions.TimeoutError:
