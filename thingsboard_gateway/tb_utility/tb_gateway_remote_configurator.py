@@ -520,7 +520,8 @@ class RemoteConfigurator:
                                            'type': config['type'],
                                            'id': connector_id,
                                            'enableRemoteLogging': config.get('enableRemoteLogging', False),
-                                           'configuration': config_file_name}
+                                           'configuration': config_file_name,
+                                           'configVersion': config.get('configVersion')}
                 if config.get('key'):
                     connector_configuration['key'] = config['key']
 
