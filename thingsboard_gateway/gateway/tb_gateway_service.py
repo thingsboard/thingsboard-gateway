@@ -562,14 +562,14 @@ class TBGatewayService:
 
     def __stop_gateway(self):
         self.stopped = True
-        if hasattr(self, "__updater"):
+        if hasattr(self, "_TBGatewayService__updater"):
             self.__updater.stop()
         log.info("Stopping...")
 
-        if hasattr(self, "__statistics_service") and self.__statistics_service is not None:
+        if hasattr(self, "_TBGatewayService__statistics_service") and self.__statistics_service is not None:
             self.__statistics_service.stop()
 
-        if hasattr(self, "__grpc_manager") and self.__grpc_manager is not None:
+        if hasattr(self, "_TBGatewayService__grpc_manager") and self.__grpc_manager is not None:
             self.__grpc_manager.stop()
         if os.path.exists("/tmp/gateway"):
             os.remove("/tmp/gateway")
@@ -582,6 +582,9 @@ class TBGatewayService:
             self.tb_client.stop()
         if hasattr(self, "manager"):
             self.manager.shutdown()
+        for logger in logging.Logger.manager.loggerDict:
+            if isinstance(logger, TbLogger):
+                logger.stop()
 
     def __init_remote_configuration(self, force=False):
         remote_configuration_enabled = self.__config["thingsboard"].get("remoteConfiguration")
