@@ -49,6 +49,7 @@ class TBUpdater(Thread):
         self.__check_period = 3600.0
         self.__request_timeout = 5
         self.__stopped = True
+        self.name = "TBUpdater Thread"
         self.start()
 
     def run(self):

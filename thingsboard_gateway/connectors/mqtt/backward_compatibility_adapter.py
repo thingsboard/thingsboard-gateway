@@ -110,4 +110,5 @@ class BackwardCompatibilityAdapter:
 
     @staticmethod
     def is_old_config_format(config):
-        return config.get('mapping') is not None
+        mapping = config.get('mapping')
+        return mapping is not None and len(mapping) > 0 and mapping[0].get('converter', {}).get('deviceInfo') is None
