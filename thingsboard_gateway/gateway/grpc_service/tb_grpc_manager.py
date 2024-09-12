@@ -232,9 +232,10 @@ class TBGRPCServerManager(Thread):
     async def serve(self, config):
         self.__aio_server = grpc.aio.server(
             options=(
-                ('grpc.keepalive_time_ms', config.get('keepaliveTimeMs', 10000)),
-                ('grpc.keepalive_timeout_ms', config.get('keepaliveTimeoutMs', 5000)),
-                ('grpc.keepalive_permit_without_calls', config.get('keepalivePermitWithoutCalls', True)),
+                ('grpc.keepalive_time_ms', config.get('keepAliveTimeMs', config.get('keepAliveTimeMs', 10000))),
+                ('grpc.keepalive_timeout_ms', config.get('keepAliveTimeoutMs', config.get('keepaliveTimeoutMs', 5000))),
+                ('grpc.keepalive_permit_without_calls', config.get('keepAlivePermitWithoutCalls',
+                                                                   config.get('keepalivePermitWithoutCalls', True))),
                 ('grpc.http2.max_pings_without_data', config.get('maxPingsWithoutData', 0)),
                 ('grpc.http2.min_time_between_pings_ms', config.get('minTimeBetweenPingsMs', 10000)),
                 ('grpc.http2.min_ping_interval_without_data_ms', config.get('minPingIntervalWithoutDataMs', 5000)),

@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+import inspect
 import os.path
 from copy import deepcopy
 from logging import getLogger
@@ -23,6 +23,9 @@ from time import sleep, time, monotonic
 from regex import fullmatch
 from simplejson import dumps, load
 
+from tb_gateway_mqtt import TBGatewayMqttClient
+
+from thingsboard_gateway.gateway.constants import CONFIG_VERSION_PARAMETER
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -246,8 +249,7 @@ class RemoteConfigurator:
                         if not request_processed:
                             LOG.error("Cannot process request for %s", attr_name)
                 except (KeyError, AttributeError) as e:
-                    LOG.error('Unknown attribute update name (Available: %s), %r', ', '.join(self._handlers.keys()),
-                              exc_info=e)
+                    LOG.error('Unknown attribute update name (Available: %s), %r', list(self._handlers.keys()),e)
 
                 self.in_process = False
             else:
@@ -356,7 +358,7 @@ class RemoteConfigurator:
 
     def _handle_grpc_configuration_update(self, config):
         LOG.debug('Processing GRPC configuration update...')
-        if config.get('enabled', False) != self.grpc_configuration.get('enabled', False):
+        if config.get('enabled', False):
             try:
                 self._gateway.init_grpc_service(config)
                 for connector_name in self._gateway.available_connectors_by_name:
@@ -372,6 +374,13 @@ class RemoteConfigurator:
                 self._gateway.load_connectors(self._get_general_config_in_local_format())
                 self._gateway.connect_with_connectors()
             else:
+                if 'keepaliveTimeMs' in self.grpc_configuration:
+                    self.grpc_configuration['keepAliveTimeMs'] = self.grpc_configuration.pop('keepaliveTimeMs')
+                if 'keepaliveTimeoutMs' in self.grpc_configuration:
+                    self.grpc_configuration['keepAliveTimeoutMs'] = self.grpc_configuration.pop('keepaliveTimeoutMs')
+                if 'keepalivePermitWithoutCalls' in self.grpc_configuration:
+                    self.grpc_configuration['keepAlivePermitWithoutCalls'] = self.grpc_configuration.pop(
+                        'keepalivePermitWithoutCalls')
                 self.grpc_configuration = config
                 with open(self._gateway.get_config_path() + "tb_gateway.json", "w", encoding="UTF-8") as file:
                     file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))
@@ -463,6 +472,8 @@ class RemoteConfigurator:
         self._gateway.send_attributes({'active_connectors': config})
 
     def _handle_connector_configuration_update(self, config):
+        if not isinstance(config, dict):
+            return
         """
         Expected the following data structure:
         {
@@ -483,7 +494,13 @@ class RemoteConfigurator:
         LOG.debug('Processing connectors configuration update...')
 
         try:
-            config_file_name = config['configuration']
+            connector_name = config['name']
+            connector_type = config['type']
+            if config.get('configuration') is None:
+                config_file_name = connector_name.replace(' ', '_').lower() + '.json'
+                config['configuration'] = config_file_name
+            else:
+                config_file_name = config['configuration']
 
             identifier_parameter = 'id' if config.get('configurationJson', {}).get('id') else 'name'
             found_connectors = []
@@ -507,11 +524,12 @@ class RemoteConfigurator:
                 connector_id = TBUtility.get_or_create_connector_id(config.get('configurationJson'))
 
             if not found_connectors:
-                connector_configuration = {'name': config['name'],
-                                           'type': config['type'],
+                connector_configuration = {'name': connector_name,
+                                           'type': connector_type,
                                            'id': connector_id,
                                            'enableRemoteLogging': config.get('enableRemoteLogging', False),
-                                           'configuration': config_file_name}
+                                           'configuration': config_file_name,
+                                           CONFIG_VERSION_PARAMETER: config.get(CONFIG_VERSION_PARAMETER)}
                 if config.get('key'):
                     connector_configuration['key'] = config['key']
 
@@ -520,7 +538,7 @@ class RemoteConfigurator:
 
                 with open(self._gateway.get_config_path() + config_file_name, 'w') as file:
                     config['configurationJson'].update({'logLevel': config['logLevel'],
-                                                        'name': config['name'],
+                                                        'name': connector_name,
                                                         'enableRemoteLogging': config.get('enableRemoteLogging', False),
                                                         'id': connector_id})
                     self.create_configuration_file_backup(config, config_file_name)
@@ -548,19 +566,20 @@ class RemoteConfigurator:
 
                 connector_configuration = None
                 if (found_connector.get('id') != connector_id
-                        or found_connector.get('name') != config['name']
-                        or found_connector.get('type') != config['type']
+                        or found_connector.get('name') != connector_name
+                        or found_connector.get('type') != connector_type
                         or found_connector.get('class') != config.get('class')
                         or found_connector.get('key') != config.get('key')
                         or found_connector.get('configurationJson', {}).get('logLevel') != config.get('logLevel')
                         or found_connector.get('enableRemoteLogging', False) != config.get('enableRemoteLogging',
                                                                                            False)):
                     changed = True
-                    connector_configuration = {'name': config['name'],
-                                               'type': config['type'],
+                    connector_configuration = {'name': connector_name,
+                                               'type': connector_type,
                                                'id': connector_id,
                                                'enableRemoteLogging': config.get('enableRemoteLogging', False),
-                                               'configuration': config_file_name}
+                                               'configuration': config_file_name,
+                                               CONFIG_VERSION_PARAMETER: config.get(CONFIG_VERSION_PARAMETER)}
 
                     if config.get('key'):
                         connector_configuration['key'] = config['key']
@@ -573,10 +592,12 @@ class RemoteConfigurator:
                 if changed:
                     with open(self._gateway.get_config_path() + config_file_name, 'w') as file:
                         config['configurationJson'].update({'logLevel': config['logLevel'],
-                                                            'name': config['name'],
+                                                            'name': connector_name,
                                                             'enableRemoteLogging': config.get('enableRemoteLogging',
                                                                                               False),
-                                                            'id': connector_id})
+                                                            'id': connector_id,
+                                                            CONFIG_VERSION_PARAMETER:
+                                                                config.get(CONFIG_VERSION_PARAMETER)})
                         file.writelines(dumps(config['configurationJson'], indent='  '))
 
                     if connector_configuration is None:
@@ -622,7 +643,7 @@ class RemoteConfigurator:
                                                 "connector",
                                                 self._gateway.available_connectors_by_id[connector_id])
 
-            self._gateway.send_attributes({config['name']: config})
+            self._gateway.send_attributes({connector_name: config})
             with open(self._gateway.get_config_path() + 'tb_gateway.json', 'w') as file:
                 file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))
         except Exception as e:
@@ -649,12 +670,12 @@ class RemoteConfigurator:
             use_new_config = True
 
             config['rateLimits'] = old_tb_client_config.get('rateLimits', 'DEFAULT_TELEMETRY_RATE_LIMIT')
-            config['messagesRateLimits'] = old_tb_client_config.get('messagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
-            config['deviceMessagesRateLimits'] = old_tb_client_config.get('deviceMessagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
-            config['deviceRateLimits'] = old_tb_client_config.get('deviceRateLimits', 'DEFAULT_TELEMETRY_RATE_LIMIT')
-
             config['dpRateLimits'] = old_tb_client_config.get('dpRateLimits', 'DEFAULT_TELEMETRY_DP_RATE_LIMIT')
-            config['deviceDpRateLimits'] = old_tb_client_config.get('deviceDpRateLimits', 'DEFAULT_TELEMETRY_DP_RATE_LIMIT')
+            if 'messages_rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters:
+                config['messagesRateLimits'] = old_tb_client_config.get('messagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
+                config['deviceMessagesRateLimits'] = old_tb_client_config.get('deviceMessagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
+                config['deviceRateLimits'] = old_tb_client_config.get('deviceRateLimits', 'DEFAULT_TELEMETRY_RATE_LIMIT')
+                config['deviceDpRateLimits'] = old_tb_client_config.get('deviceDpRateLimits', 'DEFAULT_TELEMETRY_DP_RATE_LIMIT')
 
             while not self._gateway.stopped and not connection_state:
                 self._gateway.__subscribed_to_rpc_topics = False

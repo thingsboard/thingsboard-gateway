@@ -156,9 +156,9 @@ class TBClient(threading.Thread):
         if 'rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters:
             rate_limits_config = {}
             if self.__config.get('rateLimits'):
-                rate_limits_config['rate_limit'] = self.__config['rateLimits']
-            if self.__config.get('dpRateLimits'):
-                rate_limits_config['dp_rate_limit'] = self.__config['dpRateLimits']
+                rate_limits_config['rate_limit'] = 'DEFAULT_RATE_LIMIT' if self.__config.get('rateLimits') == 'DEFAULT_TELEMETRY_RATE_LIMIT' else self.__config['rateLimits']
+            if 'dp_rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters and self.__config.get('dpRateLimits'):
+                rate_limits_config['dp_rate_limit'] = 'DEFAULT_RATE_LIMIT' if self.__config['dpRateLimits'] == 'DEFAULT_TELEMETRY_DP_RATE_LIMIT' else self.__config['dpRateLimits']
 
         if rate_limits_config:
             self.client = TBGatewayMqttClient(self.__host, self.__port, self.__username, self.__password, self,
