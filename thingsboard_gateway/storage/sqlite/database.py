@@ -123,6 +123,7 @@ class Database(Thread):
     def delete_data(self, ts):
         try:
             data = self.db.execute('''DELETE FROM messages WHERE timestamp <= ?;''', [ts,])
+            self.db.commit()
             return data
         except Exception as e:
             self.db.rollback()
@@ -132,6 +133,7 @@ class Database(Thread):
         try:
             ts = (datetime.datetime.now() - datetime.timedelta(days=days)).timestamp()
             data = self.db.execute('''DELETE FROM messages WHERE timestamp <= ? ;''', [ts])
+            self.db.commit()
             return data
         except Exception as e:
             self.db.rollback()
