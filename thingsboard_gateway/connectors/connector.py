@@ -59,6 +59,9 @@ class Connector(ABC):
     def server_side_rpc_handler(self, content):
         pass
 
+    def check_message_latency(self):
+        pass
+
     def is_filtering_enable(self, device_name):
         return DEFAULT_SEND_ON_CHANGE_VALUE
 
