@@ -283,7 +283,10 @@ class OpcUaConnector(Connector, Thread):
                 self.__log.exception("Error in main loop: %s", e)
             finally:
                 if self.__stopped:
-                    await self.disconnect_if_connected()
+                    try:
+                        await self.disconnect_if_connected()
+                    except Exception:
+                        pass
                     self.__connected = False
                 await asyncio.sleep(.5)
 
