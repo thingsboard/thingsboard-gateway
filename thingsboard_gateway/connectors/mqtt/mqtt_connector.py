@@ -107,6 +107,7 @@ RESULT_CODES_V5 = {
 class MqttConnector(Connector, Thread):
     CONFIGURATION_KEY_SHARED_GLOBAL = "sharedGlobal"
     CONFIGURATION_KEY_SHARED_ID = "sharedId"
+    TEST_MESSAGE_LATENCY_TOPIC = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
 
     def __init__(self, gateway, config, connector_type):
         super().__init__()
@@ -295,9 +296,9 @@ class MqttConnector(Connector, Thread):
                 }
             }
             converter = JsonMqttUplinkConverter(test_converter_config, self.__log)
-            self.__mapping_sub_topics['test/latency'] = [converter]
+            self.__mapping_sub_topics[MqttConnector.TEST_MESSAGE_LATENCY_TOPIC] = [converter]
 
-            test_message = MQTTMessage(topic=b'test/latency')
+            test_message = MQTTMessage(topic=MqttConnector.TEST_MESSAGE_LATENCY_TOPIC.encode('utf-8'))
             test_message_payload = '{"isTestLatencyMessageType": true, "connectorName": "' + self.name + '"}'
             test_message.payload = test_message_payload.encode('utf-8')
 
@@ -571,7 +572,7 @@ class MqttConnector(Connector, Thread):
         return False
 
     def _save_converted_msg(self, topic, data):
-        if topic == 'test/latency':
+        if topic == MqttConnector.TEST_MESSAGE_LATENCY_TOPIC:
             data['telemetry'].append({'putToStorageTs': int(time() * 1000)})
 
         if self.__gateway.send_to_storage(self.name, self.get_id(), data) == Status.SUCCESS:
@@ -663,7 +664,7 @@ class MqttConnector(Connector, Thread):
 
                                 self.__topic_content[message.topic] = content
 
-                                if message.topic == 'test/latency':
+                                if message.topic == MqttConnector.TEST_MESSAGE_LATENCY_TOPIC:
                                     content['beforeConversionTs'] = int(time() * 1000)
 
                                 request_handled = self.put_data_to_convert(converter, message, content)
@@ -1076,7 +1077,7 @@ class MqttConnector(Connector, Thread):
                     if converted_data and (converted_data.get(ATTRIBUTES_PARAMETER) or
                                            converted_data.get(TELEMETRY_PARAMETER)):
 
-                        if config == 'test/latency':
+                        if config == MqttConnector.TEST_MESSAGE_LATENCY_TOPIC:
                             converted_data['telemetry'].append({'convertedTs': int(time() * 1000)})
 
                         self.__send_result(config, converted_data)

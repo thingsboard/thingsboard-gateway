@@ -237,6 +237,8 @@ class TBGatewayService:
 
         self.init_device_filtering(self.__config['thingsboard'].get('deviceFiltering', DEFAULT_DEVICE_FILTER))
 
+        self.__latency_debug_mode = self.__config['thingsboard'].get('latencyDebugMode', False)
+
         log.info("Gateway started.")
 
         self._watchers_thread = Thread(target=self._watchers, name='Watchers', daemon=True)
@@ -1224,8 +1226,8 @@ class TBGatewayService:
                                 log.exception(e)
                                 continue
 
-                            if isinstance(current_event.get('telemetry'), dict) and current_event.get('telemetry').get(
-                                    'values').get('isTestLatencyMessageType', False):
+                            if (self.__latency_debug_mode and isinstance(current_event.get('telemetry'), dict)
+                                    and current_event.get('telemetry').get('values').get('isTestLatencyMessageType', False)):
                                 current_event['telemetry']['values']['getFromStorageTs'] = int(time() * 1000)
                                 log.debug('LATENCY CHECK for %s connector: %s',
                                           current_event['telemetry']['values']['connectorName'],
