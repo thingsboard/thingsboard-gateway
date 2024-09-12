@@ -18,12 +18,15 @@ from queue import Queue
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
-from time import sleep, monotonic
+from time import sleep, monotonic, time
 from typing import List
+
+from asyncua.ua import DataValue, VariantType, Variant
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua.device import Device
+from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
@@ -578,7 +581,7 @@ class OpcUaConnector(Connector, Thread):
                 nodes_count = len(device.nodes)
                 device_values = values[converted_nodes_count:converted_nodes_count + nodes_count]
                 converted_nodes_count += nodes_count
-                converter_data = device.converter.convert(device.nodes, device_values)
+                converter_data = self.__convert_device_data(device.converter, device.nodes, device_values)
                 if converter_data:
                     self.__data_to_send.put(converter_data)
 
@@ -590,10 +593,18 @@ class OpcUaConnector(Connector, Thread):
         else:
             self.__log.info('No nodes to poll')
 
+    @staticmethod
+    def __convert_device_data(converter, device_nodes, values):
+        return converter.convert(device_nodes, values)
+
     def __send_data(self):
         while not self.__stopped:
             if not self.__data_to_send.empty():
                 data = self.__data_to_send.get()
+
+                if data.get('deviceName') == 'currentThingsBoardGateway':
+                    data['telemetry'].append({'putToStorageTs': int(time() * 1000)})
+
                 self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
@@ -789,6 +800,49 @@ class OpcUaConnector(Connector, Thread):
 
                 self.__gateway.update_connector_config_file(self.name, {'server': self.__server_conf,
                                                                         'mapping': self.__config.get('mapping', [])})
+
+    def check_message_latency(self):
+        test_device_nodes = [
+            {'key': 'connectorName', 'node': None, 'section': 'timeseries'},
+            {'key': 'receivedTs', 'node': None, 'section': 'timeseries'},
+            {'key': 'isTestLatencyMessageType', 'node': None, 'section': 'timeseries'},
+            {'key': 'beforeConversionTs', 'node': None, 'section': 'timeseries'}
+        ]
+
+        test_device_config = {
+            'device_name': 'currentThingsBoardGateway',
+            'device_type': 'default',
+            'deviceNodeSource': 'path',
+            'timeseries': [
+                {'key': 'receivedTs', 'type': 'path', 'value': '${receivedTs}'},
+                {'key': 'isTestLatencyMessageType', 'type': 'path', 'value': '${isTestLatencyMessageType}'},
+                {'key': 'beforeConversionTs', 'type': 'path', 'value': '${beforeConversionTs}'},
+                {'key': 'connectorName', 'type': 'path', 'value': '${className}'}
+            ],
+            'deviceNodePattern': 'Test',
+            'deviceInfo': {
+                'deviceNameExpressionSource': 'constant',
+                'deviceNameExpression': 'currentThingsBoardGateway',
+                'deviceProfileExpressionSource': 'constant',
+                'deviceProfileExpression': 'default'
+            }
+        }
+
+        test_values = [
+            DataValue(Value=Variant(Value=self.name, VariantType=VariantType.String)),
+            DataValue(Value=Variant(Value=int(time() * 1000), VariantType=VariantType.Int64)),
+            DataValue(Value=Variant(True, VariantType=VariantType.Boolean))
+        ]
+
+        test_converter = OpcUaUplinkConverter(test_device_config, self.__log)
+
+        test_device = Device(['Test'], 'currentThingsBoardGateway', test_device_config, test_converter, None, self.__log)
+        test_device.nodes = test_device_nodes
+
+        test_values.append(DataValue(Value=Variant(Value=int(time() * 1000), VariantType=VariantType.Int64)))
+        converted_data = self.__convert_device_data(test_converter, test_device_nodes, test_values)
+        converted_data['telemetry'].append({'convertedTs': int(time() * 1000)})
+        self.__data_to_send.put(converted_data)
 
 
 class SubHandler:

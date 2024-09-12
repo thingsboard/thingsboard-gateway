@@ -4,6 +4,7 @@
     "port": 1883,
     "remoteShell": false,
     "remoteConfiguration": true,
+    "latencyDebugMode": false,
     "statistics": {
       "enable": true,
       "statsSendPeriodInSeconds": 60,

@@ -455,6 +455,7 @@ class TBGatewayService:
         try:
             gateway_statistic_send = 0
             connectors_configuration_check_time = 0
+            latency_check_time = 0
 
             while not self.stopped:
                 cur_time = time() * 1000
@@ -533,6 +534,10 @@ class TBGatewayService:
                     self.check_connector_configuration_updates()
                     connectors_configuration_check_time = time() * 1000
 
+                if self.__config['thingsboard'].get('latencyDebugMode', False) and cur_time - latency_check_time > 60000:
+                    self.__check_message_latency()
+                    latency_check_time = time() * 1000
+
                 if cur_time - self.__updates_check_time >= self.__updates_check_period_ms:
                     self.__updates_check_time = time() * 1000
                     self.version = self.__updater.get_version()
@@ -542,6 +547,10 @@ class TBGatewayService:
             self.__close_connectors()
             log.info("The gateway has been stopped.")
             self.tb_client.stop()
+
+    def __check_message_latency(self):
+        for connector in self.available_connectors_by_name.values():
+            connector.check_message_latency()
 
     def __modify_main_config(self):
         env_variables = TBUtility.get_service_environmental_variables()
@@ -1193,6 +1202,16 @@ class TBGatewayService:
                             except Exception as e:
                                 log.exception(e)
                                 continue
+
+                            if isinstance(current_event.get('telemetry'), dict) and current_event.get('telemetry').get(
+                                    'values').get('isTestLatencyMessageType', False):
+                                current_event['telemetry']['values']['getFromStorageTs'] = int(time() * 1000)
+                                log.debug('LATENCY CHECK for %s connector: %s',
+                                          current_event['telemetry']['values']['connectorName'],
+                                          {'receivedTs': current_event['telemetry']['values']['receivedTs'],
+                                           'beforeConversionTs': current_event['telemetry']['values']['beforeConversionTs'],
+                                           'convertedTs': current_event['telemetry']['values']['convertedTs'],
+                                           'putToStorageTs': current_event['telemetry']['values']['putToStorageTs']})
 
                             if not devices_data_in_event_pack.get(current_event["deviceName"]): # noqa
                                 devices_data_in_event_pack[current_event["deviceName"]] = {"telemetry": [],
