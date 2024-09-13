@@ -281,13 +281,33 @@ class TBUtility:
 
     @staticmethod
     def get_data_size(data):
-        if isinstance(data, dict):
-            return sum((TBUtility.get_data_size(v) for v in data.values())) + sum(
-                (TBUtility.get_data_size(k) for k in data.keys())) + getsizeof(str(data))
+        if data is None:
+            return len('null')  # Size of 'null' in JSON
+        elif isinstance(data, bool):
+            return len('true') if data else len('false')  # Size of 'true' or 'false' in JSON
+        elif isinstance(data, (int, float)):
+            return len(str(data))  # Size of the number when represented as a string in JSON
+        elif isinstance(data, str):
+            return len(data.encode('utf-8')) + 2  # Add 2 for the quotes around the string
+        elif isinstance(data, dict):
+            size = 2  # Start with 2 for the opening and closing braces '{}'
+            for i, (key, value) in enumerate(data.items()):
+                size += TBUtility.get_data_size(key)  # Key size (will include quotes)
+                size += 1  # Colon ':' between key and value
+                size += TBUtility.get_data_size(value)  # Value size
+                if i < len(data) - 1:
+                    size += 1  # Comma ',' between items
+            return size
         elif isinstance(data, (list, tuple, set, frozenset)):
-            return sum((TBUtility.get_data_size(i) for i in data)) + getsizeof(str(data))
+            size = 2  # Start with 2 for the opening and closing brackets '[]'
+            for i, item in enumerate(data):
+                size += TBUtility.get_data_size(item)  # Element size
+                if i < len(data) - 1:
+                    size += 1  # Comma ',' between elements
+            return size
         else:
-            return getsizeof(str(data))
+            # For any other type, fallback to converting it to a string and measuring the size
+            return len(str(data).encode('utf-8'))
 
     @staticmethod
     def get_service_environmental_variables():
