@@ -226,9 +226,9 @@ class TBGatewayService:
 
         self.init_statistics_service(self.__config['thingsboard'].get('statistics', DEFAULT_STATISTIC))
 
-        self.__min_pack_send_delay_ms = 10 #self.__config['thingsboard'].get('minPackSendDelayMS', 50)
+        self.__min_pack_send_delay_ms = 1000 #self.__config['thingsboard'].get('minPackSendDelayMS', 50)
         self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
-        self.__min_pack_size_to_send = 10 #self.__config['thingsboard'].get('minPackSizeToSend', 50)
+        self.__min_pack_size_to_send = 50 #self.__config['thingsboard'].get('minPackSizeToSend', 50)
         self.__max_payload_size_in_bytes = 1_000_000 #self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
 
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
