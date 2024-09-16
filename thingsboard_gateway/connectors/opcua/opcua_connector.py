@@ -27,7 +27,10 @@ from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua.device import Device
 from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
+from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
+from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -66,7 +69,7 @@ class OpcUaConnector(Connector, Thread):
                            'MessagesSent': 0}
         super().__init__()
         self._connector_type = connector_type
-        self.__gateway = gateway
+        self.__gateway: 'TBGatewayService' = gateway
         self.__config = config
         self.__id = self.__config.get('id')
         self.name = self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
@@ -93,7 +96,6 @@ class OpcUaConnector(Connector, Thread):
         self.__enable_subscriptions = self.__server_conf.get('enableSubscriptions', True)
         self.__sub_check_period_in_millis = self.__server_conf.get("subCheckPeriodInMillis", 1)
 
-        self.__data_to_send = Queue(-1)
         self.__sub_data_to_convert = Queue(-1)
 
         try:
@@ -195,8 +197,6 @@ class OpcUaConnector(Connector, Thread):
         return self.__config
 
     def run(self):
-        data_send_thread = Thread(name='Send Data Thread', target=self.__send_data, daemon=True)
-        data_send_thread.start()
 
         if self.__enable_subscriptions:
             sub_data_convert_thread = Thread(name='Sub Data Convert Thread', target=self.__convert_sub_data,
@@ -207,7 +207,7 @@ class OpcUaConnector(Connector, Thread):
             self.__loop.run_until_complete(self.start_client())
         except asyncio.CancelledError:
             try:
-                self.disconnect_if_connected()
+                self.__loop.run_until_complete(self.disconnect_if_connected())
             except Exception:
                 pass
         except Exception as e:
@@ -295,7 +295,7 @@ class OpcUaConnector(Connector, Thread):
             try:
                 await self.__unsubscribe_from_nodes()
                 await self.__client.disconnect()
-            except TimeoutError:
+            except Exception:
                 pass  # ignore
 
     async def retry_with_backoff(self, func, *args, max_retries=8, initial_delay=1, backoff_factor=2):
@@ -425,18 +425,23 @@ class OpcUaConnector(Connector, Thread):
     def __convert_sub_data(self):
         while not self.__stopped:
             if not self.__sub_data_to_convert.empty():
-                sub_node, data = self.__sub_data_to_convert.get()
+                sub_node, data, received_ts = self.__sub_data_to_convert.get()
 
                 for device in self.__device_nodes:
                     for section in ('attributes', 'timeseries'):
                         for node in device.values.get(section, []):
                             if node.get('id') == sub_node.__str__():
-                                converter_data = device.converter_for_sub.convert(
+                                converted_data = device.converter_for_sub.convert(
                                     {'section': section, 'key': node['key']},
                                     data.monitored_item.Value)
 
-                                if converter_data:
-                                    self.__data_to_send.put(converter_data)
+                                converted_data.add_to_metadata({
+                                    CONNECTOR_PARAMETER: self.get_name(),
+                                    RECEIVED_TS_PARAMETER: received_ts,
+                                    CONVERTED_TS_PARAMETER: int(time() * 1000)
+                                })
+                                if converted_data:
+                                    self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
             else:
                 sleep(.05)
 
@@ -509,7 +514,10 @@ class OpcUaConnector(Connector, Thread):
 
                             found_node = await self.__client.nodes.root.get_child(path)
 
-                        device.nodes.append({'node': found_node, 'key': node['key'], 'section': section})
+                        device.nodes.append({'node': found_node,
+                                             'key': node['key'],
+                                             'section': section,
+                                             'timestampLocation': node.get('timestampLocation', 'gateway')})
 
                         subscription_exists = (device.subscription is not None
                                                and found_node.nodeid in device.nodes_data_change_subscriptions
@@ -578,18 +586,27 @@ class OpcUaConnector(Connector, Thread):
 
         if len(all_nodes) > 0:
             values = await self.__client.read_attributes(all_nodes)
+            received_ts = int(time() * 1000)
 
             converted_nodes_count = 0
             for device in self.__device_nodes:
                 nodes_count = len(device.nodes)
                 device_values = values[converted_nodes_count:converted_nodes_count + nodes_count]
                 converted_nodes_count += nodes_count
-                converter_data = self.__convert_device_data(device.converter, device.nodes, device_values)
-                if converter_data:
-                    self.__data_to_send.put(converter_data)
+                conversion_start = int(time() * 1000)
+                converted_data: ConvertedData = self.__convert_device_data(device.converter, device.nodes, device_values)
+                self.__log.error('Conversion time: %s ms', int(time() * 1000) - conversion_start)
+                converted_data.add_to_metadata({
+                    CONNECTOR_PARAMETER: self.get_name(),
+                    RECEIVED_TS_PARAMETER: received_ts,
+                    CONVERTED_TS_PARAMETER: int(time() * 1000)
+                })
+                if converted_data:
+                    self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
 
                     StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-                    StatisticsService.count_connector_bytes(self.name, converter_data,
+                    #TODO: Should these counters be here, or on upper level?
+                    StatisticsService.count_connector_bytes(self.name, converted_data,
                                                             stat_parameter_name='connectorBytesReceived')
 
             self.__log.debug('Converted nodes values count: %s', converted_nodes_count)
@@ -600,20 +617,13 @@ class OpcUaConnector(Connector, Thread):
     def __convert_device_data(converter, device_nodes, values):
         return converter.convert(device_nodes, values)
 
-    def __send_data(self):
-        while not self.__stopped:
-            if not self.__data_to_send.empty():
-                data = self.__data_to_send.get()
+    def __send_data_to_gateway_storage(self, data):
+        data.metadata.update({'sendToStorageTs': int(time() * 1000)})
 
-                if data.get('deviceName') == 'currentThingsBoardGateway':
-                    data['telemetry'].append({'putToStorageTs': int(time() * 1000)})
-
-                self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
-                self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
-                self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                self.__log.debug('Count data msg to storage: %s', self.statistics['MessagesSent'])
-            else:
-                sleep(.05)
+        self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
+        self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
+        self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+        self.__log.debug('Count data msg to storage: %s', self.statistics['MessagesSent'])
 
     async def get_shared_attr_node_id(self, path, result={}):
         try:
@@ -855,4 +865,4 @@ class SubHandler:
 
     def datachange_notification(self, node, _, data):
         self.__log.debug("New data change event %s %s", node, data)
-        self.__queue.put((node, data))
+        self.__queue.put((node, data, int(time() * 1000)))
