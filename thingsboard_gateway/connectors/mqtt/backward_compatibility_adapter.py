@@ -7,10 +7,9 @@ class BackwardCompatibilityAdapter:
 
     def convert(self):
         self._config['requestsMapping'] = {}
-        self._config['dataMapping'] = []
         mapping = {'requestsMapping': ('connectRequests', 'disconnectRequests', 'attributeRequests',
                                        'attributeUpdates', 'serverSideRpc'),
-                   'dataMapping': ('mapping', )}
+                   'mapping': ('mapping', 'dataMapping')}
 
         for (map_section, map_type) in mapping.items():
             for t in map_type:
@@ -28,7 +27,7 @@ class BackwardCompatibilityAdapter:
                         if t == 'attributeRequests':
                             self._parce_attribute_info(item)
 
-                    if t == 'mapping':
+                    if t == 'mapping' or t == 'dataMapping':
                         self._config[map_section] = section_config
                     else:
                         self._config[map_section][t] = section_config

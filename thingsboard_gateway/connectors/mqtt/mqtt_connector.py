@@ -154,8 +154,10 @@ class MqttConnector(Connector, Thread):
 
         self.__shared_custom_converters = {}
 
+        mapping_key = 'mapping' if self.config.get('mapping') else 'dataMapping'
+
         mandatory_keys = {
-            "dataMapping": ['topicFilter', 'converter'],
+            mapping_key: ['topicFilter', 'converter'],
             "serverSideRpc": ['deviceNameFilter', 'methodFilter', 'requestTopicExpression', 'valueExpression'],
             "connectRequests": ['topicFilter'],
             "disconnectRequests": ['topicFilter'],
@@ -164,7 +166,7 @@ class MqttConnector(Connector, Thread):
         }
 
         # Mappings, i.e., telemetry/attributes-push handlers provided by user via configuration file
-        self.load_handlers('dataMapping', mandatory_keys['dataMapping'], self.__mapping)
+        self.load_handlers(mapping_key, mandatory_keys[mapping_key], self.__mapping)
 
         # RPCs, i.e., remote procedure calls (ThingsBoard towards devices) handlers
         self.load_handlers('serverSideRpc', mandatory_keys['serverSideRpc'], self.__server_side_rpc)
@@ -1032,8 +1034,8 @@ class MqttConnector(Connector, Thread):
                 self._send_current_converter_config(self.name + ':' + converter_name, config)
                 self.__log.info('Updated converter configuration for: %s with configuration %s',
                                 converter_name, converter_obj.config)
-
-                for device_config in self.config['dataMapping']:
+                mapping_key = 'mapping' if self.config.get('mapping') else 'dataMapping'
+                for device_config in self.config[mapping_key]:
                     try:
                         if device_config['converter']['deviceInfo']['deviceNameExpression'] == config[
                                 'deviceNameExpression']:
