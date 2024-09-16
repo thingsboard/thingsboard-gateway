@@ -343,6 +343,7 @@ class RemoteConfigurator:
         old_event_storage = self._gateway._event_storage
         try:
             storage_class = self._gateway.event_storage_types[config["type"]]
+            self._gateway._event_storage.stop()
             self._gateway._event_storage = storage_class(config)
         except Exception as e:
             LOG.error('Something went wrong with applying the new storage configuration. Reverting...')
