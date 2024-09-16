@@ -14,7 +14,8 @@
 
 import asyncio
 import re
-from queue import Queue
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue, Empty
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
@@ -27,7 +28,8 @@ from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua.device import Device
 from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
-from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER
+from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
+    DATA_RETRIEVING_STARTED
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
@@ -97,6 +99,7 @@ class OpcUaConnector(Connector, Thread):
         self.__sub_check_period_in_millis = self.__server_conf.get("subCheckPeriodInMillis", 1)
 
         self.__sub_data_to_convert = Queue(-1)
+        self.__data_to_convert = Queue(-1)
 
         try:
             self.__loop = asyncio.new_event_loop()
@@ -110,6 +113,12 @@ class OpcUaConnector(Connector, Thread):
         self.__connected = False
         self.__stopped = False
         self.daemon = True
+
+        self.__thread_pool_executor = ThreadPoolExecutor(max_workers=8)
+        self.__thread_pool_executor_processor_thread = Thread(name='Thread Pool Executor Processor',
+                                                              target=self.__thread_pool_executor_processor,
+                                                              daemon=True)
+        self.__thread_pool_executor_processor_thread.start()
 
         self.__device_nodes: List[Device] = []
         self.__next_poll = 0
@@ -582,24 +591,50 @@ class OpcUaConnector(Connector, Thread):
                 self.__log.exception(e)
 
     async def __poll_nodes(self):
+        data_retrieving_started = int(time() * 1000)
         all_nodes = [node_config['node'] for device in self.__device_nodes for node_config in device.nodes]
 
         if len(all_nodes) > 0:
             values = await self.__client.read_attributes(all_nodes)
             received_ts = int(time() * 1000)
 
+            self.__data_to_convert.put((values, received_ts, data_retrieving_started))
+
+        else:
+            self.__log.info('No nodes to poll')
+
+    def __thread_pool_executor_processor(self):
+        pack = 10
+        futures = []
+        while not self.__stopped:
+            try:
+                for future in futures:
+                    future.result()
+            except Exception as e:
+                self.__log.exception("Error in thread pool executor: %s", e)
+
+            try:
+                values, received_ts, data_retrieving_started = self.__data_to_convert.get_nowait()
+                futures.append(self.__thread_pool_executor.submit(self.__convert_retrieved_data, values, received_ts,
+                                                            data_retrieving_started))
+                if len(futures) >= pack:
+                    continue
+            except Empty:
+                sleep(.02)
+
+    def __convert_retrieved_data(self, values, received_ts, data_retrieving_started):
+        try:
             converted_nodes_count = 0
             for device in self.__device_nodes:
                 nodes_count = len(device.nodes)
                 device_values = values[converted_nodes_count:converted_nodes_count + nodes_count]
                 converted_nodes_count += nodes_count
-                conversion_start = int(time() * 1000)
                 converted_data: ConvertedData = self.__convert_device_data(device.converter, device.nodes, device_values)
-                self.__log.error('Conversion time: %s ms', int(time() * 1000) - conversion_start)
                 converted_data.add_to_metadata({
                     CONNECTOR_PARAMETER: self.get_name(),
                     RECEIVED_TS_PARAMETER: received_ts,
-                    CONVERTED_TS_PARAMETER: int(time() * 1000)
+                    CONVERTED_TS_PARAMETER: int(time() * 1000),
+                    DATA_RETRIEVING_STARTED: data_retrieving_started
                 })
                 if converted_data:
                     self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
@@ -608,10 +643,9 @@ class OpcUaConnector(Connector, Thread):
                     #TODO: Should these counters be here, or on upper level?
                     StatisticsService.count_connector_bytes(self.name, converted_data,
                                                             stat_parameter_name='connectorBytesReceived')
-
-            self.__log.debug('Converted nodes values count: %s', converted_nodes_count)
-        else:
-            self.__log.info('No nodes to poll')
+        except Exception as e:
+            print("Error converting data: %s", e)
+            self.__log.exception("Error converting data: %s", e)
 
     @staticmethod
     def __convert_device_data(converter, device_nodes, values):

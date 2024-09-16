@@ -58,6 +58,7 @@ setup(
         'regex',
         'pip',
         'PyYAML',
+        'orjson',
         'simplejson',
         'urllib3<=1.26.15',
         'requests>=2.31.0',

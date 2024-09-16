@@ -66,6 +66,7 @@ DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE = 0
 RECEIVED_TS_PARAMETER = "receivedTs"
 CONVERTED_TS_PARAMETER = "convertedTs"
 SEND_TO_STORAGE_TS_PARAMETER = "sendToStorageTs"
+DATA_RETRIEVING_STARTED = "dataRetriveStartedTs"
 
 # Size of metadata that will be added to messages in debug mode
 # Connector name length should be added to the size of the metadata
