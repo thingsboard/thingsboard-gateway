@@ -17,7 +17,7 @@ from logging import getLogger
 from os import environ
 from platform import system as platform_system
 from re import search, findall
-from sys import getsizeof
+from typing import Union
 from uuid import uuid4
 
 from cryptography import x509
@@ -52,12 +52,19 @@ class TBUtility:
         return content
 
     @staticmethod
-    def validate_converted_data(data):
-        error = None
-        if error is None and not data.get("deviceName"):
-            error = 'deviceName is empty in data: '
+    def validate_converted_data(data: Union[dict, 'ConvertedData']):
+        from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 
-        if error is None:
+        errors = []
+        if isinstance(data, ConvertedData):
+            if data.device_name is None:
+                errors.append('deviceName is empty')
+            if not data.telemetry and not data.attributes:
+                errors.append('No telemetry and attributes')
+        else:
+            if not data.get('deviceName'):
+                errors.append('deviceName is empty')
+
             got_attributes = False
             got_telemetry = False
 
@@ -71,14 +78,14 @@ class TBUtility:
                         break
 
             if got_attributes is False and got_telemetry is False:
-                error = 'No telemetry and attributes in data: '
+                errors.append('No telemetry and attributes')
 
-        if error is not None:
+        if errors:
             json_data = dumps(data)
             if isinstance(json_data, bytes):
-                log.error(error + json_data.decode("UTF-8"))
+                log.error("Found errors: " + str(errors) + " in data: " + json_data.decode("UTF-8"))
             else:
-                log.error(error + json_data)
+                log.error("Found errors: " + str(errors) + " in data: " + json_data)
             return False
         return True
 
@@ -281,13 +288,10 @@ class TBUtility:
 
     @staticmethod
     def get_data_size(data):
-        if isinstance(data, dict):
-            return sum((TBUtility.get_data_size(v) for v in data.values())) + sum(
-                (TBUtility.get_data_size(k) for k in data.keys())) + getsizeof(str(data))
-        elif isinstance(data, (list, tuple, set, frozenset)):
-            return sum((TBUtility.get_data_size(i) for i in data)) + getsizeof(str(data))
-        else:
-            return getsizeof(str(data))
+        try:
+            return len(dumps(data, separators=(',', ':'), skipkeys=True).encode('utf-8'))
+        except UnicodeDecodeError:
+            return len(dumps(data, separators=(',', ':'), skipkeys=True))
 
     @staticmethod
     def get_service_environmental_variables():
