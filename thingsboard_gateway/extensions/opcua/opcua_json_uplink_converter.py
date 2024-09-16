@@ -11,15 +11,17 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timezone
 from time import time
 
 from thingsboard_gateway.connectors.converter import Converter
 from asyncua.ua.uatypes import VariantType
 
-from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER, ATTRIBUTES_PARAMETER, DEVICE_NAME_PARAMETER, \
-    DEVICE_TYPE_PARAMETER, TELEMETRY_VALUES_PARAMETER, TELEMETRY_TIMESTAMP_PARAMETER
+from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter
+from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER, ATTRIBUTES_PARAMETER
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 DATA_TYPES = {
@@ -42,63 +44,71 @@ VARIANT_TYPE_HANDLERS = {
     VariantType.Null: lambda data: None
 }
 
+ERROR_MSG_TEMPLATE = "Bad status code: {} for node: {} with description {}"
 
 class OpcuaJsonUplinkConverter(Converter):
     def __init__(self, config, logger):
         self._log = logger
         self.__config = config
 
-    def __get_parsed_value(self, val):
-        value = val.Value.Value
-
-        if isinstance(value, list):
-            value = [str(item) for item in value]
-        elif value is not None and not isinstance(value, (int, float, str, bool, dict, type(None))):
-            handler = VARIANT_TYPE_HANDLERS.get(val.Value.VariantType,
-                                                lambda value: str(value) if not hasattr(value,
-                                                                                      'to_string') else value.to_string())
-            value = handler(value)
-
-        if value is None and val.StatusCode.is_bad():
-            msg = "Bad status code: %r for node: %r with description %r" % (val.StatusCode.name,
-                                                                            val.data_type,
-                                                                            val.StatusCode.doc)
-            self._log.warning(msg)
-            value = msg
-
-        return value
-
-    def __get_data_values(self, config, val):
+    @staticmethod
+    def process_datapoint(config, val, basic_timestamp):
         try:
-            value = self.__get_parsed_value(val)
+            error = None
+            data = val.Value.Value
+            if isinstance(data, list):
+                data = [str(item) for item in data]
+            else:
+                handler = VARIANT_TYPE_HANDLERS.get(val.Value.VariantType, lambda d: str(d) if not hasattr(d, 'to_string') else d.to_string())
+                value = handler(data)
+                try:
+                    data = {
+                        'Value': {
+                            'value': value,
+                            'VariantType': val.Value.VariantType._name_,
+                            'IsArray': val.Value.IsArray if hasattr(val.Value, 'IsArray') else 'Unknown',
+                        },
+                        'SourceTimestamp': val.SourceTimestamp.isoformat(),
+                        'ServerTimestamp': val.ServerTimestamp.isoformat(),
+                        'SourcePicoseconds': val.SourcePicoseconds,
+                        'ServerPicoseconds': val.ServerPicoseconds,
+                        'DataType': {
+                            'Identifier': val.data_type.Identifier,
+                            'NamespaceIndex': val.data_type.NamespaceIndex,
+                            'NodeIdType': '{}:{}'.format(val.data_type.NodeIdType._name_, val.data_type.NodeIdType._name_),
+                        },
+                        'Encoding': val.Encoding,
+                        'PlatformKey': config.get('key'),
+                        'Node': config['node'].__str__() if config.get('node') else 'Can\'t get node string representation',
+                    }
+                except Exception as e:
+                    data = str(e)
+                    error = True
 
-            data = {
-                'Value': {
-                    'value': value,
-                    'VariantType': val.Value.VariantType._name_,
-                    'IsArray': val.Value.IsArray if hasattr(val.Value, 'IsArray') else 'Unknown',
-                },
-                'SourceTimestamp': val.SourceTimestamp.isoformat(),
-                'ServerTimestamp': val.ServerTimestamp.isoformat(),
-                'SourcePicoseconds': val.SourcePicoseconds,
-                'ServerPicoseconds': val.ServerPicoseconds,
-                'DataType': {
-                    'Identifier': val.data_type.Identifier,
-                    'NamespaceIndex': val.data_type.NamespaceIndex,
-                    'NodeIdType': '{}:{}'.format(val.data_type.NodeIdType._name_, val.data_type.NodeIdType._name_),
-                },
-                'Encoding': val.Encoding,
-                'PlatformKey': config.get('key'),
-                'Node': config['node'].__str__() if config.get('node') else 'Can\'t get node string representation',
-            }
+            if data is None and val.StatusCode.is_bad():
+                data = str.format(ERROR_MSG_TEMPLATE,val.StatusCode.name, val.data_type, val.StatusCode.doc)
+                error = True
 
-            return data
+            timestamp_location = config.get('timestampLocation', 'gateway').lower()
+            timestamp = basic_timestamp  # Default timestamp
+            if timestamp_location == 'sourcetimestamp' and val.SourceTimestamp is not None:
+                timestamp = val.SourceTimestamp.timestamp() * 1000
+            elif timestamp_location == 'servertimestamp' and val.ServerTimestamp is not None:
+                timestamp = val.ServerTimestamp.timestamp() * 1000
+
+            section = DATA_TYPES[config['section']]
+            if section == TELEMETRY_PARAMETER:
+                return TelemetryEntry({config['key']: data}, ts=timestamp), error
+            elif section == ATTRIBUTES_PARAMETER:
+                return {config['key']: data}, error
         except Exception as e:
-            self._log.error('Cannot get data values: %s' % str(e))
-            return {}
+            return None, str(e)
 
-    def convert(self, configs, values):
+    def convert(self, configs, values) -> ConvertedData:
         StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
+        basic_timestamp = int(time() * 1000)
+
+        is_debug_enabled = self._log.isEnabledFor(10)
 
         try:
             if not isinstance(configs, list):
@@ -106,48 +116,62 @@ class OpcuaJsonUplinkConverter(Converter):
             if not isinstance(values, list):
                 values = [values]
 
-            result_data = {
-                DEVICE_NAME_PARAMETER: self.__config['device_name'],
-                DEVICE_TYPE_PARAMETER: self.__config['device_type'],
-                ATTRIBUTES_PARAMETER: [],
-                TELEMETRY_PARAMETER: []}
-            telemetry_datapoints = {}
+            if is_debug_enabled:
+                start_iteration = basic_timestamp
+            converted_data = ConvertedData(device_name=self.__config['device_name'], device_type=self.__config['device_type'])
 
-            telemetry_datapoints_count = 0
-            attributes_datapoints_count = 0
+            max_workers = min(8, len(values))
 
-            timestamp = int(time()) * 1_000 # round up to 1 second
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                results = list(executor.map(self.process_datapoint, configs, values, [basic_timestamp] * len(values)))
 
-            for val, config in zip(values, configs):
-                if not val:
-                    continue
+            telemetry_batch = []
+            attributes_batch = []
 
-                data = self.__get_data_values(config, val)
+            if is_debug_enabled:
+                filling_start_time = int(time() * 1000)
 
-                section = DATA_TYPES[config['section']]
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_telemetry = executor.submit(self.fill_telemetry, results)
+                future_attributes = executor.submit(self.fill_attributes, results)
+                telemetry_batch = future_telemetry.result()
+                attributes_batch = future_attributes.result()
 
-                if val.SourceTimestamp and section == TELEMETRY_PARAMETER:
-                    telemetry_datapoints_count += 1
-                    if timestamp in telemetry_datapoints:
-                        telemetry_datapoints[timestamp].update({config['key']: data})
-                    else:
-                        telemetry_datapoints[timestamp] = {config['key']: data}
-                else:
-                    attributes_datapoints_count += 1
-                    result_data[section].append({config['key']: data})
+            converted_data.add_to_telemetry(telemetry_batch)
+            for attr in attributes_batch:
+                converted_data.add_to_attributes(attr)
 
-            if telemetry_datapoints:
-                result_data[TELEMETRY_PARAMETER].extend(
-                    {TELEMETRY_TIMESTAMP_PARAMETER: timestamp, TELEMETRY_VALUES_PARAMETER: datapoints}
-                    for timestamp, datapoints in telemetry_datapoints.items()
-                )
+            if is_debug_enabled:
+                converted_data_fill_time = int(time() * 1000) - filling_start_time
+            total_datapoints_in_converted_data = converted_data.telemetry_datapoints_count + converted_data.attributes_datapoints_count
 
-            StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                      count=attributes_datapoints_count)
-            StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                      count=telemetry_datapoints_count)
+            if is_debug_enabled:
+                self._log.debug("Iteration took %d ms", int(time() * 1000) - start_iteration)
+                self._log.debug("Filling took %d ms", converted_data_fill_time)
+                self._log.debug("Average time per iteration: %2f ms", (float(int(time() * 1000)) - start_iteration) / float(len(values)))
+                self._log.debug("Average filling time: %2f ms", float(converted_data_fill_time) / float(total_datapoints_in_converted_data))
+                self._log.debug("Total datapoints in converted data: %d", total_datapoints_in_converted_data)
 
-            return result_data
+            StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced', count=converted_data.attributes_datapoints_count)
+            StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced', count=converted_data.telemetry_datapoints_count)
+
+            return converted_data
         except Exception as e:
-            self._log.exception(e)
+            self._log.exception("Error occurred while converting data: ", exc_info=e)
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
+
+    @staticmethod
+    def fill_telemetry(results):
+        telemetry_batch = []
+        for result, error in results:
+            if isinstance(result, TelemetryEntry):
+                telemetry_batch.append(result)
+        return telemetry_batch
+
+    @staticmethod
+    def fill_attributes(results):
+        attributes_batch = []
+        for result, error in results:
+            if isinstance(result, dict):
+                attributes_batch.append(result)
+        return attributes_batch
