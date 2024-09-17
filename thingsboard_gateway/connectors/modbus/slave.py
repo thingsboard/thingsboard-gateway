@@ -22,10 +22,6 @@ from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import 
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
-DEFAULT_REPORT_STRATEGY = {
-    'type': ReportStrategy.ON_REPORT_PERIOD,
-    REPORT_PERIOD_PARAMETER: 60.0
-}
 
 class Slave(Thread):
     def __init__(self, **kwargs):
@@ -68,7 +64,8 @@ class Slave(Thread):
             'rpc': kwargs.get('rpc', [])
         }
 
-        self.__basic_device_report_strategy_config = self.__get_report_strategy_from_config(kwargs)
+        self.__basic_device_report_strategy_config = (
+            self.__get_report_strategy_from_config(kwargs, kwargs.get(REPORT_STRATEGY_PARAMETER, {})))
 
         self.__load_converters(kwargs['connector'])
 
@@ -173,7 +170,8 @@ class Slave(Thread):
         previous_value = self.cached_data.get(section_with_prefix, {}).get(key, {}).get('previous_value')
         if previous_value is None:
             self.cached_data[section_with_prefix][key]['previous_value'] = value
-            if self.cached_data[section_with_prefix][key]['type'] in (ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD, ReportStrategy.ON_REPORT_PERIOD):
+            if self.cached_data[section_with_prefix][key]['type'] in (ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD,
+                                                                      ReportStrategy.ON_REPORT_PERIOD):
                 self.cached_data[section_with_prefix][key]['next_send_monotonic_ms'] = (
                         monotonic() + self.cached_data[section_with_prefix][key][REPORT_PERIOD_PARAMETER])
             return True
@@ -188,16 +186,14 @@ class Slave(Thread):
 
         return False
 
-    def __get_report_strategy_from_config(self, config: dict, default_report_strategy_config=None):
-        if default_report_strategy_config is None:
-            default_report_strategy_config = DEFAULT_REPORT_STRATEGY
+    def __get_report_strategy_from_config(self, config: dict, default_report_strategy_config):
         report_strategy_config = default_report_strategy_config
         if not config:
             return report_strategy_config
         if config.get(SEND_DATA_ONLY_ON_CHANGE_PARAMETER) is not None:
             report_strategy_config = {
                 'type': ReportStrategy.ON_CHANGE if config.get(SEND_DATA_ONLY_ON_CHANGE_PARAMETER) else ReportStrategy.ON_REPORT_PERIOD,
-                REPORT_PERIOD_PARAMETER: config.get(report_strategy_config.get(REPORT_PERIOD_PARAMETER, config.get("pollPeriod", 60000)), 60000) / 1000
+                REPORT_PERIOD_PARAMETER: config.get(REPORT_PERIOD_PARAMETER, report_strategy_config.get(REPORT_PERIOD_PARAMETER, self.poll_period))
             }
         if config.get(REPORT_STRATEGY_PARAMETER) is not None:
             try:

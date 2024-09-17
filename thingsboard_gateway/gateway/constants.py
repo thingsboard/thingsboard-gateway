@@ -11,6 +11,7 @@
 #      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
+from enum import Enum
 
 from simplejson import dumps
 from time import time
@@ -77,6 +78,14 @@ DEBUG_METADATA_TEMPLATE_SIZE = len(dumps({
         "publishedTs": int(time() * 1000)}}
     , separators=(',', ':'), skipkeys=True).encode("utf-8"))
 
+# Report strategy parameters
+REPORT_STRATEGY_PARAMETER = "reportStrategy"
+REPORT_PERIOD_PARAMETER = "reportPeriod"
+
+class ReportStrategy(Enum):
+    ON_REPORT_PERIOD = "ON_REPORT_PERIOD"
+    ON_CHANGE = "ON_CHANGE"
+    ON_CHANGE_OR_REPORT_PERIOD = "ON_CHANGE_OR_REPORT_PERIOD"
 
 # RPC parameter constants
 

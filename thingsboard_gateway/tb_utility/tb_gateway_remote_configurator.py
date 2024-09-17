@@ -25,7 +25,7 @@ from simplejson import dumps, load
 
 from tb_gateway_mqtt import TBGatewayMqttClient
 
-from thingsboard_gateway.gateway.constants import CONFIG_VERSION_PARAMETER
+from thingsboard_gateway.gateway.constants import CONFIG_VERSION_PARAMETER, REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -531,6 +531,10 @@ class RemoteConfigurator:
                                            'enableRemoteLogging': config.get('enableRemoteLogging', False),
                                            'configuration': config_file_name,
                                            CONFIG_VERSION_PARAMETER: config.get(CONFIG_VERSION_PARAMETER)}
+
+                if config.get(REPORT_STRATEGY_PARAMETER):
+                    connector_configuration[REPORT_STRATEGY_PARAMETER] = config[REPORT_STRATEGY_PARAMETER]
+
                 if config.get('key'):
                     connector_configuration['key'] = config['key']
 
@@ -580,7 +584,10 @@ class RemoteConfigurator:
                                                'id': connector_id,
                                                'enableRemoteLogging': config.get('enableRemoteLogging', False),
                                                'configuration': config_file_name,
-                                               CONFIG_VERSION_PARAMETER: config.get(CONFIG_VERSION_PARAMETER)}
+                                               CONFIG_VERSION_PARAMETER: config.get(CONFIG_VERSION_PARAMETER),
+                                               }
+                    if config.get(REPORT_STRATEGY_PARAMETER):
+                        connector_configuration[REPORT_STRATEGY_PARAMETER] = config[REPORT_STRATEGY_PARAMETER]
 
                     if config.get('key'):
                         connector_configuration['key'] = config['key']
@@ -592,13 +599,16 @@ class RemoteConfigurator:
 
                 if changed:
                     with open(self._gateway.get_config_path() + config_file_name, 'w') as file:
-                        config['configurationJson'].update({'logLevel': config['logLevel'],
-                                                            'name': connector_name,
-                                                            'enableRemoteLogging': config.get('enableRemoteLogging',
-                                                                                              False),
-                                                            'id': connector_id,
-                                                            CONFIG_VERSION_PARAMETER:
-                                                                config.get(CONFIG_VERSION_PARAMETER)})
+                        config_json_update = {'logLevel': config['logLevel'],
+                                      'name': connector_name,
+                                      'enableRemoteLogging': config.get('enableRemoteLogging',
+                                                                        False),
+                                      'id': connector_id,
+                                      CONFIG_VERSION_PARAMETER:
+                                          config.get(CONFIG_VERSION_PARAMETER)}
+                        if config.get(REPORT_STRATEGY_PARAMETER):
+                            config_json_update[REPORT_STRATEGY_PARAMETER] = config[REPORT_STRATEGY_PARAMETER]
+                        config['configurationJson'].update(config_json_update)
                         file.writelines(dumps(config['configurationJson'], indent='  '))
 
                     if connector_configuration is None:

@@ -72,14 +72,6 @@ HOLDING_REGISTERS = "holding_registers"
 INPUT_REGISTERS = "input_registers"
 DISCRETE_INPUTS = "discrete_inputs"
 
-# Report strategy parameters
-REPORT_STRATEGY_PARAMETER = "dataReportStrategy"
-REPORT_PERIOD_PARAMETER = "reportPeriod"
-class ReportStrategy(Enum):
-    ON_REPORT_PERIOD = "ON_REPORT_PERIOD"
-    ON_CHANGE = "ON_CHANGE"
-    ON_CHANGE_OR_REPORT_PERIOD = "ON_CHANGE_OR_REPORT_PERIOD"
-
 class RequestType(Enum):
     POLL = "POLL"
     SEND_DATA = "SEND_DATA"

@@ -150,6 +150,8 @@ class ModbusConnector(Connector, Thread):
         self.__slaves = []
         self.__slave_thread = None
 
+        self.__main_report_strategy = self.__config.get(REPORT_STRATEGY_PARAMETER, {})
+
         if self.__config.get('slave') and self.__config.get('slave', {}).get('sendDataToThingsBoard', False):
             self.__slave_thread = Thread(target=self.__configure_and_run_slave, args=(self.__config['slave'],),
                                          daemon=True, name='Gateway modbus slave')
@@ -255,7 +257,7 @@ class ModbusConnector(Connector, Thread):
     def __load_slaves(self):
         for device in self.__config.get('master', {'slaves': []}).get('slaves', []):
             self.__slaves.append(Slave(**{**device, 'connector': self, 'gateway': self.__gateway, 'logger': self.__log,
-                     'callback': ModbusConnector.callback}))
+                     'callback': ModbusConnector.callback, REPORT_STRATEGY_PARAMETER: self.__main_report_strategy}))
 
     @classmethod
     def callback(cls, slave: Slave, request_type: RequestType, data=None):
