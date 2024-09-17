@@ -85,49 +85,28 @@ class OpcUaUplinkConverter(OpcUaConverter):
         StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
         basic_timestamp = int(time() * 1000)
 
-        is_debug_enabled = self._log.isEnabledFor(10)
-
         try:
             if not isinstance(configs, list):
                 configs = [configs]
             if not isinstance(values, list):
                 values = [values]
 
-            if is_debug_enabled:
-                start_iteration = basic_timestamp
             converted_data = ConvertedData(device_name=self.__config['device_name'], device_type=self.__config['device_type'])
-
-            max_workers = min(8, len(values))
-
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                results = list(executor.map(self.process_datapoint, configs, values, [basic_timestamp] * len(values)))
 
             telemetry_batch = []
             attributes_batch = []
 
-            if is_debug_enabled:
-                filling_start_time = int(time() * 1000)
-
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_telemetry = executor.submit(self.fill_telemetry, results)
-                future_attributes = executor.submit(self.fill_attributes, results)
-                telemetry_batch = future_telemetry.result()
-                attributes_batch = future_attributes.result()
+            for config, val in zip(configs, values):
+                result, error = self.process_datapoint(config, val, basic_timestamp)
+                if result is not None:
+                    if isinstance(result, TelemetryEntry):
+                        telemetry_batch.append(result)
+                    elif isinstance(result, dict):
+                        attributes_batch.append(result)
 
             converted_data.add_to_telemetry(telemetry_batch)
             for attr in attributes_batch:
                 converted_data.add_to_attributes(attr)
-
-            if is_debug_enabled:
-                converted_data_fill_time = int(time() * 1000) - filling_start_time
-            total_datapoints_in_converted_data = converted_data.telemetry_datapoints_count + converted_data.attributes_datapoints_count
-
-            if is_debug_enabled:
-                self._log.debug("Iteration took %d ms", int(time() * 1000) - start_iteration)
-                self._log.debug("Filling took %d ms", converted_data_fill_time)
-                self._log.debug("Average time per iteration: %2f ms", (float(int(time() * 1000)) - start_iteration) / float(len(values)))
-                self._log.debug("Average filling time: %2f ms", float(converted_data_fill_time) / float(total_datapoints_in_converted_data))
-                self._log.debug("Total datapoints in converted data: %d", total_datapoints_in_converted_data)
 
             StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced', count=converted_data.attributes_datapoints_count)
             StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced', count=converted_data.telemetry_datapoints_count)

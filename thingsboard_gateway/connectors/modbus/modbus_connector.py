@@ -479,6 +479,8 @@ class ModbusConnector(Connector, Thread):
             while not device.config['master'].is_socket_open() \
                     and device.config['connection_attempt'] < connect_attempt_count \
                     and current_time - device.config.get('last_connection_attempt_time', 0) >= connect_attempt_time_ms:
+                if self.__stopped:
+                    return False
                 device.config['connection_attempt'] = device.config['connection_attempt'] + 1
                 device.config['last_connection_attempt_time'] = current_time
                 self.__log.debug("Modbus trying connect to %s", device)

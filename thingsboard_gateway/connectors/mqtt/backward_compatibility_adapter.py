@@ -7,12 +7,11 @@ class BackwardCompatibilityAdapter:
 
     def convert(self):
         self._config['requestsMapping'] = {}
-        self._config['dataMapping'] = []
-        mapping = {'requestsMapping': ('connectRequests', 'disconnectRequests', 'attributeRequests',
+        config_mapping = {'requestsMapping': ('connectRequests', 'disconnectRequests', 'attributeRequests',
                                        'attributeUpdates', 'serverSideRpc'),
-                   'dataMapping': ('mapping', )}
+                   'mapping': ('mapping', 'dataMapping')}
 
-        for (map_section, map_type) in mapping.items():
+        for (map_section, map_type) in config_mapping.items():
             for t in map_type:
                 section_config = self._config.pop(t, {})
                 try:
@@ -27,11 +26,11 @@ class BackwardCompatibilityAdapter:
 
                         if t == 'attributeRequests':
                             self._parce_attribute_info(item)
-
-                    if t == 'mapping':
-                        self._config[map_section] = section_config
-                    else:
-                        self._config[map_section][t] = section_config
+                    if not self._config.get(map_section):
+                        if t == 'mapping' or t == 'dataMapping':
+                            self._config[map_section] = section_config
+                        else:
+                            self._config[map_section][t] = section_config
                 except KeyError:
                     continue
                 except AttributeError as e:

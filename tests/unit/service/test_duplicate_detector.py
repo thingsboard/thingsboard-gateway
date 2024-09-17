@@ -85,6 +85,7 @@ class TestDuplicateDetector(BaseUnitTest):
         return {TELEMETRY_TIMESTAMP_PARAMETER: ts, TELEMETRY_VALUES_PARAMETER: value} if ts else value
 
     def setUp(self):
+        super().setUp()
         self.connectors = {}
         self._duplicate_detector = DuplicateDetector(self.connectors)
 

@@ -38,7 +38,7 @@ from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME, RENAMING_PARAMETER, CONNECTOR_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, \
     CONNECTOR_ID_PARAMETER, ATTRIBUTES_FOR_REQUEST, CONFIG_VERSION_PARAMETER, CONFIG_SECTION_PARAMETER, \
-    DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER
+    DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
@@ -1065,7 +1065,11 @@ class TBGatewayService:
                     if converted_data_format:
                         event.add_to_metadata({"getFromConvertedDataQueueTs": int(time() * 1000)})
                         self.__send_to_storage_new_formatted_data(connector_name, connector_id, data_array)
-                        log.debug("Event was in queue for %r ms", int(time() * 1000) - event.metadata.get("sendToStorageTs"))
+                        current_time = int(time() * 1000)
+                        if event.metadata.get("sendToStorageTs"):
+                            log.debug("Event was in queue for %r ms", current_time - event.metadata.get("sendToStorageTs"))
+                        if event.metadata.get(DATA_RETRIEVING_STARTED):
+                            log.debug("Data retrieving and conversion took %r ms", current_time - event.metadata.get(DATA_RETRIEVING_STARTED))
                     else:
                         self.__send_to_storage_old_formatted_data(connector_name, connector_id, data_array)
 
