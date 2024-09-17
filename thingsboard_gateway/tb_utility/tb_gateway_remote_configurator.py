@@ -580,6 +580,7 @@ class RemoteConfigurator:
                                                'id': connector_id,
                                                'enableRemoteLogging': config.get('enableRemoteLogging', False),
                                                'configuration': config_file_name,
+                                               'sendDataOnlyOnChange': config.get('sendDataOnlyOnChange', False),
                                                CONFIG_VERSION_PARAMETER: config.get(CONFIG_VERSION_PARAMETER)}
 
                     if config.get('key'):
@@ -636,6 +637,9 @@ class RemoteConfigurator:
 
                     self._gateway.load_connectors(self._get_general_config_in_local_format())
                     self._gateway.connect_with_connectors()
+
+            # can be removed in the future versions:
+            config['sendDataOnlyOnChange'] = config['configurationJson'].get('sendDataOnlyOnChange', False)
 
             for (device_name, device_config) in list(self._gateway.get_devices().items()):
                 if (connector_id == device_config.get('connector').get_id()
