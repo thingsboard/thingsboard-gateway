@@ -544,10 +544,6 @@ class TBGatewayService:
                     self.check_connector_configuration_updates()
                     connectors_configuration_check_time = time() * 1000
 
-                if self.__config['thingsboard'].get('latencyDebugMode', False) and cur_time - latency_check_time > 60000:
-                    self.__check_message_latency()
-                    latency_check_time = time() * 1000
-
                 if cur_time - self.__updates_check_time >= self.__updates_check_period_ms:
                     self.__updates_check_time = time() * 1000
                     self.version = self.__updater.get_version()
@@ -561,10 +557,6 @@ class TBGatewayService:
             self.__close_connectors()
             log.info("The gateway has been stopped.")
             self.tb_client.stop()
-
-    def __check_message_latency(self):
-        for connector in self.available_connectors_by_name.values():
-            connector.check_message_latency()
 
     def __modify_main_config(self):
         env_variables = TBUtility.get_service_environmental_variables()
