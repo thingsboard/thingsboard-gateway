@@ -14,13 +14,11 @@
 from copy import deepcopy
 from threading import Thread, Lock
 from time import sleep, monotonic
-from time import time as timestamp
 from time import monotonic as time
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
 from packaging import version
-from pymodbus.payload import BinaryPayloadBuilder
 
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -59,7 +57,7 @@ except ImportError:
 
 from pymodbus.bit_write_message import WriteSingleCoilResponse, WriteMultipleCoilsResponse
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
-from pymodbus.register_read_message import ReadRegistersResponseBase, ReadInputRegistersResponse
+from pymodbus.register_read_message import ReadRegistersResponseBase
 from pymodbus.bit_read_message import ReadBitsResponseBase
 from pymodbus.client import ModbusTcpClient, ModbusTlsClient, ModbusUdpClient, ModbusSerialClient
 from pymodbus.framer.rtu_framer import ModbusRtuFramer
@@ -291,25 +289,12 @@ class ModbusConnector(Connector, Thread):
         device, current_device_config, config, device_responses = params
         converted_data = {}
 
-        if current_device_config.get('deviceName') == 'currentThingsBoardGateway':
-            before_conversion_ts_builder = BinaryPayloadBuilder(byteorder='<', wordorder='<')
-            before_conversion_ts_builder.add_64bit_int(int(timestamp() * 1000))
-
-            device_responses['timeseries']['beforeConversionTs'] = {
-                'input_data': ReadInputRegistersResponse(values=before_conversion_ts_builder.to_registers()),
-                'data_sent': {'tag': 'beforeConversionTs', 'type': '64int', 'functionCode': 4, 'objectsCount': 4,
-                              'address': 1, 'deviceName': 'currentThingsBoardGateway'},
-            }
-
         try:
             converted_data = device.config[UPLINK_PREFIX + CONVERTER_PARAMETER].convert(
                 config=config,
                 data=device_responses)
         except Exception as e:
             self.__log.error(e)
-
-        if current_device_config.get('deviceName') == 'currentThingsBoardGateway':
-            converted_data['telemetry'].append({'convertedTs': int(timestamp() * 1000)})
 
         to_send = {DEVICE_NAME_PARAMETER: converted_data[DEVICE_NAME_PARAMETER],
                    DEVICE_TYPE_PARAMETER: converted_data[DEVICE_TYPE_PARAMETER],
@@ -330,10 +315,6 @@ class ModbusConnector(Connector, Thread):
 
     def _save_data(self, data):
         StatisticsService.count_connector_message(self.name, stat_parameter_name='storageMsgPushed')
-
-        if data.get('deviceName') == 'currentThingsBoardGateway':
-            data['telemetry'].append({'putToStorageTs': int(timestamp() * 1000)})
-            data['telemetry'].append({'isTestLatencyMessageType': True})
 
         self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
         self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
@@ -849,56 +830,6 @@ class ModbusConnector(Connector, Thread):
                     self.__gateway.update_connector_config_file(self.name, self.__config)
             except KeyError:
                 continue
-
-    def check_message_latency(self):
-        try:
-            test_device_configuration = {
-                'unitId': 1,
-                'deviceType': 'default',
-                'type': 'tcp',
-                'host': '127.0.0.1',
-                'port': 502,
-                'byteOrder': 'LITTLE',
-                'wordOrder': 'LITTLE',
-                'deviceName': 'currentThingsBoardGateway',
-                'pollPeriod': 10,
-                'timeseries': [
-                    {'tag': 'connectorName', 'type': 'string', 'functionCode': 4, 'objectsCount': 2, 'address': 1},
-                    {'tag': 'beforeConversionTs', 'type': '32int', 'functionCode': 4, 'objectsCount': 1, 'address': 1},
-                    {'tag': 'receivedTs', 'type': '64int', 'functionCode': 4, 'objectsCount': 4, 'address': 1}
-                ],
-                'gateway': self.__gateway,
-                'connector': self,
-                'logger': self.__log,
-                'callback': lambda x: x
-            }
-            test_device = Slave(**test_device_configuration)
-
-            ts_builder = BinaryPayloadBuilder(byteorder='<', wordorder='<')
-            ts_builder.add_64bit_int(int(timestamp() * 1000))
-
-            connector_name_builder = BinaryPayloadBuilder(byteorder='<', wordorder='<')
-            connector_name_builder.add_string(self.name)
-
-            test_device_response = {
-                'timeseries': {
-                    'connectorName': {
-                        'input_data': ReadInputRegistersResponse(values=connector_name_builder.to_registers()),
-                        'data_sent': {'tag': 'connectorName', 'type': 'string', 'functionCode': 4, 'objectsCount': 10,
-                                      'address': 10, 'deviceName': 'currentThingsBoardGateway'}
-                    },
-                    'receivedTs': {
-                        'input_data': ReadInputRegistersResponse(values=ts_builder.to_registers()),
-                        'data_sent': {'tag': 'receivedTs', 'type': '64int', 'functionCode': 4, 'objectsCount': 4,
-                                      'address': 1, 'deviceName': 'currentThingsBoardGateway'},
-                    }
-                }
-            }
-
-            self._convert_msg_queue.put((self.__convert_data, (
-                test_device, test_device_configuration, test_device_configuration, test_device_response)))
-        except Exception as e:
-            self.__log.error('Can\'t generate test latency message: %s', e)
 
     class ConverterWorker(Thread):
         def __init__(self, name, incoming_queue, send_result, logger):
