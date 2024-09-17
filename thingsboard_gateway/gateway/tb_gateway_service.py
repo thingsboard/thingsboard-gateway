@@ -1331,13 +1331,10 @@ class TBGatewayService:
                                     for item in current_event["attributes"]:
                                         current_event_pack_data_size = self.check_size(devices_data_in_event_pack, current_event_pack_data_size, TBUtility.get_data_size(item))
                                         devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(item.items()) # noqa
-                                        devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(
-                                            {'metadata': current_event.get('metadata')})
                                         attribute_dp_count += 1
                                 else:
                                     current_event_pack_data_size = self.check_size(devices_data_in_event_pack, current_event_pack_data_size, TBUtility.get_data_size(current_event["attributes"]))
                                     devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(current_event["attributes"].items()) # noqa
-                                    devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update({'metadata': current_event.get('metadata')})
                                     attribute_dp_count += 1
 
                             # log.debug("Processing attributes in event took %r seconds.", time() - start_processing_attributes_in_event) # noqa
