@@ -192,6 +192,7 @@ class TBGatewayService:
             self.__connectors_init_start_success = False
 
         connection_logger = logging.getLogger('tb_connection')
+        log.info(self.__config['thingsboard'])
         self.tb_client = TBClient(self.__config["thingsboard"], self._config_dir, connection_logger)
         try:
             self.tb_client.disconnect()
