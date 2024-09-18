@@ -256,8 +256,11 @@ class ModbusConnector(Connector, Thread):
 
     def __load_slaves(self):
         for device in self.__config.get('master', {'slaves': []}).get('slaves', []):
-            self.__slaves.append(Slave(**{**device, 'connector': self, 'gateway': self.__gateway, 'logger': self.__log,
-                     'callback': ModbusConnector.callback, REPORT_STRATEGY_PARAMETER: self.__main_report_strategy}))
+            slave_config = {**device, 'connector': self, 'gateway': self.__gateway, 'logger': self.__log,
+                'callback': ModbusConnector.callback}
+            if REPORT_STRATEGY_PARAMETER not in slave_config:
+                slave_config[REPORT_STRATEGY_PARAMETER] = self.__main_report_strategy
+            self.__slaves.append(Slave(**slave_config))
 
     @classmethod
     def callback(cls, slave: Slave, request_type: RequestType, data=None):

@@ -111,7 +111,7 @@ class Slave(Thread):
                 if current_monotonic - self.__last_polled_time >= self.poll_period:
                     self.callback(self, RequestType.POLL)
                     self.__last_polled_time = current_monotonic
-                if current_monotonic - self.__last_checked_time >= 1:
+                if current_monotonic - self.__last_checked_time >= 1.0:
                     self.__check_data_to_send_periodically(current_monotonic)
                     self.__last_checked_time = current_monotonic
             except Exception as e:
