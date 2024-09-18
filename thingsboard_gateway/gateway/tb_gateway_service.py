@@ -1311,18 +1311,22 @@ class TBGatewayService:
                                 devices_data_in_event_pack[current_event["deviceName"]] = {"telemetry": [],
                                                                                            "attributes": {}}
                             # start_processing_telemetry_in_event = time()
+                            has_metadata = False
+                            if current_event.get('metadata'):
+                                has_metadata = True
                             if current_event.get("telemetry"):
                                 if isinstance(current_event["telemetry"], list):
                                     for item in current_event["telemetry"]:
-                                        item.update({'metadata': current_event.get('metadata')})
+                                        if has_metadata and item.get('ts'):
+                                            item.update({'metadata': current_event.get('metadata')})
                                         current_event_pack_data_size = self.check_size(devices_data_in_event_pack, current_event_pack_data_size, TBUtility.get_data_size(item))
                                         devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(item) # noqa
                                         telemetry_dp_count += len(item.get('values', []))
                                 else:
+                                    if has_metadata and current_event["telemetry"].get('ts'):
+                                        current_event["telemetry"].update({'metadata': current_event.get('metadata')})
                                     current_event_pack_data_size = self.check_size(devices_data_in_event_pack, current_event_pack_data_size, TBUtility.get_data_size(current_event["telemetry"]))
                                     devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(current_event["telemetry"]) # noqa
-                                    devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(
-                                        {'metadata': current_event.get('metadata')})
                                     telemetry_dp_count += len(current_event["telemetry"].get('values', []))
                             # log.debug("Processing telemetry in event took %r seconds.", time() - start_processing_telemetry_in_event) # noqa
                             # start_processing_attributes_in_event = time()
@@ -1331,13 +1335,10 @@ class TBGatewayService:
                                     for item in current_event["attributes"]:
                                         current_event_pack_data_size = self.check_size(devices_data_in_event_pack, current_event_pack_data_size, TBUtility.get_data_size(item))
                                         devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(item.items()) # noqa
-                                        devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(
-                                            {'metadata': current_event.get('metadata')})
                                         attribute_dp_count += 1
                                 else:
                                     current_event_pack_data_size = self.check_size(devices_data_in_event_pack, current_event_pack_data_size, TBUtility.get_data_size(current_event["attributes"]))
                                     devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(current_event["attributes"].items()) # noqa
-                                    devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update({'metadata': current_event.get('metadata')})
                                     attribute_dp_count += 1
 
                             # log.debug("Processing attributes in event took %r seconds.", time() - start_processing_attributes_in_event) # noqa
