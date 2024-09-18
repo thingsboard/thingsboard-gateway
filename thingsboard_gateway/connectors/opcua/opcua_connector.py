@@ -97,6 +97,8 @@ class OpcUaConnector(Connector, Thread):
 
         self.__enable_subscriptions = self.__server_conf.get('enableSubscriptions', True)
         self.__sub_check_period_in_millis = self.__server_conf.get("subCheckPeriodInMillis", 1)
+        # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
+        self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
 
         self.__sub_data_to_convert = Queue(-1)
         self.__data_to_convert = Queue(-1)
@@ -432,27 +434,47 @@ class OpcUaConnector(Connector, Thread):
         return result[0] if len(result) > 0 and get_first else result
 
     def __convert_sub_data(self):
-        while not self.__stopped:
-            if not self.__sub_data_to_convert.empty():
-                sub_node, data, received_ts = self.__sub_data_to_convert.get()
+        device_converted_data_map = {}
 
+        while not self.__stopped:
+            batch = []
+            while not self.__sub_data_to_convert.empty() and len(batch) < self.__sub_data_max_batch_size:
+                try:
+                    batch.append(self.__sub_data_to_convert.get_nowait())
+                except Empty:
+                    break
+            if not batch:
+                continue
+
+            for sub_node, data, received_ts in batch:
                 for device in self.__device_nodes:
                     for section in ('attributes', 'timeseries'):
                         for node in device.values.get(section, []):
                             if node.get('id') == sub_node.__str__():
+                                if device not in device_converted_data_map:
+                                    device_converted_data_map[device] = ConvertedData(device_name=device.name)
+
                                 converted_data = device.converter_for_sub.convert(
                                     {'section': section, 'key': node['key']},
-                                    data.monitored_item.Value)
+                                    data.monitored_item.Value
+                                )
 
-                                converted_data.add_to_metadata({
-                                    CONNECTOR_PARAMETER: self.get_name(),
-                                    RECEIVED_TS_PARAMETER: received_ts,
-                                    CONVERTED_TS_PARAMETER: int(time() * 1000)
-                                })
                                 if converted_data:
-                                    self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
-            else:
-                sleep(.05)
+                                    converted_data.add_to_metadata({
+                                        CONNECTOR_PARAMETER: self.get_name(),
+                                        RECEIVED_TS_PARAMETER: received_ts,
+                                        CONVERTED_TS_PARAMETER: int(time() * 1000)
+                                    })
+
+                                    if section == 'attributes':
+                                        device_converted_data_map[device].add_to_attributes(converted_data.attributes)
+                                    else:
+                                        device_converted_data_map[device].add_to_telemetry(converted_data.telemetry)
+
+            for device, converted_data in device_converted_data_map.items():
+                self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
+
+            device_converted_data_map.clear()
 
     async def __scan_device_nodes(self):
         await self._create_new_devices()
