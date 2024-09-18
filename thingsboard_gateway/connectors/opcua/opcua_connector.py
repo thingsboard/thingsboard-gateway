@@ -99,6 +99,7 @@ class OpcUaConnector(Connector, Thread):
         self.__sub_check_period_in_millis = self.__server_conf.get("subCheckPeriodInMillis", 1)
         # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
         self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
+        self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200), 100) / 1000
 
         self.__sub_data_to_convert = Queue(-1)
         self.__data_to_convert = Queue(-1)
@@ -438,12 +439,16 @@ class OpcUaConnector(Connector, Thread):
 
         while not self.__stopped:
             batch = []
-            while not self.__sub_data_to_convert.empty() and len(batch) < self.__sub_data_max_batch_size:
+            batch_get_time = time()
+            while (not self.__sub_data_to_convert.empty()
+                   and len(batch) < self.__sub_data_max_batch_size
+                   and time() - batch_get_time < self.__sub_data_min_batch_creation_time):
                 try:
                     batch.append(self.__sub_data_to_convert.get_nowait())
                 except Empty:
                     break
             if not batch:
+                sleep(max(self.__sub_check_period_in_millis / 1000, .02))
                 continue
 
             for sub_node, data, received_ts in batch:
