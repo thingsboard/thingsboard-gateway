@@ -14,20 +14,22 @@
 
 import asyncio
 import re
-from queue import Queue
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue, Empty
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic, time
 from typing import List
 
-from asyncua.ua import DataValue, VariantType, Variant
+from asyncua.ua import DataValue
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua.device import Device
 from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
-from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER
+from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
+    DATA_RETRIEVING_STARTED
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
@@ -95,8 +97,12 @@ class OpcUaConnector(Connector, Thread):
 
         self.__enable_subscriptions = self.__server_conf.get('enableSubscriptions', True)
         self.__sub_check_period_in_millis = self.__server_conf.get("subCheckPeriodInMillis", 1)
+        # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
+        self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
+        self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200), 100) / 1000
 
         self.__sub_data_to_convert = Queue(-1)
+        self.__data_to_convert = Queue(-1)
 
         try:
             self.__loop = asyncio.new_event_loop()
@@ -110,6 +116,12 @@ class OpcUaConnector(Connector, Thread):
         self.__connected = False
         self.__stopped = False
         self.daemon = True
+
+        self.__thread_pool_executor = ThreadPoolExecutor(max_workers=8)
+        self.__thread_pool_executor_processor_thread = Thread(name='Thread Pool Executor Processor',
+                                                              target=self.__thread_pool_executor_processor,
+                                                              daemon=True)
+        self.__thread_pool_executor_processor_thread.start()
 
         self.__device_nodes: List[Device] = []
         self.__next_poll = 0
@@ -423,27 +435,51 @@ class OpcUaConnector(Connector, Thread):
         return result[0] if len(result) > 0 and get_first else result
 
     def __convert_sub_data(self):
-        while not self.__stopped:
-            if not self.__sub_data_to_convert.empty():
-                sub_node, data, received_ts = self.__sub_data_to_convert.get()
+        device_converted_data_map = {}
 
+        while not self.__stopped:
+            batch = []
+            batch_get_time = time()
+            while (not self.__sub_data_to_convert.empty()
+                   and len(batch) < self.__sub_data_max_batch_size
+                   and time() - batch_get_time < self.__sub_data_min_batch_creation_time):
+                try:
+                    batch.append(self.__sub_data_to_convert.get_nowait())
+                except Empty:
+                    break
+            if not batch:
+                sleep(max(self.__sub_check_period_in_millis / 1000, .02))
+                continue
+
+            for sub_node, data, received_ts in batch:
                 for device in self.__device_nodes:
                     for section in ('attributes', 'timeseries'):
                         for node in device.values.get(section, []):
                             if node.get('id') == sub_node.__str__():
+                                if device not in device_converted_data_map:
+                                    device_converted_data_map[device] = ConvertedData(device_name=device.name)
+
                                 converted_data = device.converter_for_sub.convert(
                                     {'section': section, 'key': node['key']},
-                                    data.monitored_item.Value)
+                                    data.monitored_item.Value
+                                )
 
-                                converted_data.add_to_metadata({
-                                    CONNECTOR_PARAMETER: self.get_name(),
-                                    RECEIVED_TS_PARAMETER: received_ts,
-                                    CONVERTED_TS_PARAMETER: int(time() * 1000)
-                                })
                                 if converted_data:
-                                    self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
-            else:
-                sleep(.05)
+                                    converted_data.add_to_metadata({
+                                        CONNECTOR_PARAMETER: self.get_name(),
+                                        RECEIVED_TS_PARAMETER: received_ts,
+                                        CONVERTED_TS_PARAMETER: int(time() * 1000)
+                                    })
+
+                                    if section == 'attributes':
+                                        device_converted_data_map[device].add_to_attributes(converted_data.attributes)
+                                    else:
+                                        device_converted_data_map[device].add_to_telemetry(converted_data.telemetry)
+
+            for device, converted_data in device_converted_data_map.items():
+                self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
+
+            device_converted_data_map.clear()
 
     async def __scan_device_nodes(self):
         await self._create_new_devices()
@@ -582,12 +618,39 @@ class OpcUaConnector(Connector, Thread):
                 self.__log.exception(e)
 
     async def __poll_nodes(self):
+        data_retrieving_started = int(time() * 1000)
         all_nodes = [node_config['node'] for device in self.__device_nodes for node_config in device.nodes]
 
         if len(all_nodes) > 0:
             values = await self.__client.read_attributes(all_nodes)
             received_ts = int(time() * 1000)
 
+            self.__data_to_convert.put((values, received_ts, data_retrieving_started))
+
+        else:
+            self.__log.info('No nodes to poll')
+
+    def __thread_pool_executor_processor(self):
+        pack = 10
+        futures = []
+        while not self.__stopped:
+            try:
+                for future in futures:
+                    future.result()
+            except Exception as e:
+                self.__log.exception("Error in thread pool executor: %s", e)
+
+            try:
+                values, received_ts, data_retrieving_started = self.__data_to_convert.get_nowait()
+                futures.append(self.__thread_pool_executor.submit(self.__convert_retrieved_data, values, received_ts,
+                                                            data_retrieving_started))
+                if len(futures) >= pack:
+                    continue
+            except Empty:
+                sleep(.02)
+
+    def __convert_retrieved_data(self, values, received_ts, data_retrieving_started):
+        try:
             converted_nodes_count = 0
             converted_data_dev_count = 0
             converted_data_attr_count = 0
@@ -597,13 +660,12 @@ class OpcUaConnector(Connector, Thread):
                 nodes_count = len(device.nodes)
                 device_values = values[converted_nodes_count:converted_nodes_count + nodes_count]
                 converted_nodes_count += nodes_count
-                conversion_start = int(time() * 1000)
                 converted_data: ConvertedData = self.__convert_device_data(device.converter, device.nodes, device_values)
-                self.__log.error('Conversion time: %s ms', int(time() * 1000) - conversion_start)
                 converted_data.add_to_metadata({
                     CONNECTOR_PARAMETER: self.get_name(),
                     RECEIVED_TS_PARAMETER: received_ts,
-                    CONVERTED_TS_PARAMETER: int(time() * 1000)
+                    CONVERTED_TS_PARAMETER: int(time() * 1000),
+                    DATA_RETRIEVING_STARTED: data_retrieving_started
                 })
                 if converted_data:
                     self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
@@ -612,12 +674,9 @@ class OpcUaConnector(Connector, Thread):
                     #TODO: Should these counters be here, or on upper level?
                     StatisticsService.count_connector_bytes(self.name, converted_data,
                                                             stat_parameter_name='connectorBytesReceived')
-
-            self.__log.debug('Converted nodes %s: devices %s, attr %s, telemetry %s',
-                                 converted_nodes_count, converted_data_dev_count,
-                                 converted_data_attr_count, converted_telemetry_ts_count)
-        else:
-            self.__log.info('No nodes to poll')
+        except Exception as e:
+            print("Error converting data: %s", e)
+            self.__log.exception("Error converting data: %s", e)
 
     @staticmethod
     def __convert_device_data(converter, device_nodes, values):
@@ -819,49 +878,6 @@ class OpcUaConnector(Connector, Thread):
 
                 self.__gateway.update_connector_config_file(self.name, {'server': self.__server_conf,
                                                                         'mapping': self.__config.get('mapping', [])})
-
-    def check_message_latency(self):
-        test_device_nodes = [
-            {'key': 'connectorName', 'node': None, 'section': 'timeseries'},
-            {'key': 'receivedTs', 'node': None, 'section': 'timeseries'},
-            {'key': 'isTestLatencyMessageType', 'node': None, 'section': 'timeseries'},
-            {'key': 'beforeConversionTs', 'node': None, 'section': 'timeseries'}
-        ]
-
-        test_device_config = {
-            'device_name': 'currentThingsBoardGateway',
-            'device_type': 'default',
-            'deviceNodeSource': 'path',
-            'timeseries': [
-                {'key': 'receivedTs', 'type': 'path', 'value': '${receivedTs}'},
-                {'key': 'isTestLatencyMessageType', 'type': 'path', 'value': '${isTestLatencyMessageType}'},
-                {'key': 'beforeConversionTs', 'type': 'path', 'value': '${beforeConversionTs}'},
-                {'key': 'connectorName', 'type': 'path', 'value': '${className}'}
-            ],
-            'deviceNodePattern': 'Test',
-            'deviceInfo': {
-                'deviceNameExpressionSource': 'constant',
-                'deviceNameExpression': 'currentThingsBoardGateway',
-                'deviceProfileExpressionSource': 'constant',
-                'deviceProfileExpression': 'default'
-            }
-        }
-
-        test_values = [
-            DataValue(Value=Variant(Value=self.name, VariantType=VariantType.String)),
-            DataValue(Value=Variant(Value=int(time() * 1000), VariantType=VariantType.Int64)),
-            DataValue(Value=Variant(True, VariantType=VariantType.Boolean))
-        ]
-
-        test_converter = OpcUaUplinkConverter(test_device_config, self.__log)
-
-        test_device = Device(['Test'], 'currentThingsBoardGateway', test_device_config, test_converter, None, self.__log)
-        test_device.nodes = test_device_nodes
-
-        test_values.append(DataValue(Value=Variant(Value=int(time() * 1000), VariantType=VariantType.Int64)))
-        converted_data = self.__convert_device_data(test_converter, test_device_nodes, test_values)
-        converted_data['telemetry'].append({'convertedTs': int(time() * 1000)})
-        self.__data_to_send.put(converted_data)
 
 
 class SubHandler:

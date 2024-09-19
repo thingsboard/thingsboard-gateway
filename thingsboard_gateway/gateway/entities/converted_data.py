@@ -213,15 +213,3 @@ class ConvertedData:
             converted_objects.append(current_data)
 
         return converted_objects
-
-
-if __name__ == '__main__':
-    data = ConvertedData("device_name", "device_type")
-    data.add_to_attributes({"key1": "value1", "key2": "value2"})
-    data.add_to_telemetry({"ts": 123456, "values": {"key1": "value1", "key2": "value2"}})
-    data.add_to_telemetry({"ts": 123457, "values": {"key3": "value3", "key4": "value4"}})
-    data.add_to_telemetry({"ts": 123457, "values": {"key5": "value5", "key4": "value4"}})
-    data.add_to_telemetry({"ts": 123457, "values": {"key7": "value5", "key5": "value7"}})
-    data.add_to_telemetry({"ts": 123457, "values": {"key6": "value5", "key5": "value7"}})
-    print(data.telemetry_datapoints_count)
-    print([telemetry_entry.values for telemetry_entry in data.telemetry])

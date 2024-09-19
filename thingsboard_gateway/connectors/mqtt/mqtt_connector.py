@@ -24,7 +24,6 @@ from time import sleep, time
 import simplejson
 
 from thingsboard_gateway.connectors.mqtt.backward_compatibility_adapter import BackwardCompatibilityAdapter
-from thingsboard_gateway.connectors.mqtt.json_mqtt_uplink_converter import JsonMqttUplinkConverter
 from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER, DEFAULT_SEND_ON_CHANGE_VALUE, \
     ATTRIBUTES_PARAMETER, TELEMETRY_PARAMETER, SEND_ON_CHANGE_TTL_PARAMETER, DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE
 from thingsboard_gateway.gateway.constant_enums import Status
@@ -107,7 +106,6 @@ RESULT_CODES_V5 = {
 class MqttConnector(Connector, Thread):
     CONFIGURATION_KEY_SHARED_GLOBAL = "sharedGlobal"
     CONFIGURATION_KEY_SHARED_ID = "sharedId"
-    TEST_MESSAGE_LATENCY_TOPIC = ''.join(random.choice(string.ascii_lowercase) for _ in range(23))
 
     def __init__(self, gateway, config, connector_type):
         super().__init__()
@@ -154,8 +152,10 @@ class MqttConnector(Connector, Thread):
 
         self.__shared_custom_converters = {}
 
+        mapping_key = 'mapping' if self.config.get('mapping') else 'dataMapping'
+
         mandatory_keys = {
-            "dataMapping": ['topicFilter', 'converter'],
+            mapping_key: ['topicFilter', 'converter'],
             "serverSideRpc": ['deviceNameFilter', 'methodFilter', 'requestTopicExpression', 'valueExpression'],
             "connectRequests": ['topicFilter'],
             "disconnectRequests": ['topicFilter'],
@@ -164,7 +164,7 @@ class MqttConnector(Connector, Thread):
         }
 
         # Mappings, i.e., telemetry/attributes-push handlers provided by user via configuration file
-        self.load_handlers('dataMapping', mandatory_keys['dataMapping'], self.__mapping)
+        self.load_handlers(mapping_key, mandatory_keys[mapping_key], self.__mapping)
 
         # RPCs, i.e., remote procedure calls (ThingsBoard towards devices) handlers
         self.load_handlers('serverSideRpc', mandatory_keys['serverSideRpc'], self.__server_side_rpc)
@@ -276,36 +276,6 @@ class MqttConnector(Connector, Thread):
         msg = simplejson.loads(msg.decode('utf-8').replace("'", '"'))
         msg[ts_name] = int(time() * 1000)
         return simplejson.dumps(msg).encode('utf-8')
-
-    def check_message_latency(self):
-        try:
-            test_converter_config = {
-                'converter': {
-                    'deviceInfo': {
-                        'deviceNameExpressionSource': 'constant',
-                        'deviceNameExpression': 'currentThingsBoardGateway',
-                        'deviceProfileExpressionSource': 'constant',
-                        'deviceProfileExpression': 'default',
-                    },
-                    'timeseries': [
-                        {'key': 'beforeConversionTs', 'type': 'int', 'value': '${beforeConversionTs}'},
-                        {'key': 'receivedTs', 'type': 'int', 'value': '${receivedTs}'},
-                        {'key': 'connectorName', 'type': 'string', 'value': '${connectorName}'},
-                        {'key': 'isTestLatencyMessageType', 'type': 'bool', 'value': '${isTestLatencyMessageType}'}
-                    ]
-                }
-            }
-            converter = JsonMqttUplinkConverter(test_converter_config, self.__log)
-            self.__mapping_sub_topics[MqttConnector.TEST_MESSAGE_LATENCY_TOPIC] = [converter]
-
-            test_message = MQTTMessage(topic=MqttConnector.TEST_MESSAGE_LATENCY_TOPIC.encode('utf-8'))
-            test_message_payload = '{"isTestLatencyMessageType": true, "connectorName": "' + self.name + '"}'
-            test_message.payload = test_message_payload.encode('utf-8')
-
-            test_message.payload = self.__add_ts_to_test_message(test_message.payload, 'receivedTs')
-            self._on_message_queue.put((None, None, test_message))
-        except Exception as e:
-            self.__log.error('Can\'t generate test latency message: %s', e)
 
     def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list):
         handler_configuration = self.config.get(handler_flavor)
@@ -572,9 +542,6 @@ class MqttConnector(Connector, Thread):
         return False
 
     def _save_converted_msg(self, topic, data):
-        if topic == MqttConnector.TEST_MESSAGE_LATENCY_TOPIC:
-            data['telemetry'].append({'putToStorageTs': int(time() * 1000)})
-
         if self.__gateway.send_to_storage(self.name, self.get_id(), data) == Status.SUCCESS:
             StatisticsService.count_connector_message(self.name, stat_parameter_name='storageMsgPushed')
             self.statistics['MessagesSent'] += 1
@@ -663,9 +630,6 @@ class MqttConnector(Connector, Thread):
                                     continue
 
                                 self.__topic_content[message.topic] = content
-
-                                if message.topic == MqttConnector.TEST_MESSAGE_LATENCY_TOPIC:
-                                    content['beforeConversionTs'] = int(time() * 1000)
 
                                 request_handled = self.put_data_to_convert(converter, message, content)
                             except Exception as e:
@@ -1032,8 +996,8 @@ class MqttConnector(Connector, Thread):
                 self._send_current_converter_config(self.name + ':' + converter_name, config)
                 self.__log.info('Updated converter configuration for: %s with configuration %s',
                                 converter_name, converter_obj.config)
-
-                for device_config in self.config['dataMapping']:
+                mapping_key = 'mapping' if self.config.get('mapping') else 'dataMapping'
+                for device_config in self.config[mapping_key]:
                     try:
                         if device_config['converter']['deviceInfo']['deviceNameExpression'] == config[
                                 'deviceNameExpression']:
@@ -1076,10 +1040,6 @@ class MqttConnector(Connector, Thread):
                     converted_data = convert_function(config, incoming_data)
                     if converted_data and (converted_data.get(ATTRIBUTES_PARAMETER) or
                                            converted_data.get(TELEMETRY_PARAMETER)):
-
-                        if config == MqttConnector.TEST_MESSAGE_LATENCY_TOPIC:
-                            converted_data['telemetry'].append({'convertedTs': int(time() * 1000)})
-
                         self.__send_result(config, converted_data)
                     self.in_progress = False
                 else:

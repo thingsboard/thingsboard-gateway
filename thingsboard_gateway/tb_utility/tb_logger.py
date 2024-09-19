@@ -18,6 +18,9 @@ from threading import Thread
 
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
+TRACE_LOGGING_LEVEL = 5
+logging.addLevelName(TRACE_LOGGING_LEVEL, "TRACE")
+
 
 def init_logger(gateway, name, level, enable_remote_logging=False, is_connector_logger=False,
                 is_converter_logger=False):
@@ -69,6 +72,7 @@ class TbLogger(logging.Logger):
         self.__previous_errors_sent_time = monotonic()
         self.__is_connector_logger = is_connector_logger
         self.__is_converter_logger = is_converter_logger
+        logging.Logger.trace = TbLogger.trace
 
         if self.__is_connector_logger:
             self.connector_name = name
@@ -134,6 +138,11 @@ class TbLogger(logging.Logger):
                 self._start_time = monotonic()
 
             sleep(1)
+
+    def trace(self, msg, *args, **kwargs):
+        if self.isEnabledFor(TRACE_LOGGING_LEVEL):
+            self._log(TRACE_LOGGING_LEVEL, msg, args, **kwargs)
+
 
     def error(self, msg, *args, **kwargs):
         kwargs['stacklevel'] = 2

@@ -32,6 +32,7 @@ class ConnectorTestBase(IntegrationBaseTest):
                           "data" + path.sep)
 
     def setUp(self):
+        super().setUp()
         self.mock_logger = patch('thingsboard_gateway.tb_utility.tb_logger.TbLogger').start()
         self.gateway = Mock(spec=TBGatewayService)
         self.gateway.log = self.mock_logger
@@ -39,6 +40,7 @@ class ConnectorTestBase(IntegrationBaseTest):
         self.config = None
 
     def tearDown(self):
+        super().tearDown()
         patch.stopall()
         self.connector.close()
 

@@ -26,7 +26,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 from distutils.util import strtobool
 from jsonpath_rw import parse
-from simplejson import JSONDecodeError, dumps, loads
+from orjson import JSONDecodeError, dumps, loads
 
 from thingsboard_gateway.gateway.constants import SECURITY_VAR
 
@@ -81,7 +81,7 @@ class TBUtility:
                 errors.append('No telemetry and attributes')
 
         if errors:
-            json_data = dumps(data)
+            json_data = dumps(data.to_dict()) if isinstance(data, ConvertedData) else dumps(data)
             if isinstance(json_data, bytes):
                 log.error("Found errors: " + str(errors) + " in data: " + json_data.decode("UTF-8"))
             else:
@@ -288,10 +288,7 @@ class TBUtility:
 
     @staticmethod
     def get_data_size(data):
-        try:
-            return len(dumps(data, separators=(',', ':'), skipkeys=True).encode('utf-8'))
-        except UnicodeDecodeError:
-            return len(dumps(data, separators=(',', ':'), skipkeys=True))
+        return len(dumps(data))
 
     @staticmethod
     def get_service_environmental_variables():

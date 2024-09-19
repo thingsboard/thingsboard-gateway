@@ -38,7 +38,7 @@ from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME, RENAMING_PARAMETER, CONNECTOR_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, \
     CONNECTOR_ID_PARAMETER, ATTRIBUTES_FOR_REQUEST, CONFIG_VERSION_PARAMETER, CONFIG_SECTION_PARAMETER, \
-    DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER
+    DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
@@ -544,10 +544,6 @@ class TBGatewayService:
                     self.check_connector_configuration_updates()
                     connectors_configuration_check_time = time() * 1000
 
-                if self.__config['thingsboard'].get('latencyDebugMode', False) and cur_time - latency_check_time > 60000:
-                    self.__check_message_latency()
-                    latency_check_time = time() * 1000
-
                 if cur_time - self.__updates_check_time >= self.__updates_check_period_ms:
                     self.__updates_check_time = time() * 1000
                     self.version = self.__updater.get_version()
@@ -561,10 +557,6 @@ class TBGatewayService:
             self.__close_connectors()
             log.info("The gateway has been stopped.")
             self.tb_client.stop()
-
-    def __check_message_latency(self):
-        for connector in self.available_connectors_by_name.values():
-            connector.check_message_latency()
 
     def __modify_main_config(self):
         env_variables = TBUtility.get_service_environmental_variables()
@@ -1065,7 +1057,11 @@ class TBGatewayService:
                     if converted_data_format:
                         event.add_to_metadata({"getFromConvertedDataQueueTs": int(time() * 1000)})
                         self.__send_to_storage_new_formatted_data(connector_name, connector_id, data_array)
-                        log.debug("Event was in queue for %r ms", int(time() * 1000) - event.metadata.get("sendToStorageTs"))
+                        current_time = int(time() * 1000)
+                        if event.metadata.get("sendToStorageTs"):
+                            log.debug("Event was in queue for %r ms", current_time - event.metadata.get("sendToStorageTs"))
+                        if event.metadata.get(DATA_RETRIEVING_STARTED):
+                            log.debug("Data retrieving and conversion took %r ms", current_time - event.metadata.get(DATA_RETRIEVING_STARTED))
                     else:
                         self.__send_to_storage_old_formatted_data(connector_name, connector_id, data_array)
 
@@ -1311,27 +1307,24 @@ class TBGatewayService:
                                 log.exception(e)
                                 continue
 
-                            if (self.__latency_debug_mode and isinstance(current_event.get('telemetry'), dict)
-                                    and current_event.get('telemetry').get('values').get('isTestLatencyMessageType', False)):
-                                current_event['telemetry']['values']['getFromStorageTs'] = int(time() * 1000)
-                                log.debug('LATENCY CHECK for %s connector: %s',
-                                          current_event['telemetry']['values']['connectorName'],
-                                          {'receivedTs': current_event['telemetry']['values']['receivedTs'],
-                                           'beforeConversionTs': current_event['telemetry']['values']['beforeConversionTs'],
-                                           'convertedTs': current_event['telemetry']['values']['convertedTs'],
-                                           'putToStorageTs': current_event['telemetry']['values']['putToStorageTs']})
-
                             if not devices_data_in_event_pack.get(current_event["deviceName"]): # noqa
                                 devices_data_in_event_pack[current_event["deviceName"]] = {"telemetry": [],
                                                                                            "attributes": {}}
                             # start_processing_telemetry_in_event = time()
+                            has_metadata = False
+                            if current_event.get('metadata'):
+                                has_metadata = True
                             if current_event.get("telemetry"):
                                 if isinstance(current_event["telemetry"], list):
                                     for item in current_event["telemetry"]:
+                                        if has_metadata and item.get('ts'):
+                                            item.update({'metadata': current_event.get('metadata')})
                                         current_event_pack_data_size = self.check_size(devices_data_in_event_pack, current_event_pack_data_size, TBUtility.get_data_size(item))
                                         devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(item) # noqa
                                         telemetry_dp_count += len(item.get('values', []))
                                 else:
+                                    if has_metadata and current_event["telemetry"].get('ts'):
+                                        current_event["telemetry"].update({'metadata': current_event.get('metadata')})
                                     current_event_pack_data_size = self.check_size(devices_data_in_event_pack, current_event_pack_data_size, TBUtility.get_data_size(current_event["telemetry"]))
                                     devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(current_event["telemetry"]) # noqa
                                     telemetry_dp_count += len(current_event["telemetry"].get('values', []))
@@ -1347,6 +1340,7 @@ class TBGatewayService:
                                     current_event_pack_data_size = self.check_size(devices_data_in_event_pack, current_event_pack_data_size, TBUtility.get_data_size(current_event["attributes"]))
                                     devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(current_event["attributes"].items()) # noqa
                                     attribute_dp_count += 1
+
                             # log.debug("Processing attributes in event took %r seconds.", time() - start_processing_attributes_in_event) # noqa
                         if devices_data_in_event_pack:
                             if not self.tb_client.is_connected():

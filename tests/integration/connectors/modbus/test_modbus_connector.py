@@ -26,12 +26,14 @@ class ModbusConnectorTestsBase(BaseTest):
                             "data" + path.sep + "modbus" + path.sep)
 
     def setUp(self) -> None:
+        super().setUp()
         self.gateway = Mock(spec=TBGatewayService)
         self.gateway.get_devices.return_value = []
         self.connector = None
         self.config = None
 
     def tearDown(self):
+        super().tearDown()
         self.connector.close()
 
     def _create_connector(self, config_file_name):

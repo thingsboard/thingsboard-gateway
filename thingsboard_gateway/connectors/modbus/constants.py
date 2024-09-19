@@ -11,6 +11,7 @@
 #      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
+from enum import Enum
 
 from thingsboard_gateway.gateway.constants import *
 
@@ -70,6 +71,10 @@ COILS_INITIALIZER = "coils_initializer"
 HOLDING_REGISTERS = "holding_registers"
 INPUT_REGISTERS = "input_registers"
 DISCRETE_INPUTS = "discrete_inputs"
+
+class RequestType(Enum):
+    POLL = "POLL"
+    SEND_DATA = "SEND_DATA"
 
 # Default values
 
