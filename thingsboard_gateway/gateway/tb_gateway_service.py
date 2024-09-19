@@ -192,7 +192,6 @@ class TBGatewayService:
             self.__connectors_init_start_success = False
 
         connection_logger = logging.getLogger('tb_connection')
-        log.info(self.__config['thingsboard'])
         self.tb_client = TBClient(self.__config["thingsboard"], self._config_dir, connection_logger)
         try:
             self.tb_client.disconnect()
@@ -640,7 +639,6 @@ class TBGatewayService:
             log.exception(e)
 
     def __process_attribute_update(self, content):
-        log.info('__process_attribute_update: %s', content) # TODO: delete this log in the future
         self.__process_remote_logging_update(content.get("RemoteLoggingLevel"))
         self.__process_remote_configuration(content)
         self.__process_remote_converter_configuration_update(content)
@@ -650,7 +648,6 @@ class TBGatewayService:
             log.debug("Shared attributes received: %s", shared_attributes)
         if client_attributes:
             log.debug("Client attributes received: %s", client_attributes)
-        log.info('__process_attributes_response: %s', shared_attributes) # TODO: delete this log in the future
         self.__process_remote_logging_update(shared_attributes.get('RemoteLoggingLevel'))
         self.__process_remote_configuration(shared_attributes)
 
@@ -729,7 +726,6 @@ class TBGatewayService:
 
     @staticmethod
     def __process_remote_configuration(new_configuration):
-        log.info(new_configuration) # TODO: delete this log in the future
         if new_configuration is not None:
             try:
                 RemoteConfigurator.RECEIVED_UPDATE_QUEUE.put(new_configuration)

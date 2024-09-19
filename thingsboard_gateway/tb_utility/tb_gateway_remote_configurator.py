@@ -224,7 +224,6 @@ class RemoteConfigurator:
                 config = RemoteConfigurator.RECEIVED_UPDATE_QUEUE.get()
                 LOG.info('Configuration update request received.')
                 LOG.debug('Got config update request: %s', config)
-                LOG.info(config) # TODO: delete this log in the future
 
                 try:
                     if 'general_configuration' in config.keys():
@@ -242,7 +241,6 @@ class RemoteConfigurator:
                         request_processed = False
                         for (name, func) in self._handlers.items():
                             if fullmatch(name, attr_name):
-                                LOG.info('Found handle method') # TODO: delete this log in the future
                                 func(request_config)
                                 request_processed = True
                                 break

@@ -62,7 +62,6 @@ class TBClient(threading.Thread):
 
         # check if provided creds or provisioning strategy
         if config.get('security'):
-            self.__logger.info('TB CLIENT CREDS: %s', config.get('security'))
             self._create_mqtt_client(config['security'])
         elif config.get('provisioning'):
             if exists(self.__config_folder_path + 'credentials.json'):
