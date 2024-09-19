@@ -34,6 +34,7 @@ LOG = getLogger("service")
 
 class RemoteConfigurator:
     ALLOWED_BACKUPS_AMOUNT = 10
+    RECEIVED_UPDATE_QUEUE = Queue()
 
     DEFAULT_STATISTICS = {
         'enable': True,
@@ -216,14 +217,11 @@ class RemoteConfigurator:
             LOG.warning("Cannot open logs configuration file. Using default logs configuration.")
             return {}
 
-    def process_config_request(self, config):
-        self._request_queue.put(config)
-
     def _process_config_request(self):
         while not self._gateway.stopped:
-            if not self._request_queue.empty():
+            if not RemoteConfigurator.RECEIVED_UPDATE_QUEUE.empty():
                 self.in_process = True
-                config = self._request_queue.get()
+                config = RemoteConfigurator.RECEIVED_UPDATE_QUEUE.get()
                 LOG.info('Configuration update request received.')
                 LOG.debug('Got config update request: %s', config)
 

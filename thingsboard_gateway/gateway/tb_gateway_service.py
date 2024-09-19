@@ -724,10 +724,11 @@ class TBGatewayService:
                       renamed_device)
         return {'success': True}
 
-    def __process_remote_configuration(self, new_configuration):
-        if new_configuration is not None and self.__remote_configurator is not None:
+    @staticmethod
+    def __process_remote_configuration(new_configuration):
+        if new_configuration is not None:
             try:
-                self.__remote_configurator.process_config_request(new_configuration)
+                RemoteConfigurator.RECEIVED_UPDATE_QUEUE.put(new_configuration)
             except Exception as e:
                 log.exception(e)
 

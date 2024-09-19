@@ -265,6 +265,11 @@ class OdbcConnector(Connector, Thread):
                        "telemetry": {} if "timeseries" not in self.__config["mapping"] else
                        self.__converter.convert(self.__config["mapping"]["timeseries"], data)}
 
+            StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                      count=len(to_send["attributes"]))
+            StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                      count=len(to_send["telemetry"]))
+
             if to_send['telemetry'].get('ts'):
                 to_send['ts'] = to_send['telemetry']['ts']
                 del to_send['telemetry']['ts']

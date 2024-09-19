@@ -1,9 +1,9 @@
-from copy import copy
+from copy import deepcopy
 
 
 class BackwardCompatibilityAdapter:
     def __init__(self, config):
-        self._config = copy(config)
+        self._config = deepcopy(config)
 
     def convert(self):
         self._config['requestsMapping'] = {}
@@ -11,6 +11,7 @@ class BackwardCompatibilityAdapter:
                                        'attributeUpdates', 'serverSideRpc'),
                    'mapping': ('mapping', 'dataMapping')}
 
+        has_mapping_section = False
         for (map_section, map_type) in config_mapping.items():
             for t in map_type:
                 section_config = self._config.pop(t, {})
@@ -26,11 +27,11 @@ class BackwardCompatibilityAdapter:
 
                         if t == 'attributeRequests':
                             self._parce_attribute_info(item)
-                    if not self._config.get(map_section):
-                        if t == 'mapping' or t == 'dataMapping':
-                            self._config[map_section] = section_config
-                        else:
-                            self._config[map_section][t] = section_config
+                    if not has_mapping_section and (t == 'mapping' or t == 'dataMapping'):
+                        self._config[map_section] = section_config
+                        break
+                    else:
+                        self._config[map_section][t] = section_config
                 except KeyError:
                     continue
                 except AttributeError as e:

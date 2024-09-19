@@ -297,16 +297,13 @@ class TBClient(threading.Thread):
 
         keep_alive = self.__config.get("keep_alive", 120)
         previous_connection_time = time()
-        try_count = 0
+
         try:
             while not self.client.is_connected() and not self.__stopped:
                 if not self.__paused:
                     if self.__stopped:
                         break
-                    if try_count > 5:
-                        self.__logger.error("Failed to connect to ThingsBoard. Check ThingsBoard is running. Will try to connect later.")
-                        break
-                    self.__logger.debug("connecting to ThingsBoard")
+                    self.__logger.info("Connecting to ThingsBoard...")
                     try:
                         if time() - previous_connection_time > min_reconnect_delay:
                             self.client.connect(keepalive=keep_alive,
@@ -315,10 +312,8 @@ class TBClient(threading.Thread):
                         else:
                             sleep(1)
                     except ConnectionRefusedError:
-                        try_count += 1
                         self.__logger.error("Connection refused. Check ThingsBoard is running.")
                     except Exception as e:
-                        try_count
                         self.__logger.exception(e)
                 sleep(1)
         except Exception as e:
