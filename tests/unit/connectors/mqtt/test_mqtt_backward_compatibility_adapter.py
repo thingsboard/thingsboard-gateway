@@ -23,7 +23,7 @@ class MqttBackwardCompatibilityAdapterTests(BaseUnitTest):
     def test_convert_with_empty_config(self):
         result = self.adapter.convert()
         expected_result = {
-            'dataMapping': {},
+            'mapping': {},
             'requestsMapping': {
                 'attributeRequests': {},
                 'attributeUpdates': {},
@@ -32,7 +32,7 @@ class MqttBackwardCompatibilityAdapterTests(BaseUnitTest):
                 'serverSideRpc': {}
             }
         }
-        self.assertEqual(result, expected_result)
+        self.assertEqual(expected_result, result)
 
     def test_convert_with_mapping_in_config(self):
         self.adapter._config = self.convert_json(self.CONFIG_PATH + 'mapping/old_config.json')
@@ -71,12 +71,12 @@ class MqttBackwardCompatibilityAdapterTests(BaseUnitTest):
         self.assertEqual(result, expected_result)
 
     def test_is_old_config_format_with_mapping(self):
-        self.adapter._config = {'mapping': []}
+        self.adapter._config = {'mapping': [{'converter': {}}]}
         result = self.adapter.is_old_config_format(self.adapter._config)
         self.assertTrue(result)
 
     def test_is_old_config_format_without_mapping(self):
-        self.adapter._config = {'mappingData': []}
+        self.adapter._config = {'mapping': []}
         result = self.adapter.is_old_config_format(self.adapter._config)
         self.assertFalse(result)
 

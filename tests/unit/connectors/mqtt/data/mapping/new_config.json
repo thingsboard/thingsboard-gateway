@@ -12,7 +12,7 @@
       "type": "anonymous"
     }
   },
-  "dataMapping": [
+  "mapping": [
     {
       "topicFilter": "sensor/data",
       "converter": {
