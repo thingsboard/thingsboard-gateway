@@ -33,8 +33,8 @@ class ModbusConnectorTestsBase(BaseTest):
         self.config = None
 
     def tearDown(self):
-        super().tearDown()
         self.connector.close()
+        super().tearDown()
 
     def _create_connector(self, config_file_name):
         with open(self.CONFIG_PATH + config_file_name, 'r', encoding="UTF-8") as file:

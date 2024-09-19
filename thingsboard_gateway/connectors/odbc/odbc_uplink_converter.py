@@ -57,8 +57,4 @@ class OdbcUplinkConverter(OdbcConverter):
         if data.get('ts'):
             converted_data['ts'] = data.get('ts')
 
-        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                  count=len(converted_data["attributes"]))
-        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                  count=len(converted_data["telemetry"]))
         return converted_data
