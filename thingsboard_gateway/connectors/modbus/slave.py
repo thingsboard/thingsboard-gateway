@@ -190,12 +190,12 @@ class Slave(Thread):
         report_strategy_config = default_report_strategy_config
         if not config:
             return report_strategy_config
-        if config.get(SEND_DATA_ONLY_ON_CHANGE_PARAMETER) is not None:
+        if config.get(SEND_DATA_ONLY_ON_CHANGE_PARAMETER) is not None and not (config.get(REPORT_STRATEGY_PARAMETER)):
             report_strategy_config = {
                 'type': ReportStrategy.ON_CHANGE if config.get(SEND_DATA_ONLY_ON_CHANGE_PARAMETER) else ReportStrategy.ON_REPORT_PERIOD,
                 REPORT_PERIOD_PARAMETER: config.get(REPORT_PERIOD_PARAMETER, report_strategy_config.get(REPORT_PERIOD_PARAMETER, self.poll_period))
             }
-        if config.get(REPORT_STRATEGY_PARAMETER) is not None:
+        elif config.get(REPORT_STRATEGY_PARAMETER) is not None:
             try:
                 report_strategy_config = {
                     'type': ReportStrategy[config[REPORT_STRATEGY_PARAMETER].get('type', ReportStrategy.ON_REPORT_PERIOD.name).upper()],
