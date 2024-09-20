@@ -615,7 +615,8 @@ class OpcUaConnector(Connector, Thread):
                                             device.name, node.nodeid.to_string())
 
             except Exception as e:
-                self.__log.exception(e)
+                self.__log.exception("Error loading nodes: %s", e)
+                raise e
 
     async def __poll_nodes(self):
         data_retrieving_started = int(time() * 1000)

@@ -636,7 +636,7 @@ class TBGatewayService:
                     log.debug("Client attributes received (%s).",
                               ", ".join([attr for attr in client_attributes.keys()]))
         except Exception as e:
-            log.exception(e)
+            log.exception("Failed to process attributes: %s", e)
 
     def __process_attribute_update(self, content):
         self.__process_remote_logging_update(content.get("RemoteLoggingLevel"))
@@ -1039,7 +1039,8 @@ class TBGatewayService:
                 filtered_data = data
             if filtered_data:
                 if isinstance(filtered_data, ConvertedData):
-                    data.add_to_metadata({SEND_TO_STORAGE_TS_PARAMETER: int(time() * 1000)})
+                    if filtered_data.metadata and filtered_data.metadata:
+                        data.add_to_metadata({SEND_TO_STORAGE_TS_PARAMETER: int(time() * 1000)})
                 self.__converted_data_queue.put_nowait((connector_name, connector_id, filtered_data))
                 return Status.SUCCESS
             else:
@@ -1056,12 +1057,13 @@ class TBGatewayService:
                     converted_data_format = isinstance(event, ConvertedData)
                     data_array = event if isinstance(event, list) else [event]
                     if converted_data_format:
-                        event.add_to_metadata({"getFromConvertedDataQueueTs": int(time() * 1000)})
+                        if self.__latency_debug_mode:
+                            event.add_to_metadata({"getFromConvertedDataQueueTs": int(time() * 1000)})
                         self.__send_to_storage_new_formatted_data(connector_name, connector_id, data_array)
                         current_time = int(time() * 1000)
-                        if event.metadata.get("sendToStorageTs"):
+                        if self.__latency_debug_mode and event.metadata.get("sendToStorageTs"):
                             log.debug("Event was in queue for %r ms", current_time - event.metadata.get("sendToStorageTs"))
-                        if event.metadata.get(DATA_RETRIEVING_STARTED):
+                        if self.__latency_debug_mode and event.metadata.get(DATA_RETRIEVING_STARTED):
                             log.debug("Data retrieving and conversion took %r ms", current_time - event.metadata.get(DATA_RETRIEVING_STARTED))
                     else:
                         self.__send_to_storage_old_formatted_data(connector_name, connector_id, data_array)
@@ -1074,6 +1076,8 @@ class TBGatewayService:
     def __send_to_storage_new_formatted_data(self, connector_name, connector_id, data_array: List[ConvertedData]):
         max_data_size = self.get_max_payload_size_bytes()
         for data in data_array:
+            if not self.__latency_debug_mode:
+                data.metadata = {}
             if connector_name == self.name:
                 data.device_name = "currentThingsBoardGateway"
                 data.device_type = "gateway"
@@ -1111,7 +1115,8 @@ class TBGatewayService:
                 end_splitting = int(time() * 1000)
                 log.debug("Data splitting took %r ms, telemetry datapoints count: %r, attributes count: %r",
                           end_splitting - start_splitting, data.telemetry_datapoints_count, data.attributes_datapoints_count)
-                log.debug("Data processing before sending to storage took %r ms", end_splitting - data.metadata.get("receivedTs", 0))
+                if self.__latency_debug_mode and data.metadata.get("receivedTs"):
+                    log.debug("Data processing before sending to storage took %r ms", end_splitting - data.metadata.get("receivedTs", 0))
                 for adopted_data_entry in adopted_data:
                     self.__send_data_pack_to_storage(adopted_data_entry, connector_name, connector_id)
 
@@ -1244,8 +1249,9 @@ class TBGatewayService:
     @CollectStorageEventsStatistics('storageMsgPushed')
     def __send_data_pack_to_storage(self, data, connector_name, connector_id=None):
         if isinstance(data, ConvertedData):
-            data.add_to_metadata({"putToStorageTs": int(time() * 1000)})
-            json_data = dumps(data.to_dict(), separators=(',', ':'), skipkeys=True)
+            if self.__latency_debug_mode:
+                data.add_to_metadata({"putToStorageTs": int(time() * 1000)})
+            json_data = dumps(data.to_dict(self.__latency_debug_mode), separators=(',', ':'), skipkeys=True)
         else:
             json_data = dumps(data, separators=(',', ':'), skipkeys=True)
         save_result = self._event_storage.put(json_data)

@@ -82,7 +82,7 @@ class ConvertedData:
             "attributes": self.attributes.to_dict()
         }
         if debug_enabled:
-            result["metadata"] = debug_enabled
+            result["metadata"] = self.metadata
         return result
 
     def __getitem__(self, item):
