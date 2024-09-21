@@ -281,11 +281,11 @@ class MqttConnector(Connector, Thread):
         handler_configuration = self.config.get(handler_flavor)
         if handler_configuration is None:
             request_mapping_config = self.config.get("requestsMapping", {})
-            if isinstance(request_mapping_config, list):
-                handler_configuration = []
+            if isinstance(request_mapping_config, dict):
+                handler_configuration = None
                 for request_mapping in request_mapping_config:
-                    if request_mapping.get("requestType") == handler_flavor:
-                        handler_configuration.append(request_mapping.get("requestValue"))
+                    if request_mapping == handler_flavor:
+                        handler_configuration = request_mapping_config[request_mapping]
 
         if not handler_configuration:
             self.__log.debug("'%s' section missing from configuration", handler_flavor)
@@ -583,20 +583,22 @@ class MqttConnector(Connector, Thread):
             device_name_match = search(device_info["deviceNameExpression"], topic)
             if device_name_match is not None:
                 found_device_name = device_name_match.group(0)
-        elif device_info.get('deviceNameExpressionSource') == 'message' or device_info.get(
-                'deviceNameExpression') == 'constant':
+        elif device_info.get('deviceNameExpressionSource') == 'message':
             found_device_name = TBUtility.get_value(device_info["deviceNameExpression"], content,
                                                     expression_instead_none=True)
+        elif device_info.get('deviceNameExpressionSource') == 'constant':
+            found_device_name = device_info["deviceNameExpression"]
 
         # Get device type (if any), either from topic or from content
         if device_info.get("deviceProfileExpressionSource") == 'topic':
             device_type_match = search(device_info["deviceProfileExpression"], topic)
             found_device_type = device_type_match.group(0) if device_type_match is not None else device_info[
                 "deviceProfileExpression"]
-        elif device_info.get("deviceProfileExpressionSource") == 'message' or device_info.get(
-                'deviceNameExpression') == 'constant':
+        elif device_info.get("deviceProfileExpressionSource") == 'message':
             found_device_type = TBUtility.get_value(device_info["deviceProfileExpression"], content,
                                                     expression_instead_none=True)
+        elif device_info.get("deviceProfileExpressionSource") == 'constant':
+            found_device_type = TBUtility.get_value(device_info["deviceProfileExpression"], content,)
 
         return found_device_name, found_device_type
 
