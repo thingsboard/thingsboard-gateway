@@ -2,9 +2,12 @@ import logging
 import unittest
 from os import path
 from time import sleep
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from simplejson import load
+
+from thingsboard_gateway.gateway.tb_client import TBClient
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
 try:
     from pymodbus.client import ModbusTcpClient as ModbusClient
@@ -27,26 +30,34 @@ class ModbusConnectorTestsBase(BaseTest):
 
     def setUp(self) -> None:
         super().setUp()
+        self.tb_client = Mock(spec=TBClient)
         self.gateway = Mock(spec=TBGatewayService)
+        self.gateway.tb_client = self.tb_client
+        self.tb_logger = Mock(spec=TbLogger)
         self.gateway.get_devices.return_value = []
         self.connector = None
         self.config = None
 
     def tearDown(self):
-        super().tearDown()
         self.connector.close()
+        super().tearDown()
 
-    def _create_connector(self, config_file_name):
-        with open(self.CONFIG_PATH + config_file_name, 'r', encoding="UTF-8") as file:
-            self.config = load(file)
-            self.config['master']['slaves'][0]['uplink_converter'] = BytesModbusUplinkConverter(
-                {**self.config['master']['slaves'][0], 'deviceName': 'Test'}, logger=logging.getLogger('converter'))
-            self.config['master']['slaves'][0]['downlink_converter'] = BytesModbusDownlinkConverter(
-                {**self.config['master']['slaves'][0], 'deviceName': 'Test'}, logger=logging.getLogger('converter'))
-            self.connector = ModbusConnector(self.gateway, self.config, "modbus")
-            self.connector._ModbusConnector__log = Mock()
-            self.connector.open()
-            sleep(1)  # some time to init
+    @patch('thingsboard_gateway.tb_utility.tb_logger.init_logger')
+    def _create_connector(self, config_file_name, test_patch):
+        test_patch.return_value = self.tb_logger
+        try:
+            with open(self.CONFIG_PATH + config_file_name, 'r', encoding="UTF-8") as file:
+                self.config = load(file)
+                self.config['master']['slaves'][0]['uplink_converter'] = BytesModbusUplinkConverter(
+                    {**self.config['master']['slaves'][0], 'deviceName': 'Test'}, logger=logging.getLogger('converter'))
+                self.config['master']['slaves'][0]['downlink_converter'] = BytesModbusDownlinkConverter(
+                    {**self.config['master']['slaves'][0], 'deviceName': 'Test'}, logger=logging.getLogger('converter'))
+                self.connector = ModbusConnector(self.gateway, self.config, "modbus")
+                self.connector._ModbusConnector__log = Mock()
+                self.connector.open()
+                sleep(1)  # some time to init
+        except Exception as e:
+            self.log.error("Error occurred during creating connector: %s", e)
 
 
 class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):

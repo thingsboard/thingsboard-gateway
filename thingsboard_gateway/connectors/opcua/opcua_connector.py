@@ -22,12 +22,9 @@ from threading import Thread
 from time import sleep, monotonic, time
 from typing import List
 
-from asyncua.ua import DataValue
-
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua.device import Device
-from thingsboard_gateway.connectors.opcua.opcua_uplink_converter import OpcUaUplinkConverter
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
     DATA_RETRIEVING_STARTED
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
@@ -615,7 +612,8 @@ class OpcUaConnector(Connector, Thread):
                                             device.name, node.nodeid.to_string())
 
             except Exception as e:
-                self.__log.exception(e)
+                self.__log.exception("Error loading nodes: %s", e)
+                raise e
 
     async def __poll_nodes(self):
         data_retrieving_started = int(time() * 1000)

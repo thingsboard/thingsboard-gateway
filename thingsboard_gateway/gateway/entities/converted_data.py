@@ -74,14 +74,16 @@ class ConvertedData:
     def __repr__(self):
         return self.__str__()
 
-    def to_dict(self):
-        return {
+    def to_dict(self, debug_enabled=False):
+        result = {
             "deviceName": self.device_name,
             "deviceType": self.device_type,
             "telemetry": [telemetry_entry.to_dict() for telemetry_entry in self.telemetry],
-            "attributes": self.attributes.to_dict(),
-            "metadata": self.metadata
+            "attributes": self.attributes.to_dict()
         }
+        if debug_enabled:
+            result["metadata"] = self.metadata
+        return result
 
     def __getitem__(self, item):
         if item == ATTRIBUTES_PARAMETER:
