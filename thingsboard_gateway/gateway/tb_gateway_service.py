@@ -470,7 +470,7 @@ class TBGatewayService:
             while not self.stopped:
                 cur_time = time() * 1000
 
-                if not self.tb_client.client.is_connected() and self.__subscribed_to_rpc_topics:
+                if not self.tb_client.is_connected() and self.__subscribed_to_rpc_topics:
                     self.__subscribed_to_rpc_topics = False
 
                 if (not self.tb_client.is_connected()
@@ -1688,6 +1688,9 @@ class TBGatewayService:
             return
 
         device_type = device_type if device_type is not None else 'default'
+        if device_name in self.__connected_devices:
+            return
+
         self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
         self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
         self.__save_persistent_devices()
