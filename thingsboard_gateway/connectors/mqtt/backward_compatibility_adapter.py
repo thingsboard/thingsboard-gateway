@@ -20,15 +20,16 @@ class BackwardCompatibilityAdapter:
                         (device_name_json_expression, device_type_json_expression, device_name_topic_expression,
                          device_type_topic_expression, bytes_converter) = self._get_device_name_and_type(item)
 
-                        self._parce_device_info(item['converter'] if item.get('converter') else item, device_name_json_expression,
+                        self._parse_device_info(item['converter'] if item.get('converter') else item, device_name_json_expression,
                                                 device_type_json_expression,
                                                 device_name_topic_expression, device_type_topic_expression,
                                                 bytes_converter)
 
                         if t == 'attributeRequests':
                             self._parce_attribute_info(item)
-                    if not has_mapping_section and (t == 'mapping' or t == 'dataMapping'):
+                    if not has_mapping_section and (t == 'mapping' or t == 'dataMapping') and section_config:
                         self._config[map_section] = section_config
+                        has_mapping_section = True
                         break
                     else:
                         self._config[map_section][t] = section_config
@@ -61,18 +62,17 @@ class BackwardCompatibilityAdapter:
                 device_name_topic_expression, device_type_topic_expression, False)
 
     @staticmethod
-    def _parce_device_info(config, device_name_json_expression=None, device_type_json_expression=None,
+    def _parse_device_info(config, device_name_json_expression=None, device_type_json_expression=None,
                            device_name_topic_expression=None, device_type_topic_expression=None, bytes_converter=False):
         if bytes_converter:
             config['deviceInfo'] = {}
             config['deviceInfo']['deviceNameExpression'] = device_name_json_expression
             config['deviceInfo']['deviceProfileExpression'] = device_type_json_expression
             return
+        if config.get('deviceInfo') is None:
+            config['deviceInfo'] = {}
 
         if device_name_json_expression:
-            if config.get('deviceInfo') is None:
-                config['deviceInfo'] = {}
-
             config['deviceInfo']['deviceNameExpressionSource'] = 'message'
             config['deviceInfo']['deviceNameExpression'] = device_name_json_expression
 
@@ -81,9 +81,6 @@ class BackwardCompatibilityAdapter:
             config['deviceInfo']['deviceProfileExpression'] = device_type_json_expression
 
         if device_name_topic_expression:
-            if config.get('deviceInfo') is None:
-                config['deviceInfo'] = {}
-
             config['deviceInfo']['deviceNameExpressionSource'] = 'topic'
             config['deviceInfo']['deviceNameExpression'] = device_name_topic_expression
 

@@ -468,89 +468,97 @@ class TBGatewayService:
             update_logger_time = 0
 
             while not self.stopped:
-                cur_time = time() * 1000
+                try:
+                    cur_time = time() * 1000
 
-                if not self.tb_client.is_connected() and self.__subscribed_to_rpc_topics:
-                    self.__subscribed_to_rpc_topics = False
+                    if not self.tb_client.is_connected() and self.__subscribed_to_rpc_topics:
+                        self.__subscribed_to_rpc_topics = False
 
-                if (not self.tb_client.is_connected()
-                        and self.__remote_configurator is not None
-                        and self.__requested_config_after_connect):
-                    self.__requested_config_after_connect = False
+                    if (not self.tb_client.is_connected()
+                            and self.__remote_configurator is not None
+                            and self.__requested_config_after_connect):
+                        self.__requested_config_after_connect = False
 
-                if (self.tb_client.is_connected()
-                        and not self.tb_client.is_stopped()
-                        and not self.__subscribed_to_rpc_topics):
-                    for device in list(self.__saved_devices.keys()):
-                        self.add_device(device,
-                                        {CONNECTOR_PARAMETER: self.__saved_devices[device][CONNECTOR_PARAMETER]},
-                                        device_type=self.__saved_devices[device][DEVICE_TYPE_PARAMETER])
-                    self.subscribe_to_required_topics()
+                    if (self.tb_client.is_connected()
+                            and not self.tb_client.is_stopped()
+                            and not self.__subscribed_to_rpc_topics):
+                        for device in list(self.__saved_devices.keys()):
+                            self.add_device(device,
+                                            {CONNECTOR_PARAMETER: self.__saved_devices[device][CONNECTOR_PARAMETER]},
+                                            device_type=self.__saved_devices[device][DEVICE_TYPE_PARAMETER])
+                        self.subscribe_to_required_topics()
 
-                if self.__scheduled_rpc_calls:
-                    for rpc_call_index in range(len(self.__scheduled_rpc_calls)):
-                        rpc_call = self.__scheduled_rpc_calls[rpc_call_index]
-                        if cur_time > rpc_call[0]:
-                            rpc_call = self.__scheduled_rpc_calls.pop(rpc_call_index)
-                            result = None
-                            try:
-                                result = rpc_call[1]["function"](*rpc_call[1]["arguments"])
-                            except Exception as e:
-                                log.exception(e)
+                    if self.__scheduled_rpc_calls:
+                        for rpc_call_index in range(len(self.__scheduled_rpc_calls)):
+                            rpc_call = self.__scheduled_rpc_calls[rpc_call_index]
+                            if cur_time > rpc_call[0]:
+                                rpc_call = self.__scheduled_rpc_calls.pop(rpc_call_index)
+                                result = None
+                                try:
+                                    result = rpc_call[1]["function"](*rpc_call[1]["arguments"])
+                                except Exception as e:
+                                    log.exception(e)
 
-                            if result == 256:
-                                log.warning("Error on RPC command: 256. Permission denied.")
+                                if result == 256:
+                                    log.warning("Error on RPC command: 256. Permission denied.")
 
-                if ((self.__rpc_requests_in_progress or not self.__rpc_register_queue.empty())
-                        and self.tb_client.is_connected()):
-                    new_rpc_request_in_progress = {}
-                    if self.__rpc_requests_in_progress:
-                        for rpc_in_progress, data in self.__rpc_requests_in_progress.items():
-                            if cur_time >= data[1]:
-                                data[2](rpc_in_progress)
-                                self.cancel_rpc_request(rpc_in_progress)
-                                self.__rpc_requests_in_progress[rpc_in_progress] = "del"
-                        new_rpc_request_in_progress = {key: value for key, value in
-                                                       self.__rpc_requests_in_progress.items() if value != 'del'}
-                    if not self.__rpc_register_queue.empty():
-                        new_rpc_request_in_progress = self.__rpc_requests_in_progress
-                        rpc_request_from_queue = self.__rpc_register_queue.get(False)
-                        topic = rpc_request_from_queue["topic"]
-                        data = rpc_request_from_queue["data"]
-                        new_rpc_request_in_progress[topic] = data
-                    self.__rpc_requests_in_progress = new_rpc_request_in_progress
-                else:
-                    try:
-                        sleep(0.02)
-                    except Exception as e:
-                        log.exception(e)
-                        break
+                    if ((self.__rpc_requests_in_progress or not self.__rpc_register_queue.empty())
+                            and self.tb_client.is_connected()):
+                        try:
+                            new_rpc_request_in_progress = {}
+                            if self.__rpc_requests_in_progress:
+                                for rpc_in_progress, data in self.__rpc_requests_in_progress.items():
+                                    if cur_time >= data[1]:
+                                        data[2](rpc_in_progress)
+                                        self.cancel_rpc_request(rpc_in_progress)
+                                        self.__rpc_requests_in_progress[rpc_in_progress] = "del"
+                                new_rpc_request_in_progress = {key: value for key, value in
+                                                               self.__rpc_requests_in_progress.items() if value != 'del'}
+                            if not self.__rpc_register_queue.empty():
+                                new_rpc_request_in_progress = self.__rpc_requests_in_progress
+                                rpc_request_from_queue = self.__rpc_register_queue.get(False)
+                                topic = rpc_request_from_queue["topic"]
+                                data = rpc_request_from_queue["data"]
+                                new_rpc_request_in_progress[topic] = data
+                            self.__rpc_requests_in_progress = new_rpc_request_in_progress
+                        except Exception as e:
+                            log.exception("Error while processing RPC requests: %s", exc_info=e)
+                            sleep(1)
+                    else:
+                        try:
+                            sleep(0.02)
+                        except Exception as e:
+                            log.exception(e)
+                            break
 
-                if (not self.__requested_config_after_connect and self.tb_client.is_connected()
-                        and not self.tb_client.client.get_subscriptions_in_progress()):
-                    self.__requested_config_after_connect = True
-                    self._check_shared_attributes()
+                    if (not self.__requested_config_after_connect and self.tb_client.is_connected()
+                            and not self.tb_client.client.get_subscriptions_in_progress()):
+                        self.__requested_config_after_connect = True
+                        self._check_shared_attributes()
 
-                if (cur_time - gateway_statistic_send > self.__statistics['statsSendPeriodInSeconds'] * 1000
-                        and self.tb_client.is_connected()):
-                    summary_messages = self.__form_statistics()
-                    # with self.__lock:
-                    self.send_telemetry(summary_messages)
-                    gateway_statistic_send = time() * 1000
-                    # self.__check_shared_attributes()
+                    if (cur_time - gateway_statistic_send > self.__statistics['statsSendPeriodInSeconds'] * 1000
+                            and self.tb_client.is_connected()):
+                        summary_messages = self.__form_statistics()
+                        # with self.__lock:
+                        self.send_telemetry(summary_messages)
+                        gateway_statistic_send = time() * 1000
+                        # self.__check_shared_attributes()
 
-                if (cur_time - connectors_configuration_check_time > self.__config["thingsboard"].get("checkConnectorsConfigurationInSeconds", 60) * 1000 # noqa
-                        and not (self.__remote_configurator is not None and self.__remote_configurator.in_process)):
-                    self.check_connector_configuration_updates()
-                    connectors_configuration_check_time = time() * 1000
+                    if (cur_time - connectors_configuration_check_time > self.__config["thingsboard"].get("checkConnectorsConfigurationInSeconds", 60) * 1000 # noqa
+                            and not (self.__remote_configurator is not None and self.__remote_configurator.in_process)):
+                        self.check_connector_configuration_updates()
+                        connectors_configuration_check_time = time() * 1000
 
-                if cur_time - self.__updates_check_time >= self.__updates_check_period_ms:
-                    self.__updates_check_time = time() * 1000
-                    self.version = self.__updater.get_version()
+                    if cur_time - self.__updates_check_time >= self.__updates_check_period_ms:
+                        self.__updates_check_time = time() * 1000
+                        self.version = self.__updater.get_version()
 
-                if cur_time - update_logger_time > 60000:
-                    log = logging.getLogger('service')
-                    self.__debug_log_enabled = log.isEnabledFor(10)
+                    if cur_time - update_logger_time > 60000:
+                        log = logging.getLogger('service')
+                        self.__debug_log_enabled = log.isEnabledFor(10)
+                except Exception as e:
+                    log.exception("Error in main loop: %s", exc_info=e)
+                    sleep(1)
         except Exception as e:
             log.exception(e)
             self.__stop_gateway()
@@ -1645,7 +1653,10 @@ class TBGatewayService:
 
     def cancel_rpc_request(self, rpc_request):
         content = self.__rpc_requests_in_progress[rpc_request][0]
-        self.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=False)
+        try:
+            self.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=False)
+        except Exception as e:
+            log.exception("Error while canceling RPC request", exc_info=e)
 
     @CountMessage('msgsReceivedFromPlatform')
     def _attribute_update_callback(self, content, *args):

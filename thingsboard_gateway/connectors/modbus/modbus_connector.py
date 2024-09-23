@@ -723,7 +723,7 @@ class ModbusConnector(Connector, Thread):
                 return results
 
         except Exception as e:
-            self.__log.exception(e)
+            self.__log.exception("Error during RPC handling: %s", exc_info=e)
 
     def __process_request(self, content, rpc_command_config, request_type='RPC', return_result=False):
         self.__log.debug('Processing %s request', request_type)
