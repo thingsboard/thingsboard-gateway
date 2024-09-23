@@ -603,10 +603,11 @@ class OpcUaConnector(Connector, Thread):
                         except ValueError:
                             pass
 
+                    subscription_batch_size = self.__config.get('subscriptionBatchSize', 2000)
                     if nodes_to_subscribe:
                             nodes_data_change_subscriptions = await self._subscribe_for_node_updates_in_batches(device,
                                                                                                          nodes_to_subscribe,
-                                                                                                         1000)
+                                                                                                         subscription_batch_size)
                             subs = []
                             for subs_batch in nodes_data_change_subscriptions:
                                 subs.extend(subs_batch)
