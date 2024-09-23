@@ -106,7 +106,7 @@ class OpcuaJsonUplinkConverter(Converter):
 
     def convert(self, configs, values) -> ConvertedData:
         StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
-        basic_timestamp = int(time() * 1000)
+        basic_timestamp = int(int(time()) * 1000)
 
         is_debug_enabled = self._log.isEnabledFor(10)
 
