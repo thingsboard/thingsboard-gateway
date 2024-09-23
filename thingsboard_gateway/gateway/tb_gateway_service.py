@@ -523,6 +523,7 @@ class TBGatewayService:
                             self.__rpc_requests_in_progress = new_rpc_request_in_progress
                         except Exception as e:
                             log.exception("Error while processing RPC requests: %s", exc_info=e)
+                            sleep(1)
                     else:
                         try:
                             sleep(0.02)
@@ -557,6 +558,7 @@ class TBGatewayService:
                         self.__debug_log_enabled = log.isEnabledFor(10)
                 except Exception as e:
                     log.exception("Error in main loop: %s", exc_info=e)
+                    sleep(1)
         except Exception as e:
             log.exception(e)
             self.__stop_gateway()
@@ -1651,7 +1653,10 @@ class TBGatewayService:
 
     def cancel_rpc_request(self, rpc_request):
         content = self.__rpc_requests_in_progress[rpc_request][0]
-        self.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=False)
+        try:
+            self.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=False)
+        except Exception as e:
+            log.exception("Error while canceling RPC request", exc_info=e)
 
     @CountMessage('msgsReceivedFromPlatform')
     def _attribute_update_callback(self, content, *args):
