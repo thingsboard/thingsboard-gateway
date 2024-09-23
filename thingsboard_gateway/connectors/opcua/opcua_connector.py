@@ -903,5 +903,5 @@ class SubHandler:
         self.__queue = queue
 
     def datachange_notification(self, node, _, data):
-        self.__log.debug("New data change event %s %s", node, data)
+        self.__log.trace("New data change event %s %s", node, data)
         self.__queue.put((node, data, int(time() * 1000)))
