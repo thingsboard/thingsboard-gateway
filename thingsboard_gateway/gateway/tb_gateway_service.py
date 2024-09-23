@@ -610,8 +610,12 @@ class TBGatewayService:
         if (remote_configuration_enabled or force) and self.__remote_configurator is None:
             try:
                 self.__remote_configurator = RemoteConfigurator(self, self.__config)
-                if self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
-                    self._check_shared_attributes()
+
+                while not self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
+                    sleep(1)
+
+                self._check_shared_attributes()
+                self._check_shared_attributes(shared_keys=[])
             except Exception as e:
                 log.exception(e)
         if self.__remote_configurator is not None:
