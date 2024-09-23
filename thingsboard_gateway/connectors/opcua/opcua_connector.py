@@ -183,7 +183,8 @@ class OpcUaConnector(Connector, Thread):
                     for node in device.values.get(section, []):
                         await self.__unsubscribe_from_node(device, node)
 
-            if device_name is None and device.subscription is not None:
+            if device_name is None and device.subscription is not None \
+                and self.__client.uaclient.protocol.state == 'open':
                 try:
                     await device.subscription.delete()
                 except Exception as e:
@@ -239,7 +240,7 @@ class OpcUaConnector(Connector, Thread):
 
                 await self.retry_with_backoff(self.__client.connect)
 
-                if not self.__client.uaclient.protocol:
+                if not self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open':
                     self.__log.error("Failed to connect to server, retrying...")
                     await self.disconnect_if_connected()
                     continue
@@ -603,17 +604,34 @@ class OpcUaConnector(Connector, Thread):
                             pass
 
                     if nodes_to_subscribe:
-                        nodes_data_change_subscriptions = await device.subscription.subscribe_data_change(
-                            nodes_to_subscribe)
-                        for node, conf, subscription_id in zip(nodes_to_subscribe, conf,
-                                                               nodes_data_change_subscriptions):
-                            device.nodes_data_change_subscriptions[node.nodeid]['subscription'] = subscription_id
-                            self.__log.info('Subscribed on data change; device: %s, path: %s',
-                                            device.name, node.nodeid.to_string())
+                            nodes_data_change_subscriptions = await self._subscribe_for_node_updates_in_batches(device,
+                                                                                                         nodes_to_subscribe,
+                                                                                                         100)
+                            subs = []
+                            for subs_batch in nodes_data_change_subscriptions:
+                                subs.extend(subs_batch)
+                            for node, conf, subscription_id in zip(nodes_to_subscribe, conf, subs):
+                                device.nodes_data_change_subscriptions[node.nodeid]['subscription'] = subscription_id
+                    else:
+                        self.__log.error('Failed to subscribe on data change; client was disconnected!')
+                        raise ConnectionError('Client was disconnected!')
 
             except Exception as e:
                 self.__log.exception("Error loading nodes: %s", e)
                 raise e
+
+    async def _subscribe_for_node_updates_in_batches(self, device, nodes, batch_size=500):
+        total_nodes = len(nodes)
+        result = []
+        for i in range(0, total_nodes, batch_size):
+            batch = nodes[i:i + batch_size]
+            try:
+                result.append(await device.subscription.subscribe_data_change(batch))
+                self.__log.debug(f"Subscribed to batch {i // batch_size + 1} with {len(batch)} nodes.")
+            except Exception as e:
+                self.__log.debug(f"Error subscribing to batch {i // batch_size + 1}: {e}")
+                break
+        return result
 
     async def __poll_nodes(self):
         data_retrieving_started = int(time() * 1000)
