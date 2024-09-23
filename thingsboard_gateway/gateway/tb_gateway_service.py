@@ -1685,11 +1685,11 @@ class TBGatewayService:
 
     def add_device(self, device_name, content, device_type=None):
         if self.tb_client is None or not self.tb_client.is_connected():
-            return
+            return False
 
         device_type = device_type if device_type is not None else 'default'
         if device_name in self.__connected_devices:
-            return
+            return True
 
         self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
         self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
@@ -1710,6 +1710,9 @@ class TBGatewayService:
             except Exception as e:
                 global log
                 log.exception("Error on sending device details about the device %s", device_name, exc_info=e)
+                return False
+
+        return True
 
     def update_device(self, device_name, event, content):
         should_save = False
