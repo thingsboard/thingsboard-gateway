@@ -241,7 +241,7 @@ class TBClient(threading.Thread):
         self.__paused = False
 
     def is_connected(self):
-        return self.__is_connected
+        return self.__is_connected and self.client.rate_limits_received
 
     def _on_connect(self, client, userdata, flags, result_code, *extra_params):
         self.__logger.debug('TB client %s connected to ThingsBoard', str(client))
@@ -255,7 +255,6 @@ class TBClient(threading.Thread):
                     self.__logger.warning("Connection rate exceeded.")
             else:
                 if result_code.getName().lower() == "connection rate exceeded":
-                    # TODO: Add request for rate limits and apply them.
                     self.__logger.warning("Connection rate exceeded.")
         except Exception as e:
             self.__logger.exception("Error in on_connect callback: %s", exc_info=e)
