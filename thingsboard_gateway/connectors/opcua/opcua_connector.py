@@ -606,7 +606,7 @@ class OpcUaConnector(Connector, Thread):
                     if nodes_to_subscribe:
                             nodes_data_change_subscriptions = await self._subscribe_for_node_updates_in_batches(device,
                                                                                                          nodes_to_subscribe,
-                                                                                                         100)
+                                                                                                         1000)
                             subs = []
                             for subs_batch in nodes_data_change_subscriptions:
                                 subs.extend(subs_batch)
@@ -627,9 +627,9 @@ class OpcUaConnector(Connector, Thread):
             batch = nodes[i:i + batch_size]
             try:
                 result.append(await device.subscription.subscribe_data_change(batch))
-                self.__log.debug(f"Subscribed to batch {i // batch_size + 1} with {len(batch)} nodes.")
+                self.__log.info(f"Subscribed to batch {i // batch_size + 1} with {len(batch)} nodes.")
             except Exception as e:
-                self.__log.debug(f"Error subscribing to batch {i // batch_size + 1}: {e}")
+                self.__log.warn(f"Error subscribing to batch {i // batch_size + 1}: {e}")
                 break
         return result
 

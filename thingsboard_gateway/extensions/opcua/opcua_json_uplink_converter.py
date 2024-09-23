@@ -106,7 +106,8 @@ class OpcuaJsonUplinkConverter(Converter):
 
     def convert(self, configs, values) -> ConvertedData:
         StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
-        basic_timestamp = int(int(time()) * 1000)
+        basic_timestamp = int(time() * 1000)
+        basic_timestamp = round(basic_timestamp / 100) * 100
 
         is_debug_enabled = self._log.isEnabledFor(5)
 
@@ -145,12 +146,12 @@ class OpcuaJsonUplinkConverter(Converter):
                 converted_data_fill_time = int(time() * 1000) - filling_start_time
             total_datapoints_in_converted_data = converted_data.telemetry_datapoints_count + converted_data.attributes_datapoints_count
 
-            if is_debug_enabled:
-                self._log.trace("Iteration took %d ms", int(time() * 1000) - start_iteration)
-                self._log.trace("Filling took %d ms", converted_data_fill_time)
-                self._log.trace("Average time per iteration: %2f ms", (float(int(time() * 1000)) - start_iteration) / float(len(values)))
-                self._log.trace("Average filling time: %2f ms", float(converted_data_fill_time) / float(total_datapoints_in_converted_data))
-                self._log.trace("Total datapoints in converted data: %d", total_datapoints_in_converted_data)
+            # if is_debug_enabled:
+            #     self._log.trace("Iteration took %d ms", int(time() * 1000) - start_iteration)
+            #     self._log.trace("Filling took %d ms", converted_data_fill_time)
+            #     self._log.trace("Average time per iteration: %2f ms", (float(int(time() * 1000)) - start_iteration) / float(len(values)))
+            #     self._log.trace("Average filling time: %2f ms", float(converted_data_fill_time) / float(total_datapoints_in_converted_data))
+            #     self._log.trace("Total datapoints in converted data: %d", total_datapoints_in_converted_data)
 
             StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced', count=converted_data.attributes_datapoints_count)
             StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced', count=converted_data.telemetry_datapoints_count)
