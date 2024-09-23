@@ -108,7 +108,7 @@ class OpcuaJsonUplinkConverter(Converter):
         StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
         basic_timestamp = int(int(time()) * 1000)
 
-        is_debug_enabled = self._log.isEnabledFor(10)
+        is_debug_enabled = self._log.isEnabledFor(5)
 
         try:
             if not isinstance(configs, list):
@@ -146,11 +146,11 @@ class OpcuaJsonUplinkConverter(Converter):
             total_datapoints_in_converted_data = converted_data.telemetry_datapoints_count + converted_data.attributes_datapoints_count
 
             if is_debug_enabled:
-                self._log.debug("Iteration took %d ms", int(time() * 1000) - start_iteration)
-                self._log.debug("Filling took %d ms", converted_data_fill_time)
-                self._log.debug("Average time per iteration: %2f ms", (float(int(time() * 1000)) - start_iteration) / float(len(values)))
-                self._log.debug("Average filling time: %2f ms", float(converted_data_fill_time) / float(total_datapoints_in_converted_data))
-                self._log.debug("Total datapoints in converted data: %d", total_datapoints_in_converted_data)
+                self._log.trace("Iteration took %d ms", int(time() * 1000) - start_iteration)
+                self._log.trace("Filling took %d ms", converted_data_fill_time)
+                self._log.trace("Average time per iteration: %2f ms", (float(int(time() * 1000)) - start_iteration) / float(len(values)))
+                self._log.trace("Average filling time: %2f ms", float(converted_data_fill_time) / float(total_datapoints_in_converted_data))
+                self._log.trace("Total datapoints in converted data: %d", total_datapoints_in_converted_data)
 
             StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced', count=converted_data.attributes_datapoints_count)
             StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced', count=converted_data.telemetry_datapoints_count)
