@@ -847,7 +847,7 @@ class OpcUaConnector(Connector, Thread):
 
                 return results
         except Exception as e:
-            self.__log.exception(e)
+            self.__log.exception("Error during RPC handling: ", exc_info=e)
 
     async def __write_value(self, path, value, result={}):
         try:
