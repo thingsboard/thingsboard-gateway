@@ -611,7 +611,8 @@ class TBGatewayService:
             try:
                 self.__remote_configurator = RemoteConfigurator(self, self.__config)
 
-                while not self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
+                while (not self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress()
+                       and not self.stopped):
                     sleep(1)
 
                 self._check_shared_attributes(shared_keys=[])
