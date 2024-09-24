@@ -614,7 +614,6 @@ class TBGatewayService:
                 while not self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
                     sleep(1)
 
-                self._check_shared_attributes()
                 self._check_shared_attributes(shared_keys=[])
             except Exception as e:
                 log.exception(e)
@@ -930,6 +929,16 @@ class TBGatewayService:
     def connect_with_connectors(self):
         self.__connect_with_connectors()
 
+    def __updated_connectors_devices(self, connector):
+        for device in self.__connected_devices.values():
+            if device.get('connector') and (device['connector'].name == connector.name or device[
+                'connector'].get_id() == connector.get_id()):
+                device['connector'] = connector
+
+    def __cleanup_connectors(self):
+        self.available_connectors_by_id = {connector_id: connector for (connector_id, connector) in
+                                           self.available_connectors_by_id.items() if not connector.is_stopped()}
+
     def __connect_with_connectors(self):
         global log
         for connector_type in self.connectors_configs:
@@ -959,6 +968,8 @@ class TBGatewayService:
                                             connector.name = connector_name
                                             self.available_connectors_by_id[connector_id] = connector
                                             self.available_connectors_by_name[connector_name] = connector
+                                            self.__updated_connectors_devices(connector)
+                                            self.__cleanup_connectors()
                                             connector.open()
                                         else:
                                             log.warning("[%r] Connector with name %s already exists and not stopped!",
