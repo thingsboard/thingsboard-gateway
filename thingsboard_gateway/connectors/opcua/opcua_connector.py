@@ -641,7 +641,9 @@ class OpcUaConnector(Connector, Thread):
                 result.append(await device.subscription.subscribe_data_change(batch))
                 self.__log.info(f"Subscribed to batch {i // batch_size + 1} with {len(batch)} nodes.")
             except Exception as e:
-                self.__log.warn(f"Error subscribing to batch {i // batch_size + 1}: {e}")
+                self.__log.warn(f"Error subscribing to batch {i // batch_size + 1} with {len(batch)} : {e}")
+                self.__log.error(f"{batch}")
+                self.__log.exception(exc_info=e)
                 break
         return result
 
