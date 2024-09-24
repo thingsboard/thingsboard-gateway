@@ -929,11 +929,11 @@ class TBGatewayService:
     def connect_with_connectors(self):
         self.__connect_with_connectors()
 
-    def __updated_connectors_devices(self, connector):
-        for device in self.__connected_devices.values():
-            if device.get('connector') and (device['connector'].name == connector.name or device[
-                'connector'].get_id() == connector.get_id()):
-                device['connector'] = connector
+    def __update_connector_devices(self, connector):
+        for (device_name, device) in self.__connected_devices.items():
+            if (device.get('connector') and
+                    (device['connector'].name == connector.name or device['connector'].get_id() == connector.get_id())):
+                self.update_device(device_name, 'connector', connector)
 
     def __cleanup_connectors(self):
         self.available_connectors_by_id = {connector_id: connector for (connector_id, connector) in
@@ -968,7 +968,7 @@ class TBGatewayService:
                                             connector.name = connector_name
                                             self.available_connectors_by_id[connector_id] = connector
                                             self.available_connectors_by_name[connector_name] = connector
-                                            self.__updated_connectors_devices(connector)
+                                            self.__update_connector_devices(connector)
                                             self.__cleanup_connectors()
                                             connector.open()
                                         else:
@@ -1733,7 +1733,8 @@ class TBGatewayService:
         should_save = False
         if self.__connected_devices.get(device_name) is None:
             return
-        if event == 'connector' and self.__connected_devices[device_name].get(event) != content:
+        if (event == 'connector' and (self.__connected_devices[device_name].get(event) != content
+                                      or id(content) != id(self.__connected_devices[device_name][event]))):
             should_save = True
         self.__connected_devices[device_name][event] = content
         if should_save:
