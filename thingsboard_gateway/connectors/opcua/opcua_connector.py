@@ -22,8 +22,6 @@ from threading import Thread
 from time import sleep, monotonic, time
 from typing import List, Dict
 
-from asyncua.ua import CreateSubscriptionParameters, NodeId
-
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua.device import Device
@@ -43,6 +41,8 @@ except (ImportError, ModuleNotFoundError):
     TBUtility.install_package("asyncua")
     import asyncua
 
+
+from asyncua.ua import CreateSubscriptionParameters, NodeId
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
