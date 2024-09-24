@@ -618,8 +618,12 @@ class TBGatewayService:
         if (remote_configuration_enabled or force) and self.__remote_configurator is None:
             try:
                 self.__remote_configurator = RemoteConfigurator(self, self.__config)
-                if self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
-                    self._check_shared_attributes()
+
+                while (not self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress()
+                       and not self.stopped):
+                    sleep(1)
+
+                self._check_shared_attributes(shared_keys=[])
             except Exception as e:
                 log.exception(e)
         if self.__remote_configurator is not None:
@@ -934,6 +938,16 @@ class TBGatewayService:
     def connect_with_connectors(self):
         self.__connect_with_connectors()
 
+    def __update_connector_devices(self, connector):
+        for (device_name, device) in self.__connected_devices.items():
+            if (device.get('connector') and
+                    (device['connector'].name == connector.name or device['connector'].get_id() == connector.get_id())):
+                self.update_device(device_name, 'connector', connector)
+
+    def __cleanup_connectors(self):
+        self.available_connectors_by_id = {connector_id: connector for (connector_id, connector) in
+                                           self.available_connectors_by_id.items() if not connector.is_stopped()}
+
     def __connect_with_connectors(self):
         global log
         for connector_type in self.connectors_configs:
@@ -963,6 +977,8 @@ class TBGatewayService:
                                             connector.name = connector_name
                                             self.available_connectors_by_id[connector_id] = connector
                                             self.available_connectors_by_name[connector_name] = connector
+                                            self.__update_connector_devices(connector)
+                                            self.__cleanup_connectors()
                                             connector.open()
                                         else:
                                             log.warning("[%r] Connector with name %s already exists and not stopped!",
@@ -1696,11 +1712,11 @@ class TBGatewayService:
 
     def add_device(self, device_name, content, device_type=None):
         if self.tb_client is None or not self.tb_client.is_connected():
-            return
+            return False
 
         device_type = device_type if device_type is not None else 'default'
         if device_name in self.__connected_devices:
-            return
+            return True
 
         self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
         self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
@@ -1721,12 +1737,16 @@ class TBGatewayService:
             except Exception as e:
                 global log
                 log.exception("Error on sending device details about the device %s", device_name, exc_info=e)
+                return False
+
+        return True
 
     def update_device(self, device_name, event, content):
         should_save = False
         if self.__connected_devices.get(device_name) is None:
             return
-        if event == 'connector' and self.__connected_devices[device_name].get(event) != content:
+        if (event == 'connector' and (self.__connected_devices[device_name].get(event) != content
+                                      or id(content) != id(self.__connected_devices[device_name][event]))):
             should_save = True
         self.__connected_devices[device_name][event] = content
         if should_save:
