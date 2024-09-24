@@ -20,7 +20,9 @@ from random import choice
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic, time
-from typing import List
+from typing import List, Dict, Tuple
+
+from asyncua.ua import CreateSubscriptionParameters, NodeId
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
@@ -93,7 +95,7 @@ class OpcUaConnector(Connector, Thread):
             self.__opcua_url = self.__server_conf.get("url")
 
         self.__enable_subscriptions = self.__server_conf.get('enableSubscriptions', True)
-        self.__sub_check_period_in_millis = self.__server_conf.get("subCheckPeriodInMillis", 1)
+        self.__sub_check_period_in_millis = max(self.__server_conf.get("subCheckPeriodInMillis", 100), 100)
         # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
         self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
         self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200), 100) / 1000
@@ -121,8 +123,11 @@ class OpcUaConnector(Connector, Thread):
         self.__thread_pool_executor_processor_thread.start()
 
         self.__device_nodes: List[Device] = []
+        self.__nodes_config_cache: Dict[NodeId, List[Device]] = {}
         self.__next_poll = 0
         self.__next_scan = 0
+
+        self.__log.info("OPC-UA Connector has been initialized")
 
     def open(self):
         self.__stopped = False
@@ -224,7 +229,7 @@ class OpcUaConnector(Connector, Thread):
             self.__log.exception("Error in main loop: %s", e)
 
     async def start_client(self):
-        sleep_for_subscription_work_model = self.__sub_check_period_in_millis / 1000
+        sleep_for_subscription_work_model = max(self.__sub_check_period_in_millis / 1000, .02)
         while not self.__stopped:
             try:
                 self.__client = asyncua.Client(url=self.__opcua_url,
@@ -450,29 +455,32 @@ class OpcUaConnector(Connector, Thread):
                 continue
 
             for sub_node, data, received_ts in batch:
-                for device in self.__device_nodes:
-                    for section in ('attributes', 'timeseries'):
-                        for node in device.values.get(section, []):
-                            if node.get('id') == sub_node.__str__():
-                                if device not in device_converted_data_map:
-                                    device_converted_data_map[device] = ConvertedData(device_name=device.name)
+                node_configs = self.__nodes_config_cache.get(sub_node.nodeid, [])
+                for device in node_configs:
+                    try:
+                        if device not in device_converted_data_map:
+                            device_converted_data_map[device] = ConvertedData(device_name=device.name)
 
-                                converted_data = device.converter_for_sub.convert(
-                                    {'section': section, 'key': node['key']},
-                                    data.monitored_item.Value
-                                )
+                        node = device.nodes_data_change_subscriptions[sub_node.nodeid]
 
-                                if converted_data:
-                                    converted_data.add_to_metadata({
-                                        CONNECTOR_PARAMETER: self.get_name(),
-                                        RECEIVED_TS_PARAMETER: received_ts,
-                                        CONVERTED_TS_PARAMETER: int(time() * 1000)
-                                    })
+                        converted_data = device.converter_for_sub.convert(
+                            {'section': node['section'], 'key': node['key']},
+                            data.monitored_item.Value
+                        )
 
-                                    if section == 'attributes':
-                                        device_converted_data_map[device].add_to_attributes(converted_data.attributes)
-                                    else:
-                                        device_converted_data_map[device].add_to_telemetry(converted_data.telemetry)
+                        if converted_data:
+                            converted_data.add_to_metadata({
+                                CONNECTOR_PARAMETER: self.get_name(),
+                                RECEIVED_TS_PARAMETER: received_ts,
+                                CONVERTED_TS_PARAMETER: int(time() * 1000)
+                            })
+
+                            if node['section'] == 'attributes':
+                                device_converted_data_map[device].add_to_attributes(converted_data.attributes)
+                            else:
+                                device_converted_data_map[device].add_to_telemetry(converted_data.telemetry)
+                    except Exception as e:
+                        self.__log.exception("Error converting data: %s", e)
 
             for device, converted_data in device_converted_data_map.items():
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
@@ -565,6 +573,9 @@ class OpcUaConnector(Connector, Thread):
                                         self.__sub_check_period_in_millis, SubHandler(
                                             self.__sub_data_to_convert, self.__log))
                                 if found_node.nodeid not in device.nodes_data_change_subscriptions:
+                                    if found_node.nodeid not in self.__nodes_config_cache:
+                                        self.__nodes_config_cache[found_node.nodeid] = []
+                                    self.__nodes_config_cache[found_node.nodeid].append(device)
                                     device.nodes_data_change_subscriptions[found_node.nodeid] = {"node": found_node,
                                                                                                  "subscription": None,
                                                                                                  "key": node['key'],
@@ -896,6 +907,12 @@ class SubHandler:
     def __init__(self, queue, logger):
         self.__log = logger
         self.__queue = queue
+
+    def status_change_notification(self, status):
+        self.__log.debug("New status event %s", status)
+
+    def event_notification(self, event):
+        self.__log.debug("New event %s", event)
 
     def datachange_notification(self, node, _, data):
         self.__log.debug("New data change event %s %s", node, data)
