@@ -20,7 +20,7 @@ from random import choice
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic, time
-from typing import List, Dict, Tuple
+from typing import List, Dict
 
 from asyncua.ua import CreateSubscriptionParameters, NodeId
 
@@ -99,6 +99,7 @@ class OpcUaConnector(Connector, Thread):
         # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
         self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
         self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200), 100) / 1000
+        self.__subscription_batch_size = self.__server_conf.get('subscriptionProcessBatchSize', 2000)
 
         self.__sub_data_to_convert = Queue(-1)
         self.__data_to_convert = Queue(-1)
@@ -617,7 +618,7 @@ class OpcUaConnector(Connector, Thread):
                     if nodes_to_subscribe:
                             nodes_data_change_subscriptions = await self._subscribe_for_node_updates_in_batches(device,
                                                                                                          nodes_to_subscribe,
-                                                                                                         100)
+                                                                                                         self.__subscription_batch_size)
                             subs = []
                             for subs_batch in nodes_data_change_subscriptions:
                                 subs.extend(subs_batch)
@@ -637,10 +638,13 @@ class OpcUaConnector(Connector, Thread):
         for i in range(0, total_nodes, batch_size):
             batch = nodes[i:i + batch_size]
             try:
+                self.__log.info(f"Subscribing to batch {i // batch_size + 1} with {len(batch)} nodes.")
                 result.append(await device.subscription.subscribe_data_change(batch))
-                self.__log.debug(f"Subscribed to batch {i // batch_size + 1} with {len(batch)} nodes.")
+                self.__log.info(f"Subscribed to batch {i // batch_size + 1} with {len(batch)} nodes.")
             except Exception as e:
-                self.__log.debug(f"Error subscribing to batch {i // batch_size + 1}: {e}")
+                self.__log.warn(f"Error subscribing to batch {i // batch_size + 1} with {len(batch)} : {e}")
+                # self.__log.error(f"{batch}") # Uncomment to see the nodes that failed to subscribe
+                self.__log.exception("Error subscribing to nodes: ", exc_info=e)
                 break
         return result
 
@@ -915,5 +919,5 @@ class SubHandler:
         self.__log.debug("New event %s", event)
 
     def datachange_notification(self, node, _, data):
-        self.__log.debug("New data change event %s %s", node, data)
+        self.__log.trace("New data change event %s %s", node, data)
         self.__queue.put((node, data, int(time() * 1000)))
