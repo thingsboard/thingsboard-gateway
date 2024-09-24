@@ -643,7 +643,7 @@ class OpcUaConnector(Connector, Thread):
             except Exception as e:
                 self.__log.warn(f"Error subscribing to batch {i // batch_size + 1} with {len(batch)} : {e}")
                 self.__log.error(f"{batch}")
-                self.__log.exception(exc_info=e)
+                self.__log.exception("exception", exc_info=e)
                 break
         return result
 
