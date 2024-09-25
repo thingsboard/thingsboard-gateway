@@ -101,7 +101,7 @@ class OpcUaConnector(Connector, Thread):
         # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
         self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
         self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200), 100) / 1000
-        self.__subscription_batch_size = self.__server_conf.get('subscriptionProcessBatchSize', 2000)
+        self.__subscription_batch_size = self.__server_conf.get('subscriptionBatchSize', 100_000)
 
         self.__sub_data_to_convert = Queue(-1)
         self.__data_to_convert = Queue(-1)
