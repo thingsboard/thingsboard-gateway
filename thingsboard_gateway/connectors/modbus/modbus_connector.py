@@ -156,7 +156,7 @@ class ModbusConnector(Connector, Thread):
             self.__slave_thread = Thread(target=self.__configure_and_run_slave, args=(self.__config['slave'],),
                                          daemon=True, name='Gateway modbus slave')
             self.__slave_thread.start()
-        self.__load_slaves()
+        self.__load_slaves(self.__config.get('master', {'slaves': []}).get('slaves', []))
 
     def is_connected(self):
         return self.__connected
@@ -253,14 +253,18 @@ class ModbusConnector(Connector, Thread):
                         register] if section_name not in ('attributeUpdates', 'rpc') else item['functionCode']})
 
         self.__config['master']['slaves'].append(device)
+        self.__load_slave(device)
 
-    def __load_slaves(self):
-        for device in self.__config.get('master', {'slaves': []}).get('slaves', []):
-            slave_config = {**device, 'connector': self, 'gateway': self.__gateway, 'logger': self.__log,
-                'callback': ModbusConnector.callback}
-            if REPORT_STRATEGY_PARAMETER not in slave_config:
-                slave_config[REPORT_STRATEGY_PARAMETER] = self.__main_report_strategy
-            self.__slaves.append(Slave(**slave_config))
+    def __load_slaves(self, slaves):
+        for slave in slaves:
+            self.__load_slave(slave)
+
+    def __load_slave(self, slave):
+        slave_config = {**slave, 'connector': self, 'gateway': self.__gateway, 'logger': self.__log,
+                        'callback': ModbusConnector.callback}
+        if REPORT_STRATEGY_PARAMETER not in slave_config:
+            slave_config[REPORT_STRATEGY_PARAMETER] = self.__main_report_strategy
+        self.__slaves.append(Slave(**slave_config))
 
     @classmethod
     def callback(cls, slave: Slave, request_type: RequestType, data=None):

@@ -207,10 +207,10 @@
         "attributes": [
           {
             "address": 5,
-            "type": "string",
-            "tag": "sm",
+            "type": "8int",
+            "tag": "coil",
             "objectsCount": 1,
-            "value": "12"
+            "value": 0
           }
         ],
         "timeseries": [],
