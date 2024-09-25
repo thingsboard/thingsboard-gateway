@@ -20,9 +20,7 @@ from random import choice
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic, time
-from typing import List, Dict, Tuple
-
-from asyncua.ua import CreateSubscriptionParameters, NodeId
+from typing import List, Dict
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
@@ -43,6 +41,10 @@ except (ImportError, ModuleNotFoundError):
     TBUtility.install_package("asyncua")
     import asyncua
 
+
+
+from asyncua import ua
+from asyncua.ua import CreateSubscriptionParameters, NodeId
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
@@ -99,6 +101,7 @@ class OpcUaConnector(Connector, Thread):
         # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
         self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
         self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200), 100) / 1000
+        self.__subscription_batch_size = self.__server_conf.get('subscriptionProcessBatchSize', 2000)
 
         self.__sub_data_to_convert = Queue(-1)
         self.__data_to_convert = Queue(-1)
@@ -234,6 +237,7 @@ class OpcUaConnector(Connector, Thread):
             try:
                 self.__client = asyncua.Client(url=self.__opcua_url,
                                                timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
+                self.__client._monitor_server_loop = self._monitor_server_loop
                 self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 120000)
                 if self.__server_conf["identity"].get("type") == "cert.PEM":
                     await self.__set_auth_settings_by_cert()
@@ -249,6 +253,7 @@ class OpcUaConnector(Connector, Thread):
                     self.__log.error("Failed to connect to server, retrying...")
                     await self.disconnect_if_connected()
                     continue
+                self.__log.info("Connected to OPC-UA Server: %s", self.__opcua_url)
                 self.__connected = True
 
                 try:
@@ -278,9 +283,11 @@ class OpcUaConnector(Connector, Thread):
                         if not self.__enable_subscriptions else sleep_for_subscription_work_model
                     if time_to_sleep > 0:
                         await asyncio.sleep(time_to_sleep)
+                    if not self.__connected:
+                        break
 
             except (ConnectionError, BadSessionClosed, BadSessionIdInvalid):
-                self.__log.warning('Connection lost for %s', self.get_name())
+                self.__log.warning('Connection lost for %s, will try to reconnect...', self.get_name())
                 await self.disconnect_if_connected()
             except asyncio.exceptions.TimeoutError:
                 self.__log.warning('Failed to connect %s', self.get_name())
@@ -308,6 +315,9 @@ class OpcUaConnector(Connector, Thread):
     async def disconnect_if_connected(self):
         if self.__connected:
             try:
+                if self.__enable_subscriptions:
+                    for device in self.__device_nodes:
+                        device.subscription = None
                 await self.__unsubscribe_from_nodes()
                 await self.__client.disconnect()
             except Exception:
@@ -351,6 +361,37 @@ class OpcUaConnector(Connector, Thread):
         self.__client.set_user(self.__server_conf["identity"].get("username"))
         if self.__server_conf["identity"].get("password"):
             self.__client.set_password(self.__server_conf["identity"].get("password"))
+
+    async def _monitor_server_loop(self):
+        """
+        Checks if the server is alive
+        """
+        timeout = min(self.__client.session_timeout / 1000 / 2, self.__client._watchdog_intervall)
+        try:
+            while not self.__client._closing:
+                await asyncio.sleep(timeout)
+                # @FIXME handle state change
+                _ = await self.__client.nodes.server_state.read_value()
+        except ConnectionError as e:
+            # _logger.info("connection error in watchdog loop %s", e, exc_info=True)
+            await self.__client._lost_connection(e)
+            await self.__client.uaclient.inform_subscriptions(ua.StatusCode(ua.StatusCodes.BadShutdown))
+            try:
+                for device in self.__device_nodes:
+                    device.subscription = None
+            except Exception:
+                pass
+            self.__connected = False
+        except Exception as e:
+            # _logger.exception("Error in watchdog loop")
+            await self.__client._lost_connection(e)
+            await self.__client.uaclient.inform_subscriptions(ua.StatusCode(ua.StatusCodes.BadShutdown))
+            try:
+                for device in self.__device_nodes:
+                    device.subscription = None
+            except Exception:
+                pass
+            self.__connected = False
 
     def __load_converter(self, device):
         converter_class_name = device.get('converter', DEFAULT_UPLINK_CONVERTER)
@@ -484,6 +525,7 @@ class OpcUaConnector(Connector, Thread):
 
             for device, converted_data in device_converted_data_map.items():
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
+                self.__log.info('Converted data from %r nodes for device %s', len(batch), device.name)
 
             device_converted_data_map.clear()
 
@@ -618,7 +660,7 @@ class OpcUaConnector(Connector, Thread):
                     if nodes_to_subscribe:
                             nodes_data_change_subscriptions = await self._subscribe_for_node_updates_in_batches(device,
                                                                                                          nodes_to_subscribe,
-                                                                                                         subscription_batch_size)
+                                                                                                         self.__subscription_batch_size)
                             subs = []
                             for subs_batch in nodes_data_change_subscriptions:
                                 subs.extend(subs_batch)
@@ -638,14 +680,15 @@ class OpcUaConnector(Connector, Thread):
         for i in range(0, total_nodes, batch_size):
             batch = nodes[i:i + batch_size]
             try:
-                self.__log.info(f"Subscribing to batch {i // batch_size + 1} with {len(batch)} nodes.")
+                self.__log.info("Subscribing to batch %i with %i nodes.", i // batch_size + 1, len(batch))
                 result.append(await device.subscription.subscribe_data_change(batch))
-                self.__log.info(f"Subscribed to batch {i // batch_size + 1} with {len(batch)} nodes.")
+                self.__log.info("Subscribed to batch %i with %i nodes.", i // batch_size + 1, len(batch))
             except Exception as e:
-                self.__log.warn(f"Error subscribing to batch {i // batch_size + 1} with {len(batch)} : {e}")
-                # self.__log.error(f"{batch}")
-                self.__log.exception("exception", exc_info=e)
+                self.__log.warn("Error subscribing to batch %i with %i : %r", i // batch_size + 1, len(batch), e)
+                # self.__log.error("%r", batch) # Uncomment to see the nodes that failed to subscribe
+                self.__log.exception("Error subscribing to nodes: ", exc_info=e)
                 break
+        self.__log.info("Subscribed to %i nodes.", total_nodes)
         return result
 
     async def __poll_nodes(self):
@@ -667,7 +710,8 @@ class OpcUaConnector(Connector, Thread):
         while not self.__stopped:
             try:
                 for future in futures:
-                    future.result()
+                    if future.done():
+                        futures.remove(future)
             except Exception as e:
                 self.__log.exception("Error in thread pool executor: %s", e)
 
@@ -705,9 +749,9 @@ class OpcUaConnector(Connector, Thread):
                     #TODO: Should these counters be here, or on upper level?
                     StatisticsService.count_connector_bytes(self.name, converted_data,
                                                             stat_parameter_name='connectorBytesReceived')
+            self.__log.info('Converted data from %s nodes', converted_nodes_count)
         except Exception as e:
-            print("Error converting data: %s", e)
-            self.__log.exception("Error converting data: %s", e)
+            self.__log.exception("Error converting data: ", exc_info=e)
 
     @staticmethod
     def __convert_device_data(converter, device_nodes, values):

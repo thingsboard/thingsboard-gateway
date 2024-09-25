@@ -255,8 +255,8 @@ class TBGatewayService:
             self.load_connectors()
 
         try:
-            log.warning("Initials connections with connectors was failed, trying again...")
             if not self.__connectors_init_start_success:
+                log.warning("Initials connections with connectors was failed, trying again...")
                 self.connect_with_connectors()
                 log.info("Initials connections with connectors was successful.")
         except Exception as e:
@@ -618,8 +618,12 @@ class TBGatewayService:
         if (remote_configuration_enabled or force) and self.__remote_configurator is None:
             try:
                 self.__remote_configurator = RemoteConfigurator(self, self.__config)
-                if self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress():
-                    self._check_shared_attributes()
+
+                while (not self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress()
+                       and not self.stopped):
+                    sleep(1)
+
+                self._check_shared_attributes(shared_keys=[])
             except Exception as e:
                 log.exception(e)
         if self.__remote_configurator is not None:
@@ -680,7 +684,7 @@ class TBGatewayService:
 
             self.available_connectors_by_name[connector_name].update_converter_config(converter_name, content[key])  # noqa
         except (ValueError, AttributeError, IndexError) as e:
-            log.debug('Failed to process remote converter update: %s', e)
+            log.trace('Failed to process remote converter update: %s', e)
 
     def update_connector_config_file(self, connector_name, config):
         for connector in self.__config['connectors']:
@@ -934,6 +938,16 @@ class TBGatewayService:
     def connect_with_connectors(self):
         self.__connect_with_connectors()
 
+    def __update_connector_devices(self, connector):
+        for (device_name, device) in self.__connected_devices.items():
+            if (device.get('connector') and
+                    (device['connector'].name == connector.name or device['connector'].get_id() == connector.get_id())):
+                self.update_device(device_name, 'connector', connector)
+
+    def __cleanup_connectors(self):
+        self.available_connectors_by_id = {connector_id: connector for (connector_id, connector) in
+                                           self.available_connectors_by_id.items() if not connector.is_stopped()}
+
     def __connect_with_connectors(self):
         global log
         for connector_type in self.connectors_configs:
@@ -963,6 +977,8 @@ class TBGatewayService:
                                             connector.name = connector_name
                                             self.available_connectors_by_id[connector_id] = connector
                                             self.available_connectors_by_name[connector_name] = connector
+                                            self.__update_connector_devices(connector)
+                                            self.__cleanup_connectors()
                                             connector.open()
                                         else:
                                             log.warning("[%r] Connector with name %s already exists and not stopped!",
@@ -1121,8 +1137,9 @@ class TBGatewayService:
                 start_splitting = int(time() * 1000)
                 adopted_data: List[ConvertedData] = data.convert_to_objects_with_maximal_size(adopted_data_max_entry_size)
                 end_splitting = int(time() * 1000)
-                log.debug("Data splitting took %r ms, telemetry datapoints count: %r, attributes count: %r",
-                          end_splitting - start_splitting, data.telemetry_datapoints_count, data.attributes_datapoints_count)
+                if self.__latency_debug_mode:
+                    log.trace("Data splitting took %r ms, telemetry datapoints count: %r, attributes count: %r",
+                              end_splitting - start_splitting, data.telemetry_datapoints_count, data.attributes_datapoints_count)
                 if self.__latency_debug_mode and data.metadata.get("receivedTs"):
                     log.debug("Data processing before sending to storage took %r ms", end_splitting - data.metadata.get("receivedTs", 0))
                 for adopted_data_entry in adopted_data:
@@ -1310,7 +1327,7 @@ class TBGatewayService:
                         telemetry_dp_count = 0
                         attribute_dp_count = 0
 
-                        if events_len > 100:
+                        if self.__latency_debug_mode and events_len > 100:
                             log.debug("Retrieved %r events from the storage.", events_len)
                         start_pack_processing = time()
                         for event in events:
@@ -1362,13 +1379,17 @@ class TBGatewayService:
                                 continue
                             while self.__rpc_reply_sent:
                                 sleep(.01)
-                            if events_len > 100:
+                            if self.__latency_debug_mode and events_len > 100:
                                 pack_processing_time = int((time() - start_pack_processing) * 1000)
-                                average_event_processing_time = int((pack_processing_time / events_len) * 1000)
-                                log.debug("Sending data to ThingsBoard, pack size %i processing took %i ,milliseconds. Average event processing time is %i milliseconds.",  # noqa
+                                average_event_processing_time = (pack_processing_time / events_len)
+                                if average_event_processing_time < 1.0:
+                                    average_event_processing_time_str = f"{average_event_processing_time * 1000:.2f} microseconds."
+                                else:
+                                    average_event_processing_time_str = f"{average_event_processing_time:.2f} milliseconds."
+                                log.debug("Sending data to ThingsBoard, pack size %i processing took %i ,milliseconds. Average event processing time is %s",  # noqa
                                           events_len,
                                           pack_processing_time,
-                                          average_event_processing_time) # noqa
+                                          average_event_processing_time_str) # noqa
 
                             self.__send_data(devices_data_in_event_pack) # noqa
                             current_event_pack_data_size = 0
@@ -1696,11 +1717,11 @@ class TBGatewayService:
 
     def add_device(self, device_name, content, device_type=None):
         if self.tb_client is None or not self.tb_client.is_connected():
-            return
+            return False
 
         device_type = device_type if device_type is not None else 'default'
         if device_name in self.__connected_devices:
-            return
+            return True
 
         self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
         self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
@@ -1721,12 +1742,16 @@ class TBGatewayService:
             except Exception as e:
                 global log
                 log.exception("Error on sending device details about the device %s", device_name, exc_info=e)
+                return False
+
+        return True
 
     def update_device(self, device_name, event, content):
         should_save = False
         if self.__connected_devices.get(device_name) is None:
             return
-        if event == 'connector' and self.__connected_devices[device_name].get(event) != content:
+        if (event == 'connector' and (self.__connected_devices[device_name].get(event) != content
+                                      or id(content) != id(self.__connected_devices[device_name][event]))):
             should_save = True
         self.__connected_devices[device_name][event] = content
         if should_save:
