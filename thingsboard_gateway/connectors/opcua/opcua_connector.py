@@ -315,6 +315,9 @@ class OpcUaConnector(Connector, Thread):
     async def disconnect_if_connected(self):
         if self.__connected:
             try:
+                if self.__enable_subscriptions:
+                    for device in self.__device_nodes:
+                        device.subscription = None
                 await self.__unsubscribe_from_nodes()
                 await self.__client.disconnect()
             except Exception:
