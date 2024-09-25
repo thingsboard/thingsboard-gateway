@@ -9,7 +9,7 @@ User=thingsboard_gateway
 Group=thingsboard_gateway
 
 WorkingDirectory=/var/lib/thingsboard_gateway
-ExecStart=/usr/bin/python3 -c "from thingsboard_gateway.tb_gateway import daemon; daemon()"
+ExecStart=/var/lib/thingsboard_gateway/venv/bin/python3 -c "from thingsboard_gateway.tb_gateway import daemon; daemon()"
 ExecStop=/bin/kill -INT $MAINPID
 ExecReload=/bin/kill -TERM $MAINPID
 

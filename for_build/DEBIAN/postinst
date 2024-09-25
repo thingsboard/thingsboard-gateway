@@ -1,48 +1,72 @@
 #!/bin/sh
-#      Copyright 2022. ThingsBoard
-#
-#      Licensed under the Apache License, Version 2.0 (the "License");
-#      you may not use this file except in compliance with the License.
-#      You may obtain a copy of the License at
-#
-#          http://www.apache.org/licenses/LICENSE-2.0
-#
-#      Unless required by applicable law or agreed to in writing, software
-#      distributed under the License is distributed on an "AS IS" BASIS,
-#      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#      See the License for the specific language governing permissions and
-#      limitations under the License.
-
 set -e
 
 # Automatically added by dh_python3:
 if which py3compile >/dev/null 2>&1; then
-	py3compile -p python3-thingsboard-gateway 
+    echo "Running py3compile for python3-thingsboard-gateway..."
+    py3compile -p python3-thingsboard-gateway
 fi
 if which pypy3compile >/dev/null 2>&1; then
-	pypy3compile -p python3-thingsboard-gateway  || true
+    echo "Running pypy3compile for python3-thingsboard-gateway..."
+    pypy3compile -p python3-thingsboard-gateway || true
 fi
 
-# End automatically added section
-echo "Installing jsonschema"
-sudo rm -rf /usr/lib/python3/dist-packages/jsonschema
-CURRENT_USER=$USER
-sudo pip3 install --upgrade jsonschema==3.1.1
-sudo pip3 install --upgrade pyrsistent --progress-bar off -qqq || echo "OK"
-sudo pip3 install --upgrade importlib --progress-bar off -qqq || echo "OK"
-sudo pip3 install --upgrade importlib-metadata --progress-bar off -qqq || echo "OK"
+echo "Checking if /var/lib/thingsboard_gateway/ exists..."
+if [ ! -d "/var/lib/thingsboard_gateway/" ]; then
+    echo "Creating /var/lib/thingsboard_gateway/ directory..."
+    mkdir -p /var/lib/thingsboard_gateway/
+else
+    echo "/var/lib/thingsboard_gateway/ already exists."
+fi
+
+# Copy necessary files and set permissions
+echo "Copying extensions to /var/lib/thingsboard_gateway/..."
 sudo cp -a -r /etc/thingsboard-gateway/extensions /var/lib/thingsboard_gateway/
+echo "Removing /etc/thingsboard-gateway/extensions..."
 sudo rm -r /etc/thingsboard-gateway/extensions
-sudo usermod -a -G dialout $CURRENT_USER
+
+echo "Adding users to dialout and thingsboard_gateway groups..."
+sudo usermod -a -G dialout $USER
 sudo usermod -a -G dialout thingsboard_gateway
-sudo usermod -a -G thingsboard_gateway $CURRENT_USER
+sudo usermod -a -G thingsboard_gateway $USER
+
+VENV_PATH="/var/lib/thingsboard_gateway/venv"
+
+# Create virtual environment if it doesn't exist
+echo "Checking for virtual environment at $VENV_PATH..."
+if [ ! -d "$VENV_PATH" ]; then
+    echo "Creating Python virtual environment..."
+    python3 -m venv "$VENV_PATH"
+else
+    echo "Removing previous virtual environment"
+    rm -rf "$VENV_PATH"
+    python3 -m venv "$VENV_PATH"
+fi
+
+echo "Setting permissions for /var/log/thingsboard-gateway/..."
 sudo chown thingsboard_gateway:thingsboard_gateway /var/log/thingsboard-gateway/ -R
+echo "Setting permissions for /var/lib/thingsboard_gateway/..."
 sudo chown thingsboard_gateway:thingsboard_gateway /var/lib/thingsboard_gateway/ -R
+echo "Setting permissions for /etc/thingsboard-gateway/..."
 sudo chown thingsboard_gateway:thingsboard_gateway /etc/thingsboard-gateway/ -R
+
+# Activate the virtual environment and install required dependencies
+echo "Upgrading pip and installing required dependencies..."
+"$VENV_PATH/bin/pip" install --upgrade pip
+
+echo "Getting wheel package name..."
+echo $(ls /var/lib/thingsboard_gateway/)
+WHEEL_FILE=$(ls /var/lib/thingsboard_gateway/*.whl)
+echo "Installing wheel package $WHEEL_FILE..."
+"$VENV_PATH/bin/pip" install $WHEEL_FILE
+
+# Modify the logs config file
+echo "Updating logs configuration..."
 sudo sed -i 's/\.\/logs/\/var\/log\/thingsboard-gateway/g' /etc/thingsboard-gateway/config/logs.json >> /etc/thingsboard-gateway/config/logs.json
-echo "Installation completed"
+
+# Enable and start the service
 echo "Enabling daemon..."
 sudo pidof systemd && sudo systemctl enable thingsboard-gateway || echo "Systemctl not found, cannot enable the daemon!"
 echo "Starting daemon..."
 sudo pidof systemd && sudo systemctl start thingsboard-gateway || echo "Systemctl not found, cannot start the daemon!"
-echo -e "\e[96mThingsboard Gateway \e[92mhas been installed. Have a nice day \e[93m\e[5m:)\e[25m\e[39m"
+echo -e "\e[96mThingsBoard Gateway \e[92mhas been installed. Have a nice day \e[93m\e[5m:)\e[25m\e[39m"
