@@ -41,6 +41,9 @@ class BackwardCompatibilityAdapter:
                           .format(t, section_config, e))
                     continue
 
+        if not self._config.get('mapping'):
+            self._config['mapping'] = []
+
         return self._config
 
     @staticmethod
@@ -91,6 +94,9 @@ class BackwardCompatibilityAdapter:
         if config.get('extension-config'):
             extension_config = config.pop('extension-config')
             config['extensionConfig'] = extension_config
+
+        if len(config['deviceInfo']) == 0:
+            config.pop('deviceInfo')
 
     @staticmethod
     def _parce_attribute_info(config):

@@ -23,7 +23,7 @@ class MqttBackwardCompatibilityAdapterTests(BaseUnitTest):
     def test_convert_with_empty_config(self):
         result = self.adapter.convert()
         expected_result = {
-            'mapping': {},
+            'mapping': [],
             'requestsMapping': {
                 'attributeRequests': {},
                 'attributeUpdates': {},
