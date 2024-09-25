@@ -174,7 +174,7 @@ class OpcUaConnector(Connector, Thread):
             self.__log.warning('%s could not be disconnected from OPC-UA Server: %s', self.name, e)
 
     async def __unsubscribe_from_node(self, device: Device, node):
-        node['valid'] = False
+        node.pop('valid', None)
         if node.get('node') is not None and self.__enable_subscriptions:
             subscription_id = device.nodes_data_change_subscriptions.get(node['node'].nodeid, {}).get('subscription')
             if subscription_id is not None:
@@ -318,6 +318,7 @@ class OpcUaConnector(Connector, Thread):
                 if self.__enable_subscriptions:
                     for device in self.__device_nodes:
                         device.subscription = None
+                        device.nodes_data_change_subscriptions = {}
                 await self.__unsubscribe_from_nodes()
                 await self.__client.disconnect()
             except Exception:
@@ -610,10 +611,6 @@ class OpcUaConnector(Connector, Thread):
 
                         if node.get('valid') is None or (node.get('valid') and not self.__enable_subscriptions):
                             if self.__enable_subscriptions and not subscription_exists and not self.__stopped:
-                                if device.subscription is None:
-                                    device.subscription = await self.__client.create_subscription(
-                                        self.__sub_check_period_in_millis, SubHandler(
-                                            self.__sub_data_to_convert, self.__log))
                                 if found_node.nodeid not in device.nodes_data_change_subscriptions:
                                     if found_node.nodeid not in self.__nodes_config_cache:
                                         self.__nodes_config_cache[found_node.nodeid] = []
@@ -622,6 +619,12 @@ class OpcUaConnector(Connector, Thread):
                                                                                                  "subscription": None,
                                                                                                  "key": node['key'],
                                                                                                  "section": section}
+
+                                if device.subscription is None:
+                                    device.subscription = await self.__client.create_subscription(
+                                        self.__sub_check_period_in_millis, SubHandler(
+                                            self.__sub_data_to_convert, self.__log))
+
                                 node['id'] = found_node.nodeid.to_string()
 
                             node['valid'] = True
@@ -665,10 +668,6 @@ class OpcUaConnector(Connector, Thread):
                                 subs.extend(subs_batch)
                             for node, conf, subscription_id in zip(nodes_to_subscribe, conf, subs):
                                 device.nodes_data_change_subscriptions[node.nodeid]['subscription'] = subscription_id
-                    else:
-                        self.__log.error('Failed to subscribe on data change; client was disconnected!')
-                        raise ConnectionError('Client was disconnected!')
-
             except Exception as e:
                 self.__log.exception("Error loading nodes: %s", e)
                 raise e
