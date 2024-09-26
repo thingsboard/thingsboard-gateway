@@ -505,10 +505,7 @@ class OpcUaConnector(Connector, Thread):
 
                         node = device.nodes_data_change_subscriptions[sub_node.nodeid]
 
-                        converted_data = device.converter_for_sub.convert(
-                            {'section': node['section'], 'key': node['key']},
-                            data.monitored_item.Value
-                        )
+                        converted_data = device.converter_for_sub.convert(node, data.monitored_item.Value)
 
                         if converted_data:
                             converted_data.add_to_metadata({
@@ -618,7 +615,8 @@ class OpcUaConnector(Connector, Thread):
                                     device.nodes_data_change_subscriptions[found_node.nodeid] = {"node": found_node,
                                                                                                  "subscription": None,
                                                                                                  "key": node['key'],
-                                                                                                 "section": section}
+                                                                                                 "section": section,
+                                             'timestampLocation': node.get('timestampLocation', 'gateway')}
 
                                 if device.subscription is None:
                                     device.subscription = await self.__client.create_subscription(
