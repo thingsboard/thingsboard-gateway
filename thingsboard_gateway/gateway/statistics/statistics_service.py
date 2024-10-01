@@ -177,7 +177,8 @@ class StatisticsService(Thread):
 
     def __send_custom_command_statistics(self):
         custom_command_statistics_message = self.__collect_custom_command_statistics()
-        self._gateway.send_telemetry(custom_command_statistics_message)
+        if custom_command_statistics_message:
+            self._gateway.send_telemetry(custom_command_statistics_message)
 
     def __send_statistics(self):
         statistics_message = {'machineStats': self.__collect_statistics_from_config(MACHINE_STATS_CONFIG),

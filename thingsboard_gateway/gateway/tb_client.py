@@ -119,9 +119,9 @@ class TBClient(threading.Thread):
 
     # def _on_log(self, *args):
     #     if "exception" in args[-1]:
-    #         log.exception(args)
+    #         self.__logger.exception(args)
     #     else:
-    #         log.debug(args)
+    #         self.__logger.debug(args)
 
     def _create_mqtt_client(self, credentials):
         self.__tls = bool(credentials.get('tls', False) or credentials.get('caCert', False))
@@ -344,6 +344,9 @@ class TBClient(threading.Thread):
     def is_stopped(self):
         return self.__stopped
 
+    def get_max_payload_size(self):
+        return self.client.max_payload_size # noqa pylint: disable=protected-access
+
     def update_logger(self):
         self.__logger.setLevel(getLogger("storage").level)
         self.__logger.handlers = getLogger("storage").handlers
@@ -352,3 +355,4 @@ class TBClient(threading.Thread):
         self.__logger.filters = getLogger("storage").filters
         self.__logger.propagate = getLogger("storage").propagate
         self.__logger.parent = getLogger("storage").parent
+        tb_device_mqtt.log = self.__logger
