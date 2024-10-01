@@ -69,7 +69,7 @@ setup(
         'grpcio',
         'protobuf',
         'cachetools',
-        'tb-mqtt-client>=1.10.3',
+        'tb-mqtt-client>=1.10.4',
         'packaging==23.1',
         'service-identity',
         'psutil'
