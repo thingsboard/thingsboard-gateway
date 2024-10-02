@@ -59,6 +59,8 @@ class TBClient(threading.Thread):
         self.__is_connected = False
         self.__stopped = False
         self.__paused = False
+        # TODO: remove this flag
+        self.__initial_connection_done = False
         self._last_cert_check_time = 0
         self.__service_subscription_callbacks = []
 
@@ -249,6 +251,10 @@ class TBClient(threading.Thread):
         self.__logger.debug('TB client %s connected to ThingsBoard', str(client))
         if result_code == 0:
             self.__is_connected = True
+            if self.__initial_connection_done:
+                self.client.rate_limits_received = True # Added to avoid stuck on reconnect, if rate limits reached, TODO: move to high priority.
+            else:
+                self.__initial_connection_done = True
         # pylint: disable=protected-access
         self.client._on_connect(client, userdata, flags, result_code, *extra_params) # noqa pylint: disable=protected-access
         try:
