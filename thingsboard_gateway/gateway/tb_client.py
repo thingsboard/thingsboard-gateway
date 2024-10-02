@@ -19,6 +19,7 @@ import inspect
 from logging import getLogger
 from os.path import exists
 from ssl import CERT_REQUIRED, PROTOCOL_TLSv1_2
+from copy import deepcopy
 from time import sleep, time
 
 from simplejson import dumps, load
@@ -48,6 +49,7 @@ class TBClient(threading.Thread):
         self.__port = config.get("port", 1883)
         self.__default_quality_of_service = config.get("qos", 1)
         self.__min_reconnect_delay = 1
+        self.client: TBGatewayMqttClient | None = None
         self.__ca_cert = None
         self.__private_key = None
         self.__cert = None
@@ -356,3 +358,26 @@ class TBClient(threading.Thread):
         self.__logger.propagate = getLogger("storage").propagate
         self.__logger.parent = getLogger("storage").parent
         tb_device_mqtt.log = self.__logger
+
+    def get_rate_limits(self):
+        return {
+            'devices_connected_through_gateway_telemetry_messages_rate_limit': deepcopy(self.client._devices_connected_through_gateway_telemetry_messages_rate_limit.__dict__()),  # noqa
+            'devices_connected_through_gateway_telemetry_datapoints_rate_limit': deepcopy(self.client._devices_connected_through_gateway_telemetry_datapoints_rate_limit.__dict__()),  # noqa
+            'devices_connected_through_gateway_messages_rate_limit': deepcopy(self.client._devices_connected_through_gateway_messages_rate_limit.__dict__()),  # noqa
+            'messages_rate_limit': deepcopy(self.client._messages_rate_limit.__dict__()),  # noqa
+            'telemetry_rate_limit': deepcopy(self.client._telemetry_rate_limit.__dict__()),  # noqa
+            'telemetry_dp_rate_limit': deepcopy(self.client._telemetry_dp_rate_limit.__dict__()),  # noqa
+            'max_inflight_messages': self.client._client._max_inflight_messages,  # noqa
+            'max_payload_size': self.client.max_payload_size
+        }
+
+    def update_client_rate_limits_with_previous(self, previous_limits):
+        self.client._devices_connected_through_gateway_telemetry_messages_rate_limit = tb_device_mqtt.RateLimit(previous_limits.get('devices_connected_through_gateway_telemetry_messages_rate_limit', {}))
+        self.client._devices_connected_through_gateway_telemetry_datapoints_rate_limit = tb_device_mqtt.RateLimit(previous_limits.get('devices_connected_through_gateway_telemetry_datapoints_rate_limit', {}))
+        self.client._devices_connected_through_gateway_messages_rate_limit = tb_device_mqtt.RateLimit(previous_limits.get('devices_connected_through_gateway_messages_rate_limit', {}))
+
+        self.client._messages_rate_limit = tb_device_mqtt.RateLimit(previous_limits.get('messages_rate_limit', {})) # noqa pylint: disable=protected-access
+        self.client._telemetry_rate_limit = tb_device_mqtt.RateLimit(previous_limits.get('telemetry_rate_limit', {})) # noqa pylint: disable=protected-access
+        self.client._telemetry_dp_rate_limit = tb_device_mqtt.RateLimit(previous_limits.get('telemetry_dp_rate_limit', {})) # noqa pylint: disable=protected-access
+        self.client.max_inflight_messages_set(previous_limits.get('max_inflight_messages', 20)) # noqa pylint: disable=protected-access
+        self.client.max_payload_size = previous_limits.get('max_payload_size', 8196) # noqa pylint: disable=protected-access

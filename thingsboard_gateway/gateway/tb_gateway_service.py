@@ -632,7 +632,7 @@ class TBGatewayService:
     @CountMessage('msgsReceivedFromPlatform')
     def _attributes_parse(self, content, *args):
         try:
-            log.debug("Received data: %s, %s", content, args)
+            log.trace("Received data: %s, %s", content, args)
             if content is not None:
                 shared_attributes = content.get("shared", {})
                 client_attributes = content.get("client", {})
@@ -642,10 +642,10 @@ class TBGatewayService:
                     self.__process_attribute_update(content)
 
                 if shared_attributes:
-                    log.debug("Shared attributes received (%s).",
+                    log.trace("Shared attributes received (%s).",
                               ", ".join([attr for attr in shared_attributes.keys()]))
                 if client_attributes:
-                    log.debug("Client attributes received (%s).",
+                    log.trace("Client attributes received (%s).",
                               ", ".join([attr for attr in client_attributes.keys()]))
         except Exception as e:
             log.exception("Failed to process attributes: %s", e)
@@ -657,9 +657,9 @@ class TBGatewayService:
 
     def __process_attributes_response(self, shared_attributes, client_attributes):
         if shared_attributes:
-            log.debug("Shared attributes received: %s", shared_attributes)
+            log.trace("Shared attributes received: %s", shared_attributes)
         if client_attributes:
-            log.debug("Client attributes received: %s", client_attributes)
+            log.trace("Client attributes received: %s", client_attributes)
         self.__process_remote_logging_update(shared_attributes.get('RemoteLoggingLevel'))
         self.__process_remote_configuration(shared_attributes)
 
