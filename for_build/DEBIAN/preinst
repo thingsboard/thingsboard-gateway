@@ -25,13 +25,15 @@ else
     echo "/etc/thingsboard-gateway directory already exists. Skipping creation."
 fi
 
-# Check if the user exists before adding it
-if id "thingsboard_gateway" &>/dev/null; then
+echo "Adding non-root user"
+# check if the user exists
+if id "thingsboard_gateway" >/dev/null 2>&1; then
     echo "User 'thingsboard_gateway' already exists. Skipping user creation."
 else
     sudo adduser --system --gecos "ThingsBoard-Gateway Service" --disabled-password --group --home /var/lib/thingsboard_gateway thingsboard_gateway
     echo "Created user 'thingsboard_gateway'"
 fi
+
 
 # Check if the directory for extensions exists before creating it
 if [ ! -d "/var/lib/thingsboard_gateway/extensions" ]; then
