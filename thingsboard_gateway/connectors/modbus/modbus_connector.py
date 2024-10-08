@@ -628,7 +628,7 @@ class ModbusConnector(Connector, Thread):
             self.__log.info("Trying to reconnect to device %s", device.device_name)
             if device.config.get('master') is not None and device.config['master'].is_socket_open():
                 device.config['master'].close()
-                device.config['master'], device.config['available_functions'] = self.__get_or_create_connection(device.config, force=True)
+            device.config['master'], device.config['available_functions'] = self.__get_or_create_connection(device.config, force=True)
             if self.__connect_to_current_master(device):
                 self.__log.info("Reconnected to device %s", device.device_name)
                 result = self.__function_to_device(device, config)
@@ -636,8 +636,8 @@ class ModbusConnector(Connector, Thread):
                     self.__log.error("Reading failed for device %s function code %s address %s unit id %s",
                                      device.device_name, function_code, config[ADDRESS_PARAMETER], device.config['unitId'])
                     self.__log.error("Reading failed with exception:", exc_info=result)
-                if device.config.get('master') is not None and device.config['master'].is_socket_open():
-                    device.config['master'].close()
+                    if device.config.get('master') is not None and device.config['master'].is_socket_open():
+                        device.config['master'].close()
                     device.config['master'] = None
                     self.__log.info("Will try to connect to device %s later", device.device_name)
 
