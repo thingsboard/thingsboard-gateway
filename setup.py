@@ -36,7 +36,7 @@ setup(
     include_package_data=True,
     python_requires=">=3.7",
     packages=['thingsboard_gateway', 'thingsboard_gateway.gateway', 'thingsboard_gateway.gateway.proto', 'thingsboard_gateway.gateway.grpc_service',
-              'thingsboard_gateway.storage', 'thingsboard_gateway.storage.memory', 'thingsboard_gateway.gateway.shell',
+              'thingsboard_gateway.storage', 'thingsboard_gateway.storage.memory', 'thingsboard_gateway.gateway.shell', 'thingsboard_gateway.gateway.report_strategy',
               'thingsboard_gateway.storage.file', 'thingsboard_gateway.storage.sqlite', 'thingsboard_gateway.gateway.entities',
               'thingsboard_gateway.connectors', 'thingsboard_gateway.connectors.ble', 'thingsboard_gateway.connectors.socket',
               'thingsboard_gateway.connectors.mqtt', 'thingsboard_gateway.connectors.xmpp',
