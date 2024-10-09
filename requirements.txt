@@ -18,3 +18,4 @@ cachetools
 tb-mqtt-client>=1.10.5
 service-identity
 psutil
+asyncua
