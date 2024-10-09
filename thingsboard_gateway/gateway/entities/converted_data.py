@@ -1,16 +1,16 @@
-#      Copyright 2024. ThingsBoard
-#  #
-#      Licensed under the Apache License, Version 2.0 (the "License");
-#      you may not use this file except in compliance with the License.
-#      You may obtain a copy of the License at
-#  #
-#          http://www.apache.org/licenses/LICENSE-2.0
-#  #
-#      Unless required by applicable law or agreed to in writing, software
-#      distributed under the License is distributed on an "AS IS" BASIS,
-#      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#      See the License for the specific language governing permissions and
-#      limitations under the License.
+#     Copyright 2024. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
 
 from typing import List, Union
 
@@ -28,7 +28,11 @@ def split_large_entries(entries: dict, first_item_max_data_size: int, max_data_s
     current_size = 0
     ts_check = False
 
-    for key, value in entries.items():
+    for original_key, value in entries.items():
+        if isinstance(original_key, tuple):
+            key = original_key[0]
+        else:
+            key = original_key
         entry_size = TBUtility.get_data_size({key: value}) + 1
         if ts is not None and not ts_check:
             entry_size += ts_size
@@ -42,11 +46,11 @@ def split_large_entries(entries: dict, first_item_max_data_size: int, max_data_s
                 split_chunk_sizes.append(current_size)
                 ts_check = False
             # Start a new chunk
-            current_chunk = {key: value} # New dict is created to avoid modifying the original dict
+            current_chunk = {original_key: value} # New dict is created to avoid modifying the original dict
             current_size = entry_size
         else:
             # Add to current chunk
-            current_chunk[key] = value
+            current_chunk[original_key] = value
             current_size += entry_size
 
     # Add the last chunk if any
@@ -58,6 +62,7 @@ def split_large_entries(entries: dict, first_item_max_data_size: int, max_data_s
 
 
 class ConvertedData:
+    __slots__ = ['device_name', 'device_type', 'telemetry', 'attributes', 'metadata', '_telemetry_datapoints_count', 'ts_index']
     def __init__(self, device_name, device_type='default', metadata=None):
         self.device_name = device_name
         self.device_type = device_type
@@ -95,7 +100,7 @@ class ConvertedData:
         else:
             raise KeyError(f"{item} - Item not found!")
 
-    def add_to_telemetry(self, telemetry_entry: Union[dict, TelemetryEntry, List[TelemetryEntry]]):
+    def add_to_telemetry(self, telemetry_entry: Union[dict, TelemetryEntry, List[TelemetryEntry], List[dict]]):
         if isinstance(telemetry_entry, list):
             for entry in telemetry_entry:
                 self._add_single_telemetry_entry(entry)
@@ -111,7 +116,7 @@ class ConvertedData:
             existing_values = self.telemetry[index].values
 
             new_keys = telemetry_entry.values.keys() - existing_values.keys()
-            new_values = {key: telemetry_entry.values[key] for key in new_keys}
+            new_values = {key_and_report_strategy: telemetry_entry.values[key_and_report_strategy] for key_and_report_strategy in new_keys}
 
             self._telemetry_datapoints_count += len(new_values)
             existing_values.update(new_values)
@@ -120,14 +125,14 @@ class ConvertedData:
             self._telemetry_datapoints_count += len(telemetry_entry.values)
             self.ts_index[telemetry_entry.ts] = len(self.telemetry) - 1
 
-    def add_to_attributes(self, key_or_entry: Union[dict, str, List[dict]], value: str = None):
+    def add_to_attributes(self, key_or_entry: Union[dict, str, List[dict]], value = None):
         if isinstance(key_or_entry, list):
             for entry in key_or_entry:
                 if not isinstance(entry, dict):
                     raise ValueError("Batch attribute processing requires a list of dictionaries.")
                 self.attributes.update(entry)
         else:
-            if isinstance(key_or_entry, str):
+            if isinstance(key_or_entry, str) or isinstance(key_or_entry, tuple):
                 if value is None:
                     raise ValueError("Invalid arguments for add_attribute")
                 key_or_entry = {key_or_entry: value}

@@ -24,6 +24,10 @@
       "accessToken": "YOUR_ACCESS_TOKEN"
     },
     "qos": 1,
+    "reportStrategy": {
+      "type": "ON_REPORT_PERIOD",
+      "reportPeriod": 30000
+    },
     "checkingDeviceActivity": {
       "checkDeviceInactivity": false,
       "inactivityTimeoutSeconds": 200,

@@ -26,8 +26,9 @@ from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.opcua.device import Device
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
-    DATA_RETRIEVING_STARTED
+    DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -67,7 +68,7 @@ MESSAGE_SECURITY_MODES = {
 
 
 class OpcUaConnector(Connector, Thread):
-    def __init__(self, gateway, config, connector_type):
+    def __init__(self, gateway: 'TBGatewayService', config, connector_type):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         super().__init__()
@@ -82,6 +83,13 @@ class OpcUaConnector(Connector, Thread):
                                                           self.__config.get('server', {}).get('mapping', []))))
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
                                  enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+        report_strategy = self.__config.get('reportStrategy')
+        self.__connector_report_strategy_config = gateway.get_report_strategy_service().get_main_report_strategy()
+        try:
+            if report_strategy is not None:
+                self.__connector_report_strategy_config = ReportStrategyConfig(report_strategy)
+        except ValueError as e:
+            self.__log.error('Error in report strategy configuration: %s, the gateway main strategy will be used.', e)
         if using_old_configuration_format:
             backward_compatibility_adapter = BackwardCompatibilityAdapter(self.__config, self.__log)
             self.__config = backward_compatibility_adapter.convert()
@@ -596,10 +604,23 @@ class OpcUaConnector(Connector, Thread):
 
                             found_node = await self.__client.nodes.root.get_child(path)
 
-                        device.nodes.append({'node': found_node,
-                                             'key': node['key'],
-                                             'section': section,
-                                             'timestampLocation': node.get('timestampLocation', 'gateway')})
+                        node_report_strategy = node.get(REPORT_STRATEGY_PARAMETER)
+                        if node_report_strategy is not None:
+                            try:
+                                node_report_strategy = ReportStrategyConfig(node_report_strategy)
+                            except ValueError as e:
+                                self.__log.error('Error in report strategy configuration: %s, for key %s the device or connector report strategy will be used.', e, node['key'])
+                                node_report_strategy = self.__connector_report_strategy_config if device.report_strategy is None else device.report_strategy
+                        elif device.report_strategy is not None:
+                            node_report_strategy = device.report_strategy
+
+                        node_config = {"node": found_node, "key": node['key'],
+                                       "section": section, 'timestampLocation': node.get('timestampLocation', 'gateway')}
+                        if node_report_strategy is not None:
+                            node_config[REPORT_STRATEGY_PARAMETER] = node_report_strategy
+                            node_report_strategy = None # Cleaning for next iteration
+
+                        device.nodes.append(node_config)
 
                         subscription_exists = (device.subscription is not None
                                                and found_node.nodeid in device.nodes_data_change_subscriptions
@@ -612,11 +633,8 @@ class OpcUaConnector(Connector, Thread):
                                     if found_node.nodeid not in self.__nodes_config_cache:
                                         self.__nodes_config_cache[found_node.nodeid] = []
                                     self.__nodes_config_cache[found_node.nodeid].append(device)
-                                    device.nodes_data_change_subscriptions[found_node.nodeid] = {"node": found_node,
-                                                                                                 "subscription": None,
-                                                                                                 "key": node['key'],
-                                                                                                 "section": section,
-                                             'timestampLocation': node.get('timestampLocation', 'gateway')}
+                                    node_config['subscription'] = None
+                                    device.nodes_data_change_subscriptions[found_node.nodeid] = node_config
 
                                 if device.subscription is None:
                                     device.subscription = await self.__client.create_subscription(

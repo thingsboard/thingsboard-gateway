@@ -11,14 +11,14 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-from concurrent.futures import ThreadPoolExecutor
+
 from datetime import timezone
 from time import time
 
 from asyncua.ua.uatypes import VariantType
 
 from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter
-from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER, ATTRIBUTES_PARAMETER
+from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER, ATTRIBUTES_PARAMETER, REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -59,7 +59,7 @@ class OpcUaUplinkConverter(OpcUaConverter):
             if isinstance(data, list):
                 data = [str(item) for item in data]
             else:
-                handler = VARIANT_TYPE_HANDLERS.get(val.Value.VariantType, lambda d: str(d) if not hasattr(d, 'to_string') else d.to_string())
+                handler = VARIANT_TYPE_HANDLERS.get(val.Value.VariantType, lambda d: d if not hasattr(d, 'to_string') else d.to_string())
                 data = handler(data)
 
             if data is None and val.StatusCode.is_bad():
@@ -75,9 +75,15 @@ class OpcUaUplinkConverter(OpcUaConverter):
 
             section = DATA_TYPES[config['section']]
             if section == TELEMETRY_PARAMETER:
-                return TelemetryEntry({config['key']: data}, ts=timestamp), error
+                if config.get(REPORT_STRATEGY_PARAMETER) is not None:
+                    return TelemetryEntry({(config['key'], config[REPORT_STRATEGY_PARAMETER]): data}, ts=timestamp), error
+                else:
+                    return TelemetryEntry({config['key']: data}, ts=timestamp), error
             elif section == ATTRIBUTES_PARAMETER:
-                return {config['key']: data}, error
+                if config.get(REPORT_STRATEGY_PARAMETER) is not None:
+                    return {(config['key'], config[REPORT_STRATEGY_PARAMETER]): data}, error
+                else:
+                    return {config['key']: data}, error
         except Exception as e:
             return None, str(e)
 
