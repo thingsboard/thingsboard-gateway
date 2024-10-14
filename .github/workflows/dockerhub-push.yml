@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - '*'
-  pull_request:
-    branches:
-      - master
+  # pull_request:
+  #   branches:
+  #     - master
 
 jobs:
   docker:
@@ -20,6 +20,9 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: mbotezatu/tb-gateway
+          tags: |
+            type=ref,event=branch
+            type=sha
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -37,7 +40,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           context: .
           file: ./docker/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
