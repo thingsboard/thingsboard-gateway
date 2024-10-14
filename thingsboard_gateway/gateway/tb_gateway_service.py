@@ -22,7 +22,7 @@ import subprocess
 from copy import deepcopy
 from os import execv, listdir, path, pathsep, stat, system
 from platform import system as platform_system
-from queue import SimpleQueue
+from queue import SimpleQueue, Empty
 from random import choice
 from signal import signal, SIGINT
 from string import ascii_lowercase, hexdigits
@@ -30,7 +30,7 @@ from sys import argv, executable
 from threading import RLock, Thread, main_thread, current_thread
 from time import sleep, time, monotonic
 from typing import Union, List
-
+import importlib.util
 from simplejson import JSONDecodeError, dumps, load, loads
 from yaml import safe_load
 
@@ -104,6 +104,7 @@ DEFAULT_DEVICE_FILTER = {
     'enable': False
 }
 
+CUSTOM_RPC_DIR = "/etc/thingsboard-gateway/rpc"
 
 def load_file(path_to_file):
     with open(path_to_file, 'r') as target_file:
@@ -353,6 +354,7 @@ class TBGatewayService:
             "device_renamed": self.__process_renamed_gateway_devices,
             "device_deleted": self.__process_deleted_gateway_devices,
         }
+        self.load_custom_rpc_methods(CUSTOM_RPC_DIR)
         self.__rpc_scheduled_methods_functions = {
             "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
             "reboot": {"function": subprocess.call, "arguments": (["shutdown", "-r", "-t", "0"],)},
@@ -1436,41 +1438,32 @@ class TBGatewayService:
     def __handle_published_events(self):
         events = []
 
-        while not self._published_events.empty():
-            events.append(self._published_events.get_nowait())
-        try:
-            futures = []
-            for event in events:
+        while not self._published_events.empty() and not self.stopped:
+            try:
+                events.append(self._published_events.get_nowait())
+            except Empty:
+                break
 
-                if self.tb_client.is_connected() and (
-                        self.__remote_configurator is None or not self.__remote_configurator.in_process):
-                    if self.tb_client.client.quality_of_service == 1:
-                        futures.append(self.__messages_confirmation_executor.submit(self.__process_published_event, event))
-                    else:
-                        break
-                else:
-                    break
+        if not events:
+            return False
+
+        futures = []
+        try:
+            if self.tb_client.is_connected() and (self.__remote_configurator is None or not self.__remote_configurator.in_process):
+                qos = self.tb_client.client.quality_of_service
+                if qos == 1:
+                    futures = list(self.__messages_confirmation_executor.map(self.__process_published_event, events))
 
             event_num = 0
-            success = False
-            for future in concurrent.futures.as_completed(futures): # noqa
+            for success in futures:
                 event_num += 1
                 if event_num % 100 == 0:
                     log.debug("Confirming %i event sent to ThingsBoard", event_num)
-                try:
-                    success = future.result(timeout=1)
-                except TimeoutError:
-                    event_num -= 1
-                if self.stopped:
-                    try:
-                        future.cancel()
-                    except: # noqa
-                        pass
-                    return False
                 if not success:
-                    break
-            return success
-        except Exception: # noqa
+                    return False
+
+            return True
+        except Exception:  # noqa
             log.debug("Error while sending data to ThingsBoard, it will be resent.")
             return False
 
@@ -1845,7 +1838,7 @@ class TBGatewayService:
             try:
                 loaded_connected_devices = load_file(self._config_dir + CONNECTED_DEVICES_FILENAME)
             except Exception as e:
-                log.exception(e)
+                log.error("Error while loading connected devices from file with error: %s", e)
         else:
             open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w').close()
 
@@ -2016,6 +2009,35 @@ class TBGatewayService:
     def is_latency_metrics_enabled(self):
         return self.__latency_debug_mode
 
+    # custom rpc method ---------------
+    def load_custom_rpc_methods(self, folder_path):
+        """
+        Dynamically load custom RPC methods from the specified folder.
+        """
+        if not os.path.exists(folder_path):
+            return
+
+        for filename in os.listdir(folder_path):
+            if filename.endswith(".py"):
+                module_name = filename[:-3]
+                module_path = os.path.join(folder_path, filename)
+                self.import_custom_rpc_methods(module_name, module_path)
+
+    def import_custom_rpc_methods(self, module_name, module_path):
+        """
+        Import custom RPC methods from a given Python file.
+        """
+        spec = importlib.util.spec_from_file_location(module_name, module_path)
+        custom_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(custom_module)
+
+        # Iterate through the attributes of the module
+        for attr_name in dir(custom_module):
+            attr = getattr(custom_module, attr_name)
+            # Check if the attribute is a function
+            if callable(attr):
+                # Add the method to the __gateway_rpc_methods dictionary
+                self.__gateway_rpc_methods[attr_name.replace("__rpc_", "")] = attr.__get__(self)
 
 if __name__ == '__main__':
     TBGatewayService(

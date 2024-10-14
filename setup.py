@@ -53,6 +53,7 @@ setup(
               'thingsboard_gateway.extensions.socket', 'thingsboard_gateway.extensions.xmpp', 'thingsboard_gateway.gateway.statistics'
               ],
     install_requires=[
+        'setuptools',
         'cryptography',
         'jsonpath-rw',
         'regex',
@@ -69,7 +70,7 @@ setup(
         'grpcio',
         'protobuf',
         'cachetools',
-        'tb-mqtt-client>=1.10.5',
+        'tb-mqtt-client>=1.10.7',
         'packaging==23.1',
         'service-identity',
         'psutil'

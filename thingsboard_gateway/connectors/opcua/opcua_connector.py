@@ -246,6 +246,7 @@ class OpcUaConnector(Connector, Thread):
                 self.__client = asyncua.Client(url=self.__opcua_url,
                                                timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
                 self.__client._monitor_server_loop = self._monitor_server_loop
+                self.__client._renew_channel_loop = self._renew_channel_loop
                 self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 120000)
                 if self.__server_conf["identity"].get("type") == "cert.PEM":
                     await self.__set_auth_settings_by_cert()
@@ -257,7 +258,7 @@ class OpcUaConnector(Connector, Thread):
 
                 await self.retry_with_backoff(self.__client.connect)
 
-                if not self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open':
+                if not (self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open'):
                     self.__log.error("Failed to connect to server, retrying...")
                     await self.disconnect_if_connected()
                     continue
@@ -379,10 +380,8 @@ class OpcUaConnector(Connector, Thread):
         try:
             while not self.__client._closing:
                 await asyncio.sleep(timeout)
-                # @FIXME handle state change
                 _ = await self.__client.nodes.server_state.read_value()
         except ConnectionError as e:
-            # _logger.info("connection error in watchdog loop %s", e, exc_info=True)
             await self.__client._lost_connection(e)
             await self.__client.uaclient.inform_subscriptions(ua.StatusCode(ua.StatusCodes.BadShutdown))
             try:
@@ -392,7 +391,6 @@ class OpcUaConnector(Connector, Thread):
                 pass
             self.__connected = False
         except Exception as e:
-            # _logger.exception("Error in watchdog loop")
             await self.__client._lost_connection(e)
             await self.__client.uaclient.inform_subscriptions(ua.StatusCode(ua.StatusCodes.BadShutdown))
             try:
@@ -401,6 +399,25 @@ class OpcUaConnector(Connector, Thread):
             except Exception:
                 pass
             self.__connected = False
+
+    async def _renew_channel_loop(self):
+        """
+        Renew the SecureChannel before the SecureChannelTimeout will happen.
+        In theory, we could do that only if no session activity,
+        but it does not cost much.
+        """
+        try:
+            duration = self.__client.secure_channel_timeout * 0.75 / 1000
+            while not self.__client._closing:
+                await asyncio.sleep(duration)
+                await self.__client.open_secure_channel(renew=True)
+                val = await self.__client.nodes.server_state.read_value()
+        except ConnectionError as e:
+            self.__log.error("Connection error in renew_channel loop %s", e)
+        except TimeoutError:
+            self.__log.error("Timeout error in renew_channel loop")
+        except Exception as e:
+            self.__log.exception("Error in renew_channel loop %s", e)
 
     def __load_converter(self, device):
         converter_class_name = device.get('converter', DEFAULT_UPLINK_CONVERTER)

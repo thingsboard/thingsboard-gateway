@@ -16,14 +16,29 @@ if [ ! -d "/var/lib/thingsboard_gateway/" ]; then
     echo "Creating /var/lib/thingsboard_gateway/ directory..."
     mkdir -p /var/lib/thingsboard_gateway/
 else
-    echo "/var/lib/thingsboard_gateway/ already exists."
+    echo "/var/lib/thingsboardes_gateway/ already exists."
+fi
+echo "Checking if /etc/thingsboard-gateway/extensions exists..."
+if [ ! -d "/etc/thingsboard-gateway/extensions" ]; then
+    sudo mkdir -p /etc/thingsboard-gateway/extensions
+    echo "Created /etc/thingsboard-gateway/extensions directory"
+else
+    echo "/etc/thingsboard-gateway/extensions directory already exists. Skipping creation."
+fi
+
+echo "Checking if /etc/thingsboard-gateway/rpc exists..."
+if [ ! -d "/etc/thingsboard-gateway/rpc" ]; then
+    sudo mkdir -p /etc/thingsboard-gateway/rpc
+    echo "Created /etc/thingsboard-gateway/rpc directory"
+else
+    echo "/etc/thingsboard-gateway/rpc directory already exists. Skipping creation."
 fi
 
 # Copy necessary files and set permissions
-echo "Copying extensions to /var/lib/thingsboard_gateway/..."
-sudo cp -a -r /etc/thingsboard-gateway/extensions /var/lib/thingsboard_gateway/
-echo "Removing /etc/thingsboard-gateway/extensions..."
-sudo rm -r /etc/thingsboard-gateway/extensions
+echo "Copying extensions to /etc/thingsboard-gateway/extensions/..."
+sudo cp -a -r  /var/lib/thingsboard_gateway/extensions /etc/thingsboard-gateway/extensions
+echo "Removing /var/lib/thingsboard-gateway/extensions..."
+sudo rm -r /var/lib/thingsboard_gateway/extensions
 
 echo "Adding users to dialout and thingsboard_gateway groups..."
 sudo usermod -a -G dialout $USER
