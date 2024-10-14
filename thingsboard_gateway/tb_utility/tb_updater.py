@@ -14,8 +14,7 @@
 
 from logging import getLogger
 from platform import platform, release, system
-from threading import Thread
-from time import sleep, time
+from time import time
 from uuid import uuid1
 
 from importlib.metadata import PackageNotFoundError
@@ -31,7 +30,7 @@ log = getLogger("service")
 UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"
 
 
-class TBUpdater(Thread):
+class TBUpdater:
     def __init__(self):
         super().__init__()
 
@@ -49,22 +48,15 @@ class TBUpdater(Thread):
         self.__check_period = 3600.0
         self.__request_timeout = 5
         self.__stopped = True
-        self.name = "TBUpdater Thread"
-        self.start()
-
-    def run(self):
-        self.__stopped = False
-        while not self.__stopped:
-            if time() >= self.__previous_check + self.__check_period:
-                self.check_for_new_version()
-                self.__previous_check = time()
-            else:
-                sleep(1)
+        self.check_for_new_version()
 
     def stop(self):
         self.__stopped = True
 
     def get_version(self):
+        if time() >= self.__previous_check + self.__check_period:
+            self.check_for_new_version()
+            self.__previous_check = time()
         return self.__version
 
     def get_platform(self):
