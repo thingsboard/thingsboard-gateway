@@ -53,6 +53,7 @@ setup(
               'thingsboard_gateway.extensions.socket', 'thingsboard_gateway.extensions.xmpp', 'thingsboard_gateway.gateway.statistics'
               ],
     install_requires=[
+        'setuptools',
         'cryptography',
         'jsonpath-rw',
         'regex',

@@ -29,7 +29,7 @@ from sys import argv, executable
 from threading import RLock, Thread, main_thread, current_thread
 from time import sleep, time, monotonic
 from typing import Union, List
-
+import importlib.util
 from simplejson import JSONDecodeError, dumps, load, loads
 from yaml import safe_load
 
@@ -102,6 +102,7 @@ DEFAULT_DEVICE_FILTER = {
     'enable': False
 }
 
+CUSTOM_RPC_DIR = "/etc/thingsboard-gateway/rpc"
 
 def load_file(path_to_file):
     with open(path_to_file, 'r') as target_file:
@@ -351,6 +352,7 @@ class TBGatewayService:
             "device_renamed": self.__process_renamed_gateway_devices,
             "device_deleted": self.__process_deleted_gateway_devices,
         }
+        self.load_custom_rpc_methods(CUSTOM_RPC_DIR)
         self.__rpc_scheduled_methods_functions = {
             "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
             "reboot": {"function": subprocess.call, "arguments": (["shutdown", "-r", "-t", "0"],)},
@@ -1988,6 +1990,35 @@ class TBGatewayService:
     def is_latency_metrics_enabled(self):
         return self.__latency_debug_mode
 
+    # custom rpc method ---------------
+    def load_custom_rpc_methods(self, folder_path):
+        """
+        Dynamically load custom RPC methods from the specified folder.
+        """
+        if not os.path.exists(folder_path):
+            return
+
+        for filename in os.listdir(folder_path):
+            if filename.endswith(".py"):
+                module_name = filename[:-3]
+                module_path = os.path.join(folder_path, filename)
+                self.import_custom_rpc_methods(module_name, module_path)
+
+    def import_custom_rpc_methods(self, module_name, module_path):
+        """
+        Import custom RPC methods from a given Python file.
+        """
+        spec = importlib.util.spec_from_file_location(module_name, module_path)
+        custom_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(custom_module)
+
+        # Iterate through the attributes of the module
+        for attr_name in dir(custom_module):
+            attr = getattr(custom_module, attr_name)
+            # Check if the attribute is a function
+            if callable(attr):
+                # Add the method to the __gateway_rpc_methods dictionary
+                self.__gateway_rpc_methods[attr_name.replace("__rpc_", "")] = attr.__get__(self)
 
 if __name__ == '__main__':
     TBGatewayService(
