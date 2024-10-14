@@ -304,6 +304,7 @@ class TBClient(threading.Thread):
 
         keep_alive = self.__config.get("keep_alive", 120)
         previous_connection_time = time()
+        first_connection = True
 
         try:
             while not self.client.is_connected() and not self.__stopped:
@@ -312,7 +313,8 @@ class TBClient(threading.Thread):
                         break
                     self.__logger.info("Connecting to ThingsBoard...")
                     try:
-                        if time() - previous_connection_time > min_reconnect_delay:
+                        if first_connection or time() - previous_connection_time > min_reconnect_delay:
+                            first_connection = False
                             self.client.connect(keepalive=keep_alive,
                                                 min_reconnect_delay=self.__min_reconnect_delay)
                             previous_connection_time = time()
@@ -356,13 +358,13 @@ class TBClient(threading.Thread):
         return self.client.max_payload_size # noqa pylint: disable=protected-access
 
     def update_logger(self):
-        self.__logger.setLevel(getLogger("storage").level)
-        self.__logger.handlers = getLogger("storage").handlers
-        self.__logger.manager = getLogger("storage").manager
-        self.__logger.disabled = getLogger("storage").disabled
-        self.__logger.filters = getLogger("storage").filters
-        self.__logger.propagate = getLogger("storage").propagate
-        self.__logger.parent = getLogger("storage").parent
+        self.__logger.setLevel(getLogger("tb_connection").level)
+        self.__logger.handlers = getLogger("tb_connection").handlers
+        self.__logger.manager = getLogger("tb_connection").manager
+        self.__logger.disabled = getLogger("tb_connection").disabled
+        self.__logger.filters = getLogger("tb_connection").filters
+        self.__logger.propagate = getLogger("tb_connection").propagate
+        self.__logger.parent = getLogger("tb_connection").parent
         tb_device_mqtt.log = self.__logger
 
     def get_rate_limits(self):

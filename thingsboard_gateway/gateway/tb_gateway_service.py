@@ -21,7 +21,7 @@ import subprocess
 from copy import deepcopy
 from os import execv, listdir, path, pathsep, stat, system
 from platform import system as platform_system
-from queue import SimpleQueue
+from queue import SimpleQueue, Empty
 from random import choice
 from signal import signal, SIGINT
 from string import ascii_lowercase, hexdigits
@@ -1420,41 +1420,32 @@ class TBGatewayService:
     def __handle_published_events(self):
         events = []
 
-        while not self._published_events.empty():
-            events.append(self._published_events.get_nowait())
-        try:
-            futures = []
-            for event in events:
+        while not self._published_events.empty() and not self.stopped:
+            try:
+                events.append(self._published_events.get_nowait())
+            except Empty:
+                break
 
-                if self.tb_client.is_connected() and (
-                        self.__remote_configurator is None or not self.__remote_configurator.in_process):
-                    if self.tb_client.client.quality_of_service == 1:
-                        futures.append(self.__messages_confirmation_executor.submit(self.__process_published_event, event))
-                    else:
-                        break
-                else:
-                    break
+        if not events:
+            return False
+
+        futures = []
+        try:
+            if self.tb_client.is_connected() and (self.__remote_configurator is None or not self.__remote_configurator.in_process):
+                qos = self.tb_client.client.quality_of_service
+                if qos == 1:
+                    futures = list(self.__messages_confirmation_executor.map(self.__process_published_event, events))
 
             event_num = 0
-            success = False
-            for future in concurrent.futures.as_completed(futures): # noqa
+            for success in futures:
                 event_num += 1
                 if event_num % 100 == 0:
                     log.debug("Confirming %i event sent to ThingsBoard", event_num)
-                try:
-                    success = future.result(timeout=1)
-                except TimeoutError:
-                    event_num -= 1
-                if self.stopped:
-                    try:
-                        future.cancel()
-                    except: # noqa
-                        pass
-                    return False
                 if not success:
-                    break
-            return success
-        except Exception: # noqa
+                    return False
+
+            return True
+        except Exception:  # noqa
             log.debug("Error while sending data to ThingsBoard, it will be resent.")
             return False
 
@@ -1826,7 +1817,7 @@ class TBGatewayService:
             try:
                 loaded_connected_devices = load_file(self._config_dir + CONNECTED_DEVICES_FILENAME)
             except Exception as e:
-                log.exception(e)
+                log.error("Error while loading connected devices from file with error: %s", e)
         else:
             open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w').close()
 
@@ -2000,4 +1991,4 @@ class TBGatewayService:
 
 if __name__ == '__main__':
     TBGatewayService(
-        path.dirname(path.dirname(path.abspath(__file__))) + '/config/tb_gateway.yaml'.replace('/', path.sep))
+        path.dirname(path.dirname(path.abspath(__file__))) + '/config/tb_gateway.json'.replace('/', path.sep))
