@@ -92,6 +92,8 @@ class OpcuaJsonUplinkConverter(Converter):
         try:
             error = None
             data = val.Value.Value
+
+            print(f"Value in process_datapoint: {data}")
             if isinstance(data, list):
                 data = [str(item) for item in data]
             else:
@@ -114,7 +116,7 @@ class OpcuaJsonUplinkConverter(Converter):
                 except Exception as e:
                     data = str(e)
                     error = True
-
+            # print(f"Final processed value in process_datapoint: {data}")
             if data is None and val.StatusCode.is_bad():
                 data = str.format(ERROR_MSG_TEMPLATE,val.StatusCode.name, val.data_type, val.StatusCode.doc)
                 error = True
