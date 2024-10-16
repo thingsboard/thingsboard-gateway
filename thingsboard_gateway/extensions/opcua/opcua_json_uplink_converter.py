@@ -73,7 +73,7 @@ class OpcuaJsonUplinkConverter(Converter):
     @staticmethod
     def __parse_array_type(val):
         if (
-            not hasattr(val.Value, "VariantType") 
+            not hasattr(val.Value, "VariantType")
             or val.Value.VariantType is None
             or val.Value.VariantType == val.Value.VariantType.Null
         ):
@@ -110,12 +110,16 @@ class OpcuaJsonUplinkConverter(Converter):
                     "connector_key": config['key'],
                     "data_value": value,
                     "data_type": data_type,
-                    "array_type": OpcuaJsonUplinkConverter.__parse_array_type(value),
+                    "array_type": OpcuaJsonUplinkConverter.__parse_array_type(val),
                     "node_id": config['node'].__str__() if config.get('node') else None,
                     "gateway_version": f"{GATEWAY_VERSION}-H-{OpcuaJsonUplinkConverter.__name__}",
+                    "success": True
                 }
             except Exception as e:
-                data = str(e)
+                data = {
+                    "error_message": str(e),
+                    "success": False
+                }
                 error = True
             
             print(f"Final processed value in process_datapoint: {data}")
