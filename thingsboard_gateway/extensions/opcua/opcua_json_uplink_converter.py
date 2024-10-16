@@ -89,12 +89,12 @@ class OpcuaJsonUplinkConverter(Converter):
 
     @staticmethod
     def process_datapoint(config, val, basic_timestamp):
-        print(f"Original val in process_datapoint: {val}")
+        # print(f"Original val in process_datapoint: {val}")
         try:
             error = None
             value = val.Value.Value
             
-            print(f"Value in process_datapoint: {value}")
+            # print(f"Value in process_datapoint: {value}")
             # if isinstance(data, list):
             #     data = [str(item) for item in data]
             # else:
@@ -107,7 +107,7 @@ class OpcuaJsonUplinkConverter(Converter):
                 data = {
                     "source_timestamp": val.SourceTimestamp.isoformat(),
                     "server_timestamp": val.ServerTimestamp.isoformat(),
-                    "connector_key": config['key'],
+                    # "connector_key": config['key'],
                     "data_value": value,
                     "data_type": data_type,
                     "array_type": OpcuaJsonUplinkConverter.__parse_array_type(val),
@@ -168,7 +168,7 @@ class OpcuaJsonUplinkConverter(Converter):
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 results = list(executor.map(self.process_datapoint, configs, values, [basic_timestamp] * len(values)))
 
-            self._log.info(f"Results after process_datapoints: {results}")
+            # self._log.info(f"Results after process_datapoints: {results}")
 
             telemetry_batch = []
             attributes_batch = []
