@@ -19,3 +19,4 @@ paho-mqtt~=2.1.0
 tb-mqtt-client>=1.10.7
 service-identity
 psutil
+asyncua

@@ -110,7 +110,7 @@ class OpcuaJsonUplinkConverter(Converter):
                     "connector_key": config['key'],
                     "data_value": value,
                     "data_type": data_type,
-                    "array_type": OpcuaJsonUplinkConverter.__parse_array_type(val),
+                    "array_type": OpcuaJsonUplinkConverter.__parse_array_type(value),
                     "node_id": config['node'].__str__() if config.get('node') else None,
                     "gateway_version": f"{GATEWAY_VERSION}-H-{OpcuaJsonUplinkConverter.__name__}",
                 }
@@ -165,7 +165,7 @@ class OpcuaJsonUplinkConverter(Converter):
                 results = list(executor.map(self.process_datapoint, configs, values, [basic_timestamp] * len(values)))
 
             self._log.info(f"Results after process_datapoints: {results}")
-            
+
             telemetry_batch = []
             attributes_batch = []
 
