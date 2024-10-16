@@ -92,31 +92,32 @@ class OpcuaJsonUplinkConverter(Converter):
         print(f"Original val in process_datapoint: {val}")
         try:
             error = None
-            data = val.Value.Value
-
-            print(f"Value in process_datapoint: {data}")
-            if isinstance(data, list):
-                data = [str(item) for item in data]
-            else:
-                handler = VARIANT_TYPE_HANDLERS.get(val.Value.VariantType, lambda d: str(d) if not hasattr(d, 'to_string') else d.to_string())
-                value = handler(data)
+            value = val.Value.Value
+            
+            print(f"Value in process_datapoint: {value}")
+            # if isinstance(data, list):
+            #     data = [str(item) for item in data]
+            # else:
                 
-                try:
-                    data_type = val.Value.VariantType._name_ if hasattr(val.Value, "VariantType") and val.Value.VariantType is not None else VariantType.Null._name_
+            try:
+                handler = VARIANT_TYPE_HANDLERS.get(val.Value.VariantType, lambda d: str(d) if not hasattr(d, 'to_string') else d.to_string())
+                value = handler(value)
+                data_type = val.Value.VariantType._name_ if hasattr(val.Value, "VariantType") and val.Value.VariantType is not None else VariantType.Null._name_
 
-                    data = {
-                        "source_timestamp": val.SourceTimestamp.isoformat(),
-                        "server_timestamp": val.ServerTimestamp.isoformat(),
-                        "connector_key": config['key'],
-                        "data_value": value,
-                        "data_type": data_type,
-                        "array_type": OpcuaJsonUplinkConverter.__parse_array_type(val),
-                        "node_id": config['node'].__str__() if config.get('node') else None,
-                        "gateway_version": f"{GATEWAY_VERSION}-H-{OpcuaJsonUplinkConverter.__name__}",
-                    }
-                except Exception as e:
-                    data = str(e)
-                    error = True
+                data = {
+                    "source_timestamp": val.SourceTimestamp.isoformat(),
+                    "server_timestamp": val.ServerTimestamp.isoformat(),
+                    "connector_key": config['key'],
+                    "data_value": value,
+                    "data_type": data_type,
+                    "array_type": OpcuaJsonUplinkConverter.__parse_array_type(val),
+                    "node_id": config['node'].__str__() if config.get('node') else None,
+                    "gateway_version": f"{GATEWAY_VERSION}-H-{OpcuaJsonUplinkConverter.__name__}",
+                }
+            except Exception as e:
+                data = str(e)
+                error = True
+            
             print(f"Final processed value in process_datapoint: {data}")
             if data is None and val.StatusCode.is_bad():
                 data = str.format(ERROR_MSG_TEMPLATE,val.StatusCode.name, val.data_type, val.StatusCode.doc)
@@ -133,7 +134,7 @@ class OpcuaJsonUplinkConverter(Converter):
             if section == TELEMETRY_PARAMETER:
                 return TelemetryEntry({config['key']: data}, ts=timestamp), error
             elif section == ATTRIBUTES_PARAMETER:
-                return {config['key']: data}, error
+                return {config['key']: value}, error
         except Exception as e:
             return None, str(e)
 
@@ -163,6 +164,8 @@ class OpcuaJsonUplinkConverter(Converter):
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 results = list(executor.map(self.process_datapoint, configs, values, [basic_timestamp] * len(values)))
 
+            self._log.info(f"Results after process_datapoints: {results}")
+            
             telemetry_batch = []
             attributes_batch = []
 
