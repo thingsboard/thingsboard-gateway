@@ -150,7 +150,7 @@ class OpcuaJsonUplinkConverter(Converter):
             if not isinstance(values, list):
                 values = [values]
 
-            self._log.info("Values in converter: ", values)
+            self._log.info(f"Values in converter: {values}")
             if is_debug_enabled:
                 start_iteration = basic_timestamp
             converted_data = ConvertedData(device_name=self.__config['device_name'], device_type=self.__config['device_type'])
