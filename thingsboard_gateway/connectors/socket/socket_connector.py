@@ -23,6 +23,7 @@ from time import sleep
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.connectors.socket.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics, CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -40,27 +41,38 @@ class SocketConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
         self.__config = config
+
+        is_using_old_config = BackwardCompatibilityAdapter.is_old_config(config)
+        if is_using_old_config:
+            self.__config = BackwardCompatibilityAdapter(config).convert()
+
         self.__id = self.__config.get('id')
         self._connector_type = connector_type
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
+        self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__gateway = gateway
         self.name = config.get("name", 'TCP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
                                  enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+
+        if is_using_old_config:
+            self.__log.warning("Old Socket connector configuration format detected. Automatic conversion is applied.")
+
         self.daemon = True
         self.__stopped = False
         self._connected = False
         self.__bind = False
-        self.__socket_type = config['type'].upper()
-        self.__socket_address = config['address']
-        self.__socket_port = config['port']
-        self.__socket_buff_size = config['bufferSize']
+
+        self.__socket_type = config.get('socket', {}).get('type', 'TCP').upper()
+        self.__socket_address = config.get('socket', {}).get('address', '127.0.0.1')
+        self.__socket_port = config.get('socket', {}).get('port', 50000)
+        self.__socket_buff_size = config.get('socket', {}).get('buffer_size', 1024)
+
         self.__socket = socket.socket(socket.AF_INET, SOCKET_TYPE[self.__socket_type])
         self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.__converting_requests = Queue(-1)
 
-        self.__devices, self.__device_converters = self.__convert_devices_list()
+        self.__devices = {}
+        self.__device_converters = {}
         self.__connections = {}
 
     def __convert_devices_list(self):
@@ -91,6 +103,13 @@ class SocketConnector(Connector, Thread):
             attr_requests = device.get('attributeRequests', [])
             device['attributeRequests'] = self.__validate_attr_requests(attr_requests)
             if len(device['attributeRequests']):
+                is_tb_client = False
+
+                while not is_tb_client and not self.__stopped:
+                    self.__log.info('Waiting for ThingsBoard client to be connected...')
+                    is_tb_client = self.__gateway.tb_client is not None and hasattr(self.__gateway.tb_client, 'client')
+                    sleep(1)
+
                 self.__attribute_type = {
                     'client': self.__gateway.tb_client.client.gw_request_client_attributes,
                     'shared': self.__gateway.tb_client.client.gw_request_shared_attributes
@@ -151,6 +170,8 @@ class SocketConnector(Connector, Thread):
         self.start()
 
     def run(self):
+        self.__devices, self.__device_converters = self.__convert_devices_list()
+
         self._connected = True
 
         converting_thread = Thread(target=self.__process_data, daemon=True, name='Converter Thread')

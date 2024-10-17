@@ -14,6 +14,7 @@
 
 import asyncio
 import re
+from asyncio.exceptions import CancelledError
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue, Empty
 from random import choice
@@ -44,12 +45,12 @@ except (ImportError, ModuleNotFoundError):
 
 
 from asyncua import ua
-from asyncua.ua import CreateSubscriptionParameters, NodeId
+from asyncua.ua import NodeId
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
     BadInvalidState, BadSessionClosed, BadAttributeIdInvalid, BadCommunicationError, BadOutOfService, BadNoMatch, \
-    BadUnexpectedError, UaStatusCodeErrors, BadWaitingForInitialData, BadSessionIdInvalid
+    BadUnexpectedError, UaStatusCodeErrors, BadWaitingForInitialData, BadSessionIdInvalid, BadSubscriptionIdInvalid
 
 DEFAULT_UPLINK_CONVERTER = 'OpcUaUplinkConverter'
 
@@ -112,8 +113,7 @@ class OpcUaConnector(Connector, Thread):
         except RuntimeError:
             self.__loop = asyncio.get_event_loop()
 
-        self.__client: asyncua.Client = None
-        self.__subscription = None
+        self.__client: asyncua.Client | None = None
 
         self.__connected = False
         self.__stopped = False
@@ -129,6 +129,7 @@ class OpcUaConnector(Connector, Thread):
         self.__nodes_config_cache: Dict[NodeId, List[Device]] = {}
         self.__next_poll = 0
         self.__next_scan = 0
+        self.__client_recreation_required = True
 
         self.__log.info("OPC-UA Connector has been initialized")
 
@@ -191,13 +192,19 @@ class OpcUaConnector(Connector, Thread):
                     for node in device.values.get(section, []):
                         await self.__unsubscribe_from_node(device, node)
 
-            if device_name is None and device.subscription is not None \
-                and self.__client.uaclient.protocol.state == 'open':
+            if (device_name is None and device.subscription is not None
+                and self.__client.uaclient.protocol is not None
+                and self.__client.uaclient.protocol.state == 'open'):
                 try:
                     await device.subscription.delete()
+                except AttributeError:
+                    self.__log.debug('Subscription already deleted')
+                except BadSubscriptionIdInvalid:
+                    self.__log.debug('Subscription already deleted')
                 except Exception as e:
                     self.__log.exception('Error deleting subscription: %s', e)
                 device.subscription = None
+        self.__nodes_config_cache.clear()
 
     def get_id(self):
         return self.__id
@@ -235,18 +242,35 @@ class OpcUaConnector(Connector, Thread):
         sleep_for_subscription_work_model = max(self.__sub_check_period_in_millis / 1000, .02)
         while not self.__stopped:
             try:
-                self.__client = asyncua.Client(url=self.__opcua_url,
-                                               timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
-                self.__client._monitor_server_loop = self._monitor_server_loop
-                self.__client._renew_channel_loop = self._renew_channel_loop
-                self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 120000)
-                if self.__server_conf["identity"].get("type") == "cert.PEM":
-                    await self.__set_auth_settings_by_cert()
-                if self.__server_conf["identity"].get("username"):
-                    self.__set_auth_settings_by_username()
+                if self.__client_recreation_required:
+                    if (self.__client is not None
+                            and self.__client.uaclient.protocol
+                            and self.__client.uaclient.protocol.state == 'open'):
+                        await self.disconnect_if_connected()
+                    self.__client = asyncua.Client(url=self.__opcua_url,
+                                                   timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
+                    self.__client._monitor_server_loop = self._monitor_server_loop
+                    self.__client._renew_channel_loop = self._renew_channel_loop
+                    self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 120000)
+                    if self.__server_conf["identity"].get("type") == "cert.PEM":
+                        await self.__set_auth_settings_by_cert()
+                    if self.__server_conf["identity"].get("username"):
+                        self.__set_auth_settings_by_username()
+                    if self.__stopped:
+                        break
+                    if self.__enable_subscriptions and self.__device_nodes:
+                        self.__log.debug("Subscriptions are enabled, client will reconnect, unsubscribe old subscriptions and subscribe to new nodes.")
+                        await self.retry_with_backoff(self.__client.connect)
+                        if not (self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open'):
+                            self.__log.error("Failed to connect to server, retrying...")
+                            await self.disconnect_if_connected()
+                            continue
+                        await self.__unsubscribe_from_nodes()
 
-                if self.__stopped:
-                    break
+
+                    self.__nodes_config_cache = {}
+                    self.__device_nodes = []
+                    self.__client_recreation_required = False
 
                 await self.retry_with_backoff(self.__client.connect)
 
@@ -271,6 +295,9 @@ class OpcUaConnector(Connector, Thread):
                     # await self.__poll_nodes()
 
                 while not self.__stopped:
+                    if self.__client_recreation_required:
+                        await self.disconnect_if_connected()
+                        break
                     if monotonic() >= self.__next_scan:
                         self.__next_scan = monotonic() + scan_period
                         await self.__scan_device_nodes()
@@ -285,13 +312,17 @@ class OpcUaConnector(Connector, Thread):
                     if time_to_sleep > 0:
                         await asyncio.sleep(time_to_sleep)
                     if not self.__connected:
+                        self.__log.debug("Detected connection lost, OPC-UA client will reconnect to server.")
+                        await self.disconnect_if_connected()
                         break
 
             except (ConnectionError, BadSessionClosed, BadSessionIdInvalid):
                 self.__log.warning('Connection lost for %s, will try to reconnect...', self.get_name())
                 await self.disconnect_if_connected()
+                self.__client_recreation_required = True
             except asyncio.exceptions.TimeoutError:
                 self.__log.warning('Failed to connect %s', self.get_name())
+                self.__client_recreation_required = True
                 await self.disconnect_if_connected()
                 await asyncio.sleep(5)
             except asyncio.CancelledError as e:
@@ -317,10 +348,7 @@ class OpcUaConnector(Connector, Thread):
         if self.__connected:
             try:
                 if self.__enable_subscriptions:
-                    for device in self.__device_nodes:
-                        device.subscription = None
-                        device.nodes_data_change_subscriptions = {}
-                await self.__unsubscribe_from_nodes()
+                    self.__client_recreation_required = True
                 await self.__client.disconnect()
             except Exception:
                 pass  # ignore
@@ -328,6 +356,8 @@ class OpcUaConnector(Connector, Thread):
     async def retry_with_backoff(self, func, *args, max_retries=8, initial_delay=1, backoff_factor=2):
         delay = initial_delay
         for attempt in range(max_retries):
+            if self.__stopped:
+                return None
             try:
                 return await func(*args)
             except Exception as e:
@@ -370,27 +400,20 @@ class OpcUaConnector(Connector, Thread):
         """
         timeout = min(self.__client.session_timeout / 1000 / 2, self.__client._watchdog_intervall)
         try:
-            while not self.__client._closing:
+            while not self.__client._closing and not self.__stopped:
                 await asyncio.sleep(timeout)
                 _ = await self.__client.nodes.server_state.read_value()
         except ConnectionError as e:
             await self.__client._lost_connection(e)
             await self.__client.uaclient.inform_subscriptions(ua.StatusCode(ua.StatusCodes.BadShutdown))
-            try:
-                for device in self.__device_nodes:
-                    device.subscription = None
-            except Exception:
-                pass
             self.__connected = False
         except Exception as e:
             await self.__client._lost_connection(e)
             await self.__client.uaclient.inform_subscriptions(ua.StatusCode(ua.StatusCodes.BadShutdown))
-            try:
-                for device in self.__device_nodes:
-                    device.subscription = None
-            except Exception:
-                pass
             self.__connected = False
+        finally:
+            if not self.__stopped:
+                self.__client_recreation_required = True
 
     async def _renew_channel_loop(self):
         """
@@ -400,19 +423,27 @@ class OpcUaConnector(Connector, Thread):
         """
         try:
             duration = self.__client.secure_channel_timeout * 0.75 / 1000
-            while not self.__client._closing:
+            while not self.__client._closing and not self.__stopped:
                 await asyncio.sleep(duration)
                 await self.__client.open_secure_channel(renew=True)
                 val = await self.__client.nodes.server_state.read_value()
+        except CancelledError:
+            self.__log.debug("Renew channel loop task cancelled")
         except ConnectionError as e:
             self.__log.error("Connection error in renew_channel loop %s", e)
         except TimeoutError:
             self.__log.error("Timeout error in renew_channel loop")
         except Exception as e:
             self.__log.exception("Error in renew_channel loop %s", e)
+        finally:
+            if not self.__stopped:
+                self.__client_recreation_required = True
 
     def __load_converter(self, device):
-        converter_class_name = device.get('converter', DEFAULT_UPLINK_CONVERTER)
+        converter_class_name = device.get('converter')
+        if not converter_class_name:
+            self.__log.debug("No custom converter found for device %s, using default converter", device.get('name'))
+            converter_class_name = DEFAULT_UPLINK_CONVERTER
         module = TBModuleLoader.import_module(self._connector_type, converter_class_name)
 
         if module:
@@ -512,11 +543,16 @@ class OpcUaConnector(Connector, Thread):
             if not batch:
                 sleep(max(self.__sub_check_period_in_millis / 1000, .02))
                 continue
+            if self.__log.isEnabledFor(10):
+                self.__log.debug('Batch size: %s', len(batch))
+                self.__log.debug('Data left in queue: %s', self.__sub_data_to_convert.qsize())
 
             for sub_node, data, received_ts in batch:
                 node_configs = self.__nodes_config_cache.get(sub_node.nodeid, [])
                 for device in node_configs:
                     try:
+                        if sub_node.nodeid not in device.nodes_data_change_subscriptions:
+                            continue
                         if device not in device_converted_data_map:
                             device_converted_data_map[device] = ConvertedData(device_name=device.name)
 
@@ -540,7 +576,7 @@ class OpcUaConnector(Connector, Thread):
 
             for device, converted_data in device_converted_data_map.items():
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
-                self.__log.info('Converted data from %r nodes for device %s', len(batch), device.name)
+                self.__log.info('Converted data from %r notifications from server for device %s', len(batch), device.name)
 
             device_converted_data_map.clear()
 
@@ -549,38 +585,33 @@ class OpcUaConnector(Connector, Thread):
         await self._load_devices_nodes()
 
     async def _create_new_devices(self):
+        self.__log.debug('Scanning for new devices from configuration...')
         existing_devices = list(map(lambda dev: dev.name, self.__device_nodes))
 
         scanned_devices = []
-        for device in self.__config.get('mapping', []):
-            nodes = await self.find_nodes(device['deviceNodePattern'])
+        for device_config in self.__config.get('mapping', []):
+            nodes = await self.find_nodes(device_config['deviceNodePattern'])
             self.__log.debug('Found devices: %s', nodes)
 
             device_names = await self._get_device_info_by_pattern(
-                device.get('deviceInfo', {}).get('deviceNameExpression'))
+                device_config.get('deviceInfo', {}).get('deviceNameExpression'))
 
             for device_name in device_names:
                 scanned_devices.append(device_name)
                 if device_name not in existing_devices:
                     for node in nodes:
-                        converter = self.__load_converter(device)
+                        converter = self.__load_converter(device_config)
                         device_type = await self._get_device_info_by_pattern(
-                            device.get('deviceInfo', {}).get('deviceProfileExpression', 'default'),
+                            device_config.get('deviceInfo', {}).get('deviceProfileExpression', 'default'),
                             get_first=True)
-                        device_config = {**device, 'device_name': device_name, 'device_type': device_type}
+                        device_config = {**device_config, 'device_name': device_name, 'device_type': device_type}
                         self.__device_nodes.append(
                             Device(path=node, name=device_name, config=device_config,
                                    converter=converter(device_config, self.__log),
                                    converter_for_sub=converter(device_config,
                                                                self.__log) if self.__enable_subscriptions else None,
                                    logger=self.__log))
-
                         self.__log.info('Added device node: %s', device_name)
-
-        for device_name in existing_devices:
-            if device_name not in scanned_devices:
-                await self.__unsubscribe_from_nodes(device_name)
-
         self.__log.debug('Device nodes: %s', self.__device_nodes)
 
     async def _load_devices_nodes(self):
@@ -628,7 +659,8 @@ class OpcUaConnector(Connector, Thread):
                                 if found_node.nodeid not in device.nodes_data_change_subscriptions:
                                     if found_node.nodeid not in self.__nodes_config_cache:
                                         self.__nodes_config_cache[found_node.nodeid] = []
-                                    self.__nodes_config_cache[found_node.nodeid].append(device)
+                                    if device not in self.__nodes_config_cache[found_node.nodeid]:
+                                        self.__nodes_config_cache[found_node.nodeid].append(device)
                                     device.nodes_data_change_subscriptions[found_node.nodeid] = {"node": found_node,
                                                                                                  "subscription": None,
                                                                                                  "key": node['key'],
@@ -638,7 +670,7 @@ class OpcUaConnector(Connector, Thread):
                                 if device.subscription is None:
                                     device.subscription = await self.__client.create_subscription(
                                         self.__sub_check_period_in_millis, SubHandler(
-                                            self.__sub_data_to_convert, self.__log))
+                                            self.__sub_data_to_convert, self.__log, self.status_change_callback))
 
                                 node['id'] = found_node.nodeid.to_string()
 
@@ -683,26 +715,54 @@ class OpcUaConnector(Connector, Thread):
                                 subs.extend(subs_batch)
                             for node, conf, subscription_id in zip(nodes_to_subscribe, conf, subs):
                                 device.nodes_data_change_subscriptions[node.nodeid]['subscription'] = subscription_id
+                            self.__log.info('Subscribed to %i nodes for device %s', len(nodes_to_subscribe), device.name)
+                    else:
+                        self.__log.debug('No nodes to subscribe for device %s', device.name)
+                else:
+                    self.__log.debug('Subscriptions are disabled for device %s or device subscription is None', device.name)
             except Exception as e:
                 self.__log.exception("Error loading nodes: %s", e)
                 raise e
 
     async def _subscribe_for_node_updates_in_batches(self, device, nodes, batch_size=500):
         total_nodes = len(nodes)
+        total_successfully_subscribed = 0
+        total_failed_to_subscribe = 0
         result = []
         for i in range(0, total_nodes, batch_size):
             batch = nodes[i:i + batch_size]
+            batch_len = len(batch)
             try:
-                self.__log.info("Subscribing to batch %i with %i nodes.", i // batch_size + 1, len(batch))
-                result.append(await device.subscription.subscribe_data_change(batch))
-                self.__log.info("Subscribed to batch %i with %i nodes.", i // batch_size + 1, len(batch))
+                self.__log.info("Subscribing to batch %i with %i nodes.", i // batch_size + 1, batch_len)
+                subscription_result = await device.subscription.subscribe_data_change(batch)
+                bad_results = list(filter(lambda r: not isinstance(r, int), subscription_result))
+                if bad_results:
+                    reasons = [r.doc for r in bad_results]
+                    self.__log.error("Failed subscribing to nodes, server returned the following reasons: %r, nodes count with these problems - %r", set(reasons), len(reasons))
+                    self.__log.trace("Failed nodes: %r", bad_results)
+                result.append(subscription_result)
+                successfully_processed = batch_len - len(bad_results)
+                total_successfully_subscribed += successfully_processed
+                total_failed_to_subscribe += len(bad_results)
+                if successfully_processed > 0:
+                    self.__log.info("Succesfully subscribed to batch number %i with %i nodes.", i // batch_size + 1, successfully_processed)
+                else:
+                    self.__log.warning("Failed to subscribe to batch number %i with %i nodes.", i // batch_size + 1, batch_len)
             except Exception as e:
-                self.__log.warn("Error subscribing to batch %i with %i : %r", i // batch_size + 1, len(batch), e)
+                self.__log.warn("Error subscribing to batch %i with %i : %r", i // batch_size + 1, batch_len, e)
                 # self.__log.error("%r", batch) # Uncomment to see the nodes that failed to subscribe
                 self.__log.exception("Error subscribing to nodes: ", exc_info=e)
                 break
-        self.__log.info("Subscribed to %i nodes.", total_nodes)
+        self.__log.info("Expected subscription to %i nodes.", total_nodes)
+        self.__log.info("Successfully subscribed to %i nodes.", total_successfully_subscribed)
+        self.__log.info("Failed to subscribe to %i nodes.", total_failed_to_subscribe)
         return result
+
+    def status_change_callback(self, status):
+        self.__log.debug('Received status change event: %s', status.Status.doc)
+        if status.Status.is_bad():
+            self.__client_recreation_required = True
+
 
     async def __poll_nodes(self):
         data_retrieving_started = int(time() * 1000)
@@ -965,12 +1025,13 @@ class OpcUaConnector(Connector, Thread):
 
 
 class SubHandler:
-    def __init__(self, queue, logger):
+    def __init__(self, queue, logger, status_change_callback):
         self.__log = logger
         self.__queue = queue
+        self.__status_change_callback = status_change_callback
 
     def status_change_notification(self, status):
-        self.__log.debug("New status event %s", status)
+        self.__status_change_callback(status)
 
     def event_notification(self, event):
         self.__log.debug("New event %s", event)
