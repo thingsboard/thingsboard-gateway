@@ -93,11 +93,6 @@ class OpcuaJsonUplinkConverter(Converter):
         try:
             error = None
             value = val.Value.Value
-            
-            # print(f"Value in process_datapoint: {value}")
-            # if isinstance(data, list):
-            #     data = [str(item) for item in data]
-            # else:
                 
             try:
                 handler = VARIANT_TYPE_HANDLERS.get(val.Value.VariantType, lambda d: str(d) if not hasattr(d, 'to_string') else d.to_string())
