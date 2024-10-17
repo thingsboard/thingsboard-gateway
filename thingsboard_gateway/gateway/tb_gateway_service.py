@@ -1872,6 +1872,7 @@ class TBGatewayService:
                 except Exception as e:
                     log.exception(e)
                     continue
+            self.__save_persistent_devices()
         else:
             log.debug("No device found in connected device file.")
             self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices
