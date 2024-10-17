@@ -14,6 +14,8 @@
 
 import re
 
+from asyncua.common.subscription import Subscription
+
 
 class Device:
     def __init__(self, path, name, config, converter, converter_for_sub, logger):
@@ -29,7 +31,7 @@ class Device:
             'attributes': []
         }
         self.nodes = []
-        self.subscription = None
+        self.subscription: Subscription | None = None
         self.nodes_data_change_subscriptions = {}
 
         self.load_values()
