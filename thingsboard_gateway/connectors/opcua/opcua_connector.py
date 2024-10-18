@@ -270,6 +270,8 @@ class OpcUaConnector(Connector, Thread):
 
                     self.__nodes_config_cache = {}
                     self.__device_nodes = []
+                    self.__next_scan = 0
+                    self.__next_poll = 0
                     self.__client_recreation_required = False
 
                 await self.retry_with_backoff(self.__client.connect)
