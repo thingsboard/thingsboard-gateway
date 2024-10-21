@@ -14,7 +14,7 @@
 
 import datetime
 import subprocess
-from threading import Thread
+from threading import Thread, RLock
 from time import sleep, monotonic
 from platform import system as platform_system
 
@@ -52,6 +52,7 @@ class StatisticsService(Thread):
     #     }
     # }
     CONNECTOR_STATISTICS_STORAGE = {}
+    __LOCK = RLock()
 
     def __init__(self, stats_send_period_in_seconds, gateway, log, config_path=None,
                  custom_stats_send_period_in_seconds=3600):
@@ -103,9 +104,12 @@ class StatisticsService(Thread):
             cls.STATISTICS_STORAGE[stat_key] += count
 
     @classmethod
-    def clear_streams_statistics(cls):
-        for key in cls.STATISTICS_STORAGE:
-            cls.STATISTICS_STORAGE[key] = 0
+    def clear_statistics(cls):
+        with cls.__LOCK:
+            for key in cls.STATISTICS_STORAGE:
+                cls.STATISTICS_STORAGE[key] = 0
+            cls.CONNECTOR_STATISTICS_STORAGE = {}
+
 
     @staticmethod
     def count_connector_message(connector_name, stat_parameter_name, count=1):
@@ -117,10 +121,6 @@ class StatisticsService(Thread):
         bytes_count = str(msg).__sizeof__()
         StatisticsService.add_bytes(connector_name, bytes_count, stat_parameter_name,
                                     statistics_type='CONNECTOR_STATISTICS_STORAGE')
-
-    def __check_statistics_storage_must_reset(self):
-        if datetime.datetime.now() - self._last_streams_statistics_clear_time >= datetime.timedelta(days=1):
-            self.clear_streams_statistics()
 
     def __collect_custom_command_statistics(self):
         message = {}
@@ -199,15 +199,12 @@ class StatisticsService(Thread):
 
         while not self._stopped:
             if monotonic() - self._last_service_poll >= self._stats_send_period_in_seconds:
-                self.__check_statistics_storage_must_reset()
-
                 self.__send_statistics()
-
                 self._last_service_poll = monotonic()
+                self.clear_statistics()
 
             if monotonic() - self._last_custom_command_poll >= self._custom_stats_send_period_in_seconds:
                 self.__send_custom_command_statistics()
-
                 self._last_custom_command_poll = monotonic()
 
             sleep(1)
