@@ -314,8 +314,11 @@ class OpcUaConnector(Connector, Thread):
                     if time_to_sleep > 0:
                         await asyncio.sleep(time_to_sleep)
                     if not self.__connected:
-                        self.__log.debug("Detected connection lost, OPC-UA client will reconnect to server.")
-                        await self.disconnect_if_connected()
+                        if self.__stopped:
+                            self.__log.debug("Connection closed due to stopping.")
+                        else:
+                            self.__log.debug("Detected connection lost, OPC-UA client will reconnect to server.")
+                            await self.disconnect_if_connected()
                         break
 
             except (ConnectionError, BadSessionClosed, BadSessionIdInvalid):
