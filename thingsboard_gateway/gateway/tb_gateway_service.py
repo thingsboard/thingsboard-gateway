@@ -587,7 +587,7 @@ class TBGatewayService:
 
     def __stop_gateway(self):
         self.stopped = True
-        if hasattr(self, "_TBGatewayService__updater"):
+        if hasattr(self, "_TBGatewayService__updater") and self.__updater is not None:
             self.__updater.stop()
         log.info("Stopping...")
 
@@ -599,15 +599,15 @@ class TBGatewayService:
         if os.path.exists("/tmp/gateway"):
             os.remove("/tmp/gateway")
         self.__close_connectors()
-        if hasattr(self, "_event_storage"):
+        if hasattr(self, "_event_storage") and self._event_storage is not None:
             self._event_storage.stop()
         log.info("The gateway has been stopped.")
         if hasattr(self, "_TBGatewayService__messages_confirmation_executor") is not None:
             self.__messages_confirmation_executor.shutdown(wait=True, cancel_futures=True)
-        if hasattr(self, "tb_client"):
+        if hasattr(self, "tb_client") and self.tb_client is not None:
             self.tb_client.disconnect()
             self.tb_client.stop()
-        if hasattr(self, "manager"):
+        if hasattr(self, "manager") and self.manager is not None:
             self.manager.shutdown()
         for logger in logging.Logger.manager.loggerDict:
             if isinstance(logger, TbLogger):
