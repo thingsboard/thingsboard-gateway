@@ -314,8 +314,11 @@ class OpcUaConnector(Connector, Thread):
                     if time_to_sleep > 0:
                         await asyncio.sleep(time_to_sleep)
                     if not self.__connected:
-                        self.__log.debug("Detected connection lost, OPC-UA client will reconnect to server.")
-                        await self.disconnect_if_connected()
+                        if self.__stopped:
+                            self.__log.debug("Connection closed due to stopping.")
+                        else:
+                            self.__log.debug("Detected connection lost, OPC-UA client will reconnect to server.")
+                            await self.disconnect_if_connected()
                         break
 
             except (ConnectionError, BadSessionClosed, BadSessionIdInvalid):
@@ -531,21 +534,28 @@ class OpcUaConnector(Connector, Thread):
 
     def __convert_sub_data(self):
         device_converted_data_map = {}
+        sleep_period_after_empty_batch = max(self.__sub_check_period_in_millis / 1000, .02)
 
         while not self.__stopped:
             batch = []
-            batch_get_time = time()
+            batch_start_forming_time = time()
             while (not self.__sub_data_to_convert.empty()
                    and len(batch) < self.__sub_data_max_batch_size
-                   and time() - batch_get_time < self.__sub_data_min_batch_creation_time):
+                   and time() - batch_start_forming_time < self.__sub_data_min_batch_creation_time):
                 try:
                     batch.append(self.__sub_data_to_convert.get_nowait())
+                    if (time() - batch_start_forming_time) >= self.__sub_data_min_batch_creation_time:
+                        break
                 except Empty:
                     break
-            if not batch:
-                sleep(max(self.__sub_check_period_in_millis / 1000, .02))
+
+            if not batch and self.__sub_data_to_convert.empty():
+                if self.__log.isEnabledFor(10):
+                    self.__log.debug("Sleeping due to empty batch and converting queue %.3f (seconds)...", sleep_period_after_empty_batch)
+                sleep(sleep_period_after_empty_batch)
                 continue
             if self.__log.isEnabledFor(10):
+                self.__log.debug('Batch created in %i milliseconds', (time() - batch_start_forming_time) * 1000)
                 self.__log.debug('Batch size: %s', len(batch))
                 self.__log.debug('Data left in queue: %s', self.__sub_data_to_convert.qsize())
 
@@ -578,7 +588,7 @@ class OpcUaConnector(Connector, Thread):
 
             for device, converted_data in device_converted_data_map.items():
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
-                self.__log.info('Converted data from %r notifications from server for device %s', len(batch), device.name)
+                self.__log.info('Converted data from %r notifications from server for device %s, using converter: %r', len(batch), device.name, device.converter_for_sub.__class__.__name__)
 
             device_converted_data_map.clear()
 
