@@ -25,8 +25,7 @@
     },
     "qos": 1,
     "reportStrategy": {
-      "type": "ON_REPORT_PERIOD",
-      "reportPeriod": 30000
+      "type": "ON_RECEIVED"
     },
     "checkingDeviceActivity": {
       "checkDeviceInactivity": false,
