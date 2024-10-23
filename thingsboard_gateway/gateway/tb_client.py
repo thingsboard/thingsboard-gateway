@@ -369,12 +369,12 @@ class TBClient(threading.Thread):
 
     def get_rate_limits(self):
         return {
-            'devices_connected_through_gateway_telemetry_messages_rate_limit': deepcopy(self.client._devices_connected_through_gateway_telemetry_messages_rate_limit.__dict__()),  # noqa
-            'devices_connected_through_gateway_telemetry_datapoints_rate_limit': deepcopy(self.client._devices_connected_through_gateway_telemetry_datapoints_rate_limit.__dict__()),  # noqa
-            'devices_connected_through_gateway_messages_rate_limit': deepcopy(self.client._devices_connected_through_gateway_messages_rate_limit.__dict__()),  # noqa
-            'messages_rate_limit': deepcopy(self.client._messages_rate_limit.__dict__()),  # noqa
-            'telemetry_rate_limit': deepcopy(self.client._telemetry_rate_limit.__dict__()),  # noqa
-            'telemetry_dp_rate_limit': deepcopy(self.client._telemetry_dp_rate_limit.__dict__()),  # noqa
+            'devices_connected_through_gateway_telemetry_messages_rate_limit': deepcopy(self.client._devices_connected_through_gateway_telemetry_messages_rate_limit.__dict__),  # noqa
+            'devices_connected_through_gateway_telemetry_datapoints_rate_limit': deepcopy(self.client._devices_connected_through_gateway_telemetry_datapoints_rate_limit.__dict__),  # noqa
+            'devices_connected_through_gateway_messages_rate_limit': deepcopy(self.client._devices_connected_through_gateway_messages_rate_limit.__dict__),  # noqa
+            'messages_rate_limit': deepcopy(self.client._messages_rate_limit.__dict__),  # noqa
+            'telemetry_rate_limit': deepcopy(self.client._telemetry_rate_limit.__dict__),  # noqa
+            'telemetry_dp_rate_limit': deepcopy(self.client._telemetry_dp_rate_limit.__dict__),  # noqa
             'max_inflight_messages': self.client._client._max_inflight_messages,  # noqa
             'max_payload_size': self.client.max_payload_size
         }

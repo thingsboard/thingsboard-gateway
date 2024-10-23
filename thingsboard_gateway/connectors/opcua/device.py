@@ -14,6 +14,8 @@
 
 import re
 
+from asyncua.common.subscription import Subscription
+
 from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 
@@ -32,7 +34,7 @@ class Device:
             'attributes': []
         }
         self.nodes = []
-        self.subscription = None
+        self.subscription: Subscription | None = None
         self.nodes_data_change_subscriptions = {}
         self.report_strategy = None
         if self.config.get(REPORT_STRATEGY_PARAMETER):
