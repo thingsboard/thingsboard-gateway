@@ -44,8 +44,12 @@ class StatisticsServiceFunctions:
         return virtual_memory().percent
 
     @staticmethod
-    def gateway_ram_usage(_):
+    def gateway_process_memory_usage_percent(_):
         return round(SELF_PROCESS.memory_percent(), 1)
+
+    @staticmethod
+    def gateway_process_memory_full_info(_):
+        return SELF_PROCESS.memory_full_info()._asdict()
 
     @staticmethod
     def free_disk_space(_):

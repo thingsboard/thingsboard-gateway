@@ -62,7 +62,7 @@ class StatisticsService(Thread):
         self._stopped = False
 
         self._config_path = config_path
-        self._stats_send_period_in_seconds = stats_send_period_in_seconds if stats_send_period_in_seconds >= 60 else 60
+        self._stats_send_period_in_seconds = stats_send_period_in_seconds if stats_send_period_in_seconds >= 10 else 10
         self._custom_stats_send_period_in_seconds = custom_stats_send_period_in_seconds
         self._gateway = gateway
         self._log = log
