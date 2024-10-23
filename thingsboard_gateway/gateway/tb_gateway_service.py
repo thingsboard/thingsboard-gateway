@@ -65,7 +65,6 @@ try:
 
     GRPC_LOADED = True
 except ImportError:
-    print("Cannot load GRPC connector!")
 
     class GrpcConnector:
         pass
@@ -189,7 +188,8 @@ class TBGatewayService:
         try:
             self.__connect_with_connectors()
         except Exception as e:
-            log.exception("Error while connecting to connectors: %s", e)
+            log.info("Initial connection was not success, waiting for remote configuration")
+            log.debug("Initial connection failed with error: %s", e)
             self.__connectors_init_start_success = False
 
         connection_logger = logging.getLogger('tb_connection')
@@ -257,7 +257,6 @@ class TBGatewayService:
 
         try:
             if not self.__connectors_init_start_success:
-                log.warning("Initials connections with connectors was failed, trying again...")
                 self.connect_with_connectors()
                 log.info("Initials connections with connectors was successful.")
         except Exception as e:
@@ -863,9 +862,16 @@ class TBGatewayService:
                                                                                connector_type,
                                                                                connector_config_from_main.get('class')))
 
-                        if connector_class is None:
+                        if connector_class is not None and isinstance(connector_class, list):
                             log.warning("Connector implementation not found for %s",
                                         connector_config_from_main['name'])
+                            for error in connector_class:
+                                log.error("The following error occurred during importing connector class: %s", error)
+                            continue
+                        elif connector_class is None:
+                            log.error("Connector implementation not found for %s",
+                                      connector_config_from_main['name'])
+                            continue
                         else:
                             self._implemented_connectors[connector_type] = connector_class
                     elif connector_type == "grpc":
