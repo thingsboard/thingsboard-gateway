@@ -107,6 +107,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
                                 decoded_data = float(decoded_data) / float(configuration["divider"])
                             elif configuration.get("multiplier"):
                                 decoded_data = decoded_data * configuration["multiplier"]
+                            if configuration.get("round"):
+                                decoded_data = float(round(decoded_data, configuration["round"]))
+
+
                     else:
                         self._log.exception(response)
                         decoded_data = None
