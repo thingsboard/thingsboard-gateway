@@ -461,11 +461,11 @@ class TBGatewayService:
             self.manager.register('gateway', lambda: self, proxytype=AutoProxy)
 
     def _watchers(self):
+        global log
         try:
-            global log
             gateway_statistic_send = 0
             connectors_configuration_check_time = 0
-            latency_check_time = 0
+            logs_sending_check_time = 0
             update_logger_time = 0
 
             while not self.stopped:
@@ -553,6 +553,10 @@ class TBGatewayService:
                     if cur_time - self.__updates_check_time >= self.__updates_check_period_ms:
                         self.__updates_check_time = time() * 1000
                         self.version = self.__updater.get_version()
+
+                    if cur_time - logs_sending_check_time >= 1000:
+                        logs_sending_check_time = time() * 1000
+                        TbLogger.send_errors_if_needed(self)
 
                     if cur_time - update_logger_time > 60000:
                         log = logging.getLogger('service')
