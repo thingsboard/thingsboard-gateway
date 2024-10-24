@@ -70,7 +70,8 @@ class TBLoggerHandler(logging.Handler):
                 count = 1
                 while count <= self._max_message_count_batch:
                     try:
-                        if not self.__gateway.tb_client.is_connected():
+                        if self.__gateway.tb_client is None or not self.__gateway.tb_client.is_connected():
+                            sleep(1)
                             continue
                         log_msg = self._logs_queue.get(block=False)
 

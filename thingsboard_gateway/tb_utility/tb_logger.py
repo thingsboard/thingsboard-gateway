@@ -13,8 +13,8 @@
 #     limitations under the License.
 
 import logging
-from time import sleep, monotonic
-from threading import Thread
+from time import monotonic
+from threading import RLock
 
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
@@ -61,17 +61,25 @@ class TbLogger(logging.Logger):
     RESET_ERRORS_PERIOD = 60
     SEND_ERRORS_PERIOD = 5
 
-    def __init__(self, name, gateway=None, level=logging.NOTSET, is_connector_logger=False, is_converter_logger=False,
+    __PREVIOUS_ALL_ERRORS_COUNT = -1
+    __PREVIOUS_BATCH_TO_SEND = {}
+
+    ERRORS_MUTEX = RLock()
+    ERRORS_BATCH = {}
+
+    PREVIOUS_ERRORS_SENT_TIME = 0
+    PREVIOUS_ERRORS_RESET_TIME = 0
+
+    def __init__(self, name, gateway=None, level=logging.NOTSET,
+                 is_connector_logger=False, is_converter_logger=False,
                  connector_name=None):
         super(TbLogger, self).__init__(name=name, level=level)
         self.propagate = True
         self.parent = self.root
-        self._gateway = gateway
-        self._stopped = False
         self.__previous_number_of_errors = -1
-        self.__previous_errors_sent_time = monotonic()
         self.__is_connector_logger = is_connector_logger
         self.__is_converter_logger = is_converter_logger
+        self.__previous_reset_errors_time = TbLogger.PREVIOUS_ERRORS_RESET_TIME
         logging.Logger.trace = TbLogger.trace
 
         if self.__is_connector_logger:
@@ -84,60 +92,22 @@ class TbLogger(logging.Logger):
         self.errors = 0
         self.attr_name = self.name + '_ERRORS_COUNT'
         self._is_on_init_state = True
-        if self._gateway:
-            self._send_errors()
-
-        self._start_time = monotonic()
-        self._reset_errors_thread = Thread(target=self._processing_errors, name='[LOGGER] Process Errors Thread',
-                                           daemon=True)
-        self._reset_errors_thread.start()
 
     def reset(self):
-        """
-        !!!Need to be called manually in the connector 'close' method!!!
-        """
-        TbLogger.ALL_ERRORS_COUNT = TbLogger.ALL_ERRORS_COUNT - self.errors
+        with TbLogger.ERRORS_MUTEX:
+            TbLogger.ALL_ERRORS_COUNT = TbLogger.ALL_ERRORS_COUNT - self.errors
         self.errors = 0
-        self._send_error_count()
+        self._update_errors_batch()
 
     def stop(self):
+        with TbLogger.ERRORS_MUTEX:
+            TbLogger.ERRORS_BATCH.pop(self.attr_name, None)
         self.reset()
-        self._stopped = True
-
-    @property
-    def gateway(self):
-        return self._gateway
-
-    @gateway.setter
-    def gateway(self, gateway):
-        self._gateway = gateway
 
     def _send_errors(self):
-        is_tb_client = False
-
-        while not self._gateway:
-            sleep(1)
-
-        while not is_tb_client:
-            is_tb_client = hasattr(self._gateway, 'tb_client')
-            sleep(1)
-
-        if not TbLogger.IS_ALL_ERRORS_COUNT_RESET and self._gateway.tb_client is not None and self._gateway.tb_client.is_connected():
-            self._gateway.send_telemetry({self.attr_name: 0, 'ALL_ERRORS_COUNT': 0}, quality_of_service=0)
-            TbLogger.IS_ALL_ERRORS_COUNT_RESET = True
+        with TbLogger.ERRORS_MUTEX:
+            TbLogger.ERRORS_BATCH[self.attr_name] = 0
         self._is_on_init_state = False
-
-    def _processing_errors(self):
-        while not self._stopped:
-            if (self.__previous_number_of_errors != self.errors
-                    and monotonic() - self.__previous_errors_sent_time >= TbLogger.SEND_ERRORS_PERIOD):
-                self.__previous_number_of_errors = self.errors
-                self._send_error_count()
-            elif monotonic() - self._start_time >= TbLogger.RESET_ERRORS_PERIOD:
-                self.reset()
-                self._start_time = monotonic()
-
-            sleep(1)
 
     def trace(self, msg, *args, **kwargs):
         if self.isEnabledFor(TRACE_LOGGING_LEVEL):
@@ -154,6 +124,7 @@ class TbLogger(logging.Logger):
             StatisticsService.count_connector_message(self.name, 'convertersErrors')
 
         self._add_error()
+        self._update_errors_batch()
 
     def exception(self, msg, *args, **kwargs) -> None:
         attr_name = kwargs.pop('attr_name', None)
@@ -166,22 +137,59 @@ class TbLogger(logging.Logger):
             StatisticsService.count_connector_message(self.name, 'convertersErrors')
 
         self._add_error()
-        if attr_name is not None:
-            self._send_error_count(error_attr_name=attr_name)
+        self._update_errors_batch(error_attr_name=attr_name)
 
     def _add_error(self):
-        TbLogger.ALL_ERRORS_COUNT += 1
+        with TbLogger.ERRORS_MUTEX:
+            TbLogger.ALL_ERRORS_COUNT += 1
+            if TbLogger.PREVIOUS_ERRORS_RESET_TIME != self.__previous_reset_errors_time:
+                self.__previous_reset_errors_time = TbLogger.PREVIOUS_ERRORS_RESET_TIME
+                self.errors = 0
         self.errors += 1
 
-    def _send_error_count(self, error_attr_name=None):
-        while self._is_on_init_state:
-            sleep(.2)
+    def _update_errors_batch(self, error_attr_name=None):
+        if error_attr_name:
+            error_attr_name = error_attr_name + '_ERRORS_COUNT'
+        else:
+            error_attr_name = self.attr_name
+        TbLogger.ERRORS_BATCH[error_attr_name] = self.errors
 
-        if self._gateway and hasattr(self._gateway, 'tb_client'):
-            if error_attr_name:
-                error_attr_name = error_attr_name + '_ERRORS_COUNT'
-            else:
-                error_attr_name = self.attr_name
-            if self._gateway.tb_client is not None and self._gateway.tb_client.is_connected():
-                self._gateway.send_telemetry(
-                    {error_attr_name: self.errors, 'ALL_ERRORS_COUNT': TbLogger.ALL_ERRORS_COUNT})
+    @classmethod
+    def send_errors_if_needed(cls, gateway):
+        current_monotonic = monotonic()
+        if (gateway.tb_client is not None
+                and gateway.tb_client.is_connected()
+                and (current_monotonic - cls.PREVIOUS_ERRORS_SENT_TIME >= cls.SEND_ERRORS_PERIOD
+                     or cls.PREVIOUS_ERRORS_SENT_TIME == 0)):
+            if (current_monotonic - cls.PREVIOUS_ERRORS_RESET_TIME >= cls.RESET_ERRORS_PERIOD
+                    or cls.PREVIOUS_ERRORS_RESET_TIME == 0):
+                cls.PREVIOUS_ERRORS_RESET_TIME = current_monotonic
+                with cls.ERRORS_MUTEX:
+                    for key in cls.ERRORS_BATCH:
+                        cls.ERRORS_BATCH[key] = 0
+                    cls.ALL_ERRORS_COUNT = 0
+            cls.PREVIOUS_ERRORS_SENT_TIME = current_monotonic
+            batch_to_send = {}
+            with cls.ERRORS_MUTEX:
+                if cls.ERRORS_BATCH:
+                    batch_to_send = cls.ERRORS_BATCH
+                if cls.__PREVIOUS_ALL_ERRORS_COUNT != cls.ALL_ERRORS_COUNT:
+                    batch_to_send['ALL_ERRORS_COUNT'] = cls.ALL_ERRORS_COUNT
+                    cls.__PREVIOUS_ALL_ERRORS_COUNT = cls.ALL_ERRORS_COUNT
+            if batch_to_send:
+                previous_batch_keys = set(cls.__PREVIOUS_BATCH_TO_SEND.keys())
+                batch_keys = set(batch_to_send.keys())
+                keys_to_check = set(previous_batch_keys).union(batch_keys)
+                batch_sending_required = False
+                for key in keys_to_check:
+                    if cls.__PREVIOUS_BATCH_TO_SEND.get(key) != batch_to_send.get(key):
+                        batch_sending_required = True
+                        break
+                if batch_sending_required:
+                    gateway.send_telemetry(batch_to_send)
+                    with cls.ERRORS_MUTEX:
+                        keys_to_remove = previous_batch_keys - batch_keys
+                        for key in keys_to_remove:
+                            cls.__PREVIOUS_BATCH_TO_SEND.pop(key, None)
+                        cls.__PREVIOUS_BATCH_TO_SEND.update(batch_to_send)
+

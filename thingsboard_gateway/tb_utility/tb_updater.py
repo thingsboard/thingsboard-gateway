@@ -80,9 +80,9 @@ class TBUpdater:
                     log.info("\n\n[===UPDATE===]\n\n New version %s is available! \n\n[===UPDATE===]\n",
                              self.__version["latest_version"])
         except ConnectionRefusedError:
-            log.warning("Cannot connect to the update service. PLease check your internet connection.")
+            log.warning("Cannot connect to the update service. Please check your internet connection.")
         except ConnectionError:
-            log.warning("Cannot connect to the update service. PLease check your internet connection.")
+            log.warning("Cannot connect to the update service. Please check your internet connection.")
         except Exception as e:
             log.exception(e)
 

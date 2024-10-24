@@ -43,6 +43,7 @@ class TBModuleLoader:
 
     @staticmethod
     def import_module(extension_type, module_name):
+        errors = []
         if len(TBModuleLoader.PATHS) == 0:
             TBModuleLoader.find_paths()
         buffered_module_name = extension_type + module_name
@@ -70,6 +71,9 @@ class TBModuleLoader:
                                         return extension_class[1]
                             except ImportError as e:
                                 log.error(e.msg)
+                                errors.append(e.msg)
                                 continue
         except Exception as e:
             log.exception(e)
+            errors.append(e)
+        return errors

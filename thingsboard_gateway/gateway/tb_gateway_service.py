@@ -65,7 +65,6 @@ try:
 
     GRPC_LOADED = True
 except ImportError:
-    print("Cannot load GRPC connector!")
 
     class GrpcConnector:
         pass
@@ -190,7 +189,8 @@ class TBGatewayService:
         try:
             self.__connect_with_connectors()
         except Exception as e:
-            log.exception("Error while connecting to connectors: %s", e)
+            log.info("Initial connection was not success, waiting for remote configuration")
+            log.debug("Initial connection failed with error: %s", e)
             self.__connectors_init_start_success = False
 
         connection_logger = logging.getLogger('tb_connection')
@@ -258,7 +258,6 @@ class TBGatewayService:
 
         try:
             if not self.__connectors_init_start_success:
-                log.warning("Initials connections with connectors was failed, trying again...")
                 self.connect_with_connectors()
                 log.info("Initials connections with connectors was successful.")
         except Exception as e:
@@ -463,11 +462,11 @@ class TBGatewayService:
             self.manager.register('gateway', lambda: self, proxytype=AutoProxy)
 
     def _watchers(self):
+        global log
         try:
-            global log
             gateway_statistic_send = 0
             connectors_configuration_check_time = 0
-            latency_check_time = 0
+            logs_sending_check_time = 0
             update_logger_time = 0
 
             while not self.stopped:
@@ -556,6 +555,10 @@ class TBGatewayService:
                         self.__updates_check_time = time() * 1000
                         self.version = self.__updater.get_version()
 
+                    if cur_time - logs_sending_check_time >= 1000:
+                        logs_sending_check_time = time() * 1000
+                        TbLogger.send_errors_if_needed(self)
+
                     if cur_time - update_logger_time > 60000:
                         log = logging.getLogger('service')
                         self.__debug_log_enabled = log.isEnabledFor(10)
@@ -588,7 +591,7 @@ class TBGatewayService:
 
     def __stop_gateway(self):
         self.stopped = True
-        if hasattr(self, "_TBGatewayService__updater"):
+        if hasattr(self, "_TBGatewayService__updater") and self.__updater is not None:
             self.__updater.stop()
         log.info("Stopping...")
 
@@ -600,15 +603,15 @@ class TBGatewayService:
         if os.path.exists("/tmp/gateway"):
             os.remove("/tmp/gateway")
         self.__close_connectors()
-        if hasattr(self, "_event_storage"):
+        if hasattr(self, "_event_storage") and self._event_storage is not None:
             self._event_storage.stop()
         log.info("The gateway has been stopped.")
         if hasattr(self, "_TBGatewayService__messages_confirmation_executor") is not None:
             self.__messages_confirmation_executor.shutdown(wait=True, cancel_futures=True)
-        if hasattr(self, "tb_client"):
+        if hasattr(self, "tb_client") and self.tb_client is not None:
             self.tb_client.disconnect()
             self.tb_client.stop()
-        if hasattr(self, "manager"):
+        if hasattr(self, "manager") and self.manager is not None:
             self.manager.shutdown()
         for logger in logging.Logger.manager.loggerDict:
             if isinstance(logger, TbLogger):
@@ -864,9 +867,16 @@ class TBGatewayService:
                                                                                connector_type,
                                                                                connector_config_from_main.get('class')))
 
-                        if connector_class is None:
+                        if connector_class is not None and isinstance(connector_class, list):
                             log.warning("Connector implementation not found for %s",
                                         connector_config_from_main['name'])
+                            for error in connector_class:
+                                log.error("The following error occurred during importing connector class: %s", error)
+                            continue
+                        elif connector_class is None:
+                            log.error("Connector implementation not found for %s",
+                                      connector_config_from_main['name'])
+                            continue
                         else:
                             self._implemented_connectors[connector_type] = connector_class
                     elif connector_type == "grpc":
@@ -1873,6 +1883,7 @@ class TBGatewayService:
                 except Exception as e:
                     log.exception(e)
                     continue
+            self.__save_persistent_devices()
         else:
             log.debug("No device found in connected device file.")
             self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices

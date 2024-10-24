@@ -210,8 +210,8 @@ class MqttConnector(Connector, Thread):
             'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5))))
 
         if "username" in self.__broker["security"]:
-            self._client.username_pw_set(self.__broker["security"]["username"],
-                                         self.__broker["security"]["password"])
+            self._client.username_pw_set(self.__broker["security"].get("username"),
+                                         self.__broker["security"].get("password"))
 
         if "caCert" in self.__broker["security"] \
                 or self.__broker["security"].get("type", "none").lower() == "tls":

@@ -66,8 +66,12 @@ MACHINE_STATS_CONFIG = [
         "attributeOnGateway": "gwProcessCpuUsage"
     },
     {
-        "function": StatisticsServiceFunctions.gateway_ram_usage,
+        "function": StatisticsServiceFunctions.gateway_process_memory_usage_percent,
         "attributeOnGateway": "gwMemory"
+    },
+    {
+        "function": StatisticsServiceFunctions.gateway_process_memory_full_info,
+        "attributeOnGateway": "gwProcessMemoryFullInfo"
     },
     {
         "function": StatisticsServiceFunctions.msgs_sent_to_platform,
