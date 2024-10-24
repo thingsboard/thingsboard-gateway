@@ -1,18 +1,62 @@
+import asyncio
+from asyncio import CancelledError
 from threading import Thread
+from time import monotonic, sleep
 
 from pymodbus.datastore import ModbusSparseDataBlock, ModbusServerContext, ModbusSlaveContext
 from pymodbus.device import ModbusDeviceIdentification
+from pymodbus.framer.ascii_framer import ModbusAsciiFramer
+from pymodbus.framer.rtu_framer import ModbusRtuFramer
+from pymodbus.framer.socket_framer import ModbusSocketFramer
+from pymodbus.server import StartAsyncTcpServer, StartAsyncTlsServer, StartAsyncUdpServer, StartAsyncSerialServer, \
+    ServerAsyncStop
 from pymodbus.version import version
 
 from thingsboard_gateway.connectors.modbus_async.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
-from thingsboard_gateway.connectors.modbus.modbus_connector import FRAMER_TYPE, FUNCTION_CODE_SLAVE_INITIALIZATION, \
-    FUNCTION_TYPE, FUNCTION_CODE_READ
+from thingsboard_gateway.connectors.modbus_async.configs.bytes_downlink_converter_config import \
+    BytesDownlinkConverterConfig
+from thingsboard_gateway.connectors.modbus_async.constants import COILS_INITIALIZER, HOLDING_REGISTERS, INPUT_REGISTERS, \
+    DISCRETE_INPUTS
+
+SLAVE_TYPE = {
+    'tcp': StartAsyncTcpServer,
+    'tls': StartAsyncTlsServer,
+    'udp': StartAsyncUdpServer,
+    'serial': StartAsyncSerialServer
+}
+
+FUNCTION_TYPE = {
+    COILS_INITIALIZER: 'co',
+    HOLDING_REGISTERS: 'hr',
+    INPUT_REGISTERS: 'ir',
+    DISCRETE_INPUTS: 'di'
+}
+
+FUNCTION_CODE_SLAVE_INITIALIZATION = {
+    HOLDING_REGISTERS: (6, 16),
+    COILS_INITIALIZER: (5, 15),
+    INPUT_REGISTERS: (6, 16),
+    DISCRETE_INPUTS: (5, 15)
+}
+
+FUNCTION_CODE_READ = {
+    HOLDING_REGISTERS: 3,
+    COILS_INITIALIZER: 1,
+    INPUT_REGISTERS: 4,
+    DISCRETE_INPUTS: 2
+}
+
+FRAMER_TYPE = {
+    'rtu': ModbusRtuFramer,
+    'socket': ModbusSocketFramer,
+    'ascii': ModbusAsciiFramer
+}
 
 
 class Server(Thread):
     def __init__(self, config, logger):
         super().__init__()
-        self.stopped = False
+        self.__stopped = False
         self.daemon = True
         self.name = 'Gateway Modbus Server (Slave)'
 
@@ -20,28 +64,82 @@ class Server(Thread):
 
         self.__config = config
 
-        self.identity = self.__get_identity(self.__config)
-        self.server_context = self.__get_server_context(self.__config)
-        self.connection_config = self.__get_connection_config(self.__config)
+        self.unit_id = config['unitId']
+        self.host = config['host']
+        self.port = config['port']
+        self.device_name = config.get('deviceName', 'Modbus Slave')
+        self.device_type = config.get('deviceType', 'default')
+        self.poll_period = config.get('pollPeriod', 5000)
+        self.method = config.get('method', 'socket').lower()
 
-        self.start()
+        self.__type = config.get('type', 'tcp').lower()
+        self.__identity = self.__get_identity(self.__config)
+        self.__server_context = self.__get_server_context(self.__config)
+        self.__connection_config = self.__get_connection_config(self.__config)
+
+        try:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+        except RuntimeError:
+            self.loop = asyncio.get_event_loop()
 
     def __str__(self):
         return self.name
 
-    # TODO: implement run method
     def run(self):
-        pass
+        try:
+            self.loop.run_until_complete(self.start_server())
+        except CancelledError:
+            self.__log.debug("Server %s has been stopped", self.name)
+        except Exception as e:
+            self.__log.error("Server has been stopped with error: %s", e)
 
     def stop(self):
-        self.stopped = True
+        self.__stopped = True
+
+        asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.loop)
+
+        self.__check_is_alive()
+
+    def __check_is_alive(self):
+        start_time = monotonic()
+
+        while self.is_alive():
+            if monotonic() - start_time > 10:
+                self.__log.error("Failed to stop connector %s", self.name)
+                break
+            sleep(.1)
+
+    async def __cancel_all_tasks(self):
+        await asyncio.sleep(5)
+
+        for task in asyncio.all_tasks(self.loop):
+            task.cancel()
+
+        await ServerAsyncStop()
+
+    async def start_server(self):
+        try:
+            await SLAVE_TYPE[self.__type](identity=self.__identity, context=self.__server_context,
+                                          **self.__connection_config)
+        except Exception as e:
+            self.__stopped = True
+            self.__log.error('Failed to start Gateway Modbus Server (Slave): %s', e)
 
     def get_slave_config_format(self):
         """
         Function return configuration in slave format for adding it to gateway slaves list
         """
 
-        config = {}
+        config = {
+            'unitId': self.unit_id,
+            'deviceName': self.device_name,
+            'deviceType': self.device_type,
+            'pollPeriod': self.poll_period,
+            'host': self.host,
+            'port': self.port,
+            'method': self.method,
+        }
 
         for (register, register_values) in self.__config.get('values', {}).items():
             for (section_name, section_values) in register_values.items():
@@ -100,11 +198,17 @@ class Server(Thread):
                 for item in value.get(section, []):
                     function_code = FUNCTION_CODE_SLAVE_INITIALIZATION[key][0] if item['objectsCount'] <= 1 else \
                         FUNCTION_CODE_SLAVE_INITIALIZATION[key][1]
-                    converted_value = converter.convert(
-                        {**item,
-                         'device': config.get('deviceName', 'Gateway'), 'functionCode': function_code,
-                         'byteOrder': config['byteOrder'], 'wordOrder': config.get('wordOrder', 'LITTLE')},
-                        {'data': {'params': item['value']}})
+                    converter_config = BytesDownlinkConverterConfig(
+                        device_name=config.get('deviceName', 'Gateway'),
+                        byte_order=config['byteOrder'],
+                        word_order=config.get('wordOrder', 'LITTLE'),
+                        repack=config.get('repack', False),
+                        objects_count=item['objectsCount'],
+                        function_code=function_code,
+                        lower_type=item.get('type', item.get('tag', 'error')),
+                        address=item.get('address', 0)
+                    )
+                    converted_value = converter.convert(converter_config, {'data': {'params': item['value']}})
                     if converted_value is not None:
                         values[item['address'] + 1] = converted_value
                     else:

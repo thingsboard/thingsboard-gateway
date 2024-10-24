@@ -11,6 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+from typing import List, Union
 
 from pymodbus.constants import Endian
 from pymodbus.exceptions import ModbusIOException
@@ -19,6 +20,7 @@ from pymodbus.pdu import ExceptionResponse
 
 from thingsboard_gateway.connectors.modbus_async.configs.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.connectors.modbus_async.modbus_converter import ModbusConverter
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
@@ -27,37 +29,38 @@ class BytesModbusUplinkConverter(ModbusConverter):
     def __init__(self, config: BytesUplinkConverterConfig, logger):
         self._log = logger
         self.__config = config
-        self.__result = {"deviceName": config.device_name,
-                         "deviceType": config.device_type}
 
     @CollectStatistics(start_stat_type='receivedBytesFromDevices',
                        end_stat_type='convertedBytesFromDevice')
-    def convert(self, _, data):
-        StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
+    def convert(self, _, data: List[dict]) -> Union[ConvertedData, None]:
+        result = ConvertedData(self.__config.device_name, self.__config.device_type)
+        converted_data_append_methods = {
+            'attributes': result.add_to_attributes,
+            'telemetry': result.add_to_telemetry
+        }
+        for device_data in data:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
 
-        self.__result["attributes"] = []
-        self.__result["telemetry"] = []
+            for config_section in converted_data_append_methods:
+                for config in getattr(self.__config, config_section):
+                    encoded_data = device_data[config_section].get(config['tag'])
 
-        for config_section in ('attributes', 'telemetry'):
-            for config in getattr(self.__config, config_section):
-                encoded_data = data[config_section].get(config['tag'])
+                    if encoded_data:
+                        endian_order = Endian.Big if self.__config.byte_order.upper() == "BIG" else Endian.Little
+                        word_endian_order = Endian.Big if self.__config.word_order.upper() == "BIG" else Endian.Little
 
-                if encoded_data:
-                    endian_order = Endian.Big if self.__config.byte_order.upper() == "BIG" else Endian.Little
-                    word_endian_order = Endian.Big if self.__config.word_order.upper() == "BIG" else Endian.Little
+                        decoded_data = self.decode_data(encoded_data, config, endian_order, word_endian_order)
 
-                    decoded_data = self.decode_data(encoded_data, config, endian_order, word_endian_order)
+                        if decoded_data is not None:
+                            converted_data_append_methods[config_section]({config['tag']: decoded_data})
 
-                    if decoded_data is not None:
-                        self.__result[config_section].append({config['tag']: decoded_data})
+            self._log.trace("Decoded data: %s", result)
+            StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                      count=result.attributes_datapoints_count)
+            StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                      count=result.telemetry_datapoints_count)
 
-        self._log.debug("Decoded data: %s", self.__result)
-        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                  count=len(self.__result["attributes"]))
-        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                  count=len(self.__result["telemetry"]))
-
-        return self.__result
+            return result
 
     def decode_data(self, encoded_data, config, endian_order, word_endian_order):
         decoded_data = None

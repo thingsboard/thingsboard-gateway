@@ -1,5 +1,6 @@
 import asyncio
-from queue import Queue
+from asyncio import CancelledError
+from queue import Queue, Empty
 from threading import Thread
 from random import choice
 from string import ascii_lowercase
@@ -13,6 +14,7 @@ from thingsboard_gateway.connectors.modbus_async.constants import ADDRESS_PARAME
     FUNCTION_CODE_PARAMETER
 from thingsboard_gateway.connectors.modbus_async.server import Server
 from thingsboard_gateway.connectors.modbus_async.slave import Slave
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector
@@ -92,8 +94,12 @@ class AsyncModbusConnector(Connector, Thread):
         self.__stopped = False
         self.daemon = True
 
+        try:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+        except RuntimeError:
+            self.loop = asyncio.get_event_loop()
         self.__lock = asyncio.Lock()
-        self.loop = asyncio.get_event_loop()
 
         self.__data_to_convert = Queue(-1)
         self.__data_to_save = Queue(-1)
@@ -118,7 +124,6 @@ class AsyncModbusConnector(Connector, Thread):
             slave.close()
 
         asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.loop)
-        self.loop.stop()
 
         self.__check_is_alive()
 
@@ -156,16 +161,15 @@ class AsyncModbusConnector(Connector, Thread):
                 self.__log.exception('Failed to start Modbus server: %s', e)
                 self.__connected = False
 
-        # Thread(target=self.__process_requests, daemon=True, name="Modbus connector master processor thread").start()
         Thread(target=self.__convert_data, daemon=True, name="Modbus connector data converter thread").start()
         Thread(target=self.__save_data, daemon=True, name="Modbus connector data saver thread").start()
 
         try:
             self.loop.run_until_complete(self.__process_requests())
+        except CancelledError as e:
+            self.__log.debug('Task was cancelled due to connector stop: %s', e.__str__())
         except Exception as e:
             self.__log.exception(e)
-        finally:
-            self.loop.close()
 
     def __run_server(self):
         self.__server = Server(self.__config['slave'], self.__log)
@@ -260,13 +264,15 @@ class AsyncModbusConnector(Connector, Thread):
 
     @classmethod
     def callback(cls, slave: Slave):
-        cls.PROCESS_REQUESTS.put(slave)
+        cls.PROCESS_REQUESTS.put_nowait(slave)
 
     async def __process_requests(self):
         while not self.__stopped:
             try:
-                slave = self.PROCESS_REQUESTS.get()
+                slave = self.PROCESS_REQUESTS.get_nowait()
                 await self.__poll_device(slave)
+            except Empty:
+                await asyncio.sleep(.01)
             except Exception as e:
                 self.__log.exception(e)
 
@@ -285,13 +291,13 @@ class AsyncModbusConnector(Connector, Thread):
 
                 if connected_to_master:
                     slave_data = await self.__read_slave_data(slave)
-                    self.__data_to_convert.put((slave, slave_data))
+                    self.__data_to_convert.put_nowait((slave, slave_data))
                 else:
                     self.__log.error('Socket is closed, connection is lost, for device %s', slave)
-            except ConnectionException:
+            except (ConnectionException, asyncio.exceptions.TimeoutError):
                 self.__delete_device_from_platform(slave)
                 await asyncio.sleep(5)
-                self.__log.error('Connection logs!')
+                self.__log.error('Failed to connect to device %s', slave)
             except Exception as e:
                 self.__delete_device_from_platform(slave)
                 self.__log.exception(e)
@@ -363,21 +369,39 @@ class AsyncModbusConnector(Connector, Thread):
 
     def __convert_data(self):
         while not self.__stopped:
+            batch_to_convert = {}
             if not self.__data_to_convert.empty():
-                slave, data = self.__data_to_convert.get()
-                converted_data = slave.uplink_converter.convert({}, data)
-                if len(converted_data['attributes']) or len(converted_data['telemetry']):
-                    self.__data_to_save.put(converted_data)
+                batch_forming_start = monotonic()
+                while not self.__stopped and monotonic() - batch_forming_start < 0.1:
+                    try:
+                        slave, data = self.__data_to_convert.get_nowait()
+                    except Empty:
+                        break
+
+                    batch_key = (slave.device_name, slave.uplink_converter)
+
+                    if batch_key not in batch_to_convert:
+                        batch_to_convert[batch_key] = []
+
+                    batch_to_convert[batch_key].append(data)
+
+                for (device_name, uplink_converter), data in batch_to_convert.items():
+                    converted_data: ConvertedData = uplink_converter.convert({}, data)
+                    if len(converted_data['attributes']) or len(converted_data['telemetry']):
+                        self.__data_to_save.put_nowait(converted_data)
             else:
                 sleep(.001)
 
     def __save_data(self):
         while not self.__stopped:
             if not self.__data_to_save.empty():
-                converted_data = self.__data_to_save.get()
-                StatisticsService.count_connector_message(self.get_name(), stat_parameter_name='storageMsgPushed')
-                self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
-                self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
+                try:
+                    converted_data = self.__data_to_save.get_nowait()
+                    StatisticsService.count_connector_message(self.get_name(), stat_parameter_name='storageMsgPushed')
+                    self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
+                    self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
+                except Empty:
+                    sleep(.001)
             else:
                 sleep(.001)
 
