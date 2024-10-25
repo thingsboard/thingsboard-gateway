@@ -19,6 +19,7 @@ from pymodbus.framer.ascii_framer import ModbusAsciiFramer
 from pymodbus.framer.rtu_framer import ModbusRtuFramer
 from pymodbus.framer.socket_framer import ModbusSocketFramer
 
+from thingsboard_gateway.connectors.modbus_async.constants import SERIAL_CONNECTION_TYPE_PARAMETER
 
 FRAMER_TYPE = {
     'rtu': ModbusRtuFramer,
@@ -26,121 +27,69 @@ FRAMER_TYPE = {
     'ascii': ModbusAsciiFramer
 }
 
+def with_lock_for_serial(func):
+    async def wrapper(master, *args, **kwargs):
+        if master.client_type == SERIAL_CONNECTION_TYPE_PARAMETER:
+            await master.lock.acquire()
+
+        resp = await func(master, *args, **kwargs)
+
+        if master.client_type == SERIAL_CONNECTION_TYPE_PARAMETER:
+            master.lock.release()
+
+        return resp
+
+    return wrapper
+
 
 class Master:
     def __init__(self, client_type, client):
-        self.__lock = Lock()
-        self.__client_type = client_type.lower()
+        self.lock = Lock()
+        self.client_type = client_type.lower()
         self.__client = client
 
     def connected(self):
         return self.__client.connected
 
+    @with_lock_for_serial
     async def connect(self):
-        if self.__client_type == 'serial':
-            await self.__lock.acquire()
-
         await self.__client.connect()
 
-        if self.__client_type == 'serial':
-            self.__lock.release()
-
+    @with_lock_for_serial
     async def close(self):
-        if self.__client_type == 'serial':
-            await self.__lock.acquire()
-
         await self.__client.close()
 
-        if self.__client_type == 'serial':
-            self.__lock.release()
-
+    @with_lock_for_serial
     async def read_coils(self, address, count, unit_id):
-        if self.__client_type == 'serial':
-            await self.__lock.acquire()
+        return await self.__client.read_coils(address=address, count=count, slave=unit_id)
 
-        response = await self.__client.read_coils(address=address, count=count, slave=unit_id)
-
-        if self.__client_type == 'serial':
-            self.__lock.release()
-
-        return response
-
+    @with_lock_for_serial
     async def read_discrete_inputs(self, address, count, unit_id):
-        if self.__client_type == 'serial':
-            await self.__lock.acquire()
+        return await self.__client.read_discrete_inputs(address=address, count=count, slave=unit_id)
 
-        response = await self.__client.read_discrete_inputs(address=address, count=count, slave=unit_id)
-
-        if self.__client_type == 'serial':
-            self.__lock.release()
-
-        return response
-
+    @with_lock_for_serial
     async def read_holding_registers(self, address, count, unit_id):
-        if self.__client_type == 'serial':
-            await self.__lock.acquire()
+        return await self.__client.read_holding_registers(address=address, count=count, slave=unit_id)
 
-        response = await self.__client.read_holding_registers(address=address, count=count, slave=unit_id)
-
-        if self.__client_type == 'serial':
-            self.__lock.release()
-
-        return response
-
+    @with_lock_for_serial
     async def read_input_registers(self, address, count, unit_id):
-        if self.__client_type == 'serial':
-            await self.__lock.acquire()
+        return await self.__client.read_input_registers(address=address, count=count, slave=unit_id)
 
-        response = await self.__client.read_input_registers(address=address, count=count, slave=unit_id)
-
-        if self.__client_type == 'serial':
-            self.__lock.release()
-
-        return response
-
+    @with_lock_for_serial
     async def write_coil(self, address, value, unit_id):
-        if self.__client_type == 'serial':
-            await self.__lock.acquire()
+        return await self.__client.write_coil(address=address, value=value, slave=unit_id)
 
-        response = await self.__client.write_coil(address=address, value=value, slave=unit_id)
-
-        if self.__client_type == 'serial':
-            self.__lock.release()
-
-        return response
-
+    @with_lock_for_serial
     async def write_register(self, address, value, unit_id):
-        if self.__client_type == 'serial':
-            await self.__lock.acquire()
+        return await self.__client.write_register(address=address, value=value, slave=unit_id)
 
-        response = await self.__client.write_register(address=address, value=value, slave=unit_id)
-
-        if self.__client_type == 'serial':
-            self.__lock.release()
-
-        return response
-
+    @with_lock_for_serial
     async def write_coils(self, address, values, unit_id):
-        if self.__client_type == 'serial':
-            await self.__lock.acquire()
+        return await self.__client.write_coils(address=address, value=values, slave=unit_id)
 
-        response = await self.__client.write_coils(address=address, value=values, slave=unit_id)
-
-        if self.__client_type == 'serial':
-            self.__lock.release()
-
-        return response
-
+    @with_lock_for_serial
     async def write_registers(self, address, values, unit_id):
-        if self.__client_type == 'serial':
-            await self.__lock.acquire()
-
-        response = await self.__client.write_registers(address=address, value=values, slave=unit_id)
-
-        if self.__client_type == 'serial':
-            self.__lock.release()
-
-        return response
+        return await self.__client.write_registers(address=address, value=values, slave=unit_id)
 
     def get_available_functions(self):
         return {

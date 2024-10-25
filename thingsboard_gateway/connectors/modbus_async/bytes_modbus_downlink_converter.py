@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadBuilder
 
 from thingsboard_gateway.connectors.modbus_async.modbus_converter import ModbusConverter
@@ -29,10 +28,7 @@ class BytesModbusDownlinkConverter(ModbusConverter):
     @CollectStatistics(start_stat_type='allReceivedBytesFromTB',
                        end_stat_type='allBytesSentToDevices')
     def convert(self, config: BytesDownlinkConverterConfig, data):
-        byte_order = Endian.Big if config.byte_order.upper() == "BIG" else Endian.Little
-        word_order = Endian.Big if config.word_order.upper() == "BIG" else Endian.Little
-        repack = config.repack
-        builder = BinaryPayloadBuilder(byteorder=byte_order, wordorder=word_order, repack=repack)
+        builder = BinaryPayloadBuilder(byteorder=config.byte_order, wordorder=config.word_order, repack=config.repack)
         builder_functions = {"string": builder.add_string,
                              "bits": builder.add_bits,
                              "8int": builder.add_8bit_int,

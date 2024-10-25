@@ -22,8 +22,6 @@ from time import monotonic, sleep
 
 from packaging import version
 
-from thingsboard_gateway.connectors.modbus_async.entities.bytes_downlink_converter_config import \
-    BytesDownlinkConverterConfig
 from thingsboard_gateway.connectors.modbus_async.constants import ADDRESS_PARAMETER, TAG_PARAMETER, \
     FUNCTION_CODE_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
@@ -69,6 +67,8 @@ except ImportError:
 from thingsboard_gateway.connectors.modbus_async.entities.master import Master
 from thingsboard_gateway.connectors.modbus_async.server import Server
 from thingsboard_gateway.connectors.modbus_async.slave import Slave
+from thingsboard_gateway.connectors.modbus_async.entities.bytes_downlink_converter_config import \
+    BytesDownlinkConverterConfig
 
 from pymodbus.exceptions import ConnectionException
 from pymodbus.bit_read_message import ReadBitsResponseBase

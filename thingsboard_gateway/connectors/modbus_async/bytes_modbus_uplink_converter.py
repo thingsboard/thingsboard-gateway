@@ -47,10 +47,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
                     encoded_data = device_data[config_section].get(config['tag'])
 
                     if encoded_data:
-                        endian_order = Endian.Big if self.__config.byte_order.upper() == "BIG" else Endian.Little
-                        word_endian_order = Endian.Big if self.__config.word_order.upper() == "BIG" else Endian.Little
-
-                        decoded_data = self.decode_data(encoded_data, config, endian_order, word_endian_order)
+                        decoded_data = self.decode_data(encoded_data, config,
+                                                        self.__config.byte_order,
+                                                        self.__config.word_order)
 
                         if decoded_data is not None:
                             converted_data_append_methods[config_section]({config['tag']: decoded_data})
