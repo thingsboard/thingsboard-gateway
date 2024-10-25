@@ -16,7 +16,7 @@ from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadBuilder
 
 from thingsboard_gateway.connectors.modbus_async.modbus_converter import ModbusConverter
-from thingsboard_gateway.connectors.modbus_async.configs.bytes_downlink_converter_config import \
+from thingsboard_gateway.connectors.modbus_async.entities.bytes_downlink_converter_config import \
     BytesDownlinkConverterConfig
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 

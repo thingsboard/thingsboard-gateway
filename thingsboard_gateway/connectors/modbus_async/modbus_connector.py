@@ -1,3 +1,17 @@
+#     Copyright 2024. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 import asyncio
 from asyncio import CancelledError
 from queue import Queue, Empty
@@ -8,12 +22,10 @@ from time import monotonic, sleep
 
 from packaging import version
 
-from thingsboard_gateway.connectors.modbus_async.configs.bytes_downlink_converter_config import \
+from thingsboard_gateway.connectors.modbus_async.entities.bytes_downlink_converter_config import \
     BytesDownlinkConverterConfig
 from thingsboard_gateway.connectors.modbus_async.constants import ADDRESS_PARAMETER, TAG_PARAMETER, \
     FUNCTION_CODE_PARAMETER
-from thingsboard_gateway.connectors.modbus_async.server import Server
-from thingsboard_gateway.connectors.modbus_async.slave import Slave
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -54,24 +66,17 @@ except ImportError:
     TBUtility.install_package('twisted')
     from twisted.internet import reactor
 
-from pymodbus.client import AsyncModbusTlsClient, AsyncModbusTcpClient, AsyncModbusUdpClient, AsyncModbusSerialClient
+from thingsboard_gateway.connectors.modbus_async.entities.master import Master
+from thingsboard_gateway.connectors.modbus_async.server import Server
+from thingsboard_gateway.connectors.modbus_async.slave import Slave
+
 from pymodbus.exceptions import ConnectionException
-from pymodbus.framer.ascii_framer import ModbusAsciiFramer
-from pymodbus.framer.rtu_framer import ModbusRtuFramer
-from pymodbus.framer.socket_framer import ModbusSocketFramer
 from pymodbus.bit_read_message import ReadBitsResponseBase
 from pymodbus.bit_write_message import WriteMultipleCoilsResponse, WriteSingleCoilResponse
 from pymodbus.constants import Endian
 from pymodbus.pdu import ExceptionResponse
 from pymodbus.register_read_message import ReadRegistersResponseBase
 from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
-
-
-FRAMER_TYPE = {
-    'rtu': ModbusRtuFramer,
-    'socket': ModbusSocketFramer,
-    'ascii': ModbusAsciiFramer
-}
 
 
 class AsyncModbusConnector(Connector, Thread):
@@ -99,7 +104,6 @@ class AsyncModbusConnector(Connector, Thread):
             asyncio.set_event_loop(self.loop)
         except RuntimeError:
             self.loop = asyncio.get_event_loop()
-        self.__lock = asyncio.Lock()
 
         self.__data_to_convert = Queue(-1)
         self.__data_to_save = Queue(-1)
@@ -175,53 +179,7 @@ class AsyncModbusConnector(Connector, Thread):
         self.__server = Server(self.__config['slave'], self.__log)
         self.__server.start()
 
-    @staticmethod
-    def __configure_master(slave: Slave):
-        framer = FRAMER_TYPE[slave.method]
-
-        if slave.type == 'tcp' and slave.tls:
-            master = AsyncModbusTlsClient(slave.host,
-                                          slave.port,
-                                          framer,
-                                          timeout=slave.timeout,
-                                          retry_on_empty=slave.retry_on_empty,
-                                          retry_on_invalid=slave.retry_on_invalid,
-                                          retries=slave.retries,
-                                          **slave.tls)
-        elif slave.type == 'tcp':
-            master = AsyncModbusTcpClient(slave.host,
-                                          slave.port,
-                                          framer,
-                                          timeout=slave.timeout,
-                                          retry_on_empty=slave.retry_on_empty,
-                                          retry_on_invalid=slave.retry_on_invalid,
-                                          retries=slave.retries)
-        elif slave.type == 'udp':
-            master = AsyncModbusUdpClient(slave.host,
-                                          slave.port,
-                                          framer,
-                                          timeout=slave.timeout,
-                                          retry_on_empty=slave.retry_on_empty,
-                                          retry_on_invalid=slave.retry_on_invalid,
-                                          retries=slave.retries)
-        elif slave.type == 'serial':
-            master = AsyncModbusSerialClient(method=slave.method,
-                                             port=slave.port,
-                                             timeout=slave.timeout,
-                                             retry_on_empty=slave.retry_on_empty,
-                                             retry_on_invalid=slave.retry_on_invalid,
-                                             retries=slave.retries,
-                                             baudrate=slave.baudrate,
-                                             stopbits=slave.stopbits,
-                                             bytesize=slave.bytesize,
-                                             parity=slave.parity,
-                                             strict=slave.strict)
-        else:
-            raise Exception("Invalid Modbus transport type.")
-
-        return master
-
-    def __get_master_connection(self, slave: Slave):
+    def __get_master(self, slave: Slave):
         """
         Method check if connection to master already exists and return it
         or create new connection and return it
@@ -234,8 +192,9 @@ class AsyncModbusConnector(Connector, Thread):
 
         socket_str = slave.host + ':' + str(slave.port)
         if socket_str not in self._master_connections:
-            master_connection = self.__configure_master(slave)
-            self._master_connections[socket_str] = master_connection
+            master_connection = Master.configure_master(slave)
+            master = Master(slave.type, master_connection)
+            self._master_connections[socket_str] = master
 
         return self._master_connections[socket_str]
 
@@ -248,8 +207,8 @@ class AsyncModbusConnector(Connector, Thread):
         })
 
         slave = Slave(**slave_config)
-        master_connection = self.__get_master_connection(slave)
-        slave.set_master_connection(master_connection)  # set master connection only via set_master_connection method
+        master = self.__get_master(slave)
+        slave.master = master
 
         self.__slaves.append(slave)
 
@@ -274,24 +233,21 @@ class AsyncModbusConnector(Connector, Thread):
             except Empty:
                 await asyncio.sleep(.01)
             except Exception as e:
-                self.__log.exception(e)
+                self.__log.exception('Failed to poll device: %s', e)
 
     async def __poll_device(self, slave):
         self.__log.debug("Polling %s slave", slave)
-
-        if slave.type == 'serial':
-            await self.__lock.acquire()
 
         # check if device have attributes or telemetry to poll
         if slave.uplink_converter_config.attributes or slave.uplink_converter_config.telemetry:
             try:
                 connected_to_master = await slave.connect()
 
-                self.__manage_device_connectivity_to_platform(slave)
-
                 if connected_to_master:
                     slave_data = await self.__read_slave_data(slave)
                     self.__data_to_convert.put_nowait((slave, slave_data))
+
+                    self.__manage_device_connectivity_to_platform(slave)
                 else:
                     self.__log.error('Socket is closed, connection is lost, for device %s', slave)
             except (ConnectionException, asyncio.exceptions.TimeoutError):
@@ -300,10 +256,7 @@ class AsyncModbusConnector(Connector, Thread):
                 self.__log.error('Failed to connect to device %s', slave)
             except Exception as e:
                 self.__delete_device_from_platform(slave)
-                self.__log.exception(e)
-            finally:
-                if slave.type == 'serial':
-                    self.__lock.release()
+                self.__log.exception('Failed to poll %s device: %s', slave, e)
         else:
             self.__log.error('Config is empty. Nothing to read, for device %s', slave)
 
@@ -323,10 +276,10 @@ class AsyncModbusConnector(Connector, Thread):
                                      slave.unit_id)
                     self.__log.error("Reading failed with exception:", exc_info=result)
                     self.__log.info("Trying to reconnect to device %s", slave.device_name)
-                    if slave.master.connected:
+                    if slave.master.connected():
                         await slave.master.close()
                     await slave.connect()
-                    if slave.master.connected:
+                    if slave.master.connected():
                         self.__log.info("Reconnected to device %s", slave.device_name)
                         response = await slave.read(config['functionCode'], config['address'], config['objectsCount'])
                         if "Exception" in str(result) or "Error" in str(result):
@@ -335,7 +288,7 @@ class AsyncModbusConnector(Connector, Thread):
                                              slave.unit_id)
                             self.__log.error("Reading failed with exception:", exc_info=result)
 
-                            if slave.master.connected:
+                            if slave.master.connected():
                                 await slave.master.close()
 
                             self.__log.info("Will try to connect to device %s later", slave.device_name)
@@ -345,7 +298,7 @@ class AsyncModbusConnector(Connector, Thread):
         return result
 
     def __manage_device_connectivity_to_platform(self, slave: Slave):
-        if slave.master.connected and not slave.is_connected_to_platform():
+        if slave.master.connected() and not slave.is_connected_to_platform():
             self.__add_device_to_platform(slave)
         else:
             self.__delete_device_from_platform(slave)
@@ -360,7 +313,7 @@ class AsyncModbusConnector(Connector, Thread):
         """
 
         device_connected = slave.is_connected_to_platform()
-        if not device_connected and slave.master.connected:
+        if not device_connected and slave.master.connected():
             device_connected = self.__gateway.add_device(slave.device_name,
                                                          {CONNECTOR_PARAMETER: self},
                                                          device_type=slave.device_type)
@@ -369,28 +322,31 @@ class AsyncModbusConnector(Connector, Thread):
 
     def __convert_data(self):
         while not self.__stopped:
-            batch_to_convert = {}
-            if not self.__data_to_convert.empty():
-                batch_forming_start = monotonic()
-                while not self.__stopped and monotonic() - batch_forming_start < 0.1:
-                    try:
-                        slave, data = self.__data_to_convert.get_nowait()
-                    except Empty:
-                        break
+            try:
+                batch_to_convert = {}
+                if not self.__data_to_convert.empty():
+                    batch_forming_start = monotonic()
+                    while not self.__stopped and monotonic() - batch_forming_start < 0.1:
+                        try:
+                            slave, data = self.__data_to_convert.get_nowait()
+                        except Empty:
+                            break
 
-                    batch_key = (slave.device_name, slave.uplink_converter)
+                        batch_key = (slave.device_name, slave.uplink_converter)
 
-                    if batch_key not in batch_to_convert:
-                        batch_to_convert[batch_key] = []
+                        if batch_key not in batch_to_convert:
+                            batch_to_convert[batch_key] = []
 
-                    batch_to_convert[batch_key].append(data)
+                        batch_to_convert[batch_key].append(data)
 
-                for (device_name, uplink_converter), data in batch_to_convert.items():
-                    converted_data: ConvertedData = uplink_converter.convert({}, data)
-                    if len(converted_data['attributes']) or len(converted_data['telemetry']):
-                        self.__data_to_save.put_nowait(converted_data)
-            else:
-                sleep(.001)
+                    for (device_name, uplink_converter), data in batch_to_convert.items():
+                        converted_data: ConvertedData = uplink_converter.convert({}, data)
+                        if len(converted_data['attributes']) or len(converted_data['telemetry']):
+                            self.__data_to_save.put_nowait(converted_data)
+                else:
+                    sleep(.001)
+            except Exception as e:
+                self.__log.error('Exception in convertion data loop: %s', e)
 
     def __save_data(self):
         while not self.__stopped:

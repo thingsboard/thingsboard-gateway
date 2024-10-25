@@ -11,6 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
 from typing import List, Union
 
 from pymodbus.constants import Endian
@@ -18,7 +19,7 @@ from pymodbus.exceptions import ModbusIOException
 from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.pdu import ExceptionResponse
 
-from thingsboard_gateway.connectors.modbus_async.configs.bytes_uplink_converter_config import BytesUplinkConverterConfig
+from thingsboard_gateway.connectors.modbus_async.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.connectors.modbus_async.modbus_converter import ModbusConverter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics

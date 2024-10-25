@@ -1,3 +1,17 @@
+#     Copyright 2024. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 import asyncio
 from asyncio import CancelledError
 from threading import Thread
@@ -13,37 +27,16 @@ from pymodbus.server import StartAsyncTcpServer, StartAsyncTlsServer, StartAsync
 from pymodbus.version import version
 
 from thingsboard_gateway.connectors.modbus_async.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
-from thingsboard_gateway.connectors.modbus_async.configs.bytes_downlink_converter_config import \
+from thingsboard_gateway.connectors.modbus_async.entities.bytes_downlink_converter_config import \
     BytesDownlinkConverterConfig
-from thingsboard_gateway.connectors.modbus_async.constants import COILS_INITIALIZER, HOLDING_REGISTERS, INPUT_REGISTERS, \
-    DISCRETE_INPUTS
+from thingsboard_gateway.connectors.modbus_async.constants import FUNCTION_CODE_SLAVE_INITIALIZATION, FUNCTION_TYPE, \
+    FUNCTION_CODE_READ
 
 SLAVE_TYPE = {
     'tcp': StartAsyncTcpServer,
     'tls': StartAsyncTlsServer,
     'udp': StartAsyncUdpServer,
     'serial': StartAsyncSerialServer
-}
-
-FUNCTION_TYPE = {
-    COILS_INITIALIZER: 'co',
-    HOLDING_REGISTERS: 'hr',
-    INPUT_REGISTERS: 'ir',
-    DISCRETE_INPUTS: 'di'
-}
-
-FUNCTION_CODE_SLAVE_INITIALIZATION = {
-    HOLDING_REGISTERS: (6, 16),
-    COILS_INITIALIZER: (5, 15),
-    INPUT_REGISTERS: (6, 16),
-    DISCRETE_INPUTS: (5, 15)
-}
-
-FUNCTION_CODE_READ = {
-    HOLDING_REGISTERS: 3,
-    COILS_INITIALIZER: 1,
-    INPUT_REGISTERS: 4,
-    DISCRETE_INPUTS: 2
 }
 
 FRAMER_TYPE = {
