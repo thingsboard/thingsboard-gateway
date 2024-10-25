@@ -26,16 +26,16 @@ from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
 
 class Slave(Thread):
-    def __init__(self, **config):
+    def __init__(self, connector, logger, config):
         super().__init__()
         self.daemon = True
         self.stopped = False
-        self._log = config['logger']
-        self.connector = config['connector']
+        self._log = logger
+        self.connector = connector
         self.name = "Modbus slave processor for unit " + str(config['unitId']) + " on host " + str(
             config['host']) + ":" + str(config['port'])
 
-        self.callback = config['callback']
+        self.callback = connector.callback
 
         self.unit_id = config['unitId']
         self.host = config.get('host')

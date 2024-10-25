@@ -199,14 +199,7 @@ class AsyncModbusConnector(Connector, Thread):
         return self._master_connections[socket_str]
 
     def __add_slave(self, slave_config):
-        slave_config.update({
-            'connector': self,
-            'gateway': self.__gateway,
-            'logger': self.__log,
-            'callback': AsyncModbusConnector.callback
-        })
-
-        slave = Slave(**slave_config)
+        slave = Slave(self, self.__log, slave_config)
         master = self.__get_master(slave)
         slave.master = master
 
