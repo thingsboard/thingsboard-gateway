@@ -250,6 +250,7 @@ class AsyncModbusConnector(Connector, Thread):
                     self.__manage_device_connectivity_to_platform(slave)
                 else:
                     self.__log.error('Socket is closed, connection is lost, for device %s', slave)
+                    self.__delete_device_from_platform(slave)
             except (ConnectionException, asyncio.exceptions.TimeoutError):
                 self.__delete_device_from_platform(slave)
                 await asyncio.sleep(5)
@@ -300,12 +301,11 @@ class AsyncModbusConnector(Connector, Thread):
     def __manage_device_connectivity_to_platform(self, slave: Slave):
         if slave.master.connected() and not slave.is_connected_to_platform():
             self.__add_device_to_platform(slave)
-        else:
-            self.__delete_device_from_platform(slave)
 
     def __delete_device_from_platform(self, slave: Slave):
-        self.__gateway.del_device(slave.device_name)
-        slave.last_connect_time = 0
+        if slave.is_connected_to_platform():
+            self.__gateway.del_device(slave.device_name)
+            slave.last_connect_time = 0
 
     def __add_device_to_platform(self, slave: Slave):
         """
