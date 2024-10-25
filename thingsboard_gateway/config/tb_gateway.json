@@ -14,7 +14,7 @@
       "enable": false,
       "filterFile": "list.json"
     },
-    "maxPayloadSizeBytes": 8196,
+    "maxPayloadSizeBytes": 60000,
     "minPackSendDelayMS": 50,
     "minPackSizeToSend": 500,
     "checkConnectorsConfigurationInSeconds": 60,
@@ -37,7 +37,7 @@
     "deviceDpRateLimits": "DEFAULT_TELEMETRY_DP_RATE_LIMIT"
   },
   "storage": {
-    "type": "memory",
+    "type": "file",
     "read_records_count": 100,
     "max_records_count": 100000,
     "data_folder_path": "./data/",
