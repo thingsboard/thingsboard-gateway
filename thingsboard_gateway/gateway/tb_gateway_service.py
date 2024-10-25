@@ -77,6 +77,7 @@ main_handler = logging.handlers.MemoryHandler(-1)
 DEFAULT_CONNECTORS = {
     "mqtt": "MqttConnector",
     "modbus": "ModbusConnector",
+    "modbus_async": "AsyncModbusConnector",
     "opcua": "OpcUaConnector",
     "ble": "BLEConnector",
     "request": "RequestConnector",
