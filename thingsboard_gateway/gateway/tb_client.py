@@ -312,20 +312,20 @@ class TBClient(threading.Thread):
                     if self.__stopped:
                         break
                     if self.client._client.is_connected():
-                        self.__logger.debug("Client connected to platform.")
+                        self.__logger.info("Client connected to platform.")
                         if self.client.rate_limits_received:
-                            self.__logger.debug("Rate limits received.")
+                            self.__logger.info("Rate limits received.")
                         else:
-                            self.__logger.debug("Waiting for rate limits configuration...")
+                            self.__logger.info("Waiting for rate limits configuration...")
                     else:
-                        self.__logger.debug("Connecting to ThingsBoard...")
+                        self.__logger.info("Connecting to ThingsBoard...")
                     try:
                         if first_connection or time() - previous_connection_time > min_reconnect_delay:
                             first_connection = False
-                            self.__logger.debug("Sending connect to platform...")
+                            self.__logger.info("Sending connect to platform...")
                             self.client.connect(keepalive=keep_alive,
                                                 min_reconnect_delay=self.__min_reconnect_delay)
-                            self.__logger.debug("Connect msg sent to platform.")
+                            self.__logger.info("Connect msg sent to platform.")
                             previous_connection_time = time()
                         else:
                             sleep(1)
