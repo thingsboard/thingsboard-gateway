@@ -297,7 +297,7 @@ class TBClient(threading.Thread):
         self.client.gw_unsubscribe(subscription_id)
         self.client.unsubscribe_from_attribute(subscription_id)
 
-    def connect(self, min_reconnect_delay=1):
+    def connect(self, min_reconnect_delay=5):
         self.__paused = False
         self.__stopped = False
         self.__min_reconnect_delay = min_reconnect_delay
