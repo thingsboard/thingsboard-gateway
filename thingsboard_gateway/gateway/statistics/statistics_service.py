@@ -184,8 +184,9 @@ class StatisticsService(Thread):
         statistics_message = {'machineStats': self.__collect_statistics_from_config(MACHINE_STATS_CONFIG),
                               'serviceStats': self.__collect_service_statistics(),
                               'connectorsStats': self.CONNECTOR_STATISTICS_STORAGE}
-        self._log.info('REGULAR STATS: %s', statistics_message)
+        self._log.info('Collected regular statistics: %s', statistics_message)
         self._gateway.send_telemetry(statistics_message)
+        self.clear_statistics()
 
     def __send_general_machine_state(self):
         message = self.__collect_statistics_from_config(ONCE_SEND_STATISTICS_CONFIG)
@@ -195,16 +196,27 @@ class StatisticsService(Thread):
         self.__send_general_machine_state()
 
     def run(self) -> None:
-        self.__once_send_statistics()
+        try:
+            self.__once_send_statistics()
+        except Exception as e:
+            self._log.error("Error while sending first statistics information: %s", e)
 
         while not self._stopped:
-            if monotonic() - self._last_service_poll >= self._stats_send_period_in_seconds:
-                self.__send_statistics()
-                self._last_service_poll = monotonic()
-                self.clear_statistics()
+            try:
 
-            if monotonic() - self._last_custom_command_poll >= self._custom_stats_send_period_in_seconds:
-                self.__send_custom_command_statistics()
-                self._last_custom_command_poll = monotonic()
+                sleep(1)
 
-            sleep(1)
+                cur_monotonic = int(monotonic())
+
+                if cur_monotonic - self._last_service_poll >= self._stats_send_period_in_seconds:
+                    self._last_service_poll = cur_monotonic
+                    self.__send_statistics()
+                    self.clear_statistics()
+
+                if cur_monotonic - self._last_custom_command_poll >= self._custom_stats_send_period_in_seconds:
+                    self._last_custom_command_poll = cur_monotonic
+                    self.__send_custom_command_statistics()
+
+            except Exception as e:
+                self._log.error("Error in statistics thread: %s", e)
+                sleep(5)

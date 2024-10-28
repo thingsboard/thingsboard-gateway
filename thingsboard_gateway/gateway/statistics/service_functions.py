@@ -32,6 +32,10 @@ class StatisticsServiceFunctions:
         return bytes2human(disk_usage('/').total)
 
     @staticmethod
+    def total_cpu_count(_):
+        return os.cpu_count()
+
+    @staticmethod
     def cpu_usage(_):
         return cpu_percent(0.2)
 

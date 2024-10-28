@@ -464,7 +464,6 @@ class TBGatewayService:
     def _watchers(self):
         global log
         try:
-            gateway_statistic_send = 0
             connectors_configuration_check_time = 0
             logs_sending_check_time = 0
             update_logger_time = 0
@@ -537,14 +536,6 @@ class TBGatewayService:
                             and not self.tb_client.client.get_subscriptions_in_progress()):
                         self.__requested_config_after_connect = True
                         self._check_shared_attributes()
-
-                    if (cur_time - gateway_statistic_send > self.__statistics['statsSendPeriodInSeconds'] * 1000
-                            and self.tb_client.is_connected()):
-                        summary_messages = self.__form_statistics()
-                        # with self.__lock:
-                        self.send_telemetry(summary_messages)
-                        gateway_statistic_send = time() * 1000
-                        # self.__check_shared_attributes()
 
                     if (cur_time - connectors_configuration_check_time > self.__config["thingsboard"].get("checkConnectorsConfigurationInSeconds", 60) * 1000 # noqa
                             and not (self.__remote_configurator is not None and self.__remote_configurator.in_process)):
