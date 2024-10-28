@@ -79,6 +79,7 @@ main_handler = logging.handlers.MemoryHandler(-1)
 DEFAULT_CONNECTORS = {
     "mqtt": "MqttConnector",
     "modbus": "ModbusConnector",
+    "modbus_async": "AsyncModbusConnector",
     "opcua": "OpcUaConnector",
     "ble": "BLEConnector",
     "request": "RequestConnector",
@@ -467,11 +468,10 @@ class TBGatewayService:
             self.manager.register('gateway', lambda: self, proxytype=AutoProxy)
 
     def _watchers(self):
+        global log
         try:
-            global log
-            gateway_statistic_send = 0
             connectors_configuration_check_time = 0
-            latency_check_time = 0
+            logs_sending_check_time = 0
             update_logger_time = 0
 
             while not self.stopped:
@@ -543,14 +543,6 @@ class TBGatewayService:
                         self.__requested_config_after_connect = True
                         self._check_shared_attributes()
 
-                    if (cur_time - gateway_statistic_send > self.__statistics['statsSendPeriodInSeconds'] * 1000
-                            and self.tb_client.is_connected()):
-                        summary_messages = self.__form_statistics()
-                        # with self.__lock:
-                        self.send_telemetry(summary_messages)
-                        gateway_statistic_send = time() * 1000
-                        # self.__check_shared_attributes()
-
                     if (cur_time - connectors_configuration_check_time > self.__config["thingsboard"].get("checkConnectorsConfigurationInSeconds", 60) * 1000 # noqa
                             and not (self.__remote_configurator is not None and self.__remote_configurator.in_process)):
                         self.check_connector_configuration_updates()
@@ -559,6 +551,10 @@ class TBGatewayService:
                     if cur_time - self.__updates_check_time >= self.__updates_check_period_ms:
                         self.__updates_check_time = time() * 1000
                         self.version = self.__updater.get_version()
+
+                    if cur_time - logs_sending_check_time >= 1000:
+                        logs_sending_check_time = time() * 1000
+                        TbLogger.send_errors_if_needed(self)
 
                     if cur_time - update_logger_time > 60000:
                         log = logging.getLogger('service')
