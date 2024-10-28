@@ -1571,7 +1571,7 @@ class TBGatewayService:
             log.info("Remote shell is disabled.")
             method_function = self.__gateway_rpc_methods.get(method_to_call)
         if method_function is None and method_to_call in self.__rpc_scheduled_methods_functions:
-            seconds_to_restart = arguments * 1000 if arguments and arguments != '{}' else 0
+            seconds_to_restart = arguments * 1000 if arguments and arguments != '{}' else 1000
             self.__scheduled_rpc_calls.append([time() * 1000 + seconds_to_restart,
                                                self.__rpc_scheduled_methods_functions[method_to_call]])
             log.info("Gateway %s scheduled in %i seconds", method_to_call, seconds_to_restart / 1000)
