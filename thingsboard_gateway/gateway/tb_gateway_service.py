@@ -708,6 +708,9 @@ class TBGatewayService:
         if deleted_device_name in self.__saved_devices:
             del self.__saved_devices[deleted_device_name]
             log.debug("Device %s - was removed from __saved_devices", deleted_device_name)
+        if deleted_device_name in self.__added_devices:
+            del self.__added_devices[deleted_device_name]
+            log.debug("Device %s - was removed from __added_devices", deleted_device_name)
         if hasattr(self, "__duplicate_detector"):
             self.__duplicate_detector.delete_device(deleted_device_name)
         self.__save_persistent_devices()
@@ -1770,8 +1773,10 @@ class TBGatewayService:
                 self.tb_client.client.gw_disconnect_device(device_name)
             except Exception as e:
                 log.exception("Error on disconnecting device %s", device_name, exc_info=e)
+
             self.__connected_devices.pop(device_name, None)
             self.__saved_devices.pop(device_name, None)
+            self.__added_devices.pop(device_name, None)
             self.__save_persistent_devices()
 
     def get_devices(self, connector_id: str = None):
