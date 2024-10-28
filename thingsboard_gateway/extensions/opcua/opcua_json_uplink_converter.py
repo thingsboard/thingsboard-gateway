@@ -89,7 +89,7 @@ class OpcuaJsonUplinkConverter(Converter):
 
     @staticmethod
     def process_datapoint(config, val, basic_timestamp):
-        # print(f"Original val in process_datapoint: {val}")
+        # print(f"Original val in process_datapoint: {val}") 
         try:
             error = None
             value = val.Value.Value
