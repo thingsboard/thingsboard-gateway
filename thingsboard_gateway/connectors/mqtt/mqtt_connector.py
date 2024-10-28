@@ -197,12 +197,13 @@ class MqttConnector(Connector, Thread):
         self._mqtt_version = self.__broker.get('version', 5)
         try:
             if self._mqtt_version != 5:
-                self._client = Client(client_id, clean_session=self._cleanSession, protocol=MQTT_VERSIONS[self._mqtt_version])
+                self._client = Client(client_id=client_id, clean_session=self._cleanSession,
+                                      protocol=MQTT_VERSIONS[self._mqtt_version])
             else:
-                self._client = Client(client_id, protocol=MQTT_VERSIONS[self._mqtt_version])
+                self._client = Client(client_id=client_id, protocol=MQTT_VERSIONS[self._mqtt_version])
         except KeyError:
             self.__log.error('Unknown MQTT version. Starting up on version 5...')
-            self._client = Client(client_id, protocol=MQTTv5)
+            self._client = Client(client_id=client_id, protocol=MQTTv5)
             self._mqtt_version = 5
 
         self.name = config.get("name", self.__broker.get(
