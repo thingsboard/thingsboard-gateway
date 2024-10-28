@@ -248,7 +248,7 @@ class TBClient(threading.Thread):
         return self.__is_connected and self.client.rate_limits_received
 
     def _on_connect(self, client, userdata, flags, result_code, *extra_params):
-        self.__logger.debug('TB client %s connected to ThingsBoard', str(client))
+        self.__logger.debug('TB client %s connected to platform', str(client))
         if result_code == 0:
             self.__is_connected = True
             if self.__initial_connection_done:
@@ -311,19 +311,28 @@ class TBClient(threading.Thread):
                 if not self.__paused:
                     if self.__stopped:
                         break
-                    self.__logger.info("Connecting to ThingsBoard...")
+                    if self.client._client.is_connected():
+                        self.__logger.debug("Client connected to platform.")
+                        if self.client.rate_limits_received:
+                            self.__logger.debug("Rate limits received.")
+                        else:
+                            self.__logger.debug("Waiting for rate limits configuration...")
+                    else:
+                        self.__logger.debug("Connecting to ThingsBoard...")
                     try:
                         if first_connection or time() - previous_connection_time > min_reconnect_delay:
                             first_connection = False
+                            self.__logger.debug("Sending connect to platform...")
                             self.client.connect(keepalive=keep_alive,
                                                 min_reconnect_delay=self.__min_reconnect_delay)
+                            self.__logger.debug("Connect msg sent to platform.")
                             previous_connection_time = time()
                         else:
                             sleep(1)
                     except ConnectionRefusedError:
                         self.__logger.error("Connection refused. Check ThingsBoard is running.")
                     except Exception as e:
-                        self.__logger.exception(e)
+                        self.__logger.error("Error in connect: %s", exc_info=e)
                 sleep(1)
         except Exception as e:
             self.__logger.exception(e)

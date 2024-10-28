@@ -22,6 +22,10 @@ ONCE_SEND_STATISTICS_CONFIG = [
     {
         "function": StatisticsServiceFunctions.total_disk_memory,
         "attributeOnGateway": "totalDisk"
+    },
+    {
+        "function": StatisticsServiceFunctions.total_cpu_count,
+        "attributeOnGateway": "cpuCount"
     }
 ]
 
