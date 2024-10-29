@@ -1563,15 +1563,17 @@ class TBGatewayService:
         log.info("Received RPC request to the gateway, id: %s, method: %s", str(request_id), content["method"])
         arguments = content.get('params', {})
         method_to_call = content["method"].replace("gateway_", "")
-        result = None
+
         if self.__remote_shell is not None:
             method_function = self.__remote_shell.shell_commands.get(method_to_call,
                                                                      self.__gateway_rpc_methods.get(method_to_call))
         else:
             log.info("Remote shell is disabled.")
             method_function = self.__gateway_rpc_methods.get(method_to_call)
+
         if method_function is None and method_to_call in self.__rpc_scheduled_methods_functions:
             seconds_to_restart = arguments * 1000 if arguments and arguments != '{}' else 1000
+            seconds_to_restart = max(seconds_to_restart, 1000)
             self.__scheduled_rpc_calls.append([time() * 1000 + seconds_to_restart,
                                                self.__rpc_scheduled_methods_functions[method_to_call]])
             log.info("Gateway %s scheduled in %i seconds", method_to_call, seconds_to_restart / 1000)
@@ -1585,6 +1587,7 @@ class TBGatewayService:
             result = method_function(arguments)
         else:
             result = method_function()
+
         return result
 
     @staticmethod
