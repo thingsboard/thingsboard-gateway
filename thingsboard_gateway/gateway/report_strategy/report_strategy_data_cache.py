@@ -15,6 +15,7 @@
 from time import monotonic
 
 from thingsboard_gateway.gateway.constants import ReportStrategy
+from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 
 
@@ -77,17 +78,23 @@ class ReportStrategyDataCache:
         self._config = config
         self._data_cache = {}
 
-    def put(self, key, data: str, device_name, device_type, connector_name, connector_id, report_strategy, is_telemetry):
-        self._data_cache[key] = ReportStrategyDataRecord(data, device_name, device_type, connector_name, connector_id, report_strategy, is_telemetry)
+    def put(self, datapoint_key: DatapointKey, data: str, device_name, device_type, connector_name, connector_id, report_strategy, is_telemetry):
+        self._data_cache[(datapoint_key, device_name, connector_id)] = ReportStrategyDataRecord(data, device_name, device_type, connector_name, connector_id, report_strategy, is_telemetry)
 
-    def get(self, key) -> ReportStrategyDataRecord:
-        return self._data_cache.get(key)
+    def get(self, datapoint_key: DatapointKey, device_name, connector_id) -> ReportStrategyDataRecord:
+        return self._data_cache.get((datapoint_key, device_name, connector_id))
 
-    def update_last_report_time(self, key):
-        self._data_cache[key].update_last_report_time()
+    def update_last_report_time(self, datapoint_key: DatapointKey, device_name, connector_id):
+        self._data_cache[(datapoint_key, device_name, connector_id)].update_last_report_time()
 
-    def update_key_value(self, key, value):
-        self._data_cache[key].update_value(value)
+    def update_key_value(self, datapoint_key: DatapointKey, device_name, connector_id, value):
+        self._data_cache[(datapoint_key, device_name, connector_id)].update_value(value)
 
-    def update_ts(self, key, ts):
-        self._data_cache[key].update_ts(ts)
+    def update_ts(self, datapoint_key: DatapointKey, device_name, connector_id, ts):
+        self._data_cache[(datapoint_key, device_name, connector_id)].update_ts(ts)
+
+    def delete_all_records_for_connector_by_connector_id(self, connector_id):
+        keys_to_delete = [key for key in self._data_cache.keys() if key[2] == connector_id]
+        for key in keys_to_delete:
+            del self._data_cache[key]
+

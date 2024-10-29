@@ -15,7 +15,7 @@
 from enum import Enum
 
 from thingsboard_gateway.gateway.constants import REPORT_PERIOD_PARAMETER, ReportStrategy, \
-    DEFAULT_REPORT_STRATEGY_CONFIG, TYPE_PARAMETER, AGGREGATION_FUNCTION_PARAMETER
+    TYPE_PARAMETER, AGGREGATION_FUNCTION_PARAMETER, REPORT_STRATEGY_PARAMETER
 
 
 class AggregationFunction(Enum):
@@ -35,10 +35,18 @@ class AggregationFunction(Enum):
 
 
 class ReportStrategyConfig:
-    def __init__(self, config):
-        self.report_period = max(config.get(REPORT_PERIOD_PARAMETER, DEFAULT_REPORT_STRATEGY_CONFIG[REPORT_PERIOD_PARAMETER]) - 10, 1)
-        report_strategy_type = config.get(TYPE_PARAMETER, DEFAULT_REPORT_STRATEGY_CONFIG[TYPE_PARAMETER])
+    def __init__(self, config, default_report_strategy_config = {}):
+        if config.get(REPORT_PERIOD_PARAMETER) is None and config.get(TYPE_PARAMETER) is None and not default_report_strategy_config:
+            raise ValueError("Report period is not specified")
+        if default_report_strategy_config:
+            self.report_period = max(config.get(REPORT_PERIOD_PARAMETER, default_report_strategy_config[REPORT_PERIOD_PARAMETER]) - 10, 1)
+            report_strategy_type = config.get(TYPE_PARAMETER, default_report_strategy_config[TYPE_PARAMETER])
+        else:
+            self.report_period = max(config.get(REPORT_PERIOD_PARAMETER, 0), 1)
+            report_strategy_type = config.get(TYPE_PARAMETER)
         self.report_strategy = ReportStrategy.from_string(report_strategy_type)
+        if self.report_strategy not in (ReportStrategy.ON_REPORT_PERIOD, ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD):
+            self.report_period = None
         self.aggregation_function = config.get(AGGREGATION_FUNCTION_PARAMETER)
         self.__validate_config()
         self.__hash = hash((self.report_period, self.report_strategy, self.aggregation_function))

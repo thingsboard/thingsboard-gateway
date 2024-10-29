@@ -16,6 +16,7 @@ from time import time
 from typing import Tuple, Dict, Any
 
 from thingsboard_gateway.gateway.constants import TELEMETRY_TIMESTAMP_PARAMETER, TELEMETRY_VALUES_PARAMETER
+from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -28,7 +29,7 @@ class TelemetryEntry:
         elif ts is None:
             ts = int(time() * 1000)
         self.ts = ts
-        self.values: Dict[Tuple[str, ReportStrategyConfig], Any | str, Any] = values
+        self.values: Dict[DatapointKey, Any] = values
         self.data_size = TBUtility.get_data_size(self.to_dict())
 
     def __str__(self):
@@ -40,13 +41,13 @@ class TelemetryEntry:
     def __hash__(self):
         return hash((self.ts, tuple(self.values.items())))
 
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         res = {}
-        for key, value in self.values.items():
-            if isinstance(key, tuple):
-                res[key[0]] = value
+        for datapoint_key, value in self.values.items():
+            if isinstance(datapoint_key, DatapointKey):
+                res[datapoint_key.key] = value
             else:
-                res[key] = value
+                res[datapoint_key.key] = value
         return {TELEMETRY_TIMESTAMP_PARAMETER: self.ts, TELEMETRY_VALUES_PARAMETER: res}
 
     def __getitem__(self, item):

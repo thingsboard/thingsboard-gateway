@@ -67,3 +67,5 @@ class Device:
                 except KeyError as e:
                     self._log.error('Invalid config for %s (key %s not found)', node_config, e)
             self.__configured_values_count += len(self.values[section])
+
+        self._log.debug('Loaded %r values for %s', len(self.values), self.name)

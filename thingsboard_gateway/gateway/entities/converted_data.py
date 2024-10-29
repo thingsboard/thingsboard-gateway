@@ -17,6 +17,7 @@ from typing import List, Union
 from thingsboard_gateway.gateway.constants import ATTRIBUTES_PARAMETER, TELEMETRY_PARAMETER, TIMESERIES_PARAMETER, \
     METADATA_PARAMETER
 from thingsboard_gateway.gateway.entities.attributes import Attributes
+from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -29,11 +30,7 @@ def split_large_entries(entries: dict, first_item_max_data_size: int, max_data_s
     ts_check = False
 
     for original_key, value in entries.items():
-        if isinstance(original_key, tuple):
-            key = original_key[0]
-        else:
-            key = original_key
-        entry_size = TBUtility.get_data_size({key: value}) + 1
+        entry_size = TBUtility.get_data_size({original_key.key: value}) + 1
         if ts is not None and not ts_check:
             entry_size += ts_size
             ts_check = True
@@ -132,7 +129,7 @@ class ConvertedData:
                     raise ValueError("Batch attribute processing requires a list of dictionaries.")
                 self.attributes.update(entry)
         else:
-            if isinstance(key_or_entry, str) or isinstance(key_or_entry, tuple):
+            if isinstance(key_or_entry, str) or isinstance(key_or_entry, DatapointKey):
                 if value is None:
                     raise ValueError("Invalid arguments for add_attribute")
                 key_or_entry = {key_or_entry: value}
@@ -194,7 +191,7 @@ class ConvertedData:
             telemetry_values = telemetry_entry.values
             ts_data_size = TBUtility.get_data_size({"ts": telemetry_entry.ts}) + 1
 
-            telemetry_obj_size = TBUtility.get_data_size(telemetry_values) + ts_data_size
+            telemetry_obj_size = TBUtility.get_data_size({datapoint_key.key: value for datapoint_key, value in telemetry_values.items()}) + ts_data_size
 
             if telemetry_obj_size <= max_data_size - current_data_size:
                 current_data.add_to_telemetry(telemetry_entry)

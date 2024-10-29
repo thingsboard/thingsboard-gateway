@@ -15,11 +15,12 @@
 from queue import SimpleQueue
 from threading import Thread
 from time import monotonic, sleep, time
-from typing import Dict
+from typing import Dict, Set
 
 from thingsboard_gateway.gateway.constants import DEFAULT_REPORT_STRATEGY_CONFIG, ReportStrategy, DEVICE_NAME_PARAMETER, \
     DEVICE_TYPE_PARAMETER, REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.report_strategy.report_strategy_data_cache import ReportStrategyDataCache
@@ -31,11 +32,11 @@ class ReportStrategyService:
         self.__gateway = gateway
         self.__send_data_queue = send_data_queue
         self._logger = logger
-        report_strategy = config.get(REPORT_STRATEGY_PARAMETER, DEFAULT_REPORT_STRATEGY_CONFIG)
-        self.main_report_strategy = ReportStrategyConfig(report_strategy)
+        report_strategy = config.get(REPORT_STRATEGY_PARAMETER, {})
+        self.main_report_strategy = ReportStrategyConfig(report_strategy, DEFAULT_REPORT_STRATEGY_CONFIG)
         self._report_strategy_data_cache = ReportStrategyDataCache(config)
         self._connectors_report_strategies: Dict[str, ReportStrategyConfig] = {}
-        self.__keys_to_report_periodically = set()
+        self.__keys_to_report_periodically: Set[DatapointKey, str, str] = set()
         self.__periodical_reporting_thread = Thread(target=self.__periodical_reporting, daemon=True, name="Periodical Reporting Thread")
         self.__periodical_reporting_thread.start()
 
@@ -75,11 +76,9 @@ class ReportStrategyService:
                 kv_to_send = {}
                 for original_key, value in ts_kv.values.items():
                     report_strategy = report_strategy_config
-                    if isinstance(original_key, tuple):
-                        key, report_strategy = original_key
-                    else:
-                        key = original_key
-                    if self.filter_datapoint_and_cache(key,
+                    if original_key.report_strategy is not None:
+                        report_strategy = original_key.report_strategy
+                    if self.filter_datapoint_and_cache(original_key,
                                                        (value, ts_kv.ts),
                                                        data_to_send.device_name,
                                                        data_to_send.device_type,
@@ -87,22 +86,24 @@ class ReportStrategyService:
                                                        connector_id,
                                                        report_strategy,
                                                        True):
-                        kv_to_send[key] = value
+                        kv_to_send[original_key] = value
                 if kv_to_send:
                     telemetry_to_send.append(TelemetryEntry(kv_to_send, ts_kv.ts))
             if telemetry_to_send:
                 converted_data_to_send.add_to_telemetry(telemetry_to_send)
         if data_to_send.attributes:
-            original_attributes = data_to_send.attributes
             attributes_to_send = {}
-            for key, value in original_attributes.items():
+            for key, value in data_to_send.attributes.items():
+                report_strategy = report_strategy_config
+                if key.report_strategy is not None:
+                    report_strategy = key.report_strategy
                 if self.filter_datapoint_and_cache(key,
                                                    value,
                                                    data_to_send.device_name,
                                                    data_to_send.device_type,
                                                    connector_name,
                                                    connector_id,
-                                                   report_strategy_config,
+                                                   report_strategy,
                                                    False):
                     attributes_to_send[key] = value
             if attributes_to_send:
@@ -110,9 +111,11 @@ class ReportStrategyService:
         if converted_data_to_send.telemetry or converted_data_to_send.attributes:
             self.__send_data_queue.put_nowait((connector_name, connector_id, converted_data_to_send))
 
-    def filter_datapoint_and_cache(self, key, data, device_name, device_type, connector_name, connector_id, report_strategy_config: ReportStrategyConfig, is_telemetry: bool):
+    def filter_datapoint_and_cache(self, datapoint_key: DatapointKey, data, device_name, device_type, connector_name, connector_id, report_strategy_config: ReportStrategyConfig, is_telemetry: bool):
         if report_strategy_config is None:
             report_strategy_config = self.main_report_strategy.report_strategy
+        if datapoint_key.report_strategy is not None:
+            report_strategy_config = datapoint_key.report_strategy
 
         ts = None
 
@@ -120,45 +123,47 @@ class ReportStrategyService:
             data, ts = data
         if ts is None:
             ts = int(time() * 1000)
-        report_strategy_data_record = self._report_strategy_data_cache.get(key)
+        report_strategy_data_record = self._report_strategy_data_cache.get(datapoint_key, device_name, connector_id)
 
         if report_strategy_config.report_strategy == ReportStrategy.ON_RECEIVED:
             if report_strategy_data_record is not None:
                 if is_telemetry:
-                    self._report_strategy_data_cache.update_ts(key, ts)
+                    self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
             else:
-                self._report_strategy_data_cache.put(key, data, device_name, device_type, connector_name, connector_id, report_strategy_config, is_telemetry)
+                self._report_strategy_data_cache.put(datapoint_key, data, device_name, device_type, connector_name, connector_id, report_strategy_config, is_telemetry)
                 if is_telemetry:
-                    self._report_strategy_data_cache.update_ts(key, ts)
+                    self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
             return True
 
         if report_strategy_data_record is not None:
             if not report_strategy_data_record.get_value() == data:
                 if report_strategy_config.report_strategy == ReportStrategy.ON_CHANGE:
-                    self._report_strategy_data_cache.update_key_value(key, data)
+                    self._report_strategy_data_cache.update_key_value(datapoint_key, device_name, connector_id, data)
                     if is_telemetry:
-                        self._report_strategy_data_cache.update_ts(key, ts)
+                        self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
                     return True
                 elif report_strategy_config.report_strategy == ReportStrategy.ON_REPORT_PERIOD:
-                    self._report_strategy_data_cache.update_key_value(key, data)
+                    self._report_strategy_data_cache.update_key_value(datapoint_key, device_name, connector_id, data)
                     if is_telemetry:
-                        self._report_strategy_data_cache.update_ts(key, ts)
+                        self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
                     return False
                 elif report_strategy_config.report_strategy == ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD:
-                    self._report_strategy_data_cache.update_key_value(key, data)
-                    self._report_strategy_data_cache.update_last_report_time(key)
+                    self._report_strategy_data_cache.update_key_value(datapoint_key, device_name, connector_id, data)
+                    self._report_strategy_data_cache.update_last_report_time(datapoint_key, device_name, connector_id)
                     if is_telemetry:
-                        self._report_strategy_data_cache.update_ts(key, ts)
+                        self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
                     return True
             else:
                 return False
         else:
-            self._report_strategy_data_cache.put(key, data, device_name, device_type, connector_name, connector_id, report_strategy_config, is_telemetry)
+            self._report_strategy_data_cache.put(datapoint_key, data, device_name, device_type, connector_name, connector_id, report_strategy_config, is_telemetry)
             if report_strategy_config.report_strategy in (ReportStrategy.ON_REPORT_PERIOD, ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD):
-                self.__keys_to_report_periodically.add(key)
-                self._report_strategy_data_cache.update_last_report_time(key)
+                if isinstance(datapoint_key, tuple):
+                    datapoint_key, _ = datapoint_key
+                self.__keys_to_report_periodically.add((datapoint_key, device_name, connector_id))
+                self._report_strategy_data_cache.update_last_report_time(datapoint_key, device_name, connector_id)
                 if is_telemetry:
-                    self._report_strategy_data_cache.update_ts(key, ts)
+                    self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
             return True
 
     def __periodical_reporting(self):
@@ -179,8 +184,8 @@ class ReportStrategyService:
                 check_report_strategy_start = int(time() * 1000)
                 reported_data_length = 0
 
-                for key in keys_set:
-                    report_strategy_data_record = report_strategy_data_cache_get(key)
+                for key, device_name, connector_id in keys_set:
+                    report_strategy_data_record = report_strategy_data_cache_get(key, device_name, connector_id)
                     if report_strategy_data_record is None:
                         raise ValueError(f"Data record for key '{key}' is absent in the cache")
 
@@ -189,7 +194,7 @@ class ReportStrategyService:
 
                     data_report_key, value = report_strategy_data_record.to_send_format()
                     if data_report_key not in data_to_report:
-                        connector_name, connector_id, device_name, device_type = data_report_key
+                        connector_name, _, _, device_type = data_report_key
                         metadata = {"connector": connector_name, "receivedTs": int(time() * 1000)}
                         data_to_report[data_report_key] = ConvertedData(device_name, device_type, metadata)
 
@@ -229,3 +234,11 @@ class ReportStrategyService:
                         )
                     previous_error_printed_time = current_monotonic
                     occurred_errors = 0
+
+    def delete_all_records_for_connector_by_connector_id_and_connector_name(self, connector_id, connector_name):
+        self._report_strategy_data_cache.delete_all_records_for_connector_by_connector_id(connector_id)
+        for key, device_name, connector_id in self.__keys_to_report_periodically.copy():
+            if connector_id == connector_id:
+                self.__keys_to_report_periodically.remove((key, device_name, connector_id))
+        self._connectors_report_strategies.pop(connector_id, None)
+        self._connectors_report_strategies.pop(connector_name, None)

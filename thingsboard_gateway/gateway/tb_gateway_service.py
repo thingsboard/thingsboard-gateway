@@ -39,9 +39,10 @@ from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME, RENAMING_PARAMETER, CONNECTOR_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, \
     CONNECTOR_ID_PARAMETER, ATTRIBUTES_FOR_REQUEST, CONFIG_VERSION_PARAMETER, CONFIG_SECTION_PARAMETER, \
-    DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED
+    DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED, ReportStrategy
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.report_strategy.report_strategy_service import ReportStrategyService
 from thingsboard_gateway.gateway.shell.proxy import AutoProxy
@@ -177,7 +178,7 @@ class TBGatewayService:
 
         log.info("Gateway starting...")
         self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"])
-        self._report_strategy_service = ReportStrategyService(self.__config, self, self.__converted_data_queue, log)
+        self._report_strategy_service = ReportStrategyService(self.__config['thingsboard'], self, self.__converted_data_queue, log)
         self.__updater = TBUpdater()
         self.version = self.__updater.get_version()
         log.info("ThingsBoard IoT gateway version: %s", self.version["current_version"])
@@ -1767,11 +1768,14 @@ class TBGatewayService:
         self.__connected_devices[device_name][event] = content
         if should_save:
             self.__save_persistent_devices()
+            info_to_send = {
+                DatapointKey("connectorName", ReportStrategyConfig({"type": ReportStrategy.ON_RECEIVED.name})): content.get_name()
+            }
             self.send_to_storage(connector_name=content.get_name(),
                                  connector_id=content.get_id(),
                                  data={"deviceName": device_name,
                                        "deviceType": self.__connected_devices[device_name][DEVICE_TYPE_PARAMETER],
-                                       "attributes": [{"connectorName": content.name}]})
+                                       "attributes": [info_to_send]})
 
     def del_device_async(self, data):
         if data['deviceName'] in self.__saved_devices:

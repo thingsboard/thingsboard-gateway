@@ -12,14 +12,14 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from typing import Tuple, Dict
+from typing import Dict, Any
 
-from thingsboard_gateway.gateway.constants import ReportStrategy
+from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 
 
 class Attributes:
-    def __init__(self, values=None):
-        self.values: Dict[Tuple[str, ReportStrategy | None], any] = values or {}
+    def __init__(self, values: Dict[DatapointKey, Any]=None):
+        self.values: Dict[DatapointKey, Any] = values or {}
 
     def __str__(self):
         return f"Attributes(values={self.values})"
@@ -27,19 +27,19 @@ class Attributes:
     def __hash__(self):
         return hash(tuple(self.values.items()))
 
-    def to_dict(self):
-        return self.values
+    def to_dict(self) -> Dict[str, Any]:
+        return {key.key if isinstance(key, DatapointKey) else key: value for key, value in self.values.items()}
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: DatapointKey) -> Any:
         return self.values[item]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: DatapointKey, value):
         self.values[key] = value
 
     def __len__(self):
         return len(self.values)
 
-    def update(self, attributes):
+    def update(self, attributes: Dict[DatapointKey, Any]):
         self.values.update(attributes if isinstance(attributes, dict) else attributes.values)
 
     def items(self):

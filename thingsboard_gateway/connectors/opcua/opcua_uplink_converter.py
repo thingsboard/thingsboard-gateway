@@ -20,6 +20,7 @@ from asyncua.ua.uatypes import VariantType
 from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter
 from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER, ATTRIBUTES_PARAMETER, REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
@@ -75,15 +76,11 @@ class OpcUaUplinkConverter(OpcUaConverter):
 
             section = DATA_TYPES[config['section']]
             if section == TELEMETRY_PARAMETER:
-                if config.get(REPORT_STRATEGY_PARAMETER) is not None:
-                    return TelemetryEntry({(config['key'], config[REPORT_STRATEGY_PARAMETER]): data}, ts=timestamp), error
-                else:
-                    return TelemetryEntry({config['key']: data}, ts=timestamp), error
+                return TelemetryEntry({
+                    DatapointKey(config['key'], config.get(REPORT_STRATEGY_PARAMETER)): data
+                }, ts=timestamp), error
             elif section == ATTRIBUTES_PARAMETER:
-                if config.get(REPORT_STRATEGY_PARAMETER) is not None:
-                    return {(config['key'], config[REPORT_STRATEGY_PARAMETER]): data}, error
-                else:
-                    return {config['key']: data}, error
+                return {DatapointKey(config['key'], config.get(REPORT_STRATEGY_PARAMETER)): data}, error
         except Exception as e:
             return None, str(e)
 
