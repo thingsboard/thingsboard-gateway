@@ -1583,10 +1583,10 @@ class TBGatewayService:
             return {"error": "Method not found", "code": 404}
         elif isinstance(arguments, list):
             result = method_function(*arguments)
-        elif arguments:
-            result = method_function(arguments)
-        else:
+        elif arguments == '{}' or arguments is None:
             result = method_function()
+        else:
+            result = method_function(arguments)
 
         return result
 
