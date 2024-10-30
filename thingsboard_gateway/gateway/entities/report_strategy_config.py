@@ -15,7 +15,7 @@
 from enum import Enum
 
 from thingsboard_gateway.gateway.constants import REPORT_PERIOD_PARAMETER, ReportStrategy, \
-    TYPE_PARAMETER, AGGREGATION_FUNCTION_PARAMETER, REPORT_STRATEGY_PARAMETER
+    TYPE_PARAMETER, AGGREGATION_FUNCTION_PARAMETER
 
 
 class AggregationFunction(Enum):

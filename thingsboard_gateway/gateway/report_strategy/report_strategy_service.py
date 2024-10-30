@@ -74,11 +74,15 @@ class ReportStrategyService:
             original_telemetry = data_to_send.telemetry
             for ts_kv in original_telemetry:
                 kv_to_send = {}
-                for original_key, value in ts_kv.values.items():
+                for datapoint_key, value in ts_kv.values.items():
                     report_strategy = report_strategy_config
-                    if original_key.report_strategy is not None:
-                        report_strategy = original_key.report_strategy
-                    if self.filter_datapoint_and_cache(original_key,
+
+                    if isinstance(datapoint_key, str):
+                        datapoint_key = DatapointKey(datapoint_key) # TODO: remove this DatapointKey creation after refactoring, added to avoid errors with old string keys
+
+                    if datapoint_key.report_strategy is not None:
+                        report_strategy = datapoint_key.report_strategy
+                    if self.filter_datapoint_and_cache(datapoint_key,
                                                        (value, ts_kv.ts),
                                                        data_to_send.device_name,
                                                        data_to_send.device_type,
@@ -86,18 +90,22 @@ class ReportStrategyService:
                                                        connector_id,
                                                        report_strategy,
                                                        True):
-                        kv_to_send[original_key] = value
+                        kv_to_send[datapoint_key] = value
                 if kv_to_send:
                     telemetry_to_send.append(TelemetryEntry(kv_to_send, ts_kv.ts))
             if telemetry_to_send:
                 converted_data_to_send.add_to_telemetry(telemetry_to_send)
         if data_to_send.attributes:
             attributes_to_send = {}
-            for key, value in data_to_send.attributes.items():
+            for datapoint_key, value in data_to_send.attributes.items():
                 report_strategy = report_strategy_config
-                if key.report_strategy is not None:
-                    report_strategy = key.report_strategy
-                if self.filter_datapoint_and_cache(key,
+
+                if isinstance(datapoint_key, str):
+                    datapoint_key = DatapointKey(datapoint_key) # TODO: remove this DatapointKey creation after refactoring, added to avoid errors with old string keys
+
+                if datapoint_key.report_strategy is not None:
+                    report_strategy = datapoint_key.report_strategy
+                if self.filter_datapoint_and_cache(datapoint_key,
                                                    value,
                                                    data_to_send.device_name,
                                                    data_to_send.device_type,
@@ -105,7 +113,7 @@ class ReportStrategyService:
                                                    connector_id,
                                                    report_strategy,
                                                    False):
-                    attributes_to_send[key] = value
+                    attributes_to_send[datapoint_key] = value
             if attributes_to_send:
                 converted_data_to_send.add_to_attributes(attributes_to_send)
         if converted_data_to_send.telemetry or converted_data_to_send.attributes:
