@@ -11,6 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+from time import time
 
 from pymodbus.constants import Endian
 from pymodbus.exceptions import ModbusIOException
@@ -18,8 +19,13 @@ from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.pdu import ExceptionResponse
 
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
+from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER, ATTRIBUTES_PARAMETER
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
+from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class BytesModbusUplinkConverter(ModbusConverter):
@@ -29,8 +35,13 @@ class BytesModbusUplinkConverter(ModbusConverter):
             "timeseries": "telemetry",
             "attributes": "attributes"
             }
-        self.__result = {"deviceName": config.get("deviceName", "ModbusDevice %s" % (str(config["unitId"]))),
-                         "deviceType": config.get("deviceType", "default")}
+        self.__device_name = config.get("deviceName", "ModbusDevice %s" % (str(config["unitId"])))
+        self.__device_type = config.get("deviceType", "default")
+        self.__device_report_strategy = None
+        try:
+            self.__device_report_strategy = ReportStrategyConfig(config.get(REPORT_STRATEGY_PARAMETER))
+        except ValueError as e:
+            self._log.trace("Report strategy config is not specified for device %s", self.__device_name)
 
     @staticmethod
     def from_coils(coils, endian_order=Endian.Little, word_endian_order=Endian.Big):
@@ -55,8 +66,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
     def convert(self, config, data):
         StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
 
-        self.__result["telemetry"] = []
-        self.__result["attributes"] = []
+        converted_data = ConvertedData(self.__device_name, self.__device_type)
+
+        timestamp = data.get("ts", time() * 1000)
+
         for config_data in data:
             for tag in data[config_data]:
                 try:
@@ -114,18 +127,23 @@ class BytesModbusUplinkConverter(ModbusConverter):
                         return decoded_data
                     self._log.debug("datatype: %s \t key: %s \t value: %s", self.__datatypes[config_data], tag, str(decoded_data))
                     if decoded_data is not None:
-                        self.__result[self.__datatypes[config_data]].append({tag: decoded_data})
+                        converted_key = TBUtility.convert_key_to_datapoint_key(tag, self.__device_report_strategy, configuration, self._log)
+                        if self.__datatypes[config_data] == ATTRIBUTES_PARAMETER:
+                            converted_data.add_to_attributes(converted_key, decoded_data)
+                        else:
+                            telemetry_entry = TelemetryEntry({converted_key: decoded_data}, timestamp)
+                            converted_data.add_to_telemetry(telemetry_entry)
                 except Exception as e:
                     self._log.exception(e)
                     StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
 
-        self._log.debug(self.__result)
+        self._log.debug("Converted data: %s", converted_data)
         StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                  count=len(self.__result["attributes"]))
+                                                  count=converted_data.attributes_datapoints_count)
         StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                  count=len(self.__result["telemetry"]))
+                                                  count=converted_data.telemetry_datapoints_count)
 
-        return self.__result
+        return converted_data
 
     def decode_from_registers(self, decoder, configuration):
         type_ = configuration["type"]
