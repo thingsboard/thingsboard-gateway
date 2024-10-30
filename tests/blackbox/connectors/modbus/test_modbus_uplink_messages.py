@@ -120,7 +120,7 @@ class ModbusUplinkMessagesTest(BaseTest):
         """
         Test the send_only_on_data_changed method.
 
-        This method tests the behavior of the send_only_on_data_changed method in the MyClass class.
+        This method tests the behavior of the report strategy on change behavior.
         The method performs the following steps:
         1. Changes the connector configuration using the change_connector_configuration method with
            the specified configuration file.
@@ -138,7 +138,7 @@ class ModbusUplinkMessagesTest(BaseTest):
         """
 
         (config, _) = self.change_connector_configuration(
-            self.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_only_on_change_config.json')
+            self.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_report_strategy_on_change.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
         actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))

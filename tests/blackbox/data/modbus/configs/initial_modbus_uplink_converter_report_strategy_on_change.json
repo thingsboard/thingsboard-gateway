@@ -23,7 +23,9 @@
             "pollPeriod": 1000,
             "unitId": 1,
             "deviceName": "Temp Sensor",
-            "sendDataOnlyOnChange": true,
+            "reportStrategy": {
+                "type": "ON_CHANGE"
+            },
             "connectAttemptTimeMs": 5000,
             "connectAttemptCount": 5,
             "waitAfterFailedAttemptsMs": 300000,
