@@ -1777,11 +1777,12 @@ class TBGatewayService:
             info_to_send = {
                 DatapointKey("connectorName", ReportStrategyConfig({"type": ReportStrategy.ON_RECEIVED.name})): content.get_name()
             }
-            self.send_to_storage(connector_name=content.get_name(),
-                                 connector_id=content.get_id(),
-                                 data={"deviceName": device_name,
-                                       "deviceType": self.__connected_devices[device_name][DEVICE_TYPE_PARAMETER],
-                                       "attributes": [info_to_send]})
+            if device_name in self.__connected_devices: # TODO: check for possible race condition
+                self.send_to_storage(connector_name=content.get_name(),
+                                     connector_id=content.get_id(),
+                                     data={"deviceName": device_name,
+                                           "deviceType": self.__connected_devices[device_name][DEVICE_TYPE_PARAMETER],
+                                           "attributes": [info_to_send]})
 
     def del_device_async(self, data):
         if data['deviceName'] in self.__saved_devices:
