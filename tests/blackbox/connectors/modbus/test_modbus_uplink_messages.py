@@ -116,27 +116,21 @@ class ModbusUplinkMessagesTest(BaseTest):
         sleep(GENERAL_TIMEOUT)
         return config, response
 
-    def test_send_only_on_data_changed(self):
-        """
-        Test the send_only_on_data_changed method.
+    def test_send_on_received_report_strategy(self):
+        (config, _) = self.change_connector_configuration(
+            self.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_report_strategy_on_received.json')
+        telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
+                          slave['timeseries']]
+        actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        sleep(GENERAL_TIMEOUT)
+        latest_ts_1 = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
 
-        This method tests the behavior of the report strategy on change behavior.
-        The method performs the following steps:
-        1. Changes the connector configuration using the change_connector_configuration method with
-           the specified configuration file.
-        2. Retrieves the telemetry keys from the modified configuration.
-        3. Retrieves the latest timeseries data for the device.
-        4. Pauses the execution for 5 seconds.
-        5. Retrieves the latest timeseries data for the device again.
-        6. Compares the timestamps of the two sets of timeseries data for each telemetry key.
+        # check that timestamps are equal
+        for ts_key in telemetry_keys:
+            self.assertNotEqual(actual_values[ts_key][0]['ts'], latest_ts_1[ts_key][0]['ts'],
+                             f'Timestamps are not equal for the next telemetry key: {ts_key}')
 
-        Parameters:
-        - self: The instance of the ModbusUplinkMessagesTest class.
-
-        Returns:
-        None.
-        """
-
+    def test_send_on_on_change_report_strategy(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_report_strategy_on_change.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -148,6 +142,41 @@ class ModbusUplinkMessagesTest(BaseTest):
         # check that timestamps are equal
         for ts_key in telemetry_keys:
             self.assertEqual(actual_values[ts_key][0]['ts'], latest_ts_1[ts_key][0]['ts'],
+                             f'Timestamps are not equal for the next telemetry key: {ts_key}')
+
+    def test_send_on_report_period_report_strategy(self):
+        (config, _) = self.change_connector_configuration(
+            self.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_report_strategy_on_report_period.json')
+        telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
+                          slave['timeseries']]
+        actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        sleep(GENERAL_TIMEOUT)
+        latest_ts_1 = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        sleep(GENERAL_TIMEOUT * 2)
+        latest_ts_2 = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+
+        # check that timestamps are equal
+        for ts_key in telemetry_keys:
+            self.assertEqual(actual_values[ts_key][0]['ts'], latest_ts_1[ts_key][0]['ts'],
+                             f'Timestamps are not equal for the next telemetry key: {ts_key}')
+
+        # check that timestamps are not equal
+        for ts_key in telemetry_keys:
+            self.assertNotEqual(actual_values[ts_key][0]['ts'], latest_ts_2[ts_key][0]['ts'],
+                             f'Timestamps are not equal for the next telemetry key: {ts_key}')
+
+    def test_send_on_change_or_report_period_report_strategy(self):
+        (config, _) = self.change_connector_configuration(
+            self.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_report_strategy_on_change_or_report_period.json')
+        telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
+                          slave['timeseries']]
+        actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        sleep(GENERAL_TIMEOUT)
+        latest_ts_1 = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+
+        # check that timestamps are not equal
+        for ts_key in telemetry_keys:
+            self.assertNotEqual(actual_values[ts_key][0]['ts'], latest_ts_1[ts_key][0]['ts'],
                              f'Timestamps are not equal for the next telemetry key: {ts_key}')
 
     def test_input_register_reading_little_endian(self):
