@@ -17,6 +17,7 @@ GENERAL_TIMEOUT = 6
 
 
 LOG = logging.getLogger("TEST")
+LOG.trace = LOG.debug
 
 
 @unittest.skip('Flaky test')

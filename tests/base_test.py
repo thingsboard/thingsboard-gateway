@@ -20,6 +20,7 @@ class BaseTest(TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.log = LOG
+        self.log.trace = self.log.debug
 
     @classmethod
     def setUpClass(cls):

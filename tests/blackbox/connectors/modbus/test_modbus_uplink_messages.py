@@ -16,6 +16,7 @@ DEVICE_CREATION_TIMEOUT = 200
 GENERAL_TIMEOUT = 6
 
 LOG = logging.getLogger("TEST")
+LOG.trace = LOG.debug
 
 
 class ModbusUplinkMessagesTest(BaseTest):

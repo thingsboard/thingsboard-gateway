@@ -1,12 +1,12 @@
 import logging
 from os import environ
-from time import time
 
 from simplejson import loads, load
 from tb_rest_client.rest import ApiException
 from tb_rest_client.rest_client_ce import *
 
 LOG = logging.getLogger("TEST")
+LOG.trace = LOG.debug
 
 
 class GatewayDeviceUtil:
