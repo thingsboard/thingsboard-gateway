@@ -715,6 +715,9 @@ class TBGatewayService:
         if deleted_device_name in self.__saved_devices:
             del self.__saved_devices[deleted_device_name]
             log.debug("Device %s - was removed from __saved_devices", deleted_device_name)
+        if deleted_device_name in self.__added_devices:
+            del self.__added_devices[deleted_device_name]
+            log.debug("Device %s - was removed from __added_devices", deleted_device_name)
         if hasattr(self, "__duplicate_detector"):
             self.__duplicate_detector.delete_device(deleted_device_name)
         self.__save_persistent_devices()
@@ -1577,15 +1580,17 @@ class TBGatewayService:
         log.info("Received RPC request to the gateway, id: %s, method: %s", str(request_id), content["method"])
         arguments = content.get('params', {})
         method_to_call = content["method"].replace("gateway_", "")
-        result = None
+
         if self.__remote_shell is not None:
             method_function = self.__remote_shell.shell_commands.get(method_to_call,
                                                                      self.__gateway_rpc_methods.get(method_to_call))
         else:
             log.info("Remote shell is disabled.")
             method_function = self.__gateway_rpc_methods.get(method_to_call)
+
         if method_function is None and method_to_call in self.__rpc_scheduled_methods_functions:
-            seconds_to_restart = arguments * 1000 if arguments and arguments != '{}' else 0
+            seconds_to_restart = arguments * 1000 if arguments and arguments != '{}' else 1000
+            seconds_to_restart = max(seconds_to_restart, 1000)
             self.__scheduled_rpc_calls.append([time() * 1000 + seconds_to_restart,
                                                self.__rpc_scheduled_methods_functions[method_to_call]])
             log.info("Gateway %s scheduled in %i seconds", method_to_call, seconds_to_restart / 1000)
@@ -1595,10 +1600,11 @@ class TBGatewayService:
             return {"error": "Method not found", "code": 404}
         elif isinstance(arguments, list):
             result = method_function(*arguments)
-        elif arguments:
-            result = method_function(arguments)
-        else:
+        elif arguments == '{}' or arguments is None:
             result = method_function()
+        else:
+            result = method_function(arguments)
+
         return result
 
     @staticmethod
@@ -1790,8 +1796,10 @@ class TBGatewayService:
                 self.tb_client.client.gw_disconnect_device(device_name)
             except Exception as e:
                 log.exception("Error on disconnecting device %s", device_name, exc_info=e)
+
             self.__connected_devices.pop(device_name, None)
             self.__saved_devices.pop(device_name, None)
+            self.__added_devices.pop(device_name, None)
             self.__save_persistent_devices()
 
     def get_report_strategy_service(self):
