@@ -29,6 +29,7 @@ from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER, DEFA
 from thingsboard_gateway.gateway.constant_enums import Status
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectStatistics
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -1045,9 +1046,9 @@ class MqttConnector(Connector, Thread):
                 if not self.__msg_queue.empty():
                     self.in_progress = True
                     convert_function, config, incoming_data = self.__msg_queue.get(True, 100)
-                    converted_data = convert_function(config, incoming_data)
-                    if converted_data and (converted_data.get(ATTRIBUTES_PARAMETER) or
-                                           converted_data.get(TELEMETRY_PARAMETER)):
+                    converted_data: ConvertedData = convert_function(config, incoming_data)
+                    if converted_data and (converted_data.telemetry_datapoints_count > 0 or
+                                             converted_data.attributes_datapoints_count > 0):
                         self.__send_result(config, converted_data)
                     self.in_progress = False
                 else:
