@@ -16,12 +16,10 @@ from re import search
 
 from simplejson import dumps
 
-from build.lib.thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
-from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
+from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.attributes import Attributes
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
-from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
