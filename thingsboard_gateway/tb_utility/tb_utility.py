@@ -28,7 +28,9 @@ from distutils.util import strtobool
 from jsonpath_rw import parse
 from orjson import JSONDecodeError, dumps, loads
 
-from thingsboard_gateway.gateway.constants import SECURITY_VAR
+from thingsboard_gateway.gateway.constants import SECURITY_VAR, REPORT_STRATEGY_PARAMETER
+from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
+from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 
 log = getLogger("service")
 
@@ -186,6 +188,19 @@ class TBUtility:
                 return str(evaluated_data)
         except ValueError:
             return str(evaluated_data)
+
+    @staticmethod
+    def convert_key_to_datapoint_key(key, device_report_strategy, key_config, logger=None):
+        key_report_strategy = None
+        if device_report_strategy is not None:
+            key_report_strategy = device_report_strategy
+        if key_config.get(REPORT_STRATEGY_PARAMETER) is not None:
+            try:
+                key_report_strategy = ReportStrategyConfig(key_config.get(REPORT_STRATEGY_PARAMETER))
+            except ValueError:
+                if logger is not None:
+                    logger.trace("Report strategy config is not specified for key %s", key)
+        return DatapointKey(key, key_report_strategy)
 
     # Service methods
 
