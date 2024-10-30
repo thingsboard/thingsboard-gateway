@@ -22,7 +22,7 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class TelemetryEntry:
-    def __init__(self, values: dict, ts=None):
+    def __init__(self, values: Dict[DatapointKey, Any], ts=None):
         if values.get(TELEMETRY_TIMESTAMP_PARAMETER) and values.get(TELEMETRY_VALUES_PARAMETER):
             ts = values[TELEMETRY_TIMESTAMP_PARAMETER]
             values = values[TELEMETRY_VALUES_PARAMETER]

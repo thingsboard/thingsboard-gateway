@@ -453,7 +453,7 @@ class RemoteConfigurator:
                     self._gateway.available_connectors_by_id.pop(connector_id)
                     for_deletion.append(active_connector_name)
                     for_deletion_ids.append(connector_id)
-                    self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name)
+                    self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, active_connector_name)
                     has_changed = True
                 except Exception as e:
                     LOG.exception("Exception on removing connector occurred:", exc_info=e)

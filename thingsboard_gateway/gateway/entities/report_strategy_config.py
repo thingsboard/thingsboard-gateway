@@ -36,8 +36,11 @@ class AggregationFunction(Enum):
 
 class ReportStrategyConfig:
     def __init__(self, config, default_report_strategy_config = {}):
-        if config.get(REPORT_PERIOD_PARAMETER) is None and config.get(TYPE_PARAMETER) is None and not default_report_strategy_config:
-            raise ValueError("Report period is not specified")
+        if config is None:
+            raise ValueError("Report strategy config is not specified")
+        if (config.get(REPORT_PERIOD_PARAMETER) is None and config.get(TYPE_PARAMETER) is None
+                and not default_report_strategy_config):
+            raise ValueError("Report strategy config is not specified")
         if default_report_strategy_config:
             self.report_period = max(config.get(REPORT_PERIOD_PARAMETER, default_report_strategy_config[REPORT_PERIOD_PARAMETER]) - 10, 1)
             report_strategy_type = config.get(TYPE_PARAMETER, default_report_strategy_config[TYPE_PARAMETER])
@@ -52,9 +55,11 @@ class ReportStrategyConfig:
         self.__hash = hash((self.report_period, self.report_strategy, self.aggregation_function))
 
     def __validate_config(self):
-        if self.report_strategy not in (ReportStrategy.ON_CHANGE, ReportStrategy.ON_RECEIVED) and (self.report_period is None or self.report_period <= 0):
+        if (self.report_strategy in (ReportStrategy.ON_REPORT_PERIOD, ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD)
+                and (self.report_period is None or self.report_period <= 0)):
             raise ValueError("Invalid report period value: %r" % str(self.report_period))
-        if self.aggregation_function is not None and self.aggregation_function not in AggregationFunction.__members__.values():
+        if (self.aggregation_function is not None
+                and self.aggregation_function not in AggregationFunction.__members__.values()):
             raise ValueError("Invalid aggregation function value: %r" % self.aggregation_function)
 
     def __hash__(self):
