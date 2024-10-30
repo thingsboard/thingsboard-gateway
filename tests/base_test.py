@@ -12,6 +12,7 @@ LOG = logging.getLogger("TEST")
 LOG.level = logging.DEBUG
 stream_handler = logging.StreamHandler(stdout)
 LOG.addHandler(stream_handler)
+LOG.trace = LOG.debug
 
 class BaseTest(TestCase):
     TIMEOUT = 600  # 10 minutes in seconds
