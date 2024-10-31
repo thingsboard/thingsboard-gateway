@@ -1110,6 +1110,7 @@ class TBGatewayService:
                             event.add_to_metadata({"getFromConvertedDataQueueTs": int(time() * 1000),
                                                    "connector": connector_name})
                         self.__send_to_storage_new_formatted_data(connector_name, connector_id, data_array)
+                        log.debug("Data from %s connector was sent to storage: %r", connector_name, data_array)
                         current_time = int(time() * 1000)
                         if self.__latency_debug_mode and event.metadata.get("sendToStorageTs"):
                             log.debug("Event was in queue for %r ms", current_time - event.metadata.get("sendToStorageTs"))
