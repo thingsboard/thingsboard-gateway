@@ -411,10 +411,13 @@ class ModbusConnector(Connector, Thread):
                     for interested_data in range(len(current_device_config[config_section])):
                         current_data = deepcopy(current_device_config[config_section][interested_data])
                         current_data[DEVICE_NAME_PARAMETER] = device.device_name
-                        input_data = self.__function_to_device(device, current_data)
+                        try:
+                            input_data = self.__function_to_device(device, current_data)
+                        except Exception as e:
+                            input_data = e
 
                         # due to issue #1056
-                        if isinstance(input_data, ModbusIOException) or isinstance(input_data, ExceptionResponse):
+                        if isinstance(input_data, Exception):
                             device.config.pop('master', None)
                             self.__gateway.del_device(device.device_name)
                             self.__connect_to_current_master(device)
@@ -441,7 +444,7 @@ class ModbusConnector(Connector, Thread):
             self.__log.error("Connection lost! Reconnecting...")
         except Exception as e:
             self.__gateway.del_device(device.device_name)
-            self.__log.exception(e)
+            self.__log.exception("Error while processing device %s", device.device_name, exc_info=e)
         finally:
             # Release mutex if "serial" type only
             if device.config.get(TYPE_PARAMETER) == 'serial':
