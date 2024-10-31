@@ -953,7 +953,8 @@ class TBGatewayService:
         self.__connect_with_connectors()
 
     def __update_connector_devices(self, connector):
-        for (device_name, device) in self.__connected_devices.items():
+        connected_devices = deepcopy(self.__connected_devices)
+        for (device_name, device) in connected_devices.items():
             if (device.get('connector') and
                     (device['connector'].name == connector.name or device['connector'].get_id() == connector.get_id())):
                 self.update_device(device_name, 'connector', connector)
