@@ -129,7 +129,7 @@ class ModbusUplinkMessagesTest(BaseTest):
         # check that timestamps are equal
         for ts_key in telemetry_keys:
             self.assertNotEqual(actual_values[ts_key][0]['ts'], latest_ts_1[ts_key][0]['ts'],
-                             f'Timestamps are not equal for the next telemetry key: {ts_key}')
+                             f'Timestamps are equal for the next telemetry key: {ts_key}')
 
     def test_send_on_change_report_strategy(self):
         (config, _) = self.change_connector_configuration(
