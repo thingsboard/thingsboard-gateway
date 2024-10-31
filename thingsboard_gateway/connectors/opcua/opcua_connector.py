@@ -24,8 +24,6 @@ from time import sleep, monotonic, time
 from typing import List, Dict
 
 from thingsboard_gateway.connectors.connector import Connector
-from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
-from thingsboard_gateway.connectors.opcua.device import Device
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
     DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
@@ -43,8 +41,6 @@ except (ImportError, ModuleNotFoundError):
     TBUtility.install_package("asyncua")
     import asyncua
 
-
-
 from asyncua import ua
 from asyncua.ua import NodeId
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
@@ -52,6 +48,8 @@ from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, Secur
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
     BadInvalidState, BadSessionClosed, BadAttributeIdInvalid, BadCommunicationError, BadOutOfService, BadNoMatch, \
     BadUnexpectedError, UaStatusCodeErrors, BadWaitingForInitialData, BadSessionIdInvalid, BadSubscriptionIdInvalid
+from thingsboard_gateway.connectors.opcua.device import Device
+from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 
 DEFAULT_UPLINK_CONVERTER = 'OpcUaUplinkConverter'
 
