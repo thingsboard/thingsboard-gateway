@@ -645,7 +645,9 @@ class ModbusConnector(Connector, Thread):
     def on_attributes_update(self, content):
         try:
             device = ModbusConnector.__get_device_by_name(content[DEVICE_SECTION_PARAMETER], self.__slaves)
-
+            if device is None:
+                self.__log.error("Device %s not found for connector %s", content[DEVICE_SECTION_PARAMETER], self.get_name())
+                return
             for attribute_updates_command_config in device.config['attributeUpdates']:
                 for attribute_updated in content[DATA_PARAMETER]:
                     if attribute_updates_command_config[TAG_PARAMETER] == attribute_updated:
@@ -686,6 +688,14 @@ class ModbusConnector(Connector, Thread):
                                  server_rpc_request)
                 device = ModbusConnector.__get_device_by_name(server_rpc_request[DEVICE_SECTION_PARAMETER],
                                                               self.__slaves)
+
+                if device is None:
+                    self.__log.error("Device %s not found for connector %s", server_rpc_request[DEVICE_SECTION_PARAMETER],
+                                     self.get_name())
+                    self.__gateway.send_rpc_reply(server_rpc_request[DEVICE_SECTION_PARAMETER],
+                                                  server_rpc_request[DATA_PARAMETER][RPC_ID_PARAMETER],
+                                                  {rpc_method: "DEVICE CONNECTOR FOR DEVICE NOT FOUND!"})
+                    return
 
                 # check if RPC method is reserved get/set
                 if rpc_method == 'get' or rpc_method == 'set':
@@ -735,6 +745,9 @@ class ModbusConnector(Connector, Thread):
         self.__log.debug('Processing %s request', request_type)
         if rpc_command_config is not None:
             device = ModbusConnector.__get_device_by_name(content[DEVICE_SECTION_PARAMETER], self.__slaves)
+            if device is None:
+                self.__log.error("Device %s not found for connector %s", content[DEVICE_SECTION_PARAMETER], self.get_name())
+                return
             rpc_command_config[UNIT_ID_PARAMETER] = device.config['unitId']
             rpc_command_config[BYTE_ORDER_PARAMETER] = device.config.get("byteOrder", "LITTLE")
             rpc_command_config[WORD_ORDER_PARAMETER] = device.config.get("wordOrder", "LITTLE")
@@ -819,7 +832,8 @@ class ModbusConnector(Connector, Thread):
 
     @staticmethod
     def __get_device_by_name(device_name, devices):
-        return tuple(filter(lambda slave: slave.device_name == device_name, devices))[0]
+        filtered_device = tuple(filter(lambda slave: slave.device_name == device_name, devices))
+        return filtered_device[0] if len(filtered_device) > 0 else None
 
     def get_config(self):
         return self.__config
