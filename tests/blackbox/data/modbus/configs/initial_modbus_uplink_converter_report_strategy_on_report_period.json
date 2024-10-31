@@ -25,7 +25,7 @@
             "deviceName": "Temp Sensor",
             "reportStrategy": {
               "type": "ON_REPORT_PERIOD",
-              "reportPeriod": 10000
+              "reportPeriod": 5000
             },
             "connectAttemptTimeMs": 5000,
             "connectAttemptCount": 5,
