@@ -39,7 +39,8 @@ from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME, RENAMING_PARAMETER, CONNECTOR_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, \
     CONNECTOR_ID_PARAMETER, ATTRIBUTES_FOR_REQUEST, CONFIG_VERSION_PARAMETER, CONFIG_SECTION_PARAMETER, \
-    DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED, ReportStrategy
+    DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED, ReportStrategy, \
+    REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
@@ -993,7 +994,7 @@ class TBGatewayService:
                                             self.available_connectors_by_id[connector_id] = connector
                                             self.available_connectors_by_name[connector_name] = connector
                                             try:
-                                                connector_report_strategy = ReportStrategyConfig(connector_config[CONFIG_SECTION_PARAMETER][config])
+                                                connector_report_strategy = ReportStrategyConfig(connector_config[CONFIG_SECTION_PARAMETER][config].get(REPORT_STRATEGY_PARAMETER))
                                                 self._report_strategy_service.register_connector_report_strategy(connector_name, connector_id, connector_report_strategy)
                                             except ValueError:
                                                 log.info("Cannot find separated report strategy for connector %r. The main report strategy will be used as a connector report strategy.",
