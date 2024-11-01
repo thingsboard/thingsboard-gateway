@@ -36,7 +36,7 @@ class AggregationFunction(Enum):
 
 class ReportStrategyConfig:
     def __init__(self, config, default_report_strategy_config = {}):
-        if config is None:
+        if config is None or not isinstance(config, dict):
             raise ValueError("Report strategy config is not specified")
         if (config.get(REPORT_PERIOD_PARAMETER) is None and config.get(TYPE_PARAMETER) is None
                 and not default_report_strategy_config):
