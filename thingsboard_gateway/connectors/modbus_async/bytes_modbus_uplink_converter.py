@@ -22,8 +22,10 @@ from pymodbus.pdu import ExceptionResponse
 from thingsboard_gateway.connectors.modbus_async.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.connectors.modbus_async.modbus_converter import ModbusConverter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class BytesModbusUplinkConverter(ModbusConverter):
@@ -35,6 +37,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
                        end_stat_type='convertedBytesFromDevice')
     def convert(self, _, data: List[dict]) -> Union[ConvertedData, None]:
         result = ConvertedData(self.__config.device_name, self.__config.device_type)
+        device_report_strategy = self._get_device_report_strategy(self.__config.report_strategy,
+                                                                  self.__config.device_name)
+
         converted_data_append_methods = {
             'attributes': result.add_to_attributes,
             'telemetry': result.add_to_telemetry
@@ -52,7 +57,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
                                                         self.__config.word_order)
 
                         if decoded_data is not None:
-                            converted_data_append_methods[config_section]({config['tag']: decoded_data})
+                            datapoint_key = TBUtility.convert_key_to_datapoint_key(config['tag'], device_report_strategy,
+                                                                                   config, self._log)
+                            converted_data_append_methods[config_section]({datapoint_key: decoded_data})
 
             self._log.trace("Decoded data: %s", result)
             StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
@@ -193,3 +200,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
             result_data = decoded
 
         return result_data
+
+    def _get_device_report_strategy(self, report_strategy, device_name):
+        try:
+            return ReportStrategyConfig(report_strategy)
+        except ValueError as e:
+            self._log.trace("Report strategy config is not specified for device %s: %s", device_name, e)

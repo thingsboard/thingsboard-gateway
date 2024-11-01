@@ -20,6 +20,7 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, time
 
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -298,9 +299,10 @@ class RequestConnector(Connector, Thread):
     def __process_data(self):
         try:
             if not self.__convert_queue.empty():
-                data = self.__convert_queue.get()
-                self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
-                self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
+                data: ConvertedData = self.__convert_queue.get()
+                if data and (data.attributes_datapoints_count > 0 or data.telemetry_datapoints_count > 0):
+                    self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
+                    self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
 
         except Exception as e:
             self._log.exception(e)

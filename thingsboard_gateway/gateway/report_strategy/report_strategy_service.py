@@ -15,7 +15,7 @@
 from queue import SimpleQueue
 from threading import Thread
 from time import monotonic, sleep, time
-from typing import Dict, Set
+from typing import Dict, Set, Union
 
 from thingsboard_gateway.gateway.constants import DEFAULT_REPORT_STRATEGY_CONFIG, ReportStrategy, DEVICE_NAME_PARAMETER, \
     DEVICE_TYPE_PARAMETER, REPORT_STRATEGY_PARAMETER
@@ -49,7 +49,7 @@ class ReportStrategyService:
         self._connectors_report_strategies[connector_id] = report_strategy_config
         self._connectors_report_strategies[connector_name] = report_strategy_config
 
-    def filter_data_and_send(self, data: ConvertedData | dict, connector_name: str, connector_id: str):
+    def filter_data_and_send(self, data: Union[ConvertedData, dict], connector_name: str, connector_id: str):
         data_to_send = data
         if isinstance(data, dict):
             data_to_send = ConvertedData(device_name=data.get(DEVICE_NAME_PARAMETER),

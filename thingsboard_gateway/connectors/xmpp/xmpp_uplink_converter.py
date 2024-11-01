@@ -17,6 +17,10 @@ from re import findall
 from time import time
 
 from thingsboard_gateway.connectors.xmpp.xmpp_converter import XmppConverter
+from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
+from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -30,7 +34,6 @@ class XmppUplinkConverter(XmppConverter):
                            "timeseries": "telemetry"}
 
     def _convert_json(self, val):
-        dict_result = {}
         try:
             data = json.loads(val)
 
@@ -39,11 +42,11 @@ class XmppUplinkConverter(XmppConverter):
             device_name_values = TBUtility.get_values(self.__config.get("deviceNameExpression"), data,
                                                       expression_instead_none=True)
 
-            dict_result['deviceName'] = self.__config.get("deviceNameExpression")
+            device_name = self.__config.get("deviceNameExpression")
             for (device_name_tag, device_name_value) in zip(device_name_tags, device_name_values):
                 is_valid_key = "${" in self.__config.get("deviceNameExpression") and "}" in \
                                self.__config.get("deviceNameExpression")
-                dict_result['deviceName'] = dict_result['deviceName'].replace('${' + str(device_name_tag) + '}',
+                device_name = device_name.replace('${' + str(device_name_tag) + '}',
                                                                               str(device_name_value)) \
                     if is_valid_key else device_name_tag
 
@@ -52,16 +55,19 @@ class XmppUplinkConverter(XmppConverter):
             device_type_values = TBUtility.get_values(self.__config.get("deviceTypeExpression"), data,
                                                       expression_instead_none=True)
 
-            dict_result["deviceType"] = self.__config.get("deviceTypeExpression")
+            device_type = self.__config.get("deviceTypeExpression")
             for (device_type_tag, device_type_value) in zip(device_type_tags, device_type_values):
                 is_valid_key = "${" in self.__config.get("deviceTypeExpression") and "}" in \
                                self.__config.get("deviceTypeExpression")
-                dict_result["deviceType"] = dict_result["deviceType"].replace('${' + str(device_type_tag) + '}',
+                device_type = device_type.replace('${' + str(device_type_tag) + '}',
                                                                               str(device_type_value)) \
                     if is_valid_key else device_type_tag
 
+            device_report_strategy = self._get_device_report_strategy(device_name)
+
+            converted_data = ConvertedData(device_name=device_name, device_type=device_type)
+
             for datatype in self._datatypes:
-                dict_result[self._datatypes[datatype]] = []
                 for datatype_config in self.__config.get(datatype, []):
                     values = TBUtility.get_values(datatype_config["value"], data, "json",
                                                   expression_instead_none=False)
@@ -88,15 +94,17 @@ class XmppUplinkConverter(XmppConverter):
                                                         str(value)) if is_valid_value else value
 
                     if full_key != 'None' and full_value != 'None':
-                        if datatype == 'timeseries' and (
-                                data.get("ts") is not None or data.get("timestamp") is not None):
-                            dict_result[self._datatypes[datatype]].append(
-                                {"ts": data.get('ts', data.get('timestamp', int(time()))),
-                                 'values': {full_key: full_value}})
-                        else:
-                            dict_result[self._datatypes[datatype]].append({full_key: full_value})
+                        datapoint_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy,
+                                                                               datatype_config, self._log)
 
-            return dict_result
+                        if datatype == 'attributes':
+                            converted_data.add_to_attributes(datapoint_key, full_value)
+                        else:
+                            ts = data.get('ts', data.get('timestamp', int(time())))
+                            telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
+                            converted_data.add_to_telemetry(telemetry_entry)
+
+            return converted_data
         except Exception as e:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.exception(e)
@@ -120,24 +128,39 @@ class XmppUplinkConverter(XmppConverter):
         else:
             return config[key]
 
+    def _get_device_report_strategy(self, device_name):
+        device_report_strategy = None
+        try:
+            device_report_strategy = ReportStrategyConfig(self.__config.get(REPORT_STRATEGY_PARAMETER))
+        except ValueError as e:
+            self._log.trace("Report strategy config is not specified for device %s: %s", device_name, e)
+
+        return device_report_strategy
+
     def _convert_text(self, val):
-        dict_result = {'deviceName': self._get_value(val, self.__config, 'deviceNameExpression'),
-                       'deviceType': self._get_value(val, self.__config, 'deviceTypeExpression')}
+        device_name = self._get_value(val, self.__config, 'deviceNameExpression')
+        device_type = self._get_value(val, self.__config, 'deviceTypeExpression')
 
         try:
-            if dict_result.get('deviceName') and dict_result.get('deviceType'):
+            if device_name and device_type:
+                device_report_strategy = self._get_device_report_strategy(device_name)
+                converted_data = ConvertedData(device_name=device_name, device_type=device_type)
+
                 for datatype in self._datatypes:
-                    dict_result[self._datatypes[datatype]] = []
                     for datatype_config in self.__config.get(datatype, []):
                         key = self._get_value(val, datatype_config, 'key')
+                        datapoint_key = TBUtility.convert_key_to_datapoint_key(key, device_report_strategy,
+                                                                               datatype_config, self._log)
                         value = self._get_value(val, datatype_config, 'value')
 
-                        if key and value and datatype == 'timeseries':
-                            dict_result[self._datatypes[datatype]].append({'ts': int(time()) * 1000, 'values': {key: value}})
+                        if datatype == 'attributes':
+                            converted_data.add_to_attributes(datapoint_key, value)
                         else:
-                            dict_result[self._datatypes[datatype]].append({key: value})
+                            ts = int(time()) * 1000
+                            telemetry_entry = TelemetryEntry({datapoint_key: value}, ts)
+                            converted_data.add_to_telemetry(telemetry_entry)
 
-                return dict_result
+                return converted_data
         except Exception as e:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.exception(e)
@@ -149,18 +172,18 @@ class XmppUplinkConverter(XmppConverter):
         result = self._convert_json(val)
         if result:
             StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                      count=len(result["attributes"]))
+                                                      count=result.attributes_datapoints_count)
             StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                      count=len(result["telemetry"]))
+                                                      count=result.telemetry_datapoints_count)
             return result
 
         # convert data using slices if it is text format
         result = self._convert_text(val)
         if result:
             StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                      count=len(result["attributes"]))
+                                                      count=result.attributes_datapoints_count)
             StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                      count=len(result["telemetry"]))
+                                                      count=result.telemetry_datapoints_count)
             return result
 
         # if none of above

@@ -21,6 +21,7 @@ from threading import Thread
 from time import sleep, time
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -154,9 +155,11 @@ class SNMPConnector(Connector, Thread):
                     self._log.exception(e)
 
         if device_responses:
-            converted_data = device["uplink_converter"].convert(device, device_responses)
+            converted_data: ConvertedData = device["uplink_converter"].convert(device, device_responses)
 
-            if isinstance(converted_data, dict) and (converted_data.get("attributes") or converted_data.get("telemetry")):
+            if (converted_data is not None and
+                    (converted_data.attributes_datapoints_count > 0 or
+                     converted_data.telemetry_datapoints_count > 0)):
                 self.collect_statistic_and_send(self.get_name(), self.get_id(), converted_data)
 
     async def __process_methods(self, method, common_parameters, datatype_config):

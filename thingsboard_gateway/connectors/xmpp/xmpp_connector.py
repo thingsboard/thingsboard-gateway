@@ -22,6 +22,7 @@ from time import sleep
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.xmpp.device import Device
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics, CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -197,11 +198,12 @@ class XMPPConnector(Connector, Thread):
     def _send_data(self):
         while not self.__stopped:
             if not XMPPConnector.DATA_TO_SEND.empty():
-                data = XMPPConnector.DATA_TO_SEND.get()
-                self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
-                self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
-                self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-                self.__log.info('Data to ThingsBoard %s', data)
+                data: ConvertedData = XMPPConnector.DATA_TO_SEND.get()
+                if data.attributes_datapoints_count > 0 or data.telemetry_datapoints_count > 0:
+                    self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
+                    self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
+                    self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
+                    self.__log.info('Data to ThingsBoard %s', data)
 
             sleep(.2)
 
