@@ -21,7 +21,7 @@ from random import choice
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic, time
-from typing import List, Dict
+from typing import List, Dict, Union
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
@@ -119,7 +119,7 @@ class OpcUaConnector(Connector, Thread):
         except RuntimeError:
             self.__loop = asyncio.get_event_loop()
 
-        self.__client: asyncua.Client | None = None
+        self.__client: Union[asyncua.Client, None] = None
 
         self.__connected = False
         self.__stopped = False

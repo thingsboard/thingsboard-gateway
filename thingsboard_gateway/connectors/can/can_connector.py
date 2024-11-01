@@ -20,6 +20,7 @@ from random import choice
 from string import ascii_lowercase
 from threading import Thread
 
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -255,9 +256,6 @@ class CanConnector(Connector, Thread):
                     need_run = False
         self._log.info("[%s] Stopped", self.get_name())
 
-    def is_stopped(self):
-        return self.__stopped
-
     def get_polling_messages(self):
         return self.__polling_messages
 
@@ -336,35 +334,19 @@ class CanConnector(Connector, Thread):
                   self.get_name(), message.arbitration_id, cmd_id, message)
 
         parsing_conf = self.__nodes[message.arbitration_id][cmd_id]
-        data = self.__converters[parsing_conf["deviceName"]]["uplink"].convert(parsing_conf["configs"], message.data)
-        if data is None or not data.get("attributes", []) and not data.get("telemetry", []):
+        data: ConvertedData = self.__converters[parsing_conf["deviceName"]]["uplink"].convert(parsing_conf["configs"],
+                                                                                              message.data)
+        if data.attributes_datapoints_count == 0 and data.telemetry_datapoints_count == 0:
             self._log.warning("[%s] Failed to process CAN message (id=%d,cmd_id=%s): data conversion failure",
                         self.get_name(), message.arbitration_id, cmd_id)
             return
 
-        self.__check_and_send(parsing_conf, data)
+        self.__check_and_send(data)
 
-    def __check_and_send(self, conf, new_data):
+    def __check_and_send(self, new_data: ConvertedData):
         self.statistics['MessagesReceived'] += 1
-        to_send = {"attributes": [], "telemetry": []}
-        send_on_change = conf["sendOnChange"]
-
-        for tb_key in to_send.keys():
-            for key, new_value in new_data[tb_key].items():
-                if not send_on_change or self.__devices[conf["deviceName"]][tb_key][key] != new_value:
-                    self.__devices[conf["deviceName"]][tb_key][key] = new_value
-                    to_send[tb_key].append({key: new_value})
-
-        if to_send["attributes"] or to_send["telemetry"]:
-            to_send["deviceName"] = conf["deviceName"]
-            to_send["deviceType"] = conf["deviceType"]
-
-            self._log.debug("[%s] Pushing to TB server '%s' device data: %s", self.get_name(), conf["deviceName"], to_send)
-
-            self.__gateway.send_to_storage(self.get_name(), self.get_id(), to_send)
-            self.statistics['MessagesSent'] += 1
-        else:
-            self._log.debug("[%s] '%s' device data has not been changed", self.get_name(), conf["deviceName"])
+        self.__gateway.send_to_storage(self.get_name(), self.get_id(), new_data)
+        self.statistics['MessagesSent'] += 1
 
     def __is_reconnect_enabled(self):
         if self.__reconnect_conf["enabled"]:

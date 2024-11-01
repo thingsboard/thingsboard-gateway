@@ -24,6 +24,7 @@ from simplejson import dumps
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.socket.backward_compatibility_adapter import BackwardCompatibilityAdapter
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics, CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -277,13 +278,16 @@ class SocketConnector(Connector, Thread):
             device_config = {
                 'encoding': device.get('encoding', 'utf-8').lower(),
                 'telemetry': device.get('telemetry', []),
-                'attributes': device.get('attributes', [])
+                'attributes': device.get('attributes', []),
+                'reportStrategy': device.get('reportStrategy')
             }
-            converted_data = converter.convert(device_config, data)
+            converted_data: ConvertedData = converter.convert(device_config, data)
 
             self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
 
-            if converted_data is not None:
+            if (converted_data and
+                    (converted_data.telemetry_datapoints_count > 0 or
+                     converted_data.attributes_datapoints_count > 0)):
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
                 self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
                 self.__log.info('Data to ThingsBoard %s', converted_data)

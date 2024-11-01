@@ -97,6 +97,7 @@ class Device(Thread):
                 'telemetry': [],
                 'attributes': []
             },
+            'reportStrategy': config.get('reportStrategy', None),
             'attributeUpdates': config.get('attributeUpdates', []),
             'serverSideRpc': config.get('serverSideRpc', [])
         }
@@ -213,6 +214,7 @@ class Device(Thread):
             data_for_converter = {
                 'deviceName': self.name,
                 'deviceType': self.device_type,
+                'reportStrategy': self.config.get('reportStrategy', None),
                 'converter': self.config['characteristic']['extension'],
                 'config': {
                     **self.config['characteristic']
