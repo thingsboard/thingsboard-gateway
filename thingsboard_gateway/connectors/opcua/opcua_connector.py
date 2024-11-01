@@ -556,11 +556,11 @@ class OpcUaConnector(Connector, Thread):
                     break
 
             if not batch and self.__sub_data_to_convert.empty():
-                if self.__log.isEnabledFor(10):
+                if self.__log.isEnabledFor(5):
                     self.__log.debug("Sleeping due to empty batch and converting queue %.3f (seconds)...", sleep_period_after_empty_batch)
                 sleep(sleep_period_after_empty_batch)
                 continue
-            if self.__log.isEnabledFor(10):
+            if self.__log.isEnabledFor(5):
                 self.__log.debug('Batch created in %i milliseconds', (time() - batch_start_forming_time) * 1000)
                 self.__log.debug('Batch size: %s', len(batch))
                 self.__log.debug('Data left in queue: %s', self.__sub_data_to_convert.qsize())

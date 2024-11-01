@@ -106,7 +106,7 @@ class ConvertedData:
 
     def _add_single_telemetry_entry(self, telemetry_entry: Union[dict, TelemetryEntry]):
         if isinstance(telemetry_entry, dict):
-            telemetry_entry = TelemetryEntry(telemetry_entry)
+            telemetry_entry = TelemetryEntry(telemetry_entry, telemetry_entry.get("ts"))
 
         if telemetry_entry.ts in self.ts_index:
             index = self.ts_index[telemetry_entry.ts]
@@ -211,7 +211,7 @@ class ConvertedData:
                     current_data_size += chunk_size
                     if telemetry_entry.ts in current_data.ts_index:
                         current_data_size += ts_data_size
-                    current_data.add_to_telemetry(TelemetryEntry({"ts": telemetry_entry.ts, "values": telemetry_chunk}))
+                    current_data.add_to_telemetry(TelemetryEntry(telemetry_chunk, telemetry_entry.ts))
 
         if current_data_size > general_info_bytes_size:
             converted_objects.append(current_data)

@@ -99,7 +99,7 @@ class ReportStrategy(Enum):
         raise ValueError("Invalid report strategy value: %r" % value)
 
 DEFAULT_REPORT_STRATEGY_CONFIG = {
-    TYPE_PARAMETER: ReportStrategy.ON_REPORT_PERIOD.value,
+    TYPE_PARAMETER: ReportStrategy.ON_RECEIVED.value,
     REPORT_PERIOD_PARAMETER: 10000
 }
 

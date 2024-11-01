@@ -994,7 +994,8 @@ class TBGatewayService:
                                             self.available_connectors_by_id[connector_id] = connector
                                             self.available_connectors_by_name[connector_name] = connector
                                             try:
-                                                connector_report_strategy = ReportStrategyConfig(connector_config[CONFIG_SECTION_PARAMETER][config].get(REPORT_STRATEGY_PARAMETER))
+                                                report_strategy_config_connector = connector_config[CONFIG_SECTION_PARAMETER][config].pop(REPORT_STRATEGY_PARAMETER, None)
+                                                connector_report_strategy = ReportStrategyConfig(report_strategy_config_connector)
                                                 self._report_strategy_service.register_connector_report_strategy(connector_name, connector_id, connector_report_strategy)
                                             except ValueError:
                                                 log.info("Cannot find separated report strategy for connector %r. The main report strategy will be used as a connector report strategy.",

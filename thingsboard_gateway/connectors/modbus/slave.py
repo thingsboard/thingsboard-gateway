@@ -61,9 +61,11 @@ class Slave(Thread):
             'attributes': kwargs.get('attributes', []),
             'timeseries': kwargs.get('timeseries', []),
             'attributeUpdates': kwargs.get('attributeUpdates', []),
-            'rpc': kwargs.get('rpc', []),
-            REPORT_STRATEGY_PARAMETER: kwargs.get(REPORT_STRATEGY_PARAMETER),
+            'rpc': kwargs.get('rpc', [])
         }
+
+        if REPORT_STRATEGY_PARAMETER in kwargs:
+            self.config[REPORT_STRATEGY_PARAMETER] = kwargs[REPORT_STRATEGY_PARAMETER]
 
         self.__load_converters(kwargs['connector'])
 

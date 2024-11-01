@@ -33,6 +33,9 @@ class Attributes:
     def __getitem__(self, item: DatapointKey) -> Any:
         return self.values[item]
 
+    def __iter__(self):
+        return iter(self.values)
+
     def __setitem__(self, key: DatapointKey, value):
         self.values[key] = value
 

@@ -156,12 +156,10 @@ class ModbusUplinkMessagesTest(BaseTest):
         sleep(GENERAL_TIMEOUT * 2)
         latest_ts_2 = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
 
-        # check that timestamps are equal
         for ts_key in telemetry_keys:
             self.assertTrue(latest_ts_1[ts_key][0]['ts'] - actual_values[ts_key][0]['ts'] >= 3000,
-                             f'Second update of telemetry was less in 5 seconds for key: {ts_key}')
+                             f'Second update of telemetry was less in 3 seconds for key: {ts_key}')
 
-        # check that timestamps are not equal
         for ts_key in telemetry_keys:
             self.assertTrue(latest_ts_2[ts_key][0]['ts'] - actual_values[ts_key][0]['ts'] >= 10000,
                              f'Next update of telemetry was less in 10 seconds, expected - ~15 seconds for key: {ts_key}')

@@ -31,7 +31,6 @@
       "type": "postgres",
       "name": "'ODBC ' + entity_id"
     },
-    "sendDataOnlyOnChange": false,
     "attributes": "*",
     "timeseries": [
       {
