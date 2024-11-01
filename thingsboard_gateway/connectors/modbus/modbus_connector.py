@@ -11,6 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
 from copy import deepcopy
 from threading import Thread, Lock
 from time import sleep, monotonic
@@ -18,8 +19,11 @@ from time import monotonic as time
 from queue import Queue
 from random import choice
 from string import ascii_lowercase
+from typing import Union
+
 from packaging import version
 
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
@@ -150,8 +154,6 @@ class ModbusConnector(Connector, Thread):
         self.__slaves = []
         self.__slave_thread = None
 
-        self.__main_report_strategy = self.__config.get(REPORT_STRATEGY_PARAMETER, {})
-
         if self.__config.get('slave') and self.__config.get('slave', {}).get('sendDataToThingsBoard', False):
             self.__slave_thread = Thread(target=self.__configure_and_run_slave, args=(self.__config['slave'],),
                                          daemon=True, name='Gateway modbus slave')
@@ -262,8 +264,6 @@ class ModbusConnector(Connector, Thread):
     def __load_slave(self, slave):
         slave_config = {**slave, 'connector': self, 'gateway': self.__gateway, 'logger': self.__log,
                         'callback': ModbusConnector.callback}
-        if REPORT_STRATEGY_PARAMETER not in slave_config:
-            slave_config[REPORT_STRATEGY_PARAMETER] = self.__main_report_strategy
         self.__slaves.append(Slave(**slave_config))
 
     @classmethod
@@ -296,31 +296,17 @@ class ModbusConnector(Connector, Thread):
 
     def __convert_data(self, params):
         device, current_device_config, config, device_responses = params
-        converted_data = {}
+        converted_data: Union[ConvertedData, None] = None
 
         try:
             converted_data = device.config[UPLINK_PREFIX + CONVERTER_PARAMETER].convert(
                 config=config,
                 data=device_responses)
         except Exception as e:
-            self.__log.error(e)
+            self.__log.error("Failed to convert data from device %s with config %s", device.device_name, current_device_config, exc_info=e)
 
-        to_send = {DEVICE_NAME_PARAMETER: converted_data[DEVICE_NAME_PARAMETER],
-                   DEVICE_TYPE_PARAMETER: converted_data[DEVICE_TYPE_PARAMETER],
-                   TELEMETRY_PARAMETER: [],
-                   ATTRIBUTES_PARAMETER: []
-                   }
-
-        # Check report strategy for each key in attributes and telemetry for device and send data only if it is necessary
-        for converted_data_section in CONVERTED_DATA_SECTIONS:
-            for current_section_dict in converted_data[converted_data_section]:
-                for key, value in current_section_dict.items():
-                    should_send = device.update_cached_data_and_check_is_data_should_be_send(converted_data_section, key, value)
-                    if should_send:
-                        to_send[converted_data_section].append({key: value})
-
-        if to_send.get(ATTRIBUTES_PARAMETER) or to_send.get(TELEMETRY_PARAMETER):
-            return to_send
+        if converted_data is not None and converted_data.attributes_datapoints_count + converted_data.telemetry_datapoints_count > 0:
+            return converted_data
 
     def _save_data(self, data):
         StatisticsService.count_connector_message(self.name, stat_parameter_name='storageMsgPushed')
@@ -423,10 +409,13 @@ class ModbusConnector(Connector, Thread):
                     for interested_data in range(len(current_device_config[config_section])):
                         current_data = deepcopy(current_device_config[config_section][interested_data])
                         current_data[DEVICE_NAME_PARAMETER] = device.device_name
-                        input_data = self.__function_to_device(device, current_data)
+                        try:
+                            input_data = self.__function_to_device(device, current_data)
+                        except Exception as e:
+                            input_data = e
 
                         # due to issue #1056
-                        if isinstance(input_data, ModbusIOException) or isinstance(input_data, ExceptionResponse):
+                        if isinstance(input_data, Exception):
                             device.config.pop('master', None)
                             self.__gateway.del_device(device.device_name)
                             self.__connect_to_current_master(device)
@@ -453,7 +442,7 @@ class ModbusConnector(Connector, Thread):
             self.__log.error("Connection lost! Reconnecting...")
         except Exception as e:
             self.__gateway.del_device(device.device_name)
-            self.__log.exception(e)
+            self.__log.exception("Error while processing device %s", device.device_name, exc_info=e)
         finally:
             # Release mutex if "serial" type only
             if device.config.get(TYPE_PARAMETER) == 'serial':
@@ -654,7 +643,9 @@ class ModbusConnector(Connector, Thread):
     def on_attributes_update(self, content):
         try:
             device = ModbusConnector.__get_device_by_name(content[DEVICE_SECTION_PARAMETER], self.__slaves)
-
+            if device is None:
+                self.__log.error("Device %s not found for connector %s", content[DEVICE_SECTION_PARAMETER], self.get_name())
+                return
             for attribute_updates_command_config in device.config['attributeUpdates']:
                 for attribute_updated in content[DATA_PARAMETER]:
                     if attribute_updates_command_config[TAG_PARAMETER] == attribute_updated:
@@ -695,6 +686,14 @@ class ModbusConnector(Connector, Thread):
                                  server_rpc_request)
                 device = ModbusConnector.__get_device_by_name(server_rpc_request[DEVICE_SECTION_PARAMETER],
                                                               self.__slaves)
+
+                if device is None:
+                    self.__log.error("Device %s not found for connector %s", server_rpc_request[DEVICE_SECTION_PARAMETER],
+                                     self.get_name())
+                    self.__gateway.send_rpc_reply(server_rpc_request[DEVICE_SECTION_PARAMETER],
+                                                  server_rpc_request[DATA_PARAMETER][RPC_ID_PARAMETER],
+                                                  {rpc_method: "DEVICE CONNECTOR FOR DEVICE NOT FOUND!"})
+                    return
 
                 # check if RPC method is reserved get/set
                 if rpc_method == 'get' or rpc_method == 'set':
@@ -744,6 +743,9 @@ class ModbusConnector(Connector, Thread):
         self.__log.debug('Processing %s request', request_type)
         if rpc_command_config is not None:
             device = ModbusConnector.__get_device_by_name(content[DEVICE_SECTION_PARAMETER], self.__slaves)
+            if device is None:
+                self.__log.error("Device %s not found for connector %s", content[DEVICE_SECTION_PARAMETER], self.get_name())
+                return
             rpc_command_config[UNIT_ID_PARAMETER] = device.config['unitId']
             rpc_command_config[BYTE_ORDER_PARAMETER] = device.config.get("byteOrder", "LITTLE")
             rpc_command_config[WORD_ORDER_PARAMETER] = device.config.get("wordOrder", "LITTLE")
@@ -828,7 +830,8 @@ class ModbusConnector(Connector, Thread):
 
     @staticmethod
     def __get_device_by_name(device_name, devices):
-        return tuple(filter(lambda slave: slave.device_name == device_name, devices))[0]
+        filtered_device = tuple(filter(lambda slave: slave.device_name == device_name, devices))
+        return filtered_device[0] if len(filtered_device) > 0 else None
 
     def get_config(self):
         return self.__config
@@ -867,9 +870,11 @@ class ModbusConnector(Connector, Thread):
                 if not self.__msg_queue.empty():
                     self.in_progress = True
                     convert_function, params = self.__msg_queue.get(True, 10)
-                    converted_data = convert_function(params)
+                    converted_data: ConvertedData = convert_function(params)
                     if converted_data:
-                        self._log.info(converted_data)
+                        self._log.info("Converted data for device %r attributes: %r, telemetry: %r",
+                                       converted_data.device_name, converted_data.attributes_datapoints_count,
+                                       converted_data.telemetry_datapoints_count)
                         self.__send_result(converted_data)
                         self.in_progress = False
                 else:

@@ -18,6 +18,10 @@ from time import time
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.ftp.ftp_converter import FTPConverter
+from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
+from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -29,24 +33,41 @@ class FTPUplinkConverter(FTPConverter):
         self.__config = config
         self.__data_types = {"attributes": "attributes", "timeseries": "telemetry"}
 
+    def _get_device_report_strategy(self, device_name):
+        device_report_strategy = None
+        try:
+            device_report_strategy = ReportStrategyConfig(self.__config.get(REPORT_STRATEGY_PARAMETER))
+        except ValueError as e:
+            self._log.trace("Report strategy config is not specified for device %s: %s", device_name, e)
+
+        return device_report_strategy
+
     def _get_required_data(self, left_symbol, right_symbol):
-        dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
+        device_name = None
+        device_type = None
         get_device_name_from_data = False
         get_device_type_from_data = False
 
         if left_symbol in self.__config['devicePatternName'] and right_symbol in self.__config['devicePatternName']:
             get_device_name_from_data = True
         else:
-            dict_result['deviceName'] = self.__config['devicePatternName']
+            device_name = self.__config['devicePatternName']
         if left_symbol in self.__config['devicePatternType'] and right_symbol in self.__config['devicePatternType']:
             get_device_type_from_data = True
         else:
-            dict_result['deviceType'] = self.__config['devicePatternType']
+            device_type = self.__config['devicePatternType']
 
-        return dict_result, get_device_name_from_data, get_device_type_from_data
+        return device_name, device_type, get_device_name_from_data, get_device_type_from_data
 
     def _convert_table_view_data(self, config, data):
-        dict_result, get_device_name_from_data, get_device_type_from_data = self._get_required_data('${', '}')
+        device_name, device_type, get_device_name_from_data, get_device_type_from_data = self._get_required_data('${',
+                                                                                                                 '}')
+
+        device_report_strategy = self._get_device_report_strategy(device_name)
+
+        converted_data = ConvertedData(device_name=device_name,
+                                        device_type=device_type)
+
         try:
             for data_type in self.__data_types:
                 for information in self.__config[data_type]:
@@ -61,17 +82,23 @@ class FTPUplinkConverter(FTPConverter):
                     if '${' in information['value'] and '}' in information['value']:
                         val_index = config['headers'].index(re.sub(r'[^\w]', '', information['value']))
 
-                    dict_result[self.__data_types[data_type]].append({
-                        arr[key_index] if isinstance(key_index, int) else key_index:
-                            arr[val_index] if isinstance(val_index, int) else val_index
-                    })
+                    key = arr[key_index] if isinstance(key_index, int) else key_index
+                    value = arr[val_index] if isinstance(val_index, int) else val_index
+                    datapoint_key = TBUtility.convert_key_to_datapoint_key(key, device_report_strategy,
+                                                                           information, self._log)
+
+                    if data_type == 'attributes':
+                        converted_data.add_to_attributes(datapoint_key, value)
+                    else:
+                        telemetry_entry = TelemetryEntry({datapoint_key: value})
+                        converted_data.add_to_telemetry(telemetry_entry)
 
                     if get_device_name_from_data:
                         index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternName']))
-                        dict_result['deviceName'] = arr[index]
+                        converted_data.device_name = arr[index]
                     if get_device_type_from_data:
                         index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternType']))
-                        dict_result['deviceType'] = arr[index]
+                        converted_data.device_type = arr[index]
 
         except Exception as e:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
@@ -79,10 +106,10 @@ class FTPUplinkConverter(FTPConverter):
                             e)
 
         StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                  count=len(dict_result["attributes"]))
+                                                  count=converted_data.attributes_datapoints_count)
         StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                  count=len(dict_result["telemetry"]))
-        return dict_result
+                                                  count=converted_data.telemetry_datapoints_count)
+        return converted_data
 
     @staticmethod
     def _get_key_or_value(key, arr):
@@ -96,7 +123,14 @@ class FTPUplinkConverter(FTPConverter):
             return key
 
     def _convert_slices_view_data(self, data):
-        dict_result, get_device_name_from_data, get_device_type_from_data = self._get_required_data('[', ']')
+        device_name, device_type, get_device_name_from_data, get_device_type_from_data = self._get_required_data('[',
+                                                                                                                 ']')
+
+        device_report_strategy = self._get_device_report_strategy(device_name)
+
+        converted_data = ConvertedData(device_name=device_name,
+                                       device_type=device_type)
+
         try:
             for data_type in self.__data_types:
                 for information in self.__config[data_type]:
@@ -105,27 +139,33 @@ class FTPUplinkConverter(FTPConverter):
                     val = self._get_key_or_value(information['value'], arr)
                     key = self._get_key_or_value(information['key'], arr)
 
-                    dict_result[self.__data_types[data_type]].append({key: val})
+                    datapoint_key = TBUtility.convert_key_to_datapoint_key(key, device_report_strategy,
+                                                                           information, self._log)
+                    if data_type == 'attributes':
+                        converted_data.add_to_attributes(datapoint_key, val)
+                    else:
+                        telemetry_entry = TelemetryEntry({datapoint_key: val})
+                        converted_data.add_to_telemetry(telemetry_entry)
 
                     if get_device_name_from_data:
                         if self.__config['devicePatternName'] == information['value']:
-                            dict_result['deviceName'] = val
+                            converted_data.device_name = val
                     if get_device_type_from_data:
                         if self.__config['devicePatternType'] == information['value']:
-                            dict_result['deviceType'] = val
+                            converted_data.device_type = val
         except Exception as e:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
                             e)
 
         StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                  count=len(dict_result["attributes"]))
+                                                  count=converted_data.attributes_datapoints_count)
         StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                  count=len(dict_result["telemetry"]))
-        return dict_result
+                                                  count=converted_data.telemetry_datapoints_count)
+        return converted_data
 
-    def _convert_json_file(self, data):
-        dict_result = {"deviceName": None, "deviceType": None, "attributes": [], "telemetry": []}
+    def _get_device_name(self, data):
+        device_name = ''
 
         try:
             if self.__config.get("devicePatternName") is not None:
@@ -134,28 +174,35 @@ class FTPUplinkConverter(FTPConverter):
                 device_name_values = TBUtility.get_values(self.__config.get("devicePatternName"), data,
                                                           expression_instead_none=True)
 
-                dict_result["deviceName"] = self.__config.get("devicePatternName")
+                device_name = self.__config.get("devicePatternName")
                 for (device_name_tag, device_name_value) in zip(device_name_tags, device_name_values):
                     is_valid_key = "${" in self.__config.get("devicePatternName") and "}" in \
                                    self.__config.get("devicePatternName")
-                    dict_result['deviceName'] = dict_result['deviceName'].replace('${' + str(device_name_tag) + '}',
+                    device_name = device_name.replace('${' + str(device_name_tag) + '}',
                                                                                   str(device_name_value)) \
                         if is_valid_key else device_name_tag
+        except Exception as e:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
+            self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
+                            e)
 
-            else:
-                self._log.error("The expression for looking \"deviceName\" not found in config %s", dumps(self.__config))
+        return device_name
 
+    def _get_device_type(self, data):
+        device_type = ''
+
+        try:
             if self.__config.get("devicePatternType") is not None:
                 device_type_tags = TBUtility.get_values(self.__config.get("devicePatternType"), data,
                                                         get_tag=True)
                 device_type_values = TBUtility.get_values(self.__config.get("devicePatternType"), data,
                                                           expression_instead_none=True)
-                dict_result["deviceType"] = self.__config.get("devicePatternType")
+                device_type = self.__config.get("devicePatternType")
 
                 for (device_type_tag, device_type_value) in zip(device_type_tags, device_type_values):
                     is_valid_key = "${" in self.__config.get("devicePatternType") and "}" in \
                                    self.__config.get("devicePatternType")
-                    dict_result["deviceType"] = dict_result["deviceType"].replace('${' + str(device_type_tag) + '}',
+                    device_type = device_type.replace('${' + str(device_type_tag) + '}',
                                                                                   str(device_type_value)) \
                         if is_valid_key else device_type_tag
         except Exception as e:
@@ -163,10 +210,26 @@ class FTPUplinkConverter(FTPConverter):
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
                             e)
 
+        return device_type
+
+    def _convert_json_file(self, data):
+        device_name = self._get_device_name(data)
+        if not device_name:
+            self._log.error("The expression for looking \"deviceName\" not found in config %s",
+                            dumps(self.__config))
+
+        device_type = self._get_device_type(data)
+        if not device_type:
+            self._log.error("The expression for looking \"deviceType\" not found in config %s",
+                            dumps(self.__config))
+
+        device_report_strategy = self._get_device_report_strategy(device_name)
+
+        converted_data = ConvertedData(device_name=device_name,
+                                       device_type=device_type)
+
         try:
             for datatype in self.__data_types:
-                dict_result[self.__data_types[datatype]] = []
-
                 for datatype_config in self.__config.get(datatype, []):
                     values = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
                                                   expression_instead_none=True)
@@ -192,23 +255,24 @@ class FTPUplinkConverter(FTPConverter):
                         full_value = full_value.replace('${' + str(value_tag) + '}',
                                                         str(value)) if is_valid_value else str(value)
 
-                    if datatype == 'timeseries' and (
-                            data.get("ts") is not None or data.get("timestamp") is not None):
-                        dict_result[self.__data_types[datatype]].append(
-                            {"ts": data.get('ts', data.get('timestamp', int(time()))),
-                             'values': {full_key: full_value}})
+                    datapoint_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy,
+                                                                           datatype_config, self._log)
+                    if datatype == 'timeseries' and (data.get("ts") is not None or data.get("timestamp") is not None):
+                        ts = data.get('ts', data.get('timestamp', int(time())))
+                        telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
+                        converted_data.add_to_telemetry(telemetry_entry)
                     else:
-                        dict_result[self.__data_types[datatype]].append({full_key: full_value})
+                        converted_data.add_to_attributes(datapoint_key, full_value)
         except Exception as e:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
                             str(data), e)
 
         StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                  count=len(dict_result["attributes"]))
+                                                  count=converted_data.attributes_datapoints_count)
         StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                  count=len(dict_result["telemetry"]))
-        return dict_result
+                                                  count=converted_data.telemetry_datapoints_count)
+        return converted_data
 
     @CollectStatistics(start_stat_type='receivedBytesFromDevices',
                        end_stat_type='convertedBytesFromDevice')

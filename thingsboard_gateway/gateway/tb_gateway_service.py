@@ -11,6 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
 import concurrent
 import logging
 import logging.config
@@ -38,10 +39,13 @@ from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
 from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME, RENAMING_PARAMETER, CONNECTOR_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, \
     CONNECTOR_ID_PARAMETER, ATTRIBUTES_FOR_REQUEST, CONFIG_VERSION_PARAMETER, CONFIG_SECTION_PARAMETER, \
-    DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED
+    DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED, ReportStrategy, \
+    REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
-from thingsboard_gateway.gateway.duplicate_detector import DuplicateDetector
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
+from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
+from thingsboard_gateway.gateway.report_strategy.report_strategy_service import ReportStrategyService
 from thingsboard_gateway.gateway.shell.proxy import AutoProxy
 from thingsboard_gateway.gateway.statistics.decorators import CountMessage, CollectStorageEventsStatistics, \
     CollectAllSentTBBytesStatistics, CollectRPCReplyStatistics
@@ -175,7 +179,7 @@ class TBGatewayService:
 
         log.info("Gateway starting...")
         self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"])
-        self.__duplicate_detector = DuplicateDetector(self.available_connectors_by_name)
+        self._report_strategy_service = ReportStrategyService(self.__config['thingsboard'], self, self.__converted_data_queue, log)
         self.__updater = TBUpdater()
         self.version = self.__updater.get_version()
         log.info("ThingsBoard IoT gateway version: %s", self.version["current_version"])
@@ -388,6 +392,10 @@ class TBGatewayService:
                     file.writelines(dumps(config, indent='  '))
             except Exception as e:
                 log.exception('Failed to load configuration file:\n %s', e)
+                log.error(os.path.exists(config_file))
+                log.error(config_file)
+                log.error(__file__)
+                log.error("current dir: %s", os.getcwd())
 
             return config
 
@@ -726,7 +734,7 @@ class TBGatewayService:
             else:
                 device_name_key = new_device_name
             self.__renamed_devices[device_name_key] = new_device_name
-            self.__duplicate_detector.rename_device(old_device_name, new_device_name)
+            # TODO: Add logic for handle renaming in report strategy service self.__duplicate_detector.rename_device(old_device_name, new_device_name)
 
             self.__save_persistent_devices()
             self.__load_persistent_devices()
@@ -946,7 +954,8 @@ class TBGatewayService:
         self.__connect_with_connectors()
 
     def __update_connector_devices(self, connector):
-        for (device_name, device) in self.__connected_devices.items():
+        for device_name in set(self.__connected_devices.keys()):
+            device = self.__connected_devices[device_name]
             if (device.get('connector') and
                     (device['connector'].name == connector.name or device['connector'].get_id() == connector.get_id())):
                 self.update_device(device_name, 'connector', connector)
@@ -984,6 +993,13 @@ class TBGatewayService:
                                             connector.name = connector_name
                                             self.available_connectors_by_id[connector_id] = connector
                                             self.available_connectors_by_name[connector_name] = connector
+                                            try:
+                                                report_strategy_config_connector = connector_config[CONFIG_SECTION_PARAMETER][config].pop(REPORT_STRATEGY_PARAMETER, None)
+                                                connector_report_strategy = ReportStrategyConfig(report_strategy_config_connector)
+                                                self._report_strategy_service.register_connector_report_strategy(connector_name, connector_id, connector_report_strategy)
+                                            except ValueError:
+                                                log.info("Cannot find separated report strategy for connector %r. The main report strategy will be used as a connector report strategy.",
+                                                         connector_name)
                                             self.__update_connector_devices(connector)
                                             self.__cleanup_connectors()
                                             connector.open()
@@ -1063,19 +1079,22 @@ class TBGatewayService:
                 log.warning('Device %s forbidden', data['deviceName'])
                 return Status.FORBIDDEN_DEVICE
 
-            if isinstance(data, dict):
-                #TODO: implement data filtering for ConvertedData type
-                filtered_data = self.__duplicate_detector.filter_data(connector_name, data)
-            else:
-                filtered_data = data
-            if filtered_data:
-                if isinstance(filtered_data, ConvertedData):
-                    if filtered_data.metadata and filtered_data.metadata:
-                        data.add_to_metadata({SEND_TO_STORAGE_TS_PARAMETER: int(time() * 1000)})
-                self.__converted_data_queue.put_nowait((connector_name, connector_id, filtered_data))
-                return Status.SUCCESS
-            else:
-                return Status.NO_NEW_DATA
+            # Duplicate detector is deprecated!
+            # if isinstance(data, dict):
+            #     #TODO: implement data filtering for ConvertedData type
+            #     filtered_data = self.__duplicate_detector.filter_data(connector_name, data)
+            # else:
+            #     filtered_data = data
+            if isinstance(data, ConvertedData):
+                if data.metadata and self.__latency_debug_mode:
+                    data.add_to_metadata({SEND_TO_STORAGE_TS_PARAMETER: int(time() * 1000),
+                                          CONNECTOR_PARAMETER: connector_name})
+            filtration_start = time() * 1000
+            self._report_strategy_service.filter_data_and_send(data, connector_name, connector_id)
+            filtration_end = time() * 1000
+            if self.__latency_debug_mode:
+                log.debug("Data filtration took %r ms", filtration_end - filtration_start)
+            return Status.SUCCESS
         except Exception as e:
             log.exception("Cannot put converted data!", exc_info=e)
             return Status.FAILURE
@@ -1089,8 +1108,10 @@ class TBGatewayService:
                     data_array = event if isinstance(event, list) else [event]
                     if converted_data_format:
                         if self.__latency_debug_mode:
-                            event.add_to_metadata({"getFromConvertedDataQueueTs": int(time() * 1000)})
+                            event.add_to_metadata({"getFromConvertedDataQueueTs": int(time() * 1000),
+                                                   "connector": connector_name})
                         self.__send_to_storage_new_formatted_data(connector_name, connector_id, data_array)
+                        log.debug("Data from %s connector was sent to storage: %r", connector_name, data_array)
                         current_time = int(time() * 1000)
                         if self.__latency_debug_mode and event.metadata.get("sendToStorageTs"):
                             log.debug("Event was in queue for %r ms", current_time - event.metadata.get("sendToStorageTs"))
@@ -1757,11 +1778,15 @@ class TBGatewayService:
         self.__connected_devices[device_name][event] = content
         if should_save:
             self.__save_persistent_devices()
-            self.send_to_storage(connector_name=content.get_name(),
-                                 connector_id=content.get_id(),
-                                 data={"deviceName": device_name,
-                                       "deviceType": self.__connected_devices[device_name][DEVICE_TYPE_PARAMETER],
-                                       "attributes": [{"connectorName": content.name}]})
+            info_to_send = {
+                DatapointKey("connectorName", ReportStrategyConfig({"type": ReportStrategy.ON_RECEIVED.name})): content.get_name()
+            }
+            if device_name in self.__connected_devices: # TODO: check for possible race condition
+                self.send_to_storage(connector_name=content.get_name(),
+                                     connector_id=content.get_id(),
+                                     data={"deviceName": device_name,
+                                           "deviceType": self.__connected_devices[device_name][DEVICE_TYPE_PARAMETER],
+                                           "attributes": [info_to_send]})
 
     def del_device_async(self, data):
         if data['deviceName'] in self.__saved_devices:
@@ -1781,6 +1806,9 @@ class TBGatewayService:
             self.__saved_devices.pop(device_name, None)
             self.__added_devices.pop(device_name, None)
             self.__save_persistent_devices()
+
+    def get_report_strategy_service(self):
+        return self._report_strategy_service
 
     def get_devices(self, connector_id: str = None):
         return self.__connected_devices if connector_id is None else {

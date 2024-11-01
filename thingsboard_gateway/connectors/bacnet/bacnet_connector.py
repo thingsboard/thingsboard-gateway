@@ -247,18 +247,16 @@ class BACnetConnector(Thread, Connector):
         StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
         StatisticsService.count_connector_bytes(self.name, iocb.ioResponse if iocb.ioResponse else iocb.ioError,
                                                 stat_parameter_name='connectorBytesReceived')
-        converted_data = {}
         try:
             converted_data = converter.convert((mapping_type, config),
                                                iocb.ioResponse if iocb.ioResponse else iocb.ioError)
+            self.__gateway.send_to_storage(self.get_name(), self.__id, converted_data)
         except Exception as e:
-            self._log.exception(e)
-        self.__gateway.send_to_storage(self.get_name(), self.__id, converted_data)
+            self._log.exception("Error while converting data: %s", e)
 
     def __bacnet_device_mapping_response_cb(self, iocb, callback_params):
         mapping_type = callback_params["mapping_type"]
         config = callback_params["config"]
-        converted_data = {}
         converter = callback_params["config"].get("uplink_converter")
         if converter is None:
             for device in self.__devices:
@@ -268,9 +266,9 @@ class BACnetConnector(Thread, Connector):
         try:
             converted_data = converter.convert((mapping_type, config),
                                                iocb.ioResponse if iocb.ioResponse else iocb.ioError)
+            self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
         except Exception as e:
-            self._log.exception(e)
-        self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
+            self._log.exception("Error while converting data in callback: %s", e)
 
     def __load_converters(self, device):
         datatypes = ["attributes", "telemetry", "attribute_updates", "server_side_rpc"]

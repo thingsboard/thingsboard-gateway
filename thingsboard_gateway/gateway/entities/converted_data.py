@@ -1,22 +1,23 @@
-#      Copyright 2024. ThingsBoard
-#  #
-#      Licensed under the Apache License, Version 2.0 (the "License");
-#      you may not use this file except in compliance with the License.
-#      You may obtain a copy of the License at
-#  #
-#          http://www.apache.org/licenses/LICENSE-2.0
-#  #
-#      Unless required by applicable law or agreed to in writing, software
-#      distributed under the License is distributed on an "AS IS" BASIS,
-#      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#      See the License for the specific language governing permissions and
-#      limitations under the License.
+#     Copyright 2024. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
 
 from typing import List, Union
 
 from thingsboard_gateway.gateway.constants import ATTRIBUTES_PARAMETER, TELEMETRY_PARAMETER, TIMESERIES_PARAMETER, \
     METADATA_PARAMETER
 from thingsboard_gateway.gateway.entities.attributes import Attributes
+from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -28,8 +29,8 @@ def split_large_entries(entries: dict, first_item_max_data_size: int, max_data_s
     current_size = 0
     ts_check = False
 
-    for key, value in entries.items():
-        entry_size = TBUtility.get_data_size({key: value}) + 1
+    for original_key, value in entries.items():
+        entry_size = TBUtility.get_data_size({original_key.key: value}) + 1
         if ts is not None and not ts_check:
             entry_size += ts_size
             ts_check = True
@@ -42,11 +43,11 @@ def split_large_entries(entries: dict, first_item_max_data_size: int, max_data_s
                 split_chunk_sizes.append(current_size)
                 ts_check = False
             # Start a new chunk
-            current_chunk = {key: value} # New dict is created to avoid modifying the original dict
+            current_chunk = {original_key: value} # New dict is created to avoid modifying the original dict
             current_size = entry_size
         else:
             # Add to current chunk
-            current_chunk[key] = value
+            current_chunk[original_key] = value
             current_size += entry_size
 
     # Add the last chunk if any
@@ -58,6 +59,7 @@ def split_large_entries(entries: dict, first_item_max_data_size: int, max_data_s
 
 
 class ConvertedData:
+    __slots__ = ['device_name', 'device_type', 'telemetry', 'attributes', 'metadata', '_telemetry_datapoints_count', 'ts_index']
     def __init__(self, device_name, device_type='default', metadata=None):
         self.device_name = device_name
         self.device_type = device_type
@@ -95,7 +97,7 @@ class ConvertedData:
         else:
             raise KeyError(f"{item} - Item not found!")
 
-    def add_to_telemetry(self, telemetry_entry: Union[dict, TelemetryEntry, List[TelemetryEntry]]):
+    def add_to_telemetry(self, telemetry_entry: Union[dict, TelemetryEntry, List[TelemetryEntry], List[dict]]):
         if isinstance(telemetry_entry, list):
             for entry in telemetry_entry:
                 self._add_single_telemetry_entry(entry)
@@ -104,14 +106,14 @@ class ConvertedData:
 
     def _add_single_telemetry_entry(self, telemetry_entry: Union[dict, TelemetryEntry]):
         if isinstance(telemetry_entry, dict):
-            telemetry_entry = TelemetryEntry(telemetry_entry)
+            telemetry_entry = TelemetryEntry(telemetry_entry, telemetry_entry.get("ts"))
 
         if telemetry_entry.ts in self.ts_index:
             index = self.ts_index[telemetry_entry.ts]
             existing_values = self.telemetry[index].values
 
             new_keys = telemetry_entry.values.keys() - existing_values.keys()
-            new_values = {key: telemetry_entry.values[key] for key in new_keys}
+            new_values = {key_and_report_strategy: telemetry_entry.values[key_and_report_strategy] for key_and_report_strategy in new_keys}
 
             self._telemetry_datapoints_count += len(new_values)
             existing_values.update(new_values)
@@ -120,14 +122,14 @@ class ConvertedData:
             self._telemetry_datapoints_count += len(telemetry_entry.values)
             self.ts_index[telemetry_entry.ts] = len(self.telemetry) - 1
 
-    def add_to_attributes(self, key_or_entry: Union[dict, str, List[dict]], value: str = None):
+    def add_to_attributes(self, key_or_entry: Union[dict, str, List[dict]], value = None):
         if isinstance(key_or_entry, list):
             for entry in key_or_entry:
                 if not isinstance(entry, dict):
                     raise ValueError("Batch attribute processing requires a list of dictionaries.")
                 self.attributes.update(entry)
         else:
-            if isinstance(key_or_entry, str):
+            if isinstance(key_or_entry, str) or isinstance(key_or_entry, DatapointKey):
                 if value is None:
                     raise ValueError("Invalid arguments for add_attribute")
                 key_or_entry = {key_or_entry: value}
@@ -189,7 +191,7 @@ class ConvertedData:
             telemetry_values = telemetry_entry.values
             ts_data_size = TBUtility.get_data_size({"ts": telemetry_entry.ts}) + 1
 
-            telemetry_obj_size = TBUtility.get_data_size(telemetry_values) + ts_data_size
+            telemetry_obj_size = TBUtility.get_data_size({datapoint_key.key: value for datapoint_key, value in telemetry_values.items()}) + ts_data_size
 
             if telemetry_obj_size <= max_data_size - current_data_size:
                 current_data.add_to_telemetry(telemetry_entry)
@@ -209,7 +211,7 @@ class ConvertedData:
                     current_data_size += chunk_size
                     if telemetry_entry.ts in current_data.ts_index:
                         current_data_size += ts_data_size
-                    current_data.add_to_telemetry(TelemetryEntry({"ts": telemetry_entry.ts, "values": telemetry_chunk}))
+                    current_data.add_to_telemetry(TelemetryEntry(telemetry_chunk, telemetry_entry.ts))
 
         if current_data_size > general_info_bytes_size:
             converted_objects.append(current_data)

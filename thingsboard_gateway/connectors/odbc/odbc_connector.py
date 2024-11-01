@@ -23,6 +23,8 @@ from time import sleep
 
 from simplejson import dumps, load
 
+from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -42,7 +44,6 @@ from thingsboard_gateway.connectors.connector import Connector
 
 
 class OdbcConnector(Connector, Thread):
-    DEFAULT_SEND_IF_CHANGED = False
     DEFAULT_RECONNECT_STATE = True
     DEFAULT_SAVE_ITERATOR = False
     DEFAULT_RECONNECT_PERIOD = 60
@@ -260,34 +261,25 @@ class OdbcConnector(Connector, Thread):
         try:
             data = self.row_to_dict(row)
 
-            to_send = {"attributes": {} if "attributes" not in self.__config["mapping"] else
-            self.__converter.convert(self.__config["mapping"]["attributes"], data),
-                       "telemetry": {} if "timeseries" not in self.__config["mapping"] else
-                       self.__converter.convert(self.__config["mapping"]["timeseries"], data)}
+            converted_data = self.__converter.convert(self.__config["mapping"], data)
 
-            StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                      count=len(to_send["attributes"]))
-            StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                      count=len(to_send["telemetry"]))
+            for device_name, data in converted_data.items():
 
-            if to_send['telemetry'].get('ts'):
-                to_send['ts'] = to_send['telemetry']['ts']
-                del to_send['telemetry']['ts']
+                StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                          count=data.attributes_datapoints_count)
+                StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                          count=data.telemetry_datapoints_count)
 
-            device_name = eval(self.__config["mapping"]["device"]["name"], globals(), data)
+                data.device_name = eval(self.__config["mapping"]["device"]["name"], globals(), data)
 
-            device_type = eval(self.__config["mapping"]["device"]["type"], globals(), data)
-            if not device_type:
-                device_type = self.__config["mapping"]["device"].get("type", "default")
+                device_type = eval(self.__config["mapping"]["device"]["type"], globals(), data)
+                if not device_type:
+                    device_type = self.__config["mapping"]["device"].get("type", "default")
+                data.device_type = device_type
 
-            if to_send["telemetry"] or to_send["attributes"]:
-                if device_name not in self.__devices:
-                    self.__devices[device_name] = {"attributes": {}, "telemetry": {}}
-                    self.__gateway.add_device(device_name, {"connector": self},
-                                              device_type=device_type)
-
-                self.__iterator["value"] = getattr(row, self.__iterator["name"])
-                self.__check_and_send(device_name, device_type, to_send)
+                if data.telemetry_datapoints_count + data.attributes_datapoints_count > 0:
+                    self.__iterator["value"] = getattr(row, self.__iterator["name"])
+                    self.__check_and_send(data)
         except Exception as e:
             self._log.warning("[%s] Failed to process database row: %s", self.get_name(), str(e))
 
@@ -298,43 +290,13 @@ class OdbcConnector(Connector, Thread):
             data[column_description[0]] = getattr(row, column_description[0])
         return data
 
-    def __check_and_send(self, device_name, device_type, new_data):
+    def __check_and_send(self, to_send: ConvertedData):
         self.statistics['MessagesReceived'] += 1
-        to_send = {"attributes": [], "telemetry": []}
-        send_on_change = self.__config["mapping"].get("sendDataOnlyOnChange", self.DEFAULT_SEND_IF_CHANGED)
-        send_on_change_attributes = self.__config["mapping"].get("sendDataOnlyOnChangeAttributes")
-        send_on_change_telemetry = self.__config["mapping"].get("sendDataOnlyOnChangeTelemetry")
 
-        if send_on_change_attributes is None and send_on_change_telemetry is None:
-            for tb_key in to_send.keys():
-                for key, new_value in new_data[tb_key].items():
-                    if not send_on_change or self.__devices[device_name][tb_key].get(key, None) != new_value:
-                        self.__devices[device_name][tb_key][key] = new_value
-                        to_send[tb_key].append({key: new_value})
-        else:
-            for key, new_value in new_data["attributes"].items():
-                if not send_on_change_attributes or self.__devices[device_name]["attributes"].get(key, None) != new_value:
-                    self.__devices[device_name]["attributes"][key] = new_value
-                    to_send["attributes"].append({key: new_value})
-
-            for key, new_value in new_data["telemetry"].items():
-                if not send_on_change_telemetry or self.__devices[device_name]["telemetry"].get(key, None) != new_value:
-                    self.__devices[device_name]["telemetry"][key] = new_value
-                    to_send["telemetry"].append({key: new_value})
-
-        if to_send["attributes"] or to_send["telemetry"]:
-            to_send["deviceName"] = device_name
-            to_send["deviceType"] = device_type
-
-            to_send['telemetry'] = {'ts': new_data.get('ts', int(time()) * 1000), 'values': new_data['telemetry']}
-
-            self._log.debug("[%s] Pushing to TB server '%s' device data: %s", self.get_name(), device_name, to_send)
-
-            to_send['telemetry'] = [to_send['telemetry']]
+        if to_send.attributes_datapoints_count + to_send.telemetry_datapoints_count > 0:
+            self._log.debug("[%s] Converted data for device '%s': %s", self.get_name(), to_send.device_name, to_send)
             self.__gateway.send_to_storage(self.get_name(), self.get_id(), to_send)
             self.statistics['MessagesSent'] += 1
-        else:
-            self._log.debug("[%s] '%s' device data has not been changed", self.get_name(), device_name)
 
     def __init_connection(self):
         try:

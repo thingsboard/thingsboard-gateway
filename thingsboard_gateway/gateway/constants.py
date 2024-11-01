@@ -1,16 +1,17 @@
-#      Copyright 2024. ThingsBoard
-#  #
-#      Licensed under the Apache License, Version 2.0 (the "License");
-#      you may not use this file except in compliance with the License.
-#      You may obtain a copy of the License at
-#  #
-#          http://www.apache.org/licenses/LICENSE-2.0
-#  #
-#      Unless required by applicable law or agreed to in writing, software
-#      distributed under the License is distributed on an "AS IS" BASIS,
-#      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#      See the License for the specific language governing permissions and
-#      limitations under the License.
+#     Copyright 2024. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 from enum import Enum
 
 from simplejson import dumps
@@ -67,7 +68,7 @@ DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE = 0
 RECEIVED_TS_PARAMETER = "receivedTs"
 CONVERTED_TS_PARAMETER = "convertedTs"
 SEND_TO_STORAGE_TS_PARAMETER = "sendToStorageTs"
-DATA_RETRIEVING_STARTED = "dataRetriveStartedTs"
+DATA_RETRIEVING_STARTED = "dataRetrieveStartedTs"
 
 # Size of metadata that will be added to messages in debug mode
 # Connector name length should be added to the size of the metadata
@@ -81,11 +82,26 @@ DEBUG_METADATA_TEMPLATE_SIZE = len(dumps({
 # Report strategy parameters
 REPORT_STRATEGY_PARAMETER = "reportStrategy"
 REPORT_PERIOD_PARAMETER = "reportPeriod"
+TYPE_PARAMETER = "type"
+AGGREGATION_FUNCTION_PARAMETER = "aggregationFunction"
 
 class ReportStrategy(Enum):
     ON_REPORT_PERIOD = "ON_REPORT_PERIOD"
     ON_CHANGE = "ON_CHANGE"
     ON_CHANGE_OR_REPORT_PERIOD = "ON_CHANGE_OR_REPORT_PERIOD"
+    ON_RECEIVED = "ON_RECEIVED"
+
+    @classmethod
+    def from_string(cls, value: str):
+        for strategy in cls:
+            if strategy.value.lower() == value.lower():
+                return strategy
+        raise ValueError("Invalid report strategy value: %r" % value)
+
+DEFAULT_REPORT_STRATEGY_CONFIG = {
+    TYPE_PARAMETER: ReportStrategy.ON_RECEIVED.value,
+    REPORT_PERIOD_PARAMETER: 10000
+}
 
 # RPC parameter constants
 

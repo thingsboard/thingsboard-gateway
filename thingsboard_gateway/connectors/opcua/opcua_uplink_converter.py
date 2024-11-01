@@ -11,17 +11,20 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-from concurrent.futures import ThreadPoolExecutor
+
 from datetime import timezone
 from time import time
 
 from asyncua.ua.uatypes import VariantType
 
 from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter
-from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER, ATTRIBUTES_PARAMETER
+from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER, ATTRIBUTES_PARAMETER, REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
+from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 DATA_TYPES = {
     'attributes': ATTRIBUTES_PARAMETER,
@@ -51,15 +54,14 @@ class OpcUaUplinkConverter(OpcUaConverter):
         self._log = logger
         self.__config = config
 
-    @staticmethod
-    def process_datapoint(config, val, basic_timestamp):
+    def process_datapoint(self, config, val, basic_timestamp, device_report_strategy):
         try:
             error = None
             data = val.Value.Value
             if isinstance(data, list):
                 data = [str(item) for item in data]
             else:
-                handler = VARIANT_TYPE_HANDLERS.get(val.Value.VariantType, lambda d: str(d) if not hasattr(d, 'to_string') else d.to_string())
+                handler = VARIANT_TYPE_HANDLERS.get(val.Value.VariantType, lambda d: d if not hasattr(d, 'to_string') else d.to_string())
                 data = handler(data)
 
             if data is None and val.StatusCode.is_bad():
@@ -74,10 +76,11 @@ class OpcUaUplinkConverter(OpcUaConverter):
                 timestamp = val.ServerTimestamp.timestamp() * 1000
 
             section = DATA_TYPES[config['section']]
+            datapoint_key = TBUtility.convert_key_to_datapoint_key(config['key'], device_report_strategy, config, self._log)
             if section == TELEMETRY_PARAMETER:
-                return TelemetryEntry({config['key']: data}, ts=timestamp), error
+                return TelemetryEntry({datapoint_key: data}, ts=timestamp), error
             elif section == ATTRIBUTES_PARAMETER:
-                return {config['key']: data}, error
+                return {datapoint_key: data}, error
         except Exception as e:
             return None, str(e)
 
@@ -93,11 +96,17 @@ class OpcUaUplinkConverter(OpcUaConverter):
 
             converted_data = ConvertedData(device_name=self.__config['device_name'], device_type=self.__config['device_type'])
 
+            device_report_strategy = None
+            try:
+                device_report_strategy = ReportStrategyConfig(self.__config.get(REPORT_STRATEGY_PARAMETER))
+            except ValueError as e:
+                self._log.trace("Report strategy config is not specified for device %s: %s", self.__config['device_name'], e)
+
             telemetry_batch = []
             attributes_batch = []
 
             for config, val in zip(configs, values):
-                result, error = self.process_datapoint(config, val, basic_timestamp)
+                result, error = self.process_datapoint(config, val, basic_timestamp, device_report_strategy)
                 if result is not None:
                     if isinstance(result, TelemetryEntry):
                         telemetry_batch.append(result)

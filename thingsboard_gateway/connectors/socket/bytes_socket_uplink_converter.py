@@ -13,8 +13,13 @@
 #     limitations under the License.
 
 from thingsboard_gateway.connectors.socket.socket_uplink_converter import SocketUplinkConverter
+from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
+from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class BytesSocketUplinkConverter(SocketUplinkConverter):
@@ -25,18 +30,19 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
     @CollectStatistics(start_stat_type='receivedBytesFromDevices',
                        end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
-        if data is None:
-            return {}
+        converted_data = ConvertedData(device_name=self.__config['deviceName'],
+                                       device_type=self.__config['deviceType'])
 
-        dict_result = {
-            "deviceName": self.__config['deviceName'],
-            "deviceType": self.__config['deviceType']
-        }
+        if data is None:
+            return converted_data
+
+        device_report_strategy = None
+        try:
+            device_report_strategy = ReportStrategyConfig(config.get(REPORT_STRATEGY_PARAMETER))
+        except ValueError as e:
+            self._log.trace("Report strategy config is not specified for device %s: %s", self.__config['deviceName'], e)
 
         try:
-            dict_result["telemetry"] = []
-            dict_result["attributes"] = []
-
             for section in ('telemetry', 'attributes'):
                 for item in config[section]:
                     try:
@@ -44,18 +50,23 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
                         byte_to = item.get('byteTo')
 
                         byte_to = byte_to if byte_to != -1 else len(data)
-                        converted_data = data[byte_from:byte_to]
+                        decoded_data = data[byte_from:byte_to]
                         if config['encoding'] == 'hex':
-                            converted_data = converted_data.hex()
+                            decoded_data = decoded_data.hex()
                         else:
                             try:
-                                converted_data = converted_data.replace(b"\x00", b'').decode(config['encoding'])
+                                decoded_data = decoded_data.replace(b"\x00", b'').decode(config['encoding'])
                             except UnicodeDecodeError:
-                                converted_data = str(converted_data)
+                                decoded_data = str(decoded_data)
 
                         if item.get('key') is not None:
-                            dict_result[section].append(
-                                {item['key']: converted_data})
+                            datapoint_key = TBUtility.convert_key_to_datapoint_key(item['key'], device_report_strategy,
+                                                                                   item, self._log)
+                            if section == 'attributes':
+                                converted_data.add_to_attributes(datapoint_key, decoded_data)
+                            else:
+                                telemetry_entry = TelemetryEntry({datapoint_key: decoded_data})
+                                converted_data.add_to_telemetry(telemetry_entry)
                         else:
                             self._log.error('Key for %s not found in config: %s', config['type'], config['section_config'])
                     except Exception as e:
@@ -64,10 +75,10 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.exception(e)
 
-        self._log.debug(dict_result)
+        self._log.debug("Converted data: %s", converted_data)
         StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                  count=len(dict_result["attributes"]))
+                                                  count=converted_data.attributes_datapoints_count)
         StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                  count=len(dict_result["telemetry"]))
+                                                  count=converted_data.telemetry_datapoints_count)
 
-        return dict_result
+        return converted_data

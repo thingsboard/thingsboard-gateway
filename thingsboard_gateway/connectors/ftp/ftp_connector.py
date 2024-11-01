@@ -27,6 +27,7 @@ import simplejson
 from thingsboard_gateway.connectors.ftp.file import File
 from thingsboard_gateway.connectors.ftp.ftp_uplink_converter import FTPUplinkConverter
 from thingsboard_gateway.connectors.ftp.path import Path
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
@@ -74,7 +75,8 @@ class FTPConnector(Connector, Thread):
                 poll_period=obj.get('pollPeriod', 60),
                 max_size=obj.get('maxFileSize', 5),
                 delimiter=obj.get('delimiter', ','),
-                device_type=obj.get('devicePatternType', 'Device')
+                device_type=obj.get('devicePatternType', 'Device'),
+                report_strategy=obj.get('reportStrategy')
                 )
             for obj in self.__config['paths']
             ]
@@ -182,12 +184,15 @@ class FTPConnector(Connector, Thread):
                                     else:
                                         converted_data = converter.convert(convert_conf, line)
 
+                                    self.__log.debug('Converted data: %s', converted_data)
                                     self.__send_data(converted_data)
 
                         handle_stream.close()
 
-    def __send_data(self, converted_data):
-        if converted_data:
+    def __send_data(self, converted_data: ConvertedData):
+        if (converted_data and
+                (converted_data.telemetry_datapoints_count > 0 or
+                 converted_data.attributes_datapoints_count > 0)):
             self.__gateway.send_to_storage(self.getName(), self.get_id(), converted_data)
             self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
             self.__log.debug("Data to ThingsBoard: %s", converted_data)

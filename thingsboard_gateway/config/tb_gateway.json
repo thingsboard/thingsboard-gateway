@@ -24,6 +24,9 @@
       "accessToken": "YOUR_ACCESS_TOKEN"
     },
     "qos": 1,
+    "reportStrategy": {
+      "type": "ON_RECEIVED"
+    },
     "checkingDeviceActivity": {
       "checkDeviceInactivity": false,
       "inactivityTimeoutSeconds": 200,

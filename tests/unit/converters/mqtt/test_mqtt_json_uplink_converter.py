@@ -29,23 +29,23 @@ class JsonMqttUplinkConverterTests(BaseUnitTest):
         converter = JsonMqttUplinkConverter(config, logger=self.log)
         converted_data = converter.convert(topic, data)
 
-        self.assertEqual(self.DEVICE_NAME, converted_data["deviceName"])
-        self.assertEqual(self.DEVICE_TYPE, converted_data["deviceType"])
+        self.assertEqual(self.DEVICE_NAME, converted_data.device_name)
+        self.assertEqual(self.DEVICE_TYPE, converted_data.device_type)
 
     def test_json_name_and_type(self):
         topic, config, data = self._get_device_2_test_data()
         converter = JsonMqttUplinkConverter(config, logger=self.log)
         converted_data = converter.convert(topic, data)
 
-        self.assertEqual(self.DEVICE_NAME, converted_data["deviceName"])
-        self.assertEqual(self.DEVICE_TYPE, converted_data["deviceType"])
+        self.assertEqual(self.DEVICE_NAME, converted_data.device_name)
+        self.assertEqual(self.DEVICE_TYPE, converted_data.device_type)
 
     def test_glob_matching(self):
         topic, config, data = self._get_device_1_test_data()
         converter = JsonMqttUplinkConverter(config, logger=self.log)
         converted_data = converter.convert(topic, data)
-        self.assertDictEqual(data, self._convert_to_dict(converted_data.get('telemetry')))
-        self.assertDictEqual(data, self._convert_to_dict(converted_data.get('attributes')))
+        self.assertDictEqual(data, self._convert_to_dict(converted_data.to_dict().get('telemetry')))
+        self.assertDictEqual(data, self._convert_to_dict(converted_data.to_dict().get('attributes')))
 
     def test_array_result(self):
         topic, config, single_data = self._get_device_1_test_data()
@@ -55,28 +55,8 @@ class JsonMqttUplinkConverterTests(BaseUnitTest):
 
         self.assertTrue(isinstance(converted_array_data, list))
         for item in converted_array_data:
-            self.assertDictEqual(single_data, self._convert_to_dict(item.get('telemetry')))
-            self.assertDictEqual(single_data, self._convert_to_dict(item.get('attributes')))
-
-    def test_without_send_on_change_option(self):
-        topic, config, data = self._get_device_1_test_data()
-        converter = JsonMqttUplinkConverter(config, logger=self.log)
-        converted_array_data = converter.convert(topic, data)
-        self.assertIsNone(converted_array_data.get(SEND_ON_CHANGE_PARAMETER))
-
-    def test_with_send_on_change_option_disabled(self):
-        topic, config, data = self._get_device_1_test_data()
-        config["converter"][SEND_ON_CHANGE_PARAMETER] = False
-        converter = JsonMqttUplinkConverter(config, logger=self.log)
-        converted_array_data = converter.convert(topic, data)
-        self.assertFalse(converted_array_data.get(SEND_ON_CHANGE_PARAMETER))
-
-    def test_with_send_on_change_option_enabled(self):
-        topic, config, data = self._get_device_1_test_data()
-        config["converter"][SEND_ON_CHANGE_PARAMETER] = True
-        converter = JsonMqttUplinkConverter(config, logger=self.log)
-        converted_array_data = converter.convert(topic, data)
-        self.assertTrue(converted_array_data.get(SEND_ON_CHANGE_PARAMETER))
+            self.assertDictEqual(single_data, self._convert_to_dict(item.to_dict().get('telemetry')))
+            self.assertDictEqual(single_data, self._convert_to_dict(item.to_dict().get('attributes')))
 
     def test_parse_device_name_from_spaced_key_name(self):
         device_key_name = "device name"
@@ -85,7 +65,7 @@ class JsonMqttUplinkConverterTests(BaseUnitTest):
         converter = JsonMqttUplinkConverter(config, logger=self.log)
         converted_data = converter.convert(topic, data)
 
-        self.assertEqual(data[device_key_name], converted_data["deviceName"])
+        self.assertEqual(data[device_key_name], converted_data.device_name)
 
     def test_convert_data_from_string_to_int_without_eval(self):
         use_eval = False
@@ -97,7 +77,7 @@ class JsonMqttUplinkConverterTests(BaseUnitTest):
         converter = JsonMqttUplinkConverter(config, logger=self.log)
         converted_data = converter.convert(topic, data)
 
-        self.assertEqual(converted_data[ATTRIBUTES_PARAMETER][0][attr_key_name], int(float(data[attr_key_name])))
+        self.assertEqual(converted_data.to_dict()[ATTRIBUTES_PARAMETER][attr_key_name], int(float(data[attr_key_name])))
 
     def test_convert_data_from_string_to_int_with_eval(self):
         use_eval = True
@@ -109,15 +89,17 @@ class JsonMqttUplinkConverterTests(BaseUnitTest):
         converter = JsonMqttUplinkConverter(config, logger=self.log)
         converted_data = converter.convert(topic, data)
 
-        self.assertEqual(converted_data[ATTRIBUTES_PARAMETER][0][attr_key_name], 2 * int(float(data[attr_key_name])))
+        self.assertEqual(converted_data.to_dict()[ATTRIBUTES_PARAMETER][attr_key_name], 2 * int(float(data[attr_key_name])))
 
     @staticmethod
     def _convert_to_dict(data_array):
+        if isinstance(data_array, dict):
+            return data_array
         data_dict = {}
         for item_container in data_array:
             item_data = item_container
             if item_data.get("ts") is not None:
-                data_dict["ts"] = item_data.get("ts")
+                # data_dict["ts"] = item_data.get("ts")
                 item_data = item_container.get("values")
             for key in item_data:
                 data_dict[key] = item_data[key]

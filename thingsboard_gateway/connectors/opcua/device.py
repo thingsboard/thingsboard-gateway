@@ -16,6 +16,9 @@ import re
 
 from asyncua.common.subscription import Subscription
 
+from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
+from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
+
 
 class Device:
     def __init__(self, path, name, config, converter, converter_for_sub, logger):
@@ -33,6 +36,12 @@ class Device:
         self.nodes = []
         self.subscription: Subscription | None = None
         self.nodes_data_change_subscriptions = {}
+        self.report_strategy = None
+        if self.config.get(REPORT_STRATEGY_PARAMETER):
+            try:
+                self.report_strategy = ReportStrategyConfig(self.config.get(REPORT_STRATEGY_PARAMETER))
+            except ValueError as e:
+                self._log.error('Invalid report strategy config for %s: %s, connector report strategy will be used', self.name, e)
 
         self.load_values()
 
@@ -46,12 +55,17 @@ class Device:
                 try:
                     if re.search(r"(ns=\d+;[isgb]=[^}]+)", node_config['value']):
                         child = re.search(r"(ns=\d+;[isgb]=[^}]+)", node_config['value'])
-                        self.values[section].append({'path': child.groups()[0], 'key': node_config['key']})
+                        self.values[section].append(
+                            {'path': child.groups()[0], 'key': node_config['key'],
+                             REPORT_STRATEGY_PARAMETER: node_config.get(REPORT_STRATEGY_PARAMETER)})
                     elif re.search(r"\${([A-Za-z.:\\\d]+)}", node_config['value']):
                         child = re.search(r"\${([A-Za-z.:\\\d]+)", node_config['value'])
                         self.values[section].append(
-                            {'path': self.path + child.groups()[0].split('\\.'), 'key': node_config['key']})
+                            {'path': self.path + child.groups()[0].split('\\.'), 'key': node_config['key'],
+                             REPORT_STRATEGY_PARAMETER: node_config.get(REPORT_STRATEGY_PARAMETER)})
 
                 except KeyError as e:
                     self._log.error('Invalid config for %s (key %s not found)', node_config, e)
             self.__configured_values_count += len(self.values[section])
+
+        self._log.debug('Loaded %r values for %s', len(self.values), self.name)

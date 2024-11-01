@@ -28,6 +28,7 @@ import requests
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException
 
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -570,14 +571,18 @@ class AnonymousDataHandler(BaseDataHandler):
 
         try:
             self.log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
-            converter = self.endpoint['converter'](endpoint_config['converter'], self.log)
-            converted_data = converter.convert(config=endpoint_config['converter'], data=data)
+            converted_config = endpoint_config['converter']
+            converted_config.update({'reportStrategy': endpoint_config.get('reportStrategy')})
+            converter = self.endpoint['converter'](converted_config, self.log)
+            converted_data: ConvertedData = converter.convert(config=endpoint_config['converter'], data=data)
 
             self.modify_data_for_remote_response(converted_data, self.response_expected)
 
-            self.send_to_storage(self.name, self.connector_id, converted_data)
-            self.log.info("CONVERTED_DATA: %r", converted_data)
-
+            if (converted_data and
+                    (converted_data.attributes_datapoints_count > 0 or
+                     converted_data.telemetry_datapoints_count > 0)):
+                self.send_to_storage(self.name, self.connector_id, converted_data)
+                self.log.info("CONVERTED_DATA: %r", converted_data)
             return self.get_response()
         except Exception as e:
             self.log.exception("Error while post to anonymous handler: %s", e)
@@ -622,13 +627,20 @@ class BasicDataHandler(BaseDataHandler):
                 StatisticsService.count_connector_bytes(self.name, data, stat_parameter_name='connectorBytesReceived')
 
                 self.log.info("CONVERTER CONFIG: %r", endpoint_config['converter'])
-                converter = self.endpoint['converter'](endpoint_config['converter'], self.log)
-                converted_data = converter.convert(config=endpoint_config['converter'], data=data)
+
+                converter_config = endpoint_config['converter']
+                converter_config.update({'reportStrategy': endpoint_config.get('reportStrategy')})
+
+                converter = self.endpoint['converter'](converter_config, self.log)
+                converted_data: ConvertedData = converter.convert(config=endpoint_config['converter'], data=data)
 
                 self.modify_data_for_remote_response(converted_data, self.response_expected)
 
-                self.send_to_storage(self.name, self.connector_id, converted_data)
-                self.log.info("CONVERTED_DATA: %r", converted_data)
+                if (converted_data and
+                        (converted_data.attributes_datapoints_count > 0 or
+                         converted_data.telemetry_datapoints_count > 0)):
+                    self.send_to_storage(self.name, self.connector_id, converted_data)
+                    self.log.info("CONVERTED_DATA: %r", converted_data)
 
                 return self.get_response()
             except Exception as e:

@@ -24,7 +24,7 @@ COMPATIBLE_FILE_EXTENSIONS = ('json', 'txt', 'csv')
 class Path:
     def __init__(self, path: str, delimiter: str, telemetry: list, device_name: str, attributes: list,
                  txt_file_data_view: str, poll_period=60, with_sorting_files=True, device_type='Device', max_size=5,
-                 read_mode='FULL'):
+                 read_mode='FULL', report_strategy=None):
         self._path = path
         self._with_sorting_files = with_sorting_files
         self._poll_period = poll_period
@@ -38,6 +38,7 @@ class Path:
         self._txt_file_data_view = txt_file_data_view
         self.__read_mode = File.ReadMode[read_mode]
         self.__max_size = max_size
+        self._report_strategy = report_strategy
 
     @staticmethod
     def __is_file(ftp, filename):
@@ -122,7 +123,8 @@ class Path:
             'devicePatternType': self.device_type,
             'timeseries': self.telemetry,
             'attributes': self.attributes,
-            'txt_file_data_view': self.txt_file_data_view
+            'txt_file_data_view': self.txt_file_data_view,
+            'reportStrategy': self._report_strategy
             }
 
     @property

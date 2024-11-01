@@ -12,6 +12,7 @@ LOG = logging.getLogger("TEST")
 LOG.level = logging.DEBUG
 stream_handler = logging.StreamHandler(stdout)
 LOG.addHandler(stream_handler)
+LOG.trace = LOG.debug
 
 class BaseTest(TestCase):
     TIMEOUT = 600  # 10 minutes in seconds
@@ -19,6 +20,7 @@ class BaseTest(TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.log = LOG
+        self.log.trace = self.log.debug
 
     @classmethod
     def setUpClass(cls):

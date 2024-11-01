@@ -25,6 +25,7 @@ from time import sleep
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -250,8 +251,10 @@ class OcppConnector(Connector, Thread):
                                                         stat_parameter_name='connectorBytesReceived')
 
                 self._log.debug('Data from Charge Point: %s', data)
-                converted_data = converter.convert(config, data)
-                if converted_data and (converted_data.get('attributes') or converted_data.get('telemetry')):
+                converted_data: ConvertedData = converter.convert(config, data)
+                if (converted_data and
+                        (converted_data.attributes_datapoints_count > 0 or
+                         converted_data.telemetry_datapoints_count > 0)):
                     self.DATA_TO_SEND.put(converted_data)
 
             sleep(.001)

@@ -20,7 +20,8 @@ from pymodbus.constants import Defaults
 from thingsboard_gateway.connectors.modbus_async.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.connectors.modbus_async.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
 from thingsboard_gateway.connectors.modbus_async.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
-from thingsboard_gateway.gateway.constants import UPLINK_PREFIX, CONVERTER_PARAMETER, DOWNLINK_PREFIX
+from thingsboard_gateway.gateway.constants import UPLINK_PREFIX, CONVERTER_PARAMETER, DOWNLINK_PREFIX, \
+    REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
