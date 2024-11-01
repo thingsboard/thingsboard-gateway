@@ -126,6 +126,7 @@ class ReportStrategyService:
             report_strategy_config = datapoint_key.report_strategy
 
         ts = None
+        current_time = int(monotonic() * 1000)
 
         if isinstance(data, tuple):
             data, ts = data
@@ -157,7 +158,7 @@ class ReportStrategyService:
                     return False
                 elif report_strategy_config.report_strategy == ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD:
                     self._report_strategy_data_cache.update_key_value(datapoint_key, device_name, connector_id, data)
-                    self._report_strategy_data_cache.update_last_report_time(datapoint_key, device_name, connector_id)
+                    # self._report_strategy_data_cache.update_last_report_time(datapoint_key, device_name, connector_id, current_time)
                     if is_telemetry:
                         self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
                     return True
@@ -169,7 +170,7 @@ class ReportStrategyService:
                 if isinstance(datapoint_key, tuple):
                     datapoint_key, _ = datapoint_key
                 self.__keys_to_report_periodically.add((datapoint_key, device_name, connector_id))
-                self._report_strategy_data_cache.update_last_report_time(datapoint_key, device_name, connector_id)
+                self._report_strategy_data_cache.update_last_report_time(datapoint_key, device_name, connector_id, current_time)
                 if is_telemetry:
                     self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
             return True
@@ -195,6 +196,8 @@ class ReportStrategyService:
                 for key, device_name, connector_id in keys_set:
                     report_strategy_data_record = report_strategy_data_cache_get(key, device_name, connector_id)
                     if report_strategy_data_record is None:
+                        if not self.__keys_to_report_periodically:
+                            continue
                         raise ValueError(f"Data record for key '{key}' is absent in the cache")
 
                     if not report_strategy_data_record.should_be_reported_by_period(current_time):
@@ -208,8 +211,7 @@ class ReportStrategyService:
 
                     data_entry = data_to_report[data_report_key]
                     if report_strategy_data_record.is_telemetry():
-                        # data_entry.add_to_telemetry(TelemetryEntry({key: value},
-                        #                                            report_strategy_data_record.get_ts()))
+                        # data_entry.add_to_telemetry(TelemetryEntry({key: value}, report_strategy_data_record.get_ts())) # Can be used to keep first ts, instead of overwriting it with current ts
                         current_ts = int(time() * 1000)
                         data_entry.add_to_telemetry(TelemetryEntry({key: value}, current_ts))
                         report_strategy_data_record.update_ts(current_ts)
@@ -219,7 +221,7 @@ class ReportStrategyService:
                         data_entry.add_to_attributes(key, value)
                         reported_data_length += 1
 
-                    report_strategy_data_record.update_last_report_time()
+                    report_strategy_data_record.update_last_report_time(current_time)
 
                 if data_to_report:
                     for data_report_key, data in data_to_report.items():
@@ -254,3 +256,8 @@ class ReportStrategyService:
                 self.__keys_to_report_periodically.remove((key, device_name, connector_id))
         self._connectors_report_strategies.pop(connector_id, None)
         self._connectors_report_strategies.pop(connector_name, None)
+
+    def clear_cache(self):
+        self._report_strategy_data_cache.clear()
+        self.__keys_to_report_periodically.clear()
+        self._connectors_report_strategies.clear()

@@ -50,8 +50,8 @@ class ReportStrategyDataRecord:
     def is_telemetry(self):
         return self._is_telemetry
 
-    def update_last_report_time(self):
-        self._last_report_time = int(monotonic() * 1000)
+    def update_last_report_time(self, update_time):
+        self._last_report_time = update_time
 
     def update_value(self, value):
         self._value = value
@@ -60,12 +60,9 @@ class ReportStrategyDataRecord:
         self._ts = ts
 
     def should_be_reported_by_period(self, current_time):
-        if self._report_strategy.report_strategy == ReportStrategy.ON_REPORT_PERIOD:
+        if self._report_strategy.report_strategy in (ReportStrategy.ON_REPORT_PERIOD, ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD):
             return (self._last_report_time is None
-                    or current_time - self._last_report_time >= self._report_strategy.report_period)
-        elif self._report_strategy.report_strategy == ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD:
-            return (self._last_report_time is not None
-                    and current_time - self._last_report_time >= self._report_strategy.report_period)
+                    or current_time - self._last_report_time + 50 >= self._report_strategy.report_period)
         else:
             return False
 
@@ -84,8 +81,8 @@ class ReportStrategyDataCache:
     def get(self, datapoint_key: DatapointKey, device_name, connector_id) -> ReportStrategyDataRecord:
         return self._data_cache.get((datapoint_key, device_name, connector_id))
 
-    def update_last_report_time(self, datapoint_key: DatapointKey, device_name, connector_id):
-        self._data_cache[(datapoint_key, device_name, connector_id)].update_last_report_time()
+    def update_last_report_time(self, datapoint_key: DatapointKey, device_name, connector_id, update_time):
+        self._data_cache[(datapoint_key, device_name, connector_id)].update_last_report_time(update_time)
 
     def update_key_value(self, datapoint_key: DatapointKey, device_name, connector_id, value):
         self._data_cache[(datapoint_key, device_name, connector_id)].update_value(value)
@@ -97,4 +94,7 @@ class ReportStrategyDataCache:
         keys_to_delete = [key for key in self._data_cache.keys() if key[2] == connector_id]
         for key in keys_to_delete:
             del self._data_cache[key]
+
+    def clear(self):
+        self._data_cache.clear()
 

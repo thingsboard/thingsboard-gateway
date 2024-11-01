@@ -25,7 +25,9 @@ from simplejson import dumps, load
 
 from tb_gateway_mqtt import TBGatewayMqttClient
 
-from thingsboard_gateway.gateway.constants import CONFIG_VERSION_PARAMETER, REPORT_STRATEGY_PARAMETER
+from thingsboard_gateway.gateway.constants import CONFIG_VERSION_PARAMETER, REPORT_STRATEGY_PARAMETER, \
+    DEFAULT_REPORT_STRATEGY_CONFIG
+from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -325,14 +327,24 @@ class RemoteConfigurator:
             LOG.debug('--- Remote Shell configuration not changed.')
 
         LOG.debug('--- Checking other configuration parameters changes...')
+
+        LOG.debug('--- Checking Report Strategy configuration changes...')
+        if config.get(REPORT_STRATEGY_PARAMETER) != self.general_configuration.get(REPORT_STRATEGY_PARAMETER):
+            LOG.debug('---- Report Strategy configuration changed. Processing...')
+            success = self._apply_report_strategy_config(config)
+            if not success:
+                config[REPORT_STRATEGY_PARAMETER].update(self.general_configuration[REPORT_STRATEGY_PARAMETER])
+        else:
+            LOG.debug('--- Report Strategy configuration not changed.')
+
+        LOG.debug('--- Checking other configuration parameters changes...')
         self._apply_other_params_config(config)
 
         LOG.debug('--- Saving new general configuration...')
         self.general_configuration = config
         self._gateway.send_attributes({'general_configuration': self.general_configuration})
         self._cleanup()
-        with open(self._gateway.get_config_path() + "tb_gateway.json", "w",
-                  encoding="UTF-8") as file:
+        with open(self._gateway.get_config_path() + "tb_gateway.json", "w",  encoding="UTF-8") as file:
             file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))
 
     def _handle_storage_configuration_update(self, config):
@@ -780,6 +792,19 @@ class RemoteConfigurator:
             LOG.error('Something went wrong with applying the new Remote Shell configuration. Reverting...')
             LOG.exception(e)
             self._gateway.init_remote_shell(self.general_configuration.get('remoteShell'))
+            return False
+
+    def _apply_report_strategy_config(self, config):
+        old_main_report_strategy = self._gateway._report_strategy_service.main_report_strategy
+        try:
+            new_main_report_strategy = ReportStrategyConfig(config.get(REPORT_STRATEGY_PARAMETER, DEFAULT_REPORT_STRATEGY_CONFIG))
+            self._gateway._report_strategy_service.main_report_strategy = new_main_report_strategy
+            self._gateway._report_strategy_service.clear_cache()
+            return True
+        except Exception as e:
+            self._gateway._report_strategy_service.main_report_strategy = old_main_report_strategy
+            LOG.error('Something went wrong with applying the new Report Strategy configuration. Reverting...')
+            LOG.exception(e)
             return False
 
     def _apply_other_params_config(self, config):
