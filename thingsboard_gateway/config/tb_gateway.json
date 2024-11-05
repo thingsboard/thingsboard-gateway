@@ -29,8 +29,8 @@
     },
     "checkingDeviceActivity": {
       "checkDeviceInactivity": false,
-      "inactivityTimeoutSeconds": 200,
-      "inactivityCheckPeriodSeconds": 500
+      "inactivityTimeoutSeconds": 300,
+      "inactivityCheckPeriodSeconds": 10
     },
     "rateLimits": "DEFAULT_TELEMETRY_RATE_LIMIT",
     "dpRateLimits": "DEFAULT_TELEMETRY_DP_RATE_LIMIT",

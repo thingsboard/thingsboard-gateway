@@ -178,14 +178,17 @@ class SocketConnector(Connector, Thread):
         converting_thread = Thread(target=self.__process_data, daemon=True, name='Converter Thread')
         converting_thread.start()
 
-        while not self.__bind:
+        while not self.__bind and not self.__stopped:
             try:
                 self.__socket.bind((self.__socket_address, self.__socket_port))
-            except OSError:
-                self.__log.error('Address already in use. Reconnecting...')
+            except OSError as e:
+                self.__log.error('Error binding socket: %s', e)
                 sleep(3)
             else:
                 self.__bind = True
+
+        if self.__stopped:
+             return
 
         if self.__socket_type == 'TCP':
             self.__socket.listen(5)
