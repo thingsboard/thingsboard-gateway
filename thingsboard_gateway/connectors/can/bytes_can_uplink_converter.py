@@ -42,7 +42,7 @@ class BytesCanUplinkConverter(CanConverter):
         except ValueError as e:
             self._log.trace("Report strategy config is not specified for device %s: %s", device_name, e)
 
-        for config in configs:
+        for config in configs.get('configs', []):
             try:
                 tb_key = config["key"]
                 tb_item = "telemetry" if config["is_ts"] else "attributes"

@@ -334,8 +334,7 @@ class CanConnector(Connector, Thread):
                   self.get_name(), message.arbitration_id, cmd_id, message)
 
         parsing_conf = self.__nodes[message.arbitration_id][cmd_id]
-        data: ConvertedData = self.__converters[parsing_conf["deviceName"]]["uplink"].convert(parsing_conf["configs"],
-                                                                                              message.data)
+        data: ConvertedData = self.__converters[parsing_conf["deviceName"]]["uplink"].convert(parsing_conf, message.data)
         if data.attributes_datapoints_count == 0 and data.telemetry_datapoints_count == 0:
             self._log.warning("[%s] Failed to process CAN message (id=%d,cmd_id=%s): data conversion failure",
                         self.get_name(), message.arbitration_id, cmd_id)
