@@ -258,7 +258,7 @@ class FTPUplinkConverter(FTPConverter):
                     datapoint_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy,
                                                                            datatype_config, self._log)
                     if datatype == 'timeseries' and (data.get("ts") is not None or data.get("timestamp") is not None):
-                        ts = data.get('ts', data.get('timestamp', int(time())))
+                        ts = data.get('ts', data.get('timestamp'))
                         telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
                         converted_data.add_to_telemetry(telemetry_entry)
                     else:

@@ -20,7 +20,6 @@ from asyncua.ua.uatypes import VariantType
 from thingsboard_gateway.connectors.opcua.opcua_converter import OpcUaConverter
 from thingsboard_gateway.gateway.constants import TELEMETRY_PARAMETER, ATTRIBUTES_PARAMETER, REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
-from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService

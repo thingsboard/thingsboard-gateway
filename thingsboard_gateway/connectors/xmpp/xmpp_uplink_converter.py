@@ -100,7 +100,7 @@ class XmppUplinkConverter(XmppConverter):
                         if datatype == 'attributes':
                             converted_data.add_to_attributes(datapoint_key, full_value)
                         else:
-                            ts = data.get('ts', data.get('timestamp', int(time())))
+                            ts = data.get('ts', data.get('timestamp'))
                             telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
                             converted_data.add_to_telemetry(telemetry_entry)
 
