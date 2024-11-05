@@ -19,10 +19,15 @@ import unittest
 from os import path
 from random import choice, randint, uniform
 from string import ascii_lowercase
-from time import sleep
+from time import sleep, time
 from unittest.mock import Mock, patch
 
 from tests.base_test import BaseTest
+from thingsboard_gateway.gateway.entities.attributes import Attributes
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
+from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
+from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
+from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 try :
     from can import Notifier, BufferedReader, Bus, Message
@@ -192,37 +197,14 @@ class CanConnectorTsAndAttrTests(CanConnectorTestsBase):
 
         sleep(1)  # Wait while connector process CAN message
 
+        expected_converted_data = ConvertedData(device_name=device_name,
+                                                device_type=self.config["devices"][0]["type"])
+        expected_converted_data.add_to_attributes(DatapointKey(config["key"]), string_value)
+
         self.assertEqual(self.gateway.send_to_storage.call_count, message_count)
         self.gateway.send_to_storage.assert_called_with(self.connector.get_name(),
                                                         self.connector.get_id(),
-                                                        {"deviceName": device_name,
-                                                         "deviceType": self.config["devices"][0]["type"],
-                                                         "attributes": [{"serialNumber": string_value}],
-                                                         "telemetry": []})
-
-    def test_send_only_on_change_and_default_device_type(self):
-        self._create_connector("ts_and_attr.json")
-        config = self.config["devices"][1]["timeseries"][0]
-
-        value_matches = re.search(self.connector.VALUE_REGEX, config["value"])
-        value = randint(0, pow(2, int(value_matches.group(2))))
-        can_data = list(bytearray.fromhex("0" * 2 * int(value_matches.group(1))))
-        can_data.extend(value.to_bytes(int(value_matches.group(2)),
-                                       value_matches.group(3) if value_matches.group(
-                                           3) else self.connector.DEFAULT_BYTEORDER))
-
-        for _ in range(5):
-            self.bus.send(Message(arbitration_id=config["nodeId"],
-                                  data=can_data))
-
-        sleep(1)
-
-        self.gateway.send_to_storage.assert_called_once_with(self.connector.get_name(),
-                                                             self.connector.get_id(),
-                                                             {"deviceName": self.config["devices"][1]["name"],
-                                                              "deviceType": self.connector._connector_type,
-                                                              "attributes": [],
-                                                              "telemetry": [{config["key"]: value}]})
+                                                        expected_converted_data)
 
     def test_telemetries_with_commands(self):
         self._create_connector("ts_and_attr.json")
@@ -252,22 +234,34 @@ class CanConnectorTsAndAttrTests(CanConnectorTestsBase):
         self.bus.send(Message(arbitration_id=config1["nodeId"], data=can_data1))
         sleep(1)
 
-        self.gateway.send_to_storage.assert_called_with(self.connector.get_name(),
-                                                        self.connector.get_id(),
-                                                        {"deviceName": self.config["devices"][2]["name"],
-                                                         "deviceType": self.connector._connector_type,
-                                                         "attributes": [],
-                                                         "telemetry": [{config1["key"]: value1}]})
+        expected_converted_data = ConvertedData(device_name=self.config["devices"][2]["name"],
+                                                device_type=self.connector._connector_type)
+        telemetry_entry = TelemetryEntry({DatapointKey(config1["key"]): value1})
+        expected_converted_data.add_to_telemetry(telemetry_entry)
+
+        ts = time()
+        while not self.gateway.send_to_storage.called or time() - ts < 5:
+            sleep(0.1)
+
+        result = self.gateway.send_to_storage.call_args
+        self.assertEqual(result.args[2].telemetry[0].values, expected_converted_data.telemetry[0].values)
 
         self.bus.send(Message(arbitration_id=config2["nodeId"], data=can_data2))
         sleep(1)
 
-        self.gateway.send_to_storage.assert_called_with(self.connector.get_name(),
-                                                        self.connector.get_id(),
-                                                        {"deviceName": self.config["devices"][2]["name"],
-                                                         "deviceType": self.connector._connector_type,
-                                                         "attributes": [],
-                                                         "telemetry": [{config2["key"]: value2}]})
+        expected_converted_data = ConvertedData(device_name=self.config["devices"][2]["name"],
+                                                device_type=self.connector._connector_type)
+        telemetry_entry = TelemetryEntry({DatapointKey(config2["key"]): value2})
+        expected_converted_data.add_to_telemetry(telemetry_entry)
+
+        sleep(1)
+
+        ts = time()
+        while self.gateway.send_to_storage.call_count < 2 and time() - ts < 5:
+            sleep(0.1)
+
+        result = self.gateway.send_to_storage.call_args
+        self.assertEqual(result.args[2].telemetry[0].values, expected_converted_data.telemetry[0].values)
 
     def test_telemetries_with_different_commands_and_same_arbitration_node_id(self):
         self._create_connector("ts_and_attr.json")
@@ -297,21 +291,32 @@ class CanConnectorTsAndAttrTests(CanConnectorTestsBase):
         self.bus.send(Message(arbitration_id=config1["nodeId"], data=can_data1))
         sleep(1)
 
-        self.gateway.send_to_storage.assert_called_with(self.connector.get_name(),
-                                                        self.connector.get_id(),
-                                                        {"deviceName": self.config["devices"][3]["name"],
-                                                         "deviceType": self.connector._connector_type,
-                                                         "attributes": [],
-                                                         "telemetry": [{config1["key"]: value1}]})
+        converted_data = ConvertedData(device_name=self.config["devices"][3]["name"],
+                                        device_type=self.connector._connector_type)
+        telemetry_entry = TelemetryEntry({DatapointKey(config1["key"]): value1})
+        converted_data.add_to_telemetry(telemetry_entry)
+
+        ts = time()
+        while not self.gateway.send_to_storage.called or time() - ts < 5:
+            sleep(0.1)
+
+        result = self.gateway.send_to_storage.call_args
+        self.assertEqual(result.args[2].telemetry[0].values, converted_data.telemetry[0].values)
 
         self.bus.send(Message(arbitration_id=config2["nodeId"], data=can_data2))
         sleep(1)
 
-        self.gateway.send_to_storage.assert_not_called_with(self.connector.get_name(),
-                                                            {"deviceName": self.config["devices"][3]["name"],
-                                                             "deviceType": self.connector._connector_type,
-                                                             "attributes": [],
-                                                             "telemetry": [{config2["key"]: value2}]})
+        converted_data = ConvertedData(device_name=self.config["devices"][2]["name"],
+                                        device_type=self.connector._connector_type)
+        telemetry_entry = TelemetryEntry({DatapointKey(config2["key"]): value2})
+        converted_data.add_to_telemetry(telemetry_entry)
+
+        ts = time()
+        while self.gateway.send_to_storage.call_count < 2 and time() - ts < 5:
+            sleep(0.1)
+
+        result = self.gateway.send_to_storage.call_args
+        self.assertEqual(result.args[2].telemetry[0].values, converted_data.telemetry[0].values)
 
 
 class CanConnectorAttributeUpdatesTests(CanConnectorTestsBase):

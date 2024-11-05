@@ -69,6 +69,11 @@ class ConvertedData:
         self.metadata = metadata or {}
         self.ts_index = {}
 
+    def __eq__(self, other):
+        if not isinstance(other, ConvertedData):
+            return False
+        return self.to_dict() == other.to_dict()
+
     def __str__(self):
         return f"ConvertedData(deviceName={self.device_name}, deviceType={self.device_type}, " \
                f"telemetry={self.telemetry}, attributes={self.attributes}, metadata={self.metadata})"
@@ -122,7 +127,7 @@ class ConvertedData:
             self._telemetry_datapoints_count += len(telemetry_entry.values)
             self.ts_index[telemetry_entry.ts] = len(self.telemetry) - 1
 
-    def add_to_attributes(self, key_or_entry: Union[dict, str, List[dict]], value = None):
+    def add_to_attributes(self, key_or_entry: Union[dict, str, List[dict], DatapointKey], value = None):
         if isinstance(key_or_entry, list):
             for entry in key_or_entry:
                 if not isinstance(entry, dict):
