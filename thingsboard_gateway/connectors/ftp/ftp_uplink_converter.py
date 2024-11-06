@@ -69,9 +69,12 @@ class FTPUplinkConverter(FTPConverter):
                                         device_type=device_type)
 
         try:
+            arr = data.split(self.__config.get('delimiter',';'))
             for data_type in self.__data_types:
+                ts = None
+                if data_type == 'timeseries':
+                    ts = self._retrieve_ts_for_sliced_or_table(self.__config[data_type], arr)
                 for information in self.__config[data_type]:
-                    arr = data.split(self.__config['delimiter'])
 
                     key_index = information['key']
                     val_index = information['value']
@@ -90,7 +93,7 @@ class FTPUplinkConverter(FTPConverter):
                     if data_type == 'attributes':
                         converted_data.add_to_attributes(datapoint_key, value)
                     else:
-                        telemetry_entry = TelemetryEntry({datapoint_key: value})
+                        telemetry_entry = TelemetryEntry({datapoint_key: value}, ts)
                         converted_data.add_to_telemetry(telemetry_entry)
 
                     if get_device_name_from_data:
@@ -136,7 +139,7 @@ class FTPUplinkConverter(FTPConverter):
             for data_type in self.__data_types:
                 ts = None
                 if data_type == 'timeseries':
-                    ts = self._retrieve_ts_for_sliced(self.__config[data_type], arr)
+                    ts = self._retrieve_ts_for_sliced_or_table(self.__config[data_type], arr)
                 for information in self.__config[data_type]:
 
                     val = self._get_key_or_value(information['value'], arr)
@@ -167,7 +170,7 @@ class FTPUplinkConverter(FTPConverter):
                                                   count=converted_data.telemetry_datapoints_count)
         return converted_data
 
-    def _retrieve_ts_for_sliced(self, config, data):
+    def _retrieve_ts_for_sliced_or_table(self, config, data):
         for config_object in config:
             if config_object.get('key') == 'ts':
                 return self._get_key_or_value(config['value'], data)
