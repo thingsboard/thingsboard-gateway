@@ -277,16 +277,12 @@ class RemoteConfigurator:
         LOG.debug('Processing general configuration update')
 
         LOG.debug('--- Checking connection configuration changes...')
-        security_section = config.get('security', {})
-        security_mismatch = security_section != self.general_configuration.get('security')
-        # if (security_mismatch
-        #         and security_section.get('accessToken') == self.general_configuration.get('security', {}).get('accessToken')
-        #         and security_section.get("type") == "accessToken"
-        #         and self.general_configuration.get('security', {}).get('type') is None):
-        #     security_mismatch = False
+        security_match = self.__is_security_match(self.general_configuration.get('security'),
+                                                     config.get('security', {}))
+
         if (config['host'] != self.general_configuration['host']
                 or config['port'] != self.general_configuration['port']
-                or security_mismatch
+                or not security_match
                 or config.get('provisioning', {}) != self.general_configuration.get('provisioning', {})
                 or config['qos'] != self.general_configuration['qos']):
             LOG.debug('---- Connection configuration changed. Processing...')
@@ -897,3 +893,53 @@ class RemoteConfigurator:
     def __is_running(self, request_config):
         return (request_config.get('configurationJson', {}).get('id') in self._gateway.available_connectors_by_id or
                 request_config.get('name') in self._gateway.available_connectors_by_name)
+
+    @staticmethod
+    def __is_security_match(old_security, new_security):
+        if new_security.get('type'):
+            is_match = RemoteConfigurator.__is_security_match_by_type(old_security, new_security)
+        else:
+            is_match = RemoteConfigurator.__is_security_match_by_fields(old_security, new_security)
+
+        return is_match
+
+    @staticmethod
+    def __is_security_match_by_type(old_security, new_security):
+        new_security_type = new_security.get('type')
+
+        if new_security_type == 'accessToken':
+            return RemoteConfigurator.__is_access_token_match(old_security.get('accessToken'),
+                                                              new_security.get('accessToken'))
+        elif new_security_type == 'usernamePassword':
+            return RemoteConfigurator.__is_username_password_match(old_security, new_security)
+        elif new_security_type == 'tlsAccessToken':
+            return RemoteConfigurator.__is_ca_cert_match(old_security, new_security)
+        else:
+            return False
+
+    @staticmethod
+    def __is_security_match_by_fields(old_security, new_security):
+        if new_security.get('accessToken'):
+            return RemoteConfigurator.__is_access_token_match(old_security.get('accessToken'),
+                                                              new_security.get('accessToken'))
+        elif new_security.get('username'):
+            return RemoteConfigurator.__is_username_password_match(old_security, new_security)
+        elif new_security.get('caCert'):
+            return RemoteConfigurator.__is_ca_cert_match(old_security, new_security)
+        else:
+            return False
+
+    @staticmethod
+    def __is_access_token_match(old_access_token, new_access_token):
+        return old_access_token == new_access_token
+
+    @staticmethod
+    def __is_username_password_match(old_security, new_security):
+        return new_security.get('username') == old_security.get('username') and \
+               new_security.get('password') == old_security.get('password') and \
+               new_security.get('clientId') == old_security.get('clientId')
+
+    @staticmethod
+    def __is_ca_cert_match(old_security, new_security):
+        return new_security.get('accessToken') == old_security.get('accessToken') and \
+            new_security.get('caCert') == old_security.get('caCert')
