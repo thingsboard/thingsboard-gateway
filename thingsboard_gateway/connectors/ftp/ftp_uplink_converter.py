@@ -13,8 +13,6 @@
 #     limitations under the License.
 
 import re
-from distutils.command.install import value
-from time import time
 
 from simplejson import dumps
 
