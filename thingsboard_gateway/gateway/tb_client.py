@@ -249,7 +249,7 @@ class TBClient(threading.Thread):
 
     def _on_connect(self, client, userdata, flags, result_code, *extra_params):
         self.__logger.debug('TB client %s connected to platform', str(client))
-        if result_code == 0:
+        if (isinstance(result_code, int) and result_code == 0) or (hasattr(result_code, 'value') and result_code.value == 0):
             self.__is_connected = True
             if self.__initial_connection_done:
                 self.client.rate_limits_received = True # Added to avoid stuck on reconnect, if rate limits reached, TODO: move to high priority.
