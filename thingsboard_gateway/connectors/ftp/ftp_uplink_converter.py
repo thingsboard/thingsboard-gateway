@@ -75,33 +75,40 @@ class FTPUplinkConverter(FTPConverter):
                 if data_type == 'timeseries':
                     ts = self._retrieve_ts_for_sliced_or_table(self.__config[data_type], arr)
                 for information in self.__config[data_type]:
+                    try:
 
-                    key_index = information['key']
-                    val_index = information['value']
+                        key_index = information['key']
+                        val_index = information['value']
 
-                    if '${' in information['key'] and '}' in information['key']:
-                        key_index = config['headers'].index(re.sub(r'[^\w]', '', information['key']))
+                        if '${' in information['key'] and '}' in information['key']:
+                            key_index = config['headers'].index(re.sub(r'[^\w]', '', information['key']))
 
-                    if '${' in information['value'] and '}' in information['value']:
-                        val_index = config['headers'].index(re.sub(r'[^\w]', '', information['value']))
+                        if '${' in information['value'] and '}' in information['value']:
+                            val_index = config['headers'].index(re.sub(r'[^\w]', '', information['value']))
 
-                    key = arr[key_index] if isinstance(key_index, int) else key_index
-                    value = arr[val_index] if isinstance(val_index, int) else val_index
-                    datapoint_key = TBUtility.convert_key_to_datapoint_key(key, device_report_strategy,
-                                                                           information, self._log)
+                        key = arr[key_index] if isinstance(key_index, int) else key_index
+                        value = arr[val_index] if isinstance(val_index, int) else val_index
+                        if key == 'ts':
+                            continue
+                        datapoint_key = TBUtility.convert_key_to_datapoint_key(key, device_report_strategy,
+                                                                               information, self._log)
 
-                    if data_type == 'attributes':
-                        converted_data.add_to_attributes(datapoint_key, value)
-                    else:
-                        telemetry_entry = TelemetryEntry({datapoint_key: value}, ts)
-                        converted_data.add_to_telemetry(telemetry_entry)
+                        if data_type == 'attributes':
+                            converted_data.add_to_attributes(datapoint_key, value)
+                        else:
+                            telemetry_entry = TelemetryEntry({datapoint_key: value}, ts)
+                            converted_data.add_to_telemetry(telemetry_entry)
 
-                    if get_device_name_from_data:
-                        index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternName']))
-                        converted_data.device_name = arr[index]
-                    if get_device_type_from_data:
-                        index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternType']))
-                        converted_data.device_type = arr[index]
+                        if get_device_name_from_data:
+                            index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternName']))
+                            converted_data.device_name = arr[index]
+                        if get_device_type_from_data:
+                            index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternType']))
+                            converted_data.device_type = arr[index]
+                    except Exception as e:
+                        StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
+                        self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(information),
+                                        data, e)
 
         except Exception as e:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
@@ -142,23 +149,31 @@ class FTPUplinkConverter(FTPConverter):
                     ts = self._retrieve_ts_for_sliced_or_table(self.__config[data_type], arr)
                 for information in self.__config[data_type]:
 
-                    val = self._get_key_or_value(information['value'], arr)
-                    key = self._get_key_or_value(information['key'], arr)
+                    try:
 
-                    datapoint_key = TBUtility.convert_key_to_datapoint_key(key, device_report_strategy,
-                                                                           information, self._log)
-                    if data_type == 'attributes':
-                        converted_data.add_to_attributes(datapoint_key, val)
-                    else:
-                        telemetry_entry = TelemetryEntry({datapoint_key: val}, ts)
-                        converted_data.add_to_telemetry(telemetry_entry)
+                        val = self._get_key_or_value(information['value'], arr)
+                        key = self._get_key_or_value(information['key'], arr)
+                        if key == 'ts':
+                            continue
 
-                    if get_device_name_from_data:
-                        if self.__config['devicePatternName'] == information['value']:
-                            converted_data.device_name = val
-                    if get_device_type_from_data:
-                        if self.__config['devicePatternType'] == information['value']:
-                            converted_data.device_type = val
+                        datapoint_key = TBUtility.convert_key_to_datapoint_key(key, device_report_strategy,
+                                                                               information, self._log)
+                        if data_type == 'attributes':
+                            converted_data.add_to_attributes(datapoint_key, val)
+                        else:
+                            telemetry_entry = TelemetryEntry({datapoint_key: val}, ts)
+                            converted_data.add_to_telemetry(telemetry_entry)
+
+                        if get_device_name_from_data:
+                            if self.__config['devicePatternName'] == information['value']:
+                                converted_data.device_name = val
+                        if get_device_type_from_data:
+                            if self.__config['devicePatternType'] == information['value']:
+                                converted_data.device_type = val
+                    except Exception as e:
+                        StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
+                        self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(information),
+                                        data, e)
         except Exception as e:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
@@ -173,7 +188,7 @@ class FTPUplinkConverter(FTPConverter):
     def _retrieve_ts_for_sliced_or_table(self, config, data):
         for config_object in config:
             if config_object.get('key') == 'ts':
-                return self._get_key_or_value(config['value'], data)
+                return self._get_key_or_value(config_object['value'], data)
         return None
 
     def _get_device_name(self, data):
@@ -243,38 +258,42 @@ class FTPUplinkConverter(FTPConverter):
         try:
             for datatype in self.__data_types:
                 for datatype_config in self.__config.get(datatype, []):
-                    values = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
-                                                  expression_instead_none=True)
-                    values_tags = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
-                                                       get_tag=True)
+                    try:
+                        values = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
+                                                      expression_instead_none=True)
+                        values_tags = TBUtility.get_values(datatype_config["value"], data, datatype_config["type"],
+                                                           get_tag=True)
 
-                    keys = TBUtility.get_values(datatype_config["key"], data, datatype_config["type"],
-                                                expression_instead_none=True)
-                    keys_tags = TBUtility.get_values(datatype_config["key"], data, get_tag=True)
+                        keys = TBUtility.get_values(datatype_config["key"], data, datatype_config["type"],
+                                                    expression_instead_none=True)
+                        keys_tags = TBUtility.get_values(datatype_config["key"], data, get_tag=True)
 
-                    full_key = datatype_config["key"]
-                    for (key, key_tag) in zip(keys, keys_tags):
-                        is_valid_key = "${" in datatype_config["key"] and "}" in \
-                                       datatype_config["key"]
-                        full_key = full_key.replace('${' + str(key_tag) + '}',
-                                                    str(key)) if is_valid_key else key_tag
+                        full_key = datatype_config["key"]
+                        for (key, key_tag) in zip(keys, keys_tags):
+                            is_valid_key = "${" in datatype_config["key"] and "}" in datatype_config["key"]
+                            full_key = full_key.replace('${' + str(key_tag) + '}',
+                                                        str(key)) if is_valid_key else key_tag
+                        if full_key == 'ts':
+                            continue
 
-                    full_value = datatype_config["value"]
-                    for (value, value_tag) in zip(values, values_tags):
-                        is_valid_value = "${" in datatype_config["value"] and "}" in \
-                                         datatype_config["value"]
+                        full_value = datatype_config["value"]
+                        for (value, value_tag) in zip(values, values_tags):
+                            is_valid_value = "${" in datatype_config["value"] and "}" in datatype_config["value"]
 
-                        full_value = full_value.replace('${' + str(value_tag) + '}',
-                                                        str(value)) if is_valid_value else str(value)
-
-                    datapoint_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy,
-                                                                           datatype_config, self._log)
-                    if datatype == 'timeseries' and (data.get("ts") is not None or data.get("timestamp") is not None):
-                        ts = data.get('ts', data.get('timestamp'))
-                        telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
-                        converted_data.add_to_telemetry(telemetry_entry)
-                    else:
-                        converted_data.add_to_attributes(datapoint_key, full_value)
+                            full_value = full_value.replace('${' + str(value_tag) + '}',
+                                                            str(value)) if is_valid_value else str(value)
+                        datapoint_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy,
+                                                                               datatype_config, self._log)
+                        if datatype == 'timeseries' and (data.get("ts") is not None or data.get("timestamp") is not None):
+                            ts = data.get('ts', data.get('timestamp'))
+                            telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
+                            converted_data.add_to_telemetry(telemetry_entry)
+                        else:
+                            converted_data.add_to_attributes(datapoint_key, full_value)
+                    except Exception as e:
+                        StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
+                        self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s',
+                                        dumps(datatype_config), data, e)
         except Exception as e:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),

@@ -166,10 +166,24 @@ class FTPConnector(Connector, Thread):
                             if isinstance(json_data, list):
                                 for obj in json_data:
                                     converted_data = converter.convert(convert_conf, obj)
-                                    self.__send_data(converted_data)
+
+                                    if converted_data:
+                                        self.__log.info('Converted data for device %s with type %s, attributes: %s, telemetry: %s',
+                                                        converted_data.device_name, converted_data.device_type,
+                                                        converted_data.attributes_datapoints_count, converted_data.telemetry_datapoints_count)
+
+                                        self.__log.debug('Converted data: %s', converted_data)
+                                        self.__send_data(converted_data)
                             else:
                                 converted_data = converter.convert(convert_conf, json_data)
-                                self.__send_data(converted_data)
+
+                                if converted_data:
+                                    self.__log.info('Converted data for device %s with type %s, attributes: %s, telemetry: %s',
+                                                    converted_data.device_name, converted_data.device_type,
+                                                    converted_data.attributes_datapoints_count, converted_data.telemetry_datapoints_count)
+
+                                    self.__log.debug('Converted data: %s', converted_data)
+                                    self.__send_data(converted_data)
                         else:
                             cursor = file.cursor or 0
 
@@ -184,8 +198,13 @@ class FTPConnector(Connector, Thread):
                                     else:
                                         converted_data = converter.convert(convert_conf, line)
 
-                                    self.__log.debug('Converted data: %s', converted_data)
-                                    self.__send_data(converted_data)
+                                    if converted_data:
+                                        self.__log.info('Converted data for device %s with type %s, attributes: %s, telemetry: %s',
+                                                        converted_data.device_name, converted_data.device_type,
+                                                        converted_data.attributes_datapoints_count, converted_data.telemetry_datapoints_count)
+
+                                        self.__log.debug('Converted data: %s', converted_data)
+                                        self.__send_data(converted_data)
 
                         handle_stream.close()
 
@@ -193,7 +212,7 @@ class FTPConnector(Connector, Thread):
         if (converted_data and
                 (converted_data.telemetry_datapoints_count > 0 or
                  converted_data.attributes_datapoints_count > 0)):
-            self.__gateway.send_to_storage(self.getName(), self.get_id(), converted_data)
+            self.__gateway.send_to_storage(self.name, self.get_id(), converted_data)
             self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
             self.__log.debug("Data to ThingsBoard: %s", converted_data)
 
