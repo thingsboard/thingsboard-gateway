@@ -13,6 +13,7 @@
 #     limitations under the License.
 
 import re
+from distutils.command.install import value
 from time import time
 
 from simplejson import dumps
@@ -73,7 +74,7 @@ class FTPUplinkConverter(FTPConverter):
             for data_type in self.__data_types:
                 ts = None
                 if data_type == 'timeseries':
-                    ts = self._retrieve_ts_for_sliced_or_table(self.__config[data_type], arr)
+                    ts = self._retrieve_ts_for_sliced_or_table(self.__config[data_type], arr, config['headers'])
                 for information in self.__config[data_type]:
                     try:
 
@@ -185,10 +186,14 @@ class FTPUplinkConverter(FTPConverter):
                                                   count=converted_data.telemetry_datapoints_count)
         return converted_data
 
-    def _retrieve_ts_for_sliced_or_table(self, config, data):
+    def _retrieve_ts_for_sliced_or_table(self, config, data, headers=[]):
         for config_object in config:
             if config_object.get('key') == 'ts':
-                return self._get_key_or_value(config_object['value'], data)
+                value = config_object['value']
+                if '${' in config_object.get('value') and '}' in config_object.get('value') and headers:
+                    value = headers.index(re.sub(r'[^\w]', '', config_object['value']))
+                    return int(data[value])
+                return self._get_key_or_value(value, data)
         return None
 
     def _get_device_name(self, data):
