@@ -69,10 +69,11 @@ class FTPUplinkConverter(FTPConverter):
                                         device_type=device_type)
 
         try:
+            arr = data.split(self.__config['delimiter'])
             for data_type in self.__data_types:
+                values = []
+                ts = None
                 for information in self.__config[data_type]:
-                    arr = data.split(self.__config['delimiter'])
-
                     key_index = information['key']
                     val_index = information['value']
 
@@ -83,15 +84,14 @@ class FTPUplinkConverter(FTPConverter):
                         val_index = config['headers'].index(re.sub(r'[^\w]', '', information['value']))
 
                     key = arr[key_index] if isinstance(key_index, int) else key_index
-                    value = arr[val_index] if isinstance(val_index, int) else val_index
+                    val = arr[val_index] if isinstance(val_index, int) else val_index
                     datapoint_key = TBUtility.convert_key_to_datapoint_key(key, device_report_strategy,
                                                                            information, self._log)
 
-                    if data_type == 'attributes':
-                        converted_data.add_to_attributes(datapoint_key, value)
+                    if data_type == 'timeseries' and (key == 'ts' or key == 'timestamp'):
+                        ts = val
                     else:
-                        telemetry_entry = TelemetryEntry({datapoint_key: value})
-                        converted_data.add_to_telemetry(telemetry_entry)
+                        values.append({'datapoint_key': datapoint_key, 'val': val})
 
                     if get_device_name_from_data:
                         index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternName']))
@@ -99,6 +99,12 @@ class FTPUplinkConverter(FTPConverter):
                     if get_device_type_from_data:
                         index = config['headers'].index(re.sub(r'[^\w]', '', self.__config['devicePatternType']))
                         converted_data.device_type = arr[index]
+                for item in values:
+                    if data_type == 'attributes':
+                        converted_data.add_to_attributes(item['datapoint_key'], item['val'])
+                    else:
+                        telemetry_entry = TelemetryEntry({item['datapoint_key']: item['val']}, ts)
+                        converted_data.add_to_telemetry(telemetry_entry)
 
         except Exception as e:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
@@ -132,20 +138,21 @@ class FTPUplinkConverter(FTPConverter):
                                        device_type=device_type)
 
         try:
+            arr = data.split(self.__config['delimiter'])
             for data_type in self.__data_types:
+                values = []
+                ts = None
                 for information in self.__config[data_type]:
-                    arr = data.split(self.__config['delimiter'])
-
                     val = self._get_key_or_value(information['value'], arr)
                     key = self._get_key_or_value(information['key'], arr)
 
                     datapoint_key = TBUtility.convert_key_to_datapoint_key(key, device_report_strategy,
                                                                            information, self._log)
-                    if data_type == 'attributes':
-                        converted_data.add_to_attributes(datapoint_key, val)
+
+                    if data_type == 'timeseries' and (key == 'ts' or key == 'timestamp'):
+                        ts = val
                     else:
-                        telemetry_entry = TelemetryEntry({datapoint_key: val})
-                        converted_data.add_to_telemetry(telemetry_entry)
+                        values.append({'datapoint_key': datapoint_key, 'val': val})
 
                     if get_device_name_from_data:
                         if self.__config['devicePatternName'] == information['value']:
@@ -153,6 +160,12 @@ class FTPUplinkConverter(FTPConverter):
                     if get_device_type_from_data:
                         if self.__config['devicePatternType'] == information['value']:
                             converted_data.device_type = val
+                for item in values:
+                    if data_type == 'attributes':
+                        converted_data.add_to_attributes(item['datapoint_key'], item['val'])
+                    else:
+                        telemetry_entry = TelemetryEntry({item['datapoint_key']: item['val']}, ts)
+                        converted_data.add_to_telemetry(telemetry_entry)
         except Exception as e:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config), data,
