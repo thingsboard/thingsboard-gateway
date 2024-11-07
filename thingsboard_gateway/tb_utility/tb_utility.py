@@ -310,6 +310,7 @@ class TBUtility:
         env_variables = {
             'host': environ.get('host'),
             'port': int(environ.get('port')) if environ.get('port') else None,
+            'type': environ.get('type'),
             'accessToken': environ.get('accessToken'),
             'caCert': environ.get('caCert'),
             'privateKey': environ.get('privateKey'),
@@ -326,6 +327,8 @@ class TBUtility:
             env_variables['host'] = environ.get('TB_GW_HOST')
         if environ.get('TB_GW_PORT'):
             env_variables['port'] = int(environ.get('TB_GW_PORT'))
+        if environ.get('TB_GW_SECURITY_TYPE'):
+            env_variables['type'] = environ.get('TB_GW_SECURITY_TYPE')
         if environ.get('TB_GW_ACCESS_TOKEN'):
             env_variables['accessToken'] = environ.get('TB_GW_ACCESS_TOKEN')
         if environ.get('TB_GW_CA_CERT'):
