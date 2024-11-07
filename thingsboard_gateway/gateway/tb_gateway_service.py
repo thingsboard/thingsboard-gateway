@@ -941,10 +941,11 @@ class TBGatewayService:
                                                                     "grpc_key": connector_persistent_key})
                 except Exception as e:
                     log.exception("Error on loading connector: %r", e)
+                    log.debug("Error on loading connector info", exc_info=e)
             if connectors_persistent_keys:
                 self.__save_persistent_keys(connectors_persistent_keys)
         else:
-            log.warning("Connectors - not found!")
+            log.info("Connectors - not found, waiting for remote configuration.")
             if self.tb_client is not None and self.tb_client.is_connected():
                 self.__init_remote_configuration(force=True)
             else:
