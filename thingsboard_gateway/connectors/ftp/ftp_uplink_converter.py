@@ -87,7 +87,7 @@ class FTPUplinkConverter(FTPConverter):
 
                         key = arr[key_index] if isinstance(key_index, int) else key_index
                         value = arr[val_index] if isinstance(val_index, int) else val_index
-                        if key == 'ts':
+                        if key == 'ts' and data_type == 'timeseries':
                             continue
                         datapoint_key = TBUtility.convert_key_to_datapoint_key(key, device_report_strategy,
                                                                                information, self._log)
@@ -152,7 +152,7 @@ class FTPUplinkConverter(FTPConverter):
 
                         val = self._get_key_or_value(information['value'], arr)
                         key = self._get_key_or_value(information['key'], arr)
-                        if key == 'ts':
+                        if key == 'ts' and data_type == 'timeseries':
                             continue
 
                         datapoint_key = TBUtility.convert_key_to_datapoint_key(key, device_report_strategy,
@@ -276,7 +276,7 @@ class FTPUplinkConverter(FTPConverter):
                             is_valid_key = "${" in datatype_config["key"] and "}" in datatype_config["key"]
                             full_key = full_key.replace('${' + str(key_tag) + '}',
                                                         str(key)) if is_valid_key else key_tag
-                        if full_key == 'ts':
+                        if full_key == 'ts' and datatype == 'timeseries':
                             continue
 
                         full_value = datatype_config["value"]
@@ -287,8 +287,10 @@ class FTPUplinkConverter(FTPConverter):
                                                             str(value)) if is_valid_value else str(value)
                         datapoint_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy,
                                                                                datatype_config, self._log)
-                        if datatype == 'timeseries' and (data.get("ts") is not None or data.get("timestamp") is not None):
-                            ts = data.get('ts', data.get('timestamp'))
+                        if datatype == 'timeseries':
+                            ts = None
+                            if data.get("ts") is not None or data.get("timestamp") is not None:
+                                ts = data.get('ts', data.get('timestamp'))
                             telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
                             converted_data.add_to_telemetry(telemetry_entry)
                         else:
