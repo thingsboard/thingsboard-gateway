@@ -40,7 +40,7 @@ RENAMING_PARAMETER = "renaming"
 CONNECTOR_ID_PARAMETER = "connectorId"
 CONNECTOR_NAME_PARAMETER = "connectorName"
 
-SECURITY_VAR = ('accessToken', 'caCert', 'privateKey', 'cert', 'clientId', 'username', 'password')
+SECURITY_VAR = ('type', 'accessToken', 'caCert', 'privateKey', 'cert', 'clientId', 'username', 'password')
 
 # Data parameter constants
 
