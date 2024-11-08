@@ -178,7 +178,9 @@ class TBGatewayService:
         self.__modify_main_config()
 
         log.info("Gateway starting...")
-        self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"])
+        storage_log = TbLogger('storage', gateway=self, level='INFO')
+        storage_log.addHandler(self.main_handler)
+        self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"], storage_log)
         self._report_strategy_service = ReportStrategyService(self.__config['thingsboard'], self, self.__converted_data_queue, log)
         self.__updater = TBUpdater()
         self.version = self.__updater.get_version()
@@ -214,6 +216,7 @@ class TBGatewayService:
         self.remote_handler = TBLoggerHandler(self)
         log.addHandler(self.remote_handler)
         self.__debug_log_enabled = log.isEnabledFor(10)
+        self.update_loggers()
         # self.main_handler.setTarget(self.remote_handler)
         self.__save_converted_data_thread = Thread(name="Storage fill thread", daemon=True,
                                                    target=self.__send_to_storage)

@@ -23,8 +23,6 @@ from thingsboard_gateway.storage.sqlite.database_connector import DatabaseConnec
 from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActionType
 from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 
-log = getLogger("database")
-
 
 class Database(Thread):
     """
@@ -36,7 +34,8 @@ class Database(Thread):
         ------------- ALL OF THIS IN AN ATOMIC WAY ---------
     """
 
-    def __init__(self, config, processing_queue: Queue):
+    def __init__(self, config, processing_queue: Queue, logger):
+        self.__log = logger
         super().__init__()
         self.daemon = True
         self.settings = StorageSettings(config)
@@ -44,17 +43,17 @@ class Database(Thread):
         if not exists(self.settings.data_folder_path):
             directory = dirname(self.settings.data_folder_path)
             if not exists(directory):
-                log.info("SQLite database file not found, creating new one...")
+                self.__log.info("SQLite database file not found, creating new one...")
                 try:
                     makedirs(directory)
-                    log.info("Directory %s created" % directory)
+                    self.__log.info("Directory %s created" % directory)
                 except Exception as e:
-                    log.exception("Failed to create directory %s" % directory, exc_info=e)
+                    self.__log.exception("Failed to create directory %s" % directory, exc_info=e)
             with open(self.settings.data_folder_path, 'w'):
-                log.info("SQLite database file created at %s" % self.settings.data_folder_path)
+                self.__log.info("SQLite database file created at %s" % self.settings.data_folder_path)
 
         # Pass settings to connector
-        self.db = DatabaseConnector(self.settings)
+        self.db = DatabaseConnector(self.settings, self.__log)
 
         self.db.connect()
 
@@ -74,7 +73,7 @@ class Database(Thread):
             self.db.commit()
         except Exception as e:
             self.db.rollback()
-            log.exception(e)
+            self.__log.exception(e)
 
     def run(self):
         while True:
@@ -94,7 +93,7 @@ class Database(Thread):
 
                     req = self.processQueue.get()
 
-                    log.debug("Processing %s" % req.type)
+                    self.__log.debug("Processing %s" % req.type)
                     if req.type is DatabaseActionType.WRITE_DATA_STORAGE:
 
                         message = req.data
@@ -106,11 +105,11 @@ class Database(Thread):
 
                         self.db.commit()
             else:
-                log.error("Storage is closed!")
+                self.__log.info("Storage is closed!")
 
         except Exception as e:
             self.db.rollback()
-            log.exception(e)
+            self.__log.exception("Failed to write data to storage! Error: %s", e)
 
     def read_data(self):
         try:
@@ -118,7 +117,7 @@ class Database(Thread):
             return data
         except Exception as e:
             self.db.rollback()
-            log.exception(e)
+            self.__log.exception("Failed to read data from storage! Error: %s", e)
 
     def delete_data(self, ts):
         try:
@@ -127,7 +126,7 @@ class Database(Thread):
             return data
         except Exception as e:
             self.db.rollback()
-            log.exception(e)
+            self.__log.exception("Failed to delete data from storage! Error: %s", e)
 
     def delete_data_lte(self, days):
         try:
@@ -137,10 +136,15 @@ class Database(Thread):
             return data
         except Exception as e:
             self.db.rollback()
-            log.exception(e)
+            self.__log.exception("Failed to delete data from storage! Error: %s", e)
 
     def setProcessQueue(self, process_queue):
         self.processQueue = process_queue
 
     def closeDB(self):
         self.db.close()
+
+    def update_logger(self):
+        self.__log = getLogger("storage")
+        self.db.update_logger()
+        self.__log.info("Logger updated")

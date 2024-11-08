@@ -16,8 +16,9 @@ import os
 import time
 
 from simplejson import dump
+from logging import getLogger
 
-from thingsboard_gateway.storage.event_storage import EventStorage, log
+from thingsboard_gateway.storage.event_storage import EventStorage
 from thingsboard_gateway.storage.file.event_storage_files import EventStorageFiles
 from thingsboard_gateway.storage.file.event_storage_reader import EventStorageReader
 from thingsboard_gateway.storage.file.event_storage_writer import DataFileCountError, EventStorageWriter
@@ -25,14 +26,15 @@ from thingsboard_gateway.storage.file.file_event_storage_settings import FileEve
 
 
 class FileEventStorage(EventStorage):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self.__log = logger
         self.settings = FileEventStorageSettings(config)
         self.init_data_folder_if_not_exist()
         self.event_storage_files = self.init_data_files()
         self.data_files = self.event_storage_files.get_data_files()
         self.state_file = self.event_storage_files.get_state_file()
-        self.__writer = EventStorageWriter(self.event_storage_files, self.settings)
-        self.__reader = EventStorageReader(self.event_storage_files, self.settings)
+        self.__writer = EventStorageWriter(self.event_storage_files, self.settings, self.__log)
+        self.__reader = EventStorageReader(self.event_storage_files, self.settings, self.__log)
         self.__stopped = False
 
     def put(self, event):
@@ -41,13 +43,13 @@ class FileEventStorage(EventStorage):
             try:
                 self.__writer.write(event)
             except DataFileCountError as e:
-                log.error(e)
+                self.__log.error("Failed to write event to storage! Error: %s", e)
             except Exception as e:
-                log.exception(e)
+                self.__log.exception("Failed to write event to storage! Error: %s", e)
             else:
                 success = True
         else:
-            log.error("Storage is closed!")
+            self.__log.error("Storage is closed!")
         return success
 
     def get_event_pack(self):
@@ -62,10 +64,10 @@ class FileEventStorage(EventStorage):
             try:
                 os.makedirs(path)
             except OSError as e:
-                log.error('Failed to create data folder! Error: %s', e)
+                self.__log.error('Failed to create data folder! Error: %s', e)
 
     def init_data_files(self):
-        data_files = []
+        data_files = {}
         state_file = None
         data_files_size = 0
         _dir = self.settings.get_data_folder_path()
@@ -73,12 +75,12 @@ class FileEventStorage(EventStorage):
         if os.path.isdir(_dir):
             for file in os.listdir(_dir):
                 if file.startswith('data_'):
-                    data_files.append(file)
+                    data_files[file] = False
                     data_files_size += os.path.getsize(_dir + file)
                 elif file.startswith('state_'):
                     state_file = file
             if data_files_size == 0:
-                data_files.append(self.create_new_datafile())
+                data_files[self.create_new_datafile()] = False
             if not state_file:
                 state_file = self.create_file('state_', 'file')
                 with open(self.settings.get_data_folder_path() + state_file, 'w') as state_file_obj:
@@ -96,7 +98,7 @@ class FileEventStorage(EventStorage):
             file.close()
             return prefix + filename + '.txt'
         except IOError as e:
-            log.error("Failed to create a new file! Error: %s", e)
+            self.__log.error("Failed to create a new file! Error: %s", e)
 
     def stop(self):
         self.__stopped = True
@@ -105,13 +107,6 @@ class FileEventStorage(EventStorage):
         return len(self.__writer.files.data_files)
 
     def update_logger(self):
-        global log
-        log.setLevel(log.level)
-        log.handlers = log.handlers
-        log.manager = log.manager
-        log.disabled = log.disabled
-        log.filters = log.filters
-        log.propagate = log.propagate
-        log.parent = log.parent
-        self.__writer.update_logger()
-        self.__reader.update_logger()
+        self.__log = getLogger("storage")
+        self.__writer.update_logger(self.__log)
+        self.__reader.update_logger(self.__log)

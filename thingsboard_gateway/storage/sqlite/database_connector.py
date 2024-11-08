@@ -20,13 +20,9 @@ from typing import Optional
 from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 
 
-from logging import getLogger
-
-log = getLogger("storage")
-
-
 class DatabaseConnector:
-    def __init__(self, settings: StorageSettings):
+    def __init__(self, settings: StorageSettings, logger):
+        self.__log = logger
         self.data_file_path = settings.data_folder_path
         self.connection: Optional[Connection] = None
         self.lock = RLock()
@@ -38,19 +34,19 @@ class DatabaseConnector:
         try:
             self.connection = connect(self.data_file_path, check_same_thread=False)
         except Exception as e:
-            log.exception(e)
+            self.__log.exception("Failed to connect to database", exc_info=e)
 
     def commit(self):
         """
         Commit changes
         """
-        log.debug("Committing changes to DB")
+        self.__log.debug("Committing changes to DB")
         try:
             with self.lock:
                 self.connection.commit()
 
         except Exception as e:
-            log.exception(e)
+            self.__log.exception("Failed to commit changes to database", exc_info=e)
 
     def execute(self, *args):
         """
@@ -60,22 +56,22 @@ class DatabaseConnector:
         try:
             with self.lock:
                 return self.connection.execute(*args)
-        except sqlite3.ProgrammingError:
-            pass
+        except sqlite3.ProgrammingError as e:
+            self.__log.debug("Failed to execute changes to database", exc_info=e)
         except Exception as e:
-            log.exception(e)
+            self.__log.exception("Failed to execute changes to database", exc_info=e)
 
     def rollback(self):
         """
         Rollback changes after exception
         """
-        log.debug("Rollback transaction")
+        self.__log.debug("Rollback transaction")
         try:
             with self.lock:
                 self.connection.rollback()
 
         except Exception as e:
-            log.exception(e)
+            self.__log.exception(e)
 
     def close(self):
         """
@@ -86,11 +82,14 @@ class DatabaseConnector:
                 self.connection.close()
 
         except Exception as e:
-            log.exception(e)
+            self.__log.exception("Failed to close database", exc_info=e)
 
     def get_cursor(self):
         try:
             return self.connection.cursor()
 
         except Exception as e:
-            log.exception(e)
+            self.__log.exception("Failed to get cursor", exc_info=e)
+
+    def update_logger(self, logger):
+        self.__log = logger

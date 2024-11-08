@@ -24,22 +24,21 @@ from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActi
 #
 from logging import getLogger
 
-log = getLogger("storage")
-
 
 class SQLiteEventStorage(EventStorage):
     """
     HIGH level api for thingsboard_gateway main loop
     """
 
-    def __init__(self, config):
-        log.info("Sqlite Storage initializing...")
-        log.info("Initializing read and process queues")
+    def __init__(self, config, logger):
+        self.__log = logger
+        self.__log.info("Sqlite Storage initializing...")
+        self.__log.info("Initializing read and process queues")
         self.processQueue = Queue(-1)
-        self.db = Database(config, self.processQueue)
+        self.db = Database(config, self.processQueue, self.__log)
         self.db.setProcessQueue(self.processQueue)
         self.db.init_table()
-        log.info("Sqlite storage initialized!")
+        self.__log.info("Sqlite storage initialized!")
         self.delete_time_point = None
         self.last_read = time()
         self.stopped = False
@@ -75,13 +74,13 @@ class SQLiteEventStorage(EventStorage):
                 _type = DatabaseActionType.WRITE_DATA_STORAGE
                 request = DatabaseRequest(_type, message)
 
-                log.info("Sending data to storage")
+                self.__log.info("Sending data to storage")
                 self.processQueue.put(request)
                 return True
             else:
                 return False
         except Exception as e:
-            log.exception(e)
+            self.__log.exception("Failed to write data to storage! Error: %s", e)
 
     def stop(self):
         self.stopped = True
@@ -92,11 +91,4 @@ class SQLiteEventStorage(EventStorage):
         return self.processQueue.qsize()
 
     def update_logger(self):
-        global log
-        log.setLevel(getLogger("storage").level)
-        log.handlers = getLogger("storage").handlers
-        log.manager = getLogger("storage").manager
-        log.disabled = getLogger("storage").disabled
-        log.filters = getLogger("storage").filters
-        log.propagate = getLogger("storage").propagate
-        log.parent = getLogger("storage").parent
+        self.__log = getLogger("storage")

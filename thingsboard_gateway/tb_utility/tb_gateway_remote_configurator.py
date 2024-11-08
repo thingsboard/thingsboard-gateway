@@ -29,6 +29,7 @@ from thingsboard_gateway.gateway.constants import CONFIG_VERSION_PARAMETER, REPO
     DEFAULT_REPORT_STRATEGY_CONFIG
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.tb_client import TBClient
+from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 LOG = getLogger("service")
@@ -350,7 +351,8 @@ class RemoteConfigurator:
         try:
             storage_class = self._gateway.event_storage_types[config["type"]]
             self._gateway._event_storage.stop()
-            self._gateway._event_storage = storage_class(config)
+            storage_logger = self._gateway.remote_handler.get_logger('storage')
+            self._gateway._event_storage = storage_class(config, storage_logger)
         except Exception as e:
             LOG.error('Something went wrong with applying the new storage configuration. Reverting...')
             LOG.exception(e)

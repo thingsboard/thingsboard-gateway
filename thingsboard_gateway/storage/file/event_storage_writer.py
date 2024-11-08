@@ -14,12 +14,12 @@
 
 from base64 import b64encode
 from io import BufferedWriter, FileIO
-from os import O_CREAT, O_EXCL, close as os_close, linesep, open as os_open
+from os import O_CREAT, O_EXCL, close as os_close, linesep, open as os_open, listdir
 from os.path import exists
+from threading import RLock
 from time import time
 
 from thingsboard_gateway.storage.file.event_storage_files import EventStorageFiles
-from thingsboard_gateway.storage.file.file_event_storage import log
 from thingsboard_gateway.storage.file.file_event_storage_settings import FileEventStorageSettings
 
 
@@ -28,7 +28,8 @@ class DataFileCountError(Exception):
 
 
 class EventStorageWriter:
-    def __init__(self, files: EventStorageFiles, settings: FileEventStorageSettings):
+    def __init__(self, files: EventStorageFiles, settings: FileEventStorageSettings, logger):
+        self.__log = logger
         self.files = files
         self.settings = settings
         self.buffered_writer = None
@@ -36,6 +37,7 @@ class EventStorageWriter:
         self.current_file_records_count = [0]
         self.previous_file_records_count = [0]
         self.get_number_of_records_in_file(self.current_file)
+        self._file_creation_lock = RLock()
 
     def write(self, msg):
         if len(self.files.data_files) <= self.settings.get_max_files_count():
@@ -43,16 +45,16 @@ class EventStorageWriter:
                     self.settings.get_data_folder_path() + self.current_file):
                 try:
                     self.current_file = self.create_datafile()
-                    log.debug("FileStorage_writer -- Created new data file: %s", self.current_file)
+                    self.__log.debug("FileStorage_writer -- Created new data file: %s", self.current_file)
                 except IOError as e:
-                    log.error("Failed to create a new file! %s", e)
+                    self.__log.error("Failed to create a new file! %s", e)
                 self.files.get_data_files().append(self.current_file)
                 self.current_file_records_count[0] = 0
                 try:
                     if self.buffered_writer is not None and self.buffered_writer.closed is False:
                         self.buffered_writer.close()
                 except IOError as e:
-                    log.warning("Failed to close buffered writer! %s", e)
+                    self.__log.warning("Failed to close buffered writer! %s", e)
                 self.buffered_writer = None
             try:
                 encoded = b64encode(msg.encode("utf-8"))
@@ -68,9 +70,9 @@ class EventStorageWriter:
                     if self.buffered_writer is not None and self.buffered_writer.closed is False:
                         self.buffered_writer.close()
                 except IOError as e:
-                    log.warning("Failed to close buffered writer! %s", e)
+                    self.__log.warning("Failed to close buffered writer! %s", e)
             except IOError as e:
-                log.warning("Failed to update data file![%s]\n%s", self.current_file, e)
+                self.__log.warning("Failed to update data file![%s]\n%s", self.current_file, e)
         else:
             raise DataFileCountError("The number of data files has been exceeded - change the settings or check the connection. New data will be lost.")
 
@@ -80,24 +82,29 @@ class EventStorageWriter:
                 self.buffered_writer = BufferedWriter(FileIO(self.settings.get_data_folder_path() + file, 'a'))
             return self.buffered_writer
         except IOError as e:
-            log.error("Failed to initialize buffered writer! Error: %s", e)
+            self.__log.error("Failed to initialize buffered writer! Error: %s", e)
             raise RuntimeError("Failed to initialize buffered writer!", e)
 
     def create_datafile(self):
         prefix = 'data_'
         datafile_name = str(int(time() * 1000))
-        self.files.data_files.append("%s%s.txt" % (prefix, datafile_name))
-        return self.create_file(prefix, datafile_name)
+        created_file = self.create_file(prefix, datafile_name)
+        if created_file is not None:
+            self.files.add_data_file(created_file)
+        return created_file
 
     def create_file(self, prefix, filename):
-        full_file_name = "%s%s.txt" % (prefix, filename)
-        file_path = "%s%s" % (self.settings.get_data_folder_path(), full_file_name)
-        try:
-            file = os_open(file_path, O_CREAT | O_EXCL)
-            os_close(file)
-            return full_file_name
-        except IOError as e:
-            log.error("Failed to create a new file! Error: %s", e)
+        with self._file_creation_lock:
+            full_file_name = "%s%s.txt" % (prefix, filename)
+            file_path = "%s%s" % (self.settings.get_data_folder_path(), full_file_name)
+            try:
+                file = os_open(file_path, O_CREAT | O_EXCL)
+                os_close(file)
+                return full_file_name
+            except FileExistsError:
+                return full_file_name
+            except IOError as e:
+                self.__log.error("Failed to create a new file! Error: %s", e)
 
     def get_number_of_records_in_file(self, file):
         if self.current_file_records_count[0] <= 0:
@@ -106,17 +113,10 @@ class EventStorageWriter:
                     for i, _ in enumerate(data_file):
                         self.current_file_records_count[0] = i + 1
             except IOError as e:
-                log.warning("Could not get the records count from the file![%s] with error: %s", file, e)
+                self.__log.warning("Could not get the records count from the file![%s] with error: %s", file, e)
             except Exception as e:
-                log.exception(e)
+                self.__log.exception(e)
         return self.current_file_records_count
 
-    def update_logger(self):
-        global log
-        log.setLevel(log.level)
-        log.handlers = log.handlers
-        log.manager = log.manager
-        log.disabled = log.disabled
-        log.filters = log.filters
-        log.propagate = log.propagate
-        log.parent = log.parent
+    def update_logger(self, logger):
+        self.__log = logger

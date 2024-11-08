@@ -47,20 +47,25 @@ class TBLoggerHandler(logging.Handler):
         self._send_logs_thread = threading.Thread(target=self._send_logs, name='Logs Sending Thread', daemon=True)
 
         self.setFormatter(logging.Formatter('%(asctime)s,%(msecs)03d - |%(levelname)s|<%(threadName)s> [%(filename)s] - %(module)s %(funcName)s - %(lineno)d - %(message)s'))
-        self.loggers = ['service',
-                        'extension',
-                        'tb_connection',
-                        'storage'
-                        ]
+        self.loggers = {'service': None,
+                        'extension': None,
+                        'tb_connection': None,
+                        'storage': None
+                        }
         for logger in self.loggers:
             log = TbLogger(name=logger, gateway=gateway)
             log.addHandler(self.__gateway.main_handler)
             log.debug("Added remote handler to log %s", logger)
+            self.loggers[logger] = log
+
+    def get_logger(self, name):
+        return self.loggers.get(name)
 
     def add_logger(self, name):
         log = TbLogger(name)
         log.addHandler(self.__gateway.main_handler)
         log.debug("Added remote handler to log %s", name)
+        self.loggers[name] = log
 
     def _send_logs(self):
         while self.activated and not self.__gateway.stopped:
@@ -102,13 +107,15 @@ class TBLoggerHandler(logging.Handler):
                     if logger == 'tb_connection' and log_level == 'DEBUG':
                         log = TbLogger(logger, gateway=self.__gateway)
                         log.setLevel(logging.getLevelName('INFO'))
+                        self.loggers[logger] = log
                     else:
                         log = TbLogger(logger, gateway=self.__gateway)
                         self.current_log_level = log_level
                         log.setLevel(logging.getLevelName(log_level))
+                        self.loggers[logger] = log
         except Exception as e:
             log = TbLogger('service')
-            log.exception(e)
+            log.exception("Failed to activate logs sending", exc_info=e)
         self.activated = True
         self._send_logs_thread = threading.Thread(target=self._send_logs, name='Logs Sending Thread', daemon=True)
         self._send_logs_thread.start()

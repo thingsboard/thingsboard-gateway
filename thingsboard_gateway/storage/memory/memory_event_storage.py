@@ -15,17 +15,18 @@
 from logging import getLogger
 from queue import Empty, Full, Queue
 
-from thingsboard_gateway.storage.event_storage import EventStorage, log
+from thingsboard_gateway.storage.event_storage import EventStorage
 
 
 class MemoryEventStorage(EventStorage):
-    def __init__(self, config):
+    def __init__(self, config, logger):
+        self.__log = logger
         self.__queue_len = config.get("max_records_count", 10000)
         self.__events_per_time = config.get("read_records_count", 1000)
         self.__events_queue = Queue(self.__queue_len)
         self.__event_pack = []
         self.__stopped = False
-        log.debug("Memory storage created with following configuration: \nMax size: %i\n Read records per time: %i",
+        self.__log.debug("Memory storage created with following configuration: \nMax size: %i\n Read records per time: %i",
                   self.__queue_len, self.__events_per_time)
 
     def put(self, event):
@@ -35,9 +36,9 @@ class MemoryEventStorage(EventStorage):
                 self.__events_queue.put_nowait(event)
                 success = True
             except Full:
-                log.error("Memory storage is full!")
+                self.__log.error("Memory storage is full!")
         else:
-            log.error("Storage is stopped!")
+            self.__log.error("Storage is stopped!")
         return success
 
     def get_event_pack(self):
@@ -59,11 +60,4 @@ class MemoryEventStorage(EventStorage):
         return self.__events_queue.qsize()
 
     def update_logger(self):
-        global log
-        log.setLevel(getLogger("storage").level)
-        log.handlers = getLogger("storage").handlers
-        log.manager = getLogger("storage").manager
-        log.disabled = getLogger("storage").disabled
-        log.filters = getLogger("storage").filters
-        log.propagate = getLogger("storage").propagate
-        log.parent = getLogger("storage").parent
+        self.__log = getLogger("storage")

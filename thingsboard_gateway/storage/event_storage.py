@@ -13,12 +13,13 @@
 #     limitations under the License.
 
 from abc import ABC, abstractmethod
-from logging import getLogger
-
-log = getLogger("storage")
 
 
 class EventStorage(ABC):
+
+    @abstractmethod
+    def __init__(self, config, logger):
+        pass
 
     @abstractmethod
     def put(self, event):
