@@ -192,12 +192,17 @@ class RemoteConfigurator:
             self.send_connector_current_configuration(connector)
 
     def send_connector_current_configuration(self, connector_configuration: dict):
-        self._gateway.send_attributes({connector_configuration['name']: {**connector_configuration,
-                                                                         'logLevel': connector_configuration.get(
-                                                                             'configurationJson', {}).get('logLevel',
-                                                                                                          'INFO'),
-                                                                         'ts': int(time() * 1000)}},
-                                      quality_of_service=1)
+        config_to_send = {**connector_configuration,
+                          'logLevel': connector_configuration.get('configurationJson', {}).get('logLevel', 'INFO'),
+                          'ts': int(time() * 1000)
+                          }
+        if config_to_send.get('config') is not None:
+            config_to_send.pop('config', None)
+        if config_to_send.get("configurationJson", {}) is not None:
+            config_to_send.get("configurationJson", {}).pop('logLevel')
+        if config_to_send.get('configurationJson', {}).get(REPORT_STRATEGY_PARAMETER) is not None:
+            config_to_send[REPORT_STRATEGY_PARAMETER] = config_to_send['configurationJson'].pop(REPORT_STRATEGY_PARAMETER)
+        self._gateway.send_attributes({connector_configuration['name']: config_to_send}, quality_of_service=1)
 
     def _load_connectors_configuration(self):
         for (_, connector_list) in self._gateway.connectors_configs.items():
