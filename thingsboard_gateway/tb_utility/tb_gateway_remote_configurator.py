@@ -662,7 +662,8 @@ class RemoteConfigurator:
             # can be removed in the future versions:
             config['sendDataOnlyOnChange'] = config['configurationJson'].get('sendDataOnlyOnChange', False)
 
-            config['configurationJson'].pop('reportStrategy', None)
+            if connector_type != 'modbus':
+                config['configurationJson'].pop('reportStrategy', None)
 
             for (device_name, device_config) in list(self._gateway.get_devices().items()):
                 if (connector_id == device_config.get('connector').get_id()
