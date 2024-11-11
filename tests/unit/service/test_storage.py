@@ -1,3 +1,4 @@
+from logging import getLogger
 from os import listdir, remove, removedirs
 from random import randint
 from time import sleep
@@ -6,6 +7,7 @@ from unittest import TestCase
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
 
+LOG = getLogger("TEST")
 
 class TestStorage(TestCase):
     def test_memory_storage(self):
@@ -17,7 +19,7 @@ class TestStorage(TestCase):
             "read_records_count": 10,
             "max_records_count": test_size * 10
         }
-        storage = MemoryEventStorage(storage_test_config)
+        storage = MemoryEventStorage(storage_test_config, LOG)
 
         for test_value in range(test_size * 10):
             storage.put(test_value)
@@ -41,7 +43,7 @@ class TestStorage(TestCase):
 
         test_size = randint(0, storage_test_config["max_file_count"]-1)
 
-        storage = FileEventStorage(storage_test_config)
+        storage = FileEventStorage(storage_test_config, LOG)
 
         for test_value in range(test_size * 10):
             storage.put(str(test_value))
