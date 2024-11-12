@@ -121,7 +121,7 @@ class TBLoggerHandler(logging.Handler):
     def handle(self, record):
         if self.activated and not self.__gateway.stopped:
             logger = self.loggers.get(record.name)
-            if logger:
+            if logger and hasattr(logger, 'connector_name'):
                 name = logger.connector_name
 
                 if name:
