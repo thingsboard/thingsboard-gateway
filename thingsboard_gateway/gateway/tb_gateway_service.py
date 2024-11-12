@@ -942,8 +942,8 @@ class TBGatewayService:
                                                      "config_updated": stat(connector_config_file_path),
                                                      "config_file_path": connector_config_file_path,
                                                      "grpc_key": connector_persistent_key}
-                    if isinstance(connector_configuration, dict) and connector_configuration.get(REPORT_STRATEGY_PARAMETER) is not None:
-                        connector_configuration_local[REPORT_STRATEGY_PARAMETER] = connector_configuration[REPORT_STRATEGY_PARAMETER]
+                    if isinstance(connector_conf_from_file, dict) and connector_conf_from_file.get(REPORT_STRATEGY_PARAMETER) is not None:
+                        connector_configuration_local[REPORT_STRATEGY_PARAMETER] = connector_conf_from_file[REPORT_STRATEGY_PARAMETER]
                     self.connectors_configs[connector_type].append(connector_configuration_local)
                 except Exception as e:
                     log.exception("Error on loading connector: %r", e)
