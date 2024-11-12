@@ -557,11 +557,18 @@ class RemoteConfigurator:
                 if config.get('class'):
                     connector_configuration['class'] = config['class']
 
-                with open(self._gateway.get_config_path() + config_file_name, 'w') as file:
-                    config['configurationJson'].update({'logLevel': config['logLevel'],
+                locally_formatted_connector_config = {'logLevel': config['logLevel'],
                                                         'name': connector_name,
                                                         'enableRemoteLogging': config.get('enableRemoteLogging', False),
-                                                        'id': connector_id})
+                                                        'id': connector_id}
+                if config.get(REPORT_STRATEGY_PARAMETER) is not None:
+                    locally_formatted_connector_config[REPORT_STRATEGY_PARAMETER] = config[REPORT_STRATEGY_PARAMETER]
+
+                if config.get(CONFIG_VERSION_PARAMETER) is not None:
+                    locally_formatted_connector_config[CONFIG_VERSION_PARAMETER] = config[CONFIG_VERSION_PARAMETER]
+
+                with open(self._gateway.get_config_path() + config_file_name, 'w') as file:
+                    config['configurationJson'].update(locally_formatted_connector_config)
                     self.create_configuration_file_backup(config, config_file_name)
                     file.writelines(dumps(config['configurationJson'], indent='  '))
 
