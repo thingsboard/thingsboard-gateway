@@ -131,6 +131,8 @@ class TbLogger(logging.Logger):
             TbLogger.ERRORS_BATCH.pop(self.attr_name, None)
         self.reset()
 
+        self.handlers.clear()
+
     def _send_errors(self):
         with TbLogger.ERRORS_MUTEX:
             TbLogger.ERRORS_BATCH[self.attr_name] = 0

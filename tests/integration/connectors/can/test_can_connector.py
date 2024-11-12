@@ -29,6 +29,8 @@ from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger, init_logger
+
 try :
     from can import Notifier, BufferedReader, Bus, Message
 except (ImportError, ModuleNotFoundError):
@@ -63,9 +65,8 @@ class CanConnectorTestsBase(BaseTest):
     def setUp(self):
         super().setUp()
         self.bus = self._create_bus()
-        self.mock_logger = patch('thingsboard_gateway.tb_utility.tb_logger.TbLogger').start()
         self.gateway = Mock(spec=TBGatewayService)
-        self.gateway.log = self.mock_logger
+        self.tb_logger = Mock(spec=TbLogger)
         self.connector = None
         self.config = None
 
