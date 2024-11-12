@@ -21,6 +21,7 @@ from os.path import exists
 from ssl import CERT_REQUIRED, PROTOCOL_TLSv1_2
 from copy import deepcopy
 from time import sleep, time
+from typing import Union
 
 from simplejson import dumps, load
 
@@ -49,7 +50,7 @@ class TBClient(threading.Thread):
         self.__port = config.get("port", 1883)
         self.__default_quality_of_service = config.get("qos", 1)
         self.__min_reconnect_delay = 1
-        self.client: TBGatewayMqttClient | None = None
+        self.client: Union[TBGatewayMqttClient, None] = None
         self.__ca_cert = None
         self.__private_key = None
         self.__cert = None

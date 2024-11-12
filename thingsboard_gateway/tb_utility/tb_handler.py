@@ -16,13 +16,14 @@ import logging
 import logging.handlers
 import os
 import threading
+from logging import LogRecord
 from os import environ
 from pathlib import Path
 from queue import Queue, Empty
 from sys import stdout
 from time import time, sleep
 
-from thingsboard_gateway.tb_utility.tb_logger import TbLogger
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger, init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -53,7 +54,7 @@ class TBLoggerHandler(logging.Handler):
                         'storage': None
                         }
         for logger in self.loggers:
-            log = TbLogger(name=logger, gateway=gateway)
+            log = logging.getLogger(logger)
             log.addHandler(self.__gateway.main_handler)
             log.debug("Added remote handler to log %s", logger)
             self.loggers[logger] = log
@@ -62,7 +63,7 @@ class TBLoggerHandler(logging.Handler):
         return self.loggers.get(name)
 
     def add_logger(self, name):
-        log = TbLogger(name)
+        log = logging.getLogger(name)
         log.addHandler(self.__gateway.main_handler)
         log.debug("Added remote handler to log %s", name)
         self.loggers[name] = log
@@ -105,13 +106,10 @@ class TBLoggerHandler(logging.Handler):
             for logger in self.loggers:
                 if log_level is not None and logging.getLevelName(log_level) is not None:
                     if logger == 'tb_connection' and log_level == 'DEBUG':
-                        log = TbLogger(logger, gateway=self.__gateway)
-                        log.setLevel(logging.getLevelName('INFO'))
+                        log = init_logger(self.__gateway, logger, log_level)
                         self.loggers[logger] = log
                     else:
-                        log = TbLogger(logger, gateway=self.__gateway)
-                        self.current_log_level = log_level
-                        log.setLevel(logging.getLevelName(log_level))
+                        log = init_logger(self.__gateway, logger, log_level)
                         self.loggers[logger] = log
         except Exception as e:
             log = TbLogger('service')
@@ -122,19 +120,23 @@ class TBLoggerHandler(logging.Handler):
 
     def handle(self, record):
         if self.activated and not self.__gateway.stopped:
-            name = record.name
-            record = self.formatter.format(record)
-            try:
-                telemetry_key = self.LOGGER_NAME_TO_ATTRIBUTE_NAME[name]
-            except KeyError:
-                telemetry_key = name + '_LOGS'
+            logger = self.loggers.get(record.name)
+            if logger:
+                name = logger.connector_name
 
-            log_msg = {'ts': int(time() * 1000), 'values': {telemetry_key: record}}
+                if name:
+                    record = self.formatter.format(record)
+                    try:
+                        telemetry_key = self.LOGGER_NAME_TO_ATTRIBUTE_NAME[name]
+                    except KeyError:
+                        telemetry_key = name + '_LOGS'
 
-            if telemetry_key in self.LOGGER_NAME_TO_ATTRIBUTE_NAME.values():
-                log_msg['values']['LOGS'] = record
+                    log_msg = {'ts': int(time() * 1000), 'values': {telemetry_key: record}}
 
-            self._logs_queue.put(log_msg)
+                    if telemetry_key in self.LOGGER_NAME_TO_ATTRIBUTE_NAME.values():
+                        log_msg['values']['LOGS'] = record
+
+                    self._logs_queue.put(log_msg)
 
     def deactivate(self):
         self.activated = False
