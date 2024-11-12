@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import logging
 import asyncio
 import re
 from asyncio.exceptions import CancelledError
@@ -80,8 +81,10 @@ class OpcUaConnector(Connector, Thread):
         # check if config is in old format and convert it to new format
         using_old_configuration_format = len(tuple(filter(lambda node_config: not node_config.get('deviceInfo'),
                                                           self.__config.get('server', {}).get('mapping', []))))
+        self.__enable_remote_logging = self.__config.get('enableRemoteLogging', False)
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+                                 enable_remote_logging=self.__enable_remote_logging)
+        self.__replace_loggers()
         report_strategy = self.__config.get('reportStrategy')
         self.__connector_report_strategy_config = gateway.get_report_strategy_service().get_main_report_strategy()
         try:
@@ -138,6 +141,16 @@ class OpcUaConnector(Connector, Thread):
         self.__client_recreation_required = True
 
         self.__log.info("OPC-UA Connector has been initialized")
+
+    def __replace_loggers(self):
+        for logger_name in logging.root.manager.loggerDict.keys():
+            if 'asyncua' in logger_name:
+                init_logger(self.__gateway,
+                            logger_name,
+                            'ERROR',
+                            enable_remote_logging=self.__enable_remote_logging,
+                            is_connector_logger=True,
+                            connector_name=self.name)
 
     def open(self):
         self.__stopped = False

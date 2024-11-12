@@ -166,7 +166,8 @@ class TBGatewayService:
             logging_error = e
 
         global log
-        log = TbLogger('service', gateway=self, level='INFO')
+        log = logging.getLogger('service')
+        log.setLevel('INFO')
         global main_handler
         self.main_handler = main_handler
         log.addHandler(self.main_handler)
@@ -178,7 +179,8 @@ class TBGatewayService:
         self.__modify_main_config()
 
         log.info("Gateway starting...")
-        storage_log = TbLogger('storage', gateway=self, level='INFO')
+        storage_log = logging.getLogger('storage')
+        storage_log.setLevel('INFO')
         storage_log.addHandler(self.main_handler)
         self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"], storage_log)
         self._report_strategy_service = ReportStrategyService(self.__config['thingsboard'], self, self.__converted_data_queue, log)

@@ -23,13 +23,18 @@ logging.addLevelName(TRACE_LOGGING_LEVEL, "TRACE")
 
 
 def init_logger(gateway, name, level, enable_remote_logging=False, is_connector_logger=False,
-                is_converter_logger=False):
+                is_converter_logger=False, connector_name=None):
     """
     For creating a Logger with all config automatically
     Create a Logger manually only if you know what you are doing!
     """
-    log = TbLogger(name=name, gateway=gateway, is_connector_logger=is_connector_logger,
-                   is_converter_logger=is_converter_logger)
+
+    log = logging.getLogger(name)
+    log.is_connector_logger = is_connector_logger
+    log.is_converter_logger = is_converter_logger
+
+    if connector_name:
+        log.connector_name = connector_name
 
     if enable_remote_logging:
         from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
@@ -70,8 +75,7 @@ class TbLogger(logging.Logger):
     PREVIOUS_ERRORS_SENT_TIME = 0
     PREVIOUS_ERRORS_RESET_TIME = 0
 
-    def __init__(self, name, gateway=None, level=logging.NOTSET,
-                 is_connector_logger=False, is_converter_logger=False,
+    def __init__(self, name, level=logging.NOTSET, is_connector_logger=False, is_converter_logger=False,
                  connector_name=None):
         super(TbLogger, self).__init__(name=name, level=level)
         self.propagate = True
@@ -82,16 +86,39 @@ class TbLogger(logging.Logger):
         self.__previous_reset_errors_time = TbLogger.PREVIOUS_ERRORS_RESET_TIME
         logging.Logger.trace = TbLogger.trace
 
-        if self.__is_connector_logger:
-            self.connector_name = name
-        elif connector_name:
-            self.connector_name = connector_name
-        elif self.__is_converter_logger and connector_name is None:
-            raise ValueError("Connector name must be provided for connector logger")
+        if connector_name:
+            self.__connector_name = connector_name
+        else:
+            self.__connector_name = name
 
         self.errors = 0
-        self.attr_name = self.name + '_ERRORS_COUNT'
+        self.attr_name = self.__connector_name + '_ERRORS_COUNT'
         self._is_on_init_state = True
+
+    @property
+    def is_connector_logger(self):
+        return self.__is_connector_logger
+
+    @is_connector_logger.setter
+    def is_connector_logger(self, value):
+        self.__is_connector_logger = value
+
+    @property
+    def is_converter_logger(self):
+        return self.__is_converter_logger
+
+    @is_converter_logger.setter
+    def is_converter_logger(self, value):
+        self.__is_converter_logger = value
+
+    @property
+    def connector_name(self):
+        return self.__connector_name
+
+    @connector_name.setter
+    def connector_name(self, value):
+        self.__connector_name = value
+        self.attr_name = self.__connector_name + '_ERRORS_COUNT'
 
     def reset(self):
         with TbLogger.ERRORS_MUTEX:
@@ -112,7 +139,6 @@ class TbLogger(logging.Logger):
     def trace(self, msg, *args, **kwargs):
         if self.isEnabledFor(TRACE_LOGGING_LEVEL):
             self._log(TRACE_LOGGING_LEVEL, msg, args, **kwargs)
-
 
     def error(self, msg, *args, **kwargs):
         kwargs['stacklevel'] = 2
@@ -193,3 +219,4 @@ class TbLogger(logging.Logger):
                             cls.__PREVIOUS_BATCH_TO_SEND.pop(key, None)
                         cls.__PREVIOUS_BATCH_TO_SEND.update(batch_to_send)
 
+logging.setLoggerClass(TbLogger)
