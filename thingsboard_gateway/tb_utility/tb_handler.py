@@ -16,7 +16,6 @@ import logging
 import logging.handlers
 import os
 import threading
-from logging import LogRecord
 from os import environ
 from pathlib import Path
 from queue import Queue, Empty
@@ -36,6 +35,7 @@ class TBLoggerHandler(logging.Handler):
     }
 
     def __init__(self, gateway):
+        logging.setLoggerClass(TbLogger)
         self.current_log_level = 'INFO'
         super().__init__(logging.getLevelName(self.current_log_level))
         self.setLevel(logging.getLevelName('DEBUG'))

@@ -144,6 +144,7 @@ class TBGatewayService:
     ]
 
     def __init__(self, config_file=None):
+        logging.setLoggerClass(TbLogger)
         self.__init_variables()
         if current_thread() is main_thread():
             signal(SIGINT, lambda _, __: self.__stop_gateway())
