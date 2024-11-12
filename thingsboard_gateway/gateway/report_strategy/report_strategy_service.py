@@ -44,8 +44,8 @@ class ReportStrategyService:
         return self.main_report_strategy
 
     def register_connector_report_strategy(self, connector_name: str, connector_id: str, report_strategy_config: ReportStrategyConfig):
-        if report_strategy_config is None:
-            report_strategy_config = self.main_report_strategy.report_strategy
+        if report_strategy_config is None: # Default report strategy will be used if no report strategy is provided
+            return
         self._connectors_report_strategies[connector_id] = report_strategy_config
         self._connectors_report_strategies[connector_name] = report_strategy_config
 
@@ -260,4 +260,3 @@ class ReportStrategyService:
     def clear_cache(self):
         self._report_strategy_data_cache.clear()
         self.__keys_to_report_periodically.clear()
-        self._connectors_report_strategies.clear()

@@ -199,7 +199,7 @@ class RemoteConfigurator:
         if config_to_send.get('config') is not None:
             config_to_send.pop('config', None)
         if config_to_send.get("configurationJson", {}) is not None:
-            config_to_send.get("configurationJson", {}).pop('logLevel')
+            config_to_send.get("configurationJson", {}).pop('logLevel', None)
         if config_to_send.get('configurationJson', {}).get(REPORT_STRATEGY_PARAMETER) is not None:
             config_to_send[REPORT_STRATEGY_PARAMETER] = config_to_send['configurationJson'].pop(REPORT_STRATEGY_PARAMETER)
         self._gateway.send_attributes({connector_configuration['name']: config_to_send}, quality_of_service=1)

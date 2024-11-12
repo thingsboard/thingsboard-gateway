@@ -935,13 +935,16 @@ class TBGatewayService:
                         connector_configuration = connector_conf_from_file
                     connector_config_version = connector_configuration.get(CONFIG_VERSION_PARAMETER) if isinstance(
                         connector_configuration, dict) else None
-                    self.connectors_configs[connector_type].append({"name": connector_config_from_main['name'],
-                                                                    "id": connector_id,
-                                                                    "config": connector_configuration,
-                                                                    CONFIG_VERSION_PARAMETER: connector_config_version,
-                                                                    "config_updated": stat(connector_config_file_path),
-                                                                    "config_file_path": connector_config_file_path,
-                                                                    "grpc_key": connector_persistent_key})
+                    connector_configuration_local = {"name": connector_config_from_main['name'],
+                                                     "id": connector_id,
+                                                     "config": connector_configuration,
+                                                     CONFIG_VERSION_PARAMETER: connector_config_version,
+                                                     "config_updated": stat(connector_config_file_path),
+                                                     "config_file_path": connector_config_file_path,
+                                                     "grpc_key": connector_persistent_key}
+                    if isinstance(connector_configuration, dict) and connector_configuration.get(REPORT_STRATEGY_PARAMETER) is not None:
+                        connector_configuration_local[REPORT_STRATEGY_PARAMETER] = connector_configuration[REPORT_STRATEGY_PARAMETER]
+                    self.connectors_configs[connector_type].append(connector_configuration_local)
                 except Exception as e:
                     log.exception("Error on loading connector: %r", e)
                     log.debug("Error on loading connector info", exc_info=e)
