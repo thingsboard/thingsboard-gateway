@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from logging import getLogger
+from logging import getLogger, setLoggerClass
 from platform import platform, release, system
 from time import time
 from uuid import uuid1
@@ -23,8 +23,10 @@ from requests import ConnectionError, post
 from simplejson import loads
 
 from thingsboard_gateway import version
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
+setLoggerClass(TbLogger)
 log = getLogger("service")
 
 UPDATE_SERVICE_BASE_URL = "https://updates.thingsboard.io"

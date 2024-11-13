@@ -15,9 +15,12 @@
 
 from importlib.util import module_from_spec, spec_from_file_location
 from inspect import getmembers, isclass
-from logging import getLogger
+from logging import getLogger, setLoggerClass
 from os import listdir, path
 
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger
+
+setLoggerClass(TbLogger)
 log = getLogger("service")
 
 EXTENSIONS_FOLDER = '/extensions'.replace('/', path.sep)
