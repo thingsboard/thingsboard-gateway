@@ -40,7 +40,10 @@ def init_logger(gateway, name, level, enable_remote_logging=False, is_connector_
         log.addHandler(gateway.main_handler)
 
     if enable_remote_logging:
-        if  gateway.remote_handler not in log.handlers:
+        from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
+        if not hasattr(gateway, 'remote_handler'):
+            gateway.remote_handler = TBLoggerHandler(gateway)
+        if gateway.remote_handler not in log.handlers:
             log.addHandler(gateway.remote_handler)
             gateway.remote_handler.add_logger(name)
             if not gateway.remote_handler.activated:
@@ -53,7 +56,7 @@ def init_logger(gateway, name, level, enable_remote_logging=False, is_connector_
         try:
             log.setLevel(log_level)
         except ValueError:
-            log.setLevel(logging.NOTSET)
+            log.setLevel(100)
 
     return log
 

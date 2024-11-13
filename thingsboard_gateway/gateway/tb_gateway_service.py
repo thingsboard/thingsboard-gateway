@@ -219,7 +219,8 @@ class TBGatewayService:
             self.send_telemetry({"ts": time() * 1000, "values": {
                 "LOGS": "Logging loading exception, logs.json is wrong: %s" % (str(logging_error),)}})
             TBLoggerHandler.set_default_handler()
-        self.remote_handler = TBLoggerHandler(self)
+        if not hasattr(self, "remote_handler"):
+            self.remote_handler = TBLoggerHandler(self)
         log.addHandler(self.remote_handler)
         self.__debug_log_enabled = log.isEnabledFor(10)
         self.update_loggers()

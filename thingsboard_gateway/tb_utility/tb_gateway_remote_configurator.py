@@ -434,18 +434,19 @@ class RemoteConfigurator:
             config['handlers'] = target_handlers
 
             for logger in config['loggers']:
-                if config['loggers'][logger].get('level', "").lower() == 'none':
-                    config['loggers'][logger]['level'] = 'NOTSET'
+
+                if config['loggers'][logger].get('level', "").lower() in ('none', 'notset'):
+                    config['loggers'][logger]['level'] = 100
 
             dictConfig(config)
 
             with open(logs_conf_file_path, 'w') as logs:
-                logs.write(dumps(original_in_config, indent='  '))
+                logs.write(dumps(config, indent='  '))
 
             self._gateway.update_loggers()
 
             self.__log.debug("Logs configuration has been updated.")
-            self._gateway.send_attributes({'logs_configuration': config})
+            self._gateway.send_attributes({'logs_configuration': original_in_config})
         except Exception as e:
             self.__log.error("Remote logging configuration is wrong, cannot apply it!")
             self.__log.exception(e)

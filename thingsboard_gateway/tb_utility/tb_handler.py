@@ -104,7 +104,7 @@ class TBLoggerHandler(logging.Handler):
             sleep(1)
 
     def activate(self, log_level=None):
-        self.setLevel(logging.getLevelName(log_level))
+        self.setLevel(logging.getLevelName(log_level or 'INFO'))
         self.current_log_level = log_level
         self.activated = True
 
