@@ -65,8 +65,9 @@ class TBLoggerHandler(logging.Handler):
 
     def add_logger(self, name):
         log = logging.getLogger(name)
-        log.addHandler(self.__gateway.main_handler)
-        log.debug("Added remote handler to log %s", name)
+        if hasattr(self.__gateway, 'main_handler') and self.__gateway.main_handler not in log.handlers:
+            log.addHandler(self.__gateway.main_handler)
+            log.debug("Added main handler to log %s", name)
         self.loggers[name] = log
 
     def _send_logs(self):
@@ -103,19 +104,10 @@ class TBLoggerHandler(logging.Handler):
             sleep(1)
 
     def activate(self, log_level=None):
-        try:
-            for logger in self.loggers:
-                if log_level is not None and logging.getLevelName(log_level) is not None:
-                    if logger == 'tb_connection' and log_level == 'DEBUG':
-                        log = init_logger(self.__gateway, logger, log_level)
-                        self.loggers[logger] = log
-                    else:
-                        log = init_logger(self.__gateway, logger, log_level)
-                        self.loggers[logger] = log
-        except Exception as e:
-            log = TbLogger('service')
-            log.exception("Failed to activate logs sending", exc_info=e)
+        self.setLevel(logging.getLevelName(log_level or 'INFO'))
+        self.current_log_level = log_level
         self.activated = True
+
         self._send_logs_thread = threading.Thread(target=self._send_logs, name='Logs Sending Thread', daemon=True)
         self._send_logs_thread.start()
 

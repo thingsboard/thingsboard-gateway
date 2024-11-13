@@ -13,7 +13,7 @@
 #     limitations under the License.
 import datetime
 from getpass import getuser
-from logging import getLogger
+from logging import getLogger, setLoggerClass
 from os import environ
 from platform import system as platform_system
 from re import search, findall
@@ -31,7 +31,9 @@ from orjson import JSONDecodeError, dumps, loads
 from thingsboard_gateway.gateway.constants import SECURITY_VAR, REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
+setLoggerClass(TbLogger)
 log = getLogger("service")
 
 
