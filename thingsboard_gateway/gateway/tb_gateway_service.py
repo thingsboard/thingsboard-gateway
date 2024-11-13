@@ -76,6 +76,7 @@ except ImportError:
     class TBGRPCServerManager:
         pass
 log: TbLogger = None  # type: ignore
+logging.setLoggerClass(TbLogger)
 main_handler = logging.handlers.MemoryHandler(-1)
 
 DEFAULT_CONNECTORS = {
@@ -565,6 +566,7 @@ class TBGatewayService:
                         TbLogger.send_errors_if_needed(self)
 
                     if cur_time - update_logger_time > 60000:
+                        update_logger_time = cur_time
                         log = logging.getLogger('service')
                         self.__debug_log_enabled = log.isEnabledFor(10)
                 except Exception as e:

@@ -220,3 +220,5 @@ class TbLogger(logging.Logger):
                         for key in keys_to_remove:
                             cls.__PREVIOUS_BATCH_TO_SEND.pop(key, None)
                         cls.__PREVIOUS_BATCH_TO_SEND.update(batch_to_send)
+
+logging.setLoggerClass(TbLogger)

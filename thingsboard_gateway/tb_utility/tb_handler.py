@@ -25,6 +25,7 @@ from time import time, sleep
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger, init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
+logging.setLoggerClass(TbLogger)
 
 class TBLoggerHandler(logging.Handler):
     LOGGER_NAME_TO_ATTRIBUTE_NAME = {
@@ -154,8 +155,9 @@ class TBLoggerHandler(logging.Handler):
             'extension',
             'tb_connection'
             ]
+        logging.setLoggerClass(TbLogger)
         for logger_name in logger_names:
-            logger = TbLogger(logger_name)
+            logger = logging.getLogger(logger_name)
             handler = logging.StreamHandler(stdout)
             handler.setFormatter(logging.Formatter('[STREAM ONLY] %(asctime)s - %(levelname)s - [%(filename)s] - %(module)s - %(lineno)d - %(message)s'))
             logger.addHandler(handler)
