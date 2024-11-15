@@ -140,6 +140,12 @@ class StatisticsService(Thread):
                     value = process.stdout
                 else:
                     value = attribute['function'](self._gateway)
+                if value is None:
+                    continue
+                try:
+                    value = float(value)
+                except ValueError:
+                    pass
             except Exception as e:
                 self._log.warning("Statistic parameter %s raise the exception: %s",
                                   attribute['attributeOnGateway'], e)
@@ -208,12 +214,12 @@ class StatisticsService(Thread):
 
                 cur_monotonic = int(monotonic())
 
-                if cur_monotonic - self._last_service_poll >= self._stats_send_period_in_seconds:
+                if cur_monotonic - self._last_service_poll >= self._stats_send_period_in_seconds or self._last_service_poll == 0:
                     self._last_service_poll = cur_monotonic
                     self.__send_statistics()
                     self.clear_statistics()
 
-                if cur_monotonic - self._last_custom_command_poll >= self._custom_stats_send_period_in_seconds:
+                if cur_monotonic - self._last_custom_command_poll >= self._custom_stats_send_period_in_seconds or self._last_custom_command_poll == 0:
                     self._last_custom_command_poll = cur_monotonic
                     self.__send_custom_command_statistics()
 
