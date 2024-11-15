@@ -60,6 +60,7 @@ setup(
         'pip',
         'PyYAML',
         'orjson',
+        'pybase64',
         'simplejson',
         'urllib3<=1.26.15',
         'requests>=2.31.0',

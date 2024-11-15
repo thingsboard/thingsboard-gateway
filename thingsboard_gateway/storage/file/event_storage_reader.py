@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from base64 import b64decode
+from pybase64 import b64decode
 from io import BufferedReader, FileIO
 from os import remove
 from os.path import exists

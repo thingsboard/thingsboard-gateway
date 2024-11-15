@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from base64 import b64encode
+from pybase64 import b64encode
 from io import BufferedWriter, FileIO
 from os import O_CREAT, O_EXCL, close as os_close, linesep, open as os_open, listdir
 from os.path import exists
