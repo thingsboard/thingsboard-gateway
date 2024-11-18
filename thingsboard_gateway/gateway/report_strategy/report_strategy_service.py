@@ -14,7 +14,7 @@
 
 from queue import SimpleQueue
 from threading import Thread
-from time import monotonic, sleep, time
+from time import monotonic, time
 from typing import Dict, Set, Union
 
 from thingsboard_gateway.gateway.constants import DEFAULT_REPORT_STRATEGY_CONFIG, ReportStrategy, DEVICE_NAME_PARAMETER, \
@@ -180,10 +180,10 @@ class ReportStrategyService:
         occurred_errors = 0
         report_strategy_data_cache_get = self._report_strategy_data_cache.get
         send_data_queue_put_nowait = self.__send_data_queue.put_nowait
-        while not self.__gateway.stopped:
+        while not self.__gateway.stop_event.is_set():
             try:
                 if not self.__keys_to_report_periodically:
-                    sleep(0.1)
+                    self.__gateway.stop_event.wait(1)
                     continue
 
                 current_time = int(monotonic() * 1000)
@@ -235,8 +235,7 @@ class ReportStrategyService:
                     self._logger.warning("The number of keys to report periodically: %d", len(keys_set))
                     self._logger.warning("The number of reported data: %d", reported_data_length)
 
-                sleep(0.01)
-
+                self.__gateway.stop_event.wait(0.01)
             except Exception as e:
                 occurred_errors += 1
                 current_monotonic = int(monotonic())

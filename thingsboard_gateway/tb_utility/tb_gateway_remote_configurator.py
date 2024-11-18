@@ -16,7 +16,7 @@ import os.path
 from copy import deepcopy
 from logging import getLogger, setLoggerClass
 from logging.config import dictConfig
-from queue import Queue
+from queue import Queue, Empty
 from threading import Thread
 from time import sleep, time, monotonic
 
@@ -227,9 +227,9 @@ class RemoteConfigurator:
 
     def _process_config_request(self):
         while not self._gateway.stopped:
-            if not RemoteConfigurator.RECEIVED_UPDATE_QUEUE.empty():
+            try:
                 self.in_process = True
-                config = RemoteConfigurator.RECEIVED_UPDATE_QUEUE.get()
+                config = RemoteConfigurator.RECEIVED_UPDATE_QUEUE.get(timeout=.1)
                 self.__log.info('Configuration update request received.')
                 self.__log.debug('Got config update request: %s', config)
 
@@ -258,8 +258,11 @@ class RemoteConfigurator:
                     self.__log.error('Unknown attribute update name (Available: %s), %r', list(self._handlers.keys()),e)
 
                 self.in_process = False
-            else:
-                sleep(.2)
+            except (TimeoutError, Empty):
+                self._gateway.stop_event.wait(.1)
+                pass
+            except Exception as e:
+                self.__log.error('Exception while processing configuration update request.', exc_info=e)
 
     # HANDLERS ---------------------------------------------------------------------------------------------------------
     def _handle_general_configuration_update(self, config):

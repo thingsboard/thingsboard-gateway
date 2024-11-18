@@ -72,8 +72,9 @@ class TBLoggerHandler(logging.Handler):
 
     def _send_logs(self):
         while self.activated and not self.__gateway.stopped:
-            if not self._logs_queue.empty():
+            try:
                 logs_for_sending_list = []
+                log_msg = self._logs_queue.get(timeout=1)
 
                 count = 1
                 while count <= self._max_message_count_batch:
@@ -81,7 +82,8 @@ class TBLoggerHandler(logging.Handler):
                         if self.__gateway.tb_client is None or not self.__gateway.tb_client.is_connected():
                             sleep(1)
                             continue
-                        log_msg = self._logs_queue.get(block=False)
+                        if log_msg is None:
+                            log_msg = self._logs_queue.get(block=False)
 
                         logs_msg_size = TBUtility.get_data_size(log_msg)
                         if logs_msg_size > self.__gateway.get_max_payload_size_bytes():
@@ -93,15 +95,18 @@ class TBLoggerHandler(logging.Handler):
                             logs_for_sending_list = [log_msg]
                         else:
                             logs_for_sending_list.append(log_msg)
-
+                        log_msg = None
                         count += 1
                     except Empty:
                         break
 
-                if logs_for_sending_list:
+                if logs_for_sending_list and not self.__gateway.stopped:
                     self.__gateway.send_telemetry(logs_for_sending_list)
-
-            sleep(1)
+            except (TimeoutError, Empty):
+                pass
+            except Exception as e:
+                log = TbLogger('service')
+                log.debug("Exception while sending logs.", exc_info=e)
 
     def activate(self, log_level=None):
         self.setLevel(logging.getLevelName(log_level or 'INFO'))

@@ -14,7 +14,7 @@
 
 import datetime
 import subprocess
-from threading import Thread, RLock
+from threading import Thread, RLock, Event
 from time import sleep, monotonic
 from platform import system as platform_system
 
@@ -209,11 +209,17 @@ class StatisticsService(Thread):
 
         while not self._stopped:
             try:
-
-                sleep(1)
-
                 cur_monotonic = int(monotonic())
 
+                next_service_poll = (self._last_service_poll + self._stats_send_period_in_seconds) - cur_monotonic
+                next_custom_command_poll = (self._last_custom_command_poll + self._custom_stats_send_period_in_seconds) - cur_monotonic
+
+                wait_time = max(0, min(next_service_poll, next_custom_command_poll))
+
+                if wait_time > 0:
+                    Event().wait(wait_time)
+
+                cur_monotonic = int(monotonic())
                 if cur_monotonic - self._last_service_poll >= self._stats_send_period_in_seconds or self._last_service_poll == 0:
                     self._last_service_poll = cur_monotonic
                     self.__send_statistics()
@@ -225,4 +231,4 @@ class StatisticsService(Thread):
 
             except Exception as e:
                 self._log.error("Error in statistics thread: %s", e)
-                sleep(5)
+                Event().wait(5)

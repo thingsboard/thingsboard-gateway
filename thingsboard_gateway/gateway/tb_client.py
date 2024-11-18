@@ -59,6 +59,7 @@ class TBClient(threading.Thread):
         self.__password = None
         self.__is_connected = False
         self.__stopped = False
+        self.__stop_event = threading.Event()
         self.__paused = False
         # TODO: remove this flag
         self.__initial_connection_done = False
@@ -288,6 +289,7 @@ class TBClient(threading.Thread):
         # self.disconnect()
         self.client.stop()
         self.__stopped = True
+        self.__stop_event.set()
 
     def disconnect(self):
         self.__paused = True
@@ -342,14 +344,15 @@ class TBClient(threading.Thread):
     def run(self):
         while not self.__stopped:
             try:
-                if not self.__stopped:
-                    sleep(.2)
-                else:
+                if self.__stop_event.wait(timeout=0.2):
                     break
             except KeyboardInterrupt:
                 self.__stopped = True
+                self.__stop_event.set()
+            except TimeoutError:
+                pass
             except Exception as e:
-                self.__logger.exception(e)
+                self.__logger.exception("Error in main MQTT client loop: %s", exc_info=e)
 
     def get_config_folder_path(self):
         return self.__config_folder_path

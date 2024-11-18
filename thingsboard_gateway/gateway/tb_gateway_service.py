@@ -27,7 +27,7 @@ from random import choice
 from signal import signal, SIGINT
 from string import ascii_lowercase, hexdigits
 from sys import argv, executable
-from threading import RLock, Thread, main_thread, current_thread
+from threading import RLock, Thread, main_thread, current_thread, Event
 from time import sleep, time, monotonic
 from typing import Union, List
 import importlib.util
@@ -259,7 +259,7 @@ class TBGatewayService:
 
         self.init_device_filtering(self.__config['thingsboard'].get('deviceFiltering', DEFAULT_DEVICE_FILTER))
 
-        log.info("Gateway started.")
+        log.info("Gateway core started.")
 
         self._watchers_thread = Thread(target=self._watchers, name='Watchers', daemon=True)
         self._watchers_thread.start()
@@ -273,11 +273,14 @@ class TBGatewayService:
         try:
             if not self.__connectors_init_start_success:
                 self.connect_with_connectors()
-                log.info("Initials connections with connectors was successful.")
         except Exception as e:
-            log.exception("Error while connecting to connectors, please update configuration: %s", e)
+            log.info("Error while connecting to connectors, please update configuration: %s", e)
+
+        log.info("Gateway connectors initialized.")
 
         self.__load_persistent_devices()
+
+        log.info("Persistent devices loaded.")
 
         if self.__config['thingsboard'].get('managerEnabled', False):
             manager_address = '/tmp/gateway'
@@ -301,15 +304,18 @@ class TBGatewayService:
                 self.server = self.manager.get_server()
                 self.server.serve_forever()
 
+        log.info("Gateway started.")
+
         while not self.stopped:
             try:
-                sleep(1)
+                self.stop_event.wait(1)
             except KeyboardInterrupt:
                 self.__stop_gateway()
                 break
 
     def __init_variables(self):
         self.stopped = False
+        self.stop_event = Event()
         self.__device_filter_config = None
         self.__device_filter = None
         self.__grpc_manager = None
@@ -545,9 +551,9 @@ class TBGatewayService:
                             sleep(1)
                     else:
                         try:
-                            sleep(0.02)
+                            self.stop_event.wait(.02)
                         except Exception as e:
-                            log.exception(e)
+                            log.exception("Error in main loop: %s", exc_info=e)
                             break
 
                     if (not self.__requested_config_after_connect and self.tb_client.is_connected()
@@ -574,7 +580,7 @@ class TBGatewayService:
                         self.__debug_log_enabled = log.isEnabledFor(10)
                 except Exception as e:
                     log.exception("Error in main loop: %s", exc_info=e)
-                    sleep(1)
+                    self.stop_event.wait(1)
         except Exception as e:
             log.exception(e)
             self.__stop_gateway()
@@ -601,6 +607,7 @@ class TBGatewayService:
 
     def __stop_gateway(self):
         self.stopped = True
+        self.stop_event.set()
         if hasattr(self, "_TBGatewayService__updater") and self.__updater is not None:
             self.__updater.stop()
         log.info("Stopping...")
@@ -1573,8 +1580,8 @@ class TBGatewayService:
 
     def __rpc_to_devices_processing(self):
         while not self.stopped:
-            if not self.__rpc_to_devices_queue.empty():
-                request_id, content, received_time = self.__rpc_to_devices_queue.get()
+            try:
+                request_id, content, received_time = self.__rpc_to_devices_queue.get(timeout=1)
                 timeout = content.get("params", {}).get("timeout", self.DEFAULT_TIMEOUT)
                 if monotonic() - received_time > timeout:
                     log.error("RPC request %s timeout", request_id)
@@ -1591,8 +1598,8 @@ class TBGatewayService:
                                   dumps(content))
                 else:
                     self.__rpc_to_devices_queue.put((request_id, content, received_time))
-            else:
-                sleep(.01)
+            except (TimeoutError, Empty):
+                pass
 
     def __rpc_gateway_processing(self, request_id, content):
         log.info("Received RPC request to the gateway, id: %s, method: %s", str(request_id), content["method"])
@@ -1675,11 +1682,11 @@ class TBGatewayService:
 
     def __send_rpc_reply_processing(self):
         while not self.stopped:
-            if not self.__rpc_processing_queue.empty():
-                args = self.__rpc_processing_queue.get()
+            try:
+                args = self.__rpc_processing_queue.get(timeout=1)
                 self.__send_rpc_reply(*args)
-            else:
-                sleep(.1)
+            except (TimeoutError, Empty):
+                pass
 
     def __send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None,
                          quality_of_service=0):

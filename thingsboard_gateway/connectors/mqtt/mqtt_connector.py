@@ -16,9 +16,9 @@ import random
 import socket
 import ssl
 import string
-from queue import Queue
+from queue import Queue, Empty
 from re import fullmatch, match, search
-from threading import Thread
+from threading import Thread, Event
 from time import sleep, time
 
 import simplejson
@@ -250,6 +250,7 @@ class MqttConnector(Connector, Thread):
         # Set up lifecycle flags ---------------------------------------------------------------------------------------
         self._connected = False
         self.__stopped = False
+        self.__stop_event = Event()
         self.daemon = True
 
         self.__msg_queue = Queue()
@@ -335,19 +336,20 @@ class MqttConnector(Connector, Thread):
         try:
             self.__connect()
         except Exception as e:
-            self.__log.exception(e)
-            try:
-                self.close()
-            except Exception as e:
-                self.__log.exception(e)
+            self.__log.exception("Error in connector main loop: %s", e)
 
-        while True:
-            if self.__stopped:
-                break
-            elif not self._connected:
-                self.__connect()
-            self.__threads_manager()
-            sleep(.2)
+        while not self.__stopped:
+            try:
+                if not self._connected:
+                    self.__connect()
+
+                self.__threads_manager()
+
+                self.__stop_event.wait(timeout=0.2)
+            except TimeoutError:
+                pass
+            except Exception as e:
+                self.__log.exception("Error in connector main loop: %s", e)
 
     def __connect(self):
         while not self._connected and not self.__stopped:
@@ -371,6 +373,7 @@ class MqttConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
+        self.__stop_event.set()
         try:
             self._client.disconnect()
         except Exception as e:
@@ -1044,7 +1047,7 @@ class MqttConnector(Connector, Thread):
 
         def run(self):
             while not self.stopped:
-                if not self.__msg_queue.empty():
+                try:
                     self.in_progress = True
                     convert_function, config, incoming_data = self.__msg_queue.get(True, 100)
                     converted_data: ConvertedData = convert_function(config, incoming_data)
@@ -1052,8 +1055,8 @@ class MqttConnector(Connector, Thread):
                                              converted_data.attributes_datapoints_count > 0):
                         self.__send_result(config, converted_data)
                     self.in_progress = False
-                else:
-                    sleep(.2)
+                except (TimeoutError, Empty):
+                    self.in_progress = False
 
         def stop(self):
             self.stopped = True
