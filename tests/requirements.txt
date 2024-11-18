@@ -33,3 +33,4 @@ puresnmp>=2.0.0
 slixmpp
 psutil
 orjson
+pybase64
