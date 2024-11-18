@@ -228,36 +228,39 @@ class RemoteConfigurator:
     def _process_config_request(self):
         while not self._gateway.stopped:
             try:
-                self.in_process = True
-                config = RemoteConfigurator.RECEIVED_UPDATE_QUEUE.get(timeout=.1)
-                self.__log.info('Configuration update request received.')
-                self.__log.debug('Got config update request: %s', config)
+                if not RemoteConfigurator.RECEIVED_UPDATE_QUEUE.empty():
+                    self.in_process = True
+                    config = RemoteConfigurator.RECEIVED_UPDATE_QUEUE.get(timeout=.1)
+                    self.__log.info('Configuration update request received.')
+                    self.__log.debug('Got config update request: %s', config)
 
-                try:
-                    if 'general_configuration' in config.keys():
-                        self._handle_general_configuration_update(config['general_configuration'])
-                        config.pop('general_configuration', None)
+                    try:
+                        if 'general_configuration' in config.keys():
+                            self._handle_general_configuration_update(config['general_configuration'])
+                            config.pop('general_configuration', None)
 
-                    for attr_name in config.keys():
-                        if 'deleted' in attr_name:
-                            continue
+                        for attr_name in config.keys():
+                            if 'deleted' in attr_name:
+                                continue
 
-                        request_config = config[attr_name]
-                        if not self._is_modified(attr_name, request_config) and self.__is_running(request_config):
-                            continue
+                            request_config = config[attr_name]
+                            if not self._is_modified(attr_name, request_config) and self.__is_running(request_config):
+                                continue
 
-                        request_processed = False
-                        for (name, func) in self._handlers.items():
-                            if fullmatch(name, attr_name):
-                                func(request_config)
-                                request_processed = True
-                                break
-                        if not request_processed:
-                            self.__log.error("Cannot process request for %s", attr_name)
-                except (KeyError, AttributeError) as e:
-                    self.__log.error('Unknown attribute update name (Available: %s), %r', list(self._handlers.keys()),e)
+                            request_processed = False
+                            for (name, func) in self._handlers.items():
+                                if fullmatch(name, attr_name):
+                                    func(request_config)
+                                    request_processed = True
+                                    break
+                            if not request_processed:
+                                self.__log.error("Cannot process request for %s", attr_name)
+                    except (KeyError, AttributeError) as e:
+                        self.__log.error('Unknown attribute update name (Available: %s), %r', list(self._handlers.keys()),e)
 
-                self.in_process = False
+                    self.in_process = False
+                else:
+                    self._gateway.stop_event.wait(.05)
             except (TimeoutError, Empty):
                 self._gateway.stop_event.wait(.1)
                 pass
