@@ -30,6 +30,7 @@ try:
 except ImportError:
     print("BLE library not found - installing...")
     TBUtility.install_package("bleak")
+    from bleak import BleakScanner
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.ble.device import Device
