@@ -44,7 +44,7 @@ class BACnetUplinkConverter(BACnetConverter):
                        end_stat_type='convertedBytesFromDevice')
     def convert(self, config, data):
         converted_data = ConvertedData(
-            device_name=self.__config.get("deviceName", config[1].get("name", "BACnet device")),
+            device_name=self.__config.get("deviceName", config[1].get("name", "BACnet device") if config is not None else "BACnet device"),
             device_type=self.__config.get("deviceType", "default")
         )
 
@@ -54,7 +54,8 @@ class BACnetUplinkConverter(BACnetConverter):
                 value = self.__property_value_from_apdu(data)
             if config is not None:
                 datapoint_key = (
-                    TBUtility.convert_key_to_datapoint_key(config[1]["key"], config[1].get(REPORT_STRATEGY_PARAMETER),
+                    TBUtility.convert_key_to_datapoint_key(config[1]["key"],
+                                                           config[1].get(REPORT_STRATEGY_PARAMETER),
                                                            self.__device_report_strategy,
                                                            self._log))
                 if BACnetUplinkConverter.DATATYPES[config[0]] == "attributes":
