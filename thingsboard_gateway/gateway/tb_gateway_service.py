@@ -859,6 +859,9 @@ class TBGatewayService:
                     if connector_type == 'opcua_asyncio':
                         connector_type = 'opcua'
 
+                    if connector_type == 'modbus':
+                        connector_type = 'modbus_async'
+
                     if connector_type is None:
                         log.error("Connector type is not defined!")
                         continue
