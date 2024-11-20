@@ -34,7 +34,7 @@ class Slave(Thread):
         self._log = logger
         self.connector = connector
         self.name = "Modbus slave processor for unit " + str(config['unitId']) + " on host " + str(
-            config['host']) + ":" + str(config['port'])
+            config['host']) + ":" + str(config['port']) + ' ' + config['deviceName']
 
         self.callback = connector.callback
 
@@ -159,6 +159,8 @@ class Slave(Thread):
                                     self.connection_attempt,
                                     self)
                     return False
+
+            self._log.info("Connected to %s", self)
 
         if self.connection_attempt_count >= 0 and self.master.connected():
             self.connection_attempt_count = 0

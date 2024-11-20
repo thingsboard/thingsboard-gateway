@@ -89,12 +89,12 @@ class AsyncModbusConnector(Connector, Thread):
         self.__gateway = gateway
         self._connector_type = connector_type
         self.__config = config
+        self.name = self.__config.get("name", 'Modbus Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__log = init_logger(self.__gateway, config.get('name', self.name),
                                  config.get('logLevel', 'INFO'),
                                  enable_remote_logging=config.get('enableRemoteLogging', False))
         self.__log.info('Starting Modbus Connector...')
         self.__id = self.__config.get('id')
-        self.name = self.__config.get("name", 'Modbus Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__connected = False
         self.__stopped = False
         self.daemon = True
@@ -250,9 +250,9 @@ class AsyncModbusConnector(Connector, Thread):
                 self.__log.error('Failed to connect to device %s', slave)
             except Exception as e:
                 self.__delete_device_from_platform(slave)
-                self.__log.exception('Failed to poll %s device: %s', slave, e)
+                self.__log.error('Failed to poll %s device: %s', slave, exc_info=e)
         else:
-            self.__log.error('Config is empty. Nothing to read, for device %s', slave)
+            self.__log.debug('Config is empty. Nothing to read, for device %s', slave)
 
     async def __read_slave_data(self, slave: Slave):
         result = {
