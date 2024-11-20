@@ -308,6 +308,11 @@ class TBUtility:
         return len(dumps(data))
 
     @staticmethod
+    def update_main_config_with_env_variables(config):
+        env_variables = TBUtility.get_service_environmental_variables()
+        config['thingsboard'] = {**config['thingsboard'], **env_variables}
+
+    @staticmethod
     def get_service_environmental_variables():
         env_variables = {
             'host': environ.get('host'),

@@ -179,8 +179,8 @@ class TBGatewayService:
         # load general configuration YAML/JSON
         self.__config = self.__load_general_config(config_file)
 
-        # change main config if Gateway running with docker env variables
-        self.__modify_main_config()
+        # change main config if Gateway running with env variables
+        self.__config = TBUtility.update_main_config_with_env_variables(self.__config)
 
         log.info("Gateway starting...")
         storage_log = logging.getLogger('storage')
@@ -582,15 +582,11 @@ class TBGatewayService:
                     log.exception("Error in main loop: %s", exc_info=e)
                     self.stop_event.wait(1)
         except Exception as e:
-            log.exception(e)
+            log.error("Error in main loop: %s", exc_info=e)
             self.__stop_gateway()
             self.__close_connectors()
             log.info("The gateway has been stopped.")
             self.tb_client.stop()
-
-    def __modify_main_config(self):
-        env_variables = TBUtility.get_service_environmental_variables()
-        self.__config['thingsboard'] = {**self.__config['thingsboard'], **env_variables}
 
     def __close_connectors(self):
         for current_connector in self.available_connectors_by_id:
@@ -648,7 +644,7 @@ class TBGatewayService:
 
                 self._check_shared_attributes(shared_keys=[])
             except Exception as e:
-                log.exception(e)
+                log.error("Failed to initialize remote configuration: %s", e)
         if self.__remote_configurator is not None:
             self.__remote_configurator.send_current_configuration()
 
@@ -671,7 +667,7 @@ class TBGatewayService:
                     log.trace("Client attributes received (%s).",
                               ", ".join([attr for attr in client_attributes.keys()]))
         except Exception as e:
-            log.exception("Failed to process attributes: %s", e)
+            log.error("Failed to process attributes: %s", e)
 
     def __process_attribute_update(self, content):
         self.__process_remote_logging_update(content.get("RemoteLoggingLevel"))
@@ -767,7 +763,7 @@ class TBGatewayService:
             try:
                 RemoteConfigurator.RECEIVED_UPDATE_QUEUE.put(new_configuration)
             except Exception as e:
-                log.exception(e)
+                log.error("Failed to process remote configuration: %s", e)
 
     def get_config_path(self):
         return self._config_dir
