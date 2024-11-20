@@ -13,35 +13,37 @@
 #     limitations under the License.
 
 from threading import Thread
-from time import time, sleep
+from time import sleep, monotonic
 
 from pymodbus.constants import Defaults
 
-from thingsboard_gateway.connectors.modbus_old.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.connectors.modbus_old.constants import *
-from thingsboard_gateway.grpc_connectors.gw_grpc_msg_creator import GrpcMsgCreator
-from thingsboard_gateway.grpc_connectors.modbus.bytes_modbus_uplink_converter import GrpcBytesModbusUplinkConverter
+from thingsboard_gateway.connectors.modbus_old.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
+from thingsboard_gateway.connectors.modbus_old.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
 
 class Slave(Thread):
     def __init__(self, **kwargs):
         super().__init__()
-        self._log = kwargs['logger']
         self.timeout = kwargs.get('timeout')
-        self.name = kwargs['deviceName']
+        self.device_name = kwargs['deviceName']
+        self._log = kwargs['logger']
         self.poll_period = kwargs['pollPeriod'] / 1000
 
-        self.byte_order = kwargs['byteOrder']
-        self.word_order = kwargs.get('wordOrder')
+        self.last_connect_time = 0
+
+        self.byte_order = kwargs.get('byteOrder', 'LITTLE')
+        self.word_order = kwargs.get('wordOrder', 'LITTLE')
         self.config = {
             'unitId': kwargs['unitId'],
             'deviceType': kwargs.get('deviceType', 'default'),
             'type': kwargs['type'],
             'host': kwargs.get('host'),
             'port': kwargs['port'],
-            'byteOrder': kwargs['byteOrder'],
-            'wordOrder': kwargs['wordOrder'],
+            'byteOrder': kwargs.get('byteOrder', 'LITTLE'),
+            'wordOrder': kwargs.get('wordOrder', 'LITTLE'),
+            'tls': kwargs.get('tls', kwargs.get('security')),
             'timeout': kwargs.get('timeout', 35),
             'stopbits': kwargs.get('stopbits', Defaults.Stopbits),
             'bytesize': kwargs.get('bytesize', Defaults.Bytesize),
@@ -50,7 +52,6 @@ class Slave(Thread):
             'retries': kwargs.get('retries', 3),
             'connection_attempt': 0,
             'last_connection_attempt_time': 0,
-            'sendDataOnlyOnChange': kwargs.get('sendDataOnlyOnChange', False),
             'waitAfterFailedAttemptsMs': kwargs.get('waitAfterFailedAttemptsMs', 0),
             'connectAttemptTimeMs': kwargs.get('connectAttemptTimeMs', 0),
             'retry_on_empty': kwargs.get('retryOnEmpty', False),
@@ -60,54 +61,62 @@ class Slave(Thread):
             'attributes': kwargs.get('attributes', []),
             'timeseries': kwargs.get('timeseries', []),
             'attributeUpdates': kwargs.get('attributeUpdates', []),
-            'rpc': kwargs.get('rpc', []),
-            'last_attributes': {},
-            'last_telemetry': {}
+            'rpc': kwargs.get('rpc', [])
         }
 
-        self.__load_converters(kwargs['connector'], kwargs['connector_key'])
+        if REPORT_STRATEGY_PARAMETER in kwargs:
+            self.config[REPORT_STRATEGY_PARAMETER] = kwargs[REPORT_STRATEGY_PARAMETER]
+
+        self.__load_converters(kwargs['connector'])
 
         self.callback = kwargs['callback']
 
-        self.last_polled_time = None
+        self.__last_polled_time = None
         self.daemon = True
+        self.stop = False
+
+        self.name = "Modbus slave processor for unit " + str(self.config['unitId']) + " on host " + str(
+            self.config['host']) + ":" + str(self.config['port'])
 
         self.start()
 
     def timer(self):
-        self.callback(self)
-        self.last_polled_time = time()
+        self.callback(self, RequestType.POLL)
+        self.__last_polled_time = monotonic()
 
-        while True:
-            if time() - self.last_polled_time >= self.poll_period:
-                self.callback(self)
-                self.last_polled_time = time()
+        while not self.stop:
+            try:
+                current_monotonic = monotonic()
+                if current_monotonic - self.__last_polled_time >= self.poll_period:
+                    self.__last_polled_time = current_monotonic
+                    self.callback(self, RequestType.POLL)
+            except Exception as e:
+                self._log.exception("Error in slave timer: %s", e)
 
-            sleep(.2)
+            sleep(0.001)
 
     def run(self):
         self.timer()
 
-    def get_name(self):
-        return self.name
+    def close(self):
+        self.stop = True
 
-    def __load_converters(self, connector, connector_key):
+    def get_name(self):
+        return self.device_name
+
+    def __load_converters(self, connector):
         try:
             if self.config.get(UPLINK_PREFIX + CONVERTER_PARAMETER) is not None:
                 converter = TBModuleLoader.import_module(connector.connector_type,
-                                                         self.config[UPLINK_PREFIX + CONVERTER_PARAMETER])(self)
+                                                         self.config[UPLINK_PREFIX + CONVERTER_PARAMETER])(self, self._log)
             else:
-                converter = GrpcBytesModbusUplinkConverter({**self.config, 'deviceName': self.name})
+                converter = BytesModbusUplinkConverter({**self.config, 'deviceName': self.device_name}, self._log)
 
             if self.config.get(DOWNLINK_PREFIX + CONVERTER_PARAMETER) is not None:
                 downlink_converter = TBModuleLoader.import_module(connector.connector_type, self.config[
-                    DOWNLINK_PREFIX + CONVERTER_PARAMETER])(self)
+                    DOWNLINK_PREFIX + CONVERTER_PARAMETER])(self, self._log)
             else:
-                downlink_converter = BytesModbusDownlinkConverter(self.config)
-
-            if self.name not in GrpcMsgCreator.create_get_connected_devices_msg(connector_key):
-                GrpcMsgCreator.create_device_connected_msg(device_name=self.name,
-                                                           device_type=self.config.get(DEVICE_TYPE_PARAMETER))
+                downlink_converter = BytesModbusDownlinkConverter(self.config, self._log)
 
             self.config[UPLINK_PREFIX + CONVERTER_PARAMETER] = converter
             self.config[DOWNLINK_PREFIX + CONVERTER_PARAMETER] = downlink_converter
@@ -115,4 +124,4 @@ class Slave(Thread):
             self._log.exception(e)
 
     def __str__(self):
-        return f'{self.name}'
+        return f'{self.device_name}'

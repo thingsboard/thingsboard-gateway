@@ -19,7 +19,7 @@ from pymodbus.framer.ascii_framer import ModbusAsciiFramer
 from pymodbus.framer.rtu_framer import ModbusRtuFramer
 from pymodbus.framer.socket_framer import ModbusSocketFramer
 
-from thingsboard_gateway.connectors.modbus_async.constants import SERIAL_CONNECTION_TYPE_PARAMETER
+from thingsboard_gateway.connectors.modbus.constants import SERIAL_CONNECTION_TYPE_PARAMETER
 
 FRAMER_TYPE = {
     'rtu': ModbusRtuFramer,

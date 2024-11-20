@@ -11,37 +11,90 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-from time import time
+
+from typing import List, Union
 
 from pymodbus.constants import Endian
 from pymodbus.exceptions import ModbusIOException
 from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.pdu import ExceptionResponse
 
+from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
-from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER, ATTRIBUTES_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
-from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class BytesModbusUplinkConverter(ModbusConverter):
-    def __init__(self, config, logger):
+    def __init__(self, config: BytesUplinkConverterConfig, logger):
         self._log = logger
-        self.__datatypes = {
-            "timeseries": "telemetry",
-            "attributes": "attributes"
-            }
-        self.__device_name = config.get("deviceName", "ModbusDevice %s" % (str(config["unitId"])))
-        self.__device_type = config.get("deviceType", "default")
-        self.__device_report_strategy = None
-        try:
-            self.__device_report_strategy = ReportStrategyConfig(config.get(REPORT_STRATEGY_PARAMETER))
-        except ValueError as e:
-            self._log.trace("Report strategy config is not specified for device %s", self.__device_name)
+        self.__config = config
+
+    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
+                       end_stat_type='convertedBytesFromDevice')
+    def convert(self, _, data: List[dict]) -> Union[ConvertedData, None]:
+        result = ConvertedData(self.__config.device_name, self.__config.device_type)
+        device_report_strategy = self._get_device_report_strategy(self.__config.report_strategy,
+                                                                  self.__config.device_name)
+
+        converted_data_append_methods = {
+            'attributes': result.add_to_attributes,
+            'telemetry': result.add_to_telemetry
+        }
+        for device_data in data:
+            StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
+
+            for config_section in converted_data_append_methods:
+                for config in getattr(self.__config, config_section):
+                    encoded_data = device_data[config_section].get(config['tag'])
+
+                    if encoded_data:
+                        decoded_data = self.decode_data(encoded_data, config,
+                                                        self.__config.byte_order,
+                                                        self.__config.word_order)
+
+                        if decoded_data is not None:
+                            datapoint_key = TBUtility.convert_key_to_datapoint_key(config['tag'], device_report_strategy,
+                                                                                   config, self._log)
+                            converted_data_append_methods[config_section]({datapoint_key: decoded_data})
+
+            self._log.trace("Decoded data: %s", result)
+            StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                      count=result.attributes_datapoints_count)
+            StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                      count=result.telemetry_datapoints_count)
+
+            return result
+
+    def decode_data(self, encoded_data, config, endian_order, word_endian_order):
+        decoded_data = None
+
+        if not isinstance(encoded_data, ModbusIOException) and not isinstance(encoded_data, ExceptionResponse):
+            if config['functionCode'] in (1, 2):
+                try:
+                    decoder = self.from_coils(encoded_data.bits, endian_order=endian_order,
+                                              word_endian_order=word_endian_order)
+                except TypeError:
+                    decoder = self.from_coils(encoded_data.bits, word_endian_order=word_endian_order)
+
+                decoded_data = self.decode_from_registers(decoder, config)
+            elif config['functionCode'] in (3, 4):
+                decoder = BinaryPayloadDecoder.fromRegisters(encoded_data.registers, byteorder=endian_order,
+                                                             wordorder=word_endian_order)
+                decoded_data = self.decode_from_registers(decoder, config)
+
+                if config.get('divider'):
+                    decoded_data = float(decoded_data) / float(config['divider'])
+                elif config.get('multiplier'):
+                    decoded_data = decoded_data * config['multiplier']
+        else:
+            self._log.exception("Error while decoding data: %s, with config: %s", encoded_data, config)
+            decoded_data = None
+
+        return decoded_data
 
     @staticmethod
     def from_coils(coils, endian_order=Endian.Little, word_endian_order=Endian.Big):
@@ -61,95 +114,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
         return decoder
 
-    @CollectStatistics(start_stat_type='receivedBytesFromDevices',
-                       end_stat_type='convertedBytesFromDevice')
-    def convert(self, config, data):
-        StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
-
-        converted_data = ConvertedData(self.__device_name, self.__device_type)
-
-        timestamp = data.get("ts", time() * 1000)
-
-        for config_data in data:
-            for tag in data[config_data]:
-                try:
-                    configuration = data[config_data][tag]["data_sent"]
-                    response = data[config_data][tag]["input_data"]
-                    if configuration.get("byteOrder"):
-                        byte_order = configuration["byteOrder"]
-                    elif config.get("byteOrder"):
-                        byte_order = config["byteOrder"]
-                    else:
-                        byte_order = "LITTLE"
-                    if configuration.get("wordOrder"):
-                        word_order = configuration["wordOrder"]
-                    elif config.get("wordOrder"):
-                        word_order = config.get("wordOrder", "BIG")
-                    else:
-                        word_order = "BIG"
-                    endian_order = Endian.Little if byte_order.upper() == "LITTLE" else Endian.Big
-                    word_endian_order = Endian.Little if word_order.upper() == "LITTLE" else Endian.Big
-                    decoded_data = None
-                    if not isinstance(response, ModbusIOException) and not isinstance(response, ExceptionResponse):
-                        if configuration["functionCode"] in [1, 2]:
-                            decoder = None
-                            coils = response.bits
-
-                            try:
-                                decoder = self.from_coils(coils, endian_order=endian_order,
-                                                          word_endian_order=word_endian_order)
-                            except TypeError:
-                                decoder = self.from_coils(coils, word_endian_order=word_endian_order)
-
-                            assert decoder is not None
-                            decoded_data = self.decode_from_registers(decoder, configuration)
-                        elif configuration["functionCode"] in [3, 4]:
-                            decoder = None
-                            registers = response.registers
-                            self._log.debug("Tag: %s Config: %s registers: %s", tag, str(configuration), str(registers))
-                            try:
-                                decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order,
-                                                                             wordorder=word_endian_order)
-                            except TypeError:
-                                # pylint: disable=E1123
-                                decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=endian_order,
-                                                                             wordorder=word_endian_order)
-                            assert decoder is not None
-                            decoded_data = self.decode_from_registers(decoder, configuration)
-                            if configuration.get("divider"):
-                                decoded_data = float(decoded_data) / float(configuration["divider"])
-                            elif configuration.get("multiplier"):
-                                decoded_data = decoded_data * configuration["multiplier"]
-                    else:
-                        self._log.exception(response)
-                        decoded_data = None
-                    if config_data == "rpc":
-                        return decoded_data
-                    self._log.debug("datatype: %s \t key: %s \t value: %s", self.__datatypes[config_data], tag, str(decoded_data))
-                    if decoded_data is not None:
-                        converted_key = TBUtility.convert_key_to_datapoint_key(tag, self.__device_report_strategy, configuration, self._log)
-                        if self.__datatypes[config_data] == ATTRIBUTES_PARAMETER:
-                            converted_data.add_to_attributes(converted_key, decoded_data)
-                        else:
-                            telemetry_entry = TelemetryEntry({converted_key: decoded_data}, timestamp)
-                            converted_data.add_to_telemetry(telemetry_entry)
-                except Exception as e:
-                    self._log.exception(e)
-                    StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
-
-        self._log.debug("Converted data: %s", converted_data)
-        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                  count=converted_data.attributes_datapoints_count)
-        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                  count=converted_data.telemetry_datapoints_count)
-
-        return converted_data
-
     def decode_from_registers(self, decoder, configuration):
-        type_ = configuration["type"]
         objects_count = configuration.get("objectsCount",
                                           configuration.get("registersCount", configuration.get("registerCount", 1)))
-        lower_type = type_.lower()
+        lower_type = configuration["type"].lower()
 
         decoder_functions = {
             'string': decoder.decode_string,
@@ -172,16 +140,16 @@ class BytesModbusUplinkConverter(ModbusConverter):
         decoded = None
 
         if lower_type in ['bit', 'bits']:
-            decoded = decoder_functions[type_]()
-            decoded_lastbyte = decoder_functions[type_]()
+            decoded = decoder_functions[lower_type]()
+            decoded_lastbyte = decoder_functions[lower_type]()
             decoded += decoded_lastbyte
             decoded = decoded[len(decoded)-objects_count:]
 
         elif lower_type == "string":
-            decoded = decoder_functions[type_](objects_count * 2)
+            decoded = decoder_functions[lower_type](objects_count * 2)
 
         elif lower_type == "bytes":
-            decoded = decoder_functions[type_](size=objects_count * 2)
+            decoded = decoder_functions[lower_type](size=objects_count * 2)
 
         elif decoder_functions.get(lower_type) is not None:
             decoded = decoder_functions[lower_type]()
@@ -202,7 +170,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             decoded = decoder_functions[type_]()
 
         else:
-            self._log.error("Unknown type: %s", type_)
+            self._log.error("Unknown type: %s", lower_type)
 
         if isinstance(decoded, int):
             result_data = decoded
@@ -232,3 +200,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
             result_data = decoded
 
         return result_data
+
+    def _get_device_report_strategy(self, report_strategy, device_name):
+        try:
+            return ReportStrategyConfig(report_strategy)
+        except ValueError as e:
+            self._log.trace("Report strategy config is not specified for device %s: %s", device_name, e)

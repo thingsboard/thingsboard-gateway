@@ -21,7 +21,7 @@ from tests.base_test import BaseTest
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
-from thingsboard_gateway.connectors.modbus.modbus_connector import ModbusConnector
+from thingsboard_gateway.connectors.modbus.modbus_connector import AsyncModbusConnector
 
 
 class ModbusConnectorTestsBase(BaseTest):
@@ -52,7 +52,7 @@ class ModbusConnectorTestsBase(BaseTest):
                     {**self.config['master']['slaves'][0], 'deviceName': 'Test'}, logger=self.tb_logger)
                 self.config['master']['slaves'][0]['downlink_converter'] = BytesModbusDownlinkConverter(
                     {**self.config['master']['slaves'][0], 'deviceName': 'Test'}, logger=self.tb_logger)
-                self.connector = ModbusConnector(self.gateway, self.config, "modbus")
+                self.connector = AsyncModbusConnector(self.gateway, self.config, "modbus")
                 self.connector._ModbusConnector__log = Mock()
                 self.connector.open()
                 sleep(1)  # some time to init

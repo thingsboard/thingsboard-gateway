@@ -26,10 +26,10 @@ from pymodbus.server import StartAsyncTcpServer, StartAsyncTlsServer, StartAsync
     ServerAsyncStop
 from pymodbus.version import version
 
-from thingsboard_gateway.connectors.modbus_async.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
-from thingsboard_gateway.connectors.modbus_async.entities.bytes_downlink_converter_config import \
+from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
+from thingsboard_gateway.connectors.modbus.entities.bytes_downlink_converter_config import \
     BytesDownlinkConverterConfig
-from thingsboard_gateway.connectors.modbus_async.constants import FUNCTION_CODE_SLAVE_INITIALIZATION, FUNCTION_TYPE, \
+from thingsboard_gateway.connectors.modbus.constants import FUNCTION_CODE_SLAVE_INITIALIZATION, FUNCTION_TYPE, \
     FUNCTION_CODE_READ
 
 SLAVE_TYPE = {

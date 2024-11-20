@@ -11,7 +11,6 @@
 #      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
-from enum import Enum
 
 from thingsboard_gateway.gateway.constants import *
 
@@ -59,6 +58,7 @@ BYTESIZE_PARAMETER = "bytesize"
 PARITY_PARAMETER = "parity"
 STRICT_PARAMETER = "strict"
 TYPE_PARAMETER = "type"
+SERIAL_CONNECTION_TYPE_PARAMETER = "serial"
 
 RETRIES_PARAMETER = "retries"
 RETRY_ON_EMPTY_PARAMETER = "retryOnEmpty"
@@ -72,9 +72,26 @@ HOLDING_REGISTERS = "holding_registers"
 INPUT_REGISTERS = "input_registers"
 DISCRETE_INPUTS = "discrete_inputs"
 
-class RequestType(Enum):
-    POLL = "POLL"
-    SEND_DATA = "SEND_DATA"
+FUNCTION_TYPE = {
+    COILS_INITIALIZER: 'co',
+    HOLDING_REGISTERS: 'hr',
+    INPUT_REGISTERS: 'ir',
+    DISCRETE_INPUTS: 'di'
+}
+
+FUNCTION_CODE_SLAVE_INITIALIZATION = {
+    HOLDING_REGISTERS: (6, 16),
+    COILS_INITIALIZER: (5, 15),
+    INPUT_REGISTERS: (6, 16),
+    DISCRETE_INPUTS: (5, 15)
+}
+
+FUNCTION_CODE_READ = {
+    HOLDING_REGISTERS: 3,
+    COILS_INITIALIZER: 1,
+    INPUT_REGISTERS: 4,
+    DISCRETE_INPUTS: 2
+}
 
 # Default values
 

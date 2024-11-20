@@ -82,8 +82,8 @@ main_handler.setLevel(0)
 
 DEFAULT_CONNECTORS = {
     "mqtt": "MqttConnector",
-    "modbus": "ModbusConnector",
-    "modbus_async": "AsyncModbusConnector",
+    "modbus": "AsyncModbusConnector",
+    "modbus_old": "ModbusConnector",
     "opcua": "OpcUaConnector",
     "ble": "BLEConnector",
     "request": "RequestConnector",
@@ -858,9 +858,6 @@ class TBGatewayService:
                     # can be removed in future releases
                     if connector_type == 'opcua_asyncio':
                         connector_type = 'opcua'
-
-                    if connector_type == 'modbus':
-                        connector_type = 'modbus_async'
 
                     if connector_type is None:
                         log.error("Connector type is not defined!")

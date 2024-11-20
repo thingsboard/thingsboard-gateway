@@ -17,8 +17,8 @@ from pymodbus.exceptions import ModbusIOException
 from pymodbus.payload import BinaryPayloadDecoder
 from pymodbus.pdu import ExceptionResponse
 
-from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
-from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
+from thingsboard_gateway.connectors.modbus_old.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
+from thingsboard_gateway.connectors.modbus_old.modbus_converter import ModbusConverter
 
 
 class GrpcBytesModbusUplinkConverter(ModbusConverter):
