@@ -158,8 +158,9 @@ class RemoteConfigurator:
         config.update(
             {
                 'statistics': {
-                    'enable': self.general_configuration['statistics']['enable'],
-                    'statsSendPeriodInSeconds': self.general_configuration['statistics']['statsSendPeriodInSeconds'],
+                    'enable': self.general_configuration.get('statistics', {}).get('enable', False),
+                    'statsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('statsSendPeriodInSeconds', 60),
+                    'customStatsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('customStatsSendPeriodInSeconds', 60),
                     'configuration': self.general_configuration['statistics'].get('configuration'),
                     'commands': commands
                 }
