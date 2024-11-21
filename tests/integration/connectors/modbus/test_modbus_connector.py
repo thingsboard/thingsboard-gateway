@@ -76,7 +76,7 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
         self._create_connector('modbus_attributes.json')
 
         modbus_client_results = []
-        attrs = self.connector._ModbusConnector__config['master']['slaves'][0]['attributes']
+        attrs = self.connector._AsyncModbusConnector__config['master']['slaves'][0]['attributes']
         for item in attrs:
             modbus_client_results.append(
                 self.client.read_input_registers(item['address'], item['objectsCount'], slave=1).registers)
@@ -94,7 +94,7 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
     def test_read_holding_registers(self):
         self._create_connector('modbus_attributes.json')
         modbus_client_results = []
-        attrs = self.connector._ModbusConnector__config['master']['slaves'][0]['attributes']
+        attrs = self.connector._AsyncModbusConnector__config['master']['slaves'][0]['attributes']
         for item in attrs:
             modbus_client_results.append(
                 self.client.read_holding_registers(item['address'], item['objectsCount'], slave=1).registers)
@@ -113,7 +113,7 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
     def test_read_discrete_inputs(self):
         self._create_connector('modbus_attributes.json')
         modbus_client_results = []
-        attrs = self.connector._ModbusConnector__config['master']['slaves'][0]['attributes']
+        attrs = self.connector._AsyncModbusConnector__config['master']['slaves'][0]['attributes']
         for item in attrs:
             modbus_client_results.append(
                 self.client.read_discrete_inputs(item['address'], item['objectsCount'], slave=1).bits)
@@ -131,7 +131,7 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
     def test_read_coils_inputs(self):
         self._create_connector('modbus_attributes.json')
         modbus_client_results = []
-        attrs = self.connector._ModbusConnector__config['master']['slaves'][0]['attributes']
+        attrs = self.connector._AsyncModbusConnector__config['master']['slaves'][0]['attributes']
         for item in attrs:
             rc = self.client.read_coils(item['address'], item['objectsCount'], slave=1)
             if rc and hasattr(rc, 'bits'):
