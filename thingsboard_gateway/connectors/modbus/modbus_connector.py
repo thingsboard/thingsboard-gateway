@@ -234,13 +234,14 @@ class AsyncModbusConnector(Connector, Thread):
         # check if device have attributes or telemetry to poll
         if slave.uplink_converter_config.attributes or slave.uplink_converter_config.telemetry:
             try:
-                connected_to_master = await slave.connect()
+                connected_to_master, just_added = await slave.connect()
+
+                if just_added:
+                    self.__manage_device_connectivity_to_platform(slave)
 
                 if connected_to_master:
                     slave_data = await self.__read_slave_data(slave)
                     self.__data_to_convert.put_nowait((slave, slave_data))
-
-                    self.__manage_device_connectivity_to_platform(slave)
                 else:
                     self.__log.error('Socket is closed, connection is lost, for device %s', slave)
                     self.__delete_device_from_platform(slave)
@@ -272,8 +273,10 @@ class AsyncModbusConnector(Connector, Thread):
                     self.__log.info("Trying to reconnect to device %s", slave.device_name)
                     if slave.master.connected():
                         await slave.master.close()
-                    await slave.connect()
-                    if slave.master.connected():
+                    connected, just_added = await slave.connect()
+                    if just_added:
+                        self.__manage_device_connectivity_to_platform(slave)
+                    if connected:
                         self.__log.info("Reconnected to device %s", slave.device_name)
                         response = await slave.read(config['functionCode'], config['address'], config['objectsCount'])
                         if "Exception" in str(result) or "Error" in str(result):
@@ -334,6 +337,7 @@ class AsyncModbusConnector(Connector, Thread):
 
                     for (device_name, uplink_converter), data in batch_to_convert.items():
                         converted_data: ConvertedData = uplink_converter.convert({}, data)
+                        self.__log.trace("Converted data: %r", converted_data)
                         if len(converted_data['attributes']) or len(converted_data['telemetry']):
                             self.__data_to_save.put_nowait(converted_data)
                 else:
@@ -404,7 +408,7 @@ class AsyncModbusConnector(Connector, Thread):
 
             if converted_data is not None:
                 try:
-                    connected = await device.connect()
+                    connected, _ = await device.connect()
                     if connected:
                         await device.write(config.function_code, config.address, converted_data)
                     else:
@@ -415,7 +419,7 @@ class AsyncModbusConnector(Connector, Thread):
                     self.__log.exception('Failed to process attribute update: ', e)
 
     def server_side_rpc_handler(self, content):
-        self.__log.debug('Received server side rpc request: %r', content)
+        self.__log.info('Received server side rpc request: %r', content)
 
         try:
             if self.__is_old_format_rpc_content(content):
@@ -527,11 +531,11 @@ class AsyncModbusConnector(Connector, Thread):
             self.__log.error('Failed to process rpc request: %s', e)
             result['response'] = e.__str__()
 
-    async def __read_rpc_data(self, device, config):
+    async def __read_rpc_data(self, device: Slave, config):
         response = None
 
         try:
-            connected = await device.connect()
+            connected, _ = await device.connect()
             if connected:
                 response = await device.read(config['functionCode'], config['address'], config['objectsCount'])
         except Exception as e:
@@ -569,7 +573,7 @@ class AsyncModbusConnector(Connector, Thread):
 
         if converted_data is not None:
             try:
-                connected = await device.connect()
+                connected, _ = await device.connect()
                 if connected:
                     response = await device.write(config.function_code, config.address, converted_data)
             except Exception as e:

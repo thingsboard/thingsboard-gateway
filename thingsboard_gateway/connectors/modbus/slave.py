@@ -14,6 +14,7 @@
 
 from threading import Thread
 from time import sleep, monotonic
+from typing import Tuple
 
 from pymodbus.constants import Defaults
 
@@ -137,8 +138,9 @@ class Slave(Thread):
         except Exception as e:
             self._log.exception('Failed to load uplink converter for % slave: %s', self.name, e)
 
-    async def connect(self) -> bool:
+    async def connect(self) -> Tuple[bool, bool]:
         cur_time = monotonic() * 1000
+        just_added = False
         if not self.master.connected():
             if (self.connection_attempt_count >= self.connection_attempt
                     and cur_time - self.last_connection_attempt_time >= self.wait_after_failed_attempts_ms):
@@ -148,7 +150,7 @@ class Slave(Thread):
                     and self.connection_attempt_count < self.connection_attempt \
                     and cur_time - self.last_connection_attempt_time >= self.connect_attempt_time_ms:
                 if self.stopped:
-                    return False
+                    return False, False
                 self.connection_attempt_count += 1
                 self.last_connection_attempt_time = cur_time
                 self._log.debug("Trying connect to %s", self)
@@ -158,16 +160,17 @@ class Slave(Thread):
                     self._log.warn("Maximum attempt count (%i) for device \"%s\" - encountered.",
                                     self.connection_attempt,
                                     self)
-                    return False
+                    return False, False
+            just_added = True
 
             self._log.info("Connected to %s", self)
 
         if self.connection_attempt_count >= 0 and self.master.connected():
             self.connection_attempt_count = 0
             self.last_connection_attempt_time = cur_time
-            return True
+            return True, just_added
         else:
-            return False
+            return False, False
 
     @property
     def master(self):
