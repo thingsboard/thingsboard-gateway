@@ -39,7 +39,8 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
             for datatype in datatypes:
                 dict_result[datatypes[datatype]] = []
                 for datatype_config in self.__config.get(datatype, []):
-                    value_item = {datatype_config['key']: self.parse_data(datatype_config['value'], data)}
+                    key = self.parse_data(datatype_config['key'], data)
+                    value_item = {key: self.parse_data(datatype_config['value'], data)}
                     if datatype == 'timeseries':
                         dict_result[datatypes[datatype]].append({"ts": int(time.time()) * 1000, 'values': value_item})
                     else:
