@@ -245,10 +245,12 @@ class AsyncModbusConnector(Connector, Thread):
                 else:
                     self.__log.error('Socket is closed, connection is lost, for device %s', slave)
                     self.__delete_device_from_platform(slave)
-            except (ConnectionException, asyncio.exceptions.TimeoutError):
+            except ConnectionException:
                 self.__delete_device_from_platform(slave)
                 await asyncio.sleep(5)
                 self.__log.error('Failed to connect to device %s', slave)
+            except asyncio.exceptions.TimeoutError:
+                self.__log.error('Timeout error for device %s', slave)
             except Exception as e:
                 self.__delete_device_from_platform(slave)
                 self.__log.error('Failed to poll %s device: %s', slave, exc_info=e)
@@ -263,32 +265,12 @@ class AsyncModbusConnector(Connector, Thread):
 
         for config_section in ('attributes', 'telemetry'):
             for config in getattr(slave.uplink_converter_config, config_section):
-                response = await slave.read(config['functionCode'], config['address'], config['objectsCount'])
-
-                if 'Exception' in str(response) or 'Error' in str(response):
-                    self.__log.error("Reading failed for device %s function code %s address %s unit id %s",
-                                     slave.device_name, config['functionCode'], config[ADDRESS_PARAMETER],
-                                     slave.unit_id)
-                    self.__log.error("Reading failed with exception:", exc_info=result)
-                    self.__log.info("Trying to reconnect to device %s", slave.device_name)
-                    if slave.master.connected():
-                        await slave.master.close()
-                    connected, just_added = await slave.connect()
-                    if just_added:
-                        self.__manage_device_connectivity_to_platform(slave)
-                    if connected:
-                        self.__log.info("Reconnected to device %s", slave.device_name)
-                        response = await slave.read(config['functionCode'], config['address'], config['objectsCount'])
-                        if "Exception" in str(result) or "Error" in str(result):
-                            self.__log.error("Reading failed for device %s function code %s address %s unit id %s",
-                                             slave.device_name, config['functionCode'], config[ADDRESS_PARAMETER],
-                                             slave.unit_id)
-                            self.__log.error("Reading failed with exception:", exc_info=result)
-
-                            if slave.master.connected():
-                                await slave.master.close()
-
-                            self.__log.info("Will try to connect to device %s later", slave.device_name)
+                try:
+                    response = await slave.read(config['functionCode'], config['address'], config['objectsCount'])
+                except asyncio.exceptions.TimeoutError:
+                    self.__log.error("Timeout error for device %s function code %s address %s",
+                                     slave.device_name, config['functionCode'], config[ADDRESS_PARAMETER])
+                    continue
 
                 result[config_section][config['tag']] = response
 
