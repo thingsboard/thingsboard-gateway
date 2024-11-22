@@ -13,12 +13,13 @@
 #     limitations under the License.
 
 import random
+import ssl
 import string
 import threading
 import inspect
 from logging import getLogger
 from os.path import exists
-from ssl import CERT_REQUIRED, PROTOCOL_TLSv1_2
+from ssl import CERT_REQUIRED
 from copy import deepcopy
 from time import sleep, time
 from typing import Union
@@ -175,31 +176,48 @@ class TBClient(threading.Thread):
                                               quality_of_service=self.__default_quality_of_service,
                                               client_id=self.__client_id)
 
-        if self.__tls:
-            self.__ca_cert = self.__config_folder_path + credentials.get("caCert") if credentials.get(
-                "caCert") is not None else None
-            self.__private_key = self.__config_folder_path + credentials.get("privateKey") if credentials.get(
-                "privateKey") is not None else None
-            self.__cert = self.__config_folder_path + credentials.get("cert") if credentials.get(
-                "cert") is not None else None
-            self.__check_cert_period = credentials.get('checkCertPeriod', 86400)
-            self.__certificate_days_left = credentials.get('certificateDaysLeft', 3)
+        self.__ca_cert = self.__get_path_to_cert(credentials.get("caCert")) \
+            if credentials.get("caCert") is not None else None
+        self.__private_key = self.__get_path_to_cert(credentials.get("privateKey")) \
+            if credentials.get("privateKey") is not None else None
+        self.__cert = self.__get_path_to_cert(credentials.get("cert")) \
+            if credentials.get("cert") is not None else None
+        self.__check_cert_period = credentials.get('checkCertPeriod', 86400)
+        self.__certificate_days_left = credentials.get('certificateDaysLeft', 3)
 
+        if self.__tls:
             # check certificates for end date
             self._check_cert_thread = threading.Thread(name='Check Certificates Thread',
-                                                       target=self._check_certificates, daemon=True)
+                                                       target=self._check_certificates,
+                                                       daemon=True)
             self._check_cert_thread.start()
 
-            self.client._client.tls_set(ca_certs=self.__ca_cert,
-                                        certfile=self.__cert,
-                                        keyfile=self.__private_key,
-                                        tls_version=PROTOCOL_TLSv1_2,
-                                        cert_reqs=CERT_REQUIRED,
-                                        ciphers=None)  # noqa pylint: disable=protected-access
-            if credentials.get("insecure", False):
-                self.client._client.tls_insecure_set(True)  # noqa pylint: disable=protected-access
-            if self.__logger.isEnabledFor(10):
-                self.client._client.enable_logger(self.__logger)  # noqa pylint: disable=protected-access
+        cert_required = CERT_REQUIRED if self.__ca_cert and self.__cert else ssl.CERT_OPTIONAL if self.__cert else ssl.CERT_NONE
+
+        # if self.__ca_cert is None:
+        #     self.__logger.info("CA certificate is not provided. Using system CA certificates.")
+        #     self.__ca_cert = TBUtility.get_path_to_ca_certificates()
+        #     if self.__ca_cert is None:
+        #         self.__logger.error("CA certificate is not provided and system CA certificates are not found. "
+        #                             "Will not be able to verify the server. You can set caCert in the configuration.")
+        #         cert_required = ssl.CERT_NONE
+
+        self.client._client.tls_set(ca_certs=self.__ca_cert,
+                                    certfile=self.__cert,
+                                    keyfile=self.__private_key,
+                                    tls_version=ssl.PROTOCOL_TLS,
+                                    cert_reqs=cert_required,
+                                    ciphers=None)  # noqa pylint: disable=protected-access
+        if credentials.get("insecure", False):
+            self.client._client.tls_insecure_set(True)  # noqa pylint: disable=protected-access
+        if self.__logger.isEnabledFor(10):
+            self.client._client.enable_logger(self.__logger)  # noqa pylint: disable=protected-access
+
+    def __get_path_to_cert(self, filename):
+        if exists(self.__config_folder_path + filename):
+            return self.__config_folder_path + filename
+        else:
+            return filename
 
     @staticmethod
     def _get_provisioned_creds(credentials):
@@ -294,18 +312,18 @@ class TBClient(threading.Thread):
     def disconnect(self):
         self.__paused = True
         self.unsubscribe('*')
-        self.client.disconnect()
+        return self.client.disconnect()
 
     def unsubscribe(self, subscription_id):
         self.client.gw_unsubscribe(subscription_id)
         self.client.unsubscribe_from_attribute(subscription_id)
 
-    def connect(self, min_reconnect_delay=5):
+    def connect(self, min_reconnect_delay=5, timeout=None):
         self.__paused = False
         self.__stopped = False
         self.__min_reconnect_delay = max(min_reconnect_delay, 2)
 
-        keep_alive = self.__config.get("keep_alive", 120)
+        start_connect_time = time()
         previous_connection_time = time()
         first_connection = True
 
@@ -313,6 +331,9 @@ class TBClient(threading.Thread):
             while not self.client.is_connected() and not self.__stopped:
                 if not self.__paused:
                     if self.__stopped:
+                        break
+                    if timeout is not None and time() - start_connect_time > timeout:
+                        self.__logger.error("Connection timeout.")
                         break
                     if self.client._client.is_connected():
                         self.__logger.info("Client connected to platform.")
@@ -325,21 +346,33 @@ class TBClient(threading.Thread):
                     try:
                         if first_connection or time() - previous_connection_time > min_reconnect_delay:
                             first_connection = False
-                            self.__logger.info("Sending connect to platform...")
-                            self.client.connect(keepalive=keep_alive,
-                                                min_reconnect_delay=self.__min_reconnect_delay)
-                            self.__logger.info("Connect msg sent to platform.")
+                            self.__send_connect()
                             previous_connection_time = time()
                         else:
                             sleep(1)
                     except ConnectionRefusedError:
                         self.__logger.error("Connection refused. Check ThingsBoard is running.")
+                    except ssl.SSLEOFError as e:
+                        self.__logger.warning("Cannot use TLS connection on this port. "
+                                              "Client will try to connect without TLS.")
+                        self.__logger.debug("Error: %s", e)
+                        self.client._client._ssl = False # noqa pylint: disable=protected-access
+                        try:
+                            self.__send_connect()
+                        except Exception:
+                            continue
                     except Exception as e:
                         self.__logger.error("Error in connect: %s", exc_info=e)
                 sleep(1)
         except Exception as e:
             self.__logger.exception(e)
             sleep(10)
+
+    def __send_connect(self):
+        self.__logger.info("Sending connect to platform...")
+        self.client.connect(keepalive=self.__config.get("keep_alive", 120),
+                            min_reconnect_delay=self.__min_reconnect_delay)
+        self.__logger.info("Connect msg sent to platform.")
 
     def run(self):
         while not self.__stopped:

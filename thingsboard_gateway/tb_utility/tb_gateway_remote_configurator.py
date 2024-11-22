@@ -708,6 +708,7 @@ class RemoteConfigurator:
         try:
             self._gateway.tb_client.disconnect()
             self._gateway.tb_client.stop()
+            existing_tls_context = self._gateway.tb_client.client._client._ssl_context
 
             while not self._gateway.stopped and self._gateway.tb_client.client.is_connected():
                 sleep(1)
@@ -731,7 +732,8 @@ class RemoteConfigurator:
                 self._gateway.__subscribed_to_rpc_topics = False
                 new_tb_client = TBClient(config if use_new_config else old_tb_client_config, old_tb_client_config_path, connection_logger)
                 new_tb_client.update_client_rate_limits_with_previous(previous_rate_limits)
-                new_tb_client.connect()
+                new_tb_client.client._client._ssl_context = existing_tls_context
+                new_tb_client.connect(timeout=5)
                 while not self._gateway.stopped and time() - apply_start <= 30 and not connection_state:
                     connection_state = new_tb_client.is_connected()
                     sleep(.1)
