@@ -58,6 +58,10 @@ MACHINE_STATS_CONFIG = [
         "attributeOnGateway": "totalCpuUsage"
     },
     {
+        "function": StatisticsServiceFunctions.disk_usage_perc,
+        "attributeOnGateway": "diskUsage"
+    },
+    {
         "function": StatisticsServiceFunctions.ram_usage,
         "attributeOnGateway": "freeMemory"
     },
