@@ -123,7 +123,7 @@ class TbLogger(logging.Logger):
 
     def reset(self):
         with TbLogger.ERRORS_MUTEX:
-            TbLogger.ALL_ERRORS_COUNT = TbLogger.ALL_ERRORS_COUNT - self.errors
+            TbLogger.ALL_ERRORS_COUNT = max(0, TbLogger.ALL_ERRORS_COUNT - self.errors)
         self.errors = 0
         self._update_errors_batch()
 
@@ -181,7 +181,7 @@ class TbLogger(logging.Logger):
             error_attr_name = error_attr_name + '_ERRORS_COUNT'
         else:
             error_attr_name = self.attr_name
-        TbLogger.ERRORS_BATCH[error_attr_name] = self.errors
+        TbLogger.ERRORS_BATCH[error_attr_name] = max(0, self.errors)
 
     @classmethod
     def send_errors_if_needed(cls, gateway):

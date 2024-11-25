@@ -35,7 +35,7 @@ class ModbusConnectorTestsBase(BaseTest):
         self.gateway.tb_client = self.tb_client
         self.tb_logger = Mock(spec=TbLogger)
         self.gateway.get_devices.return_value = []
-        self.connector = None
+        self.connector: AsyncModbusConnector = None
         self.config = None
 
     def tearDown(self):
@@ -53,7 +53,7 @@ class ModbusConnectorTestsBase(BaseTest):
                 self.config['master']['slaves'][0]['downlink_converter'] = BytesModbusDownlinkConverter(
                     {**self.config['master']['slaves'][0], 'deviceName': 'Test'}, logger=self.tb_logger)
                 self.connector = AsyncModbusConnector(self.gateway, self.config, "modbus")
-                self.connector._ModbusConnector__log = Mock()
+                self.connector._AsyncModbusConnector__log = Mock()
                 self.connector.open()
                 sleep(1)  # some time to init
         except Exception as e:
@@ -83,8 +83,8 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
 
         modbus_connector_results = []
         for item in attrs:
-            modbus_connector_results.append(self.connector._ModbusConnector__function_to_device(
-                self.connector._ModbusConnector__slaves[0],
+            modbus_connector_results.append(self.connector._AsyncModbusConnector__function_to_device(
+                self.connector._AsyncModbusConnector__slaves[0],
                 {'address': item['address'], 'objectsCount': item['objectsCount'],
                  'functionCode': 4}).registers)
 
@@ -101,8 +101,8 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
 
         modbus_connector_results = []
         for item in attrs:
-            modbus_connector_results.append(self.connector._ModbusConnector__function_to_device(
-                self.connector._ModbusConnector__slaves[0],
+            modbus_connector_results.append(self.connector._AsyncModbusConnector__function_to_device(
+                self.connector._AsyncModbusConnector__slaves[0],
                 {'address': item['address'], 'objectsCount': item['objectsCount'],
                  'functionCode': 3}).registers)
 
@@ -120,8 +120,8 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
 
         modbus_connector_results = []
         for item in attrs:
-            modbus_connector_results.append(self.connector._ModbusConnector__function_to_device(
-                self.connector._ModbusConnector__slaves[0],
+            modbus_connector_results.append(self.connector._AsyncModbusConnector__function_to_device(
+                self.connector._AsyncModbusConnector__slaves[0],
                 {'address': item['address'], 'objectsCount': item['objectsCount'],
                  'functionCode': 2}).bits)
 
@@ -139,8 +139,8 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
 
         modbus_connector_results = []
         for item in attrs:
-            rc = self.connector._ModbusConnector__function_to_device(
-                self.connector._ModbusConnector__slaves[0],
+            rc = self.connector._AsyncModbusConnector__function_to_device(
+                self.connector._AsyncModbusConnector__slaves[0],
                 {'address': item['address'], 'objectsCount': item['objectsCount'],
                  'functionCode': 1})
             if rc and hasattr(rc, 'bits'):
