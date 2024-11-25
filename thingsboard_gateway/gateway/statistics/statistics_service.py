@@ -15,7 +15,7 @@
 import datetime
 import subprocess
 from threading import Thread, RLock, Event
-from time import sleep, monotonic
+from time import monotonic
 from platform import system as platform_system
 
 import simplejson

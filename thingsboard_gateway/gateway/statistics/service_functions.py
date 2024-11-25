@@ -36,6 +36,10 @@ class StatisticsServiceFunctions:
         return os.cpu_count()
 
     @staticmethod
+    def disk_usage_perc(_):
+        return disk_usage('/').percent
+
+    @staticmethod
     def cpu_usage(_):
         return cpu_percent(0.2)
 
