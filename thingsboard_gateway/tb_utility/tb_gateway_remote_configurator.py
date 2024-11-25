@@ -14,8 +14,9 @@
 import inspect
 import os.path
 from copy import deepcopy
-from logging import getLogger, setLoggerClass
+from logging import getLogger
 from logging.config import dictConfig
+from os.path import exists
 from queue import Queue, Empty
 from threading import Thread
 from time import sleep, time, monotonic
@@ -38,7 +39,9 @@ class RemoteConfigurator:
 
     DEFAULT_STATISTICS = {
         'enable': True,
-        'statsSendPeriodInSeconds': 3600
+        'statsSendPeriodInSeconds': 60,
+        'customStatsSendPeriodInSeconds': 300,
+        'configuration': 'statistics.json'
     }
 
     def __init__(self, gateway, config):
@@ -151,21 +154,20 @@ class RemoteConfigurator:
 
         stat_conf_path = self.general_configuration['statistics'].get('configuration')
         commands = []
-        if stat_conf_path:
+        if stat_conf_path and exists(self._gateway.get_config_path() + stat_conf_path):
             with open(self._gateway.get_config_path() + stat_conf_path, 'r') as file:
                 commands = load(file)
+        else:
+            with open(self._gateway.get_config_path() + 'statistics.json', 'w') as file:
+                file.writelines(dumps(commands, indent='  '))
         config = self.general_configuration
-        config.update(
-            {
-                'statistics': {
-                    'enable': self.general_configuration.get('statistics', {}).get('enable', False),
-                    'statsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('statsSendPeriodInSeconds', 60),
-                    'customStatsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('customStatsSendPeriodInSeconds', 60),
-                    'configuration': self.general_configuration['statistics'].get('configuration'),
-                    'commands': commands
-                }
-            }
-        )
+        config['statistics'] = {
+                'enable': self.general_configuration.get('statistics', {}).get('enable', False),
+                'statsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('statsSendPeriodInSeconds', 60),
+                'customStatsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('customStatsSendPeriodInSeconds', 300),
+                'configuration': self.general_configuration['statistics'].get('configuration', 'statistics.json'),
+                'commands': commands
+        }
         return config
 
     def send_current_configuration(self):
@@ -838,9 +840,13 @@ class RemoteConfigurator:
 
     def _check_statistics_configuration_changes(self, config):
         general_statistics_config = self.general_configuration.get('statistics', self.DEFAULT_STATISTICS)
-        if config['enable'] != general_statistics_config['enable'] or config['statsSendPeriodInSeconds'] != \
-                general_statistics_config['statsSendPeriodInSeconds']:
-            return True
+        for key in config.keys():
+            if (key not in ('commands', 'configuration')
+                    and (key not in general_statistics_config or config[key] != general_statistics_config[key])):
+                return True
+        for key in general_statistics_config.keys():
+            if key not in config:
+                return True
 
         commands = []
         if general_statistics_config.get('configuration'):

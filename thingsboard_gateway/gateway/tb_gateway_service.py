@@ -432,7 +432,7 @@ class TBGatewayService:
                                                               'configuration'] if self.__statistics.get(
                                                               'configuration') else None,
                                                           custom_stats_send_period_in_seconds=self.__statistics.get(
-                                                              'customStatsSendPeriodInSeconds', 3600))
+                                                              'customStatsSendPeriodInSeconds', 300))
         else:
             self.__statistics_service = None # noqa
 
