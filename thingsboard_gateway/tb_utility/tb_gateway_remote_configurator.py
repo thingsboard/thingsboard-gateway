@@ -152,7 +152,8 @@ class RemoteConfigurator:
         !!!Don't use it for saving data to conf files (use `_get_general_config_in_local_format`)!!!
         """
 
-        stat_conf_path = self.general_configuration['statistics'].get('configuration')
+        config = deepcopy(self.general_configuration)
+        stat_conf_path = config.get('statistics', {}).get('configuration', 'statistics.json')
         commands = []
         if stat_conf_path and exists(self._gateway.get_config_path() + stat_conf_path):
             with open(self._gateway.get_config_path() + stat_conf_path, 'r') as file:
@@ -160,7 +161,6 @@ class RemoteConfigurator:
         else:
             with open(self._gateway.get_config_path() + 'statistics.json', 'w') as file:
                 file.writelines(dumps(commands, indent='  '))
-        config = self.general_configuration
         config['statistics'] = {
                 'enable': self.general_configuration.get('statistics', {}).get('enable', False),
                 'statsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('statsSendPeriodInSeconds', 60),
