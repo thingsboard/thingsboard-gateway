@@ -85,11 +85,11 @@ class Master:
 
     @with_lock_for_serial
     async def write_coils(self, address, values, unit_id):
-        return await self.__client.write_coils(address=address, value=values, slave=unit_id)
+        return await self.__client.write_coils(address=address, values=values, slave=unit_id)
 
     @with_lock_for_serial
     async def write_registers(self, address, values, unit_id):
-        return await self.__client.write_registers(address=address, value=values, slave=unit_id)
+        return await self.__client.write_registers(address=address, values=values, slave=unit_id)
 
     def get_available_functions(self):
         return {

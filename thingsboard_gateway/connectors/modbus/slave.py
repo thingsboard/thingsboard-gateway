@@ -11,16 +11,17 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+import asyncio
 from threading import Thread
 from time import sleep, monotonic
-from typing import Tuple
+from typing import Tuple, Dict, Union
 
 from pymodbus.constants import Defaults
 
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
 from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
+from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
 from thingsboard_gateway.gateway.constants import UPLINK_PREFIX, CONVERTER_PARAMETER, DOWNLINK_PREFIX, \
     REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -114,29 +115,28 @@ class Slave(Thread):
         return self.device_name
 
     def __load_downlink_converter(self, config):
-        try:
-            if config.get(DOWNLINK_PREFIX + CONVERTER_PARAMETER) is not None:
-                converter = TBModuleLoader.import_module(self.connector.connector_type,
-                                                         config[DOWNLINK_PREFIX + CONVERTER_PARAMETER])({}, self._log)
-            else:
-                converter = BytesModbusDownlinkConverter({}, self._log)
-
-            return converter
-        except Exception as e:
-            self._log.exception('Failed to load downlink converter for % slave: %s', self.name, e)
+        return self.__load_converter(config, DOWNLINK_PREFIX, {})
 
     def __load_uplink_converter(self, config):
+        return self.__load_converter(config, UPLINK_PREFIX, self.uplink_converter_config)
+
+    def __load_converter(self, config, converter_type, converter_config: Union[Dict, BytesUplinkConverterConfig]={}):
         try:
-            if config.get(UPLINK_PREFIX + CONVERTER_PARAMETER) is not None:
+            if isinstance(config.get(converter_type + CONVERTER_PARAMETER), str):
                 converter = TBModuleLoader.import_module(self.connector.connector_type,
-                                                         config[UPLINK_PREFIX + CONVERTER_PARAMETER])(
-                    self.uplink_converter_config, self._log)
+                                                         config[converter_type + CONVERTER_PARAMETER])(
+                    converter_config, self._log)
+            elif isinstance(config.get(converter_type + CONVERTER_PARAMETER), ModbusConverter):
+                converter = config[converter_type + CONVERTER_PARAMETER]
             else:
-                converter = BytesModbusUplinkConverter(self.uplink_converter_config, self._log)
+                if converter_type == DOWNLINK_PREFIX:
+                    converter = BytesModbusDownlinkConverter(converter_config, self._log)
+                else:
+                    converter = BytesModbusUplinkConverter(converter_config, self._log)
 
             return converter
         except Exception as e:
-            self._log.exception('Failed to load uplink converter for % slave: %s', self.name, e)
+            self._log.exception('Failed to load %s converter for % slave: %s', converter_type, self.name, e)
 
     async def connect(self) -> Tuple[bool, bool]:
         cur_time = monotonic() * 1000
@@ -217,12 +217,18 @@ class Slave(Thread):
     async def __write(self, function_code, address, value):
         result = None
 
-        if function_code in (5, 6):
-            result = await self.available_functions[function_code](address=address, value=value, unit_id=self.unit_id)
-        elif function_code in (15, 16):
-            result = await self.available_functions[function_code](address=address, values=value, unit_id=self.unit_id)
-        else:
-            self._log.error("Unknown Modbus function with code: %s", function_code)
+        try:
+            if function_code in (5, 6):
+                result = await self.available_functions[function_code](address=address, value=value, unit_id=self.unit_id)
+            elif function_code in (15, 16):
+                result = await self.available_functions[function_code](address=address, values=value, unit_id=self.unit_id)
+            else:
+                self._log.error("Unknown Modbus function with code: %s", function_code)
+        except Exception as e:
+            self._log.error("Failed to write with function code %s: %s", function_code, e)
+            future = asyncio.Future()
+            future.set_result(False)
+            return future
 
         self._log.debug("Write with result: %s", str(result))
         return result
