@@ -1693,6 +1693,11 @@ class TBGatewayService:
             if success_sent is not None:
                 if success_sent:
                     rpc_response["success"] = True
+            if isinstance(content, str):
+                try:
+                    content = loads(content)
+                except Exception:
+                    content = {"response": content}
             if device is not None and success_sent is not None and not to_connector_rpc:
                 self.tb_client.client.gw_send_rpc_reply(device, req_id, dumps(rpc_response),
                                                         quality_of_service=quality_of_service)
@@ -1706,7 +1711,7 @@ class TBGatewayService:
                                                      wait_for_publish=wait_for_publish)
             self.__rpc_reply_sent = False
         except Exception as e:
-            log.exception(e)
+            log.exception("Error while sending RPC reply", exc_info=e)
 
     def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
         # Put request in outgoing RPC queue. It will be eventually dispatched.
