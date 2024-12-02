@@ -1673,8 +1673,9 @@ class TBGatewayService:
     @CollectRPCReplyStatistics(start_stat_type='allBytesSentToTB')
     @CountMessage('msgsSentToPlatform')
     def send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None,
-                       quality_of_service=0):
-        self.__rpc_processing_queue.put((device, req_id, content, success_sent, wait_for_publish, quality_of_service))
+                       quality_of_service=0, to_connector_rpc=False):
+        self.__rpc_processing_queue.put((device, req_id, content, success_sent,
+                                         wait_for_publish, quality_of_service, to_connector_rpc))
 
     def __send_rpc_reply_processing(self):
         while not self.stopped:
@@ -1685,22 +1686,22 @@ class TBGatewayService:
                 pass
 
     def __send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None,
-                         quality_of_service=0):
+                         quality_of_service=0, to_connector_rpc=False):
         try:
             self.__rpc_reply_sent = True
             rpc_response = {"success": False}
             if success_sent is not None:
                 if success_sent:
                     rpc_response["success"] = True
-            if device is not None and success_sent is not None:
+            if device is not None and success_sent is not None and not to_connector_rpc:
                 self.tb_client.client.gw_send_rpc_reply(device, req_id, dumps(rpc_response),
                                                         quality_of_service=quality_of_service)
-            elif device is not None and req_id is not None and content is not None:
+            elif device is not None and req_id is not None and content is not None and not to_connector_rpc:
                 self.tb_client.client.gw_send_rpc_reply(device, req_id, content, quality_of_service=quality_of_service)
-            elif device is None and success_sent is not None:
+            elif (device is None or to_connector_rpc) and success_sent is not None:
                 self.tb_client.client.send_rpc_reply(req_id, dumps(rpc_response), quality_of_service=quality_of_service,
                                                      wait_for_publish=wait_for_publish)
-            elif device is None and content is not None:
+            elif (device is None and content is not None) or to_connector_rpc:
                 self.tb_client.client.send_rpc_reply(req_id, content, quality_of_service=quality_of_service,
                                                      wait_for_publish=wait_for_publish)
             self.__rpc_reply_sent = False

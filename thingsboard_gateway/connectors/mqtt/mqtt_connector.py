@@ -919,19 +919,20 @@ class MqttConnector(Connector, Thread):
 
             try:
                 self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
+                result = None
                 try:
-                    self._publish(request_topic, data_to_send, rpc_config.get('retain', False))
+                    result = self._publish(request_topic, data_to_send, rpc_config.get('retain', False))
                 except Exception as e:
                     self.__log.exception("Error during publishing to target broker: %r", e)
-                    self.__gateway.send_rpc_reply(device=content["device"],
+                    self.__gateway.send_rpc_reply(device=content.get("device"),
                                                   req_id=content["data"]["id"],
                                                   content={"error": str.format("Error during publishing to target broker: %r",str(e))},
-                                                  success_sent=False)
+                                                  success_sent=False, to_connector_rpc=True if content.get('device') is None else False)
                     return
                 if not expects_response or not defines_timeout:
                     self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
-                    self.__gateway.send_rpc_reply(device=content.get('device', ''), req_id=content["data"]["id"],
-                                                  success_sent=True)
+                    self.__gateway.send_rpc_reply(device=content.get('device'), req_id=content["data"]["id"],
+                                                  success_sent= result is not None, to_connector_rpc=True if content.get('device') is None else False)
 
                 # Everything went out smoothly: RPC is served
                 return
@@ -988,7 +989,14 @@ class MqttConnector(Connector, Thread):
 
     @CustomCollectStatistics(start_stat_type='allBytesSentToDevices')
     def _publish(self, request_topic, data_to_send, retain):
-        self._client.publish(request_topic, data_to_send, retain).wait_for_publish()
+        result = False
+        try:
+            if self._connected and self._client.is_connected():
+                self._client.publish(request_topic, data_to_send, retain).wait_for_publish()
+                result = True
+        except Exception as e:
+            self.__log.error("Error during publishing to target broker: %r", e)
+        return result
 
     def rpc_cancel_processing(self, topic):
         self.__log.info("RPC canceled or terminated. Unsubscribing from %s", topic)
