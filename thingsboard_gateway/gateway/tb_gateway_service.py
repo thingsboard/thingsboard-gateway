@@ -741,13 +741,17 @@ class TBGatewayService:
     def __process_renamed_gateway_devices(self, renamed_device: dict):
         if self.__config.get('handleDeviceRenaming', True):
             log.info("Received renamed gateway device notification: %s", renamed_device)
-            old_device_name, new_device_name = renamed_device.popitem()
+            old_device_name, new_device_name = list(renamed_device.items())[0]
             if old_device_name in list(self.__renamed_devices.values()):
                 device_name_key = TBUtility.get_dict_key_by_value(self.__renamed_devices, old_device_name)
+                if device_name_key == new_device_name:
+                    self.__renamed_devices.pop(device_name_key, None)
+                    device_name_key = None
             else:
-                device_name_key = new_device_name
-            self.__renamed_devices[device_name_key] = new_device_name
-            # TODO: Add logic for handle renaming in report strategy service self.__duplicate_detector.rename_device(old_device_name, new_device_name)
+                device_name_key = old_device_name
+
+            if device_name_key is not None and device_name_key != new_device_name:
+                self.__renamed_devices[device_name_key] = new_device_name
 
             self.__save_persistent_devices()
             self.__load_persistent_devices()
@@ -1765,7 +1769,8 @@ class TBGatewayService:
             return False
 
         device_type = device_type if device_type is not None else 'default'
-        if device_name in self.__connected_devices:
+        if (device_name in self.__connected_devices or
+                TBUtility.get_dict_key_by_value(self.__renamed_devices, device_name) is not None):
             return True
 
         self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
@@ -1941,6 +1946,10 @@ class TBGatewayService:
     def __save_persistent_devices(self):
         with self.__lock:
             data_to_save = {}
+            # renamed_to_devices = [device for device in self.__connected_devices if device in self.__renamed_devices]
+            # for renamed_device in renamed_to_devices:
+            #     if self.__renamed_devices[renamed_device] in self.__connected_devices:
+            #         self.__renamed_devices.pop(renamed_device)
             for device in self.__connected_devices:
                 if self.__connected_devices[device][CONNECTOR_PARAMETER] is not None:
                     data_to_save[device] = {
