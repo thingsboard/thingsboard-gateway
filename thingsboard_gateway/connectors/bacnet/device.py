@@ -76,8 +76,8 @@ class Device(Thread):
         self.__stopped = True
 
     def run(self):
-        while not self.__stopped and self.active:
-            if time.monotonic() - self.__last_poll_time >= self.__poll_period:
+        while not self.__stopped:
+            if time.monotonic() - self.__last_poll_time >= self.__poll_period and self.active:
                 self.__send_callback()
                 self.__last_poll_time = time.monotonic()
 

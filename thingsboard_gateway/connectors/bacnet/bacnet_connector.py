@@ -79,11 +79,6 @@ class AsyncBACnetConnector(Thread, Connector):
 
         self.__devices = []
 
-        self.__function_to_execute = {
-            'readProperty': self.__read_property,
-            'writeProperty': self.__write_property
-        }
-
     def open(self):
         self.start()
 
