@@ -12,334 +12,338 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from queue import Queue
-from random import choice
-from string import ascii_lowercase
+import asyncio
+from asyncio import CancelledError
+from queue import Queue, Empty
 from threading import Thread
-from time import sleep, time
-
-from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
-from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
-from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.tb_utility.tb_logger import init_logger
-
-try:
-    from bacpypes.core import run, stop
-except ImportError:
-    print("BACnet library not found - installing...")
-    TBUtility.install_package("bacpypes", ">=0.18.0")
-    from bacpypes.core import run, stop
-
-from bacpypes.pdu import Address, GlobalBroadcast, LocalBroadcast, LocalStation, RemoteStation
+from string import ascii_lowercase
+from random import choice
+from time import monotonic, sleep
 
 from thingsboard_gateway.connectors.connector import Connector
-from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_application import TBBACnetApplication
+from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, STATISTIC_MESSAGE_SENT_PARAMETER
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
+from thingsboard_gateway.tb_utility.tb_logger import init_logger
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+
+try:
+    from bacpypes3.apdu import ErrorRejectAbortNack
+    from bacpypes3.pdu import Address
+except ImportError:
+    print("bacpypes3 library not found")
+    TBUtility.install_package("bacpypes3")
+    from bacpypes3.apdu import ErrorRejectAbortNack
+    from bacpypes3.pdu import Address
+
+from thingsboard_gateway.connectors.bacnet.device import Device
+from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
+from thingsboard_gateway.connectors.bacnet.application import Application
+from thingsboard_gateway.connectors.bacnet.backward_compatibility_adapter import BackwardCompatibilityAdapter
 
 
-class BACnetConnector(Thread, Connector):
+class AsyncBACnetConnector(Thread, Connector):
+    PROCESS_DEVICE_QUEUE = Queue(-1)
+
     def __init__(self, gateway, config, connector_type):
-        self._connector_type = connector_type
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
+        self.statistics = {STATISTIC_MESSAGE_RECEIVED_PARAMETER: 0,
+                           STATISTIC_MESSAGE_SENT_PARAMETER: 0}
+        self.__connector_type = connector_type
         super().__init__()
+        self.__gateway = gateway
         self.__config = config
+
+        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', "INFO"),
+                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+        self.__log.info('Starting BACnet connector...')
+
+        if BackwardCompatibilityAdapter.is_old_config(config):
+            backward_compatibility_adapter = BackwardCompatibilityAdapter(config, self.__log)
+            self.__config = backward_compatibility_adapter.convert()
+
         self.__id = self.__config.get('id')
         self.name = config.get('name', 'BACnet ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
-        self.__devices = []
-        self.__device_indexes = {}
-        self.__devices_address_name = {}
-        self.__gateway = gateway
-        self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                enable_remote_logging=self.__config.get('enableRemoteLogging', False))
-        self._application = TBBACnetApplication(self, self.__config, self._log)
-        self.__bacnet_core_thread = Thread(target=run, name="BACnet core thread", daemon=True,
-                                           kwargs={"sigterm": None, "sigusr1": None})
-        self.__bacnet_core_thread.start()
-        self.__stopped = False
-        self.__config_devices = self.__config["devices"]
-        self.default_converters = {
-            "uplink_converter": TBModuleLoader.import_module(self._connector_type, "BACnetUplinkConverter"),
-            "downlink_converter": TBModuleLoader.import_module(self._connector_type, "BACnetDownlinkConverter")}
-        self.__request_functions = {"writeProperty": self._application.do_write_property,
-                                    "readProperty": self._application.do_read_property,
-                                    "risingEdge": self._application.do_binary_rising_edge}
-        self.__available_object_resources = {}
-        self.rpc_requests_in_progress = {}
-        self.__connected = False
         self.daemon = True
-        self.__convert_and_save_data_queue = Queue()
+        self.__stopped = False
+        self.__connected = False
+
+        self.__application = None
+
+        self.__data_to_convert_queue = Queue(-1)
+        self.__data_to_save_queue = Queue(-1)
+
+        try:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+        except RuntimeError:
+            self.loop = asyncio.get_event_loop()
+
+        self.__devices = []
+
+        self.__function_to_execute = {
+            'readProperty': self.__read_property,
+            'writeProperty': self.__write_property
+        }
 
     def open(self):
-        self.__stopped = False
         self.start()
 
     def run(self):
         self.__connected = True
-        self.scan_network()
-        self._application.do_whois()
-        self._log.debug("WhoIsRequest has been sent.")
-        self.scan_network()
-        while not self.__stopped:
-            sleep(.2)
-            for device in self.__devices:
-                try:
-                    if device.get("previous_check") is None or time() * 1000 - device["previous_check"] >= device[
-                            "poll_period"]:
-                        for mapping_type in ["attributes", "telemetry"]:
-                            for config in device[mapping_type]:
-                                if config.get("uplink_converter") is None or config.get("downlink_converter") is None:
-                                    self.__load_converters(device)
-                                data_to_application = {
-                                    "device": device,
-                                    "mapping_type": mapping_type,
-                                    "config": config,
-                                    "callback": self.__bacnet_device_mapping_response_cb
-                                }
-                                self._application.do_read_property(**data_to_application)
-                        device["previous_check"] = time() * 1000
-                    else:
-                        sleep(.2)
-                except Exception as e:
-                    self._log.exception(e)
 
-            if not self.__convert_and_save_data_queue.empty():
-                for _ in range(self.__convert_and_save_data_queue.qsize()):
-                    thread = Thread(target=self.__convert_and_save_data, args=(self.__convert_and_save_data_queue,),
-                                    daemon=True)
-                    thread.start()
+        try:
+            self.loop.run_until_complete(self.__start())
+        except CancelledError as e:
+            self.__log.debug('Task was cancelled due to connector stop: %s', e.__str__())
+        except Exception as e:
+            self.__log.exception(e)
+
+    async def __start(self):
+        self.__application = Application(DeviceObjectConfig(self.__config['application']), self.indication_callback, self.__log)
+
+        await self.__discover_devices()
+        await asyncio.gather(self.__process_device_requests(), self.__convert_data(), self.__save_data())
+
+    def indication_callback(self, apdu):
+        """
+        First check if device is already added
+        If added, set active to True
+        If not added, check if device is in config
+        """
+
+        try:
+            device_address = apdu.pduSource.exploded
+            self.__log.debug('Received APDU, from %s, tyring to find device...', device_address)
+            added_device = self.__find_device_by_address(device_address)
+            if added_device is None:
+                device_config = Device.find_self_in_config(self.__config['devices'], apdu)
+                if device_config:
+                    device = Device(self.connector_type, device_config, apdu, self.callback, self.__log)
+                    self.__devices.append(device)
+                    self.__gateway.add_device(device.device_info.device_name, 
+                                              {"connector": self}, 
+                                              device_type=device.device_info.device_type)
+                    self.__log.debug('Device %s found', device)
+                else:
+                    self.__log.debug('Device %s not found in config', device_address)
+            else:
+                added_device.active = True
+                self.__log.debug('Device %s already added', added_device)
+        except Exception as e:
+            self.__log.error('Error processing indication callback: %s', e)
+
+    def __find_device_by_address(self, address):
+        for device in self.__devices:
+            if device.details.address == address:
+                return device
+    
+    def __find_device_by_name(self, name):
+        device_filter = list(filter(lambda x: x.device_info.device_name == name, self.__devices))
+        if len(device_filter):
+            return device_filter[0]
+
+    async def __discover_devices(self):
+        self.__log.info('Discovering devices...')
+        for device_config in self.__config.get('devices', []):
+            try:
+                await self.__application.do_who_is(device_address=device_config['address'])
+                self.__log.debug('WhoIs request sent to device %s', device_config['address'])
+            except Exception as e:
+                self.__log.error('Error discovering device %s: %s', device_config['address'], e)
+
+    async def __process_device_requests(self):
+        while not self.__stopped:
+            try:
+                device = self.PROCESS_DEVICE_QUEUE.get_nowait()
+
+                results = []
+                for object_to_read in device.uplink_converter_config.objects_to_read:
+                    result = await self.__read_property(Address(device.details.address), 
+                                                        Device.get_object_id(object_to_read), 
+                                                        object_to_read['propertyId'])
+                    results.append(result)
+
+                self.__log.trace('%s reading results: %s', device, results)
+                self.__data_to_convert_queue.put_nowait((device, results))
+            except Empty:
+                await asyncio.sleep(.01)
+            except Exception as e:
+                self.__log.error('Error processing device requests: %s', e)
+
+    async def __read_property(self, address, object_id, property_id):
+        try:
+            result = await self.__application.read_property(address, object_id, property_id)
+            return result
+        except ErrorRejectAbortNack as err:
+            return err
+        except Exception as e:
+            self.__log.error('Error reading property %s:%s from device %s: %s', object_id, property_id, address, e)
+    
+    async def __write_property(self, address, object_id, property_id, value):
+        try:
+            result = await self.__application.write_property(address, object_id, property_id, value)
+            return result
+        except ErrorRejectAbortNack as err:
+            return err
+        except Exception as e:
+            self.__log.error('Error writing property %s:%s to device %s: %s', object_id, property_id, address, e)
+
+    async def __convert_data(self):
+        while not self.__stopped:
+            try:
+                device, values = self.__data_to_convert_queue.get_nowait()
+                self.__log.trace('%s data to convert: %s', device, values)
+                converted_data = device.uplink_converter.convert(values)
+                self.__data_to_save_queue.put_nowait((device, converted_data))
+            except Empty:
+                await asyncio.sleep(.01)
+            except Exception as e:
+                self.__log.error('Error converting data: %s', e)
+
+    async def __save_data(self):
+        while not self.__stopped:
+            try:
+                device, data_to_save = self.__data_to_save_queue.get_nowait()
+                self.__log.trace('%s data to save: %s', device, data_to_save)
+                StatisticsService.count_connector_message(self.get_name(), stat_parameter_name='storageMsgPushed')
+                self.__gateway.send_to_storage(self.get_name(), self.get_id(), data_to_save)
+                self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
+            except Empty:
+                await asyncio.sleep(.01)
+            except Exception as e:
+                self.__log.error('Error saving data: %s', e)
+
+    @classmethod
+    def callback(cls, device: Device):
+        cls.PROCESS_DEVICE_QUEUE.put_nowait(device)
 
     def close(self):
-        self.__stopped = True
+        self.__log.info('Stopping BACnet connector...')
         self.__connected = False
-        self._log.stop()
+        self.__stopped = True
 
-        self._application.mux.directPort.connected = False
-        self._application.mux.directPort.accepting = False
-        self._application.mux.directPort.connecting = False
-        self._application.mux.directPort.del_channel()
-        if self._application.mux.directPort.socket is not None:
-            try:
-                sleep(1)
-                self._application.mux.directPort.socket.close()
-            except OSError:
-                pass
+        self.__stop_devices()
 
-        stop()
-        self._log.info('BACnet connector has been stopped.')
+        if self.__application:
+            self.__application.close()
 
-    def get_name(self):
-        return self.name
+        asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.loop)
+
+        self.__check_is_alive()
+
+        self.__log.info('BACnet connector stopped')
+        self.__log.stop()
+
+    def __stop_devices(self):
+        for device in self.__devices:
+            device.stop()
+
+        if self.__application:
+            self.__application.close()
+
+    def __check_is_alive(self):
+        start_time = monotonic()
+
+        while self.is_alive():
+            if monotonic() - start_time > 10:
+                self.__log.error("Failed to stop connector %s", self.get_name())
+                break
+            sleep(.1)
+
+    async def __cancel_all_tasks(self):
+        await asyncio.sleep(5)
+        for task in asyncio.all_tasks(self.loop):
+            task.cancel()
+    
+    def __create_task(self, func, args, kwargs):
+        task = self.loop.create_task(func(*args, **kwargs))
+        
+        while not task.done():
+            sleep(.02)
+
+    def on_attributes_update(self, content):
+        try:
+            self.__log.debug('Received Attribute Update request: %r', content)
+
+            device = self.__find_device_by_name(content['device'])
+            if device is None:
+                self.__log.error('Device %s not found', content['device'])
+                return
+
+            for attribute_name, value in content.get('data', {}).items():
+                attribute_update_config_filter = list(filter(lambda x: x['key'] == attribute_name, device.attributes_updates))
+                for attribute_update_config in attribute_update_config_filter:
+                    try:
+                        object_id = Device.get_object_id(attribute_update_config)
+                        result = {}
+                        self.__create_task(self.__process_attribute_update,
+                                        (Address(device.details.address), object_id, attribute_update_config['propertyId'], value),
+                                        {'result': result})
+                        self.__log.info('Processed attribute update with result: %r', result)
+                    except Exception as e:
+                        self.__log.error('Error updating attribute %s: %s', attribute_name, e)
+        except Exception as e:
+            self.__log.error('Error processing attribute update%s with error: %s', content, e)
+
+    async def __process_attribute_update(self, address, object_id, property_id, value, result={}):
+        result['response'] = await self.__write_property(address, object_id, property_id, value)
+
+    def server_side_rpc_handler(self, content):
+        self.__log.debug('Received RPC request: %r', content)
+
+        device = self.__find_device_by_name(content['device'])
+        if device is None:
+            self.__log.error('Device %s not found', content['device'])
+            return
+
+        rpc_method_name = content.get('data', {}).get('method')
+        if rpc_method_name is None:
+            self.__log.error('Method name not found in RPC request: %r', content)
+            return
+
+        for rpc_config in device.server_side_rpc:
+            if rpc_config['method'] == rpc_method_name:
+                try:
+                    object_id = Device.get_object_id(rpc_config)
+                    result = {}
+                    value = content.get('data', {}).get('params')
+                    self.__create_task(self.__process_rpc_request, 
+                                       (Address(device.details.address), object_id, rpc_config['propertyId']), 
+                                       {'value': value, 'result': result})
+                    self.__log.info('Processed RPC request with result: %r', result)
+                    self.__gateway.send_rpc_reply(device=device.device_info.device_name, 
+                                                  req_id=content['data'].get('id'),
+                                                  content=str(result))
+                except Exception as e:
+                    self.__log.error('Error processing RPC request %s: %s', rpc_method_name, e)
+                    self.__gateway.send_rpc_reply(device=device.device_info.device_name, 
+                                                  req_id=content['data'].get('id'),
+                                                  content={rpc_method_name: str(e)},
+                                                  success_sent=False)
+
+    async def __process_rpc_request(self, address, object_id, property_id, value=None, result={}):
+        if value is None:
+            result['response'] = await self.__read_property(address, object_id, property_id)
+        else:
+            result['response'] = await self.__write_property(address, object_id, property_id, value)
 
     def get_id(self):
         return self.__id
 
+    def get_name(self):
+        return self.name
+
     def get_type(self):
-        return self._connector_type
+        return self.__connector_type
+
+    @property
+    def connector_type(self):
+        return self.__connector_type
+
+    def get_config(self):
+        return self.__config
 
     def is_connected(self):
         return self.__connected
 
     def is_stopped(self):
         return self.__stopped
-
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
-    def on_attributes_update(self, content):
-        try:
-            self._log.debug('Recieved Attribute Update Request: %r', str(content))
-            for device in self.__devices:
-                if device["deviceName"] == content["device"]:
-                    for request in device["attribute_updates"]:
-                        if request["config"].get("requestType") is not None:
-                            for attribute in content["data"]:
-                                if attribute == request["key"]:
-                                    request["iocb"][1]["config"].update({"propertyValue": content["data"][attribute]})
-                                    kwargs = request["iocb"][1]
-                                    iocb = request["iocb"][0](device, **kwargs)
-                                    self.__request_functions[request["config"]["requestType"]](iocb)
-                                    return
-                        else:
-                            self._log.error("\"requestType\" not found in request configuration for key %s device: %s",
-                                      request.get("key", "[KEY IS EMPTY]"),
-                                      device["deviceName"])
-        except Exception as e:
-            self._log.exception(e)
-
-    @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
-    def server_side_rpc_handler(self, content):
-        try:
-            self._log.debug('Recieved RPC Request: %r', str(content))
-            for device in self.__devices:
-                if device["deviceName"] == content["device"]:
-                    method_found = False
-                    for request in device["server_side_rpc"]:
-                        if request["config"].get("requestType") is not None:
-                            if content["data"]["method"] == request["method"]:
-                                method_found = True
-                                kwargs = request["iocb"][1]
-                                timeout = time() * 1000 + request["config"].get("requestTimeout", 200)
-                                if content["data"].get("params") is not None:
-                                    kwargs["config"].update({"propertyValue": content["data"]["params"]})
-                                iocb = request["iocb"][0](device, **kwargs)
-                                self.__request_functions[request["config"]["requestType"]](device=iocb,
-                                                                                           callback=self.__rpc_response_cb)
-                                self.rpc_requests_in_progress[iocb] = {"content": content,
-                                                                       "uplink_converter": request["uplink_converter"]}
-                                # self.__gateway.register_rpc_request_timeout(content,
-                                #                                             timeout,
-                                #                                             iocb,
-                                #                                             self.__rpc_cancel_processing)
-                        else:
-                            self._log.error("\"requestType\" not found in request configuration for key %s device: %s",
-                                      request.get("key", "[KEY IS EMPTY]"),
-                                      device["deviceName"])
-                    if not method_found:
-                        self._log.error("RPC method %s not found in configuration", content["data"]["method"])
-                        self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], success_sent=False)
-        except Exception as e:
-            self._log.exception(e)
-
-    def __rpc_response_cb(self, iocb, callback_params=None):
-        device = self.rpc_requests_in_progress[iocb]
-        converter = device["uplink_converter"]
-        content = device["content"]
-        if iocb.ioResponse:
-            apdu = iocb.ioResponse
-            self._log.debug("Received callback with Response: %r", apdu)
-            converted_data = converter.convert(None, apdu)
-            if converted_data is None:
-                converted_data = {"success": True}
-            self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], converted_data)
-            # self.__gateway.rpc_with_reply_processing(iocb, converted_data or {"success": True})
-        elif iocb.ioError:
-            self._log.exception("Received callback with Error: %r", iocb.ioError)
-            data = {"error": str(iocb.ioError)}
-            self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], data)
-            self._log.debug(iocb.ioError)
-        else:
-            self._log.error("Received unknown RPC response callback from device: %r", iocb)
-
-    def __rpc_cancel_processing(self, iocb):
-        self._log.info("RPC with iocb %r - cancelled.", iocb)
-
-    def scan_network(self):
-        self._application.do_whois()
-        self._log.debug("WhoIsRequest has been sent.")
-        for device in self.__config_devices:
-            try:
-                if self._application.check_or_add(device):
-                    for mapping_type in ["attributes", "timeseries"]:
-                        for config in device[mapping_type]:
-                            if config.get("uplink_converter") is None or config.get("downlink_converter") is None:
-                                self.__load_converters(device)
-                            data_to_application = {
-                                "device": device,
-                                "mapping_type": mapping_type,
-                                "config": config,
-                                "callback": self.__bacnet_device_mapping_response_cb
-                            }
-                            self._application.do_read_property(**data_to_application)
-            except Exception as e:
-                self._log.exception(e)
-
-    def __convert_and_save_data(self, queue):
-        converter, mapping_type, config, iocb = queue.get()
-        StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-        StatisticsService.count_connector_bytes(self.name, iocb.ioResponse if iocb.ioResponse else iocb.ioError,
-                                                stat_parameter_name='connectorBytesReceived')
-        try:
-            converted_data = converter.convert((mapping_type, config),
-                                               iocb.ioResponse if iocb.ioResponse else iocb.ioError)
-            self.__gateway.send_to_storage(self.get_name(), self.__id, converted_data)
-        except Exception as e:
-            self._log.exception("Error while converting data: %s", e)
-
-    def __bacnet_device_mapping_response_cb(self, iocb, callback_params):
-        mapping_type = callback_params["mapping_type"]
-        config = callback_params["config"]
-        converter = callback_params["config"].get("uplink_converter")
-        if converter is None:
-            for device in self.__devices:
-                self.__load_converters(device)
-            else:
-                converter = callback_params["config"].get("uplink_converter")
-        try:
-            converted_data = converter.convert((mapping_type, config),
-                                               iocb.ioResponse if iocb.ioResponse else iocb.ioError)
-            self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
-        except Exception as e:
-            self._log.exception("Error while converting data in callback: %s", e)
-
-    def __load_converters(self, device):
-        datatypes = ["attributes", "telemetry", "attribute_updates", "server_side_rpc"]
-        for datatype in datatypes:
-            for datatype_config in device.get(datatype, []):
-                try:
-                    for converter_type in self.default_converters:
-                        converter_object = self.default_converters[converter_type] if datatype_config.get(
-                            "class") is None else TBModuleLoader.import_module(self._connector_type,
-                                                                               device.get("class"))
-                        datatype_config[converter_type] = converter_object(device, self._log)
-                except Exception as e:
-                    self._log.exception(e)
-
-    def add_device(self, data):
-        if self.__devices_address_name.get(data["address"]) is None:
-            for device in self.__config_devices:
-                if device["address"] == data["address"]:
-                    try:
-                        config_address = Address(device["address"])
-                        device_name_tag = TBUtility.get_value(device["deviceName"], get_tag=True)
-                        device_name = device["deviceName"].replace("${" + device_name_tag + "}", data["name"])
-                        device_information = {
-                            **data,
-                            **self.__get_requests_configs(device),
-                            "type": device["deviceType"],
-                            "config": device,
-                            "attributes": device.get("attributes", []),
-                            "telemetry": device.get("timeseries", []),
-                            "poll_period": device.get("pollPeriod", 5000),
-                            "deviceName": device_name,
-                        }
-                        if config_address == data["address"] or \
-                                (config_address, GlobalBroadcast) or \
-                                (isinstance(config_address, LocalBroadcast) and isinstance(device["address"],
-                                                                                           LocalStation)) or \
-                                (isinstance(config_address, (LocalStation, RemoteStation)) and isinstance(
-                                    data["address"], (
-                                            LocalStation, RemoteStation))):
-                            self.__devices_address_name[data["address"]] = device_information["deviceName"]
-                            self.__devices.append(device_information)
-
-                        self._log.debug(data["address"].addrType)
-                    except Exception as e:
-                        self._log.exception(e)
-
-    def __get_requests_configs(self, device):
-        result = {"attribute_updates": [], "server_side_rpc": []}
-        for request in device.get("attributeUpdates", []):
-            kwarg_dict = {
-                "config": request,
-                "request_type": request["requestType"]
-            }
-            request_config = {
-                "key": request["key"],
-                "iocb": (self._application.form_iocb, kwarg_dict),
-                "config": request
-            }
-            result["attribute_updates"].append(request_config)
-        for request in device.get("serverSideRpc", []):
-            kwarg_dict = {
-                "config": request,
-                "request_type": request["requestType"]
-            }
-            request_config = {
-                "method": request["method"],
-                "iocb": (self._application.form_iocb, kwarg_dict),
-                "config": request
-            }
-            result["server_side_rpc"].append(request_config)
-        return result
-
-    def get_config(self):
-        return self.__config

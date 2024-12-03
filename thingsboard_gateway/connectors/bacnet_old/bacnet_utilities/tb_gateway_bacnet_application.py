@@ -21,7 +21,7 @@ from bacpypes.object import get_datatype
 from bacpypes.pdu import Address, GlobalBroadcast
 from bacpypes.primitivedata import Null, ObjectIdentifier, Atomic, Integer, Real, Unsigned
 
-from thingsboard_gateway.connectors.bacnet.bacnet_utilities.tb_gateway_bacnet_device import TBBACnetDevice
+from thingsboard_gateway.connectors.bacnet_old.bacnet_utilities.tb_gateway_bacnet_device import TBBACnetDevice
 
 LOG = None
 
