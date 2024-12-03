@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from thingsboard_gateway.connectors.bacnet.bacnet_converter import Converter
+from thingsboard_gateway.connectors.bacnet_old.bacnet_converter import Converter
 
 
 class BACnetDownlinkConverter(Converter):
