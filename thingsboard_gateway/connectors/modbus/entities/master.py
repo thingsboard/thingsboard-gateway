@@ -61,35 +61,35 @@ class Master:
 
     @with_lock_for_serial
     async def read_coils(self, address, count, unit_id):
-        return await self.__client.read_coils(address=address, count=count, slave=unit_id)
+        return await self.__client.read_coils(address=address, count=count, slave=unit_id) # noqa
 
     @with_lock_for_serial
     async def read_discrete_inputs(self, address, count, unit_id):
-        return await self.__client.read_discrete_inputs(address=address, count=count, slave=unit_id)
+        return await self.__client.read_discrete_inputs(address=address, count=count, slave=unit_id) # noqa
 
     @with_lock_for_serial
     async def read_holding_registers(self, address, count, unit_id):
-        return await self.__client.read_holding_registers(address=address, count=count, slave=unit_id)
+        return await self.__client.read_holding_registers(address=address, count=count, slave=unit_id) # noqa
 
     @with_lock_for_serial
     async def read_input_registers(self, address, count, unit_id):
-        return await self.__client.read_input_registers(address=address, count=count, slave=unit_id)
+        return await self.__client.read_input_registers(address=address, count=count, slave=unit_id) # noqa
 
     @with_lock_for_serial
     async def write_coil(self, address, value, unit_id):
-        return await self.__client.write_coil(address=address, value=value, slave=unit_id)
+        return await self.__client.write_coil(address=address, value=value, slave=unit_id) # noqa
 
     @with_lock_for_serial
     async def write_register(self, address, value, unit_id):
-        return await self.__client.write_register(address=address, value=value, slave=unit_id)
+        return await self.__client.write_register(address=address, value=value, slave=unit_id) # noqa
 
     @with_lock_for_serial
     async def write_coils(self, address, values, unit_id):
-        return await self.__client.write_coils(address=address, values=values, slave=unit_id)
+        return await self.__client.write_coils(address=address, values=values, slave=unit_id) # noqa
 
     @with_lock_for_serial
     async def write_registers(self, address, values, unit_id):
-        return await self.__client.write_registers(address=address, values=values, slave=unit_id)
+        return await self.__client.write_registers(address=address, values=values, slave=unit_id) # noqa
 
     def get_available_functions(self):
         return {

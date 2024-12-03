@@ -1701,7 +1701,7 @@ class TBGatewayService:
                 try:
                     content = loads(content)
                 except Exception:
-                    content = {"response": content}
+                    pass
             if device is not None and success_sent is not None and not to_connector_rpc:
                 self.tb_client.client.gw_send_rpc_reply(device, req_id, dumps(rpc_response),
                                                         quality_of_service=quality_of_service)
