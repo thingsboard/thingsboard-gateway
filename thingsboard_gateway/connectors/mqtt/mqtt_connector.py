@@ -368,7 +368,10 @@ class MqttConnector(Connector, Thread):
                 if not self._connected:
                     sleep(1)
             except (ConnectionRefusedError, ConnectionResetError, ssl.SSLEOFError, socket.timeout) as e:
-                self.__log.error(e)
+                self.__log.error("Error while connecting to broker %s: %s", self.get_name(), e)
+                sleep(10)
+            except Exception as e:
+                self.__log.exception("Error while connecting to broker %s: %s", self.get_name(), e)
                 sleep(10)
 
     def close(self):
