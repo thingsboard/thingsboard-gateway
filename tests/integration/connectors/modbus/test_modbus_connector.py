@@ -1,11 +1,14 @@
+import asyncio
 import logging
 import unittest
 from os import path
 from time import sleep
 from unittest.mock import Mock, patch
 
+from pymodbus.pdu import ExceptionResponse
 from simplejson import load
 
+from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.gateway.tb_client import TBClient
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
@@ -49,7 +52,8 @@ class ModbusConnectorTestsBase(BaseTest):
             with open(self.CONFIG_PATH + config_file_name, 'r', encoding="UTF-8") as file:
                 self.config = load(file)
                 self.config['master']['slaves'][0]['uplink_converter'] = BytesModbusUplinkConverter(
-                    {**self.config['master']['slaves'][0], 'deviceName': 'Test'}, logger=self.tb_logger)
+                    BytesUplinkConverterConfig(**{**self.config['master']['slaves'][0], 'deviceName': 'Test'}),
+                    logger=self.tb_logger)
                 self.config['master']['slaves'][0]['downlink_converter'] = BytesModbusDownlinkConverter(
                     {**self.config['master']['slaves'][0], 'deviceName': 'Test'}, logger=self.tb_logger)
                 self.connector = AsyncModbusConnector(self.gateway, self.config, "modbus")
@@ -76,17 +80,16 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
         self._create_connector('modbus_attributes.json')
 
         modbus_client_results = []
-        attrs = self.connector._AsyncModbusConnector__config['master']['slaves'][0]['attributes']
+        attrs = self.connector._AsyncModbusConnector__config['master']['slaves'][0]['attributes'] # noqa
         for item in attrs:
             modbus_client_results.append(
                 self.client.read_input_registers(item['address'], item['objectsCount'], slave=1).registers)
 
         modbus_connector_results = []
         for item in attrs:
-            modbus_connector_results.append(self.connector._AsyncModbusConnector__function_to_device(
-                self.connector._AsyncModbusConnector__slaves[0],
-                {'address': item['address'], 'objectsCount': item['objectsCount'],
-                 'functionCode': 4}).registers)
+            modbus_connector_results.append(asyncio.run(self.__get_available_functions()[4](address=item['address'],
+                                                        count=item['objectsCount'],
+                                                        unit_id=self.connector._AsyncModbusConnector__slaves[0].unit_id)).registers) # noqa
 
         for ir, ir1 in zip(modbus_client_results, modbus_connector_results):
             self.assertEqual(ir, ir1)
@@ -94,36 +97,40 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
     def test_read_holding_registers(self):
         self._create_connector('modbus_attributes.json')
         modbus_client_results = []
-        attrs = self.connector._AsyncModbusConnector__config['master']['slaves'][0]['attributes']
+        attrs = self.connector._AsyncModbusConnector__config['master']['slaves'][0]['attributes'] # noqa
         for item in attrs:
             modbus_client_results.append(
                 self.client.read_holding_registers(item['address'], item['objectsCount'], slave=1).registers)
 
         modbus_connector_results = []
         for item in attrs:
-            modbus_connector_results.append(self.connector._AsyncModbusConnector__function_to_device(
-                self.connector._AsyncModbusConnector__slaves[0],
-                {'address': item['address'], 'objectsCount': item['objectsCount'],
-                 'functionCode': 3}).registers)
+            modbus_connector_results.append(asyncio.run(self.__get_available_functions()[3](address=item['address'],
+                                                        count=item['objectsCount'],
+                                                        unit_id=self.connector._AsyncModbusConnector__slaves[0].unit_id)).registers) # noqa
 
         for hr, hr1 in zip(modbus_client_results, modbus_connector_results):
             self.assertEqual(hr, hr1)
 
-    @unittest.skip("Unstable, needs to be fixed")
     def test_read_discrete_inputs(self):
         self._create_connector('modbus_attributes.json')
         modbus_client_results = []
-        attrs = self.connector._AsyncModbusConnector__config['master']['slaves'][0]['attributes']
+        attrs = self.connector._AsyncModbusConnector__config['master']['slaves'][0]['attributes'] # noqa
         for item in attrs:
-            modbus_client_results.append(
-                self.client.read_discrete_inputs(item['address'], item['objectsCount'], slave=1).bits)
+            result = self.client.read_discrete_inputs(item['address'], item['objectsCount'], slave=1)
+            if not isinstance(result, ExceptionResponse):
+                modbus_client_results.append(result.bits)
+            else:
+                modbus_client_results.append(str(result))
 
         modbus_connector_results = []
         for item in attrs:
-            modbus_connector_results.append(self.connector._AsyncModbusConnector__function_to_device(
-                self.connector._AsyncModbusConnector__slaves[0],
-                {'address': item['address'], 'objectsCount': item['objectsCount'],
-                 'functionCode': 2}).bits)
+            result = asyncio.run(self.__get_available_functions()[2](address=item['address'],
+                                                        count=item['objectsCount'],
+                                                        unit_id=self.connector._AsyncModbusConnector__slaves[0].unit_id)) # noqa
+            if not isinstance(result, ExceptionResponse):
+                modbus_connector_results.append(result.bits) # noqa
+            else:
+                modbus_connector_results.append(str(result))
 
         for rd, rd1 in zip(modbus_client_results, modbus_connector_results):
             self.assertEqual(rd, rd1)
@@ -131,7 +138,7 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
     def test_read_coils_inputs(self):
         self._create_connector('modbus_attributes.json')
         modbus_client_results = []
-        attrs = self.connector._AsyncModbusConnector__config['master']['slaves'][0]['attributes']
+        attrs = self.connector._AsyncModbusConnector__config['master']['slaves'][0]['attributes'] # noqa
         for item in attrs:
             rc = self.client.read_coils(item['address'], item['objectsCount'], slave=1)
             if rc and hasattr(rc, 'bits'):
@@ -139,15 +146,19 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
 
         modbus_connector_results = []
         for item in attrs:
-            rc = self.connector._AsyncModbusConnector__function_to_device(
-                self.connector._AsyncModbusConnector__slaves[0],
-                {'address': item['address'], 'objectsCount': item['objectsCount'],
-                 'functionCode': 1})
+            rc = asyncio.run(self.__get_available_functions()[1](address=item['address'],
+                                                     count=item['objectsCount'],
+                                                     unit_id=self.connector._AsyncModbusConnector__slaves[0].unit_id)) # noqa
             if rc and hasattr(rc, 'bits'):
                 modbus_connector_results.append(rc.bits)
 
         for rc, rc1 in zip(modbus_client_results, modbus_connector_results):
             self.assertEqual(rc, rc1)
+
+
+    def __get_available_functions(self):
+        return self.connector._AsyncModbusConnector__slaves[0].available_functions # noqa
+
 
 
 class ModbusConnectorRpcTest(ModbusConnectorTestsBase):
@@ -162,7 +173,6 @@ class ModbusConnectorRpcTest(ModbusConnectorTestsBase):
     def tearDownClass(cls) -> None:
         cls.client.close()
 
-    @unittest.skip("Unstable, needs to be fixed")
     def test_write_type_rpc(self):
         self._create_connector('modbus_rpc.json')
 
@@ -223,8 +233,8 @@ class ModbusConnectorAttributeUpdatesTest(ModbusConnectorTestsBase):
 
         for attribute_updates in attribute_updates_list:
             first_value = self.client.read_input_registers(attribute_updates['address'],
-                                                           attribute_updates['objectsCount'],
-                                                           slave=1).registers
+                                                             attribute_updates['objectsCount'],
+                                                             slave=1).registers
             test_attribute_update = {
                 'device': 'MASTER Temp Sensor',
                 'data': {
@@ -235,8 +245,8 @@ class ModbusConnectorAttributeUpdatesTest(ModbusConnectorTestsBase):
             sleep(1)
 
             last_value = self.client.read_input_registers(attribute_updates['address'],
-                                                          attribute_updates['objectsCount'],
-                                                          slave=1).registers
+                                                            attribute_updates['objectsCount'],
+                                                            slave=1).registers
             self.assertNotEqual(first_value, last_value)
 
     def test_deny_unknown_attribute_update(self):

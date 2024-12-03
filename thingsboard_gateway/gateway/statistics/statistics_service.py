@@ -67,6 +67,7 @@ class StatisticsService(Thread):
         self._gateway = gateway
         self._log = log
         self._custom_command_config = self._load_config()
+        self.__install_required_tools()
         self._last_service_poll = 0
         self._last_custom_command_poll = 0
         self._last_streams_statistics_clear_time = datetime.datetime.now()
@@ -122,6 +123,21 @@ class StatisticsService(Thread):
         StatisticsService.add_bytes(connector_name, bytes_count, stat_parameter_name,
                                     statistics_type='CONNECTOR_STATISTICS_STORAGE')
 
+    def __install_required_tools(self):
+        if self._custom_command_config:
+            for attribute in self._custom_command_config:
+                installation_command = attribute.get('installCmd')
+                if installation_command:
+                    try:
+                        if platform_system() == 'Windows':
+                            subprocess.run(installation_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                           encoding='utf-8', timeout=attribute['timeout'])
+                        else:
+                            subprocess.run(['/bin/sh', '-c', installation_command], stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE, encoding='utf-8', timeout=attribute['timeout'])
+                    except Exception as e:
+                        self._log.error("Error while executing installation command '%s': %s", installation_command, e)
+
     def __collect_custom_command_statistics(self):
         message = {}
         for attribute in self._custom_command_config:
@@ -140,7 +156,7 @@ class StatisticsService(Thread):
                     value = process.stdout
                 else:
                     value = attribute['function'](self._gateway)
-                if value is None:
+                if not value:
                     continue
                 try:
                     value = float(value)
@@ -150,7 +166,6 @@ class StatisticsService(Thread):
                 self._log.warning("Statistic parameter %s raise the exception: %s",
                                   attribute['attributeOnGateway'], e)
                 continue
-
             message[attribute['attributeOnGateway']] = value
 
         return message

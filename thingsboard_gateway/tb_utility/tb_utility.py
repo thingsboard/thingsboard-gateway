@@ -168,7 +168,10 @@ class TBUtility:
 
     @staticmethod
     def get_dict_key_by_value(dictionary: dict, value):
-        return list(dictionary.values())[list(dictionary.values()).index(value)]
+        try:
+            return next(key for key, val in dictionary.items() if val == value)
+        except StopIteration:
+            return None
 
     @staticmethod
     def convert_data_type(data, new_type, use_eval=False):
