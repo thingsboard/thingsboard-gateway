@@ -1946,10 +1946,6 @@ class TBGatewayService:
     def __save_persistent_devices(self):
         with self.__lock:
             data_to_save = {}
-            # renamed_to_devices = [device for device in self.__connected_devices if device in self.__renamed_devices]
-            # for renamed_device in renamed_to_devices:
-            #     if self.__renamed_devices[renamed_device] in self.__connected_devices:
-            #         self.__renamed_devices.pop(renamed_device)
             for device in self.__connected_devices:
                 if self.__connected_devices[device][CONNECTOR_PARAMETER] is not None:
                     data_to_save[device] = {
