@@ -6,6 +6,7 @@ thingsboard_gateway/logs/*
 thingsboard_gateway/config/connected_devices.json
 thingsboard_gateway/storage/data/
 .idea/
+.vscode/
 /build/
 /deb_dist/
 /dist/
@@ -22,6 +23,8 @@ thingsboard_gateway/storage/data/
 __pycache__
 /thingsboard_gateway/config/
 /venv/
+/.venv/
+.env
 /for_build/etc/thingsboard-gateway/config/
 /thingsboard_gateway/logs/
 /tests/storage/
