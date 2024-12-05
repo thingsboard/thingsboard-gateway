@@ -25,7 +25,7 @@ import simplejson
 
 from thingsboard_gateway.connectors.mqtt.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.gateway.constants import SEND_ON_CHANGE_PARAMETER, DEFAULT_SEND_ON_CHANGE_VALUE, \
-    ATTRIBUTES_PARAMETER, TELEMETRY_PARAMETER, SEND_ON_CHANGE_TTL_PARAMETER, DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE
+    SEND_ON_CHANGE_TTL_PARAMETER, DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE
 from thingsboard_gateway.gateway.constant_enums import Status
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectStatistics
@@ -37,7 +37,7 @@ from thingsboard_gateway.gateway.statistics.statistics_service import Statistics
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 try:
-    from paho.mqtt.client import Client, Properties, MQTTMessage
+    from paho.mqtt.client import Client, Properties
     from paho.mqtt.packettypes import PacketTypes
 except ImportError:
     print("paho-mqtt library not found")
@@ -114,6 +114,11 @@ class MqttConnector(Connector, Thread):
         self.__gateway = gateway  # Reference to TB Gateway
         self._connector_type = connector_type  # Should be "mqtt"
 
+        self.__log = init_logger(self.__gateway, config['name'],
+                                 config.get('logLevel', 'INFO'),
+                                 enable_remote_logging=config.get('enableRemoteLogging', False),
+                                 is_connector_logger=True)
+
         # check if the configuration is in the old format
         using_old_config_format_detected = BackwardCompatibilityAdapter.is_old_config_format(config)
         if using_old_config_format_detected:
@@ -123,9 +128,6 @@ class MqttConnector(Connector, Thread):
             self.config = config
             self.__id = self.config.get('id')
 
-        self.__log = init_logger(self.__gateway, self.config['name'], self.config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.config.get('enableRemoteLogging', False),
-                                 is_connector_logger=True)
         self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__subscribes_sent = {}
 
@@ -139,7 +141,7 @@ class MqttConnector(Connector, Thread):
                                                                             DEFAULT_SEND_ON_CHANGE_VALUE))
         self.__send_data_only_on_change_ttl = self.__broker.get(SEND_ON_CHANGE_TTL_PARAMETER,
                                                                 self.config.get(SEND_ON_CHANGE_TTL_PARAMETER,
-                                                                                DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE))
+                                                                                DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE)) # noqa
 
         # for sendDataOnlyOnChange param
         self.__topic_content = {}
@@ -191,8 +193,8 @@ class MqttConnector(Connector, Thread):
         # Set up external MQTT broker connection -----------------------------------------------------------------------
         client_id = self.__broker.get("clientId", ''.join(random.choice(string.ascii_lowercase) for _ in range(23)))
 
-        self._cleanSession = self.__broker.get("cleanSession",True)
-        self._cleanStart = self.__broker.get("cleanStart",True)
+        self._cleanSession = self.__broker.get("cleanSession", True)
+        self._cleanStart = self.__broker.get("cleanStart", True)
         self._sessionExpiryInterval = self.__broker.get("sessionExpiryInterval", 0)
 
         self._mqtt_version = self.__broker.get('version', 5)
@@ -355,15 +357,14 @@ class MqttConnector(Connector, Thread):
         while not self._connected and not self.__stopped:
             try:
                 if self._mqtt_version != 5:
-                    self._client.connect(self.__broker['host'],
-                                     self.__broker.get('port', 1883))
+                    self._client.connect(self.__broker['host'], self.__broker.get('port', 1883))
                 else:
-                    properties=Properties(PacketTypes.CONNECT)
+                    properties = Properties(PacketTypes.CONNECT)
                     properties.SessionExpiryInterval = self._sessionExpiryInterval
                     self._client.connect(self.__broker['host'],
-                                     self.__broker.get('port', 1883),
-                                     clean_start = self._cleanStart,
-                                     properties = properties)
+                                         self.__broker.get('port', 1883),
+                                         clean_start=self._cleanStart,
+                                         properties=properties)
                 self._client.loop_start()
                 if not self._connected:
                     sleep(1)
@@ -929,13 +930,15 @@ class MqttConnector(Connector, Thread):
                     self.__log.exception("Error during publishing to target broker: %r", e)
                     self.__gateway.send_rpc_reply(device=content.get("device"),
                                                   req_id=content["data"]["id"],
-                                                  content={"error": str.format("Error during publishing to target broker: %r",str(e))},
-                                                  success_sent=False, to_connector_rpc=True if content.get('device') is None else False)
+                                                  content={
+                                                      "error": str.format("Error on publish to target broker: %r",
+                                                                          str(e))},
+                                                  success_sent=False, to_connector_rpc=True if content.get('device') is None else False) # noqa
                     return
                 if not expects_response or not defines_timeout:
                     self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
                     self.__gateway.send_rpc_reply(device=content.get('device'), req_id=content["data"]["id"],
-                                                  success_sent= result is not None, to_connector_rpc=True if content.get('device') is None else False)
+                                                  success_sent=result is not None, to_connector_rpc=True if content.get('device') is None else False) # noqa
 
                 # Everything went out smoothly: RPC is served
                 return
@@ -1063,7 +1066,7 @@ class MqttConnector(Connector, Thread):
                     convert_function, config, incoming_data = self.__msg_queue.get(True, 100)
                     converted_data: ConvertedData = convert_function(config, incoming_data)
                     if converted_data and (converted_data.telemetry_datapoints_count > 0 or
-                                             converted_data.attributes_datapoints_count > 0):
+                                           converted_data.attributes_datapoints_count > 0):
                         self.__send_result(config, converted_data)
                     self.in_progress = False
                 except (TimeoutError, Empty):

@@ -15,6 +15,10 @@
 import logging
 from time import monotonic
 from threading import RLock
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
@@ -22,7 +26,7 @@ TRACE_LOGGING_LEVEL = 5
 logging.addLevelName(TRACE_LOGGING_LEVEL, "TRACE")
 
 
-def init_logger(gateway, name, level, enable_remote_logging=False, is_connector_logger=False,
+def init_logger(gateway: 'TBGatewayService', name, level, enable_remote_logging=False, is_connector_logger=False,
                 is_converter_logger=False, connector_name=None):
     """
     For creating a Logger with all config automatically
@@ -39,15 +43,12 @@ def init_logger(gateway, name, level, enable_remote_logging=False, is_connector_
     if hasattr(gateway, 'main_handler') and gateway.main_handler not in log.handlers:
         log.addHandler(gateway.main_handler)
 
-    if enable_remote_logging:
-        from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
-        if not hasattr(gateway, 'remote_handler'):
-            gateway.remote_handler = TBLoggerHandler(gateway)
-        if gateway.remote_handler not in log.handlers:
-            log.addHandler(gateway.remote_handler)
-            gateway.remote_handler.add_logger(name)
-            if not gateway.remote_handler.activated:
-                gateway.remote_handler.activate()
+    from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
+    if not hasattr(gateway, 'remote_handler') and enable_remote_logging:
+        gateway.remote_handler = TBRemoteLoggerHandler(gateway)
+    if gateway.remote_handler not in log.handlers:
+        log.addHandler(gateway.remote_handler)
+        gateway.remote_handler.add_logger(name, level if enable_remote_logging else 'NONE')
 
     log_level_conf = level
     if log_level_conf:
@@ -221,5 +222,6 @@ class TbLogger(logging.Logger):
                         for key in keys_to_remove:
                             cls.__PREVIOUS_BATCH_TO_SEND.pop(key, None)
                         cls.__PREVIOUS_BATCH_TO_SEND.update(batch_to_send)
+
 
 logging.setLoggerClass(TbLogger)

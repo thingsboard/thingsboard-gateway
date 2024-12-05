@@ -55,7 +55,7 @@ from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.sqlite.sqlite_event_storage import SQLiteEventStorage
 from thingsboard_gateway.tb_utility.tb_gateway_remote_configurator import RemoteConfigurator
-from thingsboard_gateway.tb_utility.tb_handler import TBLoggerHandler
+from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
@@ -186,7 +186,6 @@ class TBGatewayService:
 
         log.info("Gateway starting...")
         storage_log = logging.getLogger('storage')
-        storage_log.setLevel('INFO')
         storage_log.addHandler(self.main_handler)
         self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"],
                                                                                           storage_log)
@@ -224,10 +223,10 @@ class TBGatewayService:
         if logging_error is not None:
             self.send_telemetry({"ts": time() * 1000, "values": {
                 "LOGS": "Logging loading exception, logs.json is wrong: %s" % (str(logging_error),)}})
-            TBLoggerHandler.set_default_handler()
+            TBRemoteLoggerHandler.set_default_handler()
         if not hasattr(self, "remote_handler"):
-            self.remote_handler = TBLoggerHandler(self)
-        log.addHandler(self.remote_handler)
+            self.remote_handler = TBRemoteLoggerHandler(self)
+
         self.__debug_log_enabled = log.isEnabledFor(10)
         self.update_loggers()
         # self.main_handler.setTarget(self.remote_handler)
@@ -626,6 +625,8 @@ class TBGatewayService:
         if hasattr(self, "_event_storage") and self._event_storage is not None:
             self._event_storage.stop()
         log.info("The gateway has been stopped.")
+        if hasattr(self, 'remote_handler'):
+            self.remote_handler.deactivate()
         if hasattr(self, "_TBGatewayService__messages_confirmation_executor") is not None:
             self.__messages_confirmation_executor.shutdown(wait=True, cancel_futures=True)
         if hasattr(self, "tb_client") and self.tb_client is not None:
@@ -690,14 +691,10 @@ class TBGatewayService:
         self.__process_remote_configuration(shared_attributes)
 
     def __process_remote_logging_update(self, remote_logging_level):
-        if remote_logging_level == 'NONE':
-            self.remote_handler.deactivate()
-            log.info('Remote logging has being deactivated.')
-        elif remote_logging_level is not None:
-            if self.remote_handler.current_log_level != remote_logging_level or not self.remote_handler.activated:
-                self.remote_handler.activate(remote_logging_level)
-                log.info('Remote logging has being updated. Current logging level is: %s ',
-                         remote_logging_level)
+        if remote_logging_level is not None:
+            remote_logging_level_id = TBRemoteLoggerHandler.get_logger_level_id(remote_logging_level.upper())
+            self.remote_handler.activate_remote_logging_for_level(remote_logging_level_id)
+            log.info('Remote logging level set to: %s ', remote_logging_level)
 
     def __process_remote_converter_configuration_update(self, content: dict):
         try:
@@ -2079,15 +2076,14 @@ class TBGatewayService:
         self.tb_client.update_logger()
 
     def __update_base_loggers(self):
-        if self.remote_handler.activated:
-            for logger_name in TBLoggerHandler.LOGGER_NAME_TO_ATTRIBUTE_NAME:
-                logger = logging.getLogger(logger_name)
+        for logger_name in TBRemoteLoggerHandler.LOGGER_NAME_TO_ATTRIBUTE_NAME:
+            logger = logging.getLogger(logger_name)
 
-                if self.remote_handler not in logger.handlers:
-                    if logger.name == 'tb_connection' and logger.level <= 10:
-                        continue
+            if self.remote_handler not in logger.handlers:
+                if logger.name == 'tb_connection' and logger.level <= 10:
+                    continue
 
-                    logger.addHandler(self.remote_handler)
+                logger.addHandler(self.remote_handler)
 
     def is_latency_metrics_enabled(self):
         return self.__latency_debug_mode
