@@ -13,7 +13,7 @@
         "retryOnEmpty": true,
         "retryOnInvalid": true,
         "pollPeriod": 5000,
-        "unitId": 1,
+        "unitId": 2,
         "deviceName": "MASTER Temp Sensor",
         "sendDataOnlyOnChange": false,
         "connectAttemptTimeMs": 5000,
