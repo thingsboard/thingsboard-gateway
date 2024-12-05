@@ -80,8 +80,6 @@ from pymodbus.register_write_message import WriteMultipleRegistersResponse, Writ
 
 
 class AsyncModbusConnector(Connector, Thread):
-    PROCESS_REQUESTS = Queue(-1)
-
     def __init__(self, gateway, config, connector_type):
         self.statistics = {STATISTIC_MESSAGE_RECEIVED_PARAMETER: 0,
                            STATISTIC_MESSAGE_SENT_PARAMETER: 0}
@@ -105,6 +103,7 @@ class AsyncModbusConnector(Connector, Thread):
         except RuntimeError:
             self.loop = asyncio.get_event_loop()
 
+        self.process_device_requests = Queue(-1)
         self.__data_to_convert = Queue(-1)
         self.__data_to_save = Queue(-1)
 
@@ -215,13 +214,13 @@ class AsyncModbusConnector(Connector, Thread):
         self.__log.debug('Added %d slaves', len(self.__slaves))
 
     @classmethod
-    def callback(cls, slave: Slave):
-        cls.PROCESS_REQUESTS.put_nowait(slave)
+    def callback(cls, slave: Slave, queue: Queue):
+        queue.put_nowait(slave)
 
     async def __process_requests(self):
         while not self.__stopped:
             try:
-                slave = self.PROCESS_REQUESTS.get_nowait()
+                slave = self.process_device_requests.get_nowait()
                 await self.__poll_device(slave)
             except Empty:
                 await asyncio.sleep(.01)
