@@ -21,6 +21,7 @@ from os.path import exists
 from queue import Queue, Empty
 from threading import Thread
 from time import sleep, time, monotonic
+from typing import TYPE_CHECKING
 
 from regex import fullmatch
 from simplejson import dumps, load
@@ -31,6 +32,9 @@ from thingsboard_gateway.gateway.constants import CONFIG_VERSION_PARAMETER, REPO
     DEFAULT_REPORT_STRATEGY_CONFIG
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.tb_client import TBClient
+
+if TYPE_CHECKING:
+    from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -45,7 +49,7 @@ class RemoteConfigurator:
         'configuration': 'statistics.json'
     }
 
-    def __init__(self, gateway, config):
+    def __init__(self, gateway: 'TBGatewayService', config):
         self.__log = getLogger("service")
         self._request_queue = Queue()
         self.in_process = False
@@ -164,8 +168,8 @@ class RemoteConfigurator:
                 file.writelines(dumps(commands, indent='  '))
         config['statistics'] = {
                 'enable': self.general_configuration.get('statistics', {}).get('enable', False),
-                'statsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('statsSendPeriodInSeconds', 60),
-                'customStatsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('customStatsSendPeriodInSeconds', 300),
+                'statsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('statsSendPeriodInSeconds', 60), # noqa
+                'customStatsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('customStatsSendPeriodInSeconds', 300), # noqa
                 'configuration': self.general_configuration['statistics'].get('configuration', 'statistics.json'),
                 'commands': commands
         }
@@ -203,7 +207,7 @@ class RemoteConfigurator:
         if config_to_send.get("configurationJson", {}) is not None:
             config_to_send.get("configurationJson", {}).pop('logLevel', None)
         if config_to_send.get('configurationJson', {}).get(REPORT_STRATEGY_PARAMETER) is not None:
-            config_to_send[REPORT_STRATEGY_PARAMETER] = config_to_send['configurationJson'].pop(REPORT_STRATEGY_PARAMETER)
+            config_to_send[REPORT_STRATEGY_PARAMETER] = config_to_send['configurationJson'].pop(REPORT_STRATEGY_PARAMETER) # noqa
         if config_to_send.get('configurationJson', {}).get(CONFIG_VERSION_PARAMETER) is not None:
             config_to_send[CONFIG_VERSION_PARAMETER] = config_to_send['configurationJson'].pop(CONFIG_VERSION_PARAMETER)
         self._gateway.send_attributes({connector_configuration['name']: config_to_send}, quality_of_service=1)
@@ -260,7 +264,9 @@ class RemoteConfigurator:
                             if not request_processed:
                                 self.__log.error("Cannot process request for %s", attr_name)
                     except (KeyError, AttributeError) as e:
-                        self.__log.error('Unknown attribute update name (Available: %s), %r', list(self._handlers.keys()),e)
+                        self.__log.error('Unknown attribute update name (Available: %s), %r',
+                                         list(self._handlers.keys()),
+                                         e)
 
                     self.in_process = False
                 else:
@@ -294,7 +300,7 @@ class RemoteConfigurator:
 
         self.__log.debug('--- Checking connection configuration changes...')
         security_match = self.__is_security_match(self.general_configuration.get('security'),
-                                                     config.get('security', {}))
+                                                  config.get('security', {}))
 
         if (config['host'] != self.general_configuration['host']
                 or config['port'] != self.general_configuration['port']
@@ -478,7 +484,7 @@ class RemoteConfigurator:
                     self._gateway.available_connectors_by_id.pop(connector_id)
                     for_deletion.append(active_connector_name)
                     for_deletion_ids.append(connector_id)
-                    self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, active_connector_name)
+                    self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, active_connector_name) # noqa
                     has_changed = True
                 except Exception as e:
                     self.__log.exception("Exception on removing connector occurred:", exc_info=e)
@@ -533,7 +539,8 @@ class RemoteConfigurator:
                 connector_identifier = connector.get(identifier_parameter)
                 if connector_identifier is None:
                     self.__log.warning('Connector %s has no identifier parameter %s, it will be skipped.',
-                                connector, identifier_parameter)
+                                       connector,
+                                       identifier_parameter)
                     continue
                 if connector[identifier_parameter] == config.get('configurationJson', {}).get(identifier_parameter) or \
                         connector[identifier_parameter] == config.get(identifier_parameter):
@@ -566,9 +573,9 @@ class RemoteConfigurator:
                     connector_configuration['class'] = config['class']
 
                 locally_formatted_connector_config = {'logLevel': config['logLevel'],
-                                                        'name': connector_name,
-                                                        'enableRemoteLogging': config.get('enableRemoteLogging', False),
-                                                        'id': connector_id}
+                                                      'name': connector_name,
+                                                      'enableRemoteLogging': config.get('enableRemoteLogging', False),
+                                                      'id': connector_id}
                 if config.get(REPORT_STRATEGY_PARAMETER) is not None:
                     locally_formatted_connector_config[REPORT_STRATEGY_PARAMETER] = config[REPORT_STRATEGY_PARAMETER]
 
@@ -630,13 +637,13 @@ class RemoteConfigurator:
 
                 if changed:
                     with open(self._gateway.get_config_path() + config_file_name, 'w') as file:
-                        config_json_update = {'logLevel': config['logLevel'],
-                                      'name': connector_name,
-                                      'enableRemoteLogging': config.get('enableRemoteLogging',
-                                                                        False),
-                                      'id': connector_id,
-                                      CONFIG_VERSION_PARAMETER:
-                                          config.get(CONFIG_VERSION_PARAMETER)}
+                        config_json_update = {
+                            'logLevel': config['logLevel'],
+                            'name': connector_name,
+                            'enableRemoteLogging': config.get('enableRemoteLogging', False),
+                            'id': connector_id,
+                            CONFIG_VERSION_PARAMETER: config.get(CONFIG_VERSION_PARAMETER)
+                            }
                         if config.get(REPORT_STRATEGY_PARAMETER):
                             config_json_update[REPORT_STRATEGY_PARAMETER] = config[REPORT_STRATEGY_PARAMETER]
                         config['configurationJson'].update(config_json_update)
@@ -645,30 +652,32 @@ class RemoteConfigurator:
                     if connector_configuration is None:
                         connector_configuration = found_connector
 
-                    self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name)
+                    self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name) # noqa
 
                     if connector_configuration.get('id') in self._gateway.available_connectors_by_id:
                         try:
                             close_start = monotonic()
-                            while not self._gateway.available_connectors_by_id[connector_configuration['id']].is_stopped():
+                            while not self._gateway.available_connectors_by_id[connector_configuration['id']].is_stopped(): # noqa
                                 self._gateway.available_connectors_by_id[connector_configuration['id']].close()
                                 if monotonic() - close_start > 5:
-                                    self.__log.error('Connector %s not stopped in 5 seconds', connector_configuration['id'])
+                                    self.__log.error('Connector %s not stopped in 5 seconds', connector_configuration['id']) # noqa
                                     break
                         except Exception as e:
                             self.__log.exception("Exception on closing connector occurred:", exc_info=e)
                     elif connector_configuration.get('name') in self._gateway.available_connectors_by_name:
                         try:
                             close_start = monotonic()
-                            while not self._gateway.available_connectors_by_name[connector_configuration['name']].is_stopped():
+                            while not self._gateway.available_connectors_by_name[connector_configuration['name']].is_stopped(): # noqa
                                 self._gateway.available_connectors_by_name[connector_configuration['name']].close()
                                 if monotonic() - close_start > 5:
-                                    self.__log.error('Connector %s not stopped in 5 seconds', connector_configuration['name'])
+                                    self.__log.error('Connector %s not stopped in 5 seconds',
+                                                     connector_configuration['name'])
                                     break
                         except Exception as e:
                             self.__log.exception("Exception on closing connector occurred:", exc_info=e)
                     else:
-                        self.__log.warning('Connector with id %s not found in available connectors', connector_configuration.get('id'))
+                        self.__log.warning('Connector with id %s not found in available connectors',
+                                           connector_configuration.get('id'))
                     if connector_configuration.get('id') in self._gateway.available_connectors_by_id:
                         self._gateway.available_connectors_by_id.pop(connector_configuration['id'])
                         connector_configuration['id'] = connector_id
@@ -676,7 +685,8 @@ class RemoteConfigurator:
                         self._gateway.available_connectors_by_name.pop(connector_configuration['name'])
                         connector_configuration['id'] = connector_id
                     else:
-                        self.__log.warning('Connector with id %s not found in available connectors', connector_configuration.get('id'))
+                        self.__log.warning('Connector with id %s not found in available connectors',
+                                           connector_configuration.get('id'))
 
                     self._gateway.load_connectors(self._get_general_config_in_local_format())
                     self._gateway.connect_with_connectors()
@@ -724,16 +734,23 @@ class RemoteConfigurator:
             config['rateLimits'] = old_tb_client_config.get('rateLimits', 'DEFAULT_TELEMETRY_RATE_LIMIT')
             config['dpRateLimits'] = old_tb_client_config.get('dpRateLimits', 'DEFAULT_TELEMETRY_DP_RATE_LIMIT')
             if 'messages_rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters:
-                config['messagesRateLimits'] = old_tb_client_config.get('messagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
-                config['deviceMessagesRateLimits'] = old_tb_client_config.get('deviceMessagesRateLimits', 'DEFAULT_MESSAGES_RATE_LIMIT')
-                config['deviceRateLimits'] = old_tb_client_config.get('deviceRateLimits', 'DEFAULT_TELEMETRY_RATE_LIMIT')
-                config['deviceDpRateLimits'] = old_tb_client_config.get('deviceDpRateLimits', 'DEFAULT_TELEMETRY_DP_RATE_LIMIT')
+                config['messagesRateLimits'] = old_tb_client_config.get('messagesRateLimits',
+                                                                        'DEFAULT_MESSAGES_RATE_LIMIT')
+                config['deviceMessagesRateLimits'] = old_tb_client_config.get('deviceMessagesRateLimits',
+                                                                              'DEFAULT_MESSAGES_RATE_LIMIT')
+                config['deviceRateLimits'] = old_tb_client_config.get('deviceRateLimits',
+                                                                      'DEFAULT_TELEMETRY_RATE_LIMIT')
+                config['deviceDpRateLimits'] = old_tb_client_config.get('deviceDpRateLimits',
+                                                                        'DEFAULT_TELEMETRY_DP_RATE_LIMIT')
 
             previous_rate_limits = self._gateway.tb_client.get_rate_limits()
 
             while not self._gateway.stopped and not connection_state:
                 self._gateway.__subscribed_to_rpc_topics = False
-                new_tb_client = TBClient(config if use_new_config else old_tb_client_config, old_tb_client_config_path, connection_logger)
+                if use_new_config:
+                    new_tb_client = TBClient(config, old_tb_client_config_path, connection_logger)
+                else:
+                    new_tb_client = TBClient(old_tb_client_config, old_tb_client_config_path, connection_logger)
                 new_tb_client.update_client_rate_limits_with_previous(previous_rate_limits)
                 new_tb_client.client._client._ssl_context = existing_tls_context
                 new_tb_client.connect(timeout=5)
@@ -767,7 +784,9 @@ class RemoteConfigurator:
             self._gateway.tb_client.disconnect()
             self._gateway.tb_client.stop()
             connection_logger = getLogger('tb_connection')
-            self._gateway.tb_client = TBClient(self.general_configuration, self._gateway.get_config_path(), connection_logger)
+            self._gateway.tb_client = TBClient(self.general_configuration,
+                                               self._gateway.get_config_path(),
+                                               connection_logger)
             self._gateway.tb_client.connect()
             self._gateway.subscribe_to_required_topics()
             self.__log.debug("%s connection has been restored", str(self._gateway.tb_client.client))
@@ -822,7 +841,8 @@ class RemoteConfigurator:
     def _apply_report_strategy_config(self, config):
         old_main_report_strategy = self._gateway._report_strategy_service.main_report_strategy
         try:
-            new_main_report_strategy = ReportStrategyConfig(config.get(REPORT_STRATEGY_PARAMETER, DEFAULT_REPORT_STRATEGY_CONFIG))
+            new_main_report_strategy = ReportStrategyConfig(config.get(REPORT_STRATEGY_PARAMETER,
+                                                                       DEFAULT_REPORT_STRATEGY_CONFIG))
             self._gateway._report_strategy_service.main_report_strategy = new_main_report_strategy
             self._gateway._report_strategy_service.clear_cache()
             return True
@@ -909,7 +929,7 @@ class RemoteConfigurator:
 
     @staticmethod
     def check_and_remove_old_backups_for_configuration_file(backup_folder_path, config_file_name):
-        backup_files = [f for f in os.listdir(backup_folder_path) if f.startswith(config_file_name.split('.')[0]) and f.endswith('.json')]
+        backup_files = [f for f in os.listdir(backup_folder_path) if f.startswith(config_file_name.split('.')[0]) and f.endswith('.json')] # noqa
         if len(backup_files) > RemoteConfigurator.ALLOWED_BACKUPS_AMOUNT:
             backup_files.sort()
             for i in range(len(backup_files) - RemoteConfigurator.ALLOWED_BACKUPS_AMOUNT):

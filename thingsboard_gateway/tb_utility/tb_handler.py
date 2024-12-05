@@ -21,13 +21,17 @@ from pathlib import Path
 from queue import Queue, Empty
 from sys import stdout
 from time import time, sleep
+from typing import TYPE_CHECKING
 
-from thingsboard_gateway.tb_utility.tb_logger import TbLogger, init_logger
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+if TYPE_CHECKING:
+    from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
 logging.setLoggerClass(TbLogger)
 
-class TBLoggerHandler(logging.Handler):
+
+class TBRemoteLoggerHandler(logging.Handler):
     LOGGER_NAME_TO_ATTRIBUTE_NAME = {
         'service': 'SERVICE_LOGS',
         'extension': 'EXTENSION_LOGS',
@@ -35,11 +39,11 @@ class TBLoggerHandler(logging.Handler):
         'storage': 'STORAGE_LOGS',
     }
 
-    def __init__(self, gateway):
+    def __init__(self, gateway: 'TBGatewayService'):
         logging.setLoggerClass(TbLogger)
-        self.current_log_level = 'INFO'
-        super().__init__(logging.getLevelName(self.current_log_level))
-        self.setLevel(logging.getLevelName('DEBUG'))
+        self.current_log_level = self.get_logger_level_id('TRACE')
+        super().__init__(self.current_log_level)
+        self.setLevel(self.current_log_level)
         self.__gateway = gateway
         self.activated = False
 
@@ -48,27 +52,27 @@ class TBLoggerHandler(logging.Handler):
 
         self._send_logs_thread = threading.Thread(target=self._send_logs, name='Logs Sending Thread', daemon=True)
 
-        self.setFormatter(logging.Formatter('%(asctime)s,%(msecs)03d - |%(levelname)s|<%(threadName)s> [%(filename)s] - %(module)s %(funcName)s - %(lineno)d - %(message)s'))
-        self.loggers = {'service': None,
-                        'extension': None,
-                        'tb_connection': None,
-                        'storage': None
-                        }
-        for logger in self.loggers:
-            log = logging.getLogger(logger)
-            log.addHandler(self.__gateway.main_handler)
-            log.debug("Added remote handler to log %s", logger)
-            self.loggers[logger] = log
+        self.setFormatter(logging.Formatter('%(asctime)s,%(msecs)03d - |%(levelname)s|<%(threadName)s> [%(filename)s] - %(module)s %(funcName)s - %(lineno)d - %(message)s')) # noqa
+        self.loggers = {}
+        for logger in TBRemoteLoggerHandler.LOGGER_NAME_TO_ATTRIBUTE_NAME.keys():
+            self.add_logger(logger, 100)
+        self.activate()
+
+    def activate_remote_logging_for_level(self, log_level_id):
+        for logger_name in TBRemoteLoggerHandler.LOGGER_NAME_TO_ATTRIBUTE_NAME.keys():
+            logger, _ = self.loggers.get(logger_name)
+            if logger:
+                self.loggers[logger_name] = logger, log_level_id
 
     def get_logger(self, name):
-        return self.loggers.get(name)
+        return self.loggers.get(name)[0]
 
-    def add_logger(self, name):
+    def add_logger(self, name, remote_logging_level):
         log = logging.getLogger(name)
         if hasattr(self.__gateway, 'main_handler') and self.__gateway.main_handler not in log.handlers:
             log.addHandler(self.__gateway.main_handler)
             log.debug("Added main handler to log %s", name)
-        self.loggers[name] = log
+        self.loggers[name] = log, self.get_logger_level_id(remote_logging_level)
 
     def _send_logs(self):
         while self.activated and not self.__gateway.stopped:
@@ -90,7 +94,7 @@ class TBLoggerHandler(logging.Handler):
                             print(f'Too big LOG message size to send ({logs_msg_size}). Skipping...')
                             continue
 
-                        if TBUtility.get_data_size(logs_for_sending_list) + logs_msg_size > self.__gateway.get_max_payload_size_bytes():
+                        if TBUtility.get_data_size(logs_for_sending_list) + logs_msg_size > self.__gateway.get_max_payload_size_bytes(): # noqa
                             self.__gateway.send_telemetry(logs_for_sending_list)
                             logs_for_sending_list = [log_msg]
                         else:
@@ -108,33 +112,36 @@ class TBLoggerHandler(logging.Handler):
                 log = TbLogger('service')
                 log.debug("Exception while sending logs.", exc_info=e)
 
-    def activate(self, log_level=None):
-        self.setLevel(logging.getLevelName(log_level or 'INFO'))
-        self.current_log_level = log_level
-        self.activated = True
-
-        self._send_logs_thread = threading.Thread(target=self._send_logs, name='Logs Sending Thread', daemon=True)
-        self._send_logs_thread.start()
+    def activate(self):
+        if not self.activated:
+            self.activated = True
+            self._send_logs_thread = threading.Thread(target=self._send_logs, name='Logs Sending Thread', daemon=True)
+            self._send_logs_thread.start()
 
     def handle(self, record):
         if self.activated and not self.__gateway.stopped:
-            logger = self.loggers.get(record.name)
+            logger, remote_logging_level = self.loggers.get(record.name)
+            if record.levelno < remote_logging_level:
+                return  # Remote logging level set higher than record level
+
             if logger and hasattr(logger, 'connector_name'):
                 name = logger.connector_name
 
-                if name:
-                    record = self.formatter.format(record)
-                    try:
-                        telemetry_key = self.LOGGER_NAME_TO_ATTRIBUTE_NAME[name]
-                    except KeyError:
-                        telemetry_key = name + '_LOGS'
+            if name:
+                record = self.formatter.format(record)
+                try:
+                    telemetry_key = self.LOGGER_NAME_TO_ATTRIBUTE_NAME[name]
+                except KeyError:
+                    telemetry_key = name + '_LOGS'
 
-                    log_msg = {'ts': int(time() * 1000), 'values': {telemetry_key: record}}
+                log_msg = {'ts': int(time() * 1000), 'values': {telemetry_key: record}}
 
-                    if telemetry_key in self.LOGGER_NAME_TO_ATTRIBUTE_NAME.values():
-                        log_msg['values']['LOGS'] = record
-
+                if telemetry_key in self.LOGGER_NAME_TO_ATTRIBUTE_NAME.values():
+                    log_msg['values']['LOGS'] = record
+                try:
                     self._logs_queue.put(log_msg)
+                except Exception as e:
+                    print(f"Exception while putting log message to queue: {e}")
 
     def deactivate(self):
         self.activated = False
@@ -146,18 +153,18 @@ class TBLoggerHandler(logging.Handler):
 
     @staticmethod
     def set_default_handler():
-        logger_names = [
-            'service',
-            'storage',
-            'extension',
-            'tb_connection'
-            ]
         logging.setLoggerClass(TbLogger)
-        for logger_name in logger_names:
+        for logger_name in TBRemoteLoggerHandler.LOGGER_NAME_TO_ATTRIBUTE_NAME.keys():
             logger = logging.getLogger(logger_name)
             handler = logging.StreamHandler(stdout)
-            handler.setFormatter(logging.Formatter('[STREAM ONLY] %(asctime)s - %(levelname)s - [%(filename)s] - %(module)s - %(lineno)d - %(message)s'))
+            handler.setFormatter(logging.Formatter('[STREAM ONLY] %(asctime)s,%(msecs)03d - %(levelname)s - [%(filename)s] - %(module)s - %(lineno)d - %(message)s')) # noqa
             logger.addHandler(handler)
+
+    @staticmethod
+    def get_logger_level_id(log_level):
+        if isinstance(log_level, str):
+            return 100 if log_level == 'NONE' else logging.getLevelName(log_level)
+        return log_level
 
 
 class TimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
