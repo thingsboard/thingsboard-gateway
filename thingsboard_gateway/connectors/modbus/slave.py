@@ -101,7 +101,7 @@ class Slave(Thread):
         self.last_polled_time = monotonic()
 
         try:
-            self.callback(self)
+            self.callback(self, self.connector.process_device_requests)
         except Exception as e:
             self._log.exception('Error sending slave callback: %s', e)
 
