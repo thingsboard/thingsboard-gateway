@@ -1,4 +1,4 @@
-
+import logging
 #      Copyright 2022. ThingsBoard
 #  #
 #      Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,7 @@ from simplejson import load
 
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.gateway.tb_gateway_service import DEFAULT_CONNECTORS
+from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
 
@@ -35,6 +36,8 @@ class ConnectorTestBase(IntegrationBaseTest):
         super().setUp()
         self.mock_logger = patch('thingsboard_gateway.tb_utility.tb_logger.TbLogger').start()
         self.gateway = Mock(spec=TBGatewayService)
+        self.gateway.remote_handler = Mock(spec=TBRemoteLoggerHandler)
+        self.gateway.remote_handler.level = logging.DEBUG
         self.gateway.log = self.mock_logger
         self.connector = None
         self.config = None

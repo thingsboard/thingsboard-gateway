@@ -29,6 +29,7 @@ from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
+from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger, init_logger
 
 try :
@@ -66,6 +67,8 @@ class CanConnectorTestsBase(BaseTest):
         super().setUp()
         self.bus = self._create_bus()
         self.gateway = Mock(spec=TBGatewayService)
+        self.gateway.remote_handler = Mock(spec=TBRemoteLoggerHandler)
+        self.gateway.remote_handler.level = logging.DEBUG
         self.tb_logger = Mock(spec=TbLogger)
         self.connector = None
         self.config = None
@@ -92,7 +95,7 @@ class CanConnectorTestsBase(BaseTest):
                 self.connector.open()
                 sleep(1)  # some time to init
             except Exception as e:
-                print(e)
+                raise e
 
 
 class CanConnectorPollingTests(CanConnectorTestsBase):

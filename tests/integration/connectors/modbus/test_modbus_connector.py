@@ -10,6 +10,7 @@ from simplejson import load
 
 from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.gateway.tb_client import TBClient
+from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
 try:
@@ -35,6 +36,8 @@ class ModbusConnectorTestsBase(BaseTest):
         super().setUp()
         self.tb_client = Mock(spec=TBClient)
         self.gateway = Mock(spec=TBGatewayService)
+        self.gateway.remote_handler = Mock(spec=TBRemoteLoggerHandler)
+        self.gateway.remote_handler.level = logging.DEBUG
         self.gateway.tb_client = self.tb_client
         self.tb_logger = Mock(spec=TbLogger)
         self.gateway.get_devices.return_value = []
