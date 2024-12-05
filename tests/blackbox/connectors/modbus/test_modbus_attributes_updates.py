@@ -20,7 +20,6 @@ LOG = logging.getLogger("TEST")
 LOG.trace = LOG.debug
 
 
-@unittest.skip('Flaky test')
 class ModbusAttributesUpdatesTest(BaseTest):
     CONFIG_PATH = path.join(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))),
                             "data" + path.sep + "modbus" + path.sep)
