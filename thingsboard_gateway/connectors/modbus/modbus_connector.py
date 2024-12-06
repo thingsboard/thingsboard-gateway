@@ -58,12 +58,6 @@ if installation_required:
     TBUtility.install_package('pyserial')
     TBUtility.install_package('pyserial-asyncio')
 
-try:
-    from twisted.internet import reactor
-except ImportError:
-    TBUtility.install_package('twisted')
-    from twisted.internet import reactor
-
 from thingsboard_gateway.connectors.modbus.entities.master import Master
 from thingsboard_gateway.connectors.modbus.server import Server
 from thingsboard_gateway.connectors.modbus.slave import Slave
