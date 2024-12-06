@@ -154,7 +154,6 @@ class TBGatewayService:
             signal(SIGINT, lambda _, __: self.__stop_gateway())
 
         self.__lock = RLock()
-        self.remote_handler_mutex = RLock()
         self.__process_async_actions_thread = Thread(target=self.__process_async_device_actions,
                                                      name="Async device actions processing thread", daemon=True)
 
@@ -213,10 +212,6 @@ class TBGatewayService:
 
         connection_logger = logging.getLogger('tb_connection')
         self.tb_client = TBClient(self.__config["thingsboard"], self._config_dir, connection_logger)
-        try:
-            self.tb_client.disconnect()
-        except Exception as e:
-            log.exception(e)
         self.tb_client.register_service_subscription_callback(self.subscribe_to_required_topics)
         self.tb_client.connect()
         if self.stopped:
@@ -225,9 +220,8 @@ class TBGatewayService:
             self.send_telemetry({"ts": time() * 1000, "values": {
                 "LOGS": "Logging loading exception, logs.json is wrong: %s" % (str(logging_error),)}})
             TBRemoteLoggerHandler.set_default_handler()
-        with self.remote_handler_mutex:
-            if not hasattr(self, "remote_handler"):
-                self.remote_handler = TBRemoteLoggerHandler(self)
+        if not hasattr(self, "remote_handler"):
+            self.remote_handler = TBRemoteLoggerHandler(self)
 
         self.__debug_log_enabled = log.isEnabledFor(10)
         self.update_loggers()
