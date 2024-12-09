@@ -42,6 +42,9 @@ class Device(Thread):
         self.callback = callback
         self.daemon = True
 
+        if not hasattr(i_am_request, 'deviceName'):
+            self.__log.warning('Device name is not provided in IAmRequest. Device Id will be used as "objectName')
+            i_am_request.deviceName = str(i_am_request.iAmDeviceIdentifier[1])
         self.details = BACnetDeviceDetails(i_am_request)
         self.device_info = DeviceInfo(self.__config.get('deviceInfo', {}), self.details)
         self.uplink_converter_config = UplinkConverterConfig(self.__config, self.device_info, self.details)

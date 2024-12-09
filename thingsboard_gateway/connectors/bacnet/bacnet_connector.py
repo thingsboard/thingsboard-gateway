@@ -29,12 +29,12 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
     from bacpypes3.apdu import ErrorRejectAbortNack
-    from bacpypes3.pdu import Address
 except ImportError:
     print("bacpypes3 library not found")
     TBUtility.install_package("bacpypes3")
     from bacpypes3.apdu import ErrorRejectAbortNack
-    from bacpypes3.pdu import Address
+
+from bacpypes3.pdu import Address
 
 from thingsboard_gateway.connectors.bacnet.device import Device
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
