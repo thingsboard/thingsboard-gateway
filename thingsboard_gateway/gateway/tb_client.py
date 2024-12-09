@@ -131,19 +131,38 @@ class TBClient(threading.Thread):
     #         self.__logger.debug(args)
 
     def _create_mqtt_client(self, credentials):
-        self.__tls = bool(credentials.get('tls', False) or credentials.get('caCert', False))
-        credentials_type = credentials.get('type')
+        env_vars = TBUtility.get_service_environmental_variables()
+        self.__tls = bool((credentials.get('tls', False) or
+                          credentials.get('caCert', False)))
+        if env_vars.get('caCert') is not None:
+            self.__tls = True
+        if env_vars.get('type') is not None:
+            credentials_type = env_vars.get('type')
+        else:
+            credentials_type = credentials.get('type')
         if credentials_type is None and credentials.get('accessToken') is not None:
             credentials_type = 'accessToken'
         if credentials_type == 'accessToken':
-            self.__username = str(credentials["accessToken"])
+            if env_vars.get('accessToken') is not None:
+                self.__username = str(env_vars["accessToken"])
+            else:
+                self.__username = str(credentials["accessToken"])
         if credentials_type == 'usernamePassword':
             if credentials.get("username") is not None:
-                self.__username = str(credentials["username"])
+                if env_vars.get('username') is not None:
+                    self.__username = str(env_vars["username"])
+                else:
+                    self.__username = str(credentials["username"])
             if credentials.get("password") is not None:
-                self.__password = str(credentials["password"])
+                if env_vars.get('password') is not None:
+                    self.__password = str(env_vars["password"])
+                else:
+                    self.__password = str(credentials["password"])
             if credentials.get("clientId") is not None:
-                self.__client_id = str(credentials["clientId"])
+                if env_vars.get('clientId') is not None:
+                    self.__client_id = str(env_vars["clientId"])
+                else:
+                    self.__client_id = str(credentials["clientId"])
 
         rate_limits_config = {}
         if self.__config.get('messagesRateLimits'):
@@ -178,10 +197,16 @@ class TBClient(threading.Thread):
 
         self.__ca_cert = self.__get_path_to_cert(credentials.get("caCert")) \
             if credentials.get("caCert") is not None else None
+        if env_vars.get('caCert') is not None:
+            self.__ca_cert = self.__get_path_to_cert(env_vars.get("caCert"))
         self.__private_key = self.__get_path_to_cert(credentials.get("privateKey")) \
             if credentials.get("privateKey") is not None else None
+        if env_vars.get('privateKey') is not None:
+            self.__private_key = self.__get_path_to_cert(env_vars.get("privateKey"))
         self.__cert = self.__get_path_to_cert(credentials.get("cert")) \
             if credentials.get("cert") is not None else None
+        if env_vars.get('cert') is not None:
+            self.__cert = self.__get_path_to_cert(env_vars.get("cert"))
         self.__check_cert_period = credentials.get('checkCertPeriod', 86400)
         self.__certificate_days_left = credentials.get('certificateDaysLeft', 3)
 
@@ -369,7 +394,7 @@ class TBClient(threading.Thread):
             sleep(10)
 
     def __send_connect(self):
-        self.__logger.info("Sending connect to platform...")
+        self.__logger.info(f"Sending connect to {self.__host}:{self.__port}, tls: {self.__tls}...")
         self.client.connect(keepalive=self.__config.get("keep_alive", 120),
                             min_reconnect_delay=self.__min_reconnect_delay)
         self.__logger.info("Connect msg sent to platform.")
