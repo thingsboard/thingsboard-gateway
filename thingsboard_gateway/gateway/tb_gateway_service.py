@@ -559,7 +559,7 @@ class TBGatewayService:
                             break
 
                     if (not self.__requested_config_after_connect and self.tb_client.is_connected()
-                            and not self.tb_client.client.get_subscriptions_in_progress()):
+                            and self.tb_client.is_subscribed_to_service_attributes()):
                         self.__requested_config_after_connect = True
                         self._check_shared_attributes()
 

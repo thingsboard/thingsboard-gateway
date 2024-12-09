@@ -29,11 +29,11 @@ from simplejson import dumps, load
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
-    from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient
+    from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient, GATEWAY_ATTRIBUTES_RESPONSE_TOPIC, GATEWAY_ATTRIBUTES_TOPIC
 except ImportError:
     print("tb-mqtt-client library not found - installing...")
     TBUtility.install_package('tb-mqtt-client')
-    from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient
+    from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient, GATEWAY_ATTRIBUTES_RESPONSE_TOPIC, GATEWAY_ATTRIBUTES_TOPIC
 
 import tb_device_mqtt
 tb_device_mqtt.DEFAULT_TIMEOUT = 3
@@ -449,6 +449,9 @@ class TBClient(threading.Thread):
             'max_inflight_messages': self.client._client._max_inflight_messages,  # noqa
             'max_payload_size': self.client.max_payload_size
         }
+
+    def is_subscribed_to_service_attributes(self):
+        return GATEWAY_ATTRIBUTES_RESPONSE_TOPIC in self.client._gw_subscriptions.values() and GATEWAY_ATTRIBUTES_TOPIC in self.client._gw_subscriptions.values() # noqa pylint: disable=protected-access
 
     def update_client_rate_limits_with_previous(self, previous_limits):
         self.client._devices_connected_through_gateway_telemetry_messages_rate_limit = tb_device_mqtt.RateLimit(previous_limits.get('devices_connected_through_gateway_telemetry_messages_rate_limit', {}))
