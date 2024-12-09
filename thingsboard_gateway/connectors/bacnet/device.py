@@ -20,6 +20,7 @@ from bacpypes3.primitivedata import ObjectIdentifier
 from thingsboard_gateway.connectors.bacnet.bacnet_uplink_converter import AsyncBACnetUplinkConverter
 from thingsboard_gateway.connectors.bacnet.entities.bacnet_device_details import BACnetDeviceDetails
 from thingsboard_gateway.connectors.bacnet.entities.device_info import DeviceInfo
+from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config import UplinkConverterConfig
 from thingsboard_gateway.gateway.constants import UPLINK_PREFIX, CONVERTER_PARAMETER
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -31,6 +32,8 @@ class Device(Thread):
 
         self.__connector_type = connector_type
         self.__config = config
+        DeviceObjectConfig.update_address_in_config_util(self.__config)
+        self.alternative_responses_addresses = self.__config.get('altResponsesAddresses', [])
 
         self.__log = logger
 
@@ -91,7 +94,7 @@ class Device(Thread):
 
     @staticmethod
     def find_self_in_config(devices_config, apdu):
-        device_config = list(filter(lambda x: x['address'] == apdu.pduSource.exploded, devices_config))
+        device_config = list(filter(lambda x: x['address'] == apdu.pduSource.exploded or apdu.pduSource.exploded in x.get('altResponsesAddresses', []), devices_config))
         if len(device_config):
             return device_config[0]
 

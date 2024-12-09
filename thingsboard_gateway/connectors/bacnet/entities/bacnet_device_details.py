@@ -12,8 +12,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from bacpypes3.apdu import IAmRequest
+
+
 class BACnetDeviceDetails:
-    def __init__(self, i_am_request):
+    def __init__(self, i_am_request: IAmRequest):
         self.address = i_am_request.pduSource.exploded
         self.__object_identifier = i_am_request.iAmDeviceIdentifier[1]
         self.__vendor_id = i_am_request.vendorID

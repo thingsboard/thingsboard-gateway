@@ -19,6 +19,7 @@ from threading import Thread
 from string import ascii_lowercase
 from random import choice
 from time import monotonic, sleep
+from typing import List
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, STATISTIC_MESSAGE_SENT_PARAMETER
@@ -77,7 +78,9 @@ class AsyncBACnetConnector(Thread, Connector):
         except RuntimeError:
             self.loop = asyncio.get_event_loop()
 
-        self.__devices = []
+        self.__devices: List[Device] = []
+        self.__devices_discover_period = 30
+        self.__previous_discover_time = 0
 
     def open(self):
         self.start()
@@ -93,10 +96,12 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__log.exception(e)
 
     async def __start(self):
-        self.__application = Application(DeviceObjectConfig(self.__config['application']), self.indication_callback, self.__log)
+        self.__application = Application(DeviceObjectConfig(
+            self.__config['application']), self.indication_callback, self.__log)
 
+        self.__devices_discover_period = self.__config.get('devicesDiscoverPeriodSeconds', 30)
         await self.__discover_devices()
-        await asyncio.gather(self.__process_device_requests(), self.__convert_data(), self.__save_data())
+        await asyncio.gather(self.__main_loop(), self.__convert_data(), self.__save_data())
 
     def indication_callback(self, apdu):
         """
@@ -107,17 +112,17 @@ class AsyncBACnetConnector(Thread, Connector):
 
         try:
             device_address = apdu.pduSource.exploded
-            self.__log.debug('Received APDU, from %s, tyring to find device...', device_address)
+            self.__log.info('Received APDU, from %s, trying to find device...', device_address)
             added_device = self.__find_device_by_address(device_address)
             if added_device is None:
                 device_config = Device.find_self_in_config(self.__config['devices'], apdu)
                 if device_config:
                     device = Device(self.connector_type, device_config, apdu, self.callback, self.__log)
                     self.__devices.append(device)
-                    self.__gateway.add_device(device.device_info.device_name, 
-                                              {"connector": self}, 
+                    self.__gateway.add_device(device.device_info.device_name,
+                                              {"connector": self},
                                               device_type=device.device_info.device_type)
-                    self.__log.debug('Device %s found', device)
+                    self.__log.info('Device %s found', device)
                 else:
                     self.__log.debug('Device %s not found in config', device_address)
             else:
@@ -128,34 +133,44 @@ class AsyncBACnetConnector(Thread, Connector):
 
     def __find_device_by_address(self, address):
         for device in self.__devices:
-            if device.details.address == address:
+            if device.details.address == address or address in device.alternative_responses_addresses:
                 return device
-    
+
     def __find_device_by_name(self, name):
         device_filter = list(filter(lambda x: x.device_info.device_name == name, self.__devices))
         if len(device_filter):
             return device_filter[0]
 
     async def __discover_devices(self):
+        self.__previous_discover_time = monotonic()
         self.__log.info('Discovering devices...')
         for device_config in self.__config.get('devices', []):
             try:
+                DeviceObjectConfig.update_address_in_config_util(device_config)
                 await self.__application.do_who_is(device_address=device_config['address'])
                 self.__log.debug('WhoIs request sent to device %s', device_config['address'])
             except Exception as e:
                 self.__log.error('Error discovering device %s: %s', device_config['address'], e)
 
-    async def __process_device_requests(self):
+    async def __main_loop(self):
         while not self.__stopped:
             try:
-                device = self.PROCESS_DEVICE_QUEUE.get_nowait()
+                if monotonic() - self.__previous_discover_time >= self.__devices_discover_period:
+                    await self.__discover_devices()
+            except Exception as e:
+                self.__log.error('Error in main loop during discovering devices: %s', e)
+                await asyncio.sleep(1)
+            try:
+                device: Device = self.PROCESS_DEVICE_QUEUE.get_nowait()
 
                 results = []
                 for object_to_read in device.uplink_converter_config.objects_to_read:
-                    result = await self.__read_property(Address(device.details.address), 
-                                                        Device.get_object_id(object_to_read), 
+                    result = await self.__read_property(Address(device.details.address),
+                                                        Device.get_object_id(object_to_read),
                                                         object_to_read['propertyId'])
                     results.append(result)
+
+                # TODO: Add handling for device activity/inactivity
 
                 self.__log.trace('%s reading results: %s', device, results)
                 self.__data_to_convert_queue.put_nowait((device, results))
@@ -169,10 +184,10 @@ class AsyncBACnetConnector(Thread, Connector):
             result = await self.__application.read_property(address, object_id, property_id)
             return result
         except ErrorRejectAbortNack as err:
-            return err
+            return Exception(err)
         except Exception as e:
             self.__log.error('Error reading property %s:%s from device %s: %s', object_id, property_id, address, e)
-    
+
     async def __write_property(self, address, object_id, property_id, value):
         try:
             result = await self.__application.write_property(address, object_id, property_id, value)
@@ -248,10 +263,10 @@ class AsyncBACnetConnector(Thread, Connector):
         await asyncio.sleep(5)
         for task in asyncio.all_tasks(self.loop):
             task.cancel()
-    
+
     def __create_task(self, func, args, kwargs):
         task = self.loop.create_task(func(*args, **kwargs))
-        
+
         while not task.done():
             sleep(.02)
 
@@ -265,14 +280,18 @@ class AsyncBACnetConnector(Thread, Connector):
                 return
 
             for attribute_name, value in content.get('data', {}).items():
-                attribute_update_config_filter = list(filter(lambda x: x['key'] == attribute_name, device.attributes_updates))
+                attribute_update_config_filter = list(filter(lambda x: x['key'] == attribute_name,
+                                                             device.attributes_updates))
                 for attribute_update_config in attribute_update_config_filter:
                     try:
                         object_id = Device.get_object_id(attribute_update_config)
                         result = {}
                         self.__create_task(self.__process_attribute_update,
-                                        (Address(device.details.address), object_id, attribute_update_config['propertyId'], value),
-                                        {'result': result})
+                                           (Address(device.details.address),
+                                            object_id,
+                                            attribute_update_config['propertyId'],
+                                            value),
+                                           {'result': result})
                         self.__log.info('Processed attribute update with result: %r', result)
                     except Exception as e:
                         self.__log.error('Error updating attribute %s: %s', attribute_name, e)
@@ -301,16 +320,18 @@ class AsyncBACnetConnector(Thread, Connector):
                     object_id = Device.get_object_id(rpc_config)
                     result = {}
                     value = content.get('data', {}).get('params')
-                    self.__create_task(self.__process_rpc_request, 
-                                       (Address(device.details.address), object_id, rpc_config['propertyId']), 
+                    self.__create_task(self.__process_rpc_request,
+                                       (Address(device.details.address),
+                                        object_id,
+                                        rpc_config['propertyId']),
                                        {'value': value, 'result': result})
                     self.__log.info('Processed RPC request with result: %r', result)
-                    self.__gateway.send_rpc_reply(device=device.device_info.device_name, 
+                    self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                                   req_id=content['data'].get('id'),
                                                   content=str(result))
                 except Exception as e:
                     self.__log.error('Error processing RPC request %s: %s', rpc_method_name, e)
-                    self.__gateway.send_rpc_reply(device=device.device_info.device_name, 
+                    self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                                   req_id=content['data'].get('id'),
                                                   content={rpc_method_name: str(e)},
                                                   success_sent=False)
