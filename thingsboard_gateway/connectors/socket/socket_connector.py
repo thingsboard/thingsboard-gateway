@@ -52,8 +52,14 @@ class SocketConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__gateway = gateway
         self.name = config.get("name", 'TCP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
-        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+        remote_logging = self.__config.get('enableRemoteLogging', False)
+        log_level = self.__config.get('logLevel', 'INFO')
+        self.__log = init_logger(self.__gateway, self.name, log_level,
+                                 enable_remote_logging=remote_logging,
+                                 is_connector_logger=True, connector_name=self.name)
+        self.__converter_log = init_logger(self.__gateway, self.name, log_level,
+                                           enable_remote_logging=remote_logging,
+                                           is_converter_logger=True, connector_name=self.name)
 
         if is_using_old_config:
             self.__log.warning("Old Socket connector configuration format detected. Automatic conversion is applied.")
@@ -97,7 +103,7 @@ class SocketConnector(Connector, Thread):
             module = self.__load_converter(device)
             converter = module(
                 {'deviceName': device['deviceName'],
-                 'deviceType': device.get('deviceType', 'default')}, self.__log) if module else None
+                 'deviceType': device.get('deviceType', 'default')}, self.__converter_log) if module else None
             converters_for_devices[address_key] = converter
 
             # validate attributeRequests requestExpression
