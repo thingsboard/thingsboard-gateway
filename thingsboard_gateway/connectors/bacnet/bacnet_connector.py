@@ -52,9 +52,16 @@ class AsyncBACnetConnector(Thread, Connector):
         super().__init__()
         self.__gateway = gateway
         self.__config = config
+        self.name = config.get('name', 'BACnet ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
+        remote_logging = self.__config.get('enableRemoteLogging', False)
+        log_level = self.__config.get('logLevel', "INFO")
 
-        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', "INFO"),
-                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+        self.__log = init_logger(self.__gateway, self.name, log_level,
+                                 enable_remote_logging=remote_logging,
+                                 is_connector_logger=True, connector_name=self.name)
+        self.__converter_log = init_logger(self.__gateway, self.name, log_level,
+                                           enable_remote_logging=remote_logging,
+                                           is_converter_logger=True, connector_name=self.name)
         self.__log.info('Starting BACnet connector...')
 
         if BackwardCompatibilityAdapter.is_old_config(config):
@@ -62,7 +69,6 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__config = backward_compatibility_adapter.convert()
 
         self.__id = self.__config.get('id')
-        self.name = config.get('name', 'BACnet ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.daemon = True
         self.__stopped = False
         self.__connected = False
@@ -117,7 +123,7 @@ class AsyncBACnetConnector(Thread, Connector):
             if added_device is None:
                 device_config = Device.find_self_in_config(self.__config['devices'], apdu)
                 if device_config:
-                    device = Device(self.connector_type, device_config, apdu, self.callback, self.__log)
+                    device = Device(self.connector_type, device_config, apdu, self.callback, self.__converter_log)
                     self.__devices.append(device)
                     self.__gateway.add_device(device.device_info.device_name,
                                               {"connector": self},

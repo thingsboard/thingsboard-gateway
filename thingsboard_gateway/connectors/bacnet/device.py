@@ -24,10 +24,11 @@ from thingsboard_gateway.connectors.bacnet.entities.device_object_config import 
 from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config import UplinkConverterConfig
 from thingsboard_gateway.gateway.constants import UPLINK_PREFIX, CONVERTER_PARAMETER
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
 
 class Device(Thread):
-    def __init__(self, connector_type, config, i_am_request, callback, logger):
+    def __init__(self, connector_type, config, i_am_request, callback, logger: TbLogger):
         super().__init__()
 
         self.__connector_type = connector_type
@@ -75,7 +76,7 @@ class Device(Thread):
 
             return converter
         except Exception as e:
-            self.__log.exception('Failed to load uplink converter for % slave: %s', self.name, e)
+            self.__log.exception('Failed to load uplink converter for % device: %s', self.name, e)
 
     def stop(self):
         self.active = False
