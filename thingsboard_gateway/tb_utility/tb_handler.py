@@ -172,7 +172,7 @@ class TimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
                  encoding=None, delay=False, utc=False):
         config_path = environ.get('TB_GW_LOGS_PATH')
         if config_path:
-            filename = config_path + os.pathsep + filename.split(os.pathsep)[-1]
+            filename = config_path + os.sep + filename.split(os.sep)[-1]
 
         if not Path(filename).exists():
             with open(filename, 'w'):
