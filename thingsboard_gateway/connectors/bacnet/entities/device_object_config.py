@@ -23,7 +23,7 @@ class DeviceObjectConfig:
         self.__network_number_quality = config.get('networkNumberQuality', 'configured')
         self.__max_apdu_length_accepted = int(config.get('maxApduLengthAccepted', 1024))
         self.__segmentation_supported = config.get('segmentationSupported', 'segmentedBoth')
-        self.__vendor_identifier = int(config.get('vendorIdentifier', 15))
+        self.__vendor_identifier = int(config.get('vendorIdentifier', 15) or 15)
 
     @property
     def device_object_config(self):
