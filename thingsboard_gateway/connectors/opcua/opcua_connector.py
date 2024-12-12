@@ -587,9 +587,10 @@ class OpcUaConnector(Connector, Thread):
                         if device not in device_converted_data_map:
                             device_converted_data_map[device] = ConvertedData(device_name=device.name)
 
-                        node = device.nodes_data_change_subscriptions[sub_node.nodeid]
+                        nodes_configs = device.nodes_data_change_subscriptions[sub_node.nodeid]['nodes_configs']
+                        nodes_values = [data.monitored_item.Value for _ in range(len(nodes_configs))]
 
-                        converted_data = device.converter_for_sub.convert(node, data.monitored_item.Value)
+                        converted_data = device.converter_for_sub.convert(nodes_configs, nodes_values)
 
                         if converted_data:
                             converted_data.add_to_metadata({
@@ -598,10 +599,11 @@ class OpcUaConnector(Connector, Thread):
                                 CONVERTED_TS_PARAMETER: int(time() * 1000)
                             })
 
-                            if node['section'] == 'attributes':
-                                device_converted_data_map[device].add_to_attributes(converted_data.attributes)
-                            else:
-                                device_converted_data_map[device].add_to_telemetry(converted_data.telemetry)
+                            for node_config in nodes_configs:
+                                if node_config['section'] == 'attributes':
+                                    device_converted_data_map[device].add_to_attributes(converted_data.attributes)
+                                else:
+                                    device_converted_data_map[device].add_to_telemetry(converted_data.telemetry)
                     except Exception as e:
                         self.__log.exception("Error converting data: %s", e)
 
@@ -704,8 +706,15 @@ class OpcUaConnector(Connector, Thread):
                                     if found_node.nodeid not in self.__nodes_config_cache:
                                         self.__nodes_config_cache[found_node.nodeid] = []
                                     self.__nodes_config_cache[found_node.nodeid].append(device)
-                                    node_config['subscription'] = None
-                                    device.nodes_data_change_subscriptions[found_node.nodeid] = node_config
+
+                                    device_node_config = {
+                                        'subscription': None,
+                                        'node': found_node,
+                                        'nodes_configs': []
+                                    }
+                                    device.nodes_data_change_subscriptions[found_node.nodeid] = device_node_config
+
+                                device.nodes_data_change_subscriptions[found_node.nodeid]['nodes_configs'].append(node_config)
 
                                 if device.subscription is None:
                                     device.subscription = await self.__client.create_subscription(
