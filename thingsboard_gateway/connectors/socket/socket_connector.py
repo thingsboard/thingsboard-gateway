@@ -56,10 +56,10 @@ class SocketConnector(Connector, Thread):
         log_level = self.__config.get('logLevel', 'INFO')
         self.__log = init_logger(self.__gateway, self.name, log_level,
                                  enable_remote_logging=remote_logging,
-                                 is_connector_logger=True, connector_name=self.name)
+                                 is_connector_logger=True)
         self.__converter_log = init_logger(self.__gateway, self.name, log_level,
                                            enable_remote_logging=remote_logging,
-                                           is_converter_logger=True, connector_name=self.name)
+                                           is_converter_logger=True, attr_name=self.name)
 
         if is_using_old_config:
             self.__log.warning("Old Socket connector configuration format detected. Automatic conversion is applied.")

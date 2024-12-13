@@ -49,7 +49,12 @@ class FTPConnector(Connector, Thread):
         self.__tls_support = self.__config.get("TLSSupport", False)
         self.name = self.__config.get("name", "".join(choice(ascii_lowercase) for _ in range(5)))
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                 is_connector_logger=True)
+        self.__converter_log = init_logger(self.__gateway, self.name + '_converter',
+                                           self.__config.get('logLevel', 'INFO'),
+                                           enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                           is_converter_logger=True, attr_name=self.name)
         self.daemon = True
         self.__stopped = False
         self.__requests_in_progress = []
@@ -135,7 +140,7 @@ class FTPConnector(Connector, Thread):
             time_point = timer()
             if time_point - path.last_polled_time >= path.poll_period or path.last_polled_time == 0:
                 configuration = path.config
-                converter = FTPUplinkConverter(configuration, self.__log)
+                converter = FTPUplinkConverter(configuration, self.__converter_log)
                 path.last_polled_time = time_point
 
                 if '*' in path.path:

@@ -83,7 +83,11 @@ class OpcUaConnector(Connector, Thread):
                                                           self.__config.get('server', {}).get('mapping', []))))
         self.__enable_remote_logging = self.__config.get('enableRemoteLogging', False)
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.__enable_remote_logging)
+                                 enable_remote_logging=self.__enable_remote_logging, is_connector_logger=True)
+        self.__converter_log = init_logger(self.__gateway, self.name + '_converter',
+                                           self.__config.get('logLevel', 'INFO'),
+                                           enable_remote_logging=self.__enable_remote_logging,
+                                           is_converter_logger=True, attr_name=self.name)
         self.__replace_loggers()
         report_strategy = self.__config.get('reportStrategy')
         self.__connector_report_strategy_config = gateway.get_report_strategy_service().get_main_report_strategy()
@@ -150,7 +154,7 @@ class OpcUaConnector(Connector, Thread):
                             'ERROR',
                             enable_remote_logging=self.__enable_remote_logging,
                             is_connector_logger=True,
-                            connector_name=self.name)
+                            attr_name=self.name)
 
     def open(self):
         self.__stopped = False
@@ -638,9 +642,9 @@ class OpcUaConnector(Connector, Thread):
                         device_config = {**device_config, 'device_name': device_name, 'device_type': device_type}
                         self.__device_nodes.append(
                             Device(path=node, name=device_name, config=device_config,
-                                   converter=converter(device_config, self.__log),
+                                   converter=converter(device_config, self.__converter_log),
                                    converter_for_sub=converter(device_config,
-                                                               self.__log) if self.__enable_subscriptions else None,
+                                                               self.__converter_log) if self.__enable_subscriptions else None,
                                    logger=self.__log))
                         self.__log.info('Added device node: %s', device_name)
         self.__log.debug('Device nodes: %s', self.__device_nodes)

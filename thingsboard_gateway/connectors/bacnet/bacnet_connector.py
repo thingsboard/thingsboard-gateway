@@ -58,10 +58,10 @@ class AsyncBACnetConnector(Thread, Connector):
 
         self.__log = init_logger(self.__gateway, self.name, log_level,
                                  enable_remote_logging=remote_logging,
-                                 is_connector_logger=True, connector_name=self.name)
-        self.__converter_log = init_logger(self.__gateway, self.name, log_level,
+                                 is_connector_logger=True)
+        self.__converter_log = init_logger(self.__gateway, self.name + '_converter', log_level,
                                            enable_remote_logging=remote_logging,
-                                           is_converter_logger=True, connector_name=self.name)
+                                           is_converter_logger=True, attr_name=self.name)
         self.__log.info('Starting BACnet connector...')
 
         if BackwardCompatibilityAdapter.is_old_config(config):

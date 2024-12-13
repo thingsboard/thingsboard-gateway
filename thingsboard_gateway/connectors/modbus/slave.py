@@ -130,9 +130,9 @@ class Slave(Thread):
                 converter = config[converter_type + CONVERTER_PARAMETER]
             else:
                 if converter_type == DOWNLINK_PREFIX:
-                    converter = BytesModbusDownlinkConverter(converter_config, self._log)
+                    converter = BytesModbusDownlinkConverter(converter_config, self.connector.__converter_log)
                 else:
-                    converter = BytesModbusUplinkConverter(converter_config, self._log)
+                    converter = BytesModbusUplinkConverter(converter_config, self.connector.__converter_log)
 
             return converter
         except Exception as e:
