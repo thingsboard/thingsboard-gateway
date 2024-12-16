@@ -166,6 +166,8 @@ class TBGatewayService:
         try:
             with open(self._config_dir + 'logs.json', 'r') as file:
                 log_config = load(file)
+
+            TbLogger.check_and_update_file_handlers_class_name(log_config)
             logging.config.dictConfig(log_config)
         except Exception as e:
             logging_error = e
