@@ -1,10 +1,11 @@
 import os
 import logging
+from logging.handlers import TimedRotatingFileHandler
 from os import environ
 from pathlib import Path
 
 
-class TimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
+class TimedRotatingFileHandler(TimedRotatingFileHandler):
     def __init__(self, filename, when='h', interval=1, backupCount=0,
                  encoding=None, delay=False, utc=False):
         config_path = environ.get('TB_GW_LOGS_PATH')
