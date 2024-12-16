@@ -59,6 +59,7 @@ from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 from thingsboard_gateway.tb_utility.tb_remote_shell import RemoteShell
+from thingsboard_gateway.tb_utility.tb_rotating_file_handler import TimedRotatingFileHandler
 from thingsboard_gateway.tb_utility.tb_updater import TBUpdater
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -2065,6 +2066,7 @@ class TBGatewayService:
 
     def update_loggers(self):
         self.__update_base_loggers()
+        self.__update_connectors_and_converters_loggers()
 
         global log
         log = logging.getLogger('service')
@@ -2080,6 +2082,25 @@ class TBGatewayService:
                     continue
 
                 logger.addHandler(self.remote_handler)
+
+    def __update_connectors_and_converters_loggers(self):
+        for logger in logging.Logger.manager.loggerDict.values():
+            if hasattr(logger, 'is_connector_logger') or hasattr(logger, 'is_converter_logger'):
+                file_handler_filter = list(filter(lambda handler: isinstance(handler, TimedRotatingFileHandler),
+                                                  logger.handlers))
+                if len(file_handler_filter):
+                    old_file_handler = file_handler_filter[0]
+
+                    new_file_handler = None
+                    if logger.is_connector_logger:
+                        new_file_handler = TimedRotatingFileHandler.get_connector_file_handler(old_file_handler.baseFilename.split('/')[-1]) # noqa
+
+                    if logger.is_converter_logger:
+                        new_file_handler = TimedRotatingFileHandler.get_converter_file_handler(old_file_handler.baseFilename.split('/')[-1]) # noqa
+
+                    if new_file_handler:
+                        logger.addHandler(new_file_handler)
+                        logger.removeHandler(old_file_handler)
 
     def is_latency_metrics_enabled(self):
         return self.__latency_debug_mode
