@@ -35,6 +35,7 @@ from thingsboard_gateway.gateway.tb_client import TBClient
 
 if TYPE_CHECKING:
     from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -421,6 +422,7 @@ class RemoteConfigurator:
     def _handle_logs_configuration_update(self, config):
         self.__log.debug('Processing logs configuration update...')
         try:
+            TbLogger.check_and_update_file_handlers_class_name(config)
             self.__log = getLogger('service')
             logs_conf_file_path = self._gateway.get_config_path() + 'logs.json'
             target_handlers = {}

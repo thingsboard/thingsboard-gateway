@@ -69,7 +69,12 @@ class OcppConnector(Connector, Thread):
         self._gateway = gateway
         self.name = self._config.get("name", 'OCPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self._log = init_logger(self._gateway, self.name, self._config.get('logLevel', 'INFO'),
-                                enable_remote_logging=self._config.get('enableRemoteLogging', False))
+                                enable_remote_logging=self._config.get('enableRemoteLogging', False),
+                                is_connector_logger=True)
+        self._converter_log = init_logger(self._gateway, self.name + '_converter',
+                                          self._config.get('logLevel', 'INFO'),
+                                          enable_remote_logging=self._config.get('enableRemoteLogging', False),
+                                          is_converter_logger=True, attr_name=self.name)
 
         self._default_converters = {'uplink': 'OcppUplinkConverter'}
         self._server = None
@@ -184,7 +189,7 @@ class OcppConnector(Connector, Thread):
         if is_valid:
             uplink_converter_name = cp_config.get('extension', self._default_converters['uplink'])
             cp = ChargePoint(charge_point_id, websocket, {**cp_config, 'uplink_converter_name': uplink_converter_name},
-                             OcppConnector._callback, self._log)
+                             OcppConnector._callback, self._converter_log)
             cp.authorized = True
 
             self._log.info('Connected Charge Point with id: %s', charge_point_id)

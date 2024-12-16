@@ -20,17 +20,21 @@ from bacpypes3.primitivedata import ObjectIdentifier
 from thingsboard_gateway.connectors.bacnet.bacnet_uplink_converter import AsyncBACnetUplinkConverter
 from thingsboard_gateway.connectors.bacnet.entities.bacnet_device_details import BACnetDeviceDetails
 from thingsboard_gateway.connectors.bacnet.entities.device_info import DeviceInfo
+from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config import UplinkConverterConfig
 from thingsboard_gateway.gateway.constants import UPLINK_PREFIX, CONVERTER_PARAMETER
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
 
 class Device(Thread):
-    def __init__(self, connector_type, config, i_am_request, callback, logger):
+    def __init__(self, connector_type, config, i_am_request, callback, logger: TbLogger):
         super().__init__()
 
         self.__connector_type = connector_type
         self.__config = config
+        DeviceObjectConfig.update_address_in_config_util(self.__config)
+        self.alternative_responses_addresses = self.__config.get('altResponsesAddresses', [])
 
         self.__log = logger
 
@@ -39,6 +43,9 @@ class Device(Thread):
         self.callback = callback
         self.daemon = True
 
+        if not hasattr(i_am_request, 'deviceName'):
+            self.__log.warning('Device name is not provided in IAmRequest. Device Id will be used as "objectName')
+            i_am_request.deviceName = str(i_am_request.iAmDeviceIdentifier[1])
         self.details = BACnetDeviceDetails(i_am_request)
         self.device_info = DeviceInfo(self.__config.get('deviceInfo', {}), self.details)
         self.uplink_converter_config = UplinkConverterConfig(self.__config, self.device_info, self.details)
@@ -69,7 +76,7 @@ class Device(Thread):
 
             return converter
         except Exception as e:
-            self.__log.exception('Failed to load uplink converter for % slave: %s', self.name, e)
+            self.__log.exception('Failed to load uplink converter for % device: %s', self.name, e)
 
     def stop(self):
         self.active = False
@@ -91,7 +98,7 @@ class Device(Thread):
 
     @staticmethod
     def find_self_in_config(devices_config, apdu):
-        device_config = list(filter(lambda x: x['address'] == apdu.pduSource.exploded, devices_config))
+        device_config = list(filter(lambda x: x['address'] == apdu.pduSource.exploded or apdu.pduSource.exploded in x.get('altResponsesAddresses', []), devices_config))
         if len(device_config):
             return device_config[0]
 

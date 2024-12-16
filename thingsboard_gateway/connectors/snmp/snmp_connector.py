@@ -58,7 +58,12 @@ class SNMPConnector(Connector, Thread):
         self.__id = self.__config.get('id')
         self.name = config.get("name", 'SNMP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+                                enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                is_connector_logger=True)
+        self._converter_log = init_logger(self.__gateway, self.name + "_converter",
+                                          self.__config.get('logLevel', 'INFO'),
+                                          enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                          is_connector_logger=True, attr_name=self.name)
         self.__devices = self.__config["devices"]
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
@@ -235,7 +240,7 @@ class SNMPConnector(Connector, Thread):
                 device["uplink_converter"] = TBModuleLoader.import_module("snmp", device.get('converter',
                                                                                              self._default_converters[
                                                                                                  "uplink"]))(device,
-                                                                                                             self._log)
+                                                                                                             self._converter_log)
                 device["downlink_converter"] = TBModuleLoader.import_module("snmp", device.get('converter',
                                                                                                self._default_converters[
                                                                                                    "downlink"]))(device)

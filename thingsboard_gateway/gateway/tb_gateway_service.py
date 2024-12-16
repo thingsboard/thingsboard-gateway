@@ -166,6 +166,8 @@ class TBGatewayService:
         try:
             with open(self._config_dir + 'logs.json', 'r') as file:
                 log_config = load(file)
+
+            TbLogger.check_and_update_file_handlers_class_name(log_config)
             logging.config.dictConfig(log_config)
         except Exception as e:
             logging_error = e
@@ -212,10 +214,6 @@ class TBGatewayService:
 
         connection_logger = logging.getLogger('tb_connection')
         self.tb_client = TBClient(self.__config["thingsboard"], self._config_dir, connection_logger)
-        try:
-            self.tb_client.disconnect()
-        except Exception as e:
-            log.exception(e)
         self.tb_client.register_service_subscription_callback(self.subscribe_to_required_topics)
         self.tb_client.connect()
         if self.stopped:
@@ -563,7 +561,7 @@ class TBGatewayService:
                             break
 
                     if (not self.__requested_config_after_connect and self.tb_client.is_connected()
-                            and not self.tb_client.client.get_subscriptions_in_progress()):
+                            and self.tb_client.is_subscribed_to_service_attributes()):
                         self.__requested_config_after_connect = True
                         self._check_shared_attributes()
 
@@ -2069,6 +2067,7 @@ class TBGatewayService:
 
     def update_loggers(self):
         self.__update_base_loggers()
+        TbLogger.update_file_handlers()
 
         global log
         log = logging.getLogger('service')

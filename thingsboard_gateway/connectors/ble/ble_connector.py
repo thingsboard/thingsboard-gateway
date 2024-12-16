@@ -48,8 +48,14 @@ class BLEConnector(Connector, Thread):
         self.__config = config
         self.__id = self.__config.get('id')
         self.name = self.__config.get("name", 'BLE Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
-        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+        self.__log = init_logger(self.__gateway, self.name,
+                                 self.__config.get('logLevel', 'INFO'),
+                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                 is_connector_logger=True)
+        self.__converter_log = init_logger(self.__gateway, self.name + '_converter',
+                                           self.__config.get('logLevel', 'INFO'),
+                                           enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                           is_converter_logger=True, attr_name=self.name)
 
         self.daemon = True
 
@@ -138,7 +144,7 @@ class BLEConnector(Connector, Thread):
                 StatisticsService.count_connector_bytes(self.name, data, stat_parameter_name='connectorBytesReceived')
 
                 try:
-                    converter = converter(device_config, self.__log)
+                    converter = converter(device_config, self.__converter_log)
                     converted_data: ConvertedData = converter.convert(config, data)
                     self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1
                     self.__log.debug(converted_data)

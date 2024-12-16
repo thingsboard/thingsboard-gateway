@@ -29,24 +29,41 @@ class BackwardCompatibilityAdapter:
 
         return self.__config
 
-
     def __convert_application_section(self):
         general_section = self.__config.pop('general', {})
+        self.__convert_address_in_section(general_section)
         self.__config['application'] = general_section
 
     def __convert_device_section(self):
         for device in self.__config.get('devices', []):
             self.__convert_device_info_section(device)
+            self.__convert_address_in_section(device)
 
             for section in ('attributes', 'timeseries'):
                 for item_config in device.get(section, []):
                     self.__convert_object_id(item_config)
-            
+
             for attr_update_config in device.get('attributeUpdates', []):
                 self.__convert_object_id(attr_update_config)
-            
+
             for rpc_config in device.get('rpc', []):
                 self.__convert_object_id(rpc_config)
+
+    @staticmethod
+    def __convert_address_in_section(old_config_section):
+        address = old_config_section.get('address', '')
+        if address:
+            return old_config_section
+        if 'host' in old_config_section:
+            address += old_config_section.pop('host')
+            address = address.rstrip('/')
+        if 'mask' in old_config_section:
+            network_mask = old_config_section.pop('mask', None)
+            if network_mask:
+                address += '/' + network_mask
+        if 'port' in old_config_section:
+            address += ':' + str(old_config_section.pop('port', 47808))
+        old_config_section['address'] = address
 
     @staticmethod
     def __convert_device_info_section(old_device_config):
@@ -69,5 +86,4 @@ class BackwardCompatibilityAdapter:
 
     @staticmethod
     def is_old_config(config):
-        if config.get('general'):
-            return True
+        return config.get('general') is not None

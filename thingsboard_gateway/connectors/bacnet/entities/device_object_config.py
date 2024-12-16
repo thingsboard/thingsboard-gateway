@@ -14,6 +14,7 @@
 
 class DeviceObjectConfig:
     def __init__(self, config):
+        self.update_address_in_config_util(config)
         self.address = config['address']
         self.device_discovery_timeout = int(config.get('deviceDiscoveryTimeoutInSec', 5))
         self.__object_identifier = int(config['objectIdentifier'])
@@ -22,7 +23,7 @@ class DeviceObjectConfig:
         self.__network_number_quality = config.get('networkNumberQuality', 'configured')
         self.__max_apdu_length_accepted = int(config.get('maxApduLengthAccepted', 1024))
         self.__segmentation_supported = config.get('segmentationSupported', 'segmentedBoth')
-        self.__vendor_identifier = int(config.get('vendorIdentifier', 15))
+        self.__vendor_identifier = int(config.get('vendorIdentifier', 15) or 15)
 
     @property
     def device_object_config(self):
@@ -42,3 +43,19 @@ class DeviceObjectConfig:
             'networkNumber': self.__network_number,
             'networkNumberQuality': self.__network_number_quality
         }
+
+    @staticmethod
+    def update_address_in_config_util(config):
+        address = config.get('address', '')
+        if address:
+            return config
+        if 'host' in config:
+            address += config.pop('host')
+            address = address.rstrip('/')
+        if 'mask' in config:
+            network_mask = config.pop('mask', None)
+            if network_mask:
+                address += '/' + network_mask
+        if 'port' in config:
+            address += ':' + str(config.pop('port', 47808))
+        config['address'] = address
