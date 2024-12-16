@@ -421,6 +421,7 @@ class RemoteConfigurator:
     def _handle_logs_configuration_update(self, config):
         self.__log.debug('Processing logs configuration update...')
         try:
+            self.__check_file_handlers_class_name(config)
             self.__log = getLogger('service')
             logs_conf_file_path = self._gateway.get_config_path() + 'logs.json'
             target_handlers = {}
@@ -994,3 +995,9 @@ class RemoteConfigurator:
     def __is_ca_cert_match(old_security, new_security):
         return new_security.get('accessToken') == old_security.get('accessToken') and \
             new_security.get('caCert') == old_security.get('caCert')
+
+    @staticmethod
+    def __check_file_handlers_class_name(config):
+        for handler_config in config.get('handlers', {}).values():
+            if handler_config.get('class', '') == 'thingsboard_gateway.tb_utility.tb_handler.TimedRotatingFileHandler':
+                handler_config['class'] = 'thingsboard_gateway.tb_utility.tb_rotating_file_handler.TimedRotatingFileHandler'

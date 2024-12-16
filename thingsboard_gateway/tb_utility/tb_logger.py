@@ -236,5 +236,25 @@ class TbLogger(logging.Logger):
     def is_main_module_logger(name, attr_name, is_converter_logger):
         return name == attr_name or attr_name is None or (name != attr_name and is_converter_logger)
 
+    @staticmethod
+    def update_file_handlers():
+        for logger in logging.Logger.manager.loggerDict.values():
+            if hasattr(logger, 'is_connector_logger') or hasattr(logger, 'is_converter_logger'):
+                file_handler_filter = list(filter(lambda handler: isinstance(handler, TimedRotatingFileHandler),
+                                                  logger.handlers))
+                if len(file_handler_filter):
+                    old_file_handler = file_handler_filter[0]
+
+                    new_file_handler = None
+                    if logger.is_connector_logger:
+                        new_file_handler = TimedRotatingFileHandler.get_connector_file_handler(old_file_handler.baseFilename.split('/')[-1]) # noqa
+
+                    if logger.is_converter_logger:
+                        new_file_handler = TimedRotatingFileHandler.get_converter_file_handler(old_file_handler.baseFilename.split('/')[-1]) # noqa
+
+                    if new_file_handler:
+                        logger.addHandler(new_file_handler)
+                        logger.removeHandler(old_file_handler)
+
 
 logging.setLoggerClass(TbLogger)
