@@ -41,7 +41,7 @@ class ModbusUplinkMessagesTest(BaseTest):
         with RestClientCE(url) as cls.client:
             cls.client.login(username, password)
 
-            cls.gateway = cls.client.get_tenant_devices(10, 0, text_search='Gateway').data[0]
+            cls.gateway = cls.client.get_tenant_devices(10, 0, text_search='Test Gateway device').data[0]
             assert cls.gateway is not None
 
             start_connecting_time = time()
