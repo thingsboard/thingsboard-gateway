@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
+from thingsboard_gateway.tb_utility.tb_rotating_file_handler import TimedRotatingFileHandler
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 TRACE_LOGGING_LEVEL = 5
@@ -27,7 +28,7 @@ logging.addLevelName(TRACE_LOGGING_LEVEL, "TRACE")
 
 
 def init_logger(gateway: 'TBGatewayService', name, level, enable_remote_logging=False, is_connector_logger=False,
-                is_converter_logger=False, connector_name=None):
+                is_converter_logger=False, attr_name=None):
     """
     For creating a Logger with all config automatically
     Create a Logger manually only if you know what you are doing!
@@ -37,11 +38,29 @@ def init_logger(gateway: 'TBGatewayService', name, level, enable_remote_logging=
     log.is_connector_logger = is_connector_logger
     log.is_converter_logger = is_converter_logger
 
-    if connector_name:
-        log.connector_name = connector_name
+    if attr_name:
+        log.attr_name = attr_name + '_ERRORS_COUNT'
 
     if hasattr(gateway, 'main_handler') and gateway.main_handler not in log.handlers:
         log.addHandler(gateway.main_handler)
+
+    # Add file handler to the connector or converter logger
+    # First check if it is a main module logger (for example OPC-UA connector logger)
+    # If it is, add a file handler to the main module logger
+    # If it is not (for example asyncua logger), add the main module file handler to the logger
+    if TbLogger.is_main_module_logger(name, attr_name, is_converter_logger):
+        if is_connector_logger:
+            file_handler = TimedRotatingFileHandler.get_connector_file_handler(log.name + '_connector')
+
+        if is_converter_logger:
+            file_handler = TimedRotatingFileHandler.get_converter_file_handler(log.name)
+
+        if file_handler:
+            log.addHandler(file_handler)
+    else:
+        main_file_handler = TimedRotatingFileHandler.get_time_rotating_file_handler_by_logger_name(attr_name)
+        if main_file_handler:
+            log.addHandler(main_file_handler)
 
     from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
     if not hasattr(gateway, 'remote_handler'):
@@ -78,23 +97,22 @@ class TbLogger(logging.Logger):
     PREVIOUS_ERRORS_RESET_TIME = 0
 
     def __init__(self, name, level=logging.NOTSET, is_connector_logger=False, is_converter_logger=False,
-                 connector_name=None):
+                 attr_name=None):
         super(TbLogger, self).__init__(name=name, level=level)
         self.propagate = True
         self.parent = self.root
-        self.__previous_number_of_errors = -1
         self.__is_connector_logger = is_connector_logger
         self.__is_converter_logger = is_converter_logger
         self.__previous_reset_errors_time = TbLogger.PREVIOUS_ERRORS_RESET_TIME
         logging.Logger.trace = TbLogger.trace
 
-        if connector_name:
-            self.__connector_name = connector_name
-        else:
-            self.__connector_name = name
-
         self.errors = 0
-        self.attr_name = self.__connector_name + '_ERRORS_COUNT'
+
+        if attr_name:
+            self.attr_name = attr_name + '_ERRORS_COUNT'
+        else:
+            self.attr_name = self.name + '_ERRORS_COUNT'
+
         self._is_on_init_state = True
 
     @property
@@ -112,15 +130,6 @@ class TbLogger(logging.Logger):
     @is_converter_logger.setter
     def is_converter_logger(self, value):
         self.__is_converter_logger = value
-
-    @property
-    def connector_name(self):
-        return self.__connector_name
-
-    @connector_name.setter
-    def connector_name(self, value):
-        self.__connector_name = value
-        self.attr_name = self.__connector_name + '_ERRORS_COUNT'
 
     def reset(self):
         with TbLogger.ERRORS_MUTEX:
@@ -222,6 +231,36 @@ class TbLogger(logging.Logger):
                         for key in keys_to_remove:
                             cls.__PREVIOUS_BATCH_TO_SEND.pop(key, None)
                         cls.__PREVIOUS_BATCH_TO_SEND.update(batch_to_send)
+
+    @staticmethod
+    def is_main_module_logger(name, attr_name, is_converter_logger):
+        return name == attr_name or attr_name is None or (name != attr_name and is_converter_logger)
+
+    @staticmethod
+    def update_file_handlers():
+        for logger in logging.Logger.manager.loggerDict.values():
+            if hasattr(logger, 'is_connector_logger') or hasattr(logger, 'is_converter_logger'):
+                file_handler_filter = list(filter(lambda handler: isinstance(handler, TimedRotatingFileHandler),
+                                                  logger.handlers))
+                if len(file_handler_filter):
+                    old_file_handler = file_handler_filter[0]
+
+                    new_file_handler = None
+                    if logger.is_connector_logger:
+                        new_file_handler = TimedRotatingFileHandler.get_connector_file_handler(old_file_handler.baseFilename.split('/')[-1]) # noqa
+
+                    if logger.is_converter_logger:
+                        new_file_handler = TimedRotatingFileHandler.get_converter_file_handler(old_file_handler.baseFilename.split('/')[-1]) # noqa
+
+                    if new_file_handler:
+                        logger.addHandler(new_file_handler)
+                        logger.removeHandler(old_file_handler)
+
+    @staticmethod
+    def check_and_update_file_handlers_class_name(config):
+        for handler_config in config.get('handlers', {}).values():
+            if handler_config.get('class', '') == 'thingsboard_gateway.tb_utility.tb_handler.TimedRotatingFileHandler':
+                handler_config['class'] = 'thingsboard_gateway.tb_utility.tb_rotating_file_handler.TimedRotatingFileHandler'
 
 
 logging.setLoggerClass(TbLogger)

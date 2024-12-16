@@ -71,7 +71,12 @@ class RESTConnector(Connector, Thread):
         self.name = config.get("name", 'REST Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__gateway = gateway
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                 is_connector_logger=True)
+        self.__converter_log = init_logger(self.__gateway, self.name + '_converter',
+                                           self.__config.get('logLevel', 'INFO'),
+                                           enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                           is_connector_logger=True, attr_name=self.name)
         self._default_downlink_converter = TBModuleLoader.import_module(self._connector_type,
                                                                         self._default_converters['downlink'])
         self._default_uplink_converter = TBModuleLoader.import_module(self._connector_type,
@@ -130,7 +135,7 @@ class RESTConnector(Connector, Thread):
                 for http_method in mapping['HTTPMethods']:
                     handler = data_handlers[security_type](self.collect_statistic_and_send, self.get_name(),
                                                            self.get_id(), self.endpoints[mapping["endpoint"]],
-                                                           self.__log, provider=self.__event_provider)
+                                                           self.__converter_log, provider=self.__event_provider)
                     handlers.append(web.route(http_method, mapping['endpoint'], handler))
             except Exception as e:
                 self.__log.error("Error on creating handlers - %s", str(e))
