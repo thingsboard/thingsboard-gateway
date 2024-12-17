@@ -76,14 +76,14 @@ DEBUG_METADATA_TEMPLATE_SIZE = len(dumps({
     "metadata": {
         RECEIVED_TS_PARAMETER: int(time() * 1000),
         CONNECTOR_PARAMETER: "",
-        "publishedTs": int(time() * 1000)}}
-    , separators=(',', ':'), skipkeys=True).encode("utf-8"))
+        "publishedTs": int(time() * 1000)}}, separators=(',', ':'), skipkeys=True).encode("utf-8"))
 
 # Report strategy parameters
 REPORT_STRATEGY_PARAMETER = "reportStrategy"
 REPORT_PERIOD_PARAMETER = "reportPeriod"
 TYPE_PARAMETER = "type"
 AGGREGATION_FUNCTION_PARAMETER = "aggregationFunction"
+
 
 class ReportStrategy(Enum):
     ON_REPORT_PERIOD = "ON_REPORT_PERIOD"
@@ -98,6 +98,7 @@ class ReportStrategy(Enum):
                 return strategy
         raise ValueError("Invalid report strategy value: %r" % value)
 
+
 DEFAULT_REPORT_STRATEGY_CONFIG = {
     TYPE_PARAMETER: ReportStrategy.ON_RECEIVED.value,
     REPORT_PERIOD_PARAMETER: 10000
@@ -111,4 +112,5 @@ RPC_PARAMS_PARAMETER = "params"
 DATA_PARAMETER = "data"
 
 # Attribute constants
-ATTRIBUTES_FOR_REQUEST = ["RemoteLoggingLevel", "general_configuration", "storage_configuration", "grpc_configuration", "logs_configuration", "active_connectors"]
+ATTRIBUTES_FOR_REQUEST = ["RemoteLoggingLevel", "general_configuration", "storage_configuration",
+                          "grpc_configuration", "logs_configuration", "active_connectors"]

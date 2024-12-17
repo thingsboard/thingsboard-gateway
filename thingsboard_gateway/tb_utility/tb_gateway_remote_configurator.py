@@ -201,7 +201,8 @@ class RemoteConfigurator:
     def send_connector_current_configuration(self, connector_configuration: dict):
         config_to_send = {**connector_configuration,
                           'logLevel': connector_configuration.get('configurationJson', {}).get('logLevel', 'INFO'),
-                          'enableRemoteLogging': connector_configuration.get('configurationJson', {}).get('enableRemoteLogging', False),
+                          'enableRemoteLogging':
+                              connector_configuration.get('configurationJson', {}).get('enableRemoteLogging', False),
                           'ts': int(time() * 1000)
                           }
         if config_to_send.get('config') is not None:

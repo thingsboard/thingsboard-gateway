@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from time import monotonic
 
 from thingsboard_gateway.gateway.constants import ReportStrategy
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
@@ -20,8 +19,9 @@ from thingsboard_gateway.gateway.entities.report_strategy_config import ReportSt
 
 
 class ReportStrategyDataRecord:
-    __slots__ = ["_value", "_device_name", "_device_type","_connector_name",
-                 "_connector_id", "_report_strategy", "_last_report_time", "_is_telemetry","_ts"]
+    __slots__ = ["_value", "_device_name", "_device_type", "_connector_name",
+                 "_connector_id", "_report_strategy", "_last_report_time", "_is_telemetry", "_ts"]
+
     def __init__(self, value, device_name, device_type, connector_name, connector_id, report_strategy, is_telemetry):
         self._value = value
         self._device_name = device_name
@@ -60,7 +60,8 @@ class ReportStrategyDataRecord:
         self._ts = ts
 
     def should_be_reported_by_period(self, current_time):
-        if self._report_strategy.report_strategy in (ReportStrategy.ON_REPORT_PERIOD, ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD):
+        if self._report_strategy.report_strategy in (ReportStrategy.ON_REPORT_PERIOD,
+                                                     ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD):
             return (self._last_report_time is None
                     or current_time - self._last_report_time + 50 >= self._report_strategy.report_period)
         else:
@@ -75,8 +76,15 @@ class ReportStrategyDataCache:
         self._config = config
         self._data_cache = {}
 
-    def put(self, datapoint_key: DatapointKey, data: str, device_name, device_type, connector_name, connector_id, report_strategy, is_telemetry):
-        self._data_cache[(datapoint_key, device_name, connector_id)] = ReportStrategyDataRecord(data, device_name, device_type, connector_name, connector_id, report_strategy, is_telemetry)
+    def put(self, datapoint_key: DatapointKey, data: str, device_name,
+            device_type, connector_name, connector_id, report_strategy, is_telemetry):
+        self._data_cache[(datapoint_key, device_name, connector_id)] = ReportStrategyDataRecord(data,
+                                                                                                device_name,
+                                                                                                device_type,
+                                                                                                connector_name,
+                                                                                                connector_id,
+                                                                                                report_strategy,
+                                                                                                is_telemetry)
 
     def get(self, datapoint_key: DatapointKey, device_name, connector_id) -> ReportStrategyDataRecord:
         return self._data_cache.get((datapoint_key, device_name, connector_id))
@@ -97,4 +105,3 @@ class ReportStrategyDataCache:
 
     def clear(self):
         self._data_cache.clear()
-

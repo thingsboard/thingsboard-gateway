@@ -17,7 +17,7 @@ from logging import getLogger, setLoggerClass
 from os import environ
 from platform import system as platform_system
 from re import search, findall
-from typing import Union
+from typing import Union, TYPE_CHECKING
 from uuid import uuid4
 
 from cryptography import x509
@@ -32,6 +32,9 @@ from thingsboard_gateway.gateway.constants import SECURITY_VAR, REPORT_STRATEGY_
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
+
+if TYPE_CHECKING:
+    from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 
 setLoggerClass(TbLogger)
 log = getLogger("service")
@@ -121,13 +124,15 @@ class TBUtility:
         try:
             if isinstance(body, dict) and target_str.split()[0] in body:
                 if value_type.lower() == "string":
-                    full_value = str(expression[0: max(p1 - 2, 0)]) + str(body[target_str.split()[0]]) + str(expression[p2 + 1:len(expression)])
+                    full_value = (str(expression[0: max(p1 - 2, 0)]) +
+                                  str(body[target_str.split()[0]]) +
+                                  str(expression[p2 + 1:len(expression)]))
                 else:
                     full_value = body.get(target_str.split()[0])
             elif isinstance(body, (dict, list)):
                 try:
                     if " " in target_str:
-                        target_str = '.'.join('"' + section_key + '"' if " " in section_key else section_key for section_key in target_str.split('.'))
+                        target_str = '.'.join('"' + section_key + '"' if " " in section_key else section_key for section_key in target_str.split('.')) # noqa
                     jsonpath_expression = parse(target_str)
                     jsonpath_match = jsonpath_expression.find(body)
                     if jsonpath_match:
@@ -386,4 +391,3 @@ class TBUtility:
                     converted_env_variables[key] = value
 
         return converted_env_variables
-

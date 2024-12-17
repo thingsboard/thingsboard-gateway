@@ -18,7 +18,7 @@ from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 
 
 class Attributes:
-    def __init__(self, values: Dict[DatapointKey, Any]=None):
+    def __init__(self, values: Dict[DatapointKey, Any] = None):
         self.values: Dict[DatapointKey, Any] = values or {}
 
     def __str__(self):

@@ -15,16 +15,18 @@
 from queue import SimpleQueue
 from threading import Thread
 from time import monotonic, time
-from typing import Dict, Set, Union
+from typing import Dict, Set, Union, TYPE_CHECKING
 
-from thingsboard_gateway.gateway.constants import DEFAULT_REPORT_STRATEGY_CONFIG, ReportStrategy, DEVICE_NAME_PARAMETER, \
-    DEVICE_TYPE_PARAMETER, REPORT_STRATEGY_PARAMETER
+from thingsboard_gateway.gateway.constants import DEFAULT_REPORT_STRATEGY_CONFIG, \
+    ReportStrategy, DEVICE_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.report_strategy.report_strategy_data_cache import ReportStrategyDataCache
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
+if TYPE_CHECKING:
+    from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
 
 class ReportStrategyService:
@@ -37,14 +39,18 @@ class ReportStrategyService:
         self._report_strategy_data_cache = ReportStrategyDataCache(config)
         self._connectors_report_strategies: Dict[str, ReportStrategyConfig] = {}
         self.__keys_to_report_periodically: Set[DatapointKey, str, str] = set()
-        self.__periodical_reporting_thread = Thread(target=self.__periodical_reporting, daemon=True, name="Periodical Reporting Thread")
+        self.__periodical_reporting_thread = Thread(target=self.__periodical_reporting,
+                                                    daemon=True,
+                                                    name="Periodical Reporting Thread")
         self.__periodical_reporting_thread.start()
 
     def get_main_report_strategy(self):
         return self.main_report_strategy
 
-    def register_connector_report_strategy(self, connector_name: str, connector_id: str, report_strategy_config: ReportStrategyConfig):
-        if report_strategy_config is None: # Default report strategy will be used if no report strategy is provided
+    def register_connector_report_strategy(self, connector_name: str,
+                                           connector_id: str,
+                                           report_strategy_config: ReportStrategyConfig):
+        if report_strategy_config is None:  # Default report strategy will be used if no report strategy is provided
             return
         self._connectors_report_strategies[connector_id] = report_strategy_config
         self._connectors_report_strategies[connector_name] = report_strategy_config
@@ -53,8 +59,8 @@ class ReportStrategyService:
         data_to_send = data
         if isinstance(data, dict):
             data_to_send = ConvertedData(device_name=data.get(DEVICE_NAME_PARAMETER),
-                                 device_type=data.get(DEVICE_TYPE_PARAMETER, "default"),
-                                 metadata=data.get("metadata"))
+                                         device_type=data.get(DEVICE_TYPE_PARAMETER, "default"),
+                                         metadata=data.get("metadata"))
             for ts_kv in data.get("telemetry", []):
                 data_to_send.add_to_telemetry(ts_kv)
             data_to_send.add_to_attributes(data.get("attributes", {}))
@@ -78,7 +84,7 @@ class ReportStrategyService:
                     report_strategy = report_strategy_config
 
                     if isinstance(datapoint_key, str):
-                        datapoint_key = DatapointKey(datapoint_key) # TODO: remove this DatapointKey creation after refactoring, added to avoid errors with old string keys
+                        datapoint_key = DatapointKey(datapoint_key)  # TODO: remove this DatapointKey creation after refactoring, added to avoid errors with old string keys # noqa
 
                     if datapoint_key.report_strategy is not None:
                         report_strategy = datapoint_key.report_strategy
@@ -101,7 +107,7 @@ class ReportStrategyService:
                 report_strategy = report_strategy_config
 
                 if isinstance(datapoint_key, str):
-                    datapoint_key = DatapointKey(datapoint_key) # TODO: remove this DatapointKey creation after refactoring, added to avoid errors with old string keys
+                    datapoint_key = DatapointKey(datapoint_key)  # TODO: remove this DatapointKey creation after refactoring, added to avoid errors with old string keys # noqa
 
                 if datapoint_key.report_strategy is not None:
                     report_strategy = datapoint_key.report_strategy
@@ -119,7 +125,9 @@ class ReportStrategyService:
         if converted_data_to_send.telemetry or converted_data_to_send.attributes:
             self.__send_data_queue.put_nowait((connector_name, connector_id, converted_data_to_send))
 
-    def filter_datapoint_and_cache(self, datapoint_key: DatapointKey, data, device_name, device_type, connector_name, connector_id, report_strategy_config: ReportStrategyConfig, is_telemetry: bool):
+    def filter_datapoint_and_cache(self, datapoint_key: DatapointKey, data, device_name, device_type,
+                                   connector_name, connector_id, report_strategy_config: ReportStrategyConfig,
+                                   is_telemetry: bool):
         if report_strategy_config is None:
             report_strategy_config = self.main_report_strategy.report_strategy
         if datapoint_key.report_strategy is not None:
@@ -139,7 +147,8 @@ class ReportStrategyService:
                 if is_telemetry:
                     self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
             else:
-                self._report_strategy_data_cache.put(datapoint_key, data, device_name, device_type, connector_name, connector_id, report_strategy_config, is_telemetry)
+                self._report_strategy_data_cache.put(datapoint_key, data, device_name, device_type,
+                                                     connector_name, connector_id, report_strategy_config, is_telemetry)
                 if is_telemetry:
                     self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
             return True
@@ -158,19 +167,22 @@ class ReportStrategyService:
                     return False
                 elif report_strategy_config.report_strategy == ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD:
                     self._report_strategy_data_cache.update_key_value(datapoint_key, device_name, connector_id, data)
-                    # self._report_strategy_data_cache.update_last_report_time(datapoint_key, device_name, connector_id, current_time)
+                    # self._report_strategy_data_cache.update_last_report_time(datapoint_key, device_name, connector_id, current_time) # noqa
                     if is_telemetry:
                         self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
                     return True
             else:
                 return False
         else:
-            self._report_strategy_data_cache.put(datapoint_key, data, device_name, device_type, connector_name, connector_id, report_strategy_config, is_telemetry)
-            if report_strategy_config.report_strategy in (ReportStrategy.ON_REPORT_PERIOD, ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD):
+            self._report_strategy_data_cache.put(datapoint_key, data, device_name, device_type,
+                                                 connector_name, connector_id, report_strategy_config, is_telemetry)
+            if report_strategy_config.report_strategy in (ReportStrategy.ON_REPORT_PERIOD,
+                                                          ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD):
                 if isinstance(datapoint_key, tuple):
                     datapoint_key, _ = datapoint_key
                 self.__keys_to_report_periodically.add((datapoint_key, device_name, connector_id))
-                self._report_strategy_data_cache.update_last_report_time(datapoint_key, device_name, connector_id, current_time)
+                self._report_strategy_data_cache.update_last_report_time(datapoint_key, device_name,
+                                                                         connector_id, current_time)
                 if is_telemetry:
                     self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
             return True
@@ -211,7 +223,7 @@ class ReportStrategyService:
 
                     data_entry = data_to_report[data_report_key]
                     if report_strategy_data_record.is_telemetry():
-                        # data_entry.add_to_telemetry(TelemetryEntry({key: value}, report_strategy_data_record.get_ts())) # Can be used to keep first ts, instead of overwriting it with current ts
+                        # data_entry.add_to_telemetry(TelemetryEntry({key: value}, report_strategy_data_record.get_ts())) # Can be used to keep first ts, instead of overwriting it with current ts # noqa
                         current_ts = int(time() * 1000)
                         data_entry.add_to_telemetry(TelemetryEntry({key: value}, current_ts))
                         report_strategy_data_record.update_ts(current_ts)
@@ -231,7 +243,8 @@ class ReportStrategyService:
 
                 check_report_strategy_end = int(time() * 1000)
                 if check_report_strategy_end - check_report_strategy_start > 100:
-                    self._logger.warning("The periodical reporting took too long: %d ms", check_report_strategy_end - check_report_strategy_start)
+                    self._logger.warning("The periodical reporting took too long: %d ms",
+                                         check_report_strategy_end - check_report_strategy_start)
                     self._logger.warning("The number of keys to report periodically: %d", len(keys_set))
                     self._logger.warning("The number of reported data: %d", reported_data_length)
 
@@ -243,7 +256,8 @@ class ReportStrategyService:
                     self._logger.exception("An error occurred in the Periodical Reporting Thread: %s", e)
                     if occurred_errors > 1:
                         self._logger.error(
-                            "Too many errors occurred in the Periodical Reporting Thread for 5 seconds. Suppressing further error messages."
+                            "Too many errors occurred in the Periodical Reporting Thread for 5 seconds.\
+                            Suppressing further error messages."
                         )
                     previous_error_printed_time = current_monotonic
                     occurred_errors = 0

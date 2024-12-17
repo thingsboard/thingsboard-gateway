@@ -17,6 +17,7 @@ from os import curdir, listdir, mkdir, path, environ
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.gateway.hot_reloader import HotReloader
 
+
 def main():
     if "logs" not in listdir(curdir):
         mkdir("logs")
@@ -36,6 +37,7 @@ def main():
 def daemon():
     config_path = __get_config_path("/etc/thingsboard-gateway/config/".replace('/', path.sep))
     TBGatewayService(config_path + "tb_gateway.json")
+
 
 def __get_config_path(default_config_path):
     config_path = environ.get("TB_GW_CONFIG_DIR", default_config_path)

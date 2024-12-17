@@ -260,7 +260,7 @@ class TbLogger(logging.Logger):
     def check_and_update_file_handlers_class_name(config):
         for handler_config in config.get('handlers', {}).values():
             if handler_config.get('class', '') == 'thingsboard_gateway.tb_utility.tb_handler.TimedRotatingFileHandler':
-                handler_config['class'] = 'thingsboard_gateway.tb_utility.tb_rotating_file_handler.TimedRotatingFileHandler'
+                handler_config['class'] = 'thingsboard_gateway.tb_utility.tb_rotating_file_handler.TimedRotatingFileHandler' # noqa
 
 
 logging.setLoggerClass(TbLogger)
