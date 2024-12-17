@@ -470,7 +470,21 @@ class AsyncModbusConnector(Connector, Thread):
         rpc_method = content['data']['method']
         if rpc_method == 'get' or rpc_method == 'set':
             params = {}
-            for param in content['data']['params'].split(';'):
+
+            if rpc_method == 'set':
+                input_params_and_value_list = content['data']['params'].split(' ')
+                if len(input_params_and_value_list) < 2:
+                    raise ValueError('Invalid RPC request format. '
+                                     'Expected RPC request format: '
+                                     'set param_name1=param_value1;param_name2=param_value2;...; value')
+
+                (input_params, input_value) = input_params_and_value_list
+                content['data']['params'] = input_value
+
+            if rpc_method == 'get':
+                input_params = content.get('data', {}).get('params', {})
+
+            for param in input_params.split(';'):
                 try:
                     (key, value) = param.split('=')
                 except ValueError:
