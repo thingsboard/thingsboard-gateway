@@ -118,6 +118,10 @@ class MqttConnector(Connector, Thread):
                                  config.get('logLevel', 'INFO'),
                                  enable_remote_logging=config.get('enableRemoteLogging', False),
                                  is_connector_logger=True)
+        self.__converter_log = init_logger(self.__gateway, config['name'] + '_converter',
+                                           config.get('logLevel', 'INFO'),
+                                           enable_remote_logging=config.get('enableRemoteLogging', False),
+                                           is_converter_logger=True, attr_name=config['name'])
 
         # check if the configuration is in the old format
         using_old_config_format_detected = BackwardCompatibilityAdapter.is_old_config_format(config)
@@ -454,7 +458,7 @@ class MqttConnector(Connector, Thread):
                         if module:
                             self.__log.debug('Converter %s for topic %s - found!', converter_class_name,
                                              mapping["topicFilter"])
-                            converter = module(mapping, self.__log)
+                            converter = module(mapping, self.__converter_log)
                             if sharing_id:
                                 self.__shared_custom_converters[sharing_id] = converter
                         else:

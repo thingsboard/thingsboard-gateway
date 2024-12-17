@@ -56,7 +56,12 @@ class RequestConnector(Connector, Thread):
         self.__gateway = gateway
         self.name = self.__config.get("name", "".join(choice(ascii_lowercase) for _ in range(5)))
         self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+                                enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                is_connector_logger=True)
+        self._converter_log = init_logger(self.__gateway, self.name + '_converter',
+                                          self.__config.get('logLevel', 'INFO'),
+                                          enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                          is_converter_logger=True, attr_name=self.name)
         self.__security = HTTPBasicAuth(self.__config["security"]["username"], self.__config["security"]["password"]) if \
             self.__config["security"]["type"] == "basic" else None
         self.__host = None
@@ -173,7 +178,7 @@ class RequestConnector(Connector, Thread):
                     module = TBModuleLoader.import_module(self._connector_type, endpoint["converter"]["extension"])
                     if module is not None:
                         self._log.debug('Custom converter for url %s - found!', endpoint["url"])
-                        converter = module(endpoint, self._log)
+                        converter = module(endpoint, self._converter_log)
                     else:
                         self._log.error(
                             "\n\nCannot find extension module for %s url.\nPlease check your configuration.\n",
@@ -191,18 +196,18 @@ class RequestConnector(Connector, Thread):
         for attribute_request in self.__config.get("attributeUpdates", []):
             if attribute_request.get("converter") is not None:
                 converter = TBModuleLoader.import_module("request", attribute_request["converter"])(attribute_request,
-                                                                                                    self._log)
+                                                                                                    self._converter_log)
             else:
-                converter = JsonRequestDownlinkConverter(attribute_request, self._log)
+                converter = JsonRequestDownlinkConverter(attribute_request, self._converter_log)
             attribute_request_dict = {**attribute_request, "converter": converter}
             self.__attribute_updates.append(attribute_request_dict)
 
     def __fill_rpc_requests(self):
         for rpc_request in self.__config.get("serverSideRpc", []):
             if rpc_request.get("converter") is not None:
-                converter = TBModuleLoader.import_module("request", rpc_request["converter"])(rpc_request, self._log)
+                converter = TBModuleLoader.import_module("request", rpc_request["converter"])(rpc_request, self._converter_log)
             else:
-                converter = JsonRequestDownlinkConverter(rpc_request, self._log)
+                converter = JsonRequestDownlinkConverter(rpc_request, self._converter_log)
             rpc_request_dict = {**rpc_request, "converter": converter}
             self.__rpc_requests.append(rpc_request_dict)
 

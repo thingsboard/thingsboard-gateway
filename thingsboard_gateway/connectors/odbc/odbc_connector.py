@@ -63,7 +63,12 @@ class OdbcConnector(Connector, Thread):
         self.__config = config
         self.__id = self.__config.get('id')
         self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+                                enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                is_connector_logger=True)
+        self._converter_log = init_logger(self.__gateway, self.name + '_converter',
+                                          self.__config.get('logLevel', 'INFO'),
+                                          enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                          is_converter_logger=True, attr_name=self.name)
         self._connector_type = connector_type
         self.__stopped = False
 
@@ -81,7 +86,7 @@ class OdbcConnector(Connector, Thread):
         self.__attribute_columns = []
         self.__timeseries_columns = []
 
-        self.__converter = OdbcUplinkConverter(self._log) if not self.__config.get("converter", "") else \
+        self.__converter = OdbcUplinkConverter(self._converter_log) if not self.__config.get("converter", "") else \
             TBModuleLoader.import_module(self._connector_type, self.__config["converter"])
 
         self.__configure_pyodbc()

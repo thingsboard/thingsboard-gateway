@@ -76,7 +76,12 @@ class CanConnector(Connector, Thread):
         self.__config = config
         self.__id = self.__config.get('id')
         self._log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+                                enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                is_connector_logger=True)
+        self._converter_log = init_logger(self.__gateway, self.name + '_converter',
+                                          self.__config.get('logLevel', 'INFO'),
+                                          enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                          is_converter_logger=True, attr_name=self.name)
         self.__bus_conf = {}
         self.__bus = None
         self.__reconnect_count = 0
@@ -591,11 +596,11 @@ class CanConnector(Connector, Thread):
         else:
             if need_uplink:
                 uplink = config.get("uplink")
-                return BytesCanUplinkConverter(self._log) if uplink is None \
+                return BytesCanUplinkConverter(self._converter_log) if uplink is None \
                     else TBModuleLoader.import_module(self._connector_type, uplink)
             else:
                 downlink = config.get("downlink")
-                return BytesCanDownlinkConverter(self._log) if downlink is None \
+                return BytesCanDownlinkConverter(self._converter_log) if downlink is None \
                     else TBModuleLoader.import_module(self._connector_type, downlink)
 
     def get_config(self):

@@ -14,7 +14,7 @@
 
 import os
 
-from psutil import cpu_percent, virtual_memory, disk_usage, Process
+from psutil import virtual_memory, disk_usage, Process, getloadavg
 from psutil._common import bytes2human
 
 from thingsboard_gateway.gateway.statistics import statistics_service
@@ -41,11 +41,14 @@ class StatisticsServiceFunctions:
 
     @staticmethod
     def cpu_usage(_):
-        return cpu_percent(0.2)
+        _, _, load15 = getloadavg()
+        cpu_core_count = os.cpu_count()
+        return round((load15 / cpu_core_count) * 100, 2)
 
     @staticmethod
     def gateway_cpu_usage(_):
-        return SELF_PROCESS.cpu_percent(interval=0.2)
+        cpu_core_count = os.cpu_count()
+        return round(SELF_PROCESS.cpu_percent(interval=0.2) / cpu_core_count, 2)
 
     @staticmethod
     def ram_usage(_):
