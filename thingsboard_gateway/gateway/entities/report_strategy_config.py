@@ -35,7 +35,7 @@ class AggregationFunction(Enum):
 
 
 class ReportStrategyConfig:
-    def __init__(self, config, default_report_strategy_config = {}):
+    def __init__(self, config, default_report_strategy_config={}):
         if isinstance(config, ReportStrategyConfig):
             self.report_period = config.report_period
             self.report_strategy = config.report_strategy
@@ -49,7 +49,8 @@ class ReportStrategyConfig:
                 and not default_report_strategy_config):
             raise ValueError("Report strategy config is not specified")
         if default_report_strategy_config:
-            self.report_period = max(config.get(REPORT_PERIOD_PARAMETER, default_report_strategy_config[REPORT_PERIOD_PARAMETER]) - 10, 1)
+            self.report_period = max(config.get(REPORT_PERIOD_PARAMETER,
+                                                default_report_strategy_config[REPORT_PERIOD_PARAMETER]) - 10, 1)
             report_strategy_type = config.get(TYPE_PARAMETER, default_report_strategy_config[TYPE_PARAMETER])
         else:
             self.report_period = max(config.get(REPORT_PERIOD_PARAMETER, 0), 1)
@@ -82,4 +83,5 @@ class ReportStrategyConfig:
                 and self.aggregation_function == other.aggregation_function)
 
     def __str__(self):
-        return f"ReportStrategyConfig(report_period={self.report_period}, report_strategy={self.report_strategy}, aggregation_function={self.aggregation_function})"
+        return f"ReportStrategyConfig(report_period={self.report_period}, report_strategy={self.report_strategy},\
+            aggregation_function={self.aggregation_function})"

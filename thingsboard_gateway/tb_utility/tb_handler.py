@@ -14,10 +14,7 @@
 
 import logging
 import logging.handlers
-import os
 import threading
-from os import environ
-from pathlib import Path
 from queue import Queue, Empty
 from sys import stdout
 from time import time, sleep
@@ -124,8 +121,8 @@ class TBRemoteLoggerHandler(logging.Handler):
             if record.levelno < remote_logging_level:
                 return  # Remote logging level set higher than record level
 
-            if logger and hasattr(logger, 'connector_name'):
-                name = logger.connector_name
+            if logger and hasattr(logger, 'attr_name'):
+                name = logger.attr_name
 
             if name:
                 record = self.formatter.format(record)
@@ -165,18 +162,3 @@ class TBRemoteLoggerHandler(logging.Handler):
         if isinstance(log_level, str):
             return 100 if log_level == 'NONE' else logging.getLevelName(log_level)
         return log_level
-
-
-class TimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
-    def __init__(self, filename, when='h', interval=1, backupCount=0,
-                 encoding=None, delay=False, utc=False):
-        config_path = environ.get('TB_GW_LOGS_PATH')
-        if config_path:
-            filename = config_path + os.sep + filename.split(os.sep)[-1]
-
-        if not Path(filename).exists():
-            with open(filename, 'w'):
-                pass
-
-        super().__init__(filename, when=when, interval=interval, backupCount=backupCount,
-                         encoding=encoding, delay=delay, utc=utc)

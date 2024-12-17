@@ -84,7 +84,12 @@ class AsyncModbusConnector(Connector, Thread):
         self.name = self.__config.get("name", 'Modbus Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__log = init_logger(self.__gateway, config.get('name', self.name),
                                  config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=config.get('enableRemoteLogging', False))
+                                 enable_remote_logging=config.get('enableRemoteLogging', False),
+                                 is_connector_logger=True)
+        self.converter_log = init_logger(self.__gateway, self.name + '_converter',
+                                         config.get('logLevel', 'INFO'),
+                                         enable_remote_logging=config.get('enableRemoteLogging', False),
+                                         is_converter_logger=True, attr_name=self.name)
         self.__log.info('Starting Modbus Connector...')
         self.__id = self.__config.get('id')
         self.__connected = False

@@ -60,7 +60,12 @@ class XMPPConnector(Connector, Thread):
         self._devices_config = config.get('devices', [])
         self.name = config.get("name", 'XMPP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False))
+                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                 is_connector_logger=True)
+        self.__converter_log = init_logger(self.__gateway, self.name + '_converter',
+                                           self.__config.get('logLevel', 'INFO'),
+                                           enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                           is_connector_logger=True, attr_name=self.name)
 
         self._devices = {}
         self._reformat_devices_config()
@@ -94,7 +99,7 @@ class XMPPConnector(Connector, Thread):
                     attribute_updates=config.get('attributeUpdates', []),
                     server_side_rpc=config.get('serverSideRpc', [])
                 )
-                self._devices[device_jid].set_converter(converter(config, self.__log))
+                self._devices[device_jid].set_converter(converter(config, self.__converter_log))
             except KeyError as e:
                 self.__log.error('Invalid configuration %s with key error %s', config, e)
                 continue

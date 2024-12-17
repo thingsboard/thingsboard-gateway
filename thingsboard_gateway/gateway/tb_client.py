@@ -29,11 +29,13 @@ from simplejson import dumps, load
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
-    from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient, GATEWAY_ATTRIBUTES_RESPONSE_TOPIC, GATEWAY_ATTRIBUTES_TOPIC
+    from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient, \
+        GATEWAY_ATTRIBUTES_RESPONSE_TOPIC, GATEWAY_ATTRIBUTES_TOPIC
 except ImportError:
     print("tb-mqtt-client library not found - installing...")
     TBUtility.install_package('tb-mqtt-client')
-    from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient, GATEWAY_ATTRIBUTES_RESPONSE_TOPIC, GATEWAY_ATTRIBUTES_TOPIC
+    from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient, \
+        GATEWAY_ATTRIBUTES_RESPONSE_TOPIC, GATEWAY_ATTRIBUTES_TOPIC
 
 import tb_device_mqtt
 tb_device_mqtt.DEFAULT_TIMEOUT = 3
@@ -182,9 +184,12 @@ class TBClient(threading.Thread):
         if 'rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters:
             rate_limits_config = {}
             if self.__config.get('rateLimits'):
-                rate_limits_config['rate_limit'] = 'DEFAULT_RATE_LIMIT' if self.__config.get('rateLimits') == 'DEFAULT_TELEMETRY_RATE_LIMIT' else self.__config['rateLimits']
-            if 'dp_rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters and self.__config.get('dpRateLimits'):
-                rate_limits_config['dp_rate_limit'] = 'DEFAULT_RATE_LIMIT' if self.__config['dpRateLimits'] == 'DEFAULT_TELEMETRY_DP_RATE_LIMIT' else self.__config['dpRateLimits']
+                rate_limits_config['rate_limit'] = 'DEFAULT_RATE_LIMIT' if self.__config.get(
+                    'rateLimits') == 'DEFAULT_TELEMETRY_RATE_LIMIT' else self.__config['rateLimits']
+            if ('dp_rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters and
+                    self.__config.get('dpRateLimits')):
+                rate_limits_config['dp_rate_limit'] = 'DEFAULT_RATE_LIMIT' if self.__config[
+                    'dpRateLimits'] == 'DEFAULT_TELEMETRY_DP_RATE_LIMIT' else self.__config['dpRateLimits']
 
         if rate_limits_config:
             self.client = TBGatewayMqttClient(self.__host, self.__port, self.__username, self.__password, self,
@@ -217,7 +222,8 @@ class TBClient(threading.Thread):
                                                        daemon=True)
             self._check_cert_thread.start()
 
-        cert_required = CERT_REQUIRED if self.__ca_cert and self.__cert else ssl.CERT_OPTIONAL if self.__cert else ssl.CERT_NONE
+        cert_required = CERT_REQUIRED if (self.__ca_cert and
+                                          self.__cert) else ssl.CERT_OPTIONAL if self.__cert else ssl.CERT_NONE
 
         # if self.__ca_cert is None:
         #     self.__logger.info("CA certificate is not provided. Using system CA certificates.")
@@ -294,10 +300,12 @@ class TBClient(threading.Thread):
 
     def _on_connect(self, client, userdata, flags, result_code, *extra_params):
         self.__logger.debug('TB client %s connected to platform', str(client))
-        if (isinstance(result_code, int) and result_code == 0) or (hasattr(result_code, 'value') and result_code.value == 0):
+        if ((isinstance(result_code, int) and result_code == 0) or
+                (hasattr(result_code, 'value') and result_code.value == 0)):
             self.__is_connected = True
             if self.__initial_connection_done:
-                self.client.rate_limits_received = True # Added to avoid stuck on reconnect, if rate limits reached, TODO: move to high priority.
+                self.client.rate_limits_received = True  # Added to avoid stuck on reconnect, if rate limits reached,
+                # TODO: move to high priority.
             else:
                 self.__initial_connection_done = True
         # pylint: disable=protected-access
@@ -454,9 +462,12 @@ class TBClient(threading.Thread):
         return GATEWAY_ATTRIBUTES_RESPONSE_TOPIC in self.client._gw_subscriptions.values() and GATEWAY_ATTRIBUTES_TOPIC in self.client._gw_subscriptions.values() # noqa pylint: disable=protected-access
 
     def update_client_rate_limits_with_previous(self, previous_limits):
-        self.client._devices_connected_through_gateway_telemetry_messages_rate_limit = tb_device_mqtt.RateLimit(previous_limits.get('devices_connected_through_gateway_telemetry_messages_rate_limit', {}))
-        self.client._devices_connected_through_gateway_telemetry_datapoints_rate_limit = tb_device_mqtt.RateLimit(previous_limits.get('devices_connected_through_gateway_telemetry_datapoints_rate_limit', {}))
-        self.client._devices_connected_through_gateway_messages_rate_limit = tb_device_mqtt.RateLimit(previous_limits.get('devices_connected_through_gateway_messages_rate_limit', {}))
+        self.client._devices_connected_through_gateway_telemetry_messages_rate_limit = tb_device_mqtt.RateLimit(
+            previous_limits.get('devices_connected_through_gateway_telemetry_messages_rate_limit', {}))
+        self.client._devices_connected_through_gateway_telemetry_datapoints_rate_limit = tb_device_mqtt.RateLimit(
+            previous_limits.get('devices_connected_through_gateway_telemetry_datapoints_rate_limit', {}))
+        self.client._devices_connected_through_gateway_messages_rate_limit = tb_device_mqtt.RateLimit(
+            previous_limits.get('devices_connected_through_gateway_messages_rate_limit', {}))
 
         self.client._messages_rate_limit = tb_device_mqtt.RateLimit(previous_limits.get('messages_rate_limit', {})) # noqa pylint: disable=protected-access
         self.client._telemetry_rate_limit = tb_device_mqtt.RateLimit(previous_limits.get('telemetry_rate_limit', {})) # noqa pylint: disable=protected-access

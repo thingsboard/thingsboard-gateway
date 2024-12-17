@@ -32,7 +32,7 @@ from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger, init_logger
 
-try :
+try:
     from can import Notifier, BufferedReader, Bus, Message
 except (ImportError, ModuleNotFoundError):
     from thingsboard_gateway.tb_utility.tb_utility import TBUtility

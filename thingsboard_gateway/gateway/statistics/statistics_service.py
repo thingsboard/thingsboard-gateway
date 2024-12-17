@@ -111,7 +111,6 @@ class StatisticsService(Thread):
                 cls.STATISTICS_STORAGE[key] = 0
             cls.CONNECTOR_STATISTICS_STORAGE = {}
 
-
     @staticmethod
     def count_connector_message(connector_name, stat_parameter_name, count=1):
         StatisticsService.add_count(connector_name, stat_parameter_name=stat_parameter_name,
@@ -227,7 +226,8 @@ class StatisticsService(Thread):
                 cur_monotonic = int(monotonic())
 
                 next_service_poll = (self._last_service_poll + self._stats_send_period_in_seconds) - cur_monotonic
-                next_custom_command_poll = (self._last_custom_command_poll + self._custom_stats_send_period_in_seconds) - cur_monotonic
+                next_custom_command_poll = (self._last_custom_command_poll +
+                                            self._custom_stats_send_period_in_seconds) - cur_monotonic
 
                 wait_time = max(0, min(next_service_poll, next_custom_command_poll))
 
@@ -235,12 +235,14 @@ class StatisticsService(Thread):
                     Event().wait(wait_time)
 
                 cur_monotonic = int(monotonic())
-                if cur_monotonic - self._last_service_poll >= self._stats_send_period_in_seconds or self._last_service_poll == 0:
+                if (cur_monotonic - self._last_service_poll >= self._stats_send_period_in_seconds or
+                        self._last_service_poll == 0):
                     self._last_service_poll = cur_monotonic
                     self.__send_statistics()
                     self.clear_statistics()
 
-                if cur_monotonic - self._last_custom_command_poll >= self._custom_stats_send_period_in_seconds or self._last_custom_command_poll == 0:
+                if (cur_monotonic - self._last_custom_command_poll >= self._custom_stats_send_period_in_seconds or
+                        self._last_custom_command_poll == 0):
                     self._last_custom_command_poll = cur_monotonic
                     self.__send_custom_command_statistics()
 

@@ -83,7 +83,11 @@ class OpcUaConnector(Connector, Thread):
                                                           self.__config.get('server', {}).get('mapping', []))))
         self.__enable_remote_logging = self.__config.get('enableRemoteLogging', False)
         self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.__enable_remote_logging)
+                                 enable_remote_logging=self.__enable_remote_logging, is_connector_logger=True)
+        self.__converter_log = init_logger(self.__gateway, self.name + '_converter',
+                                           self.__config.get('logLevel', 'INFO'),
+                                           enable_remote_logging=self.__enable_remote_logging,
+                                           is_converter_logger=True, attr_name=self.name)
         self.__replace_loggers()
         report_strategy = self.__config.get('reportStrategy')
         self.__connector_report_strategy_config = gateway.get_report_strategy_service().get_main_report_strategy()
@@ -150,7 +154,7 @@ class OpcUaConnector(Connector, Thread):
                             'ERROR',
                             enable_remote_logging=self.__enable_remote_logging,
                             is_connector_logger=True,
-                            connector_name=self.name)
+                            attr_name=self.name)
 
     def open(self):
         self.__stopped = False
@@ -587,9 +591,10 @@ class OpcUaConnector(Connector, Thread):
                         if device not in device_converted_data_map:
                             device_converted_data_map[device] = ConvertedData(device_name=device.name)
 
-                        node = device.nodes_data_change_subscriptions[sub_node.nodeid]
+                        nodes_configs = device.nodes_data_change_subscriptions[sub_node.nodeid]['nodes_configs']
+                        nodes_values = [data.monitored_item.Value for _ in range(len(nodes_configs))]
 
-                        converted_data = device.converter_for_sub.convert(node, data.monitored_item.Value)
+                        converted_data = device.converter_for_sub.convert(nodes_configs, nodes_values)
 
                         if converted_data:
                             converted_data.add_to_metadata({
@@ -598,10 +603,11 @@ class OpcUaConnector(Connector, Thread):
                                 CONVERTED_TS_PARAMETER: int(time() * 1000)
                             })
 
-                            if node['section'] == 'attributes':
-                                device_converted_data_map[device].add_to_attributes(converted_data.attributes)
-                            else:
-                                device_converted_data_map[device].add_to_telemetry(converted_data.telemetry)
+                            for node_config in nodes_configs:
+                                if node_config['section'] == 'attributes':
+                                    device_converted_data_map[device].add_to_attributes(converted_data.attributes)
+                                else:
+                                    device_converted_data_map[device].add_to_telemetry(converted_data.telemetry)
                     except Exception as e:
                         self.__log.exception("Error converting data: %s", e)
 
@@ -638,9 +644,9 @@ class OpcUaConnector(Connector, Thread):
                         device_config = {**device_config, 'device_name': device_name, 'device_type': device_type}
                         self.__device_nodes.append(
                             Device(path=node, name=device_name, config=device_config,
-                                   converter=converter(device_config, self.__log),
+                                   converter=converter(device_config, self.__converter_log),
                                    converter_for_sub=converter(device_config,
-                                                               self.__log) if self.__enable_subscriptions else None,
+                                                               self.__converter_log) if self.__enable_subscriptions else None,
                                    logger=self.__log))
                         self.__log.info('Added device node: %s', device_name)
         self.__log.debug('Device nodes: %s', self.__device_nodes)
@@ -704,8 +710,15 @@ class OpcUaConnector(Connector, Thread):
                                     if found_node.nodeid not in self.__nodes_config_cache:
                                         self.__nodes_config_cache[found_node.nodeid] = []
                                     self.__nodes_config_cache[found_node.nodeid].append(device)
-                                    node_config['subscription'] = None
-                                    device.nodes_data_change_subscriptions[found_node.nodeid] = node_config
+
+                                    device_node_config = {
+                                        'subscription': None,
+                                        'node': found_node,
+                                        'nodes_configs': []
+                                    }
+                                    device.nodes_data_change_subscriptions[found_node.nodeid] = device_node_config
+
+                                device.nodes_data_change_subscriptions[found_node.nodeid]['nodes_configs'].append(node_config)
 
                                 if device.subscription is None:
                                     device.subscription = await self.__client.create_subscription(

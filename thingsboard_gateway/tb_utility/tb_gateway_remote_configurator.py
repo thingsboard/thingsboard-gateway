@@ -35,6 +35,7 @@ from thingsboard_gateway.gateway.tb_client import TBClient
 
 if TYPE_CHECKING:
     from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -200,12 +201,15 @@ class RemoteConfigurator:
     def send_connector_current_configuration(self, connector_configuration: dict):
         config_to_send = {**connector_configuration,
                           'logLevel': connector_configuration.get('configurationJson', {}).get('logLevel', 'INFO'),
+                          'enableRemoteLogging':
+                              connector_configuration.get('configurationJson', {}).get('enableRemoteLogging', False),
                           'ts': int(time() * 1000)
                           }
         if config_to_send.get('config') is not None:
             config_to_send.pop('config', None)
         if config_to_send.get("configurationJson", {}) is not None:
             config_to_send.get("configurationJson", {}).pop('logLevel', None)
+            config_to_send.get("configurationJson", {}).pop('enableRemoteLogging', None)
         if config_to_send.get('configurationJson', {}).get(REPORT_STRATEGY_PARAMETER) is not None:
             config_to_send[REPORT_STRATEGY_PARAMETER] = config_to_send['configurationJson'].pop(REPORT_STRATEGY_PARAMETER) # noqa
         if config_to_send.get('configurationJson', {}).get(CONFIG_VERSION_PARAMETER) is not None:
@@ -421,6 +425,7 @@ class RemoteConfigurator:
     def _handle_logs_configuration_update(self, config):
         self.__log.debug('Processing logs configuration update...')
         try:
+            TbLogger.check_and_update_file_handlers_class_name(config)
             self.__log = getLogger('service')
             logs_conf_file_path = self._gateway.get_config_path() + 'logs.json'
             target_handlers = {}

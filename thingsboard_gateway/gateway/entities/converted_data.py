@@ -43,7 +43,7 @@ def split_large_entries(entries: dict, first_item_max_data_size: int, max_data_s
                 split_chunk_sizes.append(current_size)
                 ts_check = False
             # Start a new chunk
-            current_chunk = {original_key: value} # New dict is created to avoid modifying the original dict
+            current_chunk = {original_key: value}  # New dict is created to avoid modifying the original dict
             current_size = entry_size
         else:
             # Add to current chunk
@@ -59,7 +59,9 @@ def split_large_entries(entries: dict, first_item_max_data_size: int, max_data_s
 
 
 class ConvertedData:
-    __slots__ = ['device_name', 'device_type', 'telemetry', 'attributes', 'metadata', '_telemetry_datapoints_count', 'ts_index']
+    __slots__ = ['device_name', 'device_type', 'telemetry', 'attributes',
+                 'metadata', '_telemetry_datapoints_count', 'ts_index']
+
     def __init__(self, device_name, device_type='default', metadata=None):
         self.device_name = device_name
         self.device_type = device_type
@@ -118,7 +120,7 @@ class ConvertedData:
             existing_values = self.telemetry[index].values
 
             new_keys = telemetry_entry.values.keys() - existing_values.keys()
-            new_values = {key_and_report_strategy: telemetry_entry.values[key_and_report_strategy] for key_and_report_strategy in new_keys}
+            new_values = {key_and_rs: telemetry_entry.values[key_and_rs] for key_and_rs in new_keys}
 
             self._telemetry_datapoints_count += len(new_values)
             existing_values.update(new_values)
@@ -127,7 +129,7 @@ class ConvertedData:
             self._telemetry_datapoints_count += len(telemetry_entry.values)
             self.ts_index[telemetry_entry.ts] = len(self.telemetry) - 1
 
-    def add_to_attributes(self, key_or_entry: Union[dict, str, List[dict], DatapointKey], value = None):
+    def add_to_attributes(self, key_or_entry: Union[dict, str, List[dict], DatapointKey], value=None):
         if isinstance(key_or_entry, list):
             for entry in key_or_entry:
                 if not isinstance(entry, dict):
@@ -182,8 +184,8 @@ class ConvertedData:
                 current_data_size += attributes_bytes_size
             else:
                 split_attributes_and_sizes = split_large_entries(attributes_dict,
-                                                                      max_data_size - current_data_size,
-                                                                      available_data_size)
+                                                                 max_data_size - current_data_size,
+                                                                 available_data_size)
                 for data_chunk, chunk_size in split_attributes_and_sizes:
                     if current_data_size + chunk_size >= max_data_size:
                         converted_objects.append(current_data)
@@ -196,17 +198,18 @@ class ConvertedData:
             telemetry_values = telemetry_entry.values
             ts_data_size = TBUtility.get_data_size({"ts": telemetry_entry.ts}) + 1
 
-            telemetry_obj_size = TBUtility.get_data_size({datapoint_key.key: value for datapoint_key, value in telemetry_values.items()}) + ts_data_size
+            telemetry_obj_size = TBUtility.get_data_size(
+                {datapoint_key.key: value for datapoint_key, value in telemetry_values.items()}) + ts_data_size
 
             if telemetry_obj_size <= max_data_size - current_data_size:
                 current_data.add_to_telemetry(telemetry_entry)
                 current_data_size += telemetry_obj_size
             else:
                 split_telemetry_and_sizes = split_large_entries(telemetry_values,
-                                                                     max_data_size - current_data_size,
-                                                                     available_data_size,
-                                                                     telemetry_entry.ts,
-                                                                     ts_data_size)
+                                                                max_data_size - current_data_size,
+                                                                available_data_size,
+                                                                telemetry_entry.ts,
+                                                                ts_data_size)
                 for telemetry_chunk, chunk_size in split_telemetry_and_sizes:
 
                     if current_data_size + chunk_size > max_data_size:
