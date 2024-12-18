@@ -152,7 +152,7 @@ class Slave(Thread):
 
             while not self.master.connected() \
                     and self.connection_attempt_count < self.connection_attempt \
-                    and cur_time - self.last_connection_attempt_time >= self.connect_attempt_time_ms:
+                    and (cur_time - self.last_connection_attempt_time >= self.connect_attempt_time_ms or self.last_connection_attempt_time == 0):
                 if self.stopped:
                     return False, False
                 self.connection_attempt_count += 1
