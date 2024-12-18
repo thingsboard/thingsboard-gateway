@@ -83,7 +83,7 @@ class ModbusRpcTest(BaseTest):
         client.connect()
         try:
             # trigger register 28 to restart the modbus server
-            client.write_register(28, 10, 1)
+            client.write_register(28, 10, 2)
         except ConnectionException:
             # will call pymodbus.exceptions.ConnectionException because of restarting the server
             pass
