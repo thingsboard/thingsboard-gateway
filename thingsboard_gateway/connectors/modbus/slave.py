@@ -35,15 +35,19 @@ class Slave(Thread):
         self.stopped = False
         self._log = logger
         self.connector = connector
-        self.name = "Modbus slave processor for unit " + str(config['unitId']) + " on host " + str(
-            config['host']) + ":" + str(config['port']) + ' ' + config['deviceName']
+        self.type = config.get('type', 'tcp').lower()
+
+        if self.type == 'serial':
+            self.name = "Modbus slave processor for unit " + str(config['unitId']) + " on port " + str(config['port']) + ' ' + config['deviceName']
+        else:
+            self.name = "Modbus slave processor for unit " + str(config['unitId']) + " on host " + str(
+                config.get('host')) + ":" + str(config['port']) + ' ' + config['deviceName']
 
         self.callback = connector.callback
 
         self.unit_id = config['unitId']
         self.host = config.get('host')
         self.port = config['port']
-        self.type = config.get('type', 'tcp').lower()
         self.method = config['method']
         self.tls = config.get('tls', {})
         self.timeout = config.get('timeout')
