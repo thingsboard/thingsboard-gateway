@@ -127,7 +127,7 @@ class FTPUplinkConverter(FTPConverter):
             first_val_index = split_val_arr[0] or 0
             last_val_index = split_val_arr[1] or len(arr)
 
-            return arr[int(first_val_index):int(last_val_index)][0]
+            return arr[0][int(first_val_index):int(last_val_index)]
         else:
             return key
 

@@ -379,7 +379,7 @@ class SocketConnector(Connector, Thread):
     @CustomCollectStatistics(start_stat_type='allBytesSentToDevices')
     def __write_value_via_tcp(self, address, port, value):
         try:
-            self.__connections[(address, int(port))].sendall(value)
+            self.__connections[(address, int(port))].sendall(bytes(value, encoding='utf-8'))
             return 'ok'
         except KeyError:
             try:
@@ -452,13 +452,13 @@ class SocketConnector(Connector, Thread):
                     else:
                         self.__write_value_via_udp(params['address'], int(params['port']), params['value'])
                 except KeyError:
-                    self.__gateway.send_rpc_reply(device=device, req_id=content['data'].get('id'),
+                    self.__gateway.send_rpc_reply(device=device['deviceName'], req_id=content['data'].get('id'),
                                                   content='Not enough params')
                 except ValueError:
-                    self.__gateway.send_rpc_reply(device=device, req_id=content['data']['id'],
+                    self.__gateway.send_rpc_reply(device=device['deviceName'], req_id=content['data']['id'],
                                                   content='Param "port" have to be int type')
                 else:
-                    self.__gateway.send_rpc_reply(device=device, req_id=content['data'].get('id'), content=str(result))
+                    self.__gateway.send_rpc_reply(device=device['deviceName'], req_id=content['data'].get('id'), content=str(result))
             else:
                 for rpc_config in device['serverSideRpc']:
                     for (key, value) in content['data'].items():
