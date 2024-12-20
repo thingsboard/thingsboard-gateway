@@ -10,6 +10,6 @@ class CustomCollectStatistics(CollectStatistics):
             except ValueError:
                 pass
 
-            func(*args, **kwargs)
+            return func(*args, **kwargs)
 
         return inner

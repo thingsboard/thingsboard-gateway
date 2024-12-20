@@ -103,6 +103,10 @@ class RESTConnector(Connector, Thread):
 
         # configuring Attribute Request endpoints
         if len(self.__config.get('attributeRequests', [])):
+            while self.__gateway.tb_client is None and not hasattr(self.__gateway.tb_client, 'client'):
+                self.__log.info('Waiting for ThingsBoard client to be initialized...')
+                sleep(1)
+
             self.__attribute_type = {
                 'client': self.__gateway.tb_client.client.gw_request_client_attributes,
                 'shared': self.__gateway.tb_client.client.gw_request_shared_attributes
@@ -288,8 +292,8 @@ class RESTConnector(Connector, Thread):
                         params[key] = value
 
                 uplink_converter = self._default_uplink_converter
-                downlink_converter = self._default_downlink_converter
-                converted_data = downlink_converter.convert(params, content)
+                downlink_converter = self._default_downlink_converter(params, self.__log)
+                converted_data = downlink_converter.convert(config=params, data=content)
 
                 request_dict = {'config': {**params, **converted_data}, 'request': regular_request,
                                 'converter': uplink_converter}
@@ -303,7 +307,7 @@ class RESTConnector(Connector, Thread):
                 for rpc_request in self.__rpc_requests:
                     if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and \
                             fullmatch(rpc_request["methodFilter"], rpc_method):
-                        converted_data = rpc_request["downlink_converter"].convert(rpc_request, content)
+                        converted_data = rpc_request["downlink_converter"].convert(config=rpc_request, data=content)
 
                         request_dict = {"config": {**rpc_request,
                                                    **converted_data},
@@ -373,7 +377,7 @@ class RESTConnector(Connector, Thread):
             logger.debug(url)
             security = None
 
-            if request_dict["config"]["security"]["type"].lower() == "basic":
+            if request_dict["config"].get('security', {}).get('type', 'anonymous').lower() == "basic":
                 security = HTTPBasicAuthRequest(request_dict["config"]["security"]["username"],
                                                 request_dict["config"]["security"]["password"])
 

@@ -60,14 +60,17 @@ class Path:
             folder_and_files = ftp.nlst()
 
             for ff in folder_and_files:
-                cur_file_name, cur_file_ext = ff.split('.')
-                if cur_file_ext in COMPATIBLE_FILE_EXTENSIONS and self.__is_file(ftp, ff) and ftp.size(ff):
-                    if (file_name == file_ext == '*') \
-                            or pattern.fullmatch(cur_file_name) \
-                            or (cur_file_ext == file_ext and file_name == cur_file_name) \
-                            or (file_name != '*' and cur_file_name == file_name and (
-                            file_ext == cur_file_ext or file_ext == '*')):
-                        kwargs[ftp.voidcmd(f"MDTM {ff}")] = (item + '/' + ff)
+                try:
+                    cur_file_name, cur_file_ext = ff.split('.')
+                    if cur_file_ext in COMPATIBLE_FILE_EXTENSIONS and self.__is_file(ftp, ff) and ftp.size(ff):
+                        if (file_name == file_ext == '*') \
+                                or pattern.fullmatch(cur_file_name) \
+                                or (cur_file_ext == file_ext and file_name == cur_file_name) \
+                                or (file_name != '*' and cur_file_name == file_name and (
+                                file_ext == cur_file_ext or file_ext == '*')):
+                            kwargs[ftp.voidcmd(f"MDTM {ff}")] = (item + '/' + ff)
+                except ValueError:
+                    continue
 
         if self._with_sorting_files:
             return [File(path_to_file=val, read_mode=self.__read_mode, max_size=self.__max_size) for (_, val) in
