@@ -63,6 +63,7 @@ from thingsboard_gateway.connectors.modbus.server import Server
 from thingsboard_gateway.connectors.modbus.slave import Slave
 from thingsboard_gateway.connectors.modbus.entities.bytes_downlink_converter_config import \
     BytesDownlinkConverterConfig
+from thingsboard_gateway.connectors.modbus.backward_compability_adapter import BackwardCompatibilityAdapter
 
 from pymodbus.exceptions import ConnectionException
 from pymodbus.bit_read_message import ReadBitsResponseBase
@@ -80,8 +81,7 @@ class AsyncModbusConnector(Connector, Thread):
         super().__init__()
         self.__gateway = gateway
         self._connector_type = connector_type
-        self.__config = config
-        self.name = self.__config.get("name", 'Modbus Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
+        self.name = config.get("name", 'Modbus Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__log = init_logger(self.__gateway, config.get('name', self.name),
                                  config.get('logLevel', 'INFO'),
                                  enable_remote_logging=config.get('enableRemoteLogging', False),
@@ -90,6 +90,9 @@ class AsyncModbusConnector(Connector, Thread):
                                          config.get('logLevel', 'INFO'),
                                          enable_remote_logging=config.get('enableRemoteLogging', False),
                                          is_converter_logger=True, attr_name=self.name)
+        self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config, gateway.get_config_path(),
+                                                                             logger=self.__log)
+        self.__config = self.__backward_compatibility_adapter.convert()
         self.__log.info('Starting Modbus Connector...')
         self.__id = self.__config.get('id')
         self.__connected = False
