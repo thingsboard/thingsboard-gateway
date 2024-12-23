@@ -189,26 +189,35 @@ class Server(Thread):
             converter = BytesModbusDownlinkConverter({}, self.__log)
             for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
                 for item in value.get(section, []):
-                    function_code = FUNCTION_CODE_SLAVE_INITIALIZATION[key][0] if item['objectsCount'] <= 1 else \
-                        FUNCTION_CODE_SLAVE_INITIALIZATION[key][1]
-                    converter_config = BytesDownlinkConverterConfig(
-                        device_name=config.get('deviceName', 'Gateway'),
-                        byte_order=config['byteOrder'],
-                        word_order=config.get('wordOrder', 'LITTLE'),
-                        repack=config.get('repack', False),
-                        objects_count=item['objectsCount'],
-                        function_code=function_code,
-                        lower_type=item.get('type', item.get('tag', 'error')),
-                        address=item.get('address', 0)
-                    )
-                    converted_value = converter.convert(converter_config, {'data': {'params': item['value']}})
-                    if converted_value is not None:
-                        values[item['address'] + 1] = converted_value
-                    else:
-                        self.__log.error("Failed to convert value %s with type %s, skipping...", item['value'],
-                                         item['type'])
-                if len(values):
-                    blocks[FUNCTION_TYPE[key]] = ModbusSparseDataBlock(values)
+                    try:
+                        function_code = FUNCTION_CODE_SLAVE_INITIALIZATION[key][0] if item['objectsCount'] <= 1 else \
+                            FUNCTION_CODE_SLAVE_INITIALIZATION[key][1]
+                        converter_config = BytesDownlinkConverterConfig(
+                            device_name=config.get('deviceName', 'Gateway'),
+                            byte_order=config['byteOrder'],
+                            word_order=config.get('wordOrder', 'LITTLE'),
+                            repack=config.get('repack', False),
+                            objects_count=item['objectsCount'],
+                            function_code=function_code,
+                            lower_type=item.get(
+                                'type', item.get('tag', 'error')),
+                            address=item.get('address', 0)
+                        )
+                        converted_value = converter.convert(
+                            converter_config, {'data': {'params': item['value']}})
+                        if converted_value is not None:
+                            values[item['address'] + 1] = converted_value
+                        else:
+                            self.__log.error("Failed to convert value %s with type %s, skipping...", item['value'],
+                                             item['type'])
+                    except Exception as e:
+                        self.__log.error("Failed to configure value %s with error: %s, skipping...", item['value'], e)
+
+                try:
+                    if len(values):
+                        blocks[FUNCTION_TYPE[key]] = ModbusSparseDataBlock(values)
+                except Exception as e:
+                    self.__log.error("Failed to configure block %s with error: %s", key, e)
 
         if not len(blocks):
             self.__log.info("%s - will be initialized without values", config.get('deviceName', 'Modbus Slave'))
