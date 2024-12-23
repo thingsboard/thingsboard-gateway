@@ -453,12 +453,14 @@ class SocketConnector(Connector, Thread):
                         self.__write_value_via_udp(params['address'], int(params['port']), params['value'])
                 except KeyError:
                     self.__gateway.send_rpc_reply(device=device['deviceName'], req_id=content['data'].get('id'),
-                                                  content='Not enough params')
+                                                  content={'result': 'Not enough params'})
                 except ValueError:
                     self.__gateway.send_rpc_reply(device=device['deviceName'], req_id=content['data']['id'],
-                                                  content='Param "port" have to be int type')
+                                                  content={'result': 'Param "port" have to be int type'})
                 else:
-                    self.__gateway.send_rpc_reply(device=device['deviceName'], req_id=content['data'].get('id'), content=str(result))
+                    self.__gateway.send_rpc_reply(device=device['deviceName'],
+                                                  req_id=content['data'].get('id'),
+                                                  content={'result': str(result)})
             else:
                 for rpc_config in device['serverSideRpc']:
                     for (key, value) in content['data'].items():
@@ -478,7 +480,7 @@ class SocketConnector(Connector, Thread):
                                     self.__write_value_via_udp(address, port, converted_data)
 
                             if return_result and self.__socket_type == 'TCP':
-                                self.__gateway.send_rpc_reply(content['device'], content['data']['id'], str(result))
+                                self.__gateway.send_rpc_reply(content['device'], content['data']['id'], {'result': str(result)})
 
                             return
         except IndexError:

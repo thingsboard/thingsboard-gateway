@@ -291,6 +291,8 @@ class RESTConnector(Connector, Thread):
                     if key and value:
                         params[key] = value
 
+                params['valueExpression'] = params.pop('value', None)
+
                 uplink_converter = self._default_uplink_converter
                 downlink_converter = self._default_downlink_converter(params, self.__log)
                 converted_data = downlink_converter.convert(config=params, data=content)
@@ -302,7 +304,7 @@ class RESTConnector(Connector, Thread):
                 self.__log.debug('Response from RPC request: %s', response)
                 self.__gateway.send_rpc_reply(device=device,
                                               req_id=content["data"].get('id'),
-                                              content=response[2] if response and len(response) >= 3 else response)
+                                              content={'result': response[2]} if response and len(response) >= 3 else {'result': response})
             else:
                 for rpc_request in self.__rpc_requests:
                     if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and \
@@ -320,7 +322,7 @@ class RESTConnector(Connector, Thread):
                         if (content['data'].get('id') is not None) and (response is not None):
                             self.__gateway.send_rpc_reply(device=content["device"],
                                                           req_id=content["data"]["id"],
-                                                          content=response[2] if response and len(response) >= 3 else response)
+                                                          content={'result': response[2]} if response and len(response) >= 3 else {'result': response})
         except Exception as e:
             self.__log.exception(e)
 

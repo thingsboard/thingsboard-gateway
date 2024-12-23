@@ -120,53 +120,102 @@ class RequestConnector(Connector, Thread):
 
     def server_side_rpc_handler(self, content):
         try:
+            # check if RPC method is reserved get/set
+            self.__check_and_process_reserved_rpc(content)
+
             for rpc_request in self.__rpc_requests:
                 if fullmatch(rpc_request["deviceNameFilter"], content["device"]) and fullmatch(
                         rpc_request["methodFilter"], content["data"]["method"]):
-                    converted_data = rpc_request["converter"].convert(rpc_request, content)
-                    response_queue = Queue(1)
-                    request_dict = {"config": {**rpc_request,
-                                               **converted_data},
-                                    "request": request,
-                                    "withResponse": True}
-                    rpc_request_thread = Thread(target=self.__send_request,
-                                                args=(request_dict, response_queue, self._log),
-                                                daemon=True,
-                                                name="RPC request to %s" % (converted_data["url"]))
-                    rpc_request_thread.start()
-                    rpc_request_thread.join()
-                    if not response_queue.empty():
-                        response = response_queue.get_nowait()
-
-                        if rpc_request.get('responseValueExpression'):
-                            response_value_expression = rpc_request['responseValueExpression']
-                            values = TBUtility.get_values(response_value_expression, response.json(),
-                                                          expression_instead_none=True)
-                            values_tags = TBUtility.get_values(response_value_expression, response.json(), get_tag=True)
-                            full_value = response_value_expression
-                            for (value, value_tag) in zip(values, values_tags):
-                                is_valid_value = "${" in response_value_expression and "}" in \
-                                                 response_value_expression
-
-                                full_value = full_value.replace('${' + str(value_tag) + '}',
-                                                                str(value)) if is_valid_value else str(value)
-
-                            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                                          content=full_value)
-                            del response_queue
-                            return
-
-                        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                                      content=response.text)
-                        del response_queue
-                        return
-
-                    self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                                  success_sent=True)
-
-                    del response_queue
+                    self.__process_rpc(rpc_request, content)
         except Exception as e:
             self._log.exception(e)
+
+    def __process_rpc(self, rpc_request, content):
+        converted_data = rpc_request["converter"].convert(rpc_request, content)
+        response_queue = Queue(1)
+        request_dict = {"config": {**rpc_request,
+                                   **converted_data},
+                        "request": request,
+                        "withResponse": True}
+        rpc_request_thread = Thread(target=self.__send_request,
+                                    args=(request_dict, response_queue, self._log),
+                                    daemon=True,
+                                    name="RPC request to %s" % (converted_data["url"]))
+        rpc_request_thread.start()
+        rpc_request_thread.join()
+        if not response_queue.empty():
+            response = response_queue.get_nowait()
+
+            if rpc_request.get('responseValueExpression'):
+                response_value_expression = rpc_request['responseValueExpression']
+                values = TBUtility.get_values(response_value_expression, response.json(),
+                                              expression_instead_none=True)
+                values_tags = TBUtility.get_values(
+                    response_value_expression, response.json(), get_tag=True)
+                full_value = response_value_expression
+                for (value, value_tag) in zip(values, values_tags):
+                    is_valid_value = "${" in response_value_expression and "}" in \
+                        response_value_expression
+
+                    full_value = full_value.replace('${' + str(value_tag) + '}',
+                                                    str(value)) if is_valid_value else str(value)
+
+                self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
+                                              content={'result': full_value})
+                del response_queue
+                return
+
+            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
+                                          content={'result': response.text})
+            del response_queue
+            return
+
+        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
+                                      success_sent=True)
+
+        del response_queue
+
+    def __check_and_process_reserved_rpc(self, content):
+        rpc_method_name = content["data"]["method"]
+
+        if rpc_method_name == 'get' or rpc_method_name == 'set':
+            params = self.__parse_reserved_rpc_params(rpc_method_name, content["data"]["params"])
+
+            rpc_request = self.__format_rpc_reqeust(params)
+
+            rpc_request['converter'] = JsonRequestDownlinkConverter(rpc_request, self._converter_log)
+
+            self.__process_rpc(rpc_request, content)
+
+    def __parse_reserved_rpc_params(self, rpc_method_name, params):
+        result_params = {}
+        for param in params.split(';'):
+            try:
+                (key, value) = param.split('=')
+            except ValueError:
+                continue
+
+            if key and value:
+                result_params[key] = value
+
+        if rpc_method_name == 'set':
+            result_params['requestValueExpression'] = result_params.pop('value', None)
+
+        return result_params
+
+    def __format_rpc_reqeust(self, params):
+        return {
+            'requestUrlExpression': params['requestUrlExpression'],
+            'responseTimeout': params.get('responseTimeout', 1),
+            'httpMethod': params.get('httpMethod', 'GET'),
+            'requestValueExpression': params.get('requestValueExpression', '${params}'),
+            'responseValueExpression': params.get('responseValueExpression', None),
+            'timeout': params.get('timeout', 0.5),
+            'tries': params.get('tries', 3),
+            'httpHeaders': params.get('httpHeaders', {
+                'Content-Type': 'application/json'
+            }),
+        }
 
     def __fill_requests(self):
         self._log.debug(self.__config["mapping"])
