@@ -976,7 +976,7 @@ class OpcUaConnector(Connector, Thread):
 
                     self.__gateway.send_rpc_reply(device=device,
                                                   req_id=content['data'].get('id'),
-                                                  content={content['data']['method']: result})
+                                                  content={'result': result})
                 else:
                     device = tuple(filter(lambda i: i.name == content['device'], self.__device_nodes))[0]
 
