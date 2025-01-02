@@ -315,32 +315,56 @@ class OcppConnector(Connector, Thread):
             self._log.error('Charge Point with name %s not found!', content['device'])
             return
 
+        # check if RPC method is reserved get/set
+        self.__check_and_process_reserved_rpc(charge_point, content)
+
         try:
             for rpc in charge_point.config.get('serverSideRpc', []):
                 if rpc['methodRPC'] == content['data']['method']:
-                    data_to_send_tags = TBUtility.get_values(rpc.get('valueExpression'), content['data'],
-                                                             'params',
-                                                             get_tag=True)
-                    data_to_send_values = TBUtility.get_values(rpc.get('valueExpression'), content['data'],
-                                                               'params',
-                                                               expression_instead_none=True)
-
-                    data_to_send = rpc.get('valueExpression')
-                    for (tag, value) in zip(data_to_send_tags, data_to_send_values):
-                        data_to_send = data_to_send.replace('${' + tag + '}', dumps(value))
-
-                    request = call.DataTransferPayload('1', data=data_to_send)
-
-                    task = self.__loop.create_task(self._send_request(charge_point, request))
-                    while not task.done():
-                        sleep(.2)
-
-                    if rpc.get('withResponse', True):
-                        self._gateway.send_rpc_reply(content["device"], content["data"]["id"], str(task.result()))
-
-                        return
+                    self.__process_rpc(charge_point, content, rpc)
         except Exception as e:
             self._log.exception(e)
+
+    def __process_rpc(self, charge_point, content, rpc):
+        data_to_send_tags = TBUtility.get_values(rpc.get('valueExpression'), content['data'],
+                                                 'params',
+                                                 get_tag=True)
+        data_to_send_values = TBUtility.get_values(rpc.get('valueExpression'), content['data'],
+                                                   'params',
+                                                   expression_instead_none=True)
+
+        data_to_send = rpc.get('valueExpression')
+        for (tag, value) in zip(data_to_send_tags, data_to_send_values):
+            data_to_send = data_to_send.replace('${' + tag + '}', dumps(value))
+
+        request = call.DataTransferPayload('1', data=data_to_send)
+
+        task = self.__loop.create_task(
+            self._send_request(charge_point, request))
+        while not task.done():
+            sleep(.2)
+
+        if rpc.get('withResponse', True):
+            self._gateway.send_rpc_reply(content["device"], content["data"]["id"], {
+                                         'result': str(task.result())})
+
+            return
+
+    def __check_and_process_reserved_rpc(self, charge_point, content):
+        params = {}
+        for param in content['data']['params'].split(';'):
+            try:
+                (key, value) = param.split('=')
+            except ValueError:
+                continue
+
+            if key and value:
+                params[key] = value
+
+        if content['data']['method'] == 'set':
+            params['valueExpression'] = params.pop('value', None)
+
+        self.__process_rpc(charge_point, content, params)
 
     def get_config(self):
         return {'CS': self._central_system_config, 'CP': self._charge_points_config}

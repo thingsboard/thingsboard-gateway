@@ -323,33 +323,61 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__log.error('Method name not found in RPC request: %r', content)
             return
 
+        # check if RPC method is reserved get/set
+        self.__check_and_process_reserved_rpc(rpc_method_name, device, content)
+
         for rpc_config in device.server_side_rpc:
             if rpc_config['method'] == rpc_method_name:
-                try:
-                    object_id = Device.get_object_id(rpc_config)
-                    result = {}
-                    value = content.get('data', {}).get('params')
-                    self.__create_task(self.__process_rpc_request,
-                                       (Address(device.details.address),
-                                        object_id,
-                                        rpc_config['propertyId']),
-                                       {'value': value, 'result': result})
-                    self.__log.info('Processed RPC request with result: %r', result)
-                    self.__gateway.send_rpc_reply(device=device.device_info.device_name,
-                                                  req_id=content['data'].get('id'),
-                                                  content=str(result))
-                except Exception as e:
-                    self.__log.error('Error processing RPC request %s: %s', rpc_method_name, e)
-                    self.__gateway.send_rpc_reply(device=device.device_info.device_name,
-                                                  req_id=content['data'].get('id'),
-                                                  content={rpc_method_name: str(e)},
-                                                  success_sent=False)
+                self.__process_rpc(rpc_method_name, rpc_config, content, device)
+
+    def __process_rpc(self, rpc_method_name, rpc_config, content, device):
+        try:
+            object_id = Device.get_object_id(rpc_config)
+            result = {}
+            value = content.get('data', {}).get('params')
+            self.__create_task(self.__process_rpc_request,
+                               (Address(device.details.address),
+                                object_id,
+                                rpc_config['propertyId']),
+                               {'value': value, 'result': result})
+            self.__log.info('Processed RPC request with result: %r', result)
+            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
+                                          req_id=content['data'].get('id'),
+                                          content={'result': str(result.get('response'))},)
+        except Exception as e:
+            self.__log.error(
+                'Error processing RPC request %s: %s', rpc_method_name, e)
+            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
+                                          req_id=content['data'].get('id'),
+                                          content={'result': str(e)},
+                                          success_sent=False)
 
     async def __process_rpc_request(self, address, object_id, property_id, value=None, result={}):
         if value is None:
             result['response'] = await self.__read_property(address, object_id, property_id)
         else:
             result['response'] = await self.__write_property(address, object_id, property_id, value)
+
+    def __check_and_process_reserved_rpc(self, rpc_method_name, device, content):
+        params = {}
+        for param in content['data']['params'].split(';'):
+            try:
+                (key, value) = param.split('=')
+            except ValueError:
+                continue
+
+            if key and value:
+                params[key] = value
+
+        if rpc_method_name == 'get':
+            params['requestType'] = 'readProperty'
+            content['data'].pop('params')
+        elif rpc_method_name == 'set':
+            params['requestType'] = 'writeProperty'
+            content['data'].pop('params')
+            content['data']['params'] = params['value']
+
+        self.__process_rpc(rpc_method_name, params, content, device)
 
     def get_id(self):
         return self.__id

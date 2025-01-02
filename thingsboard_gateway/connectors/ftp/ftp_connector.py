@@ -387,10 +387,10 @@ class FTPConnector(Connector, Thread):
     def __send_rpc_reply(self, rpc_request, content, converted_data, success_sent):
         if content.get('device') and fullmatch(rpc_request.get('deviceNameFilter', ''), content.get('device')):
             self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                          success_sent=success_sent, content=converted_data)
+                                          success_sent=success_sent, content={'result': converted_data})
         elif content.get('device'):
             self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                          success_sent=success_sent, content=converted_data)
+                                          success_sent=success_sent, content={'result': converted_data})
         else:
             return converted_data
 

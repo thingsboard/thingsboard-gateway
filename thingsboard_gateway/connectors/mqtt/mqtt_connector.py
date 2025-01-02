@@ -982,6 +982,8 @@ class MqttConnector(Connector, Thread):
                         if key and value:
                             params[key] = value
 
+                    params['valueExpression'] = params.pop('value', None)
+
                     return self.__process_rpc_request(content, params)
                 else:
                     # Check whether one of my RPC handlers can handle this request
