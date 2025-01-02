@@ -49,6 +49,8 @@ def init_logger(gateway: 'TBGatewayService', name, level, enable_remote_logging=
     # If it is, add a file handler to the main module logger
     # If it is not (for example asyncua logger), add the main module file handler to the logger
     if TbLogger.is_main_module_logger(name, attr_name, is_converter_logger):
+        file_handler = None
+
         if is_connector_logger:
             file_handler = TimedRotatingFileHandler.get_connector_file_handler(log.name + '_connector')
 
@@ -246,11 +248,12 @@ class TbLogger(logging.Logger):
                     old_file_handler = file_handler_filter[0]
 
                     new_file_handler = None
+                    filename = old_file_handler.baseFilename.split('/')[-1].split('.')[0]
                     if logger.is_connector_logger:
-                        new_file_handler = TimedRotatingFileHandler.get_connector_file_handler(old_file_handler.baseFilename.split('/')[-1]) # noqa
+                        new_file_handler = TimedRotatingFileHandler.get_connector_file_handler(filename) # noqa
 
                     if logger.is_converter_logger:
-                        new_file_handler = TimedRotatingFileHandler.get_converter_file_handler(old_file_handler.baseFilename.split('/')[-1]) # noqa
+                        new_file_handler = TimedRotatingFileHandler.get_converter_file_handler(filename) # noqa
 
                     if new_file_handler:
                         logger.addHandler(new_file_handler)
