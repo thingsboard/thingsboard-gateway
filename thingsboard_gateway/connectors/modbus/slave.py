@@ -50,7 +50,7 @@ class Slave(Thread):
         self.port = config['port']
         self.method = config['method']
         self.tls = config.get('tls', {})
-        self.timeout = config.get('timeout')
+        self.timeout = config.get('timeout', 30)
         self.retry_on_empty = config.get('retryOnEmpty', False)
         self.retry_on_invalid = config.get('retryOnInvalid', False)
         self.retries = config.get('retries', 3)
