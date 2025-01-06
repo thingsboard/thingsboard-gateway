@@ -437,8 +437,8 @@ class AsyncModbusConnector(Connector, Thread):
                     content[DEVICE_SECTION_PARAMETER] = device.device_name
                     result = {}
                     self.__create_task(self.__process_rpc_request,
-                                     (device, content, content),
-                                     {'with_response': True, 'result': result})
+                                       (device, content, content),
+                                       {'with_response': True, 'result': result})
                     results.append(result['response'])
 
                 return results
@@ -589,7 +589,7 @@ class AsyncModbusConnector(Connector, Thread):
     @staticmethod
     def __can_rpc_return_response(content):
         return content.get(RPC_ID_PARAMETER) or (content.get(DATA_PARAMETER) is not None
-                    and content[DATA_PARAMETER].get(RPC_ID_PARAMETER) is not None)
+                                                 and content[DATA_PARAMETER].get(RPC_ID_PARAMETER) is not None)
 
     def __send_rpc_response(self, content, response, with_response=False):
         if isinstance(response, Exception) or isinstance(response, ExceptionResponse):
@@ -613,7 +613,7 @@ class AsyncModbusConnector(Connector, Thread):
             if not with_response:
                 self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
                                               req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
-                                              content=response)
+                                              content={'result': response})
             else:
                 return {
                     'device': content[DEVICE_SECTION_PARAMETER],
