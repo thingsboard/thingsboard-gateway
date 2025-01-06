@@ -121,8 +121,7 @@ class TBRemoteLoggerHandler(logging.Handler):
             if record.levelno < remote_logging_level:
                 return  # Remote logging level set higher than record level
 
-            if logger and hasattr(logger, 'attr_name'):
-                name = logger.attr_name
+            name = logger.name
 
             if name:
                 record = self.formatter.format(record)
