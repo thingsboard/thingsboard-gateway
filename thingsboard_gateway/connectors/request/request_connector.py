@@ -83,14 +83,16 @@ class RequestConnector(Connector, Thread):
 
     def run(self):
         while not self.__stopped:
+            request_sent = False
             if self.__requests_in_progress:
-                for request in self.__requests_in_progress:
-                    if time() >= request["next_time"]:
-                        thread = Thread(target=self.__send_request, args=(request, self.__convert_queue, self._log),
+                for req in self.__requests_in_progress:
+                    if time() >= req["next_time"]:
+                        thread = Thread(target=self.__send_request, args=(req, self.__convert_queue, self._log),
                                         daemon=True,
-                                        name="Request to endpoint \'%s\' Thread" % (request["config"].get("url")))
+                                        name="Request to endpoint \'%s\' Thread" % (req["config"].get("url")))
                         thread.start()
-            else:
+                        request_sent = True
+            if not request_sent:
                 sleep(.2)
             self.__process_data()
 
