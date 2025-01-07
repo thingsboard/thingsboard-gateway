@@ -34,10 +34,11 @@ class Database(Thread):
         ------------- ALL OF THIS IN AN ATOMIC WAY ---------
     """
 
-    def __init__(self, config, processing_queue: Queue, logger):
+    def __init__(self, config, processing_queue: Queue, logger, stopped):
         self.__log = logger
         super().__init__()
         self.daemon = True
+        self.stopped = stopped
         self.settings = StorageSettings(config)
 
         if not exists(self.settings.data_folder_path):
@@ -53,14 +54,12 @@ class Database(Thread):
                 self.__log.info("SQLite database file created at %s" % self.settings.data_folder_path)
 
         # Pass settings to connector
-        self.db = DatabaseConnector(self.settings, self.__log)
+        self.db = DatabaseConnector(self.settings, self.__log, self.stopped)
 
         self.db.connect()
 
         # process Queue
         self.processQueue = processing_queue
-
-        self.__stopped = False
 
         self.__last_msg_check = time()
 
@@ -76,7 +75,7 @@ class Database(Thread):
             self.__log.exception(e)
 
     def run(self):
-        while True:
+        while not self.stopped.is_set():
             self.process()
 
             sleep(.2)
@@ -88,7 +87,7 @@ class Database(Thread):
                 self.delete_data_lte(self.settings.messages_ttl_in_days)
 
             # Signalization so that we can spam call process()
-            if not self.__stopped and self.processQueue:
+            if not self.stopped.is_set() and self.processQueue:
                 while self.processQueue.qsize() > 0:
 
                     req = self.processQueue.get()

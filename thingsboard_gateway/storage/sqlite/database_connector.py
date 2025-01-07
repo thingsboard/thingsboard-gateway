@@ -21,18 +21,20 @@ from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 
 
 class DatabaseConnector:
-    def __init__(self, settings: StorageSettings, logger):
+    def __init__(self, settings: StorageSettings, logger, stopped):
         self.__log = logger
         self.data_file_path = settings.data_folder_path
         self.connection: Optional[Connection] = None
         self.lock = RLock()
+        self.stopped = stopped
 
     def connect(self):
         """
         Create database file in path from settings
         """
         try:
-            self.connection = connect(self.data_file_path, check_same_thread=False)
+            with self.lock:
+                self.connection = connect(self.data_file_path, check_same_thread=False)
         except Exception as e:
             self.__log.exception("Failed to connect to database", exc_info=e)
 
@@ -41,12 +43,22 @@ class DatabaseConnector:
         Commit changes
         """
         self.__log.debug("Committing changes to DB")
-        try:
-            with self.lock:
-                self.connection.commit()
 
-        except Exception as e:
-            self.__log.exception("Failed to commit changes to database", exc_info=e)
+        commited = False
+        while not commited and not self.stopped.is_set():
+            try:
+                self.__commit()
+                commited = True
+            except sqlite3.ProgrammingError as e:
+                self.__log.exception("Failed to commit changes to database", exc_info=e)
+                self.__log.info('Trying to reconnect to database')
+                self.connect()
+            except Exception as e:
+                self.__log.exception("Failed to commit changes to database", exc_info=e)
+
+    def __commit(self):
+        with self.lock:
+            self.connection.commit()
 
     def execute(self, *args):
         """
