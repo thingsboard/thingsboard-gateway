@@ -70,6 +70,8 @@ class Server(Thread):
         self.__server_context = self.__get_server_context(self.__config)
         self.__connection_config = self.__get_connection_config(self.__config)
 
+        self.__server = None
+
         try:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
@@ -90,7 +92,7 @@ class Server(Thread):
     def stop(self):
         self.__stopped = True
 
-        asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.loop)
+        asyncio.run_coroutine_threadsafe(self.__shutdown(), self.loop)
 
         self.__check_is_alive()
 
@@ -99,22 +101,19 @@ class Server(Thread):
 
         while self.is_alive():
             if monotonic() - start_time > 10:
-                self.__log.error("Failed to stop connector %s", self.name)
+                self.__log.error("Failed to stop slave %s", self.name)
                 break
             sleep(.1)
 
-    async def __cancel_all_tasks(self):
-        await asyncio.sleep(5)
-
-        for task in asyncio.all_tasks(self.loop):
-            task.cancel()
-
-        await ServerAsyncStop()
+    async def __shutdown(self):
+        await self.__server.shutdown()
 
     async def start_server(self):
         try:
-            await SLAVE_TYPE[self.__type](identity=self.__identity, context=self.__server_context,
-                                          **self.__connection_config)
+            self.__server = await SLAVE_TYPE[self.__type](identity=self.__identity, context=self.__server_context,
+                                                          **self.__connection_config, defer_start=True,
+                                                          allow_reuse_address=True, allow_reuse_port=True)
+            await self.__server.serve_forever()
         except Exception as e:
             self.__stopped = True
             self.__log.error('Failed to start Gateway Modbus Server (Slave): %s', e)
