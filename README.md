@@ -47,11 +47,10 @@ Especially, when we are talking about language APIs and existing libraries to wo
 The Gateway provides simple integration APIs, and encapsulates common Thingsboard related tasks: device provisioning, local data persistence and delivery, message converters and other.  
 For processing data from devices you also can write custom converter, it will receive information from device and send it to converter to convert to unified format before sending it to the ThingsBoard cluster.  
 
-## Support
+## Support and communications
 
- - [Community chat](https://gitter.im/thingsboard/chat)
- - [Q&A forum](https://groups.google.com/forum/#!forum/thingsboard)
- - [Stackoverflow](http://stackoverflow.com/questions/tagged/thingsboard)
+ - [GitHub discussions](https://github.com/thingsboard/thingsboard-gateway/discussions)
+ - [Stackoverflow](http://stackoverflow.com/questions/tagged/thingsboard-gateway)
  
 **Don't forget to star the repository to show your ❤️ and support.**
 
