@@ -22,8 +22,7 @@ from pymodbus.device import ModbusDeviceIdentification
 from pymodbus.framer.ascii_framer import ModbusAsciiFramer
 from pymodbus.framer.rtu_framer import ModbusRtuFramer
 from pymodbus.framer.socket_framer import ModbusSocketFramer
-from pymodbus.server import StartAsyncTcpServer, StartAsyncTlsServer, StartAsyncUdpServer, StartAsyncSerialServer, \
-    ServerAsyncStop
+from pymodbus.server import StartAsyncTcpServer, StartAsyncTlsServer, StartAsyncUdpServer, StartAsyncSerialServer
 from pymodbus.version import version
 
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
@@ -58,7 +57,7 @@ class Server(Thread):
         self.__config = config
 
         self.unit_id = config['unitId']
-        self.host = config['host']
+        self.host = config.get('host')
         self.port = config['port']
         self.device_name = config.get('deviceName', 'Modbus Slave')
         self.device_type = config.get('deviceType', 'default')
@@ -134,7 +133,8 @@ class Server(Thread):
             'port': self.port,
             'method': self.method,
             'wordOrder': self.word_order,
-            'byteOrder': self.byte_order
+            'byteOrder': self.byte_order,
+            **self.__config
         }
 
         for (register, register_values) in self.__config.get('values', {}).items():
