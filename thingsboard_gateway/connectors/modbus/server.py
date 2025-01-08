@@ -56,15 +56,9 @@ class Server(Thread):
 
         self.__config = config
 
-        self.unit_id = config['unitId']
-        self.host = config.get('host')
-        self.port = config['port']
         self.device_name = config.get('deviceName', 'Modbus Slave')
         self.device_type = config.get('deviceType', 'default')
         self.poll_period = config.get('pollPeriod', 5000)
-        self.method = config.get('method', 'socket').lower()
-        self.word_order = self.__config.get('wordOrder', 'LITTLE')
-        self.byte_order = self.__config.get('byteOrder', 'LITTLE')
 
         self.__type = config.get('type', 'tcp').lower()
         self.__identity = self.__get_identity(self.__config)
@@ -125,16 +119,10 @@ class Server(Thread):
         """
 
         config = {
-            'unitId': self.unit_id,
+            **self.__config,
             'deviceName': self.device_name,
             'deviceType': self.device_type,
-            'pollPeriod': self.poll_period,
-            'host': self.host,
-            'port': self.port,
-            'method': self.method,
-            'wordOrder': self.word_order,
-            'byteOrder': self.byte_order,
-            **self.__config
+            'pollPeriod': self.poll_period
         }
 
         for (register, register_values) in self.__config.get('values', {}).items():
@@ -177,7 +165,7 @@ class Server(Thread):
             'type': config['type'],
             'address': (config.get('host'), config.get('port')) if (config['type'] == 'tcp' or 'udp') else None,
             'port': config.get('port') if config['type'] == 'serial' else None,
-            'framer': FRAMER_TYPE[config['method']],
+            'framer': FRAMER_TYPE[config.get('method', 'socket')],
             'security': config.get('security', {})
         }
 
