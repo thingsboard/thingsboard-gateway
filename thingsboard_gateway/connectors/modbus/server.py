@@ -64,6 +64,8 @@ class Server(Thread):
         self.device_type = config.get('deviceType', 'default')
         self.poll_period = config.get('pollPeriod', 5000)
         self.method = config.get('method', 'socket').lower()
+        self.word_order = self.__config.get('wordOrder', 'LITTLE')
+        self.byte_order = self.__config.get('byteOrder', 'LITTLE')
 
         self.__type = config.get('type', 'tcp').lower()
         self.__identity = self.__get_identity(self.__config)
@@ -131,6 +133,8 @@ class Server(Thread):
             'host': self.host,
             'port': self.port,
             'method': self.method,
+            'wordOrder': self.word_order,
+            'byteOrder': self.byte_order
         }
 
         for (register, register_values) in self.__config.get('values', {}).items():
