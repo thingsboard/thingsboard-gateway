@@ -22,8 +22,7 @@ from pymodbus.device import ModbusDeviceIdentification
 from pymodbus.framer.ascii_framer import ModbusAsciiFramer
 from pymodbus.framer.rtu_framer import ModbusRtuFramer
 from pymodbus.framer.socket_framer import ModbusSocketFramer
-from pymodbus.server import StartAsyncTcpServer, StartAsyncTlsServer, StartAsyncUdpServer, StartAsyncSerialServer, \
-    ServerAsyncStop
+from pymodbus.server import StartAsyncTcpServer, StartAsyncTlsServer, StartAsyncUdpServer, StartAsyncSerialServer
 from pymodbus.version import version
 
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
@@ -57,13 +56,9 @@ class Server(Thread):
 
         self.__config = config
 
-        self.unit_id = config['unitId']
-        self.host = config['host']
-        self.port = config['port']
         self.device_name = config.get('deviceName', 'Modbus Slave')
         self.device_type = config.get('deviceType', 'default')
         self.poll_period = config.get('pollPeriod', 5000)
-        self.method = config.get('method', 'socket').lower()
 
         self.__type = config.get('type', 'tcp').lower()
         self.__identity = self.__get_identity(self.__config)
@@ -124,13 +119,10 @@ class Server(Thread):
         """
 
         config = {
-            'unitId': self.unit_id,
+            **self.__config,
             'deviceName': self.device_name,
             'deviceType': self.device_type,
-            'pollPeriod': self.poll_period,
-            'host': self.host,
-            'port': self.port,
-            'method': self.method,
+            'pollPeriod': self.poll_period
         }
 
         for (register, register_values) in self.__config.get('values', {}).items():
@@ -173,7 +165,7 @@ class Server(Thread):
             'type': config['type'],
             'address': (config.get('host'), config.get('port')) if (config['type'] == 'tcp' or 'udp') else None,
             'port': config.get('port') if config['type'] == 'serial' else None,
-            'framer': FRAMER_TYPE[config['method']],
+            'framer': FRAMER_TYPE[config.get('method', 'socket')],
             'security': config.get('security', {})
         }
 
