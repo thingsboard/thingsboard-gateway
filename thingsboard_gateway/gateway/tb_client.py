@@ -166,30 +166,7 @@ class TBClient(threading.Thread):
                 else:
                     self.__client_id = str(credentials["clientId"])
 
-        rate_limits_config = {}
-        if self.__config.get('messagesRateLimits'):
-            rate_limits_config['messages_rate_limit'] = self.__config['messagesRateLimits']
-        if self.__config.get('telemetryRateLimits'):
-            rate_limits_config['telemetry_rate_limit'] = self.__config['rateLimits']
-        if self.__config.get('telemetryDpRateLimits'):
-            rate_limits_config['telemetry_dp_rate_limit'] = self.__config['dpRateLimits']
-
-        if self.__config.get('deviceMessagesRateLimits'):
-            rate_limits_config['device_messages_rate_limit'] = self.__config['deviceMessagesRateLimits']
-        if self.__config.get('deviceTelemetryRateLimits'):
-            rate_limits_config['device_telemetry_rate_limit'] = self.__config['deviceRateLimits']
-        if self.__config.get('deviceTelemetryDpRateLimits'):
-            rate_limits_config['device_telemetry_dp_rate_limit'] = self.__config['deviceDpRateLimits']
-
-        if 'rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters:
-            rate_limits_config = {}
-            if self.__config.get('rateLimits'):
-                rate_limits_config['rate_limit'] = 'DEFAULT_RATE_LIMIT' if self.__config.get(
-                    'rateLimits') == 'DEFAULT_TELEMETRY_RATE_LIMIT' else self.__config['rateLimits']
-            if ('dp_rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters and
-                    self.__config.get('dpRateLimits')):
-                rate_limits_config['dp_rate_limit'] = 'DEFAULT_RATE_LIMIT' if self.__config[
-                    'dpRateLimits'] == 'DEFAULT_TELEMETRY_DP_RATE_LIMIT' else self.__config['dpRateLimits']
+        rate_limits_config = self.__get_rate_limit_config()
 
         if rate_limits_config:
             self.client = TBGatewayMqttClient(self.__host, self.__port, self.__username, self.__password, self,
@@ -225,14 +202,6 @@ class TBClient(threading.Thread):
         cert_required = CERT_REQUIRED if (self.__ca_cert and
                                           self.__cert) else ssl.CERT_OPTIONAL if self.__cert else ssl.CERT_NONE
 
-        # if self.__ca_cert is None:
-        #     self.__logger.info("CA certificate is not provided. Using system CA certificates.")
-        #     self.__ca_cert = TBUtility.get_path_to_ca_certificates()
-        #     if self.__ca_cert is None:
-        #         self.__logger.error("CA certificate is not provided and system CA certificates are not found. "
-        #                             "Will not be able to verify the server. You can set caCert in the configuration.")
-        #         cert_required = ssl.CERT_NONE
-
         self.client._client.tls_set(ca_certs=self.__ca_cert,
                                     certfile=self.__cert,
                                     keyfile=self.__private_key,
@@ -243,6 +212,34 @@ class TBClient(threading.Thread):
             self.client._client.tls_insecure_set(True)  # noqa pylint: disable=protected-access
         if self.__logger.isEnabledFor(10):
             self.client._client.enable_logger(self.__logger)  # noqa pylint: disable=protected-access
+
+    def __get_rate_limit_config(self):
+        rate_limits_config = {}
+        if self.__config.get('messagesRateLimits'):
+            rate_limits_config['messages_rate_limit'] = self.__config['messagesRateLimits']
+        if self.__config.get('telemetryRateLimits'):
+            rate_limits_config['telemetry_rate_limit'] = self.__config['rateLimits']
+        if self.__config.get('telemetryDpRateLimits'):
+            rate_limits_config['telemetry_dp_rate_limit'] = self.__config['dpRateLimits']
+
+        if self.__config.get('deviceMessagesRateLimits'):
+            rate_limits_config['device_messages_rate_limit'] = self.__config['deviceMessagesRateLimits']
+        if self.__config.get('deviceTelemetryRateLimits'):
+            rate_limits_config['device_telemetry_rate_limit'] = self.__config['deviceRateLimits']
+        if self.__config.get('deviceTelemetryDpRateLimits'):
+            rate_limits_config['device_telemetry_dp_rate_limit'] = self.__config['deviceDpRateLimits']
+
+        if 'rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters:
+            rate_limits_config = {}
+            if self.__config.get('rateLimits'):
+                rate_limits_config['rate_limit'] = 'DEFAULT_RATE_LIMIT' if self.__config.get(
+                    'rateLimits') == 'DEFAULT_TELEMETRY_RATE_LIMIT' else self.__config['rateLimits']
+            if ('dp_rate_limit' in inspect.signature(TBGatewayMqttClient.__init__).parameters and
+                    self.__config.get('dpRateLimits')):
+                rate_limits_config['dp_rate_limit'] = 'DEFAULT_RATE_LIMIT' if self.__config[
+                    'dpRateLimits'] == 'DEFAULT_TELEMETRY_DP_RATE_LIMIT' else self.__config['dpRateLimits']
+
+        return rate_limits_config
 
     def __get_path_to_cert(self, filename):
         if exists(self.__config_folder_path + filename):
