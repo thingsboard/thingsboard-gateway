@@ -25,7 +25,8 @@ Thingsboard IoT Gateway provides following features:
  - [**ODBC** connector](https://thingsboard.io/docs/iot-gateway/config/odbc/) to collect data from ODBC databases.
  - [**FTP** connector](https://thingsboard.io/docs/iot-gateway/config/ftp/) to collect data from files via FTP.
  - [**Socket** connector](https://thingsboard.io/docs/iot-gateway/config/socket/) to collect data from devices using sockets.
- - **XMPP** connector to collect data from XMPP devices.
+ - [**XMPP** connector](https://thingsboard.io/docs/iot-gateway/config/xmpp) to collect data from XMPP devices.
+ - [**OCPP** connector](https://thingsboard.io/docs/iot-gateway/config/ocpp) to collect data from OCPP devices.
  - [**Custom** connector](https://thingsboard.io/docs/iot-gateway/custom/) to collect data from custom protocols.
  - **Persistence** of collected data to guarantee data delivery in case of network and hardware failures.
  - **Automatic reconnect** to Thingsboard cluster.
@@ -34,7 +35,6 @@ Thingsboard IoT Gateway provides following features:
  - [RPC gateway methods](https://thingsboard.io/docs/iot-gateway/guides/how-to-use-gateway-rpc-methods/) to control and get information from the gateway through ThingsBoard WEB interface.
  - [Remote shell](https://thingsboard.io/docs/iot-gateway/guides/how-to-enable-remote-shell/) to control operating system with ThingsBoard IoT Gateway from your ThingsBoard platform instance.
  - [Device renaming/removing handling](https://thingsboard.io/docs/iot-gateway/how-device-removing-renaming-works/) to keep the device list in actual state.
- - [Gateway Configurator](https://thingsboard.io/docs/iot-gateway/guides/how-to-configure-gateway-using-configurator/) easy-to-use CLI configurator.
  - **HOT Reload** for developers.
   
 ### Architecture  
