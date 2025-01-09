@@ -750,6 +750,9 @@ class RemoteConfigurator:
 
             previous_rate_limits = self._gateway.tb_client.get_rate_limits()
 
+            # check if security type is tlsAccessToken
+            config = self.__check_and_process_tls_access_token(config)
+
             while not self._gateway.stopped and not connection_state:
                 self._gateway.__subscribed_to_rpc_topics = False
                 if use_new_config:
@@ -782,6 +785,18 @@ class RemoteConfigurator:
             self.__log.exception(e)
             self._revert_connection()
             return False
+
+    def __check_and_process_tls_access_token(self, config):
+        if config.get('security', {}).get('type') == 'tlsAccessToken':
+            cert_content = config['security']['caCert']
+
+            ca_cert_path = self._gateway.get_config_path() + 'ca.pem'
+            with open(ca_cert_path, 'w') as file:
+                file.write(cert_content)
+
+            config['security']['caCert'] = ca_cert_path
+
+        return config
 
     def _revert_connection(self):
         try:
