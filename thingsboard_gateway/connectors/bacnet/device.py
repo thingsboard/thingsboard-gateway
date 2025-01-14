@@ -98,7 +98,8 @@ class Device(Thread):
 
     @staticmethod
     def find_self_in_config(devices_config, apdu):
-        device_config = list(filter(lambda x: x['address'] == apdu.pduSource.exploded or apdu.pduSource.exploded in x.get('altResponsesAddresses', []), devices_config))
+        apdu_address = apdu.pduSource.addrTuple[0] + ':' + str(apdu.pduSource.addrTuple[1])
+        device_config = list(filter(lambda x: x.get('address') == apdu_address or apdu_address in x.get('altResponsesAddresses', []), devices_config))
         if len(device_config):
             return device_config[0]
 
