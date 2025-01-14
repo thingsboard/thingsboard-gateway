@@ -359,25 +359,26 @@ class AsyncBACnetConnector(Thread, Connector):
             result['response'] = await self.__write_property(address, object_id, property_id, value)
 
     def __check_and_process_reserved_rpc(self, rpc_method_name, device, content):
-        params = {}
-        for param in content['data']['params'].split(';'):
-            try:
-                (key, value) = param.split('=')
-            except ValueError:
-                continue
+        if rpc_method_name in ('get', 'set'):
+            params = {}
+            for param in content['data']['params'].split(';'):
+                try:
+                    (key, value) = param.split('=')
+                except ValueError:
+                    continue
 
-            if key and value:
-                params[key] = value
+                if key and value:
+                    params[key] = value
 
-        if rpc_method_name == 'get':
-            params['requestType'] = 'readProperty'
-            content['data'].pop('params')
-        elif rpc_method_name == 'set':
-            params['requestType'] = 'writeProperty'
-            content['data'].pop('params')
-            content['data']['params'] = params['value']
+            if rpc_method_name == 'get':
+                params['requestType'] = 'readProperty'
+                content['data'].pop('params')
+            elif rpc_method_name == 'set':
+                params['requestType'] = 'writeProperty'
+                content['data'].pop('params')
+                content['data']['params'] = params['value']
 
-        self.__process_rpc(rpc_method_name, params, content, device)
+            self.__process_rpc(rpc_method_name, params, content, device)
 
     def get_id(self):
         return self.__id
