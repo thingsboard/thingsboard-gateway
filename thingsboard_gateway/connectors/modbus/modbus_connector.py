@@ -190,8 +190,10 @@ class AsyncModbusConnector(Connector, Thread):
             '127.0.0.1:5021': AsyncClient object
         }
         """
-
-        socket_str = slave.host + ':' + str(slave.port)
+        if not slave.host:
+            socket_str = slave.port
+        else:
+            socket_str = slave.host + ':' + str(slave.port)
         if socket_str not in self._master_connections:
             master_connection = Master.configure_master(slave)
             master = Master(slave.type, master_connection)
