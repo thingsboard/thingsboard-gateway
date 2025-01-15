@@ -179,8 +179,14 @@ class RESTConnector(Connector, Thread):
         self.load_handlers()
         self._runner = web.AppRunner(self._app)
         await self._runner.setup()
-        site = web.TCPSite(self._runner, host=self.__config['host'], port=int(self.__config.get('port', 5000)),
-                           ssl_context=ssl_context, reuse_port=True, reuse_address=True)
+        if os.name == 'nt':
+            self.__log.info('REST connector started at %s',
+                            self.__config['host'] + ':' + str(self.__config.get('port', 5000)))
+            site = web.TCPSite(self._runner, host=self.__config['host'], port=int(self.__config.get('port', 5000)),
+                               ssl_context=ssl_context)
+        else:
+            site = web.TCPSite(self._runner, host=self.__config['host'], port=int(self.__config.get('port', 5000)),
+                               ssl_context=ssl_context, reuse_port=True, reuse_address=True)
         await site.start()
         self.__log.info('REST connector started at %s',
                         self.__config['host'] + ':' + str(self.__config.get('port', 5000)))
