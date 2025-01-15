@@ -98,10 +98,15 @@ class Device(Thread):
 
     @staticmethod
     def find_self_in_config(devices_config, apdu):
-        apdu_address = apdu.pduSource.addrTuple[0] + ':' + str(apdu.pduSource.addrTuple[1])
-        device_config = list(filter(lambda x: x.get('address') == apdu_address or apdu_address in x.get('altResponsesAddresses', []), devices_config))
-        if len(device_config):
-            return device_config[0]
+        apdu_host = apdu.pduSource.addrTuple[0]
+        apdu_address = apdu_host + ':' + str(apdu.pduSource.addrTuple[1])
+        for device_config in devices_config:
+            if device_config.get('address') == apdu_address:
+                return device_config
+            elif apdu_address in device_config.get('altResponsesAddresses', []):
+                return device_config
+            elif device_config.get('host') == apdu_host:
+                return device_config
 
     @staticmethod
     def get_object_id(config):
