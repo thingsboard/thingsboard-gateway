@@ -20,10 +20,15 @@ from pymodbus.constants import Defaults
 
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
+from thingsboard_gateway.connectors.modbus.constants import BAUDRATE_PARAMETER, BYTE_ORDER_PARAMETER, \
+    BYTESIZE_PARAMETER, CONNECT_ATTEMPT_COUNT_PARAMETER, CONNECT_ATTEMPT_TIME_MS_PARAMETER, HOST_PARAMETER, \
+    METHOD_PARAMETER, PARITY_PARAMETER, PORT_PARAMETER, REPACK_PARAMETER, RETRIES_PARAMETER, RETRY_ON_EMPTY_PARAMETER, \
+    RETRY_ON_INVALID_PARAMETER, RPC_SECTION, SERIAL_CONNECTION_TYPE_PARAMETER, STOPBITS_PARAMETER, STRICT_PARAMETER, \
+    TIMEOUT_PARAMETER, UNIT_ID_PARAMETER, WAIT_AFTER_FAILED_ATTEMPTS_MS_PARAMETER, WORD_ORDER_PARAMETER
 from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
-from thingsboard_gateway.gateway.constants import UPLINK_PREFIX, CONVERTER_PARAMETER, DOWNLINK_PREFIX, \
-    REPORT_STRATEGY_PARAMETER
+from thingsboard_gateway.gateway.constants import DEVICE_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, TYPE_PARAMETER, \
+    UPLINK_PREFIX, CONVERTER_PARAMETER, DOWNLINK_PREFIX
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
@@ -35,45 +40,49 @@ class Slave(Thread):
         self.stopped = False
         self._log = logger
         self.connector = connector
-        self.type = config.get('type', 'tcp').lower()
+        self.type = config.get(TYPE_PARAMETER, 'tcp').lower()
 
-        if self.type == 'serial':
-            self.name = "Modbus slave processor for unit " + str(config['unitId']) + " on port " + str(config['port']) + ' ' + config['deviceName']
+        if self.type == SERIAL_CONNECTION_TYPE_PARAMETER:
+            self.name = "Modbus slave processor for unit " + \
+                str(config[UNIT_ID_PARAMETER]) + " on port " + \
+                str(config[PORT_PARAMETER]) + ' ' + config[DEVICE_NAME_PARAMETER]
         else:
-            self.name = "Modbus slave processor for unit " + str(config['unitId']) + " on host " + str(
-                config.get('host')) + ":" + str(config['port']) + ' ' + config['deviceName']
+            self.name = "Modbus slave processor for unit " + \
+                str(config[UNIT_ID_PARAMETER]) + " on host " + str(config.get('host')) + \
+                ":" + str(config[PORT_PARAMETER]) + ' ' + config[DEVICE_NAME_PARAMETER]
 
         self.callback = connector.callback
 
-        self.unit_id = config['unitId']
-        self.host = config.get('host')
-        self.port = config['port']
-        self.method = config['method']
+        self.unit_id = config[UNIT_ID_PARAMETER]
+        self.host = config.get(HOST_PARAMETER)
+        self.port = config[PORT_PARAMETER]
+        self.method = config[METHOD_PARAMETER]
         self.tls = config.get('tls', {})
-        self.timeout = config.get('timeout', 30)
-        self.retry_on_empty = config.get('retryOnEmpty', False)
-        self.retry_on_invalid = config.get('retryOnInvalid', False)
-        self.retries = config.get('retries', 3)
-        self.baudrate = config.get('baudrate', 19200)
-        self.stopbits = config.get('stopbits', Defaults.Stopbits)
-        self.bytesize = config.get('bytesize', Defaults.Bytesize)
-        self.parity = config.get('parity', Defaults.Parity)
-        self.strict = config.get('strict', Defaults.Strict)
-        self.repack = config.get('repack', False)
-        self.word_order = config.get('wordOrder', 'LITTLE').upper()
-        self.byte_order = config.get('byteOrder', 'LITTLE').upper()
+        self.timeout = config.get(TIMEOUT_PARAMETER, 30)
+        self.retry_on_empty = config.get(RETRY_ON_EMPTY_PARAMETER, False)
+        self.retry_on_invalid = config.get(RETRY_ON_INVALID_PARAMETER, False)
+        self.retries = config.get(RETRIES_PARAMETER, 3)
+        self.baudrate = config.get(BAUDRATE_PARAMETER, 19200)
+        self.stopbits = config.get(STOPBITS_PARAMETER, Defaults.Stopbits)
+        self.bytesize = config.get(BYTESIZE_PARAMETER, Defaults.Bytesize)
+        self.parity = config.get(PARITY_PARAMETER, Defaults.Parity)
+        self.strict = config.get(STRICT_PARAMETER, Defaults.Strict)
+        self.repack = config.get(REPACK_PARAMETER, False)
+        self.word_order = config.get(WORD_ORDER_PARAMETER, 'LITTLE').upper()
+        self.byte_order = config.get(BYTE_ORDER_PARAMETER, 'LITTLE').upper()
 
         self.attributes_updates_config = config.get('attributeUpdates', [])
-        self.rpc_requests_config = config.get('rpc', [])
+        self.rpc_requests_config = config.get(RPC_SECTION, [])
 
-        self.connect_attempt_time_ms = config.get('connectAttemptTimeMs', 500) \
-            if config.get('connectAttemptTimeMs', 500) >= 500 else 500
-        self.wait_after_failed_attempts_ms = config.get('waitAfterFailedAttemptsMs', 300000) \
-            if config.get('waitAfterFailedAttemptsMs', 300000) >= 300000 else 300000
-        self.connection_attempt = config.get('connectionAttempt', 5) if config.get('connectionAttempt', 5) >= 5 else 5
+        self.connect_attempt_time_ms = config.get(CONNECT_ATTEMPT_TIME_MS_PARAMETER, 500) \
+            if config.get(CONNECT_ATTEMPT_TIME_MS_PARAMETER, 500) > 500 else 500
+        self.wait_after_failed_attempts_ms = config.get(WAIT_AFTER_FAILED_ATTEMPTS_MS_PARAMETER, 30000) \
+            if config.get(WAIT_AFTER_FAILED_ATTEMPTS_MS_PARAMETER, 30000) > 30000 else 30000
+        self.connection_attempt = config.get(CONNECT_ATTEMPT_COUNT_PARAMETER, 2) \
+            if config.get(CONNECT_ATTEMPT_COUNT_PARAMETER, 2) >= 2 else 2
 
-        self.device_name = config['deviceName']
-        self.device_type = config.get('deviceType', 'default')
+        self.device_name = config[DEVICE_NAME_PARAMETER]
+        self.device_type = config.get(DEVICE_TYPE_PARAMETER, 'default')
 
         self.poll_period = config['pollPeriod'] / 1000
 
@@ -124,7 +133,7 @@ class Slave(Thread):
     def __load_uplink_converter(self, config):
         return self.__load_converter(config, UPLINK_PREFIX, self.uplink_converter_config)
 
-    def __load_converter(self, config, converter_type, converter_config: Union[Dict, BytesUplinkConverterConfig]={}):
+    def __load_converter(self, config, converter_type, converter_config: Union[Dict, BytesUplinkConverterConfig] = {}):
         try:
             if isinstance(config.get(converter_type + CONVERTER_PARAMETER), str):
                 converter = TBModuleLoader.import_module(self.connector.connector_type,
@@ -140,7 +149,7 @@ class Slave(Thread):
 
             return converter
         except Exception as e:
-            self._log.exception('Failed to load %s converter for % slave: %s', converter_type, self.name, e)
+            self._log.exception('Failed to load %s converter for %s slave: %s', converter_type, self.name, e)
 
     async def connect(self) -> Tuple[bool, bool]:
         cur_time = monotonic() * 1000
@@ -152,7 +161,8 @@ class Slave(Thread):
 
             while not self.master.connected() \
                     and self.connection_attempt_count < self.connection_attempt \
-                    and (cur_time - self.last_connection_attempt_time >= self.connect_attempt_time_ms or self.last_connection_attempt_time == 0):
+                    and (cur_time - self.last_connection_attempt_time >= self.connect_attempt_time_ms
+                         or self.last_connection_attempt_time == 0):
                 if self.stopped:
                     return False, False
                 self.connection_attempt_count += 1
@@ -162,8 +172,8 @@ class Slave(Thread):
 
                 if self.connection_attempt_count == self.connection_attempt:
                     self._log.warn("Maximum attempt count (%i) for device \"%s\" - encountered.",
-                                    self.connection_attempt,
-                                    self)
+                                   self.connection_attempt,
+                                   self)
                     return False, False
             just_added = True
 
@@ -191,8 +201,10 @@ class Slave(Thread):
 
         result = await self.__read(function_code, address, objects_count)
 
-        StatisticsService.count_connector_message(self.connector.get_name(), stat_parameter_name='connectorMsgsReceived')
-        StatisticsService.count_connector_bytes(self.connector.get_name(), result, stat_parameter_name='connectorBytesReceived')
+        StatisticsService.count_connector_message(self.connector.get_name(),
+                                                  stat_parameter_name='connectorMsgsReceived')
+        StatisticsService.count_connector_bytes(self.connector.get_name(), result,
+                                                stat_parameter_name='connectorBytesReceived')
 
         return result
 
@@ -213,8 +225,10 @@ class Slave(Thread):
         self._log.debug('Write %s value to address %s with function code %s', value, address, function_code)
         result = await self.__write(function_code, address, value)
 
-        StatisticsService.count_connector_message(self.connector.get_name(), stat_parameter_name='connectorMsgsReceived')
-        StatisticsService.count_connector_bytes(self.connector.get_name(), result, stat_parameter_name='connectorBytesReceived')
+        StatisticsService.count_connector_message(self.connector.get_name(),
+                                                  stat_parameter_name='connectorMsgsReceived')
+        StatisticsService.count_connector_bytes(self.connector.get_name(), result,
+                                                stat_parameter_name='connectorBytesReceived')
 
         return result
 
@@ -223,9 +237,11 @@ class Slave(Thread):
 
         try:
             if function_code in (5, 6):
-                result = await self.available_functions[function_code](address=address, value=value, unit_id=self.unit_id)
+                result = await self.available_functions[function_code](address=address, value=value,
+                                                                       unit_id=self.unit_id)
             elif function_code in (15, 16):
-                result = await self.available_functions[function_code](address=address, values=value, unit_id=self.unit_id)
+                result = await self.available_functions[function_code](address=address, values=value,
+                                                                       unit_id=self.unit_id)
             else:
                 self._log.error("Unknown Modbus function with code: %s", function_code)
         except Exception as e:

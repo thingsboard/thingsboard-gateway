@@ -28,8 +28,9 @@ from pymodbus.version import version
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.connectors.modbus.entities.bytes_downlink_converter_config import \
     BytesDownlinkConverterConfig
-from thingsboard_gateway.connectors.modbus.constants import FUNCTION_CODE_SLAVE_INITIALIZATION, FUNCTION_TYPE, \
-    FUNCTION_CODE_READ
+from thingsboard_gateway.connectors.modbus.constants import ADDRESS_PARAMETER, BYTE_ORDER_PARAMETER, FUNCTION_CODE_SLAVE_INITIALIZATION, FUNCTION_TYPE, \
+    FUNCTION_CODE_READ, HOST_PARAMETER, IDENTITY_SECTION, METHOD_PARAMETER, OBJECTS_COUNT_PARAMETER, PORT_PARAMETER, REPACK_PARAMETER, SERIAL_CONNECTION_TYPE_PARAMETER, TAG_PARAMETER, WORD_ORDER_PARAMETER
+from thingsboard_gateway.gateway.constants import DEVICE_NAME_PARAMETER, TYPE_PARAMETER
 
 SLAVE_TYPE = {
     'tcp': StartAsyncTcpServer,
@@ -134,7 +135,7 @@ class Server(Thread):
                     item_config = {
                         **item,
                         'functionCode': FUNCTION_CODE_READ[register]
-                            if section_name not in ('attributeUpdates', 'rpc') else item['functionCode'],
+                        if section_name not in ('attributeUpdates', 'rpc') else item['functionCode'],
                     }
                     config[section_name].append(item_config)
 
@@ -148,13 +149,13 @@ class Server(Thread):
     def __get_identity(config):
         identity = None
 
-        if config.get('identity'):
+        if config.get(IDENTITY_SECTION):
             identity = ModbusDeviceIdentification()
-            identity.VendorName = config['identity'].get('vendorName', '')
-            identity.ProductCode = config['identity'].get('productCode', '')
-            identity.VendorUrl = config['identity'].get('vendorUrl', '')
-            identity.ProductName = config['identity'].get('productName', '')
-            identity.ModelName = config['identity'].get('ModelName', '')
+            identity.VendorName = config[IDENTITY_SECTION].get('vendorName', '')
+            identity.ProductCode = config[IDENTITY_SECTION].get('productCode', '')
+            identity.VendorUrl = config[IDENTITY_SECTION].get('vendorUrl', '')
+            identity.ProductName = config[IDENTITY_SECTION].get('productName', '')
+            identity.ModelName = config[IDENTITY_SECTION].get('ModelName', '')
             identity.MajorMinorRevision = version.short()
 
         return identity
@@ -162,17 +163,22 @@ class Server(Thread):
     @staticmethod
     def __get_connection_config(config):
         return {
-            'type': config['type'],
-            'address': (config.get('host'), config.get('port')) if (config['type'] == 'tcp' or 'udp') else None,
-            'port': config.get('port') if config['type'] == 'serial' else None,
-            'framer': FRAMER_TYPE[config.get('method', 'socket')],
+            TYPE_PARAMETER: config[TYPE_PARAMETER],
+
+            ADDRESS_PARAMETER: (config.get(HOST_PARAMETER), config.get(PORT_PARAMETER))
+            if (config[TYPE_PARAMETER] == 'tcp' or 'udp') else None,
+
+            PORT_PARAMETER: config.get(PORT_PARAMETER)
+            if config[TYPE_PARAMETER] == SERIAL_CONNECTION_TYPE_PARAMETER else None,
+
+            'framer': FRAMER_TYPE[config.get(METHOD_PARAMETER, 'socket')],
             'security': config.get('security', {})
         }
 
     def __get_server_context(self, config):
         blocks = {}
         if (config.get('values') is None) or (not len(config.get('values'))):
-            self.__log.error("No values to read from device %s", config.get('deviceName', 'Modbus Slave'))
+            self.__log.error("No values to read from device %s", config.get(DEVICE_NAME_PARAMETER, 'Modbus Slave'))
             return
 
         for (key, value) in config.get('values').items():
@@ -181,23 +187,23 @@ class Server(Thread):
             for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
                 for item in value.get(section, []):
                     try:
-                        function_code = FUNCTION_CODE_SLAVE_INITIALIZATION[key][0] if item['objectsCount'] <= 1 else \
-                            FUNCTION_CODE_SLAVE_INITIALIZATION[key][1]
+                        function_code = FUNCTION_CODE_SLAVE_INITIALIZATION[key][0] \
+                            if item[OBJECTS_COUNT_PARAMETER] <= 1 else FUNCTION_CODE_SLAVE_INITIALIZATION[key][1]
                         converter_config = BytesDownlinkConverterConfig(
-                            device_name=config.get('deviceName', 'Gateway'),
-                            byte_order=config['byteOrder'],
-                            word_order=config.get('wordOrder', 'LITTLE'),
-                            repack=config.get('repack', False),
-                            objects_count=item['objectsCount'],
+                            device_name=config.get(DEVICE_NAME_PARAMETER, 'Gateway'),
+                            byte_order=config[BYTE_ORDER_PARAMETER],
+                            word_order=config.get(WORD_ORDER_PARAMETER, 'LITTLE'),
+                            repack=config.get(REPACK_PARAMETER, False),
+                            objects_count=item[OBJECTS_COUNT_PARAMETER],
                             function_code=function_code,
                             lower_type=item.get(
-                                'type', item.get('tag', 'error')),
-                            address=item.get('address', 0)
+                                TYPE_PARAMETER, item.get(TAG_PARAMETER, 'error')),
+                            address=item.get(ADDRESS_PARAMETER, 0)
                         )
                         converted_value = converter.convert(
                             converter_config, {'data': {'params': item['value']}})
                         if converted_value is not None:
-                            values[item['address'] + 1] = converted_value
+                            values[item[ADDRESS_PARAMETER] + 1] = converted_value
                         else:
                             self.__log.error("Failed to convert value %s with type %s, skipping...", item['value'],
                                              item['type'])
@@ -211,6 +217,6 @@ class Server(Thread):
                     self.__log.error("Failed to configure block %s with error: %s", key, e)
 
         if not len(blocks):
-            self.__log.info("%s - will be initialized without values", config.get('deviceName', 'Modbus Slave'))
+            self.__log.info("%s - will be initialized without values", config.get(DEVICE_NAME_PARAMETER, 'Modbus Slave'))
 
         return ModbusServerContext(slaves=ModbusSlaveContext(**blocks), single=True)

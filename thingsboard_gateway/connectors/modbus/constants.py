@@ -12,7 +12,7 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 
-from thingsboard_gateway.gateway.constants import *
+from thingsboard_gateway.gateway.constants import *  # noqa
 
 # Connector constants
 
@@ -33,10 +33,11 @@ LAST_CONNECTION_ATTEMPT_TIME_PARAMETER = "last_connection_attempt_time"
 # Configuration parameters
 
 RPC_SECTION = "rpc"
+IDENTITY_SECTION = "identity"
+SECURITY_SECTION = "security"
 
 BYTE_ORDER_PARAMETER = "byteOrder"
 WORD_ORDER_PARAMETER = "wordOrder"
-SEND_DATA_ONLY_ON_CHANGE_PARAMETER = "sendDataOnlyOnChange"
 CONNECT_ATTEMPT_COUNT_PARAMETER = "connectAttemptCount"
 CONNECT_ATTEMPT_TIME_MS_PARAMETER = "connectAttemptTimeMs"
 WAIT_AFTER_FAILED_ATTEMPTS_MS_PARAMETER = "waitAfterFailedAttemptsMs"
@@ -58,6 +59,7 @@ BYTESIZE_PARAMETER = "bytesize"
 PARITY_PARAMETER = "parity"
 STRICT_PARAMETER = "strict"
 TYPE_PARAMETER = "type"
+REPACK_PARAMETER = "repack"
 SERIAL_CONNECTION_TYPE_PARAMETER = "serial"
 
 RETRIES_PARAMETER = "retries"

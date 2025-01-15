@@ -58,20 +58,20 @@ if installation_required:
     TBUtility.install_package('pyserial')
     TBUtility.install_package('pyserial-asyncio')
 
-from thingsboard_gateway.connectors.modbus.entities.master import Master
-from thingsboard_gateway.connectors.modbus.server import Server
-from thingsboard_gateway.connectors.modbus.slave import Slave
+from thingsboard_gateway.connectors.modbus.entities.master import Master  # noqa: E402
+from thingsboard_gateway.connectors.modbus.server import Server  # noqa: E402
+from thingsboard_gateway.connectors.modbus.slave import Slave  # noqa: E402
 from thingsboard_gateway.connectors.modbus.entities.bytes_downlink_converter_config import \
-    BytesDownlinkConverterConfig
-from thingsboard_gateway.connectors.modbus.backward_compability_adapter import BackwardCompatibilityAdapter
+    BytesDownlinkConverterConfig  # noqa: E402
+from thingsboard_gateway.connectors.modbus.backward_compatibility_adapter import BackwardCompatibilityAdapter  # noqa
 
-from pymodbus.exceptions import ConnectionException
-from pymodbus.bit_read_message import ReadBitsResponseBase
-from pymodbus.bit_write_message import WriteMultipleCoilsResponse, WriteSingleCoilResponse
-from pymodbus.constants import Endian
-from pymodbus.pdu import ExceptionResponse
-from pymodbus.register_read_message import ReadRegistersResponseBase
-from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse
+from pymodbus.exceptions import ConnectionException  # noqa: E402
+from pymodbus.bit_read_message import ReadBitsResponseBase  # noqa: E402
+from pymodbus.bit_write_message import WriteMultipleCoilsResponse, WriteSingleCoilResponse  # noqa: E402
+from pymodbus.constants import Endian  # noqa: E402
+from pymodbus.pdu import ExceptionResponse  # noqa: E402
+from pymodbus.register_read_message import ReadRegistersResponseBase  # noqa: E402
+from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse  # noqa: E402
 
 
 class AsyncModbusConnector(Connector, Thread):
@@ -328,7 +328,7 @@ class AsyncModbusConnector(Connector, Thread):
                 else:
                     sleep(.001)
             except Exception as e:
-                self.__log.error('Exception in convertion data loop: %s', e)
+                self.__log.error('Exception in conversion data loop: %s', e)
 
     def __save_data(self):
         while not self.__stopped:
@@ -361,8 +361,9 @@ class AsyncModbusConnector(Connector, Thread):
                         }
 
                         self.__create_task(self.__process_attribute_request,
-                                         (device, to_process, attribute_updates_command_config),
-                                         {})
+                                           (device, to_process,
+                                            attribute_updates_command_config),
+                                           {})
         except Exception as e:
             self.__log.exception('Failed to update attributes: %s', e)
 
