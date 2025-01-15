@@ -13,6 +13,8 @@
 #     limitations under the License.
 
 
+from bacpypes3.basetypes import DateTime
+
 from thingsboard_gateway.connectors.bacnet.bacnet_converter import AsyncBACnetConverter
 from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config import UplinkConverterConfig
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
@@ -49,6 +51,9 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                                      value)
                     continue
                 try:
+                    if isinstance(value, DateTime):
+                        value = value.isoformat()
+
                     datapoint_key = TBUtility.convert_key_to_datapoint_key(config['key'],
                                                                            device_report_strategy,
                                                                            config,
