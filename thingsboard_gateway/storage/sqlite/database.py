@@ -72,13 +72,13 @@ class Database(Thread):
             self.db.commit()
         except Exception as e:
             self.db.rollback()
-            self.__log.exception(e)
+            self.__log.exception("Failed to create table! Error: %s", e)
 
     def run(self):
         while not self.stopped.is_set():
             self.process()
-
-            sleep(.2)
+            if self.processQueue.empty():
+                sleep(.1)
 
     def process(self):
         try:
@@ -89,20 +89,22 @@ class Database(Thread):
             # Signalization so that we can spam call process()
             if not self.stopped.is_set() and self.processQueue:
                 while self.processQueue.qsize() > 0:
+                    try:
 
-                    req = self.processQueue.get()
+                        req = self.processQueue.get()
 
-                    self.__log.debug("Processing %s" % req.type)
-                    if req.type is DatabaseActionType.WRITE_DATA_STORAGE:
+                        self.__log.debug("Processing %s" % req.type)
+                        if req.type is DatabaseActionType.WRITE_DATA_STORAGE:
 
-                        message = req.data
+                            message = req.data
 
-                        timestamp = time()
+                            timestamp = time()
 
-                        self.db.execute('''INSERT INTO messages (timestamp, message) VALUES (?, ?);''',
-                                        [timestamp, message])
-
-                        self.db.commit()
+                            self.db.execute('''INSERT INTO messages (timestamp, message) VALUES (?, ?);''',
+                                            [timestamp, message])
+                            self.db.commit()
+                    except Exception as e:
+                        self.__log.error("Failed to process request! Error: %s", e)
             else:
                 self.__log.info("Storage is closed!")
 
@@ -112,7 +114,8 @@ class Database(Thread):
 
     def read_data(self):
         try:
-            data = self.db.execute('''SELECT timestamp, message FROM messages ORDER BY timestamp ASC LIMIT 0, 50;''')
+            data = self.db.execute('''SELECT timestamp, message FROM messages ORDER BY timestamp ASC LIMIT 0, %i;''' %
+                                   self.settings.max_read_records_count)
             return data
         except Exception as e:
             self.db.rollback()

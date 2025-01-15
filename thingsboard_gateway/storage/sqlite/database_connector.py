@@ -44,17 +44,18 @@ class DatabaseConnector:
         """
         self.__log.debug("Committing changes to DB")
 
-        commited = False
-        while not commited and not self.stopped.is_set():
+        committed = False
+        while not committed and not self.stopped.is_set():
             try:
                 self.__commit()
-                commited = True
+                committed = True
             except sqlite3.ProgrammingError as e:
                 self.__log.exception("Failed to commit changes to database", exc_info=e)
                 self.__log.info('Trying to reconnect to database')
                 self.connect()
             except Exception as e:
                 self.__log.exception("Failed to commit changes to database", exc_info=e)
+        return committed
 
     def __commit(self):
         with self.lock:

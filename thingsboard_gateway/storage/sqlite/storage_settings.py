@@ -17,3 +17,4 @@ class StorageSettings:
         self.data_folder_path = config.get("data_file_path", "./")
         self.messages_ttl_check_in_hours = config.get('messages_ttl_check_in_hours', 1) * 3600
         self.messages_ttl_in_days = config.get('messages_ttl_in_days', 7)
+        self.max_read_records_count = config.get('max_read_records_count', 1000)

@@ -6,8 +6,10 @@ from unittest import TestCase
 
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
+from thingsboard_gateway.storage.sqlite.sqlite_event_storage import SQLiteEventStorage
 
 LOG = getLogger("TEST")
+
 
 class TestStorage(TestCase):
     def test_memory_storage(self):
@@ -47,7 +49,7 @@ class TestStorage(TestCase):
 
         for test_value in range(test_size * 10):
             storage.put(str(test_value))
-            sleep(.01)
+            sleep(.001)
 
         result = []
         for _ in range(test_size):
@@ -63,3 +65,40 @@ class TestStorage(TestCase):
             remove(storage_test_config["data_folder_path"]+"/"+file)
         removedirs(storage_test_config["data_folder_path"])
         self.assertListEqual(result, correct_result)
+
+    def test_sqlite_storage(self):
+        storage_test_config = {
+            "data_file_path": "storage/data/data.db",
+            "messages_ttl_check_in_hours": 1,
+            "messages_ttl_in_days": 7,
+            "max_read_records_count": 70
+        }
+
+        storage = SQLiteEventStorage(storage_test_config, LOG)
+        test_size = 20
+        expected_result = []
+        save_results = []
+
+        for test_value_int in range(test_size * 10):
+            test_value = str(test_value_int)
+            expected_result.append(test_value)
+            save_result = storage.put(test_value)
+            save_results.append(save_result)
+            sleep(.01)
+        sleep(1)
+
+        self.assertTrue(all(save_results))
+
+        result = []
+        for _ in range(test_size):
+            batch = storage.get_event_pack()
+            result.append(batch)
+            storage.event_pack_processing_done()
+
+        unpacked_result = []
+        for batch in result:
+            for item in batch:
+                unpacked_result.append(item)
+
+        remove(storage_test_config["data_file_path"])
+        self.assertListEqual(unpacked_result, expected_result)
