@@ -83,13 +83,11 @@ main_handler.setLevel(0)
 DEFAULT_CONNECTORS = {
     "mqtt": "MqttConnector",
     "modbus": "AsyncModbusConnector",
-    "modbus_old": "ModbusConnector",
     "opcua": "OpcUaConnector",
     "ble": "BLEConnector",
     "request": "RequestConnector",
     "can": "CanConnector",
     "bacnet": "AsyncBACnetConnector",
-    "bacnet_old": "BACnetConnector",
     "odbc": "OdbcConnector",
     "rest": "RESTConnector",
     "snmp": "SNMPConnector",
@@ -875,7 +873,7 @@ class TBGatewayService:
 
                     if connector_type != "grpc":
                         connector_class = None
-                        if connector_config_from_main.get('useGRPC', False):
+                        if connector_config_from_main.get('useGRPCForce', False):
                             module_name = f'Grpc{self._default_connectors.get(connector_type, connector_config_from_main.get("class"))}' # noqa
                             connector_class = TBModuleLoader.import_module(connector_type, module_name)
 

@@ -17,8 +17,8 @@ from time import time, sleep
 
 from pymodbus.constants import Defaults
 
-from thingsboard_gateway.connectors.modbus_old.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
-from thingsboard_gateway.connectors.modbus_old.constants import *
+from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
+from thingsboard_gateway.connectors.modbus.constants import *
 from thingsboard_gateway.grpc_connectors.gw_grpc_msg_creator import GrpcMsgCreator
 from thingsboard_gateway.grpc_connectors.modbus.bytes_modbus_uplink_converter import GrpcBytesModbusUplinkConverter
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader

@@ -18,8 +18,8 @@ from string import ascii_lowercase
 from threading import Thread, Lock
 from time import sleep, time
 
-from thingsboard_gateway.connectors.modbus_old.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
-from thingsboard_gateway.connectors.modbus_old.constants import TAG_PARAMETER, BYTE_ORDER_PARAMETER, WORD_ORDER_PARAMETER, \
+from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
+from thingsboard_gateway.connectors.modbus.constants import TAG_PARAMETER, BYTE_ORDER_PARAMETER, WORD_ORDER_PARAMETER, \
     TYPE_PARAMETER, ADDRESS_PARAMETER, OBJECTS_COUNT_PARAMETER, PAYLOAD_PARAMETER, RPC_SECTION, UNIT_ID_PARAMETER, \
     LAST_PREFIX
 from thingsboard_gateway.gateway.constants import DEVICE_NAME_PARAMETER, DEVICE_SECTION_PARAMETER, DATA_PARAMETER, \
@@ -30,7 +30,7 @@ from thingsboard_gateway.grpc_connectors.gw_grpc_connector import GwGrpcConnecto
 from thingsboard_gateway.grpc_connectors.gw_grpc_msg_creator import GrpcMsgCreator
 from thingsboard_gateway.grpc_connectors.modbus.slave import Slave
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.connectors.modbus_old.modbus_connector import FUNCTION_CODE_WRITE, FUNCTION_TYPE, \
+from thingsboard_gateway.connectors.modbus.modbus_connector import FUNCTION_CODE_WRITE, FUNCTION_TYPE, \
     FUNCTION_CODE_PARAMETER, FRAMER_TYPE, SLAVE_TYPE, FUNCTION_CODE_READ, CONVERTED_DATA_SECTIONS
 
 # Try import Pymodbus library or install it and import
