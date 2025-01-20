@@ -13,8 +13,6 @@
 #     limitations under the License.
 
 from abc import ABC, abstractmethod
-from thingsboard_gateway.gateway.constants import DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE, \
-    DEFAULT_SEND_ON_CHANGE_VALUE
 
 
 class Connector(ABC):
@@ -58,9 +56,3 @@ class Connector(ABC):
     @abstractmethod
     def server_side_rpc_handler(self, content):
         pass
-
-    def is_filtering_enable(self, device_name):
-        return DEFAULT_SEND_ON_CHANGE_VALUE
-
-    def get_ttl_for_duplicates(self, device_name):
-        return DEFAULT_SEND_ON_CHANGE_INFINITE_TTL_VALUE
