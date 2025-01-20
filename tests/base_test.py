@@ -33,7 +33,7 @@ class BaseTest(TestCase):
         assert GatewayDeviceUtil.GATEWAY_DEVICE is None
 
     def setUp(self):
-        if platform.system() != "Windows":
+        if platform.system().startswith("win"):
             signal.signal(signal.SIGALRM, self._timeout_handler)
             signal.alarm(self.TIMEOUT)
 
