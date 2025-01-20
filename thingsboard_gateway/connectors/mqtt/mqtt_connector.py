@@ -791,8 +791,8 @@ class MqttConnector(Connector, Thread):
                 self.__log.debug("Received message to topic \"%s\" with unknown interpreter data: \n\n\"%s\"",
                                  message.topic,
                                  content)
-
-            sleep(.2)
+            else:
+                sleep(.2)
 
     def notify_attribute(self, incoming_data, attribute_name, topic_expression, value_expression, retain):
         if incoming_data.get("device") is None or incoming_data.get("value", incoming_data.get('values')) is None:
