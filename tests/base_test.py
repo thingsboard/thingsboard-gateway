@@ -1,6 +1,6 @@
 import logging
 import signal
-from sys import stdout
+from sys import platform, stdout
 from unittest import TestCase
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
 
@@ -13,6 +13,7 @@ LOG.level = logging.DEBUG
 stream_handler = logging.StreamHandler(stdout)
 LOG.addHandler(stream_handler)
 LOG.trace = LOG.debug
+
 
 class BaseTest(TestCase):
     TIMEOUT = 600  # 10 minutes in seconds
@@ -32,8 +33,9 @@ class BaseTest(TestCase):
         assert GatewayDeviceUtil.GATEWAY_DEVICE is None
 
     def setUp(self):
-        signal.signal(signal.SIGALRM, self._timeout_handler)
-        signal.alarm(self.TIMEOUT)
+        if platform.system() != "Windows":
+            signal.signal(signal.SIGALRM, self._timeout_handler)
+            signal.alarm(self.TIMEOUT)
 
     def tearDown(self):
         signal.alarm(0)  # Disable the alarm
