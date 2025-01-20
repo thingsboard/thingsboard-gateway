@@ -259,12 +259,12 @@ class MqttConnector(Connector, Thread):
         self.__stop_event = Event()
         self.daemon = True
 
-        self.__msg_queue = Queue()
+        self.__msg_queue = Queue(config['broker'].get('maxMessageQueue', 1000000000))
         self.__workers_thread_pool = []
         self.__max_msg_number_for_worker = config['broker'].get('maxMessageNumberPerWorker', 10)
         self.__max_number_of_workers = config['broker'].get('maxNumberOfWorkers', 100)
 
-        self._on_message_queue = Queue()
+        self._on_message_queue = Queue(config['broker'].get('maxProcessingMessageQueue', 1000000000))
         self._on_message_thread = Thread(name='On Message', target=self._process_on_message, daemon=True)
         self._on_message_thread.start()
 
@@ -1077,6 +1077,7 @@ class MqttConnector(Connector, Thread):
                     self.in_progress = False
                 except (TimeoutError, Empty):
                     self.in_progress = False
+                    sleep(0.1)
 
         def stop(self):
             self.stopped = True
