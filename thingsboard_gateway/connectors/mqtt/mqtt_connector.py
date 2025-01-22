@@ -112,6 +112,12 @@ class MqttConnector(Connector, Thread):
         self.__gateway = gateway  # Reference to TB Gateway
         self._connector_type = connector_type  # Should be "mqtt"
 
+        # Set up lifecycle flags ---------------------------------------------------------------------------------------
+        self._connected = False
+        self.__stopped = False
+        self.__stop_event = Event()
+        self.daemon = True
+
         self.__log = init_logger(self.__gateway, config['name'],
                                  config.get('logLevel', 'INFO'),
                                  enable_remote_logging=config.get('enableRemoteLogging', False),
@@ -244,12 +250,6 @@ class MqttConnector(Connector, Thread):
         self._client.on_subscribe = self._on_subscribe
         self._client.on_disconnect = self._on_disconnect
         # self._client.on_log = self._on_log
-
-        # Set up lifecycle flags ---------------------------------------------------------------------------------------
-        self._connected = False
-        self.__stopped = False
-        self.__stop_event = Event()
-        self.daemon = True
 
         self.__msg_queue = Queue(self.__broker.get('maxMessageQueue', 1000000000))
         self.__workers_thread_pool = []
