@@ -266,25 +266,23 @@ class OdbcConnector(Connector, Thread):
         try:
             data = self.row_to_dict(row)
 
-            converted_data = self.__converter.convert(self.__config["mapping"], data)
+            converted_data: ConvertedData = self.__converter.convert(self.__config["mapping"], data)
 
-            for device_name, data in converted_data.items():
+            StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                        count=data.attributes_datapoints_count)
+            StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                        count=data.telemetry_datapoints_count)
 
-                StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                          count=data.attributes_datapoints_count)
-                StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                          count=data.telemetry_datapoints_count)
+            converted_data.device_name = eval(self.__config["mapping"]["device"]["name"], globals(), converted_data)
 
-                data.device_name = eval(self.__config["mapping"]["device"]["name"], globals(), data)
+            device_type = eval(self.__config["mapping"]["device"]["type"], globals(), converted_data)
+            if not device_type:
+                device_type = self.__config["mapping"]["device"].get("type", "default")
+            converted_data.device_type = device_type
 
-                device_type = eval(self.__config["mapping"]["device"]["type"], globals(), data)
-                if not device_type:
-                    device_type = self.__config["mapping"]["device"].get("type", "default")
-                data.device_type = device_type
-
-                if data.telemetry_datapoints_count + data.attributes_datapoints_count > 0:
-                    self.__iterator["value"] = getattr(row, self.__iterator["name"])
-                    self.__check_and_send(data)
+            if converted_data.telemetry_datapoints_count + converted_data.attributes_datapoints_count > 0:
+                self.__iterator["value"] = getattr(row, self.__iterator["name"])
+                self.__check_and_send(converted_data)
         except Exception as e:
             self._log.warning("[%s] Failed to process database row: %s", self.get_name(), str(e))
 
