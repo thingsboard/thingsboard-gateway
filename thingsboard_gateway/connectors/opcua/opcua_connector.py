@@ -530,7 +530,7 @@ class OpcUaConnector(Connector, Thread):
     async def _get_device_info_by_pattern(self, pattern, get_first=False):
         result = []
 
-        search_result = re.search(r"\${([A-Za-z.:\\\d]+)}", pattern)
+        search_result = re.search(r"\${([A-Za-z.:\\\d\[\]]+)}", pattern)
         if search_result:
             try:
                 group = search_result.group(0)
