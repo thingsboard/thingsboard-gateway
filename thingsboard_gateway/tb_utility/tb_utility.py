@@ -17,6 +17,7 @@ from logging import getLogger, setLoggerClass
 from os import environ
 from platform import system as platform_system
 from re import search, findall
+from time import monotonic, sleep
 from typing import Union, TYPE_CHECKING
 from uuid import uuid4
 
@@ -391,3 +392,15 @@ class TBUtility:
                     converted_env_variables[key] = value
 
         return converted_env_variables
+
+    @staticmethod
+    def is_thread_alive(obj, timeout=10) -> bool:
+        start_time = monotonic()
+
+        while obj.is_alive():
+            if monotonic() - start_time > timeout:
+                return True
+
+            sleep(.1)
+
+        return False
