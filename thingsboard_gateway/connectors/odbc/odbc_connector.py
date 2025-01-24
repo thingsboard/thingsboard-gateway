@@ -269,13 +269,13 @@ class OdbcConnector(Connector, Thread):
             converted_data: ConvertedData = self.__converter.convert(self.__config["mapping"], data)
 
             StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                        count=data.attributes_datapoints_count)
+                                                      count=data.attributes_datapoints_count)
             StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                        count=data.telemetry_datapoints_count)
+                                                      count=data.telemetry_datapoints_count)
 
-            converted_data.device_name = eval(self.__config["mapping"]["device"]["name"], globals(), converted_data)
+            converted_data.device_name = eval(self.__config["mapping"]["device"]["name"], globals(), data)
 
-            device_type = eval(self.__config["mapping"]["device"]["type"], globals(), converted_data)
+            device_type = eval(self.__config["mapping"]["device"]["type"], globals(), data)
             if not device_type:
                 device_type = self.__config["mapping"]["device"].get("type", "default")
             converted_data.device_type = device_type
