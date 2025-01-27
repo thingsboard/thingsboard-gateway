@@ -394,10 +394,10 @@ class TBUtility:
         return converted_env_variables
 
     @staticmethod
-    def is_thread_alive(obj, timeout=10) -> bool:
+    def while_thread_alive(thread, timeout=10) -> bool:
         start_time = monotonic()
 
-        while obj.is_alive():
+        while thread.is_alive():
             if monotonic() - start_time > timeout:
                 return True
 

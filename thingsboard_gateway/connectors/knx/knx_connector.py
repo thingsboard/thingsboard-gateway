@@ -13,10 +13,9 @@
 #      limitations under the License.
 
 import asyncio
-from asyncio import CancelledError, Event
 from queue import Empty, Queue
 from re import fullmatch
-from threading import Thread
+from threading import Thread, Event
 from time import sleep
 
 from thingsboard_gateway.connectors.knx.entities.client_config import ClientConfig
@@ -31,7 +30,7 @@ from thingsboard_gateway.tb_utility.tb_logger import init_logger
 try:
     from xknx import XKNX
 except ImportError:
-    print("bacpypes3 library not found")
+    print("xknx library not found")
     TBUtility.install_package("xknx")
     from xknx import XKNX
 
@@ -61,7 +60,7 @@ class KNXConnector(Connector, Thread):
         self.__config = config
         self.__id = self.__config.get('id')
         self.__connected = False
-        self.__stopped = False
+        self.__stopped = Event()
         self.daemon = True
 
         self.__process_device_request_queue = Queue(-1)
@@ -70,7 +69,7 @@ class KNXConnector(Connector, Thread):
 
         self.__loop = self.__create_event_loop()
 
-        self.__is_client_connected = Event()
+        self.__is_client_connected = asyncio.Event()
         self.__client = None
 
         self.__devices = []
@@ -95,14 +94,14 @@ class KNXConnector(Connector, Thread):
             return asyncio.get_event_loop()
 
     def close(self):
-        self.__stopped = True
+        self.__stopped.set()
         self.__connected = False
 
         self.__log.debug('Stopping %s...', self.get_name())
 
         self.__stop_devices()
 
-        if TBUtility.is_thread_alive(self):
+        if TBUtility.while_thread_alive(self):
             self.__log.error("Failed to stop connector %s", self.get_name())
         else:
             self.__log.info('%s has been stopped', self.get_name())
@@ -125,7 +124,7 @@ class KNXConnector(Connector, Thread):
         try:
             self.__connected = True
             self.__loop.run_until_complete(self.__start())
-        except CancelledError as e:
+        except asyncio.CancelledError as e:
             self.__log.debug('Task was cancelled due to connector stop: %s', e.__str__())
         except Exception as e:
             self.__log.exception(e)
@@ -149,15 +148,16 @@ class KNXConnector(Connector, Thread):
             await gateway_scanner.scan()
 
     async def __start_client_with_block(self):
-        try:
-            await self.__client.start()
-            self.__log.info('Connected to KNX bus')
-            self.__is_client_connected.set()
+        while not self.__stopped.is_set():
+            try:
+                await self.__client.start()
+                self.__log.info('Connected to KNX bus')
+                self.__is_client_connected.set()
 
-            while not self.__stopped:
-                await asyncio.sleep(.02)
-        except Exception as e:
-            self.__log.error('Error connecting to KNX bus: %s', e.__str__())
+                while not self.__stopped.is_set():
+                    await asyncio.sleep(.02)
+            except Exception as e:
+                self.__log.error('Error connecting to KNX bus: %s', e.__str__())
 
         await self.__client.stop()
         self.__is_client_connected.clear()
@@ -167,7 +167,7 @@ class KNXConnector(Connector, Thread):
         self.__client = XKNX(**client_config.__dict__)
 
     async def __process_device_request(self):
-        while not self.__stopped:
+        while not self.__stopped.is_set():
             try:
                 device = self.__process_device_request_queue.get_nowait()
 
@@ -196,7 +196,7 @@ class KNXConnector(Connector, Thread):
                 await asyncio.sleep(.01)
 
     async def __convert_data(self):
-        while not self.__stopped:
+        while not self.__stopped.is_set():
             try:
                 device, data_to_convert = self.__data_to_convert_queue.get_nowait()
                 converted_data = device.uplink_converter.convert(data_to_convert)
@@ -209,7 +209,7 @@ class KNXConnector(Connector, Thread):
                 self.__log.error('Error converting data: %s', e)
 
     async def __send_data(self):
-        while not self.__stopped:
+        while not self.__stopped.is_set():
             try:
                 device, data_to_save = self.__data_to_save_queue.get_nowait()
                 self.__log.trace('%s data to save: %s', device, data_to_save)
@@ -286,6 +286,7 @@ class KNXConnector(Connector, Thread):
                 try:
                     (key, value) = param.split('=')
                 except ValueError:
+                    self.__log.trace('Invalid parameter: %s', param)
                     continue
 
                 if key and value:
@@ -320,7 +321,7 @@ class KNXConnector(Connector, Thread):
             group_address = config['groupAddress']
             data_type = config['dataType']
 
-            if value:
+            if value or config['requestType'] == 'write':
                 result['response'] = await group_value_write(self.__client, group_address, value, data_type)
             else:
                 result['response'] = await read_group_value(self.__client, group_address, data_type)
@@ -341,7 +342,7 @@ class KNXConnector(Connector, Thread):
     def __create_task(self, func, args, kwargs):
         task = self.__loop.create_task(func(*args, **kwargs))
 
-        while not task.done():
+        while not task.done() and not self.__stopped.is_set():
             sleep(.02)
 
     @property
@@ -364,4 +365,4 @@ class KNXConnector(Connector, Thread):
         return self.__connected
 
     def is_stopped(self):
-        return self.__stopped
+        return self.__stopped.is_set()

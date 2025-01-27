@@ -56,7 +56,7 @@ class Device(Thread):
         Fill self.group_addresses_to_read with all group addresses
         to read from the device from:
         - attributes
-        - telemetry
+        - temeseries
         - deviceNameExpression
         - deviceTypeExpression
 
@@ -132,7 +132,7 @@ class Device(Thread):
 
             return converter
         except Exception as e:
-            self.__log.exception('Failed to load uplink converter for % device: %s', self.name, e)
+            self.__log.error('Failed to load uplink converter for % device: %s', self.name, e)
 
     def run(self):
         while not self.__stopped:

@@ -23,6 +23,7 @@
         "deviceNameDataType": "string",
         "deviceNameExpressionSource": "expression",
         "deviceNameExpression": "Device ${1/0/5}",
+        "deviceProfileDataType": "none",
         "deviceProfileExpressionSource": "constant",
         "deviceProfileNameExpression": "default"
       },
@@ -53,12 +54,14 @@
   ],
   "serverSideRpc": [
     {
+      "requestType": "read",
       "deviceNameFilter": ".*",
       "method": "get_name",
       "dataType": "string",
       "groupAddress": "1/0/5"
     },
     {
+      "requestType": "write",
       "deviceNameFilter": ".*",
       "method": "set_name",
       "dataType": "string",
