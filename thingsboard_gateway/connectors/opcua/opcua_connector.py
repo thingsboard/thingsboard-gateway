@@ -117,6 +117,8 @@ class OpcUaConnector(Connector, Thread):
         self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200), 100) / 1000
         self.__subscription_batch_size = self.__server_conf.get('subscriptionProcessBatchSize', 2000)
 
+        self.__show_map = self.__server_conf.get('showMap', False)
+
         self.__sub_data_to_convert = Queue(-1)
         self.__data_to_convert = Queue(-1)
 
@@ -485,20 +487,25 @@ class OpcUaConnector(Connector, Thread):
     def is_regex_pattern(pattern):
         return not re.fullmatch(pattern, pattern)
 
-    async def __find_nodes(self, node_list, current_parent_node, nodes):
+    async def __find_nodes(self, node_list, current_parent_node, nodes, path=None):
         assert len(node_list) > 0
         final = []
 
         children = await current_parent_node.get_children()
         for node in children:
             child_node = await node.read_browse_name()
+            if self.__show_map and path:
+                self.__log.info('Checking path: %s', path + '.' + f'{child_node.Name}')
 
             if re.fullmatch(re.escape(node_list[0]), child_node.Name) or node_list[0].split(':')[-1] == child_node.Name:
+                if self.__show_map:
+                    self.__log.info('Found node: %s', child_node.Name)
                 new_nodes = [*nodes, f'{child_node.NamespaceIndex}:{child_node.Name}']
                 if len(node_list) == 1:
                     final.append(new_nodes)
                 else:
-                    final.extend(await self.__find_nodes(node_list[1:], current_parent_node=node, nodes=new_nodes))
+                    final.extend(await self.__find_nodes(node_list[1:], current_parent_node=node, nodes=new_nodes,
+                                 path=path + '.' + f'{child_node.Name}'))
 
         return final
 
@@ -511,7 +518,7 @@ class OpcUaConnector(Connector, Thread):
             if len(node_list) > 0 and node_list[0].lower() == 'root':
                 node_list = node_list[1:]
 
-        return await self.__find_nodes(node_list, current_parent_node, nodes)
+        return await self.__find_nodes(node_list, current_parent_node, nodes, 'Root')
 
     async def find_node_name_space_index(self, path):
         if isinstance(path, str):
