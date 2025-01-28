@@ -59,7 +59,7 @@ class StatisticsService(Thread):
         super().__init__()
         self.name = 'Statistics Thread'
         self.daemon = True
-        self._stopped = False
+        self._stopped = Event()
 
         self._config_path = config_path
         self._stats_send_period_in_seconds = stats_send_period_in_seconds if stats_send_period_in_seconds >= 10 else 10
@@ -75,7 +75,7 @@ class StatisticsService(Thread):
         self.start()
 
     def stop(self):
-        self._stopped = True
+        self._stopped.set()
 
     def _load_config(self):
         config = []
@@ -221,7 +221,7 @@ class StatisticsService(Thread):
         except Exception as e:
             self._log.error("Error while sending first statistics information: %s", e)
 
-        while not self._stopped:
+        while not self._stopped.is_set():
             try:
                 cur_monotonic = int(monotonic())
 
@@ -232,7 +232,7 @@ class StatisticsService(Thread):
                 wait_time = max(0, min(next_service_poll, next_custom_command_poll))
 
                 if wait_time > 0:
-                    Event().wait(wait_time)
+                    self._stopped.wait(wait_time)
 
                 cur_monotonic = int(monotonic())
                 if (cur_monotonic - self._last_service_poll >= self._stats_send_period_in_seconds or
@@ -248,4 +248,4 @@ class StatisticsService(Thread):
 
             except Exception as e:
                 self._log.error("Error in statistics thread: %s", e)
-                Event().wait(5)
+                self._stopped.wait(5)

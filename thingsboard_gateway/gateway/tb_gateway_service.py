@@ -425,9 +425,9 @@ class TBGatewayService:
 
     def init_statistics_service(self, config):
         self.__statistics = config # noqa
-        if self.__statistics['enable']:
-            if isinstance(self.__statistics_service, StatisticsService):
-                self.__statistics_service.stop()
+        if isinstance(self.__statistics_service, StatisticsService):
+            self.__statistics_service.stop()
+        if self.__statistics.get('enable', False):
             self.__statistics_service = StatisticsService(self.__statistics['statsSendPeriodInSeconds'], self, log,
                                                           config_path=self._config_dir + self.__statistics[
                                                               'configuration'] if self.__statistics.get(
