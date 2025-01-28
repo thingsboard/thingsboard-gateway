@@ -1,0 +1,71 @@
+{
+  "logLevel": "INFO",
+  "client": {
+    "type": "AUTOMATIC",
+    "addressFormat": "LONG",
+    "localIp": "0.0.0.0",
+    "localPort": 3671,
+    "gatewayIP": "192.168.1.160",
+    "gatewayPort": 3671,
+    "individualAddress": "1.0.10",
+    "rateLimit": 0,
+    "autoReconnect": true,
+    "autoReconnectWait": 3,
+    "gatewaysScanner": {
+      "enabled": false,
+      "scanPeriod": 3,
+      "stopOnFound": false
+    }
+  },
+  "devices": [
+    {
+      "deviceInfo": {
+        "deviceNameDataType": "string",
+        "deviceNameExpressionSource": "expression",
+        "deviceNameExpression": "Device ${1/0/5}",
+        "deviceProfileDataType": "none",
+        "deviceProfileExpressionSource": "constant",
+        "deviceProfileNameExpression": "default"
+      },
+      "pollPeriod": 5000,
+      "attributes": [
+        {
+          "type": "temperature",
+          "key": "temperature",
+          "groupAddress": "1/0/6"
+        }
+      ],
+      "timeseries": [
+        {
+          "type": "humidity",
+          "key": "humidity",
+          "groupAddress": "1/0/7"
+        }
+      ]
+    }
+  ],
+  "attributeUpdates": [
+    {
+      "deviceNameFilter": ".*",
+      "dataType": "precent_U8",
+      "groupAddress": "1/0/9",
+      "key": "brightness"
+    }
+  ],
+  "serverSideRpc": [
+    {
+      "requestType": "read",
+      "deviceNameFilter": ".*",
+      "method": "get_name",
+      "dataType": "string",
+      "groupAddress": "1/0/5"
+    },
+    {
+      "requestType": "write",
+      "deviceNameFilter": ".*",
+      "method": "set_name",
+      "dataType": "string",
+      "groupAddress": "1/0/5"
+    }
+  ]
+}

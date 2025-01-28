@@ -59,6 +59,7 @@ setup(
               'thingsboard_gateway.connectors.rest', 'thingsboard_gateway.extensions.rest',
               'thingsboard_gateway.connectors.snmp', 'thingsboard_gateway.extensions.snmp',
               'thingsboard_gateway.connectors.ftp', 'thingsboard_gateway.extensions.ftp',
+              'thingsboard_gateway.connectors.knx', 'thingsboard_gateway.extensions.knx',
               'thingsboard_gateway.tb_utility', 'thingsboard_gateway.extensions',
               'thingsboard_gateway.extensions.serial'
               ],
