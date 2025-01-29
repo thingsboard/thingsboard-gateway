@@ -538,17 +538,27 @@ class RemoteConfigurator:
             else:
                 config_file_name = config['configuration']
 
-            identifier_parameter = 'id' if config.get('configurationJson', {}).get('id') else 'name'
+            primary_identifier_parameter = 'id' if config.get('configurationJson', {}).get('id') else 'name'
+            secondary_identifier_parameter = 'name' if primary_identifier_parameter == 'id' else None
             found_connectors = []
             for connector in self.connectors_configuration:
-                connector_identifier = connector.get(identifier_parameter)
+                connector_identifier = connector.get(primary_identifier_parameter)
                 if connector_identifier is None:
                     self.__log.warning('Connector %s has no identifier parameter %s, it will be skipped.',
                                        connector,
-                                       identifier_parameter)
+                                       primary_identifier_parameter)
                     continue
-                if connector[identifier_parameter] == config.get('configurationJson', {}).get(identifier_parameter) or \
-                        connector[identifier_parameter] == config.get(identifier_parameter):
+                if (connector[primary_identifier_parameter] == config.get('configurationJson', {})
+                        .get(primary_identifier_parameter)
+                        or connector[primary_identifier_parameter] == config.get(primary_identifier_parameter)):
+                    self.__log.debug('Connector %s found by primary identifier %s, %s',
+                                     connector, primary_identifier_parameter, config.get(primary_identifier_parameter))
+                    found_connectors.append(connector)
+                elif secondary_identifier_parameter is not None \
+                        and connector[secondary_identifier_parameter] == config.get(secondary_identifier_parameter):
+                    self.__log.debug('Connector %s found by secondary identifier %s, %s',
+                                     connector, secondary_identifier_parameter,
+                                     config.get(secondary_identifier_parameter))
                     found_connectors.append(connector)
 
             if (config.get('configurationJson', {})
