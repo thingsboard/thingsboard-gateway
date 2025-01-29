@@ -156,6 +156,7 @@ class TbLogger(logging.Logger):
             self._log(TRACE_LOGGING_LEVEL, msg, args, **kwargs)
 
     def error(self, msg, *args, **kwargs):
+        attr_name = kwargs.pop('attr_name', None)
         kwargs['stacklevel'] = 2
         super(TbLogger, self).error(msg, *args, **kwargs)
 
@@ -165,7 +166,7 @@ class TbLogger(logging.Logger):
             StatisticsService.count_connector_message(self.name, 'convertersErrors')
 
         self._add_error()
-        self._update_errors_batch()
+        self._update_errors_batch(error_attr_name=attr_name)
 
     def exception(self, msg, *args, **kwargs) -> None:
         attr_name = kwargs.pop('attr_name', None)
