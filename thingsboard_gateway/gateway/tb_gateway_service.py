@@ -291,7 +291,7 @@ class TBGatewayService:
                     # deleting old manager if it was closed incorrectly
                     system('rm -rf /tmp/gateway')
                 except OSError as e:
-                    log.exception(e)
+                    log.error("Failed to remove old manager: %s", exc_info=e)
                 manager_address = '/tmp/gateway'
             if platform_system() == 'Windows':
                 manager_address = ('127.0.0.1', 9999)
@@ -392,7 +392,7 @@ class TBGatewayService:
                 try:
                     return load(general_config)
                 except Exception as e:
-                    log.exception('Failed to load configuration file:\n %s', e)
+                    log.error('Failed to load configuration file:\n %s', exc_info=e)
         else:
             log.warning('YAML configuration is deprecated. '
                         'Please, use JSON configuration instead.')
@@ -409,11 +409,7 @@ class TBGatewayService:
                 with open(filename + '.json', 'w') as file:
                     file.writelines(dumps(config, indent='  '))
             except Exception as e:
-                log.exception('Failed to load configuration file:\n %s', e)
-                log.error(os.path.exists(config_file))
-                log.error(config_file)
-                log.error(__file__)
-                log.error("current dir: %s", os.getcwd())
+                log.error('Failed to load configuration file:\n %s', exc_info=e)
 
             return config
 
@@ -524,7 +520,7 @@ class TBGatewayService:
                                 try:
                                     result = rpc_call[1]["function"](*rpc_call[1]["arguments"])
                                 except Exception as e:
-                                    log.exception(e)
+                                    log.error("Error while executing scheduled RPC call: %s", exc_info=e)
 
                                 if result == 256:
                                     log.warning("Error on RPC command: 256. Permission denied.")
@@ -550,13 +546,13 @@ class TBGatewayService:
                                 new_rpc_request_in_progress[topic] = data
                             self.__rpc_requests_in_progress = new_rpc_request_in_progress
                         except Exception as e:
-                            log.exception("Error while processing RPC requests: %s", exc_info=e)
+                            log.error("Error while processing RPC requests: %s", exc_info=e)
                             sleep(1)
                     else:
                         try:
                             self.stop_event.wait(.02)
                         except Exception as e:
-                            log.exception("Error in main loop: %s", exc_info=e)
+                            log.error("Error in main loop: %s", exc_info=e)
                             break
 
                     if (not self.__requested_config_after_connect and self.tb_client.is_connected()
@@ -582,7 +578,7 @@ class TBGatewayService:
                         log = logging.getLogger('service')
                         self.__debug_log_enabled = log.isEnabledFor(10)
                 except Exception as e:
-                    log.exception("Error in main loop: %s", exc_info=e)
+                    log.error("Error in main loop: %s", exc_info=e)
                     self.stop_event.wait(1)
         except Exception as e:
             log.error("Error in main loop: %s", exc_info=e)
@@ -602,7 +598,7 @@ class TBGatewayService:
                         break
                 log.debug("Connector %s closed connection.", current_connector)
             except Exception as e:
-                log.exception("Error while closing connector %s", current_connector, exc_info=e)
+                log.error("Error while closing connector %s", current_connector, exc_info=e)
 
     def __stop_gateway(self):
         self.stopped = True
@@ -891,7 +887,8 @@ class TBGatewayService:
                             log.warning("Connector implementation not found for %s",
                                         connector_config_from_main['name'])
                             for error in connector_class:
-                                log.error("The following error occurred during importing connector class: %s", error)
+                                log.error("The following error occurred during importing connector class: %s",
+                                          error, exc_info=error)
                             continue
                         elif connector_class is None:
                             log.error("Connector implementation not found for %s",
@@ -961,8 +958,8 @@ class TBGatewayService:
                         connector_configuration_local[REPORT_STRATEGY_PARAMETER] = connector_conf_from_file[REPORT_STRATEGY_PARAMETER] # noqa
                     self.connectors_configs[connector_type].append(connector_configuration_local)
                 except Exception as e:
-                    log.exception("Error on loading connector: %r", e)
-                    log.debug("Error on loading connector info", exc_info=e)
+                    log.error("Error on loading connector: %r", e)
+                    log.debug("Error on loading connector:", exc_info=e)
             if connectors_persistent_keys:
                 self.__save_persistent_keys(connectors_persistent_keys)
         else:
@@ -1037,9 +1034,10 @@ class TBGatewayService:
                             except Exception as e:
                                 log.error("[%r] Error on loading connector %r: %r", connector_id, connector_name, e)
                                 if isinstance(log, TbLogger):
-                                    log.exception(e, attr_name=connector_name)
+                                    log.error(e, attr_name=connector_name)
                                 else:
-                                    log.exception(e)
+                                    log.error("Error on loading connector %r: %r", connector_name, e)
+                                    log.debug("Error on loading connector %r", connector_name, exc_info=e)
                                 if connector is not None and not connector.is_stopped():
                                     connector.close()
                     else:
@@ -1120,7 +1118,7 @@ class TBGatewayService:
                 log.debug("Data filtration took %r ms", filtration_end - filtration_start)
             return Status.SUCCESS
         except Exception as e:
-            log.exception("Cannot put converted data!", exc_info=e)
+            log.error("Cannot put converted data!", exc_info=e)
             return Status.FAILURE
 
     def __send_to_storage(self):
@@ -1390,7 +1388,6 @@ class TBGatewayService:
                             except Exception as e:
                                 log.error("Error while processing event from the storage, it will be skipped.",
                                           exc_info=e)
-                                log.exception(e)
                                 continue
 
                             if not devices_data_in_event_pack.get(current_event["deviceName"]): # noqa
@@ -1475,7 +1472,7 @@ class TBGatewayService:
                 else:
                     sleep(1)
             except Exception as e:
-                log.exception(e)
+                log.error("Error while sending data to ThingsBoard, it will be resent.", exc_info=e)
                 sleep(1)
         log.info("Send data Thread has been stopped successfully.")
 
@@ -1548,7 +1545,7 @@ class TBGatewayService:
                                                                               device]["telemetry"]))
                 devices_data_in_event_pack[device] = {"telemetry": [], "attributes": {}}
         except Exception as e:
-            log.exception(e)
+            log.error("Error while sending data to ThingsBoard, it will be resent.", exc_info=e)
 
     @CountMessage('msgsReceivedFromPlatform')
     def _rpc_request_handler(self, request_id, content):
@@ -1588,9 +1585,9 @@ class TBGatewayService:
                             self.send_rpc_reply(None, request_id, dumps(result))
                 except Exception as e:
                     self.send_rpc_reply(None, request_id, "{\"error\":\"%s\", \"code\": 500}" % str(e))
-                    log.exception(e)
+                    log.error("Error while processing RPC request to service", exc_info=e)
         except Exception as e:
-            log.exception(e)
+            log.error("Error while processing RPC request", exc_info=e)
 
     def __rpc_to_devices_processing(self):
         while not self.stopped:
@@ -1729,7 +1726,7 @@ class TBGatewayService:
                                                      wait_for_publish=wait_for_publish)
             self.__rpc_reply_sent = False
         except Exception as e:
-            log.exception("Error while sending RPC reply", exc_info=e)
+            log.error("Error while sending RPC reply", exc_info=e)
 
     def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
         # Put request in outgoing RPC queue. It will be eventually dispatched.
@@ -1740,7 +1737,7 @@ class TBGatewayService:
         try:
             self.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=False)
         except Exception as e:
-            log.exception("Error while canceling RPC request", exc_info=e)
+            log.error("Error while canceling RPC request", exc_info=e)
 
     @CountMessage('msgsReceivedFromPlatform')
     def _attribute_update_callback(self, content, *args):
@@ -1750,7 +1747,7 @@ class TBGatewayService:
             try:
                 self.__connected_devices[content["device"]][CONNECTOR_PARAMETER].on_attributes_update(content)
             except Exception as e:
-                log.exception(e)
+                log.error("Error while processing attributes update", exc_info=e)
         else:
             self._attributes_parse(content)
 
@@ -1806,7 +1803,7 @@ class TBGatewayService:
                     self.gw_send_attributes(device_name, device_details)
             except Exception as e:
                 global log
-                log.exception("Error on sending device details about the device %s", device_name, exc_info=e)
+                log.error("Error on sending device details about the device %s", device_name, exc_info=e)
                 return False
 
         return True
@@ -1844,7 +1841,7 @@ class TBGatewayService:
             try:
                 self.tb_client.client.gw_disconnect_device(device_name)
             except Exception as e:
-                log.exception("Error on disconnecting device %s", device_name, exc_info=e)
+                log.error("Error on disconnecting device %s", device_name, exc_info=e)
 
             self.__connected_devices.pop(device_name, None)
             self.__saved_devices.pop(device_name, None)
@@ -1881,7 +1878,7 @@ class TBGatewayService:
             try:
                 persistent_keys = load_file(self._config_dir + PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME)
             except Exception as e:
-                log.exception(e)
+                log.error("Error while loading persistent keys from file with error: %s", e, exc_info=e)
             log.debug("Loaded keys: %s", persistent_keys)
         else:
             log.debug("Persistent keys file not found")
@@ -1892,7 +1889,7 @@ class TBGatewayService:
             with open(self._config_dir + PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME, 'w') as persistent_keys_file:
                 persistent_keys_file.write(dumps(persistent_keys, indent=2, sort_keys=True))
         except Exception as e:
-            log.exception(e)
+            log.error("Error while saving persistent keys to file with error: %s", e, exc_info=e)
 
     def __load_persistent_devices(self):
         loaded_connected_devices = None
@@ -1952,7 +1949,7 @@ class TBGatewayService:
                     self.__saved_devices[device_name] = device_data_to_save
 
                 except Exception as e:
-                    log.exception(e)
+                    log.error("Error while loading connected devices from file with error: %s", e, exc_info=e)
                     continue
             self.__save_persistent_devices()
         else:
@@ -1974,7 +1971,7 @@ class TBGatewayService:
                 try:
                     config_file.write(dumps(data_to_save, indent=2, sort_keys=True))
                 except Exception as e:
-                    log.exception(e)
+                    log.error("Error while saving connected devices to file with error: %s", e, exc_info=e)
 
             log.debug("Saved connected devices.")
 

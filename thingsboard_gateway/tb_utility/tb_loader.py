@@ -78,6 +78,6 @@ class TBModuleLoader:
                                 errors.append(e.msg)
                                 continue
         except Exception as e:
-            log.exception(e)
+            log.error("Error while importing module %s from %s.", module_name, current_extension_path, exc_info=e)
             errors.append(e)
         return errors
