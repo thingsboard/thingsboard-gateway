@@ -27,15 +27,16 @@ FRAMER_TYPE = {
     'ascii': ModbusAsciiFramer
 }
 
+
 def with_lock_for_serial(func):
     async def wrapper(master, *args, **kwargs):
         if master.client_type == SERIAL_CONNECTION_TYPE_PARAMETER:
             await master.lock.acquire()
-
-        resp = await func(master, *args, **kwargs)
-
-        if master.client_type == SERIAL_CONNECTION_TYPE_PARAMETER:
-            master.lock.release()
+        try:
+            resp = await func(master, *args, **kwargs)
+        finally:
+            if master.client_type == SERIAL_CONNECTION_TYPE_PARAMETER:
+                master.lock.release()
 
         return resp
 
@@ -133,17 +134,16 @@ class Master:
                                           retry_on_invalid=config.retry_on_invalid,
                                           retries=config.retries)
         elif config.type == 'serial':
-            master = AsyncModbusSerialClient(method=config.method,
-                                             port=config.port,
+            master = AsyncModbusSerialClient(port=config.port,
                                              timeout=config.timeout,
                                              retry_on_empty=config.retry_on_empty,
-                                             retry_on_invalid=config.retry_on_invalid,
                                              retries=config.retries,
                                              baudrate=config.baudrate,
                                              stopbits=config.stopbits,
                                              bytesize=config.bytesize,
                                              parity=config.parity,
-                                             strict=config.strict)
+                                             strict=config.strict,
+                                             framer=framer)
         else:
             raise Exception("Invalid Modbus transport type.")
 

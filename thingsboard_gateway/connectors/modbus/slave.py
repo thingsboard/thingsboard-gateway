@@ -196,7 +196,7 @@ class Slave(Thread):
         self.available_functions = self.__master.get_available_functions()
 
     async def read(self, function_code, address, objects_count):
-        self._log.debug('Read %s registers from address %s with function code %s', objects_count, address,
+        self._log.debug('Reading %s registers from address %s with function code %s', objects_count, address,
                         function_code)
 
         result = await self.__read(function_code, address, objects_count)
