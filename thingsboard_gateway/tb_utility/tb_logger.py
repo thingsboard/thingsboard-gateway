@@ -61,7 +61,7 @@ def init_logger(gateway: 'TBGatewayService', name, level, enable_remote_logging=
             log.addHandler(file_handler)
     else:
         main_file_handler = TimedRotatingFileHandler.get_time_rotating_file_handler_by_logger_name(attr_name)
-        if main_file_handler:
+        if main_file_handler and main_file_handler not in log.handlers:
             log.addHandler(main_file_handler)
 
     from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
@@ -79,6 +79,13 @@ def init_logger(gateway: 'TBGatewayService', name, level, enable_remote_logging=
             log.setLevel(log_level)
         except ValueError:
             log.setLevel(100)
+
+    if log.is_connector_logger or log.is_converter_logger:
+        level = level if enable_remote_logging else 'NONE'
+        if gateway.remote_handler.loggers.get(name):
+            gateway.remote_handler.update_logger(name, level)
+        else:
+            gateway.remote_handler.add_logger(name, log_level)
 
     return log
 
@@ -143,7 +150,10 @@ class TbLogger(logging.Logger):
         with TbLogger.ERRORS_MUTEX:
             TbLogger.ERRORS_BATCH.pop(self.attr_name, None)
         self.reset()
-
+        from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
+        for handler in self.handlers:
+            if isinstance(handler, TBRemoteLoggerHandler):
+                handler.remove_logger(self.name)
         self.handlers.clear()
 
     def _send_errors(self):

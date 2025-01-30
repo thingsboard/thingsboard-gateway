@@ -43,13 +43,14 @@ class TBRemoteLoggerHandler(logging.Handler):
         self.setLevel(self.current_log_level)
         self.__gateway = gateway
         self.activated = False
+        self.__loggers_lock = threading.Lock()
 
         self._max_message_count_batch = 20
         self._logs_queue = Queue(1000)
 
-        self._send_logs_thread = threading.Thread(target=self._send_logs, name='Logs Sending Thread', daemon=True)
+        self._send_logs_thread = None
 
-        self.setFormatter(logging.Formatter('%(asctime)s,%(msecs)03d - |%(levelname)s|<%(threadName)s> [%(filename)s] - %(module)s %(funcName)s - %(lineno)d - %(message)s')) # noqa
+        self.setFormatter(logging.Formatter('%(asctime)s - |%(levelname)s|<%(threadName)s> [%(filename)s] - %(module)s %(funcName)s - %(lineno)d - %(message)s')) # noqa
         self.loggers = {}
         for logger in TBRemoteLoggerHandler.LOGGER_NAME_TO_ATTRIBUTE_NAME.keys():
             self.add_logger(logger, 100)
@@ -69,7 +70,18 @@ class TBRemoteLoggerHandler(logging.Handler):
         if hasattr(self.__gateway, 'main_handler') and self.__gateway.main_handler not in log.handlers:
             log.addHandler(self.__gateway.main_handler)
             log.debug("Added main handler to log %s", name)
-        self.loggers[name] = log, self.get_logger_level_id(remote_logging_level)
+        with self.__loggers_lock:
+            self.loggers[name] = log, self.get_logger_level_id(remote_logging_level)
+
+    def update_logger(self, name, remote_logging_level):
+        if name in self.loggers:
+            with self.__loggers_lock:
+                self.loggers[name] = self.loggers[name][0], self.get_logger_level_id(remote_logging_level)
+
+    def remove_logger(self, name):
+        if name in self.loggers:
+            with self.__loggers_lock:
+                self.loggers.pop(name)
 
     def _send_logs(self):
         while self.activated and not self.__gateway.stopped:
@@ -159,5 +171,5 @@ class TBRemoteLoggerHandler(logging.Handler):
     @staticmethod
     def get_logger_level_id(log_level):
         if isinstance(log_level, str):
-            return 100 if log_level == 'NONE' else logging.getLevelName(log_level)
+            return 100 if log_level == 'NONE' else logging._nameToLevel.get(log_level, 100)
         return log_level

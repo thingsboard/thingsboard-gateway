@@ -30,7 +30,7 @@ from sys import argv, executable
 from threading import RLock, Thread, main_thread, current_thread, Event
 from time import sleep, time, monotonic
 from typing import Union, List
-import importlib.util
+from importlib.util import spec_from_file_location, module_from_spec
 from simplejson import JSONDecodeError, dumps, load, loads
 from yaml import safe_load
 
@@ -855,10 +855,6 @@ class TBGatewayService:
                     connector_persistent_key = None
                     connector_type = connector_config_from_main["type"].lower() \
                         if connector_config_from_main.get("type") is not None else None
-
-                    # can be removed in future releases
-                    if connector_type == 'opcua_asyncio':
-                        connector_type = 'opcua'
 
                     if connector_type is None:
                         log.error("Connector type is not defined!")
@@ -2101,8 +2097,8 @@ class TBGatewayService:
         """
         Import custom RPC methods from a given Python file.
         """
-        spec = importlib.util.spec_from_file_location(module_name, module_path)
-        custom_module = importlib.util.module_from_spec(spec)
+        spec = spec_from_file_location(module_name, module_path)
+        custom_module = module_from_spec(spec)
         spec.loader.exec_module(custom_module)
 
         # Iterate through the attributes of the module
