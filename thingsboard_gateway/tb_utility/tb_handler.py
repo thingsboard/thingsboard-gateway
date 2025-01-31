@@ -15,7 +15,7 @@
 import logging
 import logging.handlers
 import threading
-from queue import Queue, Empty
+from queue import Full, Queue, Empty
 from sys import stdout
 from time import time, sleep
 from typing import TYPE_CHECKING
@@ -86,6 +86,9 @@ class TBRemoteLoggerHandler(logging.Handler):
     def _send_logs(self):
         while self.activated and not self.__gateway.stopped:
             try:
+                if self.__gateway.tb_client is None or not self.__gateway.tb_client.is_connected():
+                    sleep(1)
+                    continue
                 logs_for_sending_list = []
                 log_msg = self._logs_queue.get_nowait()
 
@@ -149,6 +152,8 @@ class TBRemoteLoggerHandler(logging.Handler):
                     log_msg['values']['LOGS'] = record
                 try:
                     self._logs_queue.put_nowait(log_msg)
+                except Full:
+                    print(f"Logs queue is full. Skipping log message: {log_msg}")
                 except Exception as e:
                     print(f"Exception while putting log message to queue: {str(e)}")
 
