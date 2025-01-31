@@ -322,6 +322,7 @@ class TBClient(threading.Thread):
 
     def _on_disconnect(self, client, userdata, result_code, properties=None):
         # pylint: disable=protected-access
+        self.__is_connected = False
         if self.client._client != client: # noqa pylint: disable=protected-access
             self.__logger.info("TB client %s has been disconnected. Current client for connection is: %s", str(client),
                                str(self.client._client)) # noqa pylint: disable=protected-access

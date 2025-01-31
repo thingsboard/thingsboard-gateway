@@ -87,7 +87,7 @@ class TBRemoteLoggerHandler(logging.Handler):
         while self.activated and not self.__gateway.stopped:
             try:
                 logs_for_sending_list = []
-                log_msg = self._logs_queue.get(timeout=1)
+                log_msg = self._logs_queue.get_nowait()
 
                 count = 1
                 while count <= self._max_message_count_batch:
@@ -96,11 +96,12 @@ class TBRemoteLoggerHandler(logging.Handler):
                             sleep(1)
                             continue
                         if log_msg is None:
-                            log_msg = self._logs_queue.get(block=False)
+                            log_msg = self._logs_queue.get_nowait()
 
                         logs_msg_size = TBUtility.get_data_size(log_msg)
                         if logs_msg_size > self.__gateway.get_max_payload_size_bytes():
                             print(f'Too big LOG message size to send ({logs_msg_size}). Skipping...')
+                            print(log_msg)
                             continue
 
                         if TBUtility.get_data_size(logs_for_sending_list) + logs_msg_size > self.__gateway.get_max_payload_size_bytes(): # noqa
@@ -147,9 +148,9 @@ class TBRemoteLoggerHandler(logging.Handler):
                 if telemetry_key in self.LOGGER_NAME_TO_ATTRIBUTE_NAME.values():
                     log_msg['values']['LOGS'] = record
                 try:
-                    self._logs_queue.put(log_msg)
+                    self._logs_queue.put_nowait(log_msg)
                 except Exception as e:
-                    print(f"Exception while putting log message to queue: {e}")
+                    print(f"Exception while putting log message to queue: {str(e)}")
 
     def deactivate(self):
         self.activated = False
