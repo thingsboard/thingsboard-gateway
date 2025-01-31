@@ -38,6 +38,7 @@ class ModbusConnectorTestsBase(BaseTest):
         self.gateway = Mock(spec=TBGatewayService)
         self.gateway.remote_handler = Mock(spec=TBRemoteLoggerHandler)
         self.gateway.remote_handler.level = logging.DEBUG
+        self.gateway.remote_handler.loggers = {}
         self.gateway.tb_client = self.tb_client
         self.tb_logger = Mock(spec=TbLogger)
         self.gateway.get_devices.return_value = []

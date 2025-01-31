@@ -23,14 +23,12 @@ from time import sleep, time
 from unittest.mock import Mock, patch
 
 from tests.base_test import BaseTest
-from thingsboard_gateway.gateway.entities.attributes import Attributes
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
-from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.tb_utility.tb_handler import TBRemoteLoggerHandler
-from thingsboard_gateway.tb_utility.tb_logger import TbLogger, init_logger
+from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
 try:
     from can import Notifier, BufferedReader, Bus, Message
@@ -69,6 +67,7 @@ class CanConnectorTestsBase(BaseTest):
         self.gateway = Mock(spec=TBGatewayService)
         self.gateway.remote_handler = Mock(spec=TBRemoteLoggerHandler)
         self.gateway.remote_handler.level = logging.DEBUG
+        self.gateway.remote_handler.loggers = {}
         self.tb_logger = Mock(spec=TbLogger)
         self.connector = None
         self.config = None
