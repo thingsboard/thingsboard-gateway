@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from time import monotonic
 from asyncio import Lock
 
 from pymodbus.client import AsyncModbusTlsClient, AsyncModbusTcpClient, AsyncModbusUdpClient, AsyncModbusSerialClient
@@ -48,6 +49,16 @@ class Master:
         self.lock = Lock()
         self.client_type = client_type.lower()
         self.__client = client
+        self.__previous_request_time = 0
+
+    def get_time_to_pass_delay_between_requests(self, delay_ms) -> int:
+        if delay_ms == 0:
+            return 0
+        next_possible_request_time = self.__previous_request_time + delay_ms
+        current_time = int(monotonic() * 1000)
+        if current_time >= next_possible_request_time:
+            return 0
+        return next_possible_request_time - current_time
 
     def connected(self):
         return self.__client.connected
@@ -62,35 +73,51 @@ class Master:
 
     @with_lock_for_serial
     async def read_coils(self, address, count, unit_id):
-        return await self.__client.read_coils(address=address, count=count, slave=unit_id) # noqa
+        result = await self.__client.read_coils(address=address, count=count, slave=unit_id) # noqa
+        self.__previous_request_time = int(monotonic() * 1000)
+        return result
 
     @with_lock_for_serial
     async def read_discrete_inputs(self, address, count, unit_id):
-        return await self.__client.read_discrete_inputs(address=address, count=count, slave=unit_id) # noqa
+        result = await self.__client.read_discrete_inputs(address=address, count=count, slave=unit_id) # noqa
+        self.__previous_request_time = int(monotonic() * 1000)
+        return result
 
     @with_lock_for_serial
     async def read_holding_registers(self, address, count, unit_id):
-        return await self.__client.read_holding_registers(address=address, count=count, slave=unit_id) # noqa
+        result = await self.__client.read_holding_registers(address=address, count=count, slave=unit_id) # noqa
+        self.__previous_request_time = int(monotonic() * 1000)
+        return result
 
     @with_lock_for_serial
     async def read_input_registers(self, address, count, unit_id):
-        return await self.__client.read_input_registers(address=address, count=count, slave=unit_id) # noqa
+        result = await self.__client.read_input_registers(address=address, count=count, slave=unit_id) # noqa
+        self.__previous_request_time = int(monotonic() * 1000)
+        return result
 
     @with_lock_for_serial
     async def write_coil(self, address, value, unit_id):
-        return await self.__client.write_coil(address=address, value=value, slave=unit_id) # noqa
+        result = await self.__client.write_coil(address=address, value=value, slave=unit_id) # noqa
+        self.__previous_request_time = int(monotonic() * 1000)
+        return result
 
     @with_lock_for_serial
     async def write_register(self, address, value, unit_id):
-        return await self.__client.write_register(address=address, value=value, slave=unit_id) # noqa
+        result = await self.__client.write_register(address=address, value=value, slave=unit_id) # noqa
+        self.__previous_request_time = int(monotonic() * 1000)
+        return result
 
     @with_lock_for_serial
     async def write_coils(self, address, values, unit_id):
-        return await self.__client.write_coils(address=address, values=values, slave=unit_id) # noqa
+        result = await self.__client.write_coils(address=address, values=values, slave=unit_id) # noqa
+        self.__previous_request_time = int(monotonic() * 1000)
+        return result
 
     @with_lock_for_serial
     async def write_registers(self, address, values, unit_id):
-        return await self.__client.write_registers(address=address, values=values, slave=unit_id) # noqa
+        result = await self.__client.write_registers(address=address, values=values, slave=unit_id) # noqa
+        self.__previous_request_time = int(monotonic() * 1000)
+        return result
 
     def get_available_functions(self):
         return {

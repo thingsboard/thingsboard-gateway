@@ -14,7 +14,7 @@
 import asyncio
 from threading import Thread
 from time import sleep, monotonic
-from typing import Tuple, Dict, Union
+from typing import TYPE_CHECKING, Tuple, Dict, Union
 
 from pymodbus.constants import Defaults
 
@@ -24,7 +24,8 @@ from thingsboard_gateway.connectors.modbus.constants import BAUDRATE_PARAMETER, 
     BYTESIZE_PARAMETER, CONNECT_ATTEMPT_COUNT_PARAMETER, CONNECT_ATTEMPT_TIME_MS_PARAMETER, HOST_PARAMETER, \
     METHOD_PARAMETER, PARITY_PARAMETER, PORT_PARAMETER, REPACK_PARAMETER, RETRIES_PARAMETER, RETRY_ON_EMPTY_PARAMETER, \
     RETRY_ON_INVALID_PARAMETER, RPC_SECTION, SERIAL_CONNECTION_TYPE_PARAMETER, STOPBITS_PARAMETER, STRICT_PARAMETER, \
-    TIMEOUT_PARAMETER, UNIT_ID_PARAMETER, WAIT_AFTER_FAILED_ATTEMPTS_MS_PARAMETER, WORD_ORDER_PARAMETER
+    TIMEOUT_PARAMETER, UNIT_ID_PARAMETER, WAIT_AFTER_FAILED_ATTEMPTS_MS_PARAMETER, WORD_ORDER_PARAMETER, \
+    DELAY_BETWEEN_REQUESTS_MS_PARAMETER
 from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
 from thingsboard_gateway.gateway.constants import DEVICE_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, TYPE_PARAMETER, \
@@ -32,9 +33,13 @@ from thingsboard_gateway.gateway.constants import DEVICE_NAME_PARAMETER, DEVICE_
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
+if TYPE_CHECKING:
+    from thingsboard_gateway.connectors.modbus.modbus_connector import ModbusConnector
+    from thingsboard_gateway.connectors.modbus.entities.master import Master
+
 
 class Slave(Thread):
-    def __init__(self, connector, logger, config):
+    def __init__(self, connector: 'ModbusConnector', logger, config):
         super().__init__()
         self.daemon = True
         self.stopped = False
@@ -81,6 +86,8 @@ class Slave(Thread):
         self.connection_attempt = config.get(CONNECT_ATTEMPT_COUNT_PARAMETER, 2) \
             if config.get(CONNECT_ATTEMPT_COUNT_PARAMETER, 2) >= 2 else 2
 
+        self.__delay_between_requests_ms = config.get(DELAY_BETWEEN_REQUESTS_MS_PARAMETER, 0)
+
         self.device_name = config[DEVICE_NAME_PARAMETER]
         self.device_type = config.get(DEVICE_TYPE_PARAMETER, 'default')
 
@@ -96,7 +103,7 @@ class Slave(Thread):
         self.uplink_converter_config = BytesUplinkConverterConfig(**config)
         self.uplink_converter = self.__load_uplink_converter(config)
 
-        self.__master = None
+        self.__master: 'Master' = None
         self.available_functions = None
 
         self.start()
@@ -212,6 +219,9 @@ class Slave(Thread):
         result = None
 
         try:
+            time_to_sleep = self.__master.get_time_to_pass_delay_between_requests(self.__delay_between_requests_ms)
+            if time_to_sleep > 0:
+                await asyncio.sleep(time_to_sleep / 1000)
             result = await self.available_functions[function_code](address=address,
                                                                    count=objects_count,
                                                                    unit_id=self.unit_id)
@@ -236,6 +246,9 @@ class Slave(Thread):
         result = None
 
         try:
+            time_to_sleep = self.__master.get_time_to_pass_delay_between_requests(self.__delay_between_requests_ms)
+            if time_to_sleep > 0:
+                await asyncio.sleep(time_to_sleep / 1000)
             if function_code in (5, 6):
                 result = await self.available_functions[function_code](address=address, value=value,
                                                                        unit_id=self.unit_id)

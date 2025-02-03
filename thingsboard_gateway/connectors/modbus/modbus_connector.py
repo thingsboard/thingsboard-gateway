@@ -187,19 +187,20 @@ class AsyncModbusConnector(Connector, Thread):
 
         Newly created master connection structure will look like:
         self._master_connections = {
-            '127.0.0.1:5021': AsyncClient object
+            '127.0.0.1:5021': AsyncClient object (TCP/UDP),
+            '/dev/ttyUSB0': AsyncClient object (Serial)
         }
         """
         if not slave.host:
-            socket_str = slave.port
+            master_connection_name = slave.port
         else:
-            socket_str = slave.host + ':' + str(slave.port)
-        if socket_str not in self._master_connections:
+            master_connection_name = slave.host + ':' + str(slave.port)
+        if master_connection_name not in self._master_connections:
             master_connection = Master.configure_master(slave)
             master = Master(slave.type, master_connection)
-            self._master_connections[socket_str] = master
+            self._master_connections[master_connection_name] = master
 
-        return self._master_connections[socket_str]
+        return self._master_connections[master_connection_name]
 
     def __add_slave(self, slave_config):
         slave = Slave(self, self.__log, slave_config)
