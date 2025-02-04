@@ -232,15 +232,15 @@ class AsyncModbusConnector(Connector, Thread):
             except Exception as e:
                 self.__log.exception('Failed to poll device: %s', e)
 
-    async def __poll_device(self, slave):
+    async def __poll_device(self, slave: Slave):
         self.__log.debug("Polling %s slave", slave)
 
         # check if device have attributes or telemetry to poll
         if slave.uplink_converter_config.attributes or slave.uplink_converter_config.telemetry:
             try:
-                connected_to_master, just_added = await slave.connect()
+                connected_to_master = await slave.connect()
 
-                if just_added:
+                if connected_to_master:
                     self.__manage_device_connectivity_to_platform(slave)
 
                 if connected_to_master:
@@ -281,11 +281,11 @@ class AsyncModbusConnector(Connector, Thread):
         return result
 
     def __manage_device_connectivity_to_platform(self, slave: Slave):
-        if slave.master.connected() and not slave.is_connected_to_platform():
+        if slave.master.connected() and slave.device_name not in self.__gateway.get_devices():
             self.__add_device_to_platform(slave)
 
     def __delete_device_from_platform(self, slave: Slave):
-        if slave.is_connected_to_platform():
+        if slave.device_name in self.__gateway.get_devices():
             self.__gateway.del_device(slave.device_name)
             slave.last_connect_time = 0
 
@@ -294,8 +294,7 @@ class AsyncModbusConnector(Connector, Thread):
         Add device to platform
         """
 
-        device_connected = slave.is_connected_to_platform()
-        if not device_connected and slave.master.connected():
+        if slave.master.connected():
             device_connected = self.__gateway.add_device(slave.device_name,
                                                          {CONNECTOR_PARAMETER: self},
                                                          device_type=slave.device_type)
@@ -343,6 +342,12 @@ class AsyncModbusConnector(Connector, Thread):
                     sleep(.001)
             else:
                 sleep(.001)
+
+    def get_device_shared_attributes_keys(self, device_name):
+        device = self.__get_device_by_name(device_name)
+        if device is not None:
+            return device.shared_attributes_keys
+        return []
 
     def on_attributes_update(self, content):
         self.__log.debug('Got attributes update: %s', content)
@@ -395,7 +400,7 @@ class AsyncModbusConnector(Connector, Thread):
 
             if converted_data is not None:
                 try:
-                    connected, _ = await device.connect()
+                    connected = await device.connect()
                     if connected:
                         await device.write(config.function_code, config.address, converted_data)
                     else:

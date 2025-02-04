@@ -14,7 +14,7 @@
 import asyncio
 from threading import Thread
 from time import sleep, monotonic
-from typing import TYPE_CHECKING, Tuple, Dict, Union
+from typing import TYPE_CHECKING, Dict, Union
 
 from pymodbus.constants import Defaults
 
@@ -23,7 +23,7 @@ from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import 
 from thingsboard_gateway.connectors.modbus.constants import BAUDRATE_PARAMETER, BYTE_ORDER_PARAMETER, \
     BYTESIZE_PARAMETER, CONNECT_ATTEMPT_COUNT_PARAMETER, CONNECT_ATTEMPT_TIME_MS_PARAMETER, HOST_PARAMETER, \
     METHOD_PARAMETER, PARITY_PARAMETER, PORT_PARAMETER, REPACK_PARAMETER, RETRIES_PARAMETER, RETRY_ON_EMPTY_PARAMETER, \
-    RETRY_ON_INVALID_PARAMETER, RPC_SECTION, SERIAL_CONNECTION_TYPE_PARAMETER, STOPBITS_PARAMETER, STRICT_PARAMETER, \
+    RETRY_ON_INVALID_PARAMETER, RPC_SECTION, SERIAL_CONNECTION_TYPE_PARAMETER, STOPBITS_PARAMETER, STRICT_PARAMETER, TAG_PARAMETER, \
     TIMEOUT_PARAMETER, UNIT_ID_PARAMETER, WAIT_AFTER_FAILED_ATTEMPTS_MS_PARAMETER, WORD_ORDER_PARAMETER, \
     DELAY_BETWEEN_REQUESTS_MS_PARAMETER
 from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
@@ -106,6 +106,10 @@ class Slave(Thread):
         self.__master: 'Master' = None
         self.available_functions = None
 
+        self.shared_attributes_keys = []
+        for attr_config in self.attributes_updates_config:
+            self.shared_attributes_keys.append(attr_config[TAG_PARAMETER])
+
         self.start()
 
     def __timer(self):
@@ -158,9 +162,8 @@ class Slave(Thread):
         except Exception as e:
             self._log.exception('Failed to load %s converter for %s slave: %s', converter_type, self.name, e)
 
-    async def connect(self) -> Tuple[bool, bool]:
+    async def connect(self) -> bool:
         cur_time = monotonic() * 1000
-        just_added = False
         if not self.master.connected():
             if (self.connection_attempt_count >= self.connection_attempt
                     and cur_time - self.last_connection_attempt_time >= self.wait_after_failed_attempts_ms):
@@ -171,7 +174,7 @@ class Slave(Thread):
                     and (cur_time - self.last_connection_attempt_time >= self.connect_attempt_time_ms
                          or self.last_connection_attempt_time == 0):
                 if self.stopped:
-                    return False, False
+                    return False
                 self.connection_attempt_count += 1
                 self.last_connection_attempt_time = cur_time
                 self._log.debug("Trying connect to %s", self)
@@ -181,17 +184,16 @@ class Slave(Thread):
                     self._log.warn("Maximum attempt count (%i) for device \"%s\" - encountered.",
                                    self.connection_attempt,
                                    self)
-                    return False, False
-            just_added = True
+                    return False
 
-            self._log.info("Connected to %s", self)
+                self._log.info("Connected to %s", self)
 
         if self.connection_attempt_count >= 0 and self.master.connected():
             self.connection_attempt_count = 0
             self.last_connection_attempt_time = cur_time
-            return True, just_added
+            return True
         else:
-            return False, False
+            return False
 
     @property
     def master(self):

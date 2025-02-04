@@ -338,6 +338,7 @@ class TBGatewayService:
         self.__rpc_requests_in_progress = {}
         self.available_connectors_by_name: dict[str, Connector] = {}
         self.available_connectors_by_id: dict[str, Connector] = {}
+        self.__devices_shared_attributes = {}
         self.__connector_incoming_messages = {}
         self.__connected_devices = {}
         self.__renamed_devices = {}
@@ -782,6 +783,8 @@ class TBGatewayService:
         if client_keys is not None:
             self.tb_client.client.gw_request_client_attributes(device_name, client_keys, callback)
         if shared_keys is not None:
+            # TODO: Add caching for shared attributes to __devices_shared_attributes
+            # TODO: Refactor connectors to use this method to request attributes
             self.tb_client.client.gw_request_shared_attributes(device_name, shared_keys, callback)
 
     def _check_shared_attributes(self, shared_keys=None, client_keys=None):
@@ -1739,9 +1742,24 @@ class TBGatewayService:
     def _attribute_update_callback(self, content, *args):
         log.debug("Attribute request received with content: \"%s\"", content)
         log.debug(args)
-        if content.get('device') is not None:
+        device_name = content.get('device')
+        if device_name is not None:
+            if content.get('id') is not None:
+                if content.get('value') is not None \
+                        and len(args) > 1 and isinstance(args[-1], list) and len(args[-1]) == 1:
+                    content = {'data': {args[1][0]: content['value']}, 'device': device_name}
+                elif content.get('values') is not None:
+                    content = {'data': content['values'], 'device': device_name}
+                else:
+                    log.error("Unexpected format of attribute response received: \"%s\"", content)
             try:
-                self.__connected_devices[content["device"]][CONNECTOR_PARAMETER].on_attributes_update(content)
+                if device_name in self.__devices_shared_attributes:
+                    self.__devices_shared_attributes[device_name].update(content['data'])  # noqa
+                else:
+                    self.__devices_shared_attributes[device_name] = content['data']
+                if self.__connected_devices.get(device_name) is not None:
+                    device_connector = self.__connected_devices[device_name][CONNECTOR_PARAMETER]
+                    device_connector.on_attributes_update(content)
             except Exception as e:
                 log.error("Error while processing attributes update", exc_info=e)
         else:
@@ -1801,6 +1819,20 @@ class TBGatewayService:
                 global log
                 log.error("Error on sending device details about the device %s", device_name, exc_info=e)
                 return False
+        if hasattr(content['connector'], 'get_device_shared_attributes_keys'):
+            shared_attributes = content['connector'].get_device_shared_attributes_keys(device_name)
+            if device_name in self.__devices_shared_attributes:
+                device_shared_attrs = self.__devices_shared_attributes.get(device_name)
+                shared_attributes_request = {
+                    'device': device_name,
+                    'data': device_shared_attrs
+                }
+                # TODO: request shared attributes on init for all configured devices simultaneously to synchronize shared attributes
+                content['connector'].on_attributes_update(shared_attributes_request)
+            else:
+                self.tb_client.client.gw_request_shared_attributes(device_name,
+                                                                   shared_attributes,
+                                                                   (self._attribute_update_callback, shared_attributes))
 
         return True
 
