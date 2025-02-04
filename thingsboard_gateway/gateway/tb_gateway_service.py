@@ -241,6 +241,10 @@ class TBGatewayService:
                                                          name="RPC to devices processing thread")
         self.__rpc_to_devices_processing_thread.start()
 
+        self.__process_sync_device_shared_attrs_thread = Thread(target=self.__sync_device_shared_attrs_loop, daemon=True,
+                                                                name="Sync device shared attributes thread")
+        self.__process_sync_device_shared_attrs_thread.start()
+
         self.init_grpc_service(self.__config.get('grpc'))
 
         self.__devices_idle_checker = self.__config['thingsboard'].get('checkingDeviceActivity', {})
@@ -356,6 +360,7 @@ class TBGatewayService:
         self.__async_device_actions_queue = SimpleQueue()
         self.__rpc_register_queue = SimpleQueue()
         self.__converted_data_queue = SimpleQueue()
+        self.__sync_device_shared_attrs_queue = SimpleQueue()
 
         self.__messages_confirmation_executor = concurrent.futures.ThreadPoolExecutor() # noqa
 
@@ -1822,8 +1827,22 @@ class TBGatewayService:
                 global log
                 log.error("Error on sending device details about the device %s", device_name, exc_info=e)
                 return False
-        if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'], 'get_device_shared_attributes_keys'):
-            shared_attributes = content['connector'].get_device_shared_attributes_keys(device_name)
+
+        if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'],
+                                                                        'get_device_shared_attributes_keys'):
+            self.__sync_device_shared_attrs_queue.put((device_name, content['connector']))
+        return True
+
+    def __sync_device_shared_attrs_loop(self):
+        while not self.stopped:
+            try:
+                device_name, connector = self.__sync_device_shared_attrs_queue.get()
+                self.__process_sync_device_shared_attrs(device_name, connector)
+            except Empty:
+                sleep(.1)
+
+    def __process_sync_device_shared_attrs(self, device_name, connector):
+            shared_attributes = connector.get_device_shared_attributes_keys(device_name)
             if device_name in self.__devices_shared_attributes:
                 device_shared_attrs = self.__devices_shared_attributes.get(device_name)
                 shared_attributes_request = {
@@ -1831,13 +1850,11 @@ class TBGatewayService:
                     'data': device_shared_attrs
                 }
                 # TODO: request shared attributes on init for all configured devices simultaneously to synchronize shared attributes
-                content['connector'].on_attributes_update(shared_attributes_request)
+                connector.on_attributes_update(shared_attributes_request)
             else:
                 self.tb_client.client.gw_request_shared_attributes(device_name,
                                                                    shared_attributes,
                                                                    (self._attribute_update_callback, shared_attributes))
-
-        return True
 
     def update_device(self, device_name, event, content: Connector):
         should_save = False
