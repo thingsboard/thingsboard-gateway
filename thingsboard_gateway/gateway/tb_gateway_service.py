@@ -201,6 +201,8 @@ class TBGatewayService:
 
         self.__latency_debug_mode = self.__config['thingsboard'].get('latencyDebugMode', False)
 
+        self.__sync_devices_shared_attributes_on_connect = self.__config['thingsboard'].get('syncDevicesSharedAttributesOnConnect', True)
+
         self.__connectors_not_found = False
         self._load_connectors()
         self.__connectors_init_start_success = True
@@ -1753,10 +1755,11 @@ class TBGatewayService:
                 else:
                     log.error("Unexpected format of attribute response received: \"%s\"", content)
             try:
-                if device_name in self.__devices_shared_attributes:
-                    self.__devices_shared_attributes[device_name].update(content['data'])  # noqa
-                else:
-                    self.__devices_shared_attributes[device_name] = content['data']
+                if self.__sync_devices_shared_attributes_on_connect:
+                    if device_name in self.__devices_shared_attributes:
+                        self.__devices_shared_attributes[device_name].update(content['data'])  # noqa
+                    else:
+                        self.__devices_shared_attributes[device_name] = content['data']
                 if self.__connected_devices.get(device_name) is not None:
                     device_connector = self.__connected_devices[device_name][CONNECTOR_PARAMETER]
                     device_connector.on_attributes_update(content)
@@ -1819,7 +1822,7 @@ class TBGatewayService:
                 global log
                 log.error("Error on sending device details about the device %s", device_name, exc_info=e)
                 return False
-        if hasattr(content['connector'], 'get_device_shared_attributes_keys'):
+        if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'], 'get_device_shared_attributes_keys'):
             shared_attributes = content['connector'].get_device_shared_attributes_keys(device_name)
             if device_name in self.__devices_shared_attributes:
                 device_shared_attrs = self.__devices_shared_attributes.get(device_name)
