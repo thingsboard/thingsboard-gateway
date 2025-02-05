@@ -504,6 +504,7 @@ class TBGatewayService:
 
                     if not self.tb_client.is_connected() and self.__subscribed_to_rpc_topics:
                         self.__subscribed_to_rpc_topics = False
+                        self.__devices_shared_attributes = {}
 
                     if (not self.tb_client.is_connected()
                             and self.__remote_configurator is not None
@@ -984,6 +985,14 @@ class TBGatewayService:
             if (device.get('connector') and
                     (device['connector'].name == connector.name or device['connector'].get_id() == connector.get_id())):
                 self.update_device(device_name, 'connector', connector)
+
+    def clean_shared_attributes_cache_for_connector_devices(self, connector):
+        connector_devices = self.__get_connector_devices(connector)
+        for device_name in connector_devices:
+            self.__devices_shared_attributes.pop(device_name, None)
+
+    def __get_connector_devices(self, connector):
+        return [device_name for device_name, device in self.__connected_devices.items() if device.get('connector') and device['connector'].get_id() == connector.get_id()]
 
     def __cleanup_connectors(self):
         self.available_connectors_by_id = {connector_id: connector for (connector_id, connector) in
@@ -1799,11 +1808,15 @@ class TBGatewayService:
 
     def add_device(self, device_name, content, device_type=None):
         if self.tb_client is None or not self.tb_client.is_connected():
+            self.__devices_shared_attributes = {}
             return False
 
         device_type = device_type if device_type is not None else 'default'
         if (device_name in self.__connected_devices or
                 TBUtility.get_dict_key_by_value(self.__renamed_devices, device_name) is not None):
+            if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'],
+                                                                            'get_device_shared_attributes_keys'):
+                self.__sync_device_shared_attrs_queue.put((device_name, content['connector']))
             return True
 
         self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
@@ -1842,19 +1855,19 @@ class TBGatewayService:
                 sleep(.1)
 
     def __process_sync_device_shared_attrs(self, device_name, connector):
-            shared_attributes = connector.get_device_shared_attributes_keys(device_name)
-            if device_name in self.__devices_shared_attributes:
-                device_shared_attrs = self.__devices_shared_attributes.get(device_name)
-                shared_attributes_request = {
-                    'device': device_name,
-                    'data': device_shared_attrs
-                }
-                # TODO: request shared attributes on init for all configured devices simultaneously to synchronize shared attributes
-                connector.on_attributes_update(shared_attributes_request)
-            else:
-                self.tb_client.client.gw_request_shared_attributes(device_name,
-                                                                   shared_attributes,
-                                                                   (self._attribute_update_callback, shared_attributes))
+        shared_attributes = connector.get_device_shared_attributes_keys(device_name)
+        if device_name in self.__devices_shared_attributes:
+            device_shared_attrs = self.__devices_shared_attributes.get(device_name)
+            shared_attributes_request = {
+                'device': device_name,
+                'data': device_shared_attrs
+            }
+            # TODO: request shared attributes on init for all configured devices simultaneously to synchronize shared attributes  # noqa
+            connector.on_attributes_update(shared_attributes_request)
+        else:
+            self.tb_client.client.gw_request_shared_attributes(device_name,
+                                                               shared_attributes,
+                                                               (self._attribute_update_callback, shared_attributes))
 
     def update_device(self, device_name, event, content: Connector):
         should_save = False
@@ -1895,6 +1908,8 @@ class TBGatewayService:
             self.__saved_devices.pop(device_name, None)
             self.__added_devices.pop(device_name, None)
             self.__save_persistent_devices()
+        if device_name in self.__devices_shared_attributes:
+            self.__devices_shared_attributes.pop(device_name, None)
 
     def get_report_strategy_service(self):
         return self._report_strategy_service

@@ -671,9 +671,11 @@ class RemoteConfigurator:
 
                     if connector_configuration.get('id') in self._gateway.available_connectors_by_id:
                         try:
+                            retrieved_connector = self._gateway.available_connectors_by_id[connector_configuration['id']]
                             close_start = monotonic()
-                            while not self._gateway.available_connectors_by_id[connector_configuration['id']].is_stopped(): # noqa
-                                self._gateway.available_connectors_by_id[connector_configuration['id']].close()
+                            while not retrieved_connector.is_stopped(): # noqa
+                                retrieved_connector.close()
+                                self._gateway.clean_shared_attributes_cache_for_connector_devices(retrieved_connector)
                                 if monotonic() - close_start > 5:
                                     self.__log.error('Connector %s not stopped in 5 seconds', connector_configuration['id']) # noqa
                                     break
@@ -681,9 +683,11 @@ class RemoteConfigurator:
                             self.__log.exception("Exception on closing connector occurred:", exc_info=e)
                     elif connector_configuration.get('name') in self._gateway.available_connectors_by_name:
                         try:
+                            retrieved_connector = self._gateway.available_connectors_by_name[connector_configuration['name']]
                             close_start = monotonic()
-                            while not self._gateway.available_connectors_by_name[connector_configuration['name']].is_stopped(): # noqa
-                                self._gateway.available_connectors_by_name[connector_configuration['name']].close()
+                            while not retrieved_connector.is_stopped():
+                                retrieved_connector.close()
+                                self._gateway.clean_shared_attributes_cache_for_connector_devices(retrieved_connector)
                                 if monotonic() - close_start > 5:
                                     self.__log.error('Connector %s not stopped in 5 seconds',
                                                      connector_configuration['name'])
