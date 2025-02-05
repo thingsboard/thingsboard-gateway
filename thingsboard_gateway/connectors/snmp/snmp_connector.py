@@ -299,7 +299,7 @@ class SNMPConnector(Connector, Thread):
             rpc_config = tuple(filter(lambda rpc_config: search(
                 rpc_method_name, rpc_config['requestFilter']), device["serverSideRpcRequests"]))
             if len(rpc_config):
-                self.__process_rpc_request(device, rpc_config, content)
+                self.__process_rpc_request(device, rpc_config[0], content)
             else:
                 self._log.error("RPC method \"%s\" not found", rpc_method_name)
         except Exception as e:
