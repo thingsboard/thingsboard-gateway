@@ -383,7 +383,7 @@ class TBClient(threading.Thread):
                             sleep(1)
                     except ConnectionRefusedError:
                         self.__logger.error("Connection refused. Check ThingsBoard is running.")
-                    except ssl.SSLEOFError as e:
+                    except (ssl.SSLEOFError, ssl.SSLZeroReturnError) as e:
                         self.__logger.warning("Cannot use TLS connection on this port. "
                                               "Client will try to connect without TLS.")
                         self.__logger.debug("Error: %s", e)
