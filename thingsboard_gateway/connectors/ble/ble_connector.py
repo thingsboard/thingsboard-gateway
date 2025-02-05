@@ -163,7 +163,12 @@ class BLEConnector(Connector, Thread):
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
         try:
-            device = tuple(filter(lambda i: i.getName() == content['device'], self.__devices))[0]
+            self.__log.debug('Received attributes update %s', content)
+
+            device = self.__find_device_by_name(content['device'])
+            if device is None:
+                self.__log.error('Device not found')
+                return
 
             for attribute_update_config in device.config['attributeUpdates']:
                 for attribute_update in content['data']:
@@ -171,35 +176,85 @@ class BLEConnector(Connector, Thread):
                         device.write_char(attribute_update_config['characteristicUUID'],
                                           bytes(str(content['data'][attribute_update]),
                                                 'utf-8'))
+        except Exception as e:
+            self.__log.error('Error while processing attributes update %s', e)
 
-        except IndexError:
-            self.__log.error('Device not found')
+    def __find_device_by_name(self, name):
+        device_filter = tuple(filter(lambda i: i.getName() == name, self.__devices))
+
+        if len(device_filter):
+            return device_filter[0]
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         try:
-            device = tuple(filter(lambda i: i.getName() == content['device'], self.__devices))[0]
+            self.__log.debug('Received RPC request %s', content)
 
-            for rpc_config in device.config['serverSideRpc']:
-                for (key, value) in content['data'].items():
-                    if value == rpc_config['methodRPC']:
-                        rpc_method = rpc_config['methodProcessing']
-                        return_result = rpc_config['withResponse']
-                        result = None
+            device = self.__find_device_by_name(content['device'])
+            if device is None:
+                self.__log.error('Device not found')
+                return
 
-                        if rpc_method.upper() == 'READ':
-                            result = device.read_char(rpc_config['characteristicUUID'])
-                        elif rpc_method.upper() == 'WRITE':
-                            result = device.write_char(rpc_config['characteristicUUID'],
-                                                       bytes(str(content['data']['params']), 'utf-8'))
-                        elif rpc_method.upper() == 'SCAN':
-                            result = device.scan_self(return_result)
-                        if return_result:
-                            self.__gateway.send_rpc_reply(content['device'], content['data']['id'], str(result))
+            rpc_method_name = content["data"]["method"]
 
-                        return
-        except IndexError:
-            self.__log.error('Device not found')
+            if self.__check_and_process_reserved_rpc(device, rpc_method_name, content):
+                return
+
+            rpc_config_filter = tuple(filter(
+                lambda config: config['methodRPC'] == rpc_method_name, device.config['serverSideRpc']))
+            if len(rpc_config_filter):
+                self.__process_rpc_request(device, rpc_config_filter[0], content)
+            else:
+                self.__log.error('RPC method not found')
+        except Exception as e:
+            self.__log.error('Error while processing RPC request %s', e)
+            self.__gateway.send_rpc_reply(content['device'],
+                                          req_id=content['data']['id'],
+                                          content={'error': e.__repr__(), "success": False})
+
+    def __check_and_process_reserved_rpc(self, device, rpc_method_name, content):
+        if rpc_method_name in ('get', 'set'):
+            self.__log.debug('Processing reserved RPC method: %s', rpc_method_name)
+
+            params = {}
+            for param in content['data']['params'].split(';'):
+                try:
+                    (key, value) = param.split('=')
+                except ValueError:
+                    continue
+
+                if key and value:
+                    params[key] = value
+
+            if rpc_method_name == 'get':
+                params['methodProcessing'] = 'READ'
+
+            if rpc_method_name == 'set':
+                params['methodProcessing'] = 'WRITE'
+                content['data']['params'] = params['value']
+
+            params['withResponse'] = True
+
+            self.__process_rpc_request(device, params, content)
+
+            return True
+
+        return False
+
+    def __process_rpc_request(self, device, rpc_config, content):
+        rpc_method = rpc_config['methodProcessing']
+        return_result = rpc_config['withResponse']
+        result = None
+
+        if rpc_method.upper() == 'READ':
+            result = device.read_char(rpc_config['characteristicUUID'])
+        elif rpc_method.upper() == 'WRITE':
+            result = device.write_char(rpc_config['characteristicUUID'], bytes(str(content['data']['params']), 'utf-8'))
+        elif rpc_method.upper() == 'SCAN':
+            result = device.scan_self(return_result)
+
+        if return_result:
+            self.__gateway.send_rpc_reply(content['device'], content['data']['id'], str(result))
 
     def get_config(self):
         return self.__config
