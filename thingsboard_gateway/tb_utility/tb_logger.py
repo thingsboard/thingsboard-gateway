@@ -16,6 +16,7 @@ import logging
 from time import monotonic
 from threading import RLock
 from typing import TYPE_CHECKING
+from os import path
 
 if TYPE_CHECKING:
     from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
@@ -259,7 +260,7 @@ class TbLogger(logging.Logger):
                     old_file_handler = file_handler_filter[0]
 
                     new_file_handler = None
-                    filename = old_file_handler.baseFilename.split('/')[-1].split('.')[0]
+                    filename = old_file_handler.baseFilename.split(path.sep)[-1].split('.')[0]
                     if logger.is_connector_logger:
                         new_file_handler = TimedRotatingFileHandler.get_connector_file_handler(filename) # noqa
 
