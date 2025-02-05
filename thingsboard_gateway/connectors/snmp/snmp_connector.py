@@ -257,40 +257,87 @@ class SNMPConnector(Connector, Thread):
 
     def on_attributes_update(self, content):
         try:
-            for device in self.__devices:
-                if content["device"] == device["deviceName"]:
-                    for attribute_request_config in device["attributeUpdateRequests"]:
-                        for attribute, value in content["data"]:
-                            if search(attribute, attribute_request_config["attributeFilter"]):
-                                common_parameters = self.__get_common_parameters(device)
-                                result = self.__process_methods(attribute_request_config["method"], common_parameters,
-                                                                {**attribute_request_config, "value": value})
-                                self._log.debug(
-                                    "Received attribute update request for device \"%s\" "
-                                    "with attribute \"%s\" and value \"%s\"",
-                                    content["device"],
-                                    attribute)
-                                self._log.debug(result)
-                                self._log.debug(content)
+            device = self.__find_device_by_name(content["device"])
+            if device is None:
+                self._log.error("Device \"%s\" not found", content["device"])
+                return
+
+            for attribute_request_config in device["attributeUpdateRequests"]:
+                for attribute, value in content["data"]:
+                    if search(attribute, attribute_request_config["attributeFilter"]):
+                        common_parameters = self.__get_common_parameters(device)
+                        result = self.__process_methods(attribute_request_config["method"], common_parameters,
+                                                        {**attribute_request_config, "value": value})
+                        self._log.debug(
+                            "Received attribute update request for device \"%s\" "
+                            "with attribute \"%s\" and value \"%s\"",
+                            content["device"],
+                            attribute)
+                        self._log.debug(result)
+                        self._log.debug(content)
         except Exception as e:
             self._log.exception(e)
 
+    def __find_device_by_name(self, device_name):
+        device_filter = tuple(filter(lambda device: device["deviceName"] == device_name, self.__devices))
+        if len(device_filter):
+            return device_filter[0]
+
     def server_side_rpc_handler(self, content):
         try:
-            for device in self.__devices:
-                if content["device"] == device["deviceName"]:
-                    for rpc_request_config in device["serverSideRpcRequests"]:
-                        if search(content["data"]["method"], rpc_request_config["requestFilter"]):
-                            common_parameters = self.__get_common_parameters(device)
-                            result = self.__process_methods(rpc_request_config["method"], common_parameters,
-                                                            {**rpc_request_config, "value": content["data"]["params"]})
-                            self._log.debug("Received RPC request for device \"%s\" with command \"%s\" and value \"%s\"",
-                                      content["device"],
-                                      content["data"]["method"])
-                            self._log.debug(result)
-                            self._log.debug(content)
-                            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
-                                                          content=result)
+            device = self.__find_device_by_name(content["device"])
+
+            if device is None:
+                self._log.error("Device \"%s\" not found", content["device"])
+                return
+
+            rpc_method_name = content["data"]["method"]
+
+            if self.__check_and_process_reserved_rpc(device, rpc_method_name, content):
+                return
+
+            rpc_config = tuple(filter(lambda rpc_config: search(
+                rpc_method_name, rpc_config['requestFilter']), device["serverSideRpcRequests"]))
+            if len(rpc_config):
+                self.__process_rpc_request(device, rpc_config, content)
+            else:
+                self._log.error("RPC method \"%s\" not found", rpc_method_name)
         except Exception as e:
             self._log.exception(e)
-            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=False)
+            self.__gateway.send_rpc_reply(device=content["device"],
+                                          req_id=content["data"]["id"],
+                                          content={'error': e.__repr__(), "success": False})
+
+    def __check_and_process_reserved_rpc(self, device, rpc_method_name, content):
+        if rpc_method_name in ('get', 'set'):
+            self._log.debug('Processing reserved RPC method: %s', rpc_method_name)
+
+            params = {}
+            for param in content['data']['params'].split(';'):
+                try:
+                    (key, value) = param.split('=')
+                except ValueError:
+                    continue
+
+                if key and value:
+                    params[key] = value
+
+            if rpc_method_name == 'set':
+                content['data']['params'] = params['value']
+
+            self.__process_rpc_request(device, params, content)
+            return True
+
+        return False
+
+    def __process_rpc_request(self, device, rpc_config, content):
+        common_parameters = self.__get_common_parameters(device)
+        result = asyncio.run_coroutine_threadsafe(self.__process_methods(rpc_config["method"],
+                                                                         common_parameters,
+                                                                         {**rpc_config,
+                                                                          "value": content["data"]["params"]}),
+                                                  loop=self.__loop).result(timeout=int(rpc_config.get("timeout", 5)))
+        result = result.decode("utf-8") if isinstance(result, bytes) else str(result)
+        self._log.trace('RPC result: %s', result)
+        self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
+                                      content={"result": result})
