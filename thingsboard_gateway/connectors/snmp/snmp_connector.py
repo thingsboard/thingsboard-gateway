@@ -304,7 +304,9 @@ class SNMPConnector(Connector, Thread):
                 self._log.error("RPC method \"%s\" not found", rpc_method_name)
         except Exception as e:
             self._log.exception(e)
-            self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"], success_sent=False)
+            self.__gateway.send_rpc_reply(device=content["device"],
+                                          req_id=content["data"]["id"],
+                                          content={'error': e.__repr__(), "success": False})
 
     def __check_and_process_reserved_rpc(self, device, rpc_method_name, content):
         if rpc_method_name in ('get', 'set'):
@@ -334,7 +336,7 @@ class SNMPConnector(Connector, Thread):
                                                                          common_parameters,
                                                                          {**rpc_config,
                                                                           "value": content["data"]["params"]}),
-                                                  loop=self.__loop).result(timeout=10)
+                                                  loop=self.__loop).result(timeout=int(rpc_config.get("timeout", 5)))
         result = result.decode("utf-8") if isinstance(result, bytes) else str(result)
         self._log.trace('RPC result: %s', result)
         self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
