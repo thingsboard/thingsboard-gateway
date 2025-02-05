@@ -604,12 +604,13 @@ class AsyncModbusConnector(Connector, Thread):
                                                  and content[DATA_PARAMETER].get(RPC_ID_PARAMETER) is not None)
 
     def __send_rpc_response(self, content, response, with_response=False):
+        method = content[DATA_PARAMETER][RPC_METHOD_PARAMETER]
         if isinstance(response, Exception) or isinstance(response, ExceptionResponse):
             if not with_response:
                 self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
                                               req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
                                               content={
-                                                  content[DATA_PARAMETER][RPC_METHOD_PARAMETER]: str(response)
+                                                  method: response.__repr__()
                                               },
                                               success_sent=False)
             else:
@@ -617,7 +618,7 @@ class AsyncModbusConnector(Connector, Thread):
                     'device': content[DEVICE_SECTION_PARAMETER],
                     'req_id': content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
                     'content': {
-                        content[DATA_PARAMETER][RPC_METHOD_PARAMETER]: str(response)
+                        method: str(response)
                     },
                     'success_sent': False
                 }
@@ -625,7 +626,7 @@ class AsyncModbusConnector(Connector, Thread):
             if not with_response:
                 self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
                                               req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
-                                              content={'result': response})
+                                              content={'result': response} if method in ('get', 'set') else response)
             else:
                 return {
                     'device': content[DEVICE_SECTION_PARAMETER],
