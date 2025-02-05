@@ -1565,6 +1565,8 @@ class TBGatewayService:
     @CountMessage('msgsReceivedFromPlatform')
     def _rpc_request_handler(self, request_id, content):
         try:
+            if not isinstance(request_id, int) and 'data' in content:
+                request_id = content['data'].get('id')
             device = content.get("device")
             if device is not None:
                 self.__rpc_to_devices_queue.put((request_id, content, monotonic()))
@@ -1617,7 +1619,9 @@ class TBGatewayService:
                     connector = self.get_devices()[content['device']].get(CONNECTOR_PARAMETER)
                     if connector is not None:
                         content['id'] = request_id
-                        connector.server_side_rpc_handler(content)
+                        result = connector.server_side_rpc_handler(content)
+                        if result is not None and isinstance(result, dict) and 'error' in result:
+                            self.send_rpc_reply(device, request_id, dumps(result), success_sent=False)
                     else:
                         log.error("Received RPC request but connector for the device %s not found. Request data: \n %s",
                                   content["device"],
@@ -1728,6 +1732,15 @@ class TBGatewayService:
                     content = loads(content)
                 except Exception:
                     pass
+            if content is not None and isinstance(content, dict) and \
+                    ('success' in content or 'error' in content or 'response' in content or 'result' in content):
+                rpc_response = content
+                if success_sent is not None:
+                    rpc_response["success"] = success_sent
+
+            if 'result' in rpc_response:  # For get/set service RPCs
+                rpc_response = rpc_response['result']
+
             if device is not None and success_sent is not None and not to_connector_rpc:
                 self.tb_client.client.gw_send_rpc_reply(device, req_id, dumps(rpc_response),
                                                         quality_of_service=quality_of_service)

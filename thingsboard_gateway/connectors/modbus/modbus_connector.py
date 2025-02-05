@@ -438,6 +438,8 @@ class AsyncModbusConnector(Connector, Thread):
                 result = {}
                 self.__create_task(self.__process_rpc_request, (device, config, content), {'result': result})
 
+                self.__log.debug("Result: %r", result)
+
                 return result['response']
             else:
                 self.__log.debug("Received RPC to connector: %r", content)
@@ -453,6 +455,7 @@ class AsyncModbusConnector(Connector, Thread):
                 return results
         except Exception as e:
             self.__log.exception('Failed to process server side rpc request: %s', e)
+            return {'error': '%r' % e, 'success': False}
 
     def __create_task(self, func, args, kwargs):
         task = self.loop.create_task(func(*args, **kwargs))
@@ -534,19 +537,19 @@ class AsyncModbusConnector(Connector, Thread):
                 if self.__can_rpc_return_response(data):
                     result['response'] = self.__send_rpc_response(data, response, with_response)
         except Exception as e:
-            self.__log.error('Failed to process rpc request: %s', e)
-            result['response'] = e.__str__()
+            self.__log.error('Failed to process rpc request: %r', e)
+            result['response'] = {'error': e.__repr__()}
 
     async def __read_rpc_data(self, device: Slave, config):
         response = None
 
         try:
-            connected, _ = await device.connect()
+            connected = await device.connect()
             if connected:
                 response = await device.read(config['functionCode'], config['address'], config['objectsCount'])
         except Exception as e:
             self.__log.error('Failed to process rpc request: %s', e)
-            response = e
+            response['response'] = {'error': e.__repr__()}
 
         if isinstance(response, (ReadRegistersResponseBase, ReadBitsResponseBase)):
             endian_order = Endian.Big if device.byte_order.upper() == "BIG" else Endian.Little
@@ -579,11 +582,11 @@ class AsyncModbusConnector(Connector, Thread):
 
         if converted_data is not None:
             try:
-                connected, _ = await device.connect()
+                connected = await device.connect()
                 if connected:
                     response = await device.write(config.function_code, config.address, converted_data)
             except Exception as e:
-                self.__log.error('Failed to process rpc request: %s', e)
+                self.__log.error('Failed to process rpc request: %s', exc_info=e)
                 response = e
 
         if isinstance(response, (WriteMultipleRegistersResponse,
