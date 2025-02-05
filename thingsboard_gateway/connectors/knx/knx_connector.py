@@ -18,8 +18,6 @@ from re import fullmatch
 from threading import Thread, Event
 from time import sleep
 
-from thingsboard_gateway.connectors.knx.entities.client_config import ClientConfig
-from thingsboard_gateway.connectors.knx.entities.gateways_scanner import GatewaysScanner
 from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_SENT_PARAMETER
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -34,6 +32,8 @@ except ImportError:
     TBUtility.install_package("xknx")
     from xknx import XKNX
 
+from thingsboard_gateway.connectors.knx.entities.client_config import ClientConfig
+from thingsboard_gateway.connectors.knx.entities.gateways_scanner import GatewaysScanner
 from thingsboard_gateway.connectors.knx.entities.device import Device
 
 from xknx.tools import read_group_value, group_value_write
