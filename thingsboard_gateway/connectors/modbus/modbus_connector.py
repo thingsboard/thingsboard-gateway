@@ -626,7 +626,7 @@ class AsyncModbusConnector(Connector, Thread):
             if not with_response:
                 self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
                                               req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
-                                              content={'result': response} if method in ('get', 'set') else response)
+                                              content={'result': response})
             else:
                 return {
                     'device': content[DEVICE_SECTION_PARAMETER],
