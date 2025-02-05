@@ -1772,7 +1772,7 @@ class TBGatewayService:
         log.debug("Attribute request received with content: \"%s\"", content)
         log.debug(args)
         device_name = content.get('device')
-        if device_name is not None:
+        if device_name is not None and 'data' in content:
             if content.get('id') is not None:
                 if content.get('value') is not None \
                         and len(args) > 1 and isinstance(args[-1], list) and len(args[-1]) == 1:
