@@ -1772,7 +1772,7 @@ class TBGatewayService:
         log.debug("Attribute request received with content: \"%s\"", content)
         log.debug(args)
         device_name = content.get('device')
-        if device_name is not None and 'data' in content:
+        if device_name is not None and ('value' in content or 'values' in content or 'data' in content):
             if content.get('id') is not None:
                 if content.get('value') is not None \
                         and len(args) > 1 and isinstance(args[-1], list) and len(args[-1]) == 1:
@@ -1878,9 +1878,10 @@ class TBGatewayService:
             # TODO: request shared attributes on init for all configured devices simultaneously to synchronize shared attributes  # noqa
             connector.on_attributes_update(shared_attributes_request)
         else:
-            self.tb_client.client.gw_request_shared_attributes(device_name,
-                                                               shared_attributes,
-                                                               (self._attribute_update_callback, shared_attributes))
+            if shared_attributes:
+                self.tb_client.client.gw_request_shared_attributes(device_name,
+                                                                   shared_attributes,
+                                                                   (self._attribute_update_callback, shared_attributes))
 
     def update_device(self, device_name, event, content: Connector):
         should_save = False
