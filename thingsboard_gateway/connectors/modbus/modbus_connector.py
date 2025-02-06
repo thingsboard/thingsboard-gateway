@@ -460,7 +460,7 @@ class AsyncModbusConnector(Connector, Thread):
     def __create_task(self, func, args, kwargs):
         task = self.loop.create_task(func(*args, **kwargs))
 
-        while not task.done():
+        while not task.done() and not self.__stopped:
             sleep(.02)
 
     @staticmethod
