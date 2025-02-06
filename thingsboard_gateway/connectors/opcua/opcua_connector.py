@@ -226,6 +226,8 @@ class OpcUaConnector(Connector, Thread):
                     self.__log.debug('Subscription already deleted')
                 except BadSubscriptionIdInvalid:
                     self.__log.debug('Subscription already deleted')
+                except ConnectionError:
+                    self.__log.info("Client is not connected, cannot delete subscription.")
                 except Exception as e:
                     self.__log.exception('Error deleting subscription: %s', e)
                 device.subscription = None
