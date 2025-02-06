@@ -29,7 +29,7 @@ from simplejson import dumps, load
 from tb_gateway_mqtt import TBGatewayMqttClient
 
 from thingsboard_gateway.gateway.constants import CONFIG_VERSION_PARAMETER, REPORT_STRATEGY_PARAMETER, \
-    DEFAULT_REPORT_STRATEGY_CONFIG
+    DEFAULT_REPORT_STRATEGY_CONFIG, CONNECTOR_PARAMETER
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.tb_client import TBClient
 
@@ -675,6 +675,9 @@ class RemoteConfigurator:
                             close_start = monotonic()
                             while not retrieved_connector.is_stopped(): # noqa
                                 retrieved_connector.close()
+                                if self._gateway.tb_client.is_connected():
+                                    for device in self._gateway.get_connector_devices(retrieved_connector):
+                                        self.del_device(device)
                                 self._gateway.clean_shared_attributes_cache_for_connector_devices(retrieved_connector)
                                 if monotonic() - close_start > 5:
                                     self.__log.error('Connector %s not stopped in 5 seconds', connector_configuration['id']) # noqa
@@ -687,6 +690,9 @@ class RemoteConfigurator:
                             close_start = monotonic()
                             while not retrieved_connector.is_stopped():
                                 retrieved_connector.close()
+                                if self._gateway.tb_client.is_connected():
+                                    for device in self._gateway.get_connector_devices(retrieved_connector):
+                                        self.del_device(device)
                                 self._gateway.clean_shared_attributes_cache_for_connector_devices(retrieved_connector)
                                 if monotonic() - close_start > 5:
                                     self.__log.error('Connector %s not stopped in 5 seconds',

@@ -602,6 +602,9 @@ class TBGatewayService:
                 close_start = monotonic()
                 while not self.available_connectors_by_id[current_connector].is_stopped():
                     self.available_connectors_by_id[current_connector].close()
+                    if self.tb_client.is_connected():
+                        for device in self.get_connector_devices(self.available_connectors_by_id[current_connector]):
+                            self.del_device(device)
                     if monotonic() - close_start > 5:
                         log.error("Connector %s close timeout", current_connector)
                         break
@@ -987,11 +990,11 @@ class TBGatewayService:
                 self.update_device(device_name, 'connector', connector)
 
     def clean_shared_attributes_cache_for_connector_devices(self, connector):
-        connector_devices = self.__get_connector_devices(connector)
+        connector_devices = self.get_connector_devices(connector)
         for device_name in connector_devices:
             self.__devices_shared_attributes.pop(device_name, None)
 
-    def __get_connector_devices(self, connector):
+    def get_connector_devices(self, connector):
         return [device_name for device_name, device in self.__connected_devices.items() if device.get('connector') and device['connector'].get_id() == connector.get_id()]
 
     def __cleanup_connectors(self):
@@ -1055,6 +1058,9 @@ class TBGatewayService:
                                     log.debug("Error on loading connector %r", connector_name, exc_info=e)
                                 if connector is not None and not connector.is_stopped():
                                     connector.close()
+                                    if self.tb_client.is_connected():
+                                        for device in self.get_connector_devices(connector):
+                                            self.del_device(device)
                     else:
                         self.__grpc_connectors.update({connector_config['grpc_key']: connector_config})
                         if connector_type != 'grpc':
