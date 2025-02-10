@@ -35,7 +35,7 @@ from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 # Try import Pymodbus library or install it and import
 installation_required = False
-required_version = '3.0.0'
+required_version = '3.0.2'
 force_install = False
 
 try:

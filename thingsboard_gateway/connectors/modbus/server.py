@@ -109,6 +109,9 @@ class Server(Thread):
             self.__server = await SLAVE_TYPE[self.__type](identity=self.__identity, context=self.__server_context,
                                                           **self.__connection_config, defer_start=True,
                                                           allow_reuse_address=True, allow_reuse_port=True)
+            
+            if self.__config[TYPE_PARAMETER] == SERIAL_CONNECTION_TYPE_PARAMETER:
+                await self.__server.start()
             await self.__server.serve_forever()
         except Exception as e:
             self.__stopped = True
