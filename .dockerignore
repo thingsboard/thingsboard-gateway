@@ -1,3 +1,14 @@
-!/.github/
-!/.git/
-!/.idea/
+# ignore everyhting
+*
+
+# except the following
+!/thingsboard_gateway/
+!LICENSE
+!README.md
+!setup.py
+!requirements.txt
+
+# ignore on every level
+**/__pycache__/
+**/*.py[cod]
+**/logs/
