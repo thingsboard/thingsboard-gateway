@@ -160,7 +160,7 @@ class AsyncModbusConnector(Connector, Thread):
             try:
                 self.__log.info("Starting Modbus server")
                 self.__run_server()
-                self.__add_slave(self.__server.get_slave_config_format())
+                self.__server.slave = self.__add_slave(self.__server.get_slave_config_format())
                 self.__log.info("Modbus server started")
             except Exception as e:
                 self.__log.exception('Failed to start Modbus server: %s', e)
@@ -177,7 +177,7 @@ class AsyncModbusConnector(Connector, Thread):
             self.__log.exception(e)
 
     def __run_server(self):
-        self.__server = Server(self.__config['slave'], self.__log)
+        self.__server = Server(self, self.__config['slave'], self.__log)
         self.__server.start()
 
     def __get_master(self, slave: Slave):
@@ -204,10 +204,13 @@ class AsyncModbusConnector(Connector, Thread):
 
     def __add_slave(self, slave_config):
         slave = Slave(self, self.__log, slave_config)
-        master = self.__get_master(slave)
-        slave.master = master
+        if slave.no_master:
+            master = self.__get_master(slave)
+            slave.master = master
 
         self.__slaves.append(slave)
+        
+        return slave
 
     def __add_slaves(self, slaves_config):
         for slave_config in slaves_config:
@@ -217,7 +220,11 @@ class AsyncModbusConnector(Connector, Thread):
                 self.__log.exception('Failed to add slave: %s', e)
 
         self.__log.debug('Added %d slaves', len(self.__slaves))
-
+    
+    @classmethod
+    def server_callback(cls, server: Server, queue: Queue):
+        queue.put_nowait(server.get_slave())
+    
     @classmethod
     def callback(cls, slave: Slave, queue: Queue):
         queue.put_nowait(slave)
@@ -238,14 +245,16 @@ class AsyncModbusConnector(Connector, Thread):
         # check if device have attributes or telemetry to poll
         if slave.uplink_converter_config.attributes or slave.uplink_converter_config.telemetry:
             try:
-                connected_to_master = await slave.connect()
-
+                if slave.no_master:
+                    connected_to_master = True
+                else:
+                    connected_to_master = await slave.connect()
+                
                 if connected_to_master:
                     self.__manage_device_connectivity_to_platform(slave)
-
-                if connected_to_master:
                     slave_data = await self.__read_slave_data(slave)
-                    self.__data_to_convert.put_nowait((slave, slave_data))
+                    if slave_data:
+                        self.__data_to_convert.put_nowait((slave, slave_data))
                 else:
                     self.__log.error('Socket is closed, connection is lost, for device %s', slave)
                     self.__delete_device_from_platform(slave)
@@ -270,7 +279,14 @@ class AsyncModbusConnector(Connector, Thread):
         for config_section in ('attributes', 'telemetry'):
             for config in getattr(slave.uplink_converter_config, config_section):
                 try:
-                    response = await slave.read(config['functionCode'], config['address'], config['objectsCount'])
+                    if slave.no_master:
+                        if config['address'] in self.__server.addresses_updated:
+                            response = self.__server.read(config['functionCode'], config['address'], config['objectsCount'])
+                        else:
+                            continue
+                    else:
+                        response = await slave.read(config['functionCode'], config['address'], config['objectsCount'])
+                        
                 except asyncio.exceptions.TimeoutError:
                     self.__log.error("Timeout error for device %s function code %s address %s",
                                      slave.device_name, config['functionCode'], config[ADDRESS_PARAMETER])
@@ -319,12 +335,20 @@ class AsyncModbusConnector(Connector, Thread):
                             batch_to_convert[batch_key] = []
 
                         batch_to_convert[batch_key].append(data)
-
-                    for (device_name, uplink_converter), data in batch_to_convert.items():
-                        converted_data: ConvertedData = uplink_converter.convert({}, data)
-                        self.__log.trace("Converted data: %r", converted_data)
-                        if len(converted_data['attributes']) or len(converted_data['telemetry']):
-                            self.__data_to_save.put_nowait(converted_data)
+                        
+                    self.__log.trace("Data read from %s slave: %s", slave, data)
+                    
+                    if slave.no_master:
+                        converted_data = ConvertedData(slave.device_name, slave.device_type)
+                        converted_data.add_to_attributes(data['attributes'])
+                        converted_data.add_to_telemetry(data['telemetry'])
+                    else:
+                        for (device_name, uplink_converter), data in batch_to_convert.items():
+                            converted_data: ConvertedData = uplink_converter.convert({}, data)
+                            self.__log.trace("Converted data: %r", converted_data)
+                            
+                    if len(converted_data['attributes']) or len(converted_data['telemetry']):
+                        self.__data_to_save.put_nowait(converted_data)
                 else:
                     sleep(.001)
             except Exception as e:
@@ -334,7 +358,7 @@ class AsyncModbusConnector(Connector, Thread):
         while not self.__stopped:
             if not self.__data_to_save.empty():
                 try:
-                    converted_data = self.__data_to_save.get_nowait()
+                    converted_data: ConvertedData = self.__data_to_save.get_nowait()
                     StatisticsService.count_connector_message(self.get_name(), stat_parameter_name='storageMsgPushed')
                     self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
                     self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1

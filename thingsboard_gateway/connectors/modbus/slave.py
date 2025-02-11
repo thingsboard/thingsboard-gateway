@@ -58,6 +58,7 @@ class Slave(Thread):
 
         self.callback = connector.callback
 
+        self.no_master = config.get('no_master', False)
         self.unit_id = config[UNIT_ID_PARAMETER]
         self.host = config.get(HOST_PARAMETER)
         self.port = config[PORT_PARAMETER]
@@ -110,7 +111,8 @@ class Slave(Thread):
         for attr_config in self.attributes_updates_config:
             self.shared_attributes_keys.append(attr_config[TAG_PARAMETER])
 
-        self.start()
+        if not self.no_master:
+            self.start()
 
     def __timer(self):
         self.__send_callback()
