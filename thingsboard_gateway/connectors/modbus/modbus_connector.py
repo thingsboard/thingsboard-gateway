@@ -226,13 +226,13 @@ class AsyncModbusConnector(Connector, Thread):
         while not self.__stopped:
             try:
                 slave = self.process_device_requests.get_nowait()
-                await self.__poll_device(slave)
+                await self.__process_device(slave)
             except Empty:
                 await asyncio.sleep(.01)
             except Exception as e:
                 self.__log.exception('Failed to poll device: %s', e)
 
-    async def __poll_device(self, slave: Slave):
+    async def __process_device(self, slave: Slave):
         self.__log.debug("Polling %s slave", slave)
 
         # check if device have attributes or telemetry to poll
