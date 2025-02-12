@@ -222,10 +222,6 @@ class AsyncModbusConnector(Connector, Thread):
         self.__log.debug('Added %d slaves', len(self.__slaves))
     
     @classmethod
-    def server_callback(cls, server: Server, queue: Queue):
-        queue.put_nowait(server.get_slave())
-    
-    @classmethod
     def callback(cls, slave: Slave, queue: Queue):
         queue.put_nowait(slave)
 
