@@ -229,7 +229,7 @@ class Server(Thread):
         blocks = {}
         if (config.get('values') is None) or (not len(config.get('values'))):
             self.__log.error("No values to read from device %s", config.get(DEVICE_NAME_PARAMETER, 'Modbus Slave'))
-            return
+            return None, None
 
         for (key, value) in config.get('values').items():
             values = {}
