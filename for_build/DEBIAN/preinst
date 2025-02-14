@@ -1,44 +1,23 @@
 #!/bin/sh
-#      Copyright 2022. ThingsBoard
-#
-#      Licensed under the Apache License, Version 2.0 (the "License");
-#      you may not use this file except in compliance with the License.
-#      You may obtain a copy of the License at
-#
-#          http://www.apache.org/licenses/LICENSE-2.0
-#
-#      Unless required by applicable law or agreed to in writing, software
-#      distributed under the License is distributed on an "AS IS" BASIS,
-#      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#      See the License for the specific language governing permissions and
-#      limitations under the License.
-
 set -e
 
-echo "Installing directory for configs..."
+echo "Preinst: Ensuring required directories exist..."
 
-# Check if the directory exists before creating it
-if [ ! -d "/etc/thingsboard-gateway" ]; then
-    sudo mkdir /etc/thingsboard-gateway
-    echo "Created /etc/thingsboard-gateway directory"
-else
-    echo "/etc/thingsboard-gateway directory already exists. Skipping creation."
-fi
+for dir in /etc/thingsboard-gateway /var/lib/thingsboard_gateway /var/log/thingsboard-gateway /var/lib/thingsboard_gateway/extensions; do
+    if [ ! -d "$dir" ]; then
+        echo "Preinst: Creating directory $dir..."
+        mkdir -p "$dir"
+    else
+        echo "Preinst: Directory $dir already exists."
+    fi
+done
 
-echo "Adding non-root user"
-# check if the user exists
+echo "Preinst: Checking for system user 'thingsboard_gateway'..."
 if id "thingsboard_gateway" >/dev/null 2>&1; then
-    echo "User 'thingsboard_gateway' already exists. Skipping user creation."
+    echo "Preinst: User 'thingsboard_gateway' already exists. Skipping creation."
 else
-    sudo adduser --system --gecos "ThingsBoard-Gateway Service" --disabled-password --group --home /var/lib/thingsboard_gateway thingsboard_gateway
-    echo "Created user 'thingsboard_gateway'"
+    adduser --system --gecos "ThingsBoard-Gateway Service" --disabled-password --group --home /var/lib/thingsboard_gateway thingsboard_gateway
+    echo "Preinst: Created user 'thingsboard_gateway'."
 fi
 
-
-# Check if the directory for extensions exists before creating it
-if [ ! -d "/var/lib/thingsboard_gateway/extensions" ]; then
-    sudo mkdir -p /var/lib/thingsboard_gateway/extensions
-    echo "Created /var/lib/thingsboard_gateway/extensions directory"
-else
-    echo "/var/lib/thingsboard_gateway/extensions directory already exists. Skipping creation."
-fi
+exit 0

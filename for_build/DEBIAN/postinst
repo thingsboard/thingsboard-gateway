@@ -1,87 +1,72 @@
 #!/bin/sh
 set -e
 
-# Automatically added by dh_python3:
-if which py3compile >/dev/null 2>&1; then
-    echo "Running py3compile for python3-thingsboard-gateway..."
-    py3compile -p python3-thingsboard-gateway
-fi
-if which pypy3compile >/dev/null 2>&1; then
-    echo "Running pypy3compile for python3-thingsboard-gateway..."
-    pypy3compile -p python3-thingsboard-gateway || true
+echo "Postinst: Ensuring required directories exist..."
+for dir in /var/lib/thingsboard_gateway /etc/thingsboard-gateway /var/log/thingsboard-gateway; do
+    if [ ! -d "$dir" ]; then
+        echo "Postinst: Creating $dir..."
+        mkdir -p "$dir"
+    fi
+done
+
+# Extract configuration files from configs.tar.gz if present
+if [ -f /etc/thingsboard-gateway/configs.tar.gz ]; then
+    if [ -d /etc/thingsboard-gateway/config ]; then
+        echo "Postinst: Directory /etc/thingsboard-gateway/config exists. Creating backup as configs_backup.tar.gz..."
+        tar -czf /etc/thingsboard-gateway/configs_backup.tar.gz -C /etc/thingsboard-gateway config
+        echo "Postinst: Removing existing /etc/thingsboard-gateway/config directory..."
+        rm -rf /etc/thingsboard-gateway/config
+    fi
+    echo "Postinst: Extracting configuration files from configs.tar.gz..."
+    tar -xzf /etc/thingsboard-gateway/configs.tar.gz -C /etc/thingsboard-gateway
+    rm -f /etc/thingsboard-gateway/configs.tar.gz
 fi
 
-echo "Checking if /var/lib/thingsboard_gateway/ exists..."
-if [ ! -d "/var/lib/thingsboard_gateway/" ]; then
-    echo "Creating /var/lib/thingsboard_gateway/ directory..."
-    mkdir -p /var/lib/thingsboard_gateway/
-else
-    echo "/var/lib/thingsboardes_gateway/ already exists."
+# Extract extensions archive into /var/lib/thingsboard_gateway/extensions
+if [ -f /var/lib/thingsboard_gateway/extensions.tar.gz ]; then
+    if [ -d /var/lib/thingsboard_gateway/extensions ]; then
+        echo "Postinst: Directory /var/lib/thingsboard_gateway/extensions exists. Creating backup as extensions_backup.tar.gz..."
+        tar -czf /var/lib/thingsboard_gateway/extensions_backup.tar.gz -C /var/lib/thingsboard_gateway extensions
+        echo "Postinst: Removing existing /var/lib/thingsboard_gateway/extensions directory..."
+        rm -rf /var/lib/thingsboard_gateway/extensions
+    fi
+    echo "Postinst: Extracting extensions from extensions.tar.gz..."
+    rm -rf /var/lib/thingsboard_gateway/extensions
+    mkdir -p /var/lib/thingsboard_gateway/extensions
+    tar -xzf /var/lib/thingsboard_gateway/extensions.tar.gz -C /var/lib/thingsboard_gateway/extensions
+    rm -f /var/lib/thingsboard_gateway/extensions.tar.gz
 fi
-echo "Checking if /etc/thingsboard-gateway/extensions exists..."
-if [ ! -d "/etc/thingsboard-gateway/extensions" ]; then
-    sudo mkdir -p /etc/thingsboard-gateway/extensions
-    echo "Created /etc/thingsboard-gateway/extensions directory"
-else
-    echo "/etc/thingsboard-gateway/extensions directory already exists. Skipping creation."
-fi
-
-echo "Checking if /etc/thingsboard-gateway/rpc exists..."
-if [ ! -d "/etc/thingsboard-gateway/rpc" ]; then
-    sudo mkdir -p /etc/thingsboard-gateway/rpc
-    echo "Created /etc/thingsboard-gateway/rpc directory"
-else
-    echo "/etc/thingsboard-gateway/rpc directory already exists. Skipping creation."
-fi
-
-# Copy necessary files and set permissions
-echo "Copying extensions to /etc/thingsboard-gateway/extensions/..."
-sudo cp -a -r  /var/lib/thingsboard_gateway/extensions /etc/thingsboard-gateway/extensions
-echo "Removing /var/lib/thingsboard-gateway/extensions..."
-sudo rm -r /var/lib/thingsboard_gateway/extensions
-
-echo "Adding users to dialout and thingsboard_gateway groups..."
-sudo usermod -a -G dialout $USER
-sudo usermod -a -G dialout thingsboard_gateway
-sudo usermod -a -G thingsboard_gateway $USER
 
 VENV_PATH="/var/lib/thingsboard_gateway/venv"
 
-# Create virtual environment if it doesn't exist
-echo "Checking for virtual environment at $VENV_PATH..."
-if [ ! -d "$VENV_PATH" ]; then
-    echo "Creating Python virtual environment..."
-    python3 -m venv "$VENV_PATH"
-else
-    echo "Removing previous virtual environment"
+echo "Postinst: Setting up Python virtual environment at $VENV_PATH..."
+if [ -d "$VENV_PATH" ]; then
+    echo "Postinst: Removing existing virtual environment..."
     rm -rf "$VENV_PATH"
-    python3 -m venv "$VENV_PATH"
 fi
+python3 -m venv "$VENV_PATH"
+"$VENV_PATH/bin/pip" install --upgrade pip setuptools
 
-echo "Setting permissions for /var/log/thingsboard-gateway/..."
-sudo chown thingsboard_gateway:thingsboard_gateway /var/log/thingsboard-gateway/ -R
-echo "Setting permissions for /var/lib/thingsboard_gateway/..."
-sudo chown thingsboard_gateway:thingsboard_gateway /var/lib/thingsboard_gateway/ -R
-echo "Setting permissions for /etc/thingsboard-gateway/..."
-sudo chown thingsboard_gateway:thingsboard_gateway /etc/thingsboard-gateway/ -R
+# Install the locally built wheel from /var/lib/thingsboard_gateway.
+WHEEL_FILE=$(ls /var/lib/thingsboard_gateway/*.whl 2>/dev/null || true)
+if [ -z "$WHEEL_FILE" ]; then
+    echo "Postinst Error: No wheel file found in /var/lib/thingsboard_gateway." >&2
+    exit 1
+fi
+echo "Postinst: Installing wheel package: $WHEEL_FILE into the virtual environment..."
+"$VENV_PATH/bin/pip" install --upgrade --force-reinstall "$WHEEL_FILE"
+rm -f /var/lib/thingsboard_gateway/$(basename "$WHEEL_FILE")
 
-# Activate the virtual environment and install required dependencies
-echo "Upgrading pip and installing required dependencies..."
-"$VENV_PATH/bin/pip" install --upgrade pip
+echo "Postinst: Setting ownership for directories..."
+chown -R thingsboard_gateway:thingsboard_gateway /var/lib/thingsboard_gateway
+chown -R thingsboard_gateway:thingsboard_gateway /etc/thingsboard-gateway
+chown -R thingsboard_gateway:thingsboard_gateway /var/log/thingsboard-gateway
 
-echo "Getting wheel package name..."
-echo $(ls /var/lib/thingsboard_gateway/)
-WHEEL_FILE=$(ls /var/lib/thingsboard_gateway/*.whl)
-echo "Installing wheel package $WHEEL_FILE..."
-"$VENV_PATH/bin/pip" install $WHEEL_FILE
-
-# Modify the logs config file
-echo "Updating logs configuration..."
-sudo sed -i 's/\.\/logs/\/var\/log\/thingsboard-gateway/g' /etc/thingsboard-gateway/config/logs.json >> /etc/thingsboard-gateway/config/logs.json
-
-# Enable and start the service
-echo "Enabling daemon..."
-sudo pidof systemd && sudo systemctl enable thingsboard-gateway || echo "Systemctl not found, cannot enable the daemon!"
-echo "Starting daemon..."
-sudo pidof systemd && sudo systemctl start thingsboard-gateway || echo "Systemctl not found, cannot start the daemon!"
-echo -e "\e[96mThingsBoard Gateway \e[92mhas been installed. Have a nice day \e[93m\e[5m:)\e[25m\e[39m"
+echo "Postinst: Enabling thingsboard-gateway service..."
+systemctl enable thingsboard-gateway.service
+echo "Postinst: Starting thingsboard-gateway service..."
+systemctl start thingsboard-gateway.service
+echo ""
+echo -e "Postinst: \e[92mThingsBoard IoT Gateway has been installed successfully.\e[39m"
+echo -e "Have a nice day! \e[95m\e[5m:)\e[25m\e[39m" || echo "Have a nice day!"
+exit 0
