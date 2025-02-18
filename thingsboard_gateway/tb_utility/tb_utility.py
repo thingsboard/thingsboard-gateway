@@ -20,6 +20,7 @@ from re import search, findall
 from time import monotonic, sleep
 from typing import Union, TYPE_CHECKING
 from uuid import uuid4
+from cachetools import TTLCache
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -42,6 +43,8 @@ log = getLogger("service")
 
 
 class TBUtility:
+
+    JSONPATH_EXPRESSION_CACHE = TTLCache(maxsize=10000, ttl=30)
 
     # Data conversion methods
 
@@ -134,7 +137,10 @@ class TBUtility:
                 try:
                     if " " in target_str:
                         target_str = '.'.join('"' + section_key + '"' if " " in section_key else section_key for section_key in target_str.split('.')) # noqa
-                    jsonpath_expression = parse(target_str)
+                    jsonpath_expression = TBUtility.JSONPATH_EXPRESSION_CACHE.get(target_str)
+                    if jsonpath_expression is None:
+                        jsonpath_expression = parse(target_str)
+                        TBUtility.JSONPATH_EXPRESSION_CACHE[target_str] = jsonpath_expression
                     jsonpath_match = jsonpath_expression.find(body)
                     if jsonpath_match:
                         full_value = jsonpath_match[0].value
