@@ -489,7 +489,7 @@ class OpcUaConnector(Connector, Thread):
     def is_regex_pattern(pattern):
         return not re.fullmatch(pattern, pattern)
 
-    async def __find_nodes(self, node_list, current_parent_node, nodes, path=None):
+    async def __find_nodes(self, node_list, current_parent_node, nodes, path="Root"):
         assert len(node_list) > 0
         final = []
 
