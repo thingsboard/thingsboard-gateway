@@ -19,7 +19,8 @@ from thingsboard_gateway.storage.event_storage import EventStorage
 
 
 class MemoryEventStorage(EventStorage):
-    def __init__(self, config, logger):
+    def __init__(self, config, logger, main_stop_event):
+        super().__init__(config, logger, main_stop_event)
         self.__log = logger
         self.__queue_len = config.get("max_records_count", 10000)
         self.__events_per_time = config.get("read_records_count", 1000)

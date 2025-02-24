@@ -26,7 +26,8 @@ from thingsboard_gateway.storage.file.file_event_storage_settings import FileEve
 
 
 class FileEventStorage(EventStorage):
-    def __init__(self, config, logger):
+    def __init__(self, config, logger, main_stop_event):
+        super().__init__(config, logger, main_stop_event)
         self.__log = logger
         self.settings = FileEventStorageSettings(config)
         self.init_data_folder_if_not_exist()

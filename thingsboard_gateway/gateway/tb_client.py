@@ -408,13 +408,13 @@ class TBClient(threading.Thread):
     def run(self):
         while not self.__stopped:
             try:
-                if self.__stop_event.wait(timeout=0.2):
+                if self.__stop_event.wait(timeout=0.1):
                     break
             except KeyboardInterrupt:
                 self.__stopped = True
                 self.__stop_event.set()
             except TimeoutError:
-                pass
+                sleep(0.1)
             except Exception as e:
                 self.__logger.exception("Error in main MQTT client loop: %s", exc_info=e)
 

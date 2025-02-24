@@ -15,7 +15,7 @@
 import datetime
 import subprocess
 from threading import Thread, RLock, Event
-from time import monotonic
+from time import monotonic, sleep
 from platform import system as platform_system
 
 import simplejson
@@ -232,7 +232,7 @@ class StatisticsService(Thread):
                 wait_time = max(0, min(next_service_poll, next_custom_command_poll))
 
                 if wait_time > 0:
-                    self._stopped.wait(wait_time)
+                    sleep(wait_time)
 
                 cur_monotonic = int(monotonic())
                 if (cur_monotonic - self._last_service_poll >= self._stats_send_period_in_seconds or

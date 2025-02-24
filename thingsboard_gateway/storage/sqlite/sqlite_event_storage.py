@@ -12,17 +12,14 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from gc import collect
+from sqlite3 import InterfaceError
 from threading import Event
-from time import time
+from time import sleep, time, monotonic
 
 from thingsboard_gateway.storage.event_storage import EventStorage
 from thingsboard_gateway.storage.sqlite.database import Database
-from queue import Queue
-from thingsboard_gateway.storage.sqlite.database_request import DatabaseRequest
-from thingsboard_gateway.storage.sqlite.database_action_type import DatabaseActionType
-#
-#   No need to import DatabaseResponse, responses come to this component to be deconstructed
-#
+from queue import Queue, Full
 from logging import getLogger
 
 
@@ -31,64 +28,86 @@ class SQLiteEventStorage(EventStorage):
     HIGH level api for thingsboard_gateway main loop
     """
 
-    def __init__(self, config, logger):
+    def __init__(self, config, logger, main_stop_event):
+        super().__init__(config, logger, main_stop_event)
         self.__log = logger
         self.__log.info("Sqlite Storage initializing...")
-        self.__log.info("Initializing read and process queues")
-        self.processQueue = Queue(-1)
+        self.write_queue = Queue(-1)
         self.stopped = Event()
-        self.db = Database(config, self.processQueue, self.__log, stopped=self.stopped)
-        self.db.setProcessQueue(self.processQueue)
+        self.db = Database(config, self.write_queue, self.__log, stopped=self.stopped)
         self.db.init_table()
         self.__log.info("Sqlite storage initialized!")
         self.delete_time_point = None
+        self.__event_pack_processing_start = monotonic()
         self.last_read = time()
 
     def get_event_pack(self):
         if not self.stopped.is_set():
-            data_from_storage = self.read_data()
+            self.__event_pack_processing_start = monotonic()
+            event_pack_messages = []
             try:
-                event_pack_timestamps, event_pack_messages = zip(*([(item[0], item[1]) for item in data_from_storage]))
+                data_from_storage = self.read_data()
+            except InterfaceError as e:
+                self.__log.error("InterfaceError occurred while reading data from storage: %s", e)
+                return []
+            try:
+                for row in data_from_storage:
+                    event_pack_messages.append(row['message'])
+                    if self.delete_time_point is None or self.delete_time_point < row['id']:
+                        self.delete_time_point = row['id']
             except (ValueError, TypeError):
                 return []
-            self.delete_time_point = max(event_pack_timestamps)
+            except (InterfaceError, MemoryError):
+                return []
+            if len(event_pack_messages) > 0:
+                self.__log.trace("Retrieved %r records from storage in %r milliseconds, left in storage: %r",
+                                len(event_pack_messages),
+                                int((monotonic() - self.__event_pack_processing_start) * 1000),
+                                self.db.get_stored_messages_count())
+            self.db.can_prepare_new_batch()
             return event_pack_messages
         else:
             return []
 
     def event_pack_processing_done(self):
+        self.__log.trace("Batch processing done, processing time: %i milliseconds",
+                        int((monotonic() - self.__event_pack_processing_start) * 1000))
         if not self.stopped.is_set():
             self.delete_data(self.delete_time_point)
+        collect()
 
     def read_data(self):
-        self.db.__stopped = True
         data = self.db.read_data()
-        self.db.__stopped = False
         return data
 
-    def delete_data(self, ts):
-        return self.db.delete_data(ts)
+    def delete_data(self, row_id):
+        return self.db.delete_data(row_id=row_id)
 
     def put(self, message):
         try:
             if not self.stopped.is_set():
-                _type = DatabaseActionType.WRITE_DATA_STORAGE
-                request = DatabaseRequest(_type, message)
-
-                self.__log.info("Sending data to storage")
-                self.processQueue.put(request)
+                self.__log.trace("Sending data to storage: %s", message)
+                self.write_queue.put_nowait(message)
                 return True
             else:
                 return False
+        except Full:
+            self.__log.error("Storage queue is full! Failed to send data to storage!")
+            return False
         except Exception as e:
             self.__log.exception("Failed to write data to storage! Error: %s", e)
 
     def stop(self):
         self.stopped.set()
-        self.db.closeDB()
+        while not self.db.stopped_flag.is_set() and not self._main_stop_event.is_set():
+            self.db.interrupt()
+            sleep(.1)
+        collect()
 
     def len(self):
-        return self.processQueue.qsize()
+        qsize = self.write_queue.qsize()
+        stored_messages = self.db.get_stored_messages_count()
+        return qsize + stored_messages
 
     def update_logger(self):
         self.__log = getLogger("storage")

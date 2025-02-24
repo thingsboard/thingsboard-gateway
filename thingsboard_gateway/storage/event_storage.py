@@ -17,9 +17,9 @@ from abc import ABC, abstractmethod
 
 class EventStorage(ABC):
 
-    @abstractmethod
-    def __init__(self, config, logger):
-        pass
+    def __init__(self, config, logger, main_stop_event):
+        self._config = config
+        self._main_stop_event = main_stop_event
 
     @abstractmethod
     def put(self, event):
@@ -27,7 +27,7 @@ class EventStorage(ABC):
 
     @abstractmethod
     def get_event_pack(self):
-        # Returns max "10" events from pack
+        # Returns events from pack
         pass
 
     @abstractmethod
@@ -48,3 +48,5 @@ class EventStorage(ABC):
     def update_logger(self):
         pass
 
+    def get_configuration(self):
+        return self._config

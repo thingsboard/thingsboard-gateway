@@ -189,7 +189,8 @@ class TBGatewayService:
         storage_log = logging.getLogger('storage')
         storage_log.addHandler(self.main_handler)
         self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"],
-                                                                                          storage_log)
+                                                                                          storage_log,
+                                                                                          self.stop_event)
         self._report_strategy_service = ReportStrategyService(self.__config['thingsboard'],
                                                               self,
                                                               self.__converted_data_queue,
@@ -362,7 +363,7 @@ class TBGatewayService:
         self.__converted_data_queue = SimpleQueue()
         self.__sync_device_shared_attrs_queue = SimpleQueue()
 
-        self.__messages_confirmation_executor = concurrent.futures.ThreadPoolExecutor() # noqa
+        self.__messages_confirmation_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4) # noqa
 
         self.__updates_check_period_ms = 300000
         self.__updates_check_time = 0
@@ -556,7 +557,7 @@ class TBGatewayService:
                             self.__rpc_requests_in_progress = new_rpc_request_in_progress
                         except Exception as e:
                             log.error("Error while processing RPC requests: %s", exc_info=e)
-                            sleep(1)
+                            self.stop_event.wait(1)
                     else:
                         try:
                             self.stop_event.wait(.02)
@@ -653,7 +654,7 @@ class TBGatewayService:
 
                 while (not self.tb_client.is_connected() and not self.tb_client.client.get_subscriptions_in_progress()
                        and not self.stopped):
-                    sleep(1)
+                    self.stop_event.wait(1)
 
                 self._check_shared_attributes(shared_keys=[])
             except Exception as e:
@@ -995,7 +996,7 @@ class TBGatewayService:
             self.__devices_shared_attributes.pop(device_name, None)
 
     def get_connector_devices(self, connector):
-        return [device_name for device_name, device in self.__connected_devices.items() if device.get('connector') and device['connector'].get_id() == connector.get_id()]
+        return [device_name for device_name, device in self.__connected_devices.items() if device.get('connector') and device['connector'].get_id() == connector.get_id()]  # noqa
 
     def __cleanup_connectors(self):
         self.available_connectors_by_id = {connector_id: connector for (connector_id, connector) in
@@ -1164,7 +1165,7 @@ class TBGatewayService:
                         self.__send_to_storage_old_formatted_data(connector_name, connector_id, data_array)
 
                 else:
-                    sleep(0.02)
+                    self.stop_event.wait(0.02)
             except Exception as e:
                 log.error("Error while sending data to storage!", exc_info=e)
 
@@ -1358,20 +1359,20 @@ class TBGatewayService:
                       "[" + connector_id + "] " if connector_id is not None else "",
                       data.device_name if isinstance(data, ConvertedData) else data["deviceName"], connector_name)
 
-    def check_size(self, devices_data_in_event_pack, current_data_pack_size, item_size):
-
-        if current_data_pack_size + item_size >= self.get_max_payload_size_bytes() - max(100, self.get_max_payload_size_bytes()/10): # noqa
-            current_data_pack_size = TBUtility.get_data_size(devices_data_in_event_pack)
-        else:
-            current_data_pack_size += item_size
-
-        if current_data_pack_size >= self.get_max_payload_size_bytes():
-            self.__send_data(devices_data_in_event_pack)
-            for device in devices_data_in_event_pack:
-                devices_data_in_event_pack[device]["telemetry"] = []
-                devices_data_in_event_pack[device]["attributes"] = {}
-            current_data_pack_size = 0
-        return current_data_pack_size
+    # def check_size(self, devices_data_in_event_pack, current_data_pack_size, item_size):
+    #
+    #     if current_data_pack_size + item_size >= self.get_max_payload_size_bytes() - max(100, self.get_max_payload_size_bytes()/10): # noqa
+    #         current_data_pack_size = TBUtility.get_data_size(devices_data_in_event_pack)
+    #     else:
+    #         current_data_pack_size += item_size
+    #
+    #     if current_data_pack_size >= self.get_max_payload_size_bytes():
+    #         self.__send_data(devices_data_in_event_pack)
+    #         for device in devices_data_in_event_pack:
+    #             devices_data_in_event_pack[device]["telemetry"] = []
+    #             devices_data_in_event_pack[device]["attributes"] = {}
+    #         current_data_pack_size = 0
+    #     return current_data_pack_size
 
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
@@ -1423,17 +1424,17 @@ class TBGatewayService:
                                     for item in current_event["telemetry"]:
                                         if has_metadata and item.get('ts'):
                                             item.update({'metadata': current_event.get('metadata')})
-                                        current_event_pack_data_size = self.check_size(devices_data_in_event_pack,
-                                                                                       current_event_pack_data_size,
-                                                                                       TBUtility.get_data_size(item))
+                                        # current_event_pack_data_size = self.check_size(devices_data_in_event_pack,
+                                        #                                                current_event_pack_data_size,
+                                        #                                                TBUtility.get_data_size(item))
                                         devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(item) # noqa
                                         telemetry_dp_count += len(item.get('values', []))
                                 else:
                                     if has_metadata and current_event["telemetry"].get('ts'):
                                         current_event["telemetry"].update({'metadata': current_event.get('metadata')})
-                                    current_event_pack_data_size = self.check_size(devices_data_in_event_pack,
-                                                                                   current_event_pack_data_size,
-                                                                                   TBUtility.get_data_size(current_event["telemetry"])) # noqa
+                                    # current_event_pack_data_size = self.check_size(devices_data_in_event_pack,
+                                    #                                                current_event_pack_data_size,
+                                    #                                                TBUtility.get_data_size(current_event["telemetry"])) # noqa
                                     devices_data_in_event_pack[current_event["deviceName"]]["telemetry"].append(current_event["telemetry"]) # noqa
                                     telemetry_dp_count += len(current_event["telemetry"].get('values', []))
                             # log.debug("Processing telemetry in event took %r seconds.", time() - start_processing_telemetry_in_event) # noqa
@@ -1441,24 +1442,26 @@ class TBGatewayService:
                             if current_event.get("attributes"):
                                 if isinstance(current_event["attributes"], list):
                                     for item in current_event["attributes"]:
-                                        current_event_pack_data_size = self.check_size(devices_data_in_event_pack,
-                                                                                       current_event_pack_data_size,
-                                                                                       TBUtility.get_data_size(item))
+                                        # current_event_pack_data_size = self.check_size(devices_data_in_event_pack,
+                                        #                                                current_event_pack_data_size,
+                                        #                                                TBUtility.get_data_size(item))
                                         devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(item.items()) # noqa
                                         attribute_dp_count += 1
                                 else:
-                                    current_event_pack_data_size = self.check_size(devices_data_in_event_pack,
-                                                                                   current_event_pack_data_size,
-                                                                                   TBUtility.get_data_size(current_event["attributes"])) # noqa
+                                    # current_event_pack_data_size = self.check_size(devices_data_in_event_pack,
+                                    #                                                current_event_pack_data_size,
+                                    #                                                TBUtility.get_data_size(current_event["attributes"])) # noqa
                                     devices_data_in_event_pack[current_event["deviceName"]]["attributes"].update(current_event["attributes"].items()) # noqa
                                     attribute_dp_count += 1
 
                             # log.debug("Processing attributes in event took %r seconds.", time() - start_processing_attributes_in_event) # noqa
+                        log.debug("Telemetry dp count: %r and attributes dp count: %r. Counting took: %r milliseconds.",  # noqa
+                                  telemetry_dp_count, attribute_dp_count, int((time() - start_pack_processing)*1000))  # noqa
                         if devices_data_in_event_pack:
                             if not self.tb_client.is_connected():
                                 continue
                             while self.__rpc_reply_sent:
-                                sleep(.01)
+                                self.stop_event.wait(0.01)
                             if self.__latency_debug_mode and events_len > 100:
                                 pack_processing_time = int((time() - start_pack_processing) * 1000)
                                 average_event_processing_time = (pack_processing_time / events_len)
@@ -1489,12 +1492,12 @@ class TBGatewayService:
                         else:
                             continue
                     else:
-                        sleep(self.__min_pack_send_delay_ms)
+                        self.stop_event.wait(self.__min_pack_send_delay_ms)
                 else:
-                    sleep(1)
+                    self.stop_event.wait(1)
             except Exception as e:
                 log.error("Error while sending data to ThingsBoard, it will be resent.", exc_info=e)
-                sleep(1)
+                self.stop_event.wait(1)
         log.info("Send data Thread has been stopped successfully.")
 
     def __handle_published_events(self):
@@ -1635,7 +1638,7 @@ class TBGatewayService:
                 else:
                     self.__rpc_to_devices_queue.put((request_id, content, received_time))
             except (TimeoutError, Empty):
-                pass
+                self.stop_event.wait(0.05)
 
     def __rpc_gateway_processing(self, request_id, content):
         log.info("Received RPC request to the gateway, id: %s, method: %s", str(request_id), content["method"])
@@ -1723,7 +1726,7 @@ class TBGatewayService:
                 args = self.__rpc_processing_queue.get(timeout=1)
                 self.__send_rpc_reply(*args)
             except (TimeoutError, Empty):
-                pass
+                self.stop_event.wait(0.05)
 
     def __send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None,
                          quality_of_service=0, to_connector_rpc=False):
@@ -1868,10 +1871,10 @@ class TBGatewayService:
     def __sync_device_shared_attrs_loop(self):
         while not self.stopped:
             try:
-                device_name, connector = self.__sync_device_shared_attrs_queue.get()
+                device_name, connector = self.__sync_device_shared_attrs_queue.get_nowait()
                 self.__process_sync_device_shared_attrs(device_name, connector)
             except Empty:
-                sleep(.1)
+                self.stop_event.wait(0.1)
 
     def __process_sync_device_shared_attrs(self, device_name, connector):
         shared_attributes = connector.get_device_shared_attributes_keys(device_name)
@@ -1952,7 +1955,7 @@ class TBGatewayService:
                 elif action == DeviceActions.DISCONNECT:
                     self.del_device(data['deviceName'])
             else:
-                sleep(.2)
+                self.stop_event.wait(0.2)
 
     def __load_persistent_connector_keys(self):
         persistent_keys = {}
@@ -2082,7 +2085,7 @@ class TBGatewayService:
                           device_name,
                           disconnect_device_after_idle)
 
-            sleep(check_devices_idle_every_sec)
+            self.stop_event.wait(check_devices_idle_every_sec)
 
     @CountMessage('msgsSentToPlatform')
     def send_telemetry(self, telemetry, quality_of_service=None, wait_for_publish=True):

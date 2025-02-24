@@ -21,7 +21,7 @@ from re import fullmatch, match, search
 from threading import Thread, Event
 from time import sleep, time
 
-import simplejson
+import orjson
 
 from thingsboard_gateway.connectors.mqtt.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.gateway.constant_enums import Status
@@ -268,9 +268,9 @@ class MqttConnector(Connector, Thread):
 
     @staticmethod
     def __add_ts_to_test_message(msg, ts_name):
-        msg = simplejson.loads(msg.decode('utf-8').replace("'", '"'))
+        msg = orjson.loads(msg.decode('utf-8').replace("'", '"'))
         msg[ts_name] = int(time() * 1000)
-        return simplejson.dumps(msg).encode('utf-8')
+        return orjson.dumps(msg).encode('utf-8')
 
     def load_handlers(self, handler_flavor, mandatory_keys, accepted_handlers_list):
         handler_configuration = self.config.get(handler_flavor)
@@ -292,19 +292,19 @@ class MqttConnector(Connector, Thread):
                     if key not in handler:
                         # Will report all missing fields to user before discarding the entry => no break here
                         discard = True
-                        self.__log.error("Mandatory key '%s' missing from %s handler: %s",
-                                         key, handler_flavor, simplejson.dumps(handler))
+                        self.__log.error("Mandatory key '%s' missing from %s handler: %r",
+                                         key, handler_flavor, handler)
                     else:
-                        self.__log.debug("Mandatory key '%s' found in %s handler: %s",
-                                         key, handler_flavor, simplejson.dumps(handler))
+                        self.__log.debug("Mandatory key '%s' found in %s handler: %r",
+                                         key, handler_flavor, handler)
 
                 if discard:
-                    self.__log.warning("%s handler is missing some mandatory keys => rejected: %s",
-                                       handler_flavor, simplejson.dumps(handler))
+                    self.__log.warning("%s handler is missing some mandatory keys => rejected: %r",
+                                       handler_flavor, handler)
                 else:
                     accepted_handlers_list.append(handler)
-                    self.__log.debug("%s handler has all mandatory keys => accepted: %s",
-                                     handler_flavor, simplejson.dumps(handler))
+                    self.__log.debug("%s handler has all mandatory keys => accepted: %r",
+                                     handler_flavor, handler)
 
             self.__log.info("Number of accepted %s handlers: %d",
                             handler_flavor,
@@ -604,7 +604,7 @@ class MqttConnector(Connector, Thread):
     def _process_on_message(self):
         while not self.__stopped:
             if not self._on_message_queue.empty():
-                client, userdata, message = self._on_message_queue.get()
+                client, userdata, message = self._on_message_queue.get_nowait()
 
                 self.statistics['MessagesReceived'] += 1
                 content = TBUtility.decode(message)
@@ -787,7 +787,7 @@ class MqttConnector(Connector, Thread):
             data = value_expression.replace("${attributeKey}", str(attribute_name[0])) \
                 .replace("${attributeValue}", str(attribute_values))
         else:
-            data = simplejson.dumps(attribute_values)
+            data = orjson.dumps(attribute_values)
 
         self._client.publish(topic, data, retain=retain).wait_for_publish()
 
@@ -800,7 +800,7 @@ class MqttConnector(Connector, Thread):
                         if match(attribute_update["attributeFilter"], attribute_key):
                             received_value = content["data"][attribute_key]
                             if isinstance(received_value, dict) or isinstance(received_value, list):
-                                received_value = simplejson.dumps(received_value)
+                                received_value = orjson.dumps(received_value)
                             elif isinstance(received_value, bool):
                                 received_value = str(received_value).lower()
                             elif isinstance(received_value, str):
@@ -901,7 +901,7 @@ class MqttConnector(Connector, Thread):
 
             data_to_send = rpc_config.get('valueExpression')
             for (tag, value) in zip(data_to_send_tags, data_to_send_values):
-                data_to_send = data_to_send.replace('${' + tag + '}', simplejson.dumps(value))
+                data_to_send = data_to_send.replace('${' + tag + '}', orjson.dumps(value))
 
             try:
                 self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
@@ -1047,7 +1047,7 @@ class MqttConnector(Connector, Thread):
             while not self.stopped:
                 try:
                     self.in_progress = True
-                    convert_function, config, incoming_data = self.__msg_queue.get(True, 100)
+                    convert_function, config, incoming_data = self.__msg_queue.get_nowait()
                     converted_data: ConvertedData = convert_function(config, incoming_data)
                     if converted_data and (converted_data.telemetry_datapoints_count > 0 or
                                            converted_data.attributes_datapoints_count > 0):

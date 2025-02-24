@@ -10,7 +10,7 @@ class GatewayProxy(multiprocessing.managers.BaseProxy):
         """
         self._id = list(self._idset)[0]
         self._connect()
-        conn = self._tls.connection
+        conn = self._tls.write_connection
 
         conn.send((self._id, methodname, args, kwds))
         kind, result = conn.recv()

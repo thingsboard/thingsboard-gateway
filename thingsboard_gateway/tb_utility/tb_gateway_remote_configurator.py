@@ -35,6 +35,7 @@ from thingsboard_gateway.gateway.tb_client import TBClient
 
 if TYPE_CHECKING:
     from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
+from thingsboard_gateway.storage.event_storage import EventStorage
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -274,9 +275,9 @@ class RemoteConfigurator:
 
                     self.in_process = False
                 else:
-                    self._gateway.stop_event.wait(.05)
+                    self._gateway.stop_event.wait(.5)
             except (TimeoutError, Empty):
-                self._gateway.stop_event.wait(.1)
+                self._gateway.stop_event.wait(.5)
                 pass
             except Exception as e:
                 self.__log.error('Exception while processing configuration update request.', exc_info=e)
@@ -372,16 +373,20 @@ class RemoteConfigurator:
     def _handle_storage_configuration_update(self, config):
         self.__log.debug('Processing storage configuration update...')
 
-        old_event_storage = self._gateway._event_storage
+        old_event_storage_config = self._gateway._event_storage.get_configuration()
+        self._gateway._event_storage.stop()
+        storage_logger = self._gateway.remote_handler.get_logger('storage')
         try:
             storage_class = self._gateway.event_storage_types[config["type"]]
             self._gateway._event_storage.stop()
-            storage_logger = self._gateway.remote_handler.get_logger('storage')
-            self._gateway._event_storage = storage_class(config, storage_logger)
+            self._gateway._event_storage = storage_class(config, storage_logger, self._gateway.stop_event)
         except Exception as e:
             self.__log.error('Something went wrong with applying the new storage configuration. Reverting...')
             self.__log.exception(e)
-            self._gateway._event_storage = old_event_storage
+            old_storage_class = self._gateway.event_storage_types[old_event_storage_config["type"]]
+            self._gateway._event_storage = old_storage_class(old_event_storage_config,
+                                                             storage_logger,
+                                                             self._gateway.stop_event)
         else:
             self.storage_configuration = config
             with open(self._gateway.get_config_path() + "tb_gateway.json", "w", encoding="UTF-8") as file:

@@ -120,7 +120,7 @@ class TBRemoteLoggerHandler(logging.Handler):
                 if logs_for_sending_list and not self.__gateway.stopped:
                     self.__gateway.send_telemetry(logs_for_sending_list)
             except (TimeoutError, Empty):
-                pass
+                sleep(.1)
             except Exception as e:
                 log = TbLogger('service')
                 log.debug("Exception while sending logs.", exc_info=e)
