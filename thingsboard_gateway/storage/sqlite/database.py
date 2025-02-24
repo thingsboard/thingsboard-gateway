@@ -59,6 +59,7 @@ class Database(Thread):
         # Initialize database connections
         self.db = DatabaseConnector(self.settings, self.__log, self.stopped)
         self.db.connect()
+        self.init_table()
         self.process_queue = processing_queue
         self.__last_msg_check = 0
         self.__can_prepare_new_batch = True

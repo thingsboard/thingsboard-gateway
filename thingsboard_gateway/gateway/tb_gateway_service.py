@@ -1354,6 +1354,12 @@ class TBGatewayService:
         else:
             json_data = dumps(data, separators=(',', ':'), skipkeys=True)
         save_result = self._event_storage.put(json_data)
+        tries = 4
+        current_try = 0
+        while not save_result and current_try < tries:
+            sleep(0.1)
+            save_result = self._event_storage.put(json_data)
+            current_try += 1
         if not save_result:
             log.error('%rData from the device "%s" cannot be saved, connector name is %s.',
                       "[" + connector_id + "] " if connector_id is not None else "",
