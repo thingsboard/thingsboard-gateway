@@ -14,7 +14,7 @@
 
 from os.path import exists, dirname
 from os import makedirs
-from sqlite3 import DatabaseError, ProgrammingError, InterfaceError
+from sqlite3 import DatabaseError, ProgrammingError, InterfaceError, OperationalError
 from time import sleep, monotonic, time
 from logging import getLogger
 from threading import Event, Thread
@@ -35,6 +35,7 @@ class Database(Thread):
     """
 
     def __init__(self, config, processing_queue: Queue, logger, stopped: Event):
+        self.__initialized = False
         self.__log = logger
         super().__init__()
         self.name = "DatabaseThread"
@@ -63,15 +64,19 @@ class Database(Thread):
         self.__can_prepare_new_batch = True
         self.__next_batch = []
         self.stopped_flag = Event()
+        self.__initialized = True
 
         self.start()
 
     def init_table(self):
         try:
             # Check if the old schema exists
-            result = self.db.execute_read(
-                "SELECT sql FROM sqlite_master WHERE type='table' AND name='messages';"
-            ).fetchone()
+            try:
+                result = self.db.execute_read(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name='messages';"
+                ).fetchone()
+            except OperationalError:
+                result = None
 
             if result:
                 if "timestamp" not in result[0] or "id" not in result[0]:
@@ -150,7 +155,7 @@ class Database(Thread):
         self.__next_batch = []
 
     def read_data(self):
-        if self.stopped_flag.is_set():
+        if self.stopped_flag.is_set() or not self.__initialized:
             return []
         try:
             if self.db.closed or self.stopped.is_set() or not self.db.connection:
