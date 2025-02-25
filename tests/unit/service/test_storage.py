@@ -1,6 +1,7 @@
 from logging import getLogger
 from os import listdir, remove, removedirs
 from random import randint
+from threading import Event
 from time import sleep
 from unittest import TestCase
 
@@ -21,7 +22,10 @@ class TestStorage(TestCase):
             "read_records_count": 10,
             "max_records_count": test_size * 10
         }
-        storage = MemoryEventStorage(storage_test_config, LOG)
+
+        stop_event = Event()
+
+        storage = MemoryEventStorage(storage_test_config, LOG, stop_event)
 
         for test_value in range(test_size * 10):
             storage.put(test_value)
@@ -34,6 +38,8 @@ class TestStorage(TestCase):
 
         self.assertListEqual(result, correct_result)
 
+        stop_event.set()
+
     def test_file_storage(self):
 
         storage_test_config = {"data_folder_path": "storage/data/",
@@ -45,7 +51,9 @@ class TestStorage(TestCase):
 
         test_size = randint(0, storage_test_config["max_file_count"]-1)
 
-        storage = FileEventStorage(storage_test_config, LOG)
+        stop_event = Event()
+
+        storage = FileEventStorage(storage_test_config, LOG, stop_event)
 
         for test_value in range(test_size * 10):
             storage.put(str(test_value))
@@ -66,6 +74,8 @@ class TestStorage(TestCase):
         removedirs(storage_test_config["data_folder_path"])
         self.assertListEqual(result, correct_result)
 
+        stop_event.set()
+
     def test_sqlite_storage(self):
         storage_test_config = {
             "data_file_path": "storage/data/data.db",
@@ -74,7 +84,9 @@ class TestStorage(TestCase):
             "max_read_records_count": 70
         }
 
-        storage = SQLiteEventStorage(storage_test_config, LOG)
+        stop_event = Event()
+
+        storage = SQLiteEventStorage(storage_test_config, LOG, stop_event)
         test_size = 20
         expected_result = []
         save_results = []
@@ -102,3 +114,5 @@ class TestStorage(TestCase):
 
         remove(storage_test_config["data_file_path"])
         self.assertListEqual(unpacked_result, expected_result)
+
+        stop_event.set()
