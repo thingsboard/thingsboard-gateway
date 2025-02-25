@@ -1393,6 +1393,7 @@ class TBGatewayService:
             try:
                 if monotonic() - logger_get_time > 60:
                     log = logging.getLogger('service')
+                    logger_get_time = monotonic()
                 if self.tb_client.is_connected():
                     events = []
 
