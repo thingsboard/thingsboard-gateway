@@ -41,6 +41,7 @@ class Database(Thread):
         self.name = "DatabaseThread"
         self.daemon = True
         self.stopped = stopped
+        self.stopped_flag = Event()
         self.settings = StorageSettings(config)
 
         # Ensure database file and directory exist
@@ -64,7 +65,6 @@ class Database(Thread):
         self.__last_msg_check = 0
         self.__can_prepare_new_batch = True
         self.__next_batch = []
-        self.stopped_flag = Event()
         self.__initialized = True
 
         self.start()
