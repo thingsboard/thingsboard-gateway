@@ -77,6 +77,7 @@ class OpcUaConnector(Connector, Thread):
         self.__config = config
         self.__id = self.__config.get('id')
         self.name = self.__config.get("name", 'OPC-UA Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
+        self.__last_contact_time = 0
 
         # check if config is in old format and convert it to new format
         using_old_configuration_format = len(tuple(filter(lambda node_config: not node_config.get('deviceInfo'),
@@ -269,6 +270,7 @@ class OpcUaConnector(Connector, Thread):
         sleep_for_subscription_work_model = max(self.__sub_check_period_in_millis / 1000, .02)
         while not self.__stopped:
             try:
+                reconnect_required = True
                 if self.__client_recreation_required:
                     if (self.__client is not None
                             and self.__client.uaclient.protocol
@@ -287,13 +289,14 @@ class OpcUaConnector(Connector, Thread):
                         break
                     if self.__enable_subscriptions and self.__device_nodes:
                         self.__log.debug("Subscriptions are enabled, client will reconnect, unsubscribe old subscriptions and subscribe to new nodes.")
-                        await self.retry_with_backoff(self.__client.connect)
+                        await self.retry_connect_with_backoff()
+                        self.__last_contact_time = monotonic()
                         if not (self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open'):
                             self.__log.error("Failed to connect to server, retrying...")
                             await self.disconnect_if_connected()
                             continue
                         await self.__unsubscribe_from_nodes()
-
+                        reconnect_required = False
 
                     self.__nodes_config_cache = {}
                     self.__device_nodes = []
@@ -301,7 +304,9 @@ class OpcUaConnector(Connector, Thread):
                     self.__next_poll = 0
                     self.__client_recreation_required = False
 
-                await self.retry_with_backoff(self.__client.connect)
+                if reconnect_required:
+                    await self.retry_connect_with_backoff()
+                    self.__last_contact_time = monotonic()
 
                 if not (self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open'):
                     self.__log.error("Failed to connect to server, retrying...")
@@ -385,18 +390,26 @@ class OpcUaConnector(Connector, Thread):
             except Exception:
                 pass  # ignore
 
-    async def retry_with_backoff(self, func, *args, max_retries=8, initial_delay=1, backoff_factor=2):
+    async def retry_connect_with_backoff(self, max_retries=8, initial_delay=1, backoff_factor=2):
+        last_contact_delta = monotonic() - self.__last_contact_time
+        if last_contact_delta < self.__client.session_timeout / 1000 and self.__last_contact_time > 0:
+            time_to_wait = self.__client.session_timeout / 1000 - last_contact_delta
+            self.__log.info('Last contact was %.2f seconds ago, next connection try in %.2f seconds...',
+                             last_contact_delta, time_to_wait)
+            await asyncio.sleep(time_to_wait)
         delay = initial_delay
         for attempt in range(max_retries):
             if self.__stopped:
                 return None
             try:
-                return await func(*args)
+                return await self.__client.connect()
             except Exception as e:
-                self.__log.error('Encountered error: %r. Retrying in %s seconds...', e, delay)
-                await asyncio.sleep(delay)
+                base_time = self.__client.session_timeout / 1000 if (last_contact_delta > 0 and last_contact_delta < self.__client.session_timeout / 1000) else 0
+                time_to_wait = base_time / 1000 + delay
+                self.__log.error('Encountered error: %r. Next connection try in %i second(s)...', e, time_to_wait)
+                await asyncio.sleep(time_to_wait)
                 delay *= backoff_factor
-        self.__log.error('Max retries reached. Could not connect due to too many sessions.')
+        self.__log.error('Max retries reached. Connection failed.')
         return None
 
     async def __set_auth_settings_by_cert(self):
@@ -435,6 +448,7 @@ class OpcUaConnector(Connector, Thread):
             while not self.__client._closing and not self.__stopped:
                 await asyncio.sleep(timeout)
                 _ = await self.__client.nodes.server_state.read_value()
+                self.__last_contact_time = monotonic()
         except ConnectionError as e:
             await self.__client._lost_connection(e)
             await self.__client.uaclient.inform_subscriptions(ua.StatusCode(ua.StatusCodes.BadShutdown))
