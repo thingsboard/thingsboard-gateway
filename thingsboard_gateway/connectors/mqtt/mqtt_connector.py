@@ -215,7 +215,6 @@ class MqttConnector(Connector, Thread):
             "name",
             'Mqtt Broker ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5))))
 
-        self.__log.debug("Connector connecting to broker with security: %s", self.__broker["security"])
         if "username" in self.__broker["security"]:
             self._client.username_pw_set(self.__broker["security"].get("username"),
                                          self.__broker["security"].get("password"))
@@ -227,9 +226,6 @@ class MqttConnector(Connector, Thread):
             ca_cert = self.__broker["security"].get("pathToCACert")
             private_key = self.__broker["security"].get("pathToPrivateKey")
             cert = self.__broker["security"].get("pathToClientCert")
-            self.__log.debug("connector ca_cert: %s", ca_cert)
-            self.__log.debug("connector private_key: %s", private_key)
-            self.__log.debug("connector cert: %s", cert)
             if ca_cert is None:
                 self._client.tls_set_context(ssl.SSLContext(ssl.PROTOCOL_TLSv1_2))
             else:
@@ -246,12 +242,12 @@ class MqttConnector(Connector, Thread):
                                      self.get_name(), e)
                 if self.__broker["security"].get("insecure", False):
                     self._client.tls_insecure_set(True)
-                    self.__log.debug("connector tls_insecure_set: True")
+                    self.__log.debug("Connector tls_insecure_set: True")
                 else:
                     self._client.tls_insecure_set(False)
-                    self.__log.debug("connector tls_insecure_set: False")
+                    self.__log.debug("Connector tls_insecure_set: False")
         else:
-            self.__log.debug("connector security: None")
+            self.__log.debug("Connector connecting anonymously")
         # Set up external MQTT broker callbacks ------------------------------------------------------------------------
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
