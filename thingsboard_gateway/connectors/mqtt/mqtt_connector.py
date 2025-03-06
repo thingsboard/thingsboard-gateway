@@ -220,11 +220,12 @@ class MqttConnector(Connector, Thread):
                                          self.__broker["security"].get("password"))
 
         if "caCert" in self.__broker["security"] \
-                or self.__broker["security"].get("type", "none").lower() == "tls":
-            ca_cert = self.__broker["security"].get("caCert")
-            private_key = self.__broker["security"].get("privateKey")
-            cert = self.__broker["security"].get("cert")
-
+                or self.__broker["security"].get("type", "none").lower() == "certificates":
+            
+            self.__log.debug("Connector connecting with certificates")
+            ca_cert = self.__broker["security"].get("pathToCACert")
+            private_key = self.__broker["security"].get("pathToPrivateKey")
+            cert = self.__broker["security"].get("pathToClientCert")
             if ca_cert is None:
                 self._client.tls_set_context(ssl.SSLContext(ssl.PROTOCOL_TLSv1_2))
             else:
@@ -241,9 +242,12 @@ class MqttConnector(Connector, Thread):
                                      self.get_name(), e)
                 if self.__broker["security"].get("insecure", False):
                     self._client.tls_insecure_set(True)
+                    self.__log.debug("Connector tls_insecure_set: True")
                 else:
                     self._client.tls_insecure_set(False)
-
+                    self.__log.debug("Connector tls_insecure_set: False")
+        else:
+            self.__log.debug("Connector connecting anonymously")
         # Set up external MQTT broker callbacks ------------------------------------------------------------------------
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
