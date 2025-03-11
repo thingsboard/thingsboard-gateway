@@ -23,6 +23,7 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic, time
 from typing import List, Dict, Union
+from cachetools import TTLCache
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
@@ -72,6 +73,7 @@ class OpcUaConnector(Connector, Thread):
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         super().__init__()
+        self.__scanning_nodes_cache = TTLCache(maxsize=100_000, ttl=3600)
         self._connector_type = connector_type
         self.__gateway: 'TBGatewayService' = gateway
         self.__config = config
@@ -507,11 +509,30 @@ class OpcUaConnector(Connector, Thread):
         assert len(node_list) > 0
         final = []
 
+        target_node_path = None
+        if len(node_list) == 1:
+            target_node_path = '.'.join(node.split(':')[-1] for node in nodes) + '.' + node_list[0]
+            if target_node_path in self.__scanning_nodes_cache:
+                if self.__show_map:
+                        self.__log.debug('Found node in cache: %s', node_list[0])
+                final.append(self.__scanning_nodes_cache[target_node_path])
+                return final
+
         children = await current_parent_node.get_children()
+        children_nodes_count = len(children)
+        counter = 0
+        if self.__show_map:
+            self.__log.debug('Found %s children for %s', children_nodes_count, current_parent_node)
         for node in children:
+            counter += 1
             child_node = await node.read_browse_name()
+            if len(node_list) == 1:
+                current_node_path = '.'.join(node.split(':')[-1] for node in nodes) + '.' + child_node.Name
+                if not current_node_path in self.__scanning_nodes_cache:
+                    self.__scanning_nodes_cache[current_node_path] = [*nodes, f'{child_node.NamespaceIndex}:{child_node.Name}']
             if self.__show_map and path:
-                self.__log.info('Checking path: %s', path + '.' + f'{child_node.Name}')
+                if children_nodes_count < 1000 or counter % 1000 == 0:
+                    self.__log.info('Checking path: %s', path + '.' + f'{child_node.Name}')
 
             if re.fullmatch(re.escape(node_list[0]), child_node.Name) or node_list[0].split(':')[-1] == child_node.Name:
                 if self.__show_map:
@@ -519,6 +540,9 @@ class OpcUaConnector(Connector, Thread):
                 new_nodes = [*nodes, f'{child_node.NamespaceIndex}:{child_node.Name}']
                 if len(node_list) == 1:
                     final.append(new_nodes)
+                    if self.__show_map:
+                        self.__log.debug('Found node: %s', child_node.Name)
+                    return final
                 else:
                     final.extend(await self.__find_nodes(node_list[1:], current_parent_node=node, nodes=new_nodes,
                                  path=path + '.' + f'{child_node.Name}'))
@@ -596,8 +620,6 @@ class OpcUaConnector(Connector, Thread):
                     break
 
             if not batch and self.__sub_data_to_convert.empty():
-                if self.__log.isEnabledFor(5):
-                    self.__log.debug("Sleeping due to empty batch and converting queue %.3f (seconds)...", sleep_period_after_empty_batch)
                 sleep(sleep_period_after_empty_batch)
                 continue
             if self.__log.isEnabledFor(5):
@@ -678,6 +700,8 @@ class OpcUaConnector(Connector, Thread):
         for device in self.__device_nodes:
             device.nodes = []
             for section in ('attributes', 'timeseries'):
+                self.__log.info('Loading nodes for device: %s, section: %s, nodes count: %s', device.name, section,
+                                len(device.values.get(section, [])))
                 for node in device.values.get(section, []):
                     try:
                         path = node.get('qualified_path', node['path'])
@@ -861,6 +885,12 @@ class OpcUaConnector(Connector, Thread):
                 for future in futures:
                     if future.done():
                         futures.remove(future)
+                    else:
+                        sleep(.02)
+                    if self.__stopped:
+                        for future in futures:
+                            future.cancel()
+                        break
             except Exception as e:
                 self.__log.exception("Error in thread pool executor: %s", e)
 
