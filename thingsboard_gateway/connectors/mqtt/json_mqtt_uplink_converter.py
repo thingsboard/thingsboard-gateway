@@ -13,11 +13,13 @@
 #     limitations under the License.
 
 from re import search
+from time import time
 
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
-from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
+from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER, \
+    RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER
 from thingsboard_gateway.gateway.entities.attributes import Attributes
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
@@ -64,7 +66,8 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         device_name = self.parse_device_name(topic, data, self.__config)
 
         converted_data = ConvertedData(device_name=device_name,
-                                       device_type=self.parse_device_type(topic, data, self.__config))
+                                       device_type=self.parse_device_type(topic, data, self.__config),
+                                       metadata={RECEIVED_TS_PARAMETER: int(time() * 1000)})
         device_report_strategy = None
         try:
             device_report_strategy = ReportStrategyConfig(self.__config.get(REPORT_STRATEGY_PARAMETER))
@@ -120,7 +123,6 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                                                   count=converted_data.attributes_datapoints_count)
         StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
                                                   count=converted_data.telemetry_datapoints_count)
-
         return converted_data
 
     @staticmethod

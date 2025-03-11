@@ -27,6 +27,7 @@ from thingsboard_gateway.connectors.mqtt.backward_compatibility_adapter import B
 from thingsboard_gateway.gateway.constant_enums import Status
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectStatistics
+from thingsboard_gateway.gateway.constants import DATA_RETRIEVING_STARTED, CONVERTED_TS_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -545,6 +546,7 @@ class MqttConnector(Connector, Thread):
         return False
 
     def _save_converted_msg(self, topic, data):
+        data.add_to_metadata({DATA_RETRIEVING_STARTED: int(time() * 1000)})
         if self.__gateway.send_to_storage(self.name, self.get_id(), data) == Status.SUCCESS:
             StatisticsService.count_connector_message(self.name, stat_parameter_name='storageMsgPushed')
             self.statistics['MessagesSent'] += 1
@@ -1038,28 +1040,41 @@ class MqttConnector(Connector, Thread):
         self.__gateway.send_attributes({name: config})
 
     class ConverterWorker(Thread):
-        def __init__(self, name, incoming_queue, send_result):
+        def __init__(self, name, incoming_queue, send_result, batch_size=100):
             super().__init__()
             self.stopped = False
             self.name = name
             self.daemon = True
             self.__msg_queue = incoming_queue
-            self.in_progress = False
             self.__send_result = send_result
+            self.__batch_size = batch_size
+            self.__stop_event = Event()
 
         def run(self):
             while not self.stopped:
                 try:
-                    self.in_progress = True
-                    convert_function, config, incoming_data = self.__msg_queue.get_nowait()
-                    converted_data: ConvertedData = convert_function(config, incoming_data)
-                    if converted_data and (converted_data.telemetry_datapoints_count > 0 or
-                                           converted_data.attributes_datapoints_count > 0):
-                        self.__send_result(config, converted_data)
-                    self.in_progress = False
-                except (TimeoutError, Empty):
-                    self.in_progress = False
-                    sleep(0.1)
+                    batch = []
+                    for _ in range(self.__batch_size):
+                        try:
+                            batch.append(self.__msg_queue.get_nowait())
+                        except Empty:
+                            break
+
+                    if not batch:
+                        self.__stop_event.wait(0.01)
+                        continue
+
+                    for convert_function, config, incoming_data in batch:
+                        converted_data: ConvertedData = convert_function(config, incoming_data)
+                        converted_data.add_to_metadata({CONVERTED_TS_PARAMETER: int(time() * 1000)})
+                        if converted_data and (converted_data.telemetry_datapoints_count > 0 or
+                                               converted_data.attributes_datapoints_count > 0):
+                            self.__send_result(config, converted_data)
+                except Exception as e:
+                    # Log the exception if needed
+                    print("Error in worker: ", e)
+                    pass
 
         def stop(self):
             self.stopped = True
+            self.__stop_event.set()
