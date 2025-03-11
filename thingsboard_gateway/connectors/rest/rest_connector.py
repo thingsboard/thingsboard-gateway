@@ -499,7 +499,11 @@ class BaseDataHandler:
     @staticmethod
     def modify_data_for_remote_response(data, modify):
         if modify:
-            data['attributes'].append({'responseExpected': True})
+            if isinstance(data, ConvertedData):
+                response_expected_key = TBUtility.convert_key_to_datapoint_key('responseExpected', None, {}, None)
+                data.attributes.update({response_expected_key: True})
+            else:
+                data['attributes'].append({'responseExpected': True})
 
     def get_response(self):
         if self.response_expected:
