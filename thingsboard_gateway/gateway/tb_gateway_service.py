@@ -1146,31 +1146,46 @@ class TBGatewayService:
     def __send_to_storage(self):
         while not self.stopped:
             try:
-                if not self.__converted_data_queue.empty():
-                    connector_name, connector_id, event = self.__converted_data_queue.get(True, 100)
-                    converted_data_format = isinstance(event, ConvertedData)
-                    data_array = event if isinstance(event, list) else [event]
-                    if converted_data_format:
-                        if self.__latency_debug_mode:
-                            event.add_to_metadata({"getFromConvertedDataQueueTs": int(time() * 1000),
-                                                   "connector": connector_name})
-                        self.__send_to_storage_new_formatted_data(connector_name, connector_id, data_array)
-                        log.debug("Data from %s connector was sent to storage: %r", connector_name, data_array)
-                        current_time = int(time() * 1000)
-                        if self.__latency_debug_mode and event.metadata.get("sendToStorageTs"):
-                            log.debug("Event was in queue for %r ms", current_time - event.metadata.get("sendToStorageTs")) # noqa
-                        if self.__latency_debug_mode and event.metadata.get(DATA_RETRIEVING_STARTED):
-                            log.debug("Data retrieving and conversion took %r ms", current_time - event.metadata.get(DATA_RETRIEVING_STARTED)) # noqa
-                    else:
-                        self.__send_to_storage_old_formatted_data(connector_name, connector_id, data_array)
+                tasks = []
+                collecting_start = int(monotonic() * 1000)
+                batch_size = 1000
+                while not self.__converted_data_queue.empty():
+                    connector_name, connector_id, event = self.__converted_data_queue.get_nowait()
+                    tasks.append((connector_name, connector_id, event))
+                    if len(tasks) >= batch_size or int(monotonic() * 1000) - collecting_start > 500:
+                        break
 
+                if tasks:
+                    for task in tasks:
+                        self.__process_event(task)
                 else:
-                    self.stop_event.wait(0.02)
+                    self.stop_event.wait(0.01)
             except Exception as e:
                 log.error("Error while sending data to storage!", exc_info=e)
 
+    def __process_event(self, task):
+        connector_name, connector_id, event = task
+        converted_data_format = isinstance(event, ConvertedData)
+        data_array = event if isinstance(event, list) else [event]
+        if converted_data_format:
+            if self.__latency_debug_mode:
+                event.add_to_metadata({"getFromConvertedDataQueueTs": int(time() * 1000),
+                                       "connector": connector_name})
+            self.__send_to_storage_new_formatted_data(connector_name, connector_id, data_array)
+            log.debug("Data from %s connector was sent to storage: %r", connector_name, data_array)
+            current_time = int(time() * 1000)
+            if self.__latency_debug_mode and event.metadata.get(SEND_TO_STORAGE_TS_PARAMETER):
+                log.debug("Event was in queue for %r ms",
+                          current_time - event.metadata.get(SEND_TO_STORAGE_TS_PARAMETER))
+            if self.__latency_debug_mode and event.metadata.get(DATA_RETRIEVING_STARTED):
+                log.debug("Data retrieving and conversion took %r ms",
+                          current_time - event.metadata.get(DATA_RETRIEVING_STARTED))
+        else:
+            self.__send_to_storage_old_formatted_data(connector_name, connector_id, data_array)
+
     def __send_to_storage_new_formatted_data(self, connector_name, connector_id, data_array: List[ConvertedData]):
         max_data_size = self.get_max_payload_size_bytes()
+        pack_processing_time = 0
         for data in data_array:
             if not self.__latency_debug_mode:
                 data.metadata = {}
@@ -1194,7 +1209,7 @@ class TBGatewayService:
                                         {CONNECTOR_PARAMETER: self.available_connectors_by_name[connector_name]},
                                         device_type=data.device_type)
                     else:
-                        log.error("Connector %s is not available!", connector_name)
+                        log.warning("Connector %s is not available, probably it was disabled", connector_name)
 
                 if not self.__connector_incoming_messages.get(connector_id):
                     self.__connector_incoming_messages[connector_id] = 0
@@ -1853,22 +1868,24 @@ class TBGatewayService:
         self.__save_persistent_devices()
         self.tb_client.client.gw_connect_device(device_name, device_type)
         if device_name in self.__saved_devices:
-            connector_type = content['connector'].get_type()
-            connector_name = content['connector'].get_name()
-            try:
-                if (self.__added_devices.get(device_name) is None
-                    or (self.__added_devices[device_name]['device_details']['connectorType'] != connector_type
-                        or self.__added_devices[device_name]['device_details']['connectorName'] != connector_name)):
-                    device_details = {
-                        'connectorType': connector_type,
-                        'connectorName': connector_name
-                    }
-                    self.__added_devices[device_name] = {"device_details": device_details, "last_send_ts": monotonic()}
-                    self.gw_send_attributes(device_name, device_details)
-            except Exception as e:
-                global log
-                log.error("Error on sending device details about the device %s", device_name, exc_info=e)
-                return False
+            if content.get(CONNECTOR_PARAMETER) is not None:
+                connector_type = content['connector'].get_type()
+                connector_name = content['connector'].get_name()
+                try:
+                    if (self.__added_devices.get(device_name) is None
+                        or (self.__added_devices[device_name]['device_details']['connectorType'] != connector_type
+                            or self.__added_devices[device_name]['device_details']['connectorName'] != connector_name)):
+                        device_details = {
+                            'connectorType': connector_type,
+                            'connectorName': connector_name
+                        }
+                        self.__added_devices[device_name] = {"device_details": device_details,
+                                                             "last_send_ts": monotonic()}
+                        self.gw_send_attributes(device_name, device_details)
+                except Exception as e:
+                    global log
+                    log.error("Error on sending device details about the device %s", device_name, exc_info=e)
+                    return False
 
         if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'],
                                                                         'get_device_shared_attributes_keys'):
