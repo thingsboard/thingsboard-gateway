@@ -51,7 +51,7 @@ class SocketConnector(Connector, Thread):
         self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0, 'MessagesSent': 0}
         self.__gateway = gateway
-        self.name = config.get("name", 'TCP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
+        self.name = self.__config.get("name", 'TCP Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         remote_logging = self.__config.get('enableRemoteLogging', False)
         log_level = self.__config.get('logLevel', 'INFO')
         self.__log = init_logger(self.__gateway, self.name, log_level,
@@ -69,10 +69,10 @@ class SocketConnector(Connector, Thread):
         self._connected = False
         self.__bind = False
 
-        self.__socket_type = config.get('socket', {}).get('type', 'TCP').upper()
-        self.__socket_address = config.get('socket', {}).get('address', '127.0.0.1')
-        self.__socket_port = config.get('socket', {}).get('port', 50000)
-        self.__socket_buff_size = config.get('socket', {}).get('buffer_size', 1024)
+        self.__socket_type = self.__config.get('socket', {}).get('type', 'TCP').upper()
+        self.__socket_address = self.__config.get('socket', {}).get('address', '127.0.0.1')
+        self.__socket_port = self.__config.get('socket', {}).get('port', 50000)
+        self.__socket_buff_size = self.__config.get('socket', {}).get('buffer_size', 1024)
 
         self.__socket = socket.socket(socket.AF_INET, SOCKET_TYPE[self.__socket_type])
         self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
