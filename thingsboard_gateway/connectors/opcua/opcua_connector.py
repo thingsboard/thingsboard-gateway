@@ -705,7 +705,7 @@ class OpcUaConnector(Connector, Thread):
                 for node in device.values.get(section, []):
                     try:
                         path = node.get('qualified_path', node['path'])
-                        if isinstance(path, str) and re.match(r"(ns=\d+;[isgb]=[^}]+)", path):
+                        if self.__is_node_identifier(path):
                             found_node = self.__client.get_node(path)
                         else:
                             if len(path[-1].split(':')) != 2:
@@ -955,8 +955,7 @@ class OpcUaConnector(Connector, Thread):
             for (key, value) in content['data'].items():
                 for attr_update in device.config['attributes_updates']:
                     if attr_update['key'] == key:
-                        if (isinstance(attr_update['value'], str)
-                                and re.match(r"(ns=\d+;[isgb]=[^}]+)", attr_update['value'])):
+                        if self.__is_node_identifier(attr_update['value']):
                             node_id = NodeId.from_string(attr_update['value'])
                         else:
                             result = {}
@@ -1007,23 +1006,25 @@ class OpcUaConnector(Connector, Thread):
                 pass
 
             if content.get('device'):
-                # firstly check if a method is not service
+                device = tuple(filter(lambda i: i.name == content['device'], self.__device_nodes))[0]
+
+                # Check is a service method
                 if rpc_method == 'set' or rpc_method == 'get':
                     full_path = ''
                     args_list = []
-                    device = content.get('device')
 
                     try:
                         args_list = content['data']['params'].split(';')
 
-                        if 'ns' in content['data']['params']:
+                        if self.__is_node_identifier(content['data']['params']):
+                            # Node identifier
                             full_path = ';'.join(
                                 [item for item in (args_list[0:-1] if rpc_method == 'set' else args_list)])
                         else:
                             full_path = args_list[0].split('=')[-1]
                     except IndexError:
                         self.__log.error('Not enough arguments. Expected min 2.')
-                        self.__gateway.send_rpc_reply(device=device,
+                        self.__gateway.send_rpc_reply(device=content['device'],
                                                       req_id=content['data'].get('id'),
                                                       content={content['data'][
                                                                    'method']: 'Not enough arguments. Expected min 2.',
@@ -1042,12 +1043,10 @@ class OpcUaConnector(Connector, Thread):
                         while not task.done():
                             sleep(.2)
 
-                    self.__gateway.send_rpc_reply(device=device,
+                    self.__gateway.send_rpc_reply(device=content['device'],
                                                   req_id=content['data'].get('id'),
                                                   content={'result': result})
                 else:
-                    device = tuple(filter(lambda i: i.name == content['device'], self.__device_nodes))[0]
-
                     for rpc in device.config['rpc_methods']:
                         if rpc['method'] == content["data"]['method']:
                             arguments_from_config = rpc["arguments"]
@@ -1146,6 +1145,10 @@ class OpcUaConnector(Connector, Thread):
 
                 self.__gateway.update_connector_config_file(self.name, {'server': self.__server_conf,
                                                                         'mapping': self.__config.get('mapping', [])})
+
+    @staticmethod
+    def __is_node_identifier(path):
+        return isinstance(path, str) and re.match(r"(ns=\d+;[isgb]=[^}]+)", path)
 
 
 class SubHandler:
