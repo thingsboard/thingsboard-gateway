@@ -38,7 +38,8 @@ class TimedRotatingFileHandler(TimedRotatingFileHandler):
     def __get_file_handler(file_name, logger_name):
         file_handler = TimedRotatingFileHandler.get_time_rotating_file_handler_by_logger_name(logger_name)
 
-        file_name = file_name + '.log'
+        if not file_name.endswith('.log'):
+            file_name = file_name + '.log'
 
         if file_handler:
             return TimedRotatingFileHandler.__create_file_handler_copy(file_handler, file_name)
@@ -60,5 +61,5 @@ class TimedRotatingFileHandler(TimedRotatingFileHandler):
 
     @staticmethod
     def __create_default_file_handler(file_name):
-        file_name = '.' + os.sep + file_name + '.log'
+        file_name = file_name + '.log'
         return TimedRotatingFileHandler(file_name)
