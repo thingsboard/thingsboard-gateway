@@ -47,8 +47,7 @@ class StatisticsServiceFunctions:
 
     @staticmethod
     def gateway_cpu_usage(_):
-        cpu_core_count = os.cpu_count()
-        return round(SELF_PROCESS.cpu_percent(interval=0.2) / cpu_core_count, 2)
+        return SELF_PROCESS.cpu_percent(interval=None)
 
     @staticmethod
     def ram_usage(_):
