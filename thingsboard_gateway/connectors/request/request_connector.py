@@ -384,6 +384,7 @@ class RequestConnector(Connector, Thread):
 
     def close(self):
         self.__stopped = True
+        self._log.info("%r has been stopped.", self.name)
         self._log.stop()
 
     def get_config(self):
