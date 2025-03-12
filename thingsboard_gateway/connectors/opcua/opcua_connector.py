@@ -955,20 +955,35 @@ class OpcUaConnector(Connector, Thread):
             for (key, value) in content['data'].items():
                 for attr_update in device.config['attributes_updates']:
                     if attr_update['key'] == key:
-                        result = {}
-                        task = self.__loop.create_task(
-                            self.get_shared_attr_node_id(
-                                device.path + attr_update['value'].replace('\\', '').split('.'), result))
+                        if (isinstance(attr_update['value'], str)
+                                and re.match(r"(ns=\d+;[isgb]=[^}]+)", attr_update['value'])):
+                            node_id = NodeId.from_string(attr_update['value'])
+                        else:
+                            result = {}
+                            task = self.__loop.create_task(
+                                self.get_shared_attr_node_id(
+                                    device.path + attr_update['value'].replace('\\', '').split('.'), result))
 
-                        while not task.done():
+                            while not task.done():
+                                sleep(.1)
+
+                            if result.get('error'):
+                                self.__log.error('Node not found! (%s)', result['error'])
+                                return
+
+                            node_id = NodeId.from_string(result['result'])
+                        execution_result = {}
+                        self.__loop.create_task(self.__write_value(node_id, value, execution_result))
+                        writing_start = monotonic()
+                        while not execution_result:
+                            if monotonic() - writing_start > 1:
+                                self.__log.error('Writing timeout!')
+                                return
                             sleep(.1)
-
-                        if result.get('error'):
-                            self.__log.error('Node not found! (%s)', result['error'])
+                        if execution_result.get('error'):
+                            self.__log.error('Error during processing shared attribute update: %s',
+                                             execution_result['error'])
                             return
-
-                        node_id = result['result']
-                        self.__loop.create_task(self.__write_value(node_id, value))
                         return
         except Exception as e:
             self.__log.exception(e)
@@ -1092,8 +1107,11 @@ class OpcUaConnector(Connector, Thread):
             var = path
             if isinstance(path, str):
                 var = self.__client.get_node(path.replace('\\.', '.'))
+            elif isinstance(path, NodeId):
+                var = self.__client.get_node(path)
 
             await var.write_value(value)
+            result['value'] = value
         except Exception as e:
             result['error'] = e.__str__()
 
