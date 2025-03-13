@@ -141,7 +141,7 @@ class MqttConnector(Connector, Thread):
         self.__subscribes_sent = {}
 
         if using_old_config_format_detected:
-            self.__log.warning("Old MQTT connector configuration format detected. Automatic conversion is applied.")
+            self.__log.info("Old MQTT connector configuration format detected. Automatic conversion is applied.")
 
         # Extract main sections from configuration ---------------------------------------------------------------------
         self.__broker = config.get('broker')

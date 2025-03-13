@@ -1044,7 +1044,7 @@ class TBGatewayService:
                                             self.__cleanup_connectors()
                                             connector.open()
                                         else:
-                                            log.warning("[%r] Connector with name %s already exists and not stopped!",
+                                            log.debug("[%r] Connector with name %s already exists and not stopped, skipping updating it...",
                                                         connector_id, connector_name)
                                     else:
                                         log.warning("Config incorrect for %s", connector_type)

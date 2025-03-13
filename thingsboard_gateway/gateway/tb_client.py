@@ -205,7 +205,7 @@ class TBClient(threading.Thread):
         self.client._client.tls_set(ca_certs=self.__ca_cert,
                                     certfile=self.__cert,
                                     keyfile=self.__private_key,
-                                    tls_version=ssl.PROTOCOL_TLS,
+                                    tls_version=ssl.PROTOCOL_TLSv1_2,
                                     cert_reqs=cert_required,
                                     ciphers=None)  # noqa pylint: disable=protected-access
         if credentials.get("insecure", False):
