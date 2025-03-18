@@ -43,33 +43,40 @@ class JsonRESTUplinkConverter(RESTConverter):
         try:
             device_info = self.__config.get("deviceInfo")
             if device_info.get("deviceNameExpression") is not None:
-                device_name_tags = TBUtility.get_values(device_info.get("deviceNameExpression"), data, get_tag=True)
-                device_name_values = TBUtility.get_values(device_info.get("deviceNameExpression"), data,
-                                                          expression_instead_none=True)
-                device_name = device_info.get("deviceNameExpression")
-                for (device_name_tag, device_name_value) in zip(device_name_tags, device_name_values):
-                    is_valid_key = "${" in device_info.get("deviceNameExpression") and "}" in \
-                                   device_info.get("deviceNameExpression")
-                    device_name = device_name.replace('${' + str(device_name_tag) + '}',
-                                                                                  str(device_name_value)) \
-                        if is_valid_key else device_name_tag
+                if device_info.get("deviceNameExpressionSource") == "constant":
+                    device_name = device_info.deviceNameExpression
+                else:
+                    device_name_tags = TBUtility.get_values(device_info.get("deviceNameExpression"), data, get_tag=True)
+                    device_name_values = TBUtility.get_values(device_info.get("deviceNameExpression"), data,
+                                                              expression_instead_none=True)
+                    device_name = device_info.get("deviceNameExpression")
+                    for (device_name_tag, device_name_value) in zip(device_name_tags, device_name_values):
+                        is_valid_key = "${" in device_info.get("deviceNameExpression") and "}" in \
+                                       device_info.get("deviceNameExpression")
+                        device_name = device_name.replace('${' + str(device_name_tag) + '}',
+                                                          str(device_name_value)) \
+                            if is_valid_key else device_name_tag
             else:
-                self._log.error("The expression for looking \"deviceName\" not found in config %s",
+                self._log.error("The expression for looking \"device name\" not found in config %s",
                                 dumps(device_info))
 
-            if device_info.get("deviceTypeExpression") is not None:
-                device_type_tags = TBUtility.get_values(device_info.get("deviceTypeExpression"), data, get_tag=True)
-                device_type_values = TBUtility.get_values(device_info.get("deviceTypeExpression"), data,
-                                                          expression_instead_none=True)
-                device_type = device_info.get("deviceTypeExpression")
-                for (device_type_tag, device_type_value) in zip(device_type_tags, device_type_values):
-                    is_valid_key = "${" in device_info.get("deviceTypeExpression") and "}" in \
-                                   device_info.get("deviceTypeExpression")
-                    device_type = device_type.replace('${' + str(device_type_tag) + '}',
-                                                                                  str(device_type_value)) \
-                        if is_valid_key else device_type_tag
+            if device_info.get("deviceProfileExpression") is not None:
+                if device_info.get("deviceProfileExpressionSource") == "constant":
+                    device_type = device_info.get("deviceProfileExpression")
+                else:
+                    device_profile_tags = TBUtility.get_values(device_info.get("deviceProfileExpression"), data,
+                                                               get_tag=True)
+                    device_profile_values = TBUtility.get_values(device_info.get("deviceProfileExpression"), data,
+                                                                 expression_instead_none=True)
+                    device_type = device_info.get("deviceProfileExpression")
+                    for (device_profile_tag, device_profile_value) in zip(device_profile_tags, device_profile_values):
+                        is_valid_key = "${" in device_info.get("deviceProfileExpression") and "}" in \
+                                       device_info.get("deviceProfileExpression")
+                        device_type = device_type.replace('${' + str(device_profile_tag) + '}',
+                                                          str(device_profile_value)) \
+                            if is_valid_key else device_profile_tag
             else:
-                self._log.error("The expression for looking \"deviceType\" not found in config %s",
+                self._log.error("The expression for looking \"device profile\" not found in config %s",
                                 dumps(device_info))
         except Exception as e:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
