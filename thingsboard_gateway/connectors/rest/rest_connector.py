@@ -126,6 +126,8 @@ class RESTConnector(Connector, Thread):
                 }
                 endpoints.update({attr['endpoint']: config})
 
+        self.__log.info("Added endpoints: %s", list(endpoints.keys()))
+
         return endpoints
 
     def load_handlers(self):
