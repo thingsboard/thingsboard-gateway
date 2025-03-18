@@ -658,7 +658,8 @@ class OpcUaConnector(Connector, Thread):
 
             for device, converted_data in device_converted_data_map.items():
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
-                self.__log.info('Converted data from %r notifications from server for device %s, using converter: %r', len(batch), device.name, device.converter_for_sub.__class__.__name__)
+                self.__log.debug('Converted data from %r notifications from server for device %s, using converter: %r',
+                                 len(batch), device.name, device.converter_for_sub.__class__.__name__)
 
             device_converted_data_map.clear()
 
