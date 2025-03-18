@@ -24,10 +24,10 @@ import ssl
 import os
 
 from simplejson import JSONDecodeError, dumps
-import requests
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
 from requests.exceptions import RequestException
 
+from thingsboard_gateway.connectors.rest.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -49,8 +49,6 @@ except ImportError:
     TBUtility.install_package('aiohttp')
     from aiohttp import web, BasicAuth
 
-requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
-
 
 class RESTConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
@@ -63,20 +61,28 @@ class RESTConnector(Connector, Thread):
             'STATISTICS_MESSAGE_RECEIVED': self.statistic_message_received,
             'STATISTICS_MESSAGE_SEND': self.statistic_message_send
         }
-        self.__config = config
+        self.__gateway = gateway
+        self.__log = init_logger(self.__gateway, self.name, config.get('logLevel', 'INFO'),
+                                 enable_remote_logging=config.get('enableRemoteLogging', False),
+                                 is_connector_logger=True)
+        self.__converter_log = init_logger(self.__gateway, self.name + '_converter',
+                                           config.get('logLevel', 'INFO'),
+                                           enable_remote_logging=config.get('enableRemoteLogging', False),
+                                           is_connector_logger=True, attr_name=self.name)
+
+        if BackwardCompatibilityAdapter.is_old_config(config):
+            self.__backward_compatibility_adapter = BackwardCompatibilityAdapter(config, self.__log)
+            self.__config = self.__backward_compatibility_adapter.convert()
+        else:
+            self.__config = config
+
         self.__id = self.__config.get('id')
+        self.__server_config = self.__config['server']
+        self.__requests_config = self.__config.get('requestsMapping', [])
         self._connector_type = connector_type
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
         self.name = config.get("name", 'REST Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
-        self.__gateway = gateway
-        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False),
-                                 is_connector_logger=True)
-        self.__converter_log = init_logger(self.__gateway, self.name + '_converter',
-                                           self.__config.get('logLevel', 'INFO'),
-                                           enable_remote_logging=self.__config.get('enableRemoteLogging', False),
-                                           is_connector_logger=True, attr_name=self.name)
         self._default_downlink_converter = TBModuleLoader.import_module(self._connector_type,
                                                                         self._default_converters['downlink'])
         self._default_uplink_converter = TBModuleLoader.import_module(self._connector_type,
@@ -102,7 +108,7 @@ class RESTConnector(Connector, Thread):
             endpoints.update({mapping['endpoint']: {"config": mapping, "converter": converter}})
 
         # configuring Attribute Request endpoints
-        if len(self.__config.get('attributeRequests', [])):
+        if len(self.__requests_config.get('attributeRequests', [])):
             while self.__gateway.tb_client is None and not hasattr(self.__gateway.tb_client, 'client'):
                 self.__log.info('Waiting for ThingsBoard client to be initialized...')
                 sleep(1)
@@ -112,7 +118,7 @@ class RESTConnector(Connector, Thread):
                 'shared': self.__gateway.tb_client.client.gw_request_shared_attributes
             }
 
-            for attr in self.__config['attributeRequests']:
+            for attr in self.__requests_config['attributeRequests']:
                 config = {
                     'type': 'attributeRequest',
                     'function': self.__attribute_type[attr['type']],
@@ -128,7 +134,7 @@ class RESTConnector(Connector, Thread):
             "anonymous": AnonymousDataHandler,
         }
         handlers = []
-        mappings = self.__config.get("mapping", []) + self.__config.get('attributeRequests', [])
+        mappings = self.__config.get("mapping", []) + self.__requests_config.get('attributeRequests', [])
         for mapping in mappings:
             try:
                 security_type = "anonymous" if mapping.get("security") is None else mapping["security"]["type"].lower()
@@ -157,19 +163,19 @@ class RESTConnector(Connector, Thread):
         ssl_context = None
         cert = None
         key = None
-        if self.__config.get('SSL', False):
-            if not self.__config.get('security'):
+        if self.__server_config.get('SSL', False):
+            if not self.__server_config.get('security'):
                 if not os.path.exists('domain_srv.crt'):
                     from thingsboard_gateway.connectors.rest.ssl_generator import SSLGenerator
-                    n = SSLGenerator(self.__config['host'])
+                    n = SSLGenerator(self.__server_config['host'])
                     n.generate_certificate()
 
                 cert = 'domain_srv.crt'
                 key = 'domain_srv.key'
             else:
                 try:
-                    cert = self.__config['security']['cert']
-                    key = self.__config['security']['key']
+                    cert = self.__server_config['security']['cert']
+                    key = self.__server_config['security']['key']
                 except KeyError as e:
                     self.__log.error('Provide certificate and key path!\n %s', e)
 
@@ -181,15 +187,15 @@ class RESTConnector(Connector, Thread):
         await self._runner.setup()
         if os.name == 'nt':
             self.__log.info('REST connector started at %s',
-                            self.__config['host'] + ':' + str(self.__config.get('port', 5000)))
-            site = web.TCPSite(self._runner, host=self.__config['host'], port=int(self.__config.get('port', 5000)),
+                            self.__server_config['host'] + ':' + str(self.__server_config.get('port', 5000)))
+            site = web.TCPSite(self._runner, host=self.__server_config['host'], port=int(self.__server_config.get('port', 5000)),
                                ssl_context=ssl_context)
         else:
-            site = web.TCPSite(self._runner, host=self.__config['host'], port=int(self.__config.get('port', 5000)),
+            site = web.TCPSite(self._runner, host=self.__server_config['host'], port=int(self.__server_config.get('port', 5000)),
                                ssl_context=ssl_context, reuse_port=True, reuse_address=True)
         await site.start()
         self.__log.info('REST connector started at %s',
-                        self.__config['host'] + ':' + str(self.__config.get('port', 5000)))
+                        self.__server_config['host'] + ':' + str(self.__server_config.get('port', 5000)))
 
     def run(self):
         self._connected = True
@@ -355,7 +361,7 @@ class RESTConnector(Connector, Thread):
             "serverSideRpc": self.__rpc_requests,
         }
         for request_section in requests_from_tb:
-            for request_config_object in self.__config.get(request_section, []):
+            for request_config_object in self.__requests_config.get(request_section, []):
 
                 uplink_imported_class = TBModuleLoader.import_module(self._connector_type, request_config_object.get("extension", self._default_converters["uplink"]))
                 uplink_converter = uplink_imported_class(request_config_object, self.__log)
