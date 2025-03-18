@@ -132,7 +132,12 @@ class Slave(Thread):
     def run(self):
         self.__timer()
 
-    def close(self):
+    def close(self, loop):
+        future = asyncio.run_coroutine_threadsafe(self.disconnect(), loop)
+        try:
+            future.result(timeout=5)
+        except Exception as e:
+            self._log.error('Failed to disconnect from %s: %s', self, e)
         self.stopped = True
 
     def get_name(self):
@@ -164,6 +169,7 @@ class Slave(Thread):
 
     async def connect(self) -> bool:
         cur_time = monotonic() * 1000
+        initial_connection = False
         if not self.master.connected():
             if (self.connection_attempt_count >= self.connection_attempt
                     and cur_time - self.last_connection_attempt_time >= self.wait_after_failed_attempts_ms):
@@ -181,19 +187,24 @@ class Slave(Thread):
                 await self.master.connect()
 
                 if self.connection_attempt_count == self.connection_attempt:
-                    self._log.warn("Maximum attempt count (%i) for device \"%s\" - encountered.",
-                                   self.connection_attempt,
-                                   self)
+                    self._log.warning("Maximum attempt count (%i) for device \"%s\" - encountered.",
+                                      self.connection_attempt,
+                                      self)
                     return False
-
-                self._log.info("Connected to %s", self)
+                initial_connection = True
 
         if self.connection_attempt_count >= 0 and self.master.connected():
             self.connection_attempt_count = 0
             self.last_connection_attempt_time = cur_time
+            if initial_connection:
+                self._log.info("Connected to %s", self)
             return True
         else:
             return False
+
+    async def disconnect(self):
+        if self.master.connected():
+            await self.master.close()
 
     @property
     def master(self):

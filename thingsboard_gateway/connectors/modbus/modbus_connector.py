@@ -126,7 +126,7 @@ class AsyncModbusConnector(Connector, Thread):
             self.__server.stop()
 
         for slave in self.__slaves:
-            slave.close()
+            slave.close(self.loop)
 
         asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.loop)
 
@@ -247,7 +247,7 @@ class AsyncModbusConnector(Connector, Thread):
                     slave_data = await self.__read_slave_data(slave)
                     self.__data_to_convert.put_nowait((slave, slave_data))
                 else:
-                    self.__log.error('Socket is closed, connection is lost, for device %s', slave)
+                    self.__log.error('Device %s is not connected, cannot connect to server, skipping reading...', slave)
                     self.__delete_device_from_platform(slave)
             except ConnectionException:
                 self.__delete_device_from_platform(slave)
@@ -255,6 +255,7 @@ class AsyncModbusConnector(Connector, Thread):
                 self.__log.error('Failed to connect to device %s', slave)
             except asyncio.exceptions.TimeoutError:
                 self.__log.error('Timeout error for device %s', slave)
+                await slave.disconnect()
             except Exception as e:
                 self.__delete_device_from_platform(slave)
                 self.__log.error('Failed to poll %s device: %s', slave, exc_info=e)
@@ -272,7 +273,7 @@ class AsyncModbusConnector(Connector, Thread):
                 try:
                     response = await slave.read(config['functionCode'], config['address'], config['objectsCount'])
                 except asyncio.exceptions.TimeoutError:
-                    self.__log.error("Timeout error for device %s function code %s address %s",
+                    self.__log.error("Timeout error for device %s function code %s address %s, it may be caused by wrong data in server register.",
                                      slave.device_name, config['functionCode'], config[ADDRESS_PARAMETER])
                     continue
 
