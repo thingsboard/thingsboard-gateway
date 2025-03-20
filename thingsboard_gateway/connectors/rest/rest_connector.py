@@ -144,6 +144,9 @@ class RESTConnector(Connector, Thread):
                     Users.add_user(mapping['endpoint'],
                                    mapping['security']['username'],
                                    mapping['security']['password'])
+                if 'GET' in mapping['HTTPMethods'] and 'HEAD' in mapping['HTTPMethods']:
+                    self.__log.warning("GET and HEAD methods are not allowed together. HEAD method will be ignored.")
+                    mapping['HTTPMethods'].remove('HEAD')
                 for http_method in mapping['HTTPMethods']:
                     handler = data_handlers[security_type](self.collect_statistic_and_send, self.get_name(),
                                                            self.get_id(), self.endpoints[mapping["endpoint"]],
