@@ -440,8 +440,11 @@ class TBGatewayService:
                                                               'configuration') else None,
                                                           custom_stats_send_period_in_seconds=self.__statistics.get(
                                                               'customStatsSendPeriodInSeconds', 300))
+            log.debug('Statistics service initialized')
         else:
             self.__statistics_service = None # noqa
+            StatisticsService.disable_statistics()
+            log.debug('Statistics service disabled')
 
     def init_device_filtering(self, config):
         self.__device_filter_config = config  # noqa

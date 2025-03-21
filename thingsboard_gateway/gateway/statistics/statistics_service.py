@@ -25,6 +25,7 @@ from thingsboard_gateway.gateway.statistics.configs import ONCE_SEND_STATISTICS_
 
 
 class StatisticsService(Thread):
+    ENABLED = False
     STATISTICS_STORAGE = {
         'receivedBytesFromDevices': 0,
         'convertedBytesFromDevice': 0,
@@ -56,6 +57,7 @@ class StatisticsService(Thread):
 
     def __init__(self, stats_send_period_in_seconds, gateway, log, config_path=None,
                  custom_stats_send_period_in_seconds=3600):
+        StatisticsService.enable_statistics()
         super().__init__()
         self.name = 'Statistics Thread'
         self.daemon = True
@@ -88,21 +90,33 @@ class StatisticsService(Thread):
         return config
 
     @classmethod
+    def enable_statistics(cls):
+        with cls.__LOCK:
+            cls.ENABLED = True
+
+    @classmethod
+    def disable_statistics(cls):
+        with cls.__LOCK:
+            cls.ENABLED = False
+
+    @classmethod
     def add_bytes(cls, stat_type, bytes_count, stat_parameter_name=None, statistics_type='STATISTICS_STORAGE'):
-        cls.add_count(stat_type, bytes_count, stat_parameter_name, statistics_type)
+        if StatisticsService.ENABLED:
+            cls.add_count(stat_type, bytes_count, stat_parameter_name, statistics_type)
 
     @classmethod
     def add_count(cls, stat_key, count=1, stat_parameter_name=None, statistics_type='STATISTICS_STORAGE'):
-        if statistics_type == 'CONNECTOR_STATISTICS_STORAGE':
-            try:
-                if cls.CONNECTOR_STATISTICS_STORAGE.get(stat_key) is None:
-                    cls.CONNECTOR_STATISTICS_STORAGE[stat_key] = {}
+        if StatisticsService.ENABLED:
+            if statistics_type == 'CONNECTOR_STATISTICS_STORAGE':
+                try:
+                    if cls.CONNECTOR_STATISTICS_STORAGE.get(stat_key) is None:
+                        cls.CONNECTOR_STATISTICS_STORAGE[stat_key] = {}
 
-                cls.CONNECTOR_STATISTICS_STORAGE[stat_key][stat_parameter_name] += count
-            except KeyError:
-                cls.CONNECTOR_STATISTICS_STORAGE[stat_key].update({stat_parameter_name: count})
-        else:
-            cls.STATISTICS_STORAGE[stat_key] += count
+                    cls.CONNECTOR_STATISTICS_STORAGE[stat_key][stat_parameter_name] += count
+                except KeyError:
+                    cls.CONNECTOR_STATISTICS_STORAGE[stat_key].update({stat_parameter_name: count})
+            else:
+                cls.STATISTICS_STORAGE[stat_key] += count
 
     @classmethod
     def clear_statistics(cls):
@@ -113,14 +127,16 @@ class StatisticsService(Thread):
 
     @staticmethod
     def count_connector_message(connector_name, stat_parameter_name, count=1):
-        StatisticsService.add_count(connector_name, stat_parameter_name=stat_parameter_name,
-                                    statistics_type='CONNECTOR_STATISTICS_STORAGE', count=count)
+        if StatisticsService.ENABLED:
+            StatisticsService.add_count(connector_name, stat_parameter_name=stat_parameter_name,
+                                        statistics_type='CONNECTOR_STATISTICS_STORAGE', count=count)
 
     @staticmethod
     def count_connector_bytes(connector_name, msg, stat_parameter_name):
-        bytes_count = str(msg).__sizeof__()
-        StatisticsService.add_bytes(connector_name, bytes_count, stat_parameter_name,
-                                    statistics_type='CONNECTOR_STATISTICS_STORAGE')
+        if StatisticsService.ENABLED:
+            bytes_count = str(msg).__sizeof__()
+            StatisticsService.add_bytes(connector_name, bytes_count, stat_parameter_name,
+                                        statistics_type='CONNECTOR_STATISTICS_STORAGE')
 
     def __install_required_tools(self):
         if self._custom_command_config:
@@ -205,7 +221,10 @@ class StatisticsService(Thread):
                               'serviceStats': self.__collect_service_statistics(),
                               'connectorsStats': self.CONNECTOR_STATISTICS_STORAGE}
         self._log.info('Collected regular statistics: %s', statistics_message)
-        self._gateway.send_telemetry(statistics_message)
+        if StatisticsService.ENABLED:
+            self._gateway.send_telemetry(statistics_message)
+        else:
+            self._log.debug('Statistics are disabled. Not sending collected statistics.')
         self.clear_statistics()
 
     def __send_general_machine_state(self):
@@ -221,7 +240,7 @@ class StatisticsService(Thread):
         except Exception as e:
             self._log.error("Error while sending first statistics information: %s", e)
 
-        while not self._stopped.is_set():
+        while not self._stopped.is_set() and StatisticsService.ENABLED:
             try:
                 cur_monotonic = int(monotonic())
 
