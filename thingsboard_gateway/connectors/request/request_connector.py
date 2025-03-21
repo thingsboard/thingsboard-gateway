@@ -32,7 +32,6 @@ except ImportError:
     print("Requests library not found - installing...")
     TBUtility.install_package("requests")
     from requests import Timeout, request
-import requests
 from requests.auth import HTTPBasicAuth
 from requests.exceptions import RequestException
 
@@ -40,15 +39,10 @@ from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
 from thingsboard_gateway.connectors.request.json_request_downlink_converter import JsonRequestDownlinkConverter
 
-# pylint: disable=E1101
-requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':ADH-AES128-SHA256'
-
 
 class RequestConnector(Connector, Thread):
     def __init__(self, gateway, config, connector_type):
         super().__init__()
-        self.statistics = {'MessagesReceived': 0,
-                           'MessagesSent': 0}
         self.__rpc_requests = []
         self.__config = config
         self.__id = self.__config.get('id')
@@ -294,17 +288,16 @@ class RequestConnector(Connector, Thread):
 
             if response and response.ok:
                 if not converter_queue.full():
-                    data_to_storage = [url, request["converter"]]
+                    config_converter_data = [url, request["converter"]]
                     try:
-                        data_to_storage.append(response.json())
+                        config_converter_data.append(response.json())
                     except UnicodeDecodeError:
-                        data_to_storage.append(response.content())
+                        config_converter_data.append(response.content())
                     except JSONDecodeError:
-                        data_to_storage.append(response.content())
+                        config_converter_data.append(response.content())
 
-                    if len(data_to_storage) == 3:
-                        self.__convert_data(data_to_storage)
-                        self.statistics["MessagesReceived"] = self.statistics["MessagesReceived"] + 1
+                    if len(config_converter_data) == 3:
+                        self.__convert_data(config_converter_data)
             else:
                 logger.error("Request to URL: %s finished with code: %i", url, response.status_code)
         except Timeout:
@@ -320,7 +313,7 @@ class RequestConnector(Connector, Thread):
     def __convert_data(self, data):
         try:
             url, converter, data = data
-            data_to_send = {}
+            data_to_send = []
 
             StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
             StatisticsService.count_connector_bytes(self.name, data, stat_parameter_name='connectorBytesReceived')
@@ -329,28 +322,24 @@ class RequestConnector(Connector, Thread):
                 for data_item in data:
                     self.__add_ts(data_item)
                     converted_data = converter.convert(url, data_item)
-
-                    if data_to_send.get(converted_data["deviceName"]) is None:
-                        data_to_send[converted_data["deviceName"]] = converted_data
-                    else:
-                        if converted_data["telemetry"]:
-                            data_to_send[converted_data["deviceName"]]["telemetry"].append(
-                                converted_data["telemetry"][0])
-                        if converted_data["attributes"]:
-                            data_to_send[converted_data["deviceName"]]["attributes"].append(
-                                converted_data["attributes"][0])
+                    data_to_send.append(converted_data)
             else:
                 self.__add_ts(data)
-                data_to_send = converter.convert(url, data)
+                data_to_send.append(converter.convert(url, data))
 
-            self.__convert_queue.put(data_to_send)
+            for to_send in data_to_send:
+                self.__convert_queue.put(to_send)
 
         except Exception as e:
             self._log.exception(e)
 
     def __add_ts(self, data):
-        if data.get("ts") is None:
-            data["ts"] = time() * 1000
+        if isinstance(data, list):
+            for item in data:
+                self.__add_ts(item)
+        elif isinstance(data, dict):
+            if data.get("ts") is None:
+                data["ts"] = int(time() * 1000)
 
     def __process_data(self):
         try:
@@ -358,7 +347,6 @@ class RequestConnector(Connector, Thread):
                 data: ConvertedData = self.__convert_queue.get()
                 if data and (data.attributes_datapoints_count > 0 or data.telemetry_datapoints_count > 0):
                     self.__gateway.send_to_storage(self.get_name(), self.get_id(), data)
-                    self.statistics["MessagesSent"] = self.statistics["MessagesSent"] + 1
 
         except Exception as e:
             self._log.exception(e)
