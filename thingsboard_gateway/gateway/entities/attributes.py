@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from typing import Dict, Any
+from typing import Dict, Any, Union
 
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 
@@ -42,7 +42,7 @@ class Attributes:
     def __len__(self):
         return len(self.values)
 
-    def update(self, attributes: Dict[DatapointKey, Any]):
+    def update(self, attributes: Union[Dict[DatapointKey, Any], 'Attributes']):
         self.values.update(attributes if isinstance(attributes, dict) else attributes.values)
 
     def items(self):

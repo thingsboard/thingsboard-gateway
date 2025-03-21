@@ -104,6 +104,21 @@ class ConvertedData:
         else:
             raise KeyError(f"{item} - Item not found!")
 
+    def extend(self, other: 'ConvertedData'):
+        if not isinstance(other, ConvertedData):
+            raise ValueError("Can only extend with another ConvertedData object.")
+        self.telemetry.extend(other.telemetry)
+        self.attributes.update(other.attributes)
+        self.metadata.update(other.metadata)
+        self._telemetry_datapoints_count += other.telemetry_datapoints_count
+        for telemetry_entry in self.telemetry:
+            if telemetry_entry.ts in self.ts_index:
+                index = self.ts_index[telemetry_entry.ts]
+                existing_values = self.telemetry[index].values
+                existing_values.update(telemetry_entry.values)
+            else:
+                self.ts_index[telemetry_entry.ts] = len(self.telemetry) - 1
+
     def add_to_telemetry(self, telemetry_entry: Union[dict, TelemetryEntry, List[TelemetryEntry], List[dict]]):
         if isinstance(telemetry_entry, list):
             for entry in telemetry_entry:
