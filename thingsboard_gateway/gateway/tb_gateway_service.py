@@ -1869,7 +1869,7 @@ class TBGatewayService:
         self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
         self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
         self.__save_persistent_devices()
-        self.tb_client.client.gw_connect_device(device_name, device_type)
+        self.tb_client.client.gw_connect_device(device_name, device_type).get()
         if device_name in self.__saved_devices:
             if content.get(CONNECTOR_PARAMETER) is not None:
                 connector_type = content['connector'].get_type()
