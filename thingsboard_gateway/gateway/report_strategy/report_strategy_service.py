@@ -154,7 +154,7 @@ class ReportStrategyService:
             return True
 
         if report_strategy_data_record is not None:
-            if not report_strategy_data_record.get_value() == data:
+            if not self.__is_equal(report_strategy_data_record.get_value(), data):
                 if report_strategy_config.report_strategy == ReportStrategy.ON_CHANGE:
                     self._report_strategy_data_cache.update_key_value(datapoint_key, device_name, connector_id, data)
                     if is_telemetry:
@@ -273,3 +273,10 @@ class ReportStrategyService:
     def clear_cache(self):
         self._report_strategy_data_cache.clear()
         self.__keys_to_report_periodically.clear()
+
+    def __is_equal(self, old_value, new_value):
+        if isinstance(old_value, float) and isinstance(new_value, float):
+            if abs(old_value - new_value) < 0.001:
+                return True
+        else:
+            return old_value == new_value
