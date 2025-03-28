@@ -58,8 +58,8 @@ class Device:
                         self.values[section].append(
                             {'path': child.groups()[0], 'key': node_config['key'],
                              REPORT_STRATEGY_PARAMETER: node_config.get(REPORT_STRATEGY_PARAMETER)})
-                    elif re.search(r"\${([A-Za-z.:\\\d\[\]]+)}", node_config['value']):
-                        child = re.search(r"\${([A-Za-z.:\\\d\[\]]+)", node_config['value'])
+                    elif re.search(r"\${([A-Za-z0-9_.:\\\[\]\-()]+)", node_config['value']):
+                        child = re.search(r"\${([A-Za-z0-9_.:\\\[\]\-()]+)", node_config['value'])
                         self.values[section].append(
                             {'path': self.path + child.groups()[0].split('\\.'), 'key': node_config['key'],
                              REPORT_STRATEGY_PARAMETER: node_config.get(REPORT_STRATEGY_PARAMETER)})
