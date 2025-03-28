@@ -12,6 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from typing import TYPE_CHECKING, Dict, Union
+
 import asyncio
 from asyncio import CancelledError
 from threading import Thread
@@ -31,6 +33,11 @@ from thingsboard_gateway.connectors.modbus.entities.bytes_downlink_converter_con
 from thingsboard_gateway.connectors.modbus.constants import ADDRESS_PARAMETER, BYTE_ORDER_PARAMETER, FUNCTION_CODE_SLAVE_INITIALIZATION, FUNCTION_TYPE, \
     FUNCTION_CODE_READ, HOST_PARAMETER, IDENTITY_SECTION, METHOD_PARAMETER, OBJECTS_COUNT_PARAMETER, PORT_PARAMETER, REPACK_PARAMETER, SERIAL_CONNECTION_TYPE_PARAMETER, TAG_PARAMETER, WORD_ORDER_PARAMETER
 from thingsboard_gateway.gateway.constants import DEVICE_NAME_PARAMETER, TYPE_PARAMETER
+from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
+
+if TYPE_CHECKING:
+    from thingsboard_gateway.connectors.modbus.modbus_connector import ModbusConnector
+    from thingsboard_gateway.connectors.modbus.modbus_connector import Slave
 
 SLAVE_TYPE = {
     'tcp': StartAsyncTcpServer,
@@ -47,26 +54,40 @@ FRAMER_TYPE = {
 
 
 class Server(Thread):
-    def __init__(self, config, logger):
+    class CallbackDatablock(ModbusSparseDataBlock):
+        def __init__(self, values, callback):
+            self.callback = callback
+            super().__init__(values)
+
+        def setValues(self, address, value):
+            self.callback(address, len(value))
+            super().setValues(address, value)
+    
+    def __init__(self,  connector: 'ModbusConnector', config, logger):
         super().__init__()
         self.__stopped = False
         self.daemon = True
         self.name = 'Gateway Modbus Server (Slave)'
-
+        
+        self.connector = connector
         self.__log = logger
-
         self.__config = config
 
+        self.connector = connector
         self.device_name = config.get('deviceName', 'Modbus Slave')
         self.device_type = config.get('deviceType', 'default')
         self.poll_period = config.get('pollPeriod', 5000)
 
         self.__type = config.get('type', 'tcp').lower()
         self.__identity = self.__get_identity(self.__config)
-        self.__server_context = self.__get_server_context(self.__config)
+        self.__server_context, self.__datablock = self.__get_server_context(self.__config)
         self.__connection_config = self.__get_connection_config(self.__config)
+        self.__log.trace("Connection config loaded: %s", self.__connection_config)
 
+        self.no_master = False
         self.__server = None
+        self.slave: Slave = None
+        self.addresses_updated = set()
 
         try:
             self.loop = asyncio.new_event_loop()
@@ -76,6 +97,31 @@ class Server(Thread):
 
     def __str__(self):
         return self.name
+    
+    def __callback(self, address, count):
+        if self.slave:
+            for n in range(count):
+                self.addresses_updated.add(address - 1 + n)
+            self.__log.trace("Updated addresses: %s", self.addresses_updated)
+            try:
+                self.slave.connector.callback(self.slave, self.slave.connector.process_device_requests)
+            except Exception as e:
+                self.__log.exception('Error sending slave callback from Server: %s', e)
+    
+    def read(self, function_code, address, objects_count):
+        self.__log.debug('Reading %s registers from address %s with function code %s', objects_count, address,
+                function_code)
+
+        result, = self.__datablock.getValues(function_code, address, objects_count)
+        
+        self.addresses_updated.remove(address)
+
+        StatisticsService.count_connector_message(self.connector.get_name(),
+                                                  stat_parameter_name='connectorMsgsReceived')
+        StatisticsService.count_connector_bytes(self.connector.get_name(), result,
+                                                stat_parameter_name='connectorBytesReceived')
+
+        return result
 
     def run(self):
         try:
@@ -109,6 +155,9 @@ class Server(Thread):
             self.__server = await SLAVE_TYPE[self.__type](identity=self.__identity, context=self.__server_context,
                                                           **self.__connection_config, defer_start=True,
                                                           allow_reuse_address=True, allow_reuse_port=True)
+            
+            if self.__config[TYPE_PARAMETER] == SERIAL_CONNECTION_TYPE_PARAMETER:
+                await self.__server.start()
             await self.__server.serve_forever()
         except Exception as e:
             self.__stopped = True
@@ -123,7 +172,8 @@ class Server(Thread):
             **self.__config,
             'deviceName': self.device_name,
             'deviceType': self.device_type,
-            'pollPeriod': self.poll_period
+            'pollPeriod': self.poll_period,
+            'no_master': True   # shows that this slave don't have a master
         }
 
         for (register, register_values) in self.__config.get('values', {}).items():
@@ -179,7 +229,7 @@ class Server(Thread):
         blocks = {}
         if (config.get('values') is None) or (not len(config.get('values'))):
             self.__log.error("No values to read from device %s", config.get(DEVICE_NAME_PARAMETER, 'Modbus Slave'))
-            return
+            return None, None
 
         for (key, value) in config.get('values').items():
             values = {}
@@ -210,13 +260,15 @@ class Server(Thread):
                     except Exception as e:
                         self.__log.error("Failed to configure value %s with error: %s, skipping...", item['value'], e)
 
+                
                 try:
                     if len(values):
-                        blocks[FUNCTION_TYPE[key]] = ModbusSparseDataBlock(values)
+                        blocks[FUNCTION_TYPE[key]] = self.CallbackDatablock(values, callback=self.__callback)
                 except Exception as e:
                     self.__log.error("Failed to configure block %s with error: %s", key, e)
 
         if not len(blocks):
             self.__log.info("%s - will be initialized without values", config.get(DEVICE_NAME_PARAMETER, 'Modbus Slave'))
 
-        return ModbusServerContext(slaves=ModbusSlaveContext(**blocks), single=True)
+        datablock = ModbusSlaveContext(**blocks)
+        return ModbusServerContext(slaves=datablock, single=True), datablock
