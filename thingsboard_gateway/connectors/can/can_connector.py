@@ -150,6 +150,10 @@ class CanConnector(Connector, Thread):
                           self.get_name(), attr_name, content["device"])
 
     def server_side_rpc_handler(self, content):
+        if self.__is_reserved_rpc(content):
+            self.__process_reserved_rpc(content)
+            return
+
         rpc_config = self.__rpc_calls.get(content["device"], {}).get(content["data"]["method"])
         if rpc_config is None:
             if not self.__devices[content["device"]]["enableUnknownRpc"]:
@@ -192,6 +196,62 @@ class CanConnector(Connector, Thread):
 
         if conversion_config.get("response", self.DEFAULT_RPC_RESPONSE_SEND_FLAG):
             self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], {"success": done})
+
+    def __is_reserved_rpc(self, rpc):
+        rpc_method_name = rpc.get('data', {}).get('method')
+
+        if rpc_method_name == 'set':
+            return True
+
+        return False
+
+    def __get_reserved_rpc_params(self, rpc):
+        params = {}
+
+        rpc_params = rpc.get('data', {}).get('params')
+        if rpc_params is None:
+            return {}
+
+        for param in rpc_params.split(';'):
+            try:
+                (key, value) = param.split('=')
+            except ValueError:
+                continue
+
+            if key and value:
+                params[key] = value
+
+        return params
+
+    def __process_reserved_rpc(self, rpc):
+        params = self.__get_reserved_rpc_params(rpc)
+        if params is None:
+            self._log.warning('RPC params are empty')
+            self.__gateway.send_rpc_reply(device=rpc['device'],
+                                          req_id=rpc['data']['id'],
+                                          content={rpc['data']['method']: 'RPC params are empty.'})
+            return
+
+        data = self.__converters[rpc["device"]]["downlink"].convert(params,
+                                                                    rpc["data"].get("params", {}))
+        if data is None:
+            self._log.error('Converted data is empty.')
+            self.__gateway.send_rpc_reply(device=rpc['device'],
+                                          req_id=rpc['data']['id'],
+                                          content={rpc['data']['method']: 'Converted data is empty.'})
+            return
+
+        done = self.send_data_to_bus(data, params, data_check=True)
+        if not done:
+            self._log.error('Failed to process RPC request')
+            self.__gateway.send_rpc_reply(device=rpc['device'],
+                                          req_id=rpc['data']['id'],
+                                          content={rpc['data']['method']: 'Error during sending message to CANbus'})
+            return
+
+        self.__gateway.send_rpc_reply(device=rpc["device"],
+                                      req_id=rpc["data"]["id"],
+                                      content={'result': {"success": True}})
 
     def run(self):
         need_run = True
