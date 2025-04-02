@@ -590,6 +590,8 @@ class TBGatewayService:
                         update_logger_time = cur_time
                         log = logging.getLogger('service')
                         self.__debug_log_enabled = log.isEnabledFor(10)
+
+                    self.stop_event.wait(.1)
                 except Exception as e:
                     log.error("Error in main loop: %s", exc_info=e)
                     self.stop_event.wait(1)
@@ -1643,7 +1645,7 @@ class TBGatewayService:
     def __rpc_to_devices_processing(self):
         while not self.stopped:
             try:
-                request_id, content, received_time = self.__rpc_to_devices_queue.get(timeout=1)
+                request_id, content, received_time = self.__rpc_to_devices_queue.get_nowait()
                 timeout = content.get("params", {}).get("timeout", self.DEFAULT_TIMEOUT)
                 if monotonic() - received_time > timeout:
                     log.error("RPC request %s timeout", request_id)
@@ -1663,7 +1665,7 @@ class TBGatewayService:
                 else:
                     self.__rpc_to_devices_queue.put((request_id, content, received_time))
             except (TimeoutError, Empty):
-                self.stop_event.wait(0.05)
+                self.stop_event.wait(.1)
 
     def __rpc_gateway_processing(self, request_id, content):
         log.info("Received RPC request to the gateway, id: %s, method: %s", str(request_id), content["method"])

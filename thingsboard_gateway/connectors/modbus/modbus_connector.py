@@ -13,7 +13,7 @@
 #     limitations under the License.
 
 import asyncio
-from asyncio import CancelledError
+from asyncio import CancelledError, Queue as AsyncQueue, QueueEmpty
 from queue import Queue, Empty
 from threading import Thread
 from random import choice
@@ -105,7 +105,7 @@ class AsyncModbusConnector(Connector, Thread):
         except RuntimeError:
             self.loop = asyncio.get_event_loop()
 
-        self.process_device_requests = Queue(-1)
+        self.process_device_requests = AsyncQueue(100000)
         self.__data_to_convert = Queue(-1)
         self.__data_to_save = Queue(-1)
 
@@ -227,8 +227,9 @@ class AsyncModbusConnector(Connector, Thread):
             try:
                 slave = self.process_device_requests.get_nowait()
                 await self.__poll_device(slave)
-            except Empty:
-                await asyncio.sleep(.01)
+            except QueueEmpty:
+                await asyncio.sleep(0.1)
+                continue
             except Exception as e:
                 self.__log.exception('Failed to poll device: %s', e)
 
@@ -327,7 +328,7 @@ class AsyncModbusConnector(Connector, Thread):
                         if len(converted_data['attributes']) or len(converted_data['telemetry']):
                             self.__data_to_save.put_nowait(converted_data)
                 else:
-                    sleep(.001)
+                    sleep(.1)
             except Exception as e:
                 self.__log.error('Exception in conversion data loop: %s', e)
 
