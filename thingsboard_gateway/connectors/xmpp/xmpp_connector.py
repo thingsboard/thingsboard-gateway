@@ -138,6 +138,7 @@ class XMPPConnector(Connector, Thread):
 
         self._xmpp.add_event_handler("session_start", self.session_start)
         self._xmpp.add_event_handler("message", self.message)
+        self._xmpp['feature_mechanisms'].unencrypted_plain = True
 
         for plugin in self._server_config.get('plugins', []):
             self._xmpp.register_plugin(plugin)
@@ -189,8 +190,8 @@ class XMPPConnector(Connector, Thread):
                         if converted_data:
                             XMPPConnector.DATA_TO_SEND.put(converted_data)
 
-                            if not self._available_device.get(converted_data['deviceName']):
-                                self._available_device[converted_data['deviceName']] = device_jid
+                            if not self._available_device.get(converted_data.device_name):
+                                self._available_device[converted_data.device_name] = device_jid
                         else:
                             self.__log.error('Converted data is empty')
                     else:
@@ -266,6 +267,10 @@ class XMPPConnector(Connector, Thread):
         self.__log.debug('Got RPC: %s', content)
 
         try:
+            if self.__is_reserved_rpc(content):
+                self.__process_reserved_rpc(content)
+                return
+
             device_jid = self._available_device.get(content['device'])
             if not device_jid:
                 self.__log.error('Device not found')
@@ -293,3 +298,57 @@ class XMPPConnector(Connector, Thread):
                         return
         except KeyError as e:
             self.__log.error('Key not found %s during processing rpc', e)
+
+    def __is_reserved_rpc(self, rpc) -> bool:
+        rpc_method_name = rpc.get('data', {}).get('method')
+
+        if rpc_method_name == 'set':
+            return True
+
+        return False
+
+    def __process_reserved_rpc(self, rpc):
+        params = self.__get_reserved_rpc_params(rpc)
+        if not params:
+            self.__log.error('RPC params are empty, expected format: set value={value};')
+            self.__gateway.send_rpc_reply(device=rpc['device'],
+                                          req_id=rpc['data']['id'],
+                                          content={
+                                              rpc['data']['method']:
+                                                  'RPC params are empty, expected format: set value={value};'
+                                          })
+            return
+
+        device_jid = self._available_device.get(rpc['device'])
+        if not device_jid:
+            self.__log.error('Device not found')
+            return
+
+        try:
+            self._send_message(device_jid, dumps(params))
+            self.__gateway.send_rpc_reply(device=rpc['device'],
+                                          req_id=rpc['data']['id'],
+                                          content={'result': {"success": True}})
+        except Exception as e:
+            self.__log.error('Error during sending reserved RPC %s', e)
+            self.__gateway.send_rpc_reply(device=rpc['device'],
+                                          req_id=rpc['data']['id'],
+                                          content={rpc['data']['method']: 'Error during sending reserved RPC %s' % e})
+
+    def __get_reserved_rpc_params(self, rpc):
+        params = {}
+
+        rpc_params = rpc.get('data', {}).get('params')
+        if rpc_params is None:
+            return {}
+
+        for param in rpc.get('data', {}).get('params').split(';'):
+            try:
+                (key, value) = param.split('=')
+            except ValueError:
+                continue
+
+            if key and value:
+                params[key] = value
+
+        return params
