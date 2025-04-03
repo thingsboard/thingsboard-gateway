@@ -10,6 +10,7 @@ from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventS
 from thingsboard_gateway.storage.sqlite.sqlite_event_storage import SQLiteEventStorage
 
 LOG = getLogger("TEST")
+LOG.trace = LOG.debug
 
 
 class TestStorage(TestCase):
