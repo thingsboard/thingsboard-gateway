@@ -1676,7 +1676,6 @@ class TBGatewayService:
             method_function = self.__remote_shell.shell_commands.get(method_to_call,
                                                                      self.__gateway_rpc_methods.get(method_to_call))
         else:
-            log.info("Remote shell is disabled.")
             method_function = self.__gateway_rpc_methods.get(method_to_call)
 
         if method_function is None and method_to_call in self.__rpc_scheduled_methods_functions:
