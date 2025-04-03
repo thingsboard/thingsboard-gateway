@@ -138,7 +138,7 @@ class XMPPConnector(Connector, Thread):
 
         self._xmpp.add_event_handler("session_start", self.session_start)
         self._xmpp.add_event_handler("message", self.message)
-        self._xmpp['feature_mechanisms'].unencrypted_plain = True
+        self._xmpp['feature_mechanisms'].unencrypted_plain = self._server_config.get('unencrypted_plain_auth', True)
 
         for plugin in self._server_config.get('plugins', []):
             self._xmpp.register_plugin(plugin)

@@ -180,7 +180,7 @@ class OdbcConnector(Connector, Thread):
     def __is_reserved_rpc(self, rpc):
         rpc_method_name = rpc.get('data', {}).get('method')
 
-        if rpc_method_name == 'set':
+        if rpc_method_name == 'set' or rpc_method_name == 'get':
             return True
 
         return False
