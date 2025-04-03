@@ -342,7 +342,7 @@ class XMPPConnector(Connector, Thread):
         if rpc_params is None:
             return {}
 
-        for param in rpc.get('data', {}).get('params').split(';'):
+        for param in rpc_params.split(';'):
             try:
                 (key, value) = param.split('=')
             except ValueError:
