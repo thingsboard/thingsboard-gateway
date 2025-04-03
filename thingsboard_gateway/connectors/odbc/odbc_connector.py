@@ -129,6 +129,10 @@ class OdbcConnector(Connector, Thread):
                 self._log.warning("[%s] Cannot process RPC request: not connected to database", self.get_name())
                 raise Exception("no connection")
 
+            if self.__is_reserved_rpc(content):
+                self.__process_reverved_rpc(content)
+                return
+
             is_rpc_unknown = False
             rpc_config = self.__config["serverSideRpc"]["methods"].get(content["data"]["method"])
             if rpc_config is None:
@@ -153,21 +157,7 @@ class OdbcConnector(Connector, Thread):
                             self.get_name(), "unknown" if is_rpc_unknown else "", content["data"]["method"],
                             content["data"]["id"], content["device"], sql_params, query)
 
-            if self.__rpc_cursor is None:
-                self.__rpc_cursor = self.__connection.cursor()
-
-            if query:
-                if sql_params:
-                    self.__rpc_cursor.execute(query, sql_params)
-                else:
-                    self.__rpc_cursor.execute(query)
-            else:
-                if sql_params:
-                    self.__rpc_cursor.execute("{{CALL {} ({})}}".format(content["data"]["method"],
-                                                                        ("?," * len(sql_params))[0:-1]),
-                                              sql_params)
-                else:
-                    self.__rpc_cursor.execute("{{CALL {}}}".format(content["data"]["method"]))
+            self.__process_rpc(content["data"]["method"], query, sql_params)
 
             done = True
             self._log.debug("[%s] Processed '%s' RPC request (id=%s) for '%s' device",
@@ -186,6 +176,99 @@ class OdbcConnector(Connector, Thread):
                 self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], response)
             else:
                 self.__gateway.send_rpc_reply(content["device"], content["data"]["id"], {"success": done})
+
+    def __is_reserved_rpc(self, rpc):
+        rpc_method_name = rpc.get('data', {}).get('method')
+
+        if rpc_method_name == 'set' or rpc_method_name == 'get':
+            return True
+
+        return False
+
+    def __process_reverved_rpc(self, rpc):
+        params = self.__get_reserved_rpc_params(rpc)
+        if not params:
+            self.__log.error('RPC params are empty, expected format: set value={value};')
+            self.__gateway.send_rpc_reply(device=rpc['device'],
+                                          req_id=rpc['data']['id'],
+                                          content={
+                                              rpc['data']['method']:
+                                                  'RPC params are empty, expected format: set value={value};'
+                                          })
+            return
+
+        sql_params = params.get('value', [])
+        query = params.get('query', '')
+        procedure_name = params.get('procedure_name', '')
+        with_result = params.get('with_result', False)
+
+        try:
+            self.__process_rpc(procedure_name, query, sql_params)
+        except pyodbc.Warning as w:
+            self._log.warning("[%s] Warning while processing '%s' RPC request (id=%s) for '%s' device: %s",
+                              self.get_name(), rpc["data"]["method"], rpc["data"]["id"], rpc["device"],
+                              str(w))
+        except Exception as e:
+            self._log.error("[%s] Failed to process '%s' RPC request (id=%s) for '%s' device: %s",
+                            self.get_name(), rpc["data"]["method"], rpc["data"]["id"], rpc["device"],
+                            str(e))
+            self.__gateway.send_rpc_reply(device=rpc['device'],
+                                          req_id=rpc['data']['id'],
+                                          content={rpc['data']['method']: 'Error during executing reserved RPC %s' % e})
+            return
+
+        if with_result:
+            response = self.row_to_dict(self.__rpc_cursor.fetchone())
+            self.__gateway.send_rpc_reply(device=rpc["device"],
+                                          req_id=rpc["data"]["id"],
+                                          content={'result': response})
+        else:
+            self.__gateway.send_rpc_reply(device=rpc["device"],
+                                          req_id=rpc["data"]["id"],
+                                          content={'result': {"success": True}})
+
+    def __get_reserved_rpc_params(self, rpc):
+        params = {}
+
+        rpc_params = rpc.get('data', {}).get('params')
+        if rpc_params is None:
+            return {}
+
+        try:
+            for param in rpc_params.split(';'):
+                try:
+                    (key, value) = param.split('=')
+                except ValueError:
+                    continue
+
+                if key and value:
+                    if key == 'with_result':
+                        params[key] = value.lower() == 'true'
+                    elif key == 'value':
+                        params[key] = value.split(',')
+                    else:
+                        params[key] = value
+        except Exception as e:
+            self.__log.error('Error during parsing RPC params: %s', e)
+            return {}
+
+        return params
+
+    def __process_rpc(self, procedure_name, query, sql_params):
+        if self.__rpc_cursor is None:
+            self.__rpc_cursor = self.__connection.cursor()
+
+        if query:
+            if sql_params:
+                self.__rpc_cursor.execute(query, sql_params)
+            else:
+                self.__rpc_cursor.execute(query)
+        else:
+            if sql_params:
+                query_to_execute = "{{CALL {} ({})}}".format(procedure_name, ("?," * len(sql_params))[0:-1])
+                self.__rpc_cursor.execute(query_to_execute, sql_params)
+            else:
+                self.__rpc_cursor.execute("{{CALL {}}}".format(procedure_name))
 
     def run(self):
         while not self.__stopped:
@@ -269,9 +352,9 @@ class OdbcConnector(Connector, Thread):
             converted_data: ConvertedData = self.__converter.convert(self.__config["mapping"], data)
 
             StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                      count=data.attributes_datapoints_count)
+                                                      count=converted_data.attributes_datapoints_count)
             StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                      count=data.telemetry_datapoints_count)
+                                                      count=converted_data.telemetry_datapoints_count)
 
             converted_data.device_name = eval(self.__config["mapping"]["device"]["name"], globals(), data)
 
