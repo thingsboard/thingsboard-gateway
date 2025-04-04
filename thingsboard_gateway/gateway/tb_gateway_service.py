@@ -433,17 +433,28 @@ class TBGatewayService:
         self.__statistics = config # noqa
         if isinstance(self.__statistics_service, StatisticsService):
             self.__statistics_service.stop()
-        if self.__statistics.get('enable', False):
-            self.__statistics_service = StatisticsService(self.__statistics['statsSendPeriodInSeconds'], self, log,
+        if self.__statistics.get('enable', False) or self.__statistics.get('enableCustom', False):
+            if self.__statistics.get('enable', False):
+                StatisticsService.enable_statistics()
+                log.debug('General statistics enabled')
+            else:
+                StatisticsService.disable_statistics()
+                log.debug('General statistics disabled')
+            if self.__statistics.get('enableCustom', True):
+                StatisticsService.enable_custom_statistics()
+                log.debug('Custom statistics enabled')
+            else:
+                StatisticsService.disable_custom_statistics()
+                log.debug('Custom statistics disabled')
+            self.__statistics_service = StatisticsService(self.__statistics, self, log,
                                                           config_path=self._config_dir + self.__statistics[
                                                               'configuration'] if self.__statistics.get(
-                                                              'configuration') else None,
-                                                          custom_stats_send_period_in_seconds=self.__statistics.get(
-                                                              'customStatsSendPeriodInSeconds', 300))
+                                                              'configuration') else None)
             log.debug('Statistics service initialized')
         else:
             self.__statistics_service = None # noqa
             StatisticsService.disable_statistics()
+            StatisticsService.disable_custom_statistics()
             log.debug('Statistics service disabled')
 
     def init_device_filtering(self, config):

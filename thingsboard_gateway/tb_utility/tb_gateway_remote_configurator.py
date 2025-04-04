@@ -35,7 +35,6 @@ from thingsboard_gateway.gateway.tb_client import TBClient
 
 if TYPE_CHECKING:
     from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
-from thingsboard_gateway.storage.event_storage import EventStorage
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
@@ -46,6 +45,7 @@ class RemoteConfigurator:
 
     DEFAULT_STATISTICS = {
         'enable': True,
+        'enableCustom': True,
         'statsSendPeriodInSeconds': 60,
         'customStatsSendPeriodInSeconds': 300,
         'configuration': 'statistics.json'
@@ -168,8 +168,12 @@ class RemoteConfigurator:
         else:
             with open(self._gateway.get_config_path() + 'statistics.json', 'w') as file:
                 file.writelines(dumps(commands, indent='  '))
+        statistics_config = self.general_configuration.get('statistics', {})
+        enable_custom = ((statistics_config.get('enable', False) and statistics_config.get('enableCustom') is None)
+                         or statistics_config.get('enableCustom', False))
         config['statistics'] = {
                 'enable': self.general_configuration.get('statistics', {}).get('enable', False),
+                'enableCustom': enable_custom,
                 'statsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('statsSendPeriodInSeconds', 60), # noqa
                 'customStatsSendPeriodInSeconds': self.general_configuration.get('statistics', {}).get('customStatsSendPeriodInSeconds', 300), # noqa
                 'configuration': self.general_configuration['statistics'].get('configuration', 'statistics.json'),

@@ -26,6 +26,7 @@ from thingsboard_gateway.gateway.statistics.configs import ONCE_SEND_STATISTICS_
 
 class StatisticsService(Thread):
     ENABLED = False
+    ENABLED_CUSTOM = False
     STATISTICS_STORAGE = {
         'receivedBytesFromDevices': 0,
         'convertedBytesFromDevice': 0,
@@ -55,9 +56,9 @@ class StatisticsService(Thread):
     CONNECTOR_STATISTICS_STORAGE = {}
     __LOCK = RLock()
 
-    def __init__(self, stats_send_period_in_seconds, gateway, log, config_path=None,
-                 custom_stats_send_period_in_seconds=3600):
-        StatisticsService.enable_statistics()
+    def __init__(self, statistics_configuration, gateway, log, config_path=None):
+        stats_send_period_in_seconds = statistics_configuration['statsSendPeriodInSeconds']
+        self._custom_stats_send_period_in_seconds = statistics_configuration.get('customStatsSendPeriodInSeconds', 300)
         super().__init__()
         self.name = 'Statistics Thread'
         self.daemon = True
@@ -65,7 +66,6 @@ class StatisticsService(Thread):
 
         self._config_path = config_path
         self._stats_send_period_in_seconds = stats_send_period_in_seconds if stats_send_period_in_seconds >= 10 else 10
-        self._custom_stats_send_period_in_seconds = custom_stats_send_period_in_seconds
         self._gateway = gateway
         self._log = log
         self._custom_command_config = self._load_config()
@@ -98,6 +98,16 @@ class StatisticsService(Thread):
     def disable_statistics(cls):
         with cls.__LOCK:
             cls.ENABLED = False
+
+    @classmethod
+    def enable_custom_statistics(cls):
+        with cls.__LOCK:
+            cls.ENABLED_CUSTOM = True
+
+    @classmethod
+    def disable_custom_statistics(cls):
+        with cls.__LOCK:
+            cls.ENABLED_CUSTOM = False
 
     @classmethod
     def add_bytes(cls, stat_type, bytes_count, stat_parameter_name=None, statistics_type='STATISTICS_STORAGE'):
@@ -212,9 +222,10 @@ class StatisticsService(Thread):
         return message
 
     def __send_custom_command_statistics(self):
-        custom_command_statistics_message = self.__collect_custom_command_statistics()
-        if custom_command_statistics_message:
-            self._gateway.send_telemetry(custom_command_statistics_message)
+        if self.ENABLED_CUSTOM:
+            custom_command_statistics_message = self.__collect_custom_command_statistics()
+            if custom_command_statistics_message:
+                self._gateway.send_telemetry(custom_command_statistics_message)
 
     def __send_statistics(self):
         statistics_message = {'machineStats': self.__collect_statistics_from_config(MACHINE_STATS_CONFIG),
@@ -240,8 +251,11 @@ class StatisticsService(Thread):
         except Exception as e:
             self._log.error("Error while sending first statistics information: %s", e)
 
-        while not self._stopped.is_set() and StatisticsService.ENABLED:
+        while not self._stopped.is_set() and (StatisticsService.ENABLED or StatisticsService.ENABLED_CUSTOM):
             try:
+                if not StatisticsService.ENABLED and not StatisticsService.ENABLED_CUSTOM:
+                    self._log.debug("Statistics service is disabled. Stopping the thread.")
+                    break
                 cur_monotonic = int(monotonic())
 
                 next_service_poll = (self._last_service_poll + self._stats_send_period_in_seconds) - cur_monotonic
@@ -253,12 +267,14 @@ class StatisticsService(Thread):
                 if wait_time > 0:
                     sleep(wait_time)
 
+                if not StatisticsService.ENABLED and not StatisticsService.ENABLED_CUSTOM:
+                    continue
+
                 cur_monotonic = int(monotonic())
                 if (cur_monotonic - self._last_service_poll >= self._stats_send_period_in_seconds or
                         self._last_service_poll == 0):
                     self._last_service_poll = cur_monotonic
                     self.__send_statistics()
-                    self.clear_statistics()
 
                 if (cur_monotonic - self._last_custom_command_poll >= self._custom_stats_send_period_in_seconds or
                         self._last_custom_command_poll == 0):
@@ -268,3 +284,4 @@ class StatisticsService(Thread):
             except Exception as e:
                 self._log.error("Error in statistics thread: %s", e)
                 self._stopped.wait(5)
+        self.stop()
