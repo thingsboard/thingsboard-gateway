@@ -19,7 +19,7 @@ from simplejson import dumps
 
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
 from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER, \
-    RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER
+    RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, USE_RECEIVED_TS_PARAMETER
 from thingsboard_gateway.gateway.entities.attributes import Attributes
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
@@ -76,7 +76,11 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
         try:
             for datatype in datatypes:
-                timestamp = data.get("ts", data.get("timestamp")) if datatype == 'timeseries' else None
+                if self.__config.get(USE_RECEIVED_TS_PARAMETER, False) is True:
+                    timestamp = converted_data.metadata["receivedTs"]
+                else:
+                    timestamp = data.get("ts", data.get("timestamp")) if datatype == 'timeseries' else None
+
                 for datatype_config in self.__config.get(datatype, []):
                     if isinstance(datatype_config, str) and datatype_config == "*":
                         if datatype == "attributes":
