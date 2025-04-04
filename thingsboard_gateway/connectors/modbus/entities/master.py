@@ -15,12 +15,18 @@
 from time import monotonic
 from asyncio import Lock
 
-from pymodbus.client import AsyncModbusTlsClient, AsyncModbusTcpClient, AsyncModbusUdpClient, AsyncModbusSerialClient
+from pymodbus.client import AsyncModbusSerialClient
 from pymodbus.framer.ascii_framer import ModbusAsciiFramer
 from pymodbus.framer.rtu_framer import ModbusRtuFramer
 from pymodbus.framer.socket_framer import ModbusSocketFramer
 
 from thingsboard_gateway.connectors.modbus.constants import SERIAL_CONNECTION_TYPE_PARAMETER
+from thingsboard_gateway.connectors.modbus.entities.clients import (
+    AsyncModbusTcpClient,
+    AsyncModbusUdpClient,
+    AsyncModbusTlsClient
+)
+
 
 FRAMER_TYPE = {
     'rtu': ModbusRtuFramer,

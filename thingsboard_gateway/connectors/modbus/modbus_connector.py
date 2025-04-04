@@ -259,7 +259,8 @@ class AsyncModbusConnector(Connector, Thread):
                 await slave.disconnect()
             except Exception as e:
                 self.__delete_device_from_platform(slave)
-                self.__log.error('Failed to poll %s device: %s', slave, exc_info=e)
+                self.__log.error('Failed to poll %s device: %s', slave, e)
+                self.__log.debug('Exception:', exc_info=e)
         else:
             self.__log.debug('Config is empty. Nothing to read, for device %s', slave)
 
