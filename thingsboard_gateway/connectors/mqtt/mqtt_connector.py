@@ -907,7 +907,7 @@ class MqttConnector(Connector, Thread):
 
             data_to_send = rpc_config.get('valueExpression')
             for (tag, value) in zip(data_to_send_tags, data_to_send_values):
-                data_to_send = data_to_send.replace('${' + tag + '}', orjson.dumps(value))
+                data_to_send = data_to_send.replace('${' + tag + '}', orjson.dumps(value).decode('utf-8'))
 
             try:
                 self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
