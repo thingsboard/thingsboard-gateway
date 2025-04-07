@@ -23,9 +23,9 @@ from time import time, sleep
 import ssl
 import os
 
-from simplejson import JSONDecodeError, dumps
+from simplejson import dumps
 from requests.auth import HTTPBasicAuth as HTTPBasicAuthRequest
-from requests.exceptions import RequestException
+from requests.exceptions import RequestException, JSONDecodeError
 
 from thingsboard_gateway.connectors.rest.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData

@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from json import JSONDecodeError
 from queue import Queue
 from random import choice
 from re import fullmatch
@@ -33,7 +32,7 @@ except ImportError:
     TBUtility.install_package("requests")
     from requests import Timeout, request
 from requests.auth import HTTPBasicAuth
-from requests.exceptions import RequestException
+from requests.exceptions import RequestException, JSONDecodeError
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.request.json_request_uplink_converter import JsonRequestUplinkConverter
