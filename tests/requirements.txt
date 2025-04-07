@@ -15,8 +15,8 @@ grpcio==1.58.0
 mmh3
 protobuf<=3.20.0
 cachetools
-tb-paho-mqtt-client>=2.1.1
-tb-mqtt-client==1.12.0
+tb-paho-mqtt-client>=2.1.2
+tb-mqtt-client==1.13.1
 service-identity
 pyjwt==2.6.0
 tb-rest-client
