@@ -61,7 +61,6 @@ RECEIVED_TS_PARAMETER = "receivedTs"
 CONVERTED_TS_PARAMETER = "convertedTs"
 SEND_TO_STORAGE_TS_PARAMETER = "sendToStorageTs"
 DATA_RETRIEVING_STARTED = "dataRetrieveStartedTs"
-USE_RECEIVED_TS_PARAMETER = "useReceivedTs"
 
 # Size of metadata that will be added to messages in debug mode
 # Connector name length should be added to the size of the metadata
