@@ -42,9 +42,6 @@ def init_logger(gateway: 'TBGatewayService', name, level, enable_remote_logging=
     if attr_name:
         log.attr_name = attr_name + '_ERRORS_COUNT'
 
-    if hasattr(gateway, 'main_handler') and gateway.main_handler not in log.handlers:
-        log.addHandler(gateway.main_handler)
-
     # Add file handler to the connector or converter logger
     # First check if it is a main module logger (for example OPC-UA connector logger)
     # If it is, add a file handler to the main module logger

@@ -67,9 +67,6 @@ class TBRemoteLoggerHandler(logging.Handler):
 
     def add_logger(self, name, remote_logging_level):
         log = logging.getLogger(name)
-        if hasattr(self.__gateway, 'main_handler') and self.__gateway.main_handler not in log.handlers:
-            log.addHandler(self.__gateway.main_handler)
-            log.debug("Added main handler to log %s", name)
         with self.__loggers_lock:
             self.loggers[name] = log, self.get_logger_level_id(remote_logging_level)
 
