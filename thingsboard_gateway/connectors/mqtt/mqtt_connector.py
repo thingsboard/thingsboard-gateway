@@ -568,9 +568,8 @@ class MqttConnector(Connector, Thread):
             thread.start()
         elif number_of_needed_threads < threads_count and threads_count > 1:
             worker: MqttConnector.ConverterWorker = self.__workers_thread_pool[-1]
-            if not worker.in_progress:
-                worker.stopped = True
-                self.__workers_thread_pool.remove(worker)
+            worker.stopped = True
+            self.__workers_thread_pool.remove(worker)
 
     def _on_message(self, client, userdata, message):
         StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
