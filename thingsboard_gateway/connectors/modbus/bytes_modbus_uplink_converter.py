@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+from email.policy import default
 from typing import List, Union
 
 from pymodbus.constants import Endian
@@ -193,7 +193,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
                 else:
                     result_data = [bool(bit) if bitAsBoolean else int(bit) for bit in decoded]
         elif isinstance(decoded, float):
-            result_data = decoded
+            result_data = float(round(decoded, configuration.get('round', 6)))
         elif decoded is not None:
             result_data = int(decoded, 16)
         else:
