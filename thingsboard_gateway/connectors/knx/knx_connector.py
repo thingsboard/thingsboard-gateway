@@ -176,15 +176,17 @@ class KNXConnector(Connector, Thread):
 
                     for key, config in device.group_addresses_to_read.items():
                         try:
-                            response = await read_group_value(self.__client, key, config['type'])
+                            response = await read_group_value(self.__client, key, config.get('type'))
 
-                            if response:
+                            if response is not None:
                                 self.__log.trace('Response from KNX bus: %s', response)
                                 responses[key] = {
                                     'type': config['type'],
                                     'response': response,
                                     'keys': config['keys']
                                 }
+                            else:
+                                self.__log.warning('No response from KNX bus for %s.', key)
                         except Exception as e:
                             self.__log.exception('Error processign %s request: %s', device.name, e)
 
@@ -231,7 +233,7 @@ class KNXConnector(Connector, Thread):
                 result = {}
                 self.__create_task(self.__process_attribute_update,
                                    (attribute_request_config['groupAddress'],
-                                    attribute_request_config['dataType'],
+                                    attribute_request_config.get('dataType'),
                                     value),
                                    {'result': result})
             else:
@@ -319,9 +321,9 @@ class KNXConnector(Connector, Thread):
     async def __process_rpc_request(self, config, value=None, result={}):
         if self.__client.connection_manager.connected:
             group_address = config['groupAddress']
-            data_type = config['dataType']
+            data_type = config.get('dataType')
 
-            if value or config['requestType'] == 'write':
+            if value is not None or config['requestType'] == 'write':
                 result['response'] = await group_value_write(self.__client, group_address, value, data_type)
             else:
                 result['response'] = await read_group_value(self.__client, group_address, data_type)
