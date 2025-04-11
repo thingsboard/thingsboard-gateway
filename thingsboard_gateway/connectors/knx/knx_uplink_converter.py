@@ -38,7 +38,7 @@ class KNXUplinkConverter(KNXConverter):
             for config in self.__config.get(section, []):
                 try:
                     converted_value = data.get(config.get('groupAddress'))['response']
-                    if converted_value:
+                    if converted_value is not None:
                         datapoint_key = TBUtility.convert_key_to_datapoint_key(config['key'],
                                                                                device_report_strategy,
                                                                                config,
@@ -48,6 +48,8 @@ class KNXUplinkConverter(KNXConverter):
                             converted_data.add_to_attributes({datapoint_key: converted_value})
                         elif section == 'timeseries':
                             converted_data.add_to_telemetry({datapoint_key: converted_value})
+                    else:
+                        self.__log.warning('Received None value for group address %s', config.get('groupAddress'))
                 except Exception as e:
                     self.__log.error('Error converting data: %s', e)
 
