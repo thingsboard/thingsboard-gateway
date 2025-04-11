@@ -49,6 +49,9 @@ try:
         installation_required = True
         force_install = True
 
+    from serial import SerialException  # noqa
+    from serial_asyncio import create_serial_connection  # noqa
+
 except ImportError:
     installation_required = True
 
@@ -589,7 +592,7 @@ class AsyncModbusConnector(Connector, Thread):
                 if connected:
                     response = await device.write(config.function_code, config.address, converted_data)
             except Exception as e:
-                self.__log.error('Failed to process rpc request: %s', exc_info=e)
+                self.__log.error('Failed to process rpc request for device: %s', device, exc_info=e)
                 response = e
 
         if isinstance(response, (WriteMultipleRegistersResponse,

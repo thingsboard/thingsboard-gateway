@@ -56,12 +56,16 @@ class Device:
                     if re.search(r"(ns=\d+;[isgb]=[^}]+)", node_config['value']):
                         child = re.search(r"(ns=\d+;[isgb]=[^}]+)", node_config['value'])
                         self.values[section].append(
-                            {'path': child.groups()[0], 'key': node_config['key'],
+                            {'path': child.groups()[0],
+                             'key': node_config['key'],
+                             'timestampLocation': node_config.get('timestampLocation', 'gateway'),
                              REPORT_STRATEGY_PARAMETER: node_config.get(REPORT_STRATEGY_PARAMETER)})
                     elif re.search(r"\${([A-Za-z0-9_.:\\\[\]\-()]+)", node_config['value']):
                         child = re.search(r"\${([A-Za-z0-9_.:\\\[\]\-()]+)", node_config['value'])
                         self.values[section].append(
-                            {'path': self.path + child.groups()[0].split('\\.'), 'key': node_config['key'],
+                            {'path': self.path + child.groups()[0].split('\\.'),
+                             'key': node_config['key'],
+                             'timestampLocation': node_config.get('timestampLocation', 'gateway'),
                              REPORT_STRATEGY_PARAMETER: node_config.get(REPORT_STRATEGY_PARAMETER)})
 
                 except KeyError as e:

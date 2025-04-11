@@ -29,6 +29,9 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
 
+USE_RECEIVED_TS_PARAMETER = "useReceivedTs"
+
+
 class JsonMqttUplinkConverter(MqttUplinkConverter):
     CONFIGURATION_OPTION_USE_EVAL = "useEval"
 
@@ -76,7 +79,11 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
         try:
             for datatype in datatypes:
-                timestamp = data.get("ts", data.get("timestamp")) if datatype == 'timeseries' else None
+                if self.__config.get(USE_RECEIVED_TS_PARAMETER, False) is True:
+                    timestamp = converted_data.metadata["receivedTs"]
+                else:
+                    timestamp = data.get("ts", data.get("timestamp")) if datatype == 'timeseries' else None
+
                 for datatype_config in self.__config.get(datatype, []):
                     if isinstance(datatype_config, str) and datatype_config == "*":
                         if datatype == "attributes":

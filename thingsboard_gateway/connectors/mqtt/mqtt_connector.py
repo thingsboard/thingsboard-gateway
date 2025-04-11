@@ -568,9 +568,8 @@ class MqttConnector(Connector, Thread):
             thread.start()
         elif number_of_needed_threads < threads_count and threads_count > 1:
             worker: MqttConnector.ConverterWorker = self.__workers_thread_pool[-1]
-            if not worker.in_progress:
-                worker.stopped = True
-                self.__workers_thread_pool.remove(worker)
+            worker.stopped = True
+            self.__workers_thread_pool.remove(worker)
 
     def _on_message(self, client, userdata, message):
         StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
@@ -809,8 +808,6 @@ class MqttConnector(Connector, Thread):
                                 received_value = orjson.dumps(received_value)
                             elif isinstance(received_value, bool):
                                 received_value = str(received_value).lower()
-                            elif isinstance(received_value, str):
-                                received_value = '"' + received_value + '"'
                             elif isinstance(received_value, float) or isinstance(received_value, int):
                                 received_value = str(received_value)
                             elif received_value is None:
@@ -826,7 +823,9 @@ class MqttConnector(Connector, Thread):
                             try:
                                 data = attribute_update["valueExpression"] \
                                     .replace("${attributeKey}", str(attribute_key)) \
-                                    .replace("${attributeValue}", received_value)
+                                    .replace("${attributeValue}", received_value) \
+                                    .replace("${deviceName}", str(content["device"]))
+
                             except KeyError as e:
                                 self.__log.exception("Cannot form topic, key %s - not found", e)
                                 raise e
@@ -906,8 +905,12 @@ class MqttConnector(Connector, Thread):
                                                        expression_instead_none=True)
 
             data_to_send = rpc_config.get('valueExpression')
+
+            if content.get('device'):
+                data_to_send = data_to_send.replace("${deviceName}", str(content["device"]))
+
             for (tag, value) in zip(data_to_send_tags, data_to_send_values):
-                data_to_send = data_to_send.replace('${' + tag + '}', orjson.dumps(value))
+                data_to_send = data_to_send.replace('${' + tag + '}', orjson.dumps(value).decode('utf-8'))
 
             try:
                 self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)

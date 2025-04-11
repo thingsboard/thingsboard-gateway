@@ -77,8 +77,6 @@ except ImportError:
         pass
 log: TbLogger = None  # type: ignore
 logging.setLoggerClass(TbLogger)
-main_handler = logging.handlers.MemoryHandler(-1)
-main_handler.setLevel(0)
 
 DEFAULT_CONNECTORS = {
     "mqtt": "MqttConnector",
@@ -175,9 +173,6 @@ class TBGatewayService:
         log = logging.getLogger('service')
         if logging_error is not None:
             log.setLevel('INFO')
-        global main_handler
-        self.main_handler = main_handler
-        log.addHandler(self.main_handler)
 
         # load general configuration YAML/JSON
         self.__config = self.__load_general_config(config_file)
@@ -187,7 +182,6 @@ class TBGatewayService:
 
         log.info("Gateway starting...")
         storage_log = logging.getLogger('storage')
-        storage_log.addHandler(self.main_handler)
         self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"],
                                                                                           storage_log,
                                                                                           self.stop_event)
@@ -229,7 +223,6 @@ class TBGatewayService:
 
         self.__debug_log_enabled = log.isEnabledFor(10)
         self.update_loggers()
-        # self.main_handler.setTarget(self.remote_handler)
         self.__save_converted_data_thread = Thread(name="Storage fill thread", daemon=True,
                                                    target=self.__send_to_storage)
         self.__save_converted_data_thread.start()
