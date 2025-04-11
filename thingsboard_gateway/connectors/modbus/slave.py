@@ -16,6 +16,7 @@ from threading import Thread
 from time import sleep, monotonic
 from typing import TYPE_CHECKING, Dict, Union
 
+from _asyncio import Future
 from pymodbus.constants import Defaults
 
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
@@ -250,6 +251,12 @@ class Slave(Thread):
         self._log.debug('Write %s value to address %s with function code %s', value, address, function_code)
         result = await self.__write(function_code, address, value)
 
+        if isinstance(result, Future):
+            if not result.done():
+                result = await result
+            if result.exception(True) is not None:
+                raise result.exception(True)
+
         StatisticsService.count_connector_message(self.connector.get_name(),
                                                   stat_parameter_name='connectorMsgsReceived')
         StatisticsService.count_connector_bytes(self.connector.get_name(), result,
@@ -275,7 +282,7 @@ class Slave(Thread):
         except Exception as e:
             self._log.error("Failed to write with function code %s: %s", function_code, e)
             future = asyncio.Future()
-            future.set_result(False)
+            future.set_exception(e)
             return future
 
         self._log.debug("Write with result: %s", str(result))
