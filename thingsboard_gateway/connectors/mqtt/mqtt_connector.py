@@ -808,8 +808,6 @@ class MqttConnector(Connector, Thread):
                                 received_value = orjson.dumps(received_value)
                             elif isinstance(received_value, bool):
                                 received_value = str(received_value).lower()
-                            elif isinstance(received_value, str):
-                                received_value = '"' + received_value + '"'
                             elif isinstance(received_value, float) or isinstance(received_value, int):
                                 received_value = str(received_value)
                             elif received_value is None:
@@ -825,7 +823,9 @@ class MqttConnector(Connector, Thread):
                             try:
                                 data = attribute_update["valueExpression"] \
                                     .replace("${attributeKey}", str(attribute_key)) \
-                                    .replace("${attributeValue}", received_value)
+                                    .replace("${attributeValue}", received_value) \
+                                    .replace("${deviceName}", str(content["device"]))
+
                             except KeyError as e:
                                 self.__log.exception("Cannot form topic, key %s - not found", e)
                                 raise e
@@ -905,6 +905,10 @@ class MqttConnector(Connector, Thread):
                                                        expression_instead_none=True)
 
             data_to_send = rpc_config.get('valueExpression')
+
+            if content.get('device'):
+                data_to_send = data_to_send.replace("${deviceName}", str(content["device"]))
+
             for (tag, value) in zip(data_to_send_tags, data_to_send_values):
                 data_to_send = data_to_send.replace('${' + tag + '}', orjson.dumps(value).decode('utf-8'))
 
