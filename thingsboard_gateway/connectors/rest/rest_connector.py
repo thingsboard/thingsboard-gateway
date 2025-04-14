@@ -614,7 +614,6 @@ class AnonymousDataHandler(BaseDataHandler):
                     (converted_data.attributes_datapoints_count > 0 or
                      converted_data.telemetry_datapoints_count > 0)):
                 self.send_to_storage(self.name, self.connector_id, converted_data)
-                self.log.info("CONVERTED_DATA: %r", converted_data)
             return self.get_response()
         except Exception as e:
             self.log.exception("Error while post to anonymous handler: %s", e)
@@ -672,7 +671,6 @@ class BasicDataHandler(BaseDataHandler):
                         (converted_data.attributes_datapoints_count > 0 or
                          converted_data.telemetry_datapoints_count > 0)):
                     self.send_to_storage(self.name, self.connector_id, converted_data)
-                    self.log.info("CONVERTED_DATA: %r", converted_data)
 
                 return self.get_response()
             except Exception as e:
