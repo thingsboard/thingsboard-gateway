@@ -104,6 +104,9 @@ class OpcUaConnector(Connector, Thread):
             self.__config = backward_compatibility_adapter.convert()
 
         self.__server_conf = self.__config.get('server', {})
+        self.__server_limits = {}
+        self.__max_nodes_per_read = 100
+        self.__max_nodes_per_subscribe = 100
 
         if using_old_configuration_format:
             self.__log.warning('Connector configuration has been updated to the new format.')
@@ -321,6 +324,11 @@ class OpcUaConnector(Connector, Thread):
                     await self.__client.load_data_type_definitions()
                 except Exception as e:
                     self.__log.error("Error on loading type definitions:\n %s", e)
+
+                try:
+                    await self.__fetch_server_limitations()
+                except Exception as e:
+                    self.__log.error("Error on fetching server limitations:\n %s", e)
 
                 poll_period = int(self.__server_conf.get('pollPeriodInMillis', 5000) / 1000)
                 scan_period = int(self.__server_conf.get('scanPeriodInMillis', 3600000) / 1000)
@@ -549,7 +557,9 @@ class OpcUaConnector(Connector, Thread):
 
         return final
 
-    async def find_nodes(self, node_pattern, current_parent_node=None, nodes=[]):
+    async def find_nodes(self, node_pattern, current_parent_node=None, nodes=None):
+        if nodes is None:
+            nodes = []
         node_list = node_pattern.split('\\.')
 
         if current_parent_node is None:
@@ -808,15 +818,15 @@ class OpcUaConnector(Connector, Thread):
                             pass
 
                     if nodes_to_subscribe:
-                            nodes_data_change_subscriptions = await self._subscribe_for_node_updates_in_batches(device,
-                                                                                                         nodes_to_subscribe,
-                                                                                                         self.__subscription_batch_size)
-                            subs = []
-                            for subs_batch in nodes_data_change_subscriptions:
-                                subs.extend(subs_batch)
-                            for node, conf, subscription_id in zip(nodes_to_subscribe, conf, subs):
-                                device.nodes_data_change_subscriptions[node.nodeid]['subscription'] = subscription_id
-                            self.__log.info('Subscribed to %i nodes for device %s', len(nodes_to_subscribe), device.name)
+                        nodes_data_change_subscriptions = await self._subscribe_for_node_updates_in_batches(
+                            device, nodes_to_subscribe,
+                            self.__max_nodes_per_subscribe or self.__subscription_batch_size)
+                        subs = []
+                        for subs_batch in nodes_data_change_subscriptions:
+                            subs.extend(subs_batch)
+                        for node, conf, subscription_id in zip(nodes_to_subscribe, conf, subs):
+                            device.nodes_data_change_subscriptions[node.nodeid]['subscription'] = subscription_id
+                        self.__log.info('Subscribed to %i nodes for device %s', len(nodes_to_subscribe), device.name)
                     else:
                         self.__log.debug('No nodes to subscribe for device %s', device.name)
                 else:
@@ -825,7 +835,7 @@ class OpcUaConnector(Connector, Thread):
                 self.__log.exception("Error loading nodes: %s", e)
                 raise e
 
-    async def _subscribe_for_node_updates_in_batches(self, device, nodes, batch_size=500):
+    async def _subscribe_for_node_updates_in_batches(self, device, nodes, batch_size=500) -> List:
         total_nodes = len(nodes)
         total_successfully_subscribed = 0
         total_failed_to_subscribe = 0
@@ -850,7 +860,7 @@ class OpcUaConnector(Connector, Thread):
                 else:
                     self.__log.warning("Failed to subscribe to batch number %i with %i nodes.", i // batch_size + 1, batch_len)
             except Exception as e:
-                self.__log.warn("Error subscribing to batch %i with %i : %r", i // batch_size + 1, batch_len, e)
+                self.__log.warning("Error subscribing to batch %i with %i : %r", i // batch_size + 1, batch_len, e)
                 # self.__log.error("%r", batch) # Uncomment to see the nodes that failed to subscribe
                 self.__log.exception("Error subscribing to nodes: ", exc_info=e)
                 break
@@ -870,10 +880,14 @@ class OpcUaConnector(Connector, Thread):
         all_nodes = [node_config['node'] for device in self.__device_nodes for node_config in device.nodes]
 
         if len(all_nodes) > 0:
-            values = await self.__client.read_attributes(all_nodes)
             received_ts = int(time() * 1000)
-
-            self.__data_to_convert.put((values, received_ts, data_retrieving_started))
+            for i in range(0, len(all_nodes), self.__max_nodes_per_read):
+                batch = all_nodes[i:i + self.__max_nodes_per_read]
+                try:
+                    values = await self.__client.read_attributes(batch)
+                    self.__data_to_convert.put((values, received_ts, data_retrieving_started))
+                except Exception as e:
+                    self.__log.warning("Failed to read batch from %i to %i: %s", i, i + self.__max_nodes_per_read, e)
 
         else:
             self.__log.info('No nodes to poll')
@@ -941,14 +955,16 @@ class OpcUaConnector(Connector, Thread):
         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
         self.__log.debug('Count data msg to storage: %s', self.statistics['MessagesSent'])
 
-    async def get_shared_attr_node_id(self, path, result={}):
+    async def get_shared_attr_node_id(self, path, result=None):
+        if result is None:
+            result = {}
         try:
             q_path = await self.find_node_name_space_index(path)
             result['result'] = await self.__client.nodes.root.get_child(q_path[0])
         except Exception as e:
             result['error'] = e.__str__()
 
-    def on_attributes_update(self, content):
+    def on_attributes_update(self, content: Dict):
         self.__log.debug(content)
         try:
             device = tuple(filter(lambda i: i.name == content['device'], self.__device_nodes))[0]
@@ -988,7 +1004,7 @@ class OpcUaConnector(Connector, Thread):
         except Exception as e:
             self.__log.exception(e)
 
-    def server_side_rpc_handler(self, content):
+    def server_side_rpc_handler(self, content: Dict):
         try:
             if content.get('data') is None:
                 content['data'] = {'params': content['params'], 'method': content['method'], 'id': content['id']}
@@ -1102,7 +1118,9 @@ class OpcUaConnector(Connector, Thread):
         except Exception as e:
             self.__log.exception("Error during RPC handling: ", exc_info=e)
 
-    async def __write_value(self, path, value, result={}):
+    async def __write_value(self, path, value, result=None):
+        if result is None:
+            result = {}
         try:
             var = path
             if isinstance(path, str):
@@ -1115,14 +1133,18 @@ class OpcUaConnector(Connector, Thread):
         except Exception as e:
             result['error'] = e.__str__()
 
-    async def __read_value(self, path, result={}):
+    async def __read_value(self, path, result=None):
+        if result is None:
+            result = {}
         try:
             var = self.__client.get_node(path)
             result['value'] = await var.read_value()
         except Exception as e:
             result['error'] = e.__str__()
 
-    async def __call_method(self, path, method_name, arguments, result={}):
+    async def __call_method(self, path, method_name, arguments, result=None):
+        if result is None:
+            result = {}
         try:
             var = await self.__client.nodes.root.get_child(path)
             method_id = '{}:{}'.format(var.nodeid.NamespaceIndex, method_name)
@@ -1146,6 +1168,48 @@ class OpcUaConnector(Connector, Thread):
 
                 self.__gateway.update_connector_config_file(self.name, {'server': self.__server_conf,
                                                                         'mapping': self.__config.get('mapping', [])})
+
+    async def __fetch_server_limitations(self):
+        """Fetch and apply limitations from OPC-UA server capabilities."""
+        try:
+            server_caps = await self.__client.nodes.server.get_child("0:ServerCapabilities")
+            if server_caps is None:
+                self.__log.warning("ServerCapabilities node not found.")
+                return
+            nodes = await server_caps.get_children()
+
+            for node in nodes:
+                browse_name = await node.read_browse_name()
+                name = browse_name.Name
+                if name in {"MaxSessions", "MaxSubscriptions", "MaxBrowseContinuationPoints"}:
+                    try:
+                        val = await node.read_value()
+                        self.__server_limits[name] = val
+                    except Exception as e:
+                        self.__log.warning("Failed to read %s: %s", name, e)
+
+                elif name == "OperationLimits":
+                    try:
+                        op_limit_nodes = await node.get_children()
+                        for op_node in op_limit_nodes:
+                            op_name = (await op_node.read_browse_name()).Name
+                            try:
+                                val = await op_node.read_value()
+                                self.__server_limits[f"OperationLimits.{op_name}"] = val
+                            except Exception as e:
+                                self.__log.warning("Failed to read OperationLimit %s: %s", op_name, e)
+                    except Exception as e:
+                        self.__log.warning("Failed to read OperationLimits node children: %s", e)
+
+            self.__max_nodes_per_read = self.__server_limits.get("OperationLimits.MaxNodesPerRead", 100)
+            self.__max_nodes_per_subscribe = self.__server_limits.get("OperationLimits.MaxNodesPerSubscribe", 100)
+
+            self.__log.info("Applied server limitations: Read=%s, Subscribe=%s",
+                            self.__max_nodes_per_read,
+                            self.__max_nodes_per_subscribe)
+
+        except Exception as e:
+            self.__log.exception("Failed to fetch server limitations: %s", e)
 
     @staticmethod
     def __is_node_identifier(path):
