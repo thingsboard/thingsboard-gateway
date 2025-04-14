@@ -4,7 +4,7 @@
   "formatters": {
     "LogFormatter": {
       "class": "logging.Formatter",
-      "format": "%(asctime)s - |%(levelname)s| - [%(filename)s] - %(module)s - %(funcName)s - %(lineno)d - %(message)s",
+      "format": "%(asctime)s.%(msecs)03d - |%(levelname)s| - [%(filename)s] - %(module)s - %(funcName)s - %(lineno)d - %(message)s",
       "datefmt": "%Y-%m-%d %H:%M:%S"
     }
   },
