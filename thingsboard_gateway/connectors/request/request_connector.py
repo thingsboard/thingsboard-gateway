@@ -291,9 +291,9 @@ class RequestConnector(Connector, Thread):
                     try:
                         config_converter_data.append(response.json())
                     except UnicodeDecodeError:
-                        config_converter_data.append(response.content())
+                        config_converter_data.append(response.content)
                     except JSONDecodeError:
-                        config_converter_data.append(response.content())
+                        config_converter_data.append(response.content)
 
                     if len(config_converter_data) == 3:
                         self.__convert_data(config_converter_data)
