@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from re import escape, match
 import time
 from threading import Thread
 
@@ -101,12 +102,35 @@ class Device(Thread):
         apdu_host = apdu.pduSource.addrTuple[0]
         apdu_address = apdu_host + ':' + str(apdu.pduSource.addrTuple[1])
         for device_config in devices_config:
+            if Device.is_address_match(apdu_address, device_config.get('address')):
+                return device_config
             if device_config.get('address') == apdu_address:
                 return device_config
             elif apdu_address in device_config.get('altResponsesAddresses', []):
                 return device_config
             elif device_config.get('host') == apdu_host:
                 return device_config
+
+    @staticmethod
+    def is_address_match(address, pattern):
+        regex = Device.get_address_regex(pattern)
+        return match(regex, address) is not None
+
+    @staticmethod
+    def get_address_regex(pattern):
+        regex = escape(pattern).replace("X", r"\d")
+        return f"^{regex}$"
+
+    @staticmethod
+    def get_who_is_address(address):
+        if Device.is_pattern_address(address):
+            return '255.255.255.255'
+        else:
+            return address
+
+    @staticmethod
+    def is_pattern_address(address):
+        return "X" in address
 
     @staticmethod
     def get_object_id(config):
