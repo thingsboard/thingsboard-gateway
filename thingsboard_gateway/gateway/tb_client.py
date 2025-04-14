@@ -296,7 +296,8 @@ class TBClient(threading.Thread):
         return self.__is_connected and self.client.rate_limits_received
 
     def _on_connect(self, client, userdata, flags, result_code, *extra_params):
-        self.__logger.debug('TB client %s connected to platform', str(client))
+        self.__logger.info('MQTT client connected to platform %s: %s', self.__host, self.__port)
+        self.__logger.debug('MQTT client %r connected to platform', str(client))
         if ((isinstance(result_code, int) and result_code == 0) or
                 (hasattr(result_code, 'value') and result_code.value == 0)):
             self.__is_connected = True
@@ -400,10 +401,10 @@ class TBClient(threading.Thread):
             sleep(10)
 
     def __send_connect(self):
-        self.__logger.info(f"Sending connect to {self.__host}:{self.__port}, tls: {self.__tls}...")
+        self.__logger.info(f"Sending connect to {self.__host}:{self.__port}")
         self.client.connect(keepalive=self.__config.get("keep_alive", 120),
                             min_reconnect_delay=self.__min_reconnect_delay)
-        self.__logger.info("Connect msg sent to platform.")
+        self.__logger.debug("Connect msg sent to platform.")
 
     def run(self):
         while not self.__stopped:
