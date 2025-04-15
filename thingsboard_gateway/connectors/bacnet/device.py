@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from re import escape, match
+from re import escape, match, fullmatch
 import time
 from threading import Thread
 
@@ -124,9 +124,36 @@ class Device(Thread):
     @staticmethod
     def get_who_is_address(address):
         if Device.is_pattern_address(address):
-            return '255.255.255.255'
+            return Device.__get_broadcast_address(address)
         else:
             return address
+
+    @staticmethod
+    def __get_broadcast_address(address):
+        parts = address.split(":")
+
+        if len(parts) == 3:
+            network = parts[0]
+            return Device.__match_network(network)
+
+        elif len(parts) == 2:
+            if fullmatch(r"[0-9X]+", parts[0]):
+                network = parts[0]
+                return Device.__match_network(network)
+            else:
+                return "255.255.255.255"
+
+        elif len(parts) == 1:
+            return "255.255.255.255"
+
+        return None
+
+    @staticmethod
+    def __match_network(network: str):
+        if fullmatch(r"X+", network):
+            return "*:*"
+        else:
+            return f"{network}:*"
 
     @staticmethod
     def is_pattern_address(address):
