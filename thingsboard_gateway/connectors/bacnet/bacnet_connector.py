@@ -153,7 +153,13 @@ class AsyncBACnetConnector(Thread, Connector):
         for device_config in self.__config.get('devices', []):
             try:
                 DeviceObjectConfig.update_address_in_config_util(device_config)
-                result = await self.__application.do_who_is(device_address=device_config['address'])
+
+                who_is_address = Device.get_who_is_address(device_config['address'])
+                if who_is_address is None:
+                    self.__log.error('Invalid address %s', device_config['address'])
+                    continue
+
+                result = await self.__application.do_who_is(device_address=who_is_address)
                 self.__log.debug('WhoIs request sent to device %s', device_config['address'])
 
                 if result is None:
