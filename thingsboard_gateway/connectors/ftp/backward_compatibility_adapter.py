@@ -1,5 +1,4 @@
 from copy import deepcopy
-import json
 
 
 class FTPBackwardCompatibilityAdapter:
@@ -22,10 +21,10 @@ class FTPBackwardCompatibilityAdapter:
         self._converted_config['parameters']['port'] = self._config.get('port')
         self._converted_config["parameters"]["TLSSupport"] = self._config.get("TLSSupport", False)
         security = self._config.get('security', {})
+        if not security.get('type') == 'basic':
+            security.pop("username", None)
+            security.pop("password", None)
         self._converted_config['parameters']['security'] = security
-        self._converted_config["parameters"]["security"]["type"] = security.get("type")
-        self._converted_config["parameters"]["security"]["username"] = security.get("username")
-        self._converted_config["parameters"]["security"]["password"] = security.get("password")
         old_paths = self._config.get('paths', [])
         new_paths = self._convert_path_entries(old_paths)
         self._converted_config["paths"] = new_paths
@@ -37,57 +36,46 @@ class FTPBackwardCompatibilityAdapter:
     @staticmethod
     def _convert_path_entries(old_paths: list) -> list:
         new_paths = []
-        for old_path in old_paths:
-            new_path_data = FTPBackwardCompatibilityAdapter._convert_path(old_path)
-            new_paths.append(new_path_data)
+        for old_path_configuration in old_paths:
+            new_path_configuration = FTPBackwardCompatibilityAdapter._convert_path(old_path_configuration)
+            new_paths.append(new_path_configuration)
         return new_paths
 
     @staticmethod
     def _convert_path(old_path_data: dict) -> dict:
-        new_path_data = old_path_data
+        converted_configuration = {}
 
-        if "attributes" in new_path_data:
+        if "attributes" in old_path_data:
+            converted_configuration["attributes"] = []
+            for attribute in old_path_data["attributes"]:
+                new_attribute = {}
+                attribute_type = attribute.get("type", "string")
+                if attribute_type == "int":
+                    attribute_type = "integer"
+                elif attribute_type == "string":
+                    attribute_type = "string"
 
-            for attribute in new_path_data["attributes"]:
-                if "type" not in attribute:
-                    attribute_dict = deepcopy(attribute)
-                    attribute.clear()
-                    attribute["type"] = "string"
-                    for key, value in attribute_dict.items():
-                        attribute[key] = value
-                else:
-                    if attribute["type"] == "int":
-                        attribute["type"] = "integer"
-                    elif attribute["type"] == "str":
-                        attribute["type"] = "string"
+                new_attribute["type"] = attribute_type
 
-        if "timeseries" in new_path_data:
-            for ts in new_path_data["timeseries"]:
-                if "type" not in ts:
-                    ts["type"] = "string"
-                else:
-                    if ts["type"] == "int":
-                        ts["type"] = "integer"
-                    elif ts["type"] == "str":
-                        ts["type"] = "string"
-        return new_path_data
+                for key, value in attribute.items():
+                    if key != "type":
+                        new_attribute[key] = value
+
+                converted_configuration["attributes"].append(new_attribute)
+
+            if "timeseries" in old_path_data:
+                converted_configuration["timeseries"] = []
+                for ts in old_path_data["timeseries"]:
+                    new_ts = ts
+                    if new_ts.get("type") == "int":
+                        new_ts["type"] = "integer"
+                    elif new_ts.get("type") == "str":
+                        new_ts["type"] = "string"
+
+                    converted_configuration["timeseries"].append(new_ts)
+
+        return converted_configuration
 
     @staticmethod
     def is_old_config_format(config: dict) -> bool:
-        return True if config.get("parameters", {}) else False
-
-
-if __name__ == "__main__":
-    with open("old_format.json") as f:
-        data = json.load(f)
-        converter = FTPBackwardCompatibilityAdapter(data)
-        print(converter.is_old_config_format(data))
-        data = converter.convert()
-
-    with open("some.json", "w") as file:
-        file.write(json.dumps(data, indent=4))
-
-
-
-
-
+        return True if config.get("parameters") else False
