@@ -14,12 +14,17 @@
 
 import sys
 from os import curdir, listdir, mkdir, path, environ
+import debugpy
 
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.gateway.hot_reloader import HotReloader
 
 
 def main():
+    if environ.get("TB_GW_DEV_MODE", False):
+        debugpy_port = int(environ.get("TB_GW_DEV_DEBUG_SERVER", 5678))
+        debugpy.listen(("0.0.0.0", debugpy_port))
+
     if "logs" not in listdir(curdir):
         mkdir("logs")
 
