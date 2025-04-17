@@ -14,16 +14,16 @@
 
 import sys
 from os import curdir, listdir, mkdir, path, environ
-import debugpy
 
+from thingsboard_gateway.gateway.constants import DEV_MODE_PARAMETER_NAME, TB_GW_DEV_DEBUG_SERVER_PORT
 from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.gateway.hot_reloader import HotReloader
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 def main():
-    if environ.get("TB_GW_DEV_MODE", False):
-        debugpy_port = int(environ.get("TB_GW_DEV_DEBUG_SERVER", 5678))
-        debugpy.listen(("0.0.0.0", debugpy_port))
+    if TBUtility.from_str_to_bool(environ.get(DEV_MODE_PARAMETER_NAME, 'false')):
+        run_debug_server()
 
     if "logs" not in listdir(curdir):
         mkdir("logs")
@@ -50,6 +50,17 @@ def __get_config_path(default_config_path):
     if not config_path.endswith(path.sep):
         config_path += path.sep
     return config_path
+
+
+def run_debug_server():
+    try:
+        import debugpy
+    except ImportError:
+        TBUtility.install_package("debugpy")
+        import debugpy
+
+    debugpy_port = int(environ.get("TB_GW_DEV_DEBUG_SERVER", TB_GW_DEV_DEBUG_SERVER_PORT))
+    debugpy.listen(("0.0.0.0", debugpy_port))
 
 
 if __name__ == '__main__':

@@ -37,9 +37,7 @@ try:
 except ImportError:
     mqtt_client_path = abspath(join(dirname(__file__), '..', '..', 'tb_mqtt_client'))
     from os import environ
-    if (exists(mqtt_client_path)
-            and environ.get(DEV_MODE_PARAMETER_NAME) is not None
-            and environ.get(DEV_MODE_PARAMETER_NAME).lower() == 'true'):
+    if exists(mqtt_client_path) and TBUtility.from_str_to_bool(environ.get(DEV_MODE_PARAMETER_NAME, 'false')):
         path.insert(0, mqtt_client_path)
         from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient, \
             GATEWAY_ATTRIBUTES_RESPONSE_TOPIC, GATEWAY_ATTRIBUTES_TOPIC
