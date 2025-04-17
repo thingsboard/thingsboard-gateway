@@ -20,6 +20,8 @@ from time import time
 
 # Service constants
 
+DEV_MODE_PARAMETER_NAME = 'TB_GW_DEV_MODE'
+
 STATISTIC_MESSAGE_RECEIVED_PARAMETER = "MessagesReceived"
 STATISTIC_MESSAGE_SENT_PARAMETER = "MessagesSent"
 
@@ -75,6 +77,7 @@ REPORT_STRATEGY_PARAMETER = "reportStrategy"
 REPORT_PERIOD_PARAMETER = "reportPeriod"
 TYPE_PARAMETER = "type"
 AGGREGATION_FUNCTION_PARAMETER = "aggregationFunction"
+TTL_PARAMETER = "ttl"
 
 
 class ReportStrategy(Enum):
@@ -93,8 +96,11 @@ class ReportStrategy(Enum):
 
 DEFAULT_REPORT_STRATEGY_CONFIG = {
     TYPE_PARAMETER: ReportStrategy.ON_RECEIVED.value,
-    REPORT_PERIOD_PARAMETER: 10000
+    REPORT_PERIOD_PARAMETER: 10000,
+    TTL_PARAMETER: 86400
 }
+
+STRATEGIES_WITH_REPORT_PERIOD = (ReportStrategy.ON_REPORT_PERIOD, ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD)
 
 # RPC parameter constants
 

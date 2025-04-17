@@ -18,7 +18,8 @@ import string
 import threading
 import inspect
 from logging import getLogger
-from os.path import exists
+from os.path import exists, join, abspath, dirname
+from sys import path
 from ssl import CERT_REQUIRED
 from copy import deepcopy
 from time import sleep, time
@@ -26,18 +27,30 @@ from typing import Union
 
 from simplejson import dumps, load
 
+from thingsboard_gateway.gateway.constants import DEV_MODE_PARAMETER_NAME
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
     from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient, \
         GATEWAY_ATTRIBUTES_RESPONSE_TOPIC, GATEWAY_ATTRIBUTES_TOPIC
+    import tb_device_mqtt
 except ImportError:
-    print("tb-mqtt-client library not found - installing...")
-    TBUtility.install_package('tb-mqtt-client')
-    from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient, \
-        GATEWAY_ATTRIBUTES_RESPONSE_TOPIC, GATEWAY_ATTRIBUTES_TOPIC
+    mqtt_client_path = abspath(join(dirname(__file__), '..', '..', 'tb_mqtt_client'))
+    from os import environ
+    if (exists(mqtt_client_path)
+            and environ.get(DEV_MODE_PARAMETER_NAME) is not None
+            and environ.get(DEV_MODE_PARAMETER_NAME).lower() == 'true'):
+        path.insert(0, mqtt_client_path)
+        from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient, \
+            GATEWAY_ATTRIBUTES_RESPONSE_TOPIC, GATEWAY_ATTRIBUTES_TOPIC
+        import tb_device_mqtt
+    else:
+        print("tb-mqtt-client library not found - installing...")
+        TBUtility.install_package('tb-mqtt-client')
+        from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient, \
+            GATEWAY_ATTRIBUTES_RESPONSE_TOPIC, GATEWAY_ATTRIBUTES_TOPIC
+        import tb_device_mqtt
 
-import tb_device_mqtt
 tb_device_mqtt.DEFAULT_TIMEOUT = 3
 
 
