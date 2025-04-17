@@ -130,6 +130,7 @@ class JsonRESTUplinkConverter(RESTConverter):
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgDropped')
             self._log.error('Error in converter, for config: \n%s\n and message: \n%s\n %s', dumps(self.__config),
                             str(data), e)
+        self._log.info("Converted data: %s", converted_data)
 
         StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
                                                   count=converted_data.attributes_datapoints_count)
