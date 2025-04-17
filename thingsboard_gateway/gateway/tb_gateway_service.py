@@ -75,8 +75,9 @@ except ImportError:
 
     class TBGRPCServerManager:
         pass
-log: TbLogger = None  # type: ignore
+
 logging.setLoggerClass(TbLogger)
+log: TbLogger = None  # type: ignore
 
 DEFAULT_CONNECTORS = {
     "mqtt": "MqttConnector",
