@@ -36,11 +36,11 @@ from yaml import safe_load
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constant_enums import DeviceActions, Status
-from thingsboard_gateway.gateway.constants import CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
+from thingsboard_gateway.gateway.constants import DEFAULT_CONNECTORS, CONNECTED_DEVICES_FILENAME, CONNECTOR_PARAMETER, \
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME, RENAMING_PARAMETER, CONNECTOR_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, \
     CONNECTOR_ID_PARAMETER, ATTRIBUTES_FOR_REQUEST, CONFIG_VERSION_PARAMETER, CONFIG_SECTION_PARAMETER, \
     DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED, ReportStrategy, \
-    REPORT_STRATEGY_PARAMETER
+    REPORT_STRATEGY_PARAMETER, DEFAULT_STATISTIC, DEFAULT_DEVICE_FILTER, CUSTOM_RPC_DIR
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
@@ -78,37 +78,6 @@ except ImportError:
 
 logging.setLoggerClass(TbLogger)
 log: TbLogger = None  # type: ignore
-
-DEFAULT_CONNECTORS = {
-    "mqtt": "MqttConnector",
-    "modbus": "AsyncModbusConnector",
-    "opcua": "OpcUaConnector",
-    "ble": "BLEConnector",
-    "request": "RequestConnector",
-    "can": "CanConnector",
-    "bacnet": "AsyncBACnetConnector",
-    "odbc": "OdbcConnector",
-    "rest": "RESTConnector",
-    "snmp": "SNMPConnector",
-    "ftp": "FTPConnector",
-    "socket": "SocketConnector",
-    "xmpp": "XMPPConnector",
-    "ocpp": "OcppConnector",
-    "knx": "KNXConnector",
-}
-
-DEFAULT_STATISTIC = {
-    'enable': True,
-    'statsSendPeriodInSeconds': 60,
-    'customStatsSendPeriodInSeconds': 3600
-}
-
-DEFAULT_DEVICE_FILTER = {
-    'enable': False
-}
-
-CUSTOM_RPC_DIR = "/etc/thingsboard-gateway/rpc"
-
 
 def load_file(path_to_file):
     with open(path_to_file, 'r') as target_file:

@@ -112,3 +112,34 @@ DATA_PARAMETER = "data"
 # Attribute constants
 ATTRIBUTES_FOR_REQUEST = ["RemoteLoggingLevel", "general_configuration", "storage_configuration",
                           "grpc_configuration", "logs_configuration", "active_connectors"]
+
+
+DEFAULT_CONNECTORS = {
+    "mqtt": "MqttConnector",
+    "modbus": "AsyncModbusConnector",
+    "opcua": "OpcUaConnector",
+    "ble": "BLEConnector",
+    "request": "RequestConnector",
+    "can": "CanConnector",
+    "bacnet": "AsyncBACnetConnector",
+    "odbc": "OdbcConnector",
+    "rest": "RESTConnector",
+    "snmp": "SNMPConnector",
+    "ftp": "FTPConnector",
+    "socket": "SocketConnector",
+    "xmpp": "XMPPConnector",
+    "ocpp": "OcppConnector",
+    "knx": "KNXConnector",
+}
+
+DEFAULT_STATISTIC = {
+    'enable': True,
+    'statsSendPeriodInSeconds': 60,
+    'customStatsSendPeriodInSeconds': 3600
+}
+
+DEFAULT_DEVICE_FILTER = {
+    'enable': False
+}
+
+CUSTOM_RPC_DIR = "/etc/thingsboard-gateway/rpc"
