@@ -17,6 +17,7 @@ import time
 from threading import Thread
 
 from bacpypes3.primitivedata import ObjectIdentifier
+from bacpypes3.pdu import LocalBroadcast, Address
 
 from thingsboard_gateway.connectors.bacnet.bacnet_uplink_converter import AsyncBACnetUplinkConverter
 from thingsboard_gateway.connectors.bacnet.entities.bacnet_device_details import BACnetDeviceDetails
@@ -118,12 +119,21 @@ class Device(Thread):
 
     @staticmethod
     def get_address_regex(pattern):
-        regex = escape(pattern).replace("X", r"\d")
+        regex = ''
+        i = 0
+        while i < len(pattern):
+            if pattern[i] == 'X':
+                while i < len(pattern) and pattern[i] == 'X':
+                    i += 1
+                regex += r'\d+'
+            else:
+                regex += escape(pattern[i])
+                i += 1
         return f"^{regex}$"
 
     @staticmethod
     def get_who_is_address(address):
-        if Device.is_pattern_address(address):
+        if 'X' in address or '*' in address:
             return Device.__get_broadcast_address(address)
         else:
             return address
