@@ -12,9 +12,9 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from time import time
 
 from simplejson import dumps
+from dateutil import parser
 
 from thingsboard_gateway.connectors.rest.rest_converter import RESTConverter
 from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
@@ -123,7 +123,21 @@ class JsonRESTUplinkConverter(RESTConverter):
                         if datatype == 'attributes':
                             converted_data.add_to_attributes(datapoint_key, full_value)
                         else:
-                            ts = data.get('ts', data.get('timestamp'))
+                            ts = None
+                            if datatype_config.get('tsField') is not None:
+                                ts_field_key = None
+                                try:
+                                    ts_field_key = TBUtility.get_value(datatype_config['tsField'], data, get_tag=True)
+                                    if data.get(ts_field_key) is not None:
+                                        parsed_configuration_data = parser.parse(data[ts_field_key])
+                                        ts = int(parsed_configuration_data.timestamp()) * 1000
+                                    else:
+                                        ts = data.get(datatype_config['tsField'])
+                                except Exception as e:
+                                    self._log.debug("Error while parsing timestamp %s: %s with configured tsField: %s",
+                                                    ts_field_key, e, datatype_config['tsField'])
+                            else:
+                                ts = data.get('ts', data.get('timestamp'))
                             telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
                             converted_data.add_to_telemetry(telemetry_entry)
         except Exception as e:
