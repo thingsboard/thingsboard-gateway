@@ -14,6 +14,7 @@
 
 from re import search
 from time import time
+from dateutil import parser
 
 from simplejson import dumps
 
@@ -27,7 +28,6 @@ from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
-
 
 USE_RECEIVED_TS_PARAMETER = "useReceivedTs"
 
@@ -104,19 +104,41 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                         full_key = datatype_config["key"]
                         for (key, key_tag) in zip(keys, keys_tags):
                             is_valid_key = "${" in datatype_config["key"] and "}" in datatype_config["key"]
-                            full_key = full_key.replace('${' + str(key_tag) + '}', str(key)) if is_valid_key else key_tag
+                            full_key = full_key.replace('${' + str(key_tag) + '}',
+                                                        str(key)) if is_valid_key else key_tag
 
                         full_value = datatype_config["value"]
                         for (value, value_tag) in zip(values, values_tags):
                             is_valid_value = "${" in datatype_config["value"] and "}" in datatype_config["value"]
-                            full_value = full_value.replace('${' + str(value_tag) + '}', str(value)) if is_valid_value else value
+                            full_value = full_value.replace('${' + str(value_tag) + '}',
+                                                            str(value)) if is_valid_value else value
 
                         if full_key != 'None' and full_value != 'None':
-                            converted_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy, datatype_config, self._log)
-                            converted_value = TBUtility.convert_data_type(full_value, datatype_config["type"], self.__use_eval)
+                            converted_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy,
+                                                                                   datatype_config, self._log)
+                            converted_value = TBUtility.convert_data_type(full_value, datatype_config["type"],
+                                                                          self.__use_eval)
                             if datatype == "attributes":
                                 converted_data.add_to_attributes(converted_key, converted_value)
                             else:
+                                if datatype_config.get('tsField') is not None:
+                                    ts_field_key = None
+                                    try:
+                                        ts_field_key = TBUtility.get_value(datatype_config['tsField'], data,
+                                                                           get_tag=True)
+
+                                        if data.get(ts_field_key) is not None:
+                                            parsed_configuration_data = parser.parse(data[ts_field_key])
+                                            timestamp = int(parsed_configuration_data.timestamp()) * 1000
+
+                                        else:
+                                            timestamp = data.get(datatype_config['tsField'])
+
+                                    except Exception as e:
+                                        self._log.debug(
+                                            "Error while parsing timestamp %s: %s with configured tsField: %s",
+                                            ts_field_key, e, datatype_config['tsField'])
+
                                 telemetry_entry = TelemetryEntry({converted_key: converted_value}, timestamp)
                                 converted_data.add_to_telemetry(telemetry_entry)
         except Exception as e:
