@@ -51,7 +51,8 @@ class FTPConnector(Connector, Thread):
 
         self._connector_type = connector_type
         self.__gateway = gateway
-        self.security = {**self.config['parameters']['security']} if self.config['parameters']['security']['type'] == 'basic' else {
+        self.security = {**self.config['parameters']['security']} if self.config['parameters']['security'][
+                                                                         'type'] == 'basic' else {
             'username': 'anonymous', "password": 'anonymous@'}
         self.__tls_support = self.config['parameters'].get("TLSSupport", False)
         self.name = self.config.get("name", "".join(choice(ascii_lowercase) for _ in range(5)))
