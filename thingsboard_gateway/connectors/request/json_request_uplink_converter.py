@@ -15,6 +15,7 @@
 from time import time
 
 from simplejson import dumps, loads
+from dateutil import parser
 
 from thingsboard_gateway.connectors.request.request_converter import RequestConverter
 from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
@@ -53,7 +54,7 @@ class JsonRequestUplinkConverter(RequestConverter):
                     is_valid_key = "${" in self.__config['converter'].get("deviceNameJsonExpression") and "}" in \
                                    self.__config['converter'].get("deviceNameJsonExpression")
                     device_name = device_name.replace('${' + str(device_name_tag) + '}',
-                                                                                  str(device_name_value)) \
+                                                      str(device_name_value)) \
                         if is_valid_key else device_name_tag
             else:
                 self.__log.error("The expression for looking \"deviceName\" not found in config %s",
@@ -70,7 +71,7 @@ class JsonRequestUplinkConverter(RequestConverter):
                     is_valid_key = "${" in self.__config['converter'].get("deviceTypeJsonExpression") and "}" in \
                                    self.__config['converter'].get("deviceTypeJsonExpression")
                     device_type = device_type.replace('${' + str(device_type_tag) + '}',
-                                                                                  str(device_type_value)) \
+                                                      str(device_type_value)) \
                         if is_valid_key else device_type_tag
             else:
                 self.__log.error("The expression for looking \"deviceType\" not found in config %s",
@@ -119,7 +120,26 @@ class JsonRequestUplinkConverter(RequestConverter):
                     if datatype == 'attributes':
                         converted_data.add_to_attributes(datapoint_key, full_value)
                     else:
-                        ts = data.get('ts', data.get('timestamp'))
+                        ts = None
+                        if datatype_object_config.get("tsField") is not None:
+                            ts_field_key = None
+                            try:
+                                ts_field_key = TBUtility.get_value(datatype_object_config["tsField"], data,
+                                                                   get_tag=True)
+
+                                if data.get(ts_field_key) is not None:
+                                    parsed_configuration_data = parser.parse(data[ts_field_key])
+                                    ts = int(parsed_configuration_data.timestamp()) * 1000
+                                else:
+                                    ts = data.get(datatype_object_config["tsField"])
+
+                            except Exception as e:
+                                self.__log.debug(
+                                    "Error while parsing timestamp %s: %s with configured tsField: %s",
+                                    ts_field_key, e, datatype_object_config['tsField'])
+
+                        else:
+                            ts = data.get('ts', data.get('timestamp'))
                         telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
                         converted_data.add_to_telemetry(telemetry_entry)
         except Exception as e:
