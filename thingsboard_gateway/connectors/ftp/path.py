@@ -59,16 +59,17 @@ class Path:
 
             folder_and_files = ftp.nlst()
 
-            for ff in folder_and_files:
+            for folder_or_file in folder_and_files:
                 try:
-                    cur_file_name, cur_file_ext = ff.split('.')
-                    if cur_file_ext in COMPATIBLE_FILE_EXTENSIONS and self.__is_file(ftp, ff) and ftp.size(ff):
+                    cur_file_name, cur_file_ext = folder_or_file.split('.')
+                    if cur_file_ext in COMPATIBLE_FILE_EXTENSIONS \
+                            and self.__is_file(ftp, folder_or_file):
                         if (file_name == file_ext == '*') \
                                 or pattern.fullmatch(cur_file_name) \
                                 or (cur_file_ext == file_ext and file_name == cur_file_name) \
                                 or (file_name != '*' and cur_file_name == file_name and (
                                 file_ext == cur_file_ext or file_ext == '*')):
-                            kwargs[ftp.voidcmd(f"MDTM {ff}")] = (item + '/' + ff)
+                            kwargs[ftp.voidcmd(f"MDTM {folder_or_file}")] = (item + ('/' if item else "") + folder_or_file)
                 except ValueError:
                     continue
 

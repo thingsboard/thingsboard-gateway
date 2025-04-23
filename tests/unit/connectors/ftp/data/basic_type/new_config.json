@@ -1,0 +1,71 @@
+{
+  "parameters": {
+    "host": "0.0.0.0",
+    "port": 21,
+    "TLSSupport": false,
+    "security": {
+      "type": "basic",
+      "username": "admin",
+      "password": "admin"
+    }
+  },
+  "paths": [
+    {
+      "devicePatternName": "asd",
+      "devicePatternType": "Device",
+      "delimiter": ",",
+      "path": "fol/*_hello*.txt",
+      "readMode": "FULL",
+      "maxFileSize": 5,
+      "pollPeriod": 500,
+      "txtFileDataView": "SLICED",
+      "withSortingFiles": true,
+      "attributes": [
+        {
+          "type": "string",
+          "key": "temp",
+          "value": "[1:]"
+        },
+        {
+          "type": "string",
+          "key": "tmp",
+          "value": "[0:1]"
+        }
+      ],
+      "timeseries": [
+        {
+          "type": "integer",
+          "key": "[0:1]",
+          "value": "[0:1]"
+        },
+        {
+          "type": "integer",
+          "key": "temp",
+          "value": "[1:]"
+        }
+      ]
+    }
+  ],
+  "requestsMapping": {
+    "attributeUpdates": [
+      {
+        "path": "fol/hello.json",
+        "deviceNameFilter": ".*",
+        "writingMode": "WRITE",
+        "valueExpression": "{'${attributeKey}':'${attributeValue}'}"
+      }
+    ],
+    "serverSideRpc": [
+      {
+        "deviceNameFilter": ".*",
+        "methodFilter": "read",
+        "valueExpression": "${params}"
+      },
+      {
+        "deviceNameFilter": ".*",
+        "methodFilter": "write",
+        "valueExpression": "${params}"
+      }
+    ]
+  }
+}
