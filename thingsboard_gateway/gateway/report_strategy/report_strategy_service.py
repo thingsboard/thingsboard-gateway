@@ -18,7 +18,8 @@ from time import monotonic, time
 from typing import Dict, Set, Union, TYPE_CHECKING
 
 from thingsboard_gateway.gateway.constants import DEFAULT_REPORT_STRATEGY_CONFIG, \
-    ReportStrategy, DEVICE_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, REPORT_STRATEGY_PARAMETER
+    ReportStrategy, DEVICE_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, REPORT_STRATEGY_PARAMETER, \
+    STRATEGIES_WITH_REPORT_PERIOD
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
@@ -36,7 +37,7 @@ class ReportStrategyService:
         self._logger = logger
         report_strategy = config.get(REPORT_STRATEGY_PARAMETER, {})
         self.main_report_strategy = ReportStrategyConfig(report_strategy, DEFAULT_REPORT_STRATEGY_CONFIG)
-        self._report_strategy_data_cache = ReportStrategyDataCache(config)
+        self._report_strategy_data_cache = ReportStrategyDataCache(config, self._logger)
         self._connectors_report_strategies: Dict[str, ReportStrategyConfig] = {}
         self.__keys_to_report_periodically: Set[DatapointKey, str, str] = set()
         self.__periodical_reporting_thread = Thread(target=self.__periodical_reporting,
@@ -176,8 +177,7 @@ class ReportStrategyService:
         else:
             self._report_strategy_data_cache.put(datapoint_key, data, device_name, device_type,
                                                  connector_name, connector_id, report_strategy_config, is_telemetry)
-            if report_strategy_config.report_strategy in (ReportStrategy.ON_REPORT_PERIOD,
-                                                          ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD):
+            if report_strategy_config.report_strategy in STRATEGIES_WITH_REPORT_PERIOD:
                 if isinstance(datapoint_key, tuple):
                     datapoint_key, _ = datapoint_key
                 self.__keys_to_report_periodically.add((datapoint_key, device_name, connector_id))
@@ -192,6 +192,7 @@ class ReportStrategyService:
         occurred_errors = 0
         report_strategy_data_cache_get = self._report_strategy_data_cache.get
         send_data_queue_put_nowait = self.__send_data_queue.put_nowait
+        to_removal_by_expiration = []
         while not self.__gateway.stop_event.is_set():
             try:
                 if not self.__keys_to_report_periodically:
@@ -200,6 +201,9 @@ class ReportStrategyService:
 
                 current_time = int(monotonic() * 1000)
                 data_to_report = {}
+                for item in to_removal_by_expiration:
+                    self.__keys_to_report_periodically.remove(item)
+                to_removal_by_expiration.clear()
                 keys_set = set(self.__keys_to_report_periodically)
 
                 check_report_strategy_start = int(time() * 1000)
@@ -209,6 +213,11 @@ class ReportStrategyService:
                     report_strategy_data_record = report_strategy_data_cache_get(key, device_name, connector_id)
                     if report_strategy_data_record is None:
                         if not self.__keys_to_report_periodically:
+                            continue
+                        if key.report_strategy is not None and \
+                                key.report_strategy.report_strategy != ReportStrategy.ON_RECEIVED and \
+                                key.report_strategy.ttl > 0:
+                            to_removal_by_expiration.append((key, device_name, connector_id))
                             continue
                         raise ValueError(f"Data record for key '{key}' is absent in the cache")
 

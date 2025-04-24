@@ -15,7 +15,7 @@
 from enum import Enum
 
 from thingsboard_gateway.gateway.constants import REPORT_PERIOD_PARAMETER, ReportStrategy, \
-    TYPE_PARAMETER, AGGREGATION_FUNCTION_PARAMETER
+    TYPE_PARAMETER, AGGREGATION_FUNCTION_PARAMETER, TTL_PARAMETER, DEFAULT_REPORT_STRATEGY_CONFIG
 
 
 class AggregationFunction(Enum):
@@ -35,9 +35,14 @@ class AggregationFunction(Enum):
 
 
 class ReportStrategyConfig:
-    def __init__(self, config, default_report_strategy_config={}):
+    __slots__ = ["report_period", "ttl", "report_strategy", "aggregation_function", "__hash"]
+
+    def __init__(self, config, default_report_strategy_config=None):
+        if default_report_strategy_config is None:
+            default_report_strategy_config = {}
         if isinstance(config, ReportStrategyConfig):
             self.report_period = config.report_period
+            self.ttl = config.ttl
             self.report_strategy = config.report_strategy
             self.aggregation_function = config.aggregation_function
             self.__hash = config.__hash
@@ -59,6 +64,9 @@ class ReportStrategyConfig:
         if self.report_strategy not in (ReportStrategy.ON_REPORT_PERIOD, ReportStrategy.ON_CHANGE_OR_REPORT_PERIOD):
             self.report_period = None
         self.aggregation_function = config.get(AGGREGATION_FUNCTION_PARAMETER)
+        self.ttl = config.get(TTL_PARAMETER,
+                              default_report_strategy_config.get(TTL_PARAMETER,
+                                                                 DEFAULT_REPORT_STRATEGY_CONFIG[TTL_PARAMETER]))
         self.__validate_config()
         self.__hash = hash((self.report_period, self.report_strategy, self.aggregation_function))
 
@@ -80,8 +88,9 @@ class ReportStrategyConfig:
         return (isinstance(other, ReportStrategyConfig)
                 and self.report_period == other.report_period
                 and self.report_strategy == other.report_strategy
-                and self.aggregation_function == other.aggregation_function)
+                and self.aggregation_function == other.aggregation_function
+                and self.ttl == other.ttl)
 
     def __str__(self):
         return f"ReportStrategyConfig(report_period={self.report_period}, report_strategy={self.report_strategy},\
-            aggregation_function={self.aggregation_function})"
+            aggregation_function={self.aggregation_function}, ttl={self.ttl})"
