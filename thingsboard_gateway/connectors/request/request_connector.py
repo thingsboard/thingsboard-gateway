@@ -150,7 +150,7 @@ class RequestConnector(Connector, Thread):
                 full_value = response_value_expression
                 for (value, value_tag) in zip(values, values_tags):
                     is_valid_value = "${" in response_value_expression and "}" in \
-                        response_value_expression
+                                     response_value_expression
 
                     full_value = full_value.replace('${' + str(value_tag) + '}',
                                                     str(value)) if is_valid_value else str(value)
@@ -249,7 +249,8 @@ class RequestConnector(Connector, Thread):
     def __fill_rpc_requests(self):
         for rpc_request in self.__config.get("serverSideRpc", []):
             if rpc_request.get("converter") is not None:
-                converter = TBModuleLoader.import_module("request", rpc_request["converter"])(rpc_request, self._converter_log)
+                converter = TBModuleLoader.import_module("request", rpc_request["converter"])(rpc_request,
+                                                                                              self._converter_log)
             else:
                 converter = JsonRequestDownlinkConverter(rpc_request, self._converter_log)
             rpc_request_dict = {**rpc_request, "converter": converter}
@@ -274,10 +275,13 @@ class RequestConnector(Connector, Thread):
                 "verify": self.__ssl_verify,
                 "auth": self.__security,
                 "data": request["config"].get("data", {})
-                }
+            }
             logger.debug(url)
+
             if request["config"].get("httpHeaders") is not None:
                 params["headers"] = request["config"]["httpHeaders"]
+                if 'application/json' == request["config"]["httpHeaders"].get("Content-Type"):
+                    params['json'] = params.pop("data")
             logger.debug("Request to %s will be sent", url)
             response = request["request"](**params)
 
