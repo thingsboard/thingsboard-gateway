@@ -16,6 +16,7 @@ from getpass import getuser
 from logging import getLogger, setLoggerClass
 from os import environ
 from platform import system as platform_system
+from dateutil import parser
 from re import search, findall
 from time import monotonic, sleep
 from typing import Union, TYPE_CHECKING
@@ -43,7 +44,6 @@ log = getLogger("service")
 
 
 class TBUtility:
-
     JSONPATH_EXPRESSION_CACHE = TTLCache(maxsize=10000, ttl=30)
 
     # Data conversion methods
@@ -136,7 +136,9 @@ class TBUtility:
             elif isinstance(body, (dict, list)):
                 try:
                     if " " in target_str:
-                        target_str = '.'.join('"' + section_key + '"' if " " in section_key else section_key for section_key in target_str.split('.')) # noqa
+                        target_str = '.'.join(
+                            '"' + section_key + '"' if " " in section_key else section_key for section_key in
+                            target_str.split('.'))  # noqa
                     jsonpath_expression = TBUtility.JSONPATH_EXPRESSION_CACHE.get(target_str)
                     if jsonpath_expression is None:
                         jsonpath_expression = parse(target_str)
@@ -327,6 +329,25 @@ class TBUtility:
         env_variables = TBUtility.get_service_environmental_variables()
         config['thingsboard'] = {**config['thingsboard'], **env_variables}
         return config
+
+    @staticmethod
+    def resolve_different_ts_formats(data: dict, config: dict, logger, default_ts: bool = True):
+        ts_field_expression = config.get('tsField')
+        if ts_field_expression is not None:
+            ts_field_key = None
+            try:
+                ts_field_key = TBUtility.get_value(ts_field_expression, data, get_tag=True)
+
+                if data.get(ts_field_key) is not None:
+                    parsed_configuration_data = parser.parse(data[ts_field_key], dayfirst=config.get('dayfirst', False), yearfirst=config.get('yearfirst', False))
+                    return int(parsed_configuration_data.timestamp() * 1000)
+                return data.get(ts_field_expression)
+
+
+            except Exception as e:
+                logger.debug("Error while parsing timestamp %s: %s with configured tsField: %s",
+                             ts_field_key, e, config['tsField'])
+        return data.get('ts', data.get('timestamp')) if default_ts else None
 
     @staticmethod
     def get_service_environmental_variables():
