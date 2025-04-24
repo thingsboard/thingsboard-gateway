@@ -18,6 +18,7 @@ import string
 import threading
 import inspect
 from logging import getLogger
+from os import environ
 from os.path import exists, join, abspath, dirname
 from sys import path
 from ssl import CERT_REQUIRED
@@ -31,12 +32,13 @@ from thingsboard_gateway.gateway.constants import DEV_MODE_PARAMETER_NAME
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
+    if environ.get(DEV_MODE_PARAMETER_NAME) is not None and environ.get(DEV_MODE_PARAMETER_NAME).lower() == 'true':
+        raise ImportError
     from tb_gateway_mqtt import TBGatewayMqttClient, TBDeviceMqttClient, \
         GATEWAY_ATTRIBUTES_RESPONSE_TOPIC, GATEWAY_ATTRIBUTES_TOPIC
     import tb_device_mqtt
 except ImportError:
     mqtt_client_path = abspath(join(dirname(__file__), '..', '..', 'tb_mqtt_client'))
-    from os import environ
     if (exists(mqtt_client_path)
             and environ.get(DEV_MODE_PARAMETER_NAME) is not None
             and environ.get(DEV_MODE_PARAMETER_NAME).lower() == 'true'):
@@ -308,7 +310,7 @@ class TBClient(threading.Thread):
     def is_connected(self):
         return self.__is_connected and self.client.rate_limits_received
 
-    def _on_connect(self, client, userdata, flags, result_code, *extra_params):
+    def _on_connect(self, client, userdata, flags, result_code, parameters, *extra_params):
         self.__logger.info('MQTT client connected to platform %s: %s', self.__host, self.__port)
         self.__logger.debug('MQTT client %r connected to platform', str(client))
         if ((isinstance(result_code, int) and result_code == 0) or
@@ -320,7 +322,7 @@ class TBClient(threading.Thread):
             else:
                 self.__initial_connection_done = True
         # pylint: disable=protected-access
-        self.client._on_connect(client, userdata, flags, result_code, *extra_params) # noqa pylint: disable=protected-access
+        self.client._on_connect(client, userdata, flags, result_code, parameters, *extra_params) # noqa pylint: disable=protected-access
         try:
             if isinstance(result_code, int) and result_code != 0:
                 if result_code in (159, 151):
@@ -334,7 +336,7 @@ class TBClient(threading.Thread):
         for callback in self.__service_subscription_callbacks:
             callback()
 
-    def _on_disconnect(self, client, userdata, result_code, properties=None):
+    def _on_disconnect(self, client, userdata, disconnect_flags, result_code, properties=None):
         # pylint: disable=protected-access
         self.__is_connected = False
         if self.client._client != client: # noqa pylint: disable=protected-access
@@ -343,7 +345,9 @@ class TBClient(threading.Thread):
             client.loop_stop()
         else:
             self.__is_connected = False
-            if len(inspect.signature(self.client._on_disconnect).parameters) == 4: # noqa pylint: disable=protected-access
+            if len(inspect.signature(self.client._on_disconnect).parameters) == 5: # noqa pylint: disable=protected-access
+                self.client._on_disconnect(client, userdata, disconnect_flags, result_code, properties) # noqa pylint: disable=protected-access
+            elif len(inspect.signature(self.client._on_disconnect).parameters) == 4: # noqa pylint: disable=protected-access
                 self.client._on_disconnect(client, userdata, result_code, properties) # noqa pylint: disable=protected-access
             else:
                 self.client._on_disconnect(client, userdata, result_code) # noqa pylint: disable=protected-access
