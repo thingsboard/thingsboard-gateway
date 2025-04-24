@@ -1,22 +1,37 @@
 import os
 import logging
-from logging.handlers import TimedRotatingFileHandler
+from re import compile
+from logging.handlers import TimedRotatingFileHandler as BaseTimedRotatingFileHandler
 from os import environ
 from pathlib import Path
 
 
-class TimedRotatingFileHandler(TimedRotatingFileHandler):
+class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
+    DELIMITER_RE         = compile(r'[\s-]+')
+    CAMEL_BOUNDARY_RE    = compile(r'(?<=[a-z0-9])([A-Z])')
+    SPECIAL_CHAR_RE      = compile(r'[^A-Za-z0-9_]')
+    MULTI_UNDERSCORE_RE  = compile(r'_+')
+
     def __init__(self, filename, when='h', interval=1, backupCount=0,
                  encoding=None, delay=False, utc=False):
+        file_path = filename
         config_path = environ.get('TB_GW_LOGS_PATH')
-        if config_path:
-            filename = config_path + os.sep + filename.split(os.sep)[-1]
+        original_log_filename = file_path.split(os.sep)[-1]
 
-        if not Path(filename).exists():
-            with open(filename, 'w'):
+        final_filename = original_log_filename.replace('.log' ,'')
+        final_filename = TimedRotatingFileHandler.to_snake_case(final_filename)
+        final_filename += '.log'
+
+        file_path = file_path.replace(original_log_filename, final_filename)
+
+        if config_path:
+            file_path = config_path + os.sep + final_filename
+
+        if not Path(file_path).exists():
+            with open(file_path, 'w'):
                 pass
 
-        super().__init__(filename, when=when, interval=interval, backupCount=backupCount,
+        super().__init__(filename=file_path, when=when, interval=interval, backupCount=backupCount,
                          encoding=encoding, delay=delay, utc=utc)
 
     @staticmethod
@@ -61,5 +76,15 @@ class TimedRotatingFileHandler(TimedRotatingFileHandler):
 
     @staticmethod
     def __create_default_file_handler(file_name):
-        file_name = file_name + '.log'
+        if not file_name.endswith('.log'):
+            file_name = file_name + '.log'
         return TimedRotatingFileHandler(file_name)
+
+    @staticmethod
+    def to_snake_case(name: str) -> str:
+        s = TimedRotatingFileHandler.DELIMITER_RE.sub('_', name)
+        s = TimedRotatingFileHandler.CAMEL_BOUNDARY_RE.sub(r'_\1', s)
+        s = s.lower()
+        s = TimedRotatingFileHandler.SPECIAL_CHAR_RE.sub('', s)
+        s = TimedRotatingFileHandler.MULTI_UNDERSCORE_RE.sub('_', s)
+        return s.strip('_')
