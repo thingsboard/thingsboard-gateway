@@ -24,6 +24,7 @@ from time import perf_counter as timer, sleep
 
 import simplejson
 
+from thingsboard_gateway.connectors.ftp.backward_compatibility_adapter import FTPBackwardCompatibilityAdapter
 from thingsboard_gateway.connectors.ftp.file import File
 from thingsboard_gateway.connectors.ftp.ftp_uplink_converter import FTPUplinkConverter
 from thingsboard_gateway.connectors.ftp.path import Path
@@ -40,20 +41,27 @@ class FTPConnector(Connector, Thread):
         super().__init__()
         self.statistics = {'MessagesReceived': 0,
                            'MessagesSent': 0}
-        self.__config = config
-        self.__id = self.__config.get('id')
+        using_old_config_format_detected = FTPBackwardCompatibilityAdapter.is_old_config_format(config)
+        if using_old_config_format_detected:
+            self.config = FTPBackwardCompatibilityAdapter(config).convert()
+            self.__id = self.config.get("id")
+        else:
+            self.config = config
+            self.__id = self.config.get("id")
+
         self._connector_type = connector_type
         self.__gateway = gateway
-        self.security = {**self.__config['security']} if self.__config['security']['type'] == 'basic' else {
+        self.security = {**self.config['parameters']['security']} if self.config['parameters']['security'][
+                                                                         'type'] == 'basic' else {
             'username': 'anonymous', "password": 'anonymous@'}
-        self.__tls_support = self.__config.get("TLSSupport", False)
-        self.name = self.__config.get("name", "".join(choice(ascii_lowercase) for _ in range(5)))
-        self.__log = init_logger(self.__gateway, self.name, self.__config.get('logLevel', 'INFO'),
-                                 enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+        self.__tls_support = self.config['parameters'].get("TLSSupport", False)
+        self.name = self.config.get("name", "".join(choice(ascii_lowercase) for _ in range(5)))
+        self.__log = init_logger(self.__gateway, self.name, self.config.get('logLevel', 'INFO'),
+                                 enable_remote_logging=self.config.get('enableRemoteLogging', False),
                                  is_connector_logger=True)
         self.__converter_log = init_logger(self.__gateway, self.name + '_converter',
-                                           self.__config.get('logLevel', 'INFO'),
-                                           enable_remote_logging=self.__config.get('enableRemoteLogging', False),
+                                           self.config.get('logLevel', 'INFO'),
+                                           enable_remote_logging=self.config.get('enableRemoteLogging', False),
                                            is_converter_logger=True, attr_name=self.name)
         self.daemon = True
         self.__stopped = False
@@ -65,8 +73,8 @@ class FTPConnector(Connector, Thread):
         self.__rpc_requests = []
         self.start_time = timer()
         self.__fill_rpc_requests()
-        self.host = self.__config['host']
-        self.port = self.__config.get('port', 21)
+        self.host = self.config['parameters']['host']
+        self.port = self.config['parameters'].get('port', 21)
         self.__ftp = FTP_TLS if self.__tls_support else FTP
         self.paths = [
             Path(
@@ -82,9 +90,9 @@ class FTPConnector(Connector, Thread):
                 delimiter=obj.get('delimiter', ','),
                 device_type=obj.get('devicePatternType', 'Device'),
                 report_strategy=obj.get('reportStrategy')
-                )
-            for obj in self.__config['paths']
-            ]
+            )
+            for obj in self.config['paths']
+        ]
         self.__log.info('FTP Connector started.')
 
     def open(self):
@@ -149,7 +157,7 @@ class FTPConnector(Connector, Thread):
                 for file in path.files:
                     current_hash = file.get_current_hash(ftp)
                     if ((file.has_hash() and current_hash != file.hash)
-                            or not file.has_hash()) and file.check_size_limit(ftp):
+                        or not file.has_hash()) and file.check_size_limit(ftp):
                         file.set_new_hash(current_hash)
 
                         handle_stream = io.BytesIO()
@@ -173,9 +181,11 @@ class FTPConnector(Connector, Thread):
                                     converted_data = converter.convert(convert_conf, obj)
 
                                     if converted_data:
-                                        self.__log.info('Converted data for device %s with type %s, attributes: %s, telemetry: %s',
-                                                        converted_data.device_name, converted_data.device_type,
-                                                        converted_data.attributes_datapoints_count, converted_data.telemetry_datapoints_count)
+                                        self.__log.info(
+                                            'Converted data for device %s with type %s, attributes: %s, telemetry: %s',
+                                            converted_data.device_name, converted_data.device_type,
+                                            converted_data.attributes_datapoints_count,
+                                            converted_data.telemetry_datapoints_count)
 
                                         self.__log.debug('Converted data: %s', converted_data)
                                         self.__send_data(converted_data)
@@ -183,9 +193,11 @@ class FTPConnector(Connector, Thread):
                                 converted_data = converter.convert(convert_conf, json_data)
 
                                 if converted_data:
-                                    self.__log.info('Converted data for device %s with type %s, attributes: %s, telemetry: %s',
-                                                    converted_data.device_name, converted_data.device_type,
-                                                    converted_data.attributes_datapoints_count, converted_data.telemetry_datapoints_count)
+                                    self.__log.info(
+                                        'Converted data for device %s with type %s, attributes: %s, telemetry: %s',
+                                        converted_data.device_name, converted_data.device_type,
+                                        converted_data.attributes_datapoints_count,
+                                        converted_data.telemetry_datapoints_count)
 
                                     self.__log.debug('Converted data: %s', converted_data)
                                     self.__send_data(converted_data)
@@ -204,9 +216,11 @@ class FTPConnector(Connector, Thread):
                                         converted_data = converter.convert(convert_conf, line)
 
                                     if converted_data:
-                                        self.__log.info('Converted data for device %s with type %s, attributes: %s, telemetry: %s',
-                                                        converted_data.device_name, converted_data.device_type,
-                                                        converted_data.attributes_datapoints_count, converted_data.telemetry_datapoints_count)
+                                        self.__log.info(
+                                            'Converted data for device %s with type %s, attributes: %s, telemetry: %s',
+                                            converted_data.device_name, converted_data.device_type,
+                                            converted_data.attributes_datapoints_count,
+                                            converted_data.telemetry_datapoints_count)
 
                                         self.__log.debug('Converted data: %s', converted_data)
                                         self.__send_data(converted_data)
@@ -242,7 +256,7 @@ class FTPConnector(Connector, Thread):
         return self.__stopped
 
     def __fill_attributes_update(self):
-        for attribute_request in self.__config.get('attributeUpdates', []):
+        for attribute_request in self.config.get('requestsMapping', {}).get('attributeUpdates', []):
             self.__attribute_updates.append(attribute_request)
 
     @staticmethod
@@ -265,7 +279,8 @@ class FTPConnector(Connector, Thread):
                     path = Path(path=path_str, device_name=content['device'], attributes=[], telemetry=[],
                                 delimiter=',', txt_file_data_view='')
 
-                    data_expression = attribute_request['valueExpression'].replace('${attributeKey}', attribute_key).replace(
+                    data_expression = attribute_request['valueExpression'].replace('${attributeKey}',
+                                                                                   attribute_key).replace(
                         '${attributeValue}', attribute_value)
 
                     with self.__ftp() as ftp:
@@ -303,7 +318,7 @@ class FTPConnector(Connector, Thread):
         return io.BytesIO(str.encode(data_expression))
 
     def __fill_rpc_requests(self):
-        for rpc_request in self.__config.get("serverSideRpc", []):
+        for rpc_request in self.config.get('requestsMapping', {}).get("serverSideRpc", []):
             self.__rpc_requests.append(rpc_request)
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
@@ -395,4 +410,5 @@ class FTPConnector(Connector, Thread):
             return converted_data
 
     def get_config(self):
-        return self.__config
+        return self.config
+    
