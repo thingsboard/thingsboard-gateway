@@ -120,26 +120,9 @@ class JsonRequestUplinkConverter(RequestConverter):
                     if datatype == 'attributes':
                         converted_data.add_to_attributes(datapoint_key, full_value)
                     else:
-                        ts = None
-                        if datatype_object_config.get("tsField") is not None:
-                            ts_field_key = None
-                            try:
-                                ts_field_key = TBUtility.get_value(datatype_object_config["tsField"], data,
-                                                                   get_tag=True)
+                        ts = TBUtility.resolve_different_ts_formats(data=data, config=datatype_object_config,
+                                                                    logger=self.__log)
 
-                                if data.get(ts_field_key) is not None:
-                                    parsed_configuration_data = parser.parse(data[ts_field_key])
-                                    ts = int(parsed_configuration_data.timestamp()) * 1000
-                                else:
-                                    ts = data.get(datatype_object_config["tsField"])
-
-                            except Exception as e:
-                                self.__log.debug(
-                                    "Error while parsing timestamp %s: %s with configured tsField: %s",
-                                    ts_field_key, e, datatype_object_config['tsField'])
-
-                        else:
-                            ts = data.get('ts', data.get('timestamp'))
                         telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
                         converted_data.add_to_telemetry(telemetry_entry)
         except Exception as e:
