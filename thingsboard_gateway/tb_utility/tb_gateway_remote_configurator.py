@@ -248,7 +248,10 @@ class RemoteConfigurator:
                 if not RemoteConfigurator.RECEIVED_UPDATE_QUEUE.empty():
                     self.in_process = True
                     config = RemoteConfigurator.RECEIVED_UPDATE_QUEUE.get(timeout=.1)
-                    self.__log.info('Configuration update request received.')
+                    if len(config) > 1:
+                        self.__log.info('Requested remote configuration received, keys: %s', list(config.keys()))
+                    else:
+                        self.__log.info('Remote configuration received, key: %s', list(config.keys()))
                     self.__log.debug('Got config update request: %s', config)
 
                     try:
