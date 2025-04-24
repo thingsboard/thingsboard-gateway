@@ -27,6 +27,7 @@ twisted
 pymodbus==3.0.0
 pyserial
 pyserial-asyncio
+python-dateutil
 python-can
 bacpypes>=0.18.0
 aiohttp
