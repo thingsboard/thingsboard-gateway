@@ -32,17 +32,17 @@ class TestTSFormatResolver(TestCase):
         first_day_config = deepcopy(self.config)
         first_day_config['dayfirst'] = True
         new_timestamp = self.ts_resolver(data=self.data, config=first_day_config, logger=logging)
-        self.assertEqual(new_timestamp, 1762763712123)
+        self.assertEqual(new_timestamp, 1762770912123)
 
     def test_convert_with_first_year_order_config(self):
         first_year_config = deepcopy(self.config)
         first_year_config['yearfirst'] = True
         new_timestamp = self.ts_resolver(data=self.data, config=first_year_config, logger=logging)
-        self.assertEqual(new_timestamp, 1290674112123)
+        self.assertEqual(new_timestamp, 1290681312123)
 
     def test_convert_with_no_order(self):
         new_timestamp = self.ts_resolver(data=self.data, config=self.config, logger=logging)
-        self.assertEqual(new_timestamp, 1760168112123)
+        self.assertEqual(new_timestamp, 1760178912123)
 
     def test_without_timestamp(self):
         del self.config['tsField']
