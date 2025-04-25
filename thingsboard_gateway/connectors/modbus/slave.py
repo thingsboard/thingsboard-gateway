@@ -115,14 +115,16 @@ class Slave(Thread):
 
     def __timer(self):
         self.__send_callback(monotonic())
-        wait_time = self.poll_period - 0.001
+        next_poll_time = monotonic() + self.poll_period
 
         while not self.stopped and not self.connector.is_stopped():
-            current_monotonic = monotonic()
-            if current_monotonic - self.last_polled_time >= self.poll_period:
-                self.__send_callback(current_monotonic)
+            current_time = monotonic()
+            if current_time >= next_poll_time:
+                self.__send_callback(current_time)
+                next_poll_time = current_time + self.poll_period
 
-            sleep(wait_time)
+            sleep_time = max(0.0, next_poll_time - monotonic())
+            sleep(sleep_time)
 
     def __send_callback(self, current_monotonic):
         self.last_polled_time = current_monotonic
