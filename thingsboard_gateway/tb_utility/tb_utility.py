@@ -434,3 +434,6 @@ class TBUtility:
             sleep(.1)
 
         return False
+
+    def from_str_to_bool(value: str) -> bool:
+        return bool(strtobool(value.lower()))
