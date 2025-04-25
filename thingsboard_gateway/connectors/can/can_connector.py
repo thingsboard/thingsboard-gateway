@@ -95,7 +95,7 @@ class CanConnector(Connector, Thread):
         self.__converters = {}
         self.__bus_error = None
         self.__connected = False
-        self.__stopped = True
+        self.__stopped = False
         self.daemon = True
         self.__parse_config(config)
 
