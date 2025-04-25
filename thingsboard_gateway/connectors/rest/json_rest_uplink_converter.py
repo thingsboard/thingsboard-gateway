@@ -14,7 +14,6 @@
 
 
 from simplejson import dumps
-from dateutil import parser
 
 from thingsboard_gateway.connectors.rest.rest_converter import RESTConverter
 from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER

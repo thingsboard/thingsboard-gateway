@@ -14,7 +14,6 @@
 
 from re import search
 from time import time
-from dateutil import parser
 
 from simplejson import dumps
 

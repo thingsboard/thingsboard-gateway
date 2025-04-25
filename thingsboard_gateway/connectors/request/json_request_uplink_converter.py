@@ -12,10 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from time import time
 
 from simplejson import dumps, loads
-from dateutil import parser
 
 from thingsboard_gateway.connectors.request.request_converter import RequestConverter
 from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
