@@ -51,9 +51,8 @@ class JsonRequestUplinkConverter(RequestConverter):
                 for (device_name_tag, device_name_value) in zip(device_name_tags, device_name_values):
                     is_valid_key = "${" in self.__config['converter'].get("deviceNameJsonExpression") and "}" in \
                                    self.__config['converter'].get("deviceNameJsonExpression")
-                    device_name = device_name.replace('${' + str(device_name_tag) + '}',
-                                                      str(device_name_value)) \
-                        if is_valid_key else device_name_tag
+                    device_name = device_name.replace('${' + str(device_name_tag) + '}', str(device_name_value)) \
+                        if is_valid_key else device_name
             else:
                 self.__log.error("The expression for looking \"deviceName\" not found in config %s",
                                  dumps(self.__config['converter']))
@@ -68,8 +67,7 @@ class JsonRequestUplinkConverter(RequestConverter):
                 for (device_type_tag, device_type_value) in zip(device_type_tags, device_type_values):
                     is_valid_key = "${" in self.__config['converter'].get("deviceTypeJsonExpression") and "}" in \
                                    self.__config['converter'].get("deviceTypeJsonExpression")
-                    device_type = device_type.replace('${' + str(device_type_tag) + '}',
-                                                      str(device_type_value)) \
+                    device_type = device_type.replace('${' + str(device_type_tag) + '}', str(device_type_value)) \
                         if is_valid_key else device_type_tag
             else:
                 self.__log.error("The expression for looking \"deviceType\" not found in config %s",
@@ -118,8 +116,7 @@ class JsonRequestUplinkConverter(RequestConverter):
                     if datatype == 'attributes':
                         converted_data.add_to_attributes(datapoint_key, full_value)
                     else:
-                        ts = TBUtility.resolve_different_ts_formats(data=data, config=datatype_object_config,
-                                                                    logger=self.__log)
+                        ts = TBUtility.resolve_different_ts_formats(data=data, config=datatype_object_config, logger=self.__log)
 
                         telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
                         converted_data.add_to_telemetry(telemetry_entry)

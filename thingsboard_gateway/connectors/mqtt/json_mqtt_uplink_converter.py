@@ -103,25 +103,20 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                         full_key = datatype_config["key"]
                         for (key, key_tag) in zip(keys, keys_tags):
                             is_valid_key = "${" in datatype_config["key"] and "}" in datatype_config["key"]
-                            full_key = full_key.replace('${' + str(key_tag) + '}',
-                                                        str(key)) if is_valid_key else key_tag
+                            full_key = full_key.replace('${' + str(key_tag) + '}', str(key)) if is_valid_key else key_tag
 
                         full_value = datatype_config["value"]
                         for (value, value_tag) in zip(values, values_tags):
                             is_valid_value = "${" in datatype_config["value"] and "}" in datatype_config["value"]
-                            full_value = full_value.replace('${' + str(value_tag) + '}',
-                                                            str(value)) if is_valid_value else value
+                            full_value = full_value.replace('${' + str(value_tag) + '}', str(value)) if is_valid_value else value
 
                         if full_key != 'None' and full_value != 'None':
-                            converted_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy,
-                                                                                   datatype_config, self._log)
-                            converted_value = TBUtility.convert_data_type(full_value, datatype_config["type"],
-                                                                          self.__use_eval)
+                            converted_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy, datatype_config, self._log)
+                            converted_value = TBUtility.convert_data_type(full_value, datatype_config["type"], self.__use_eval)
                             if datatype == "attributes":
                                 converted_data.add_to_attributes(converted_key, converted_value)
                             else:
-                                timestamp = TBUtility.resolve_different_ts_formats(data=data, config=datatype_config,
-                                                                                   logger=self._log, default_ts=False)
+                                timestamp = TBUtility.resolve_different_ts_formats(data=data, config=datatype_config, logger=self._log, default_ts=False)
                                 telemetry_entry = TelemetryEntry({converted_key: converted_value}, timestamp)
                                 converted_data.add_to_telemetry(telemetry_entry)
         except Exception as e:

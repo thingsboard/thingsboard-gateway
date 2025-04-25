@@ -122,8 +122,7 @@ class JsonRESTUplinkConverter(RESTConverter):
                         if datatype == 'attributes':
                             converted_data.add_to_attributes(datapoint_key, full_value)
                         else:
-                            ts = TBUtility.resolve_different_ts_formats(data=data, config=datatype_config,
-                                                                        logger=self._log)
+                            ts = TBUtility.resolve_different_ts_formats(data=data, config=datatype_config, logger=self._log)
                             telemetry_entry = TelemetryEntry({datapoint_key: full_value}, ts)
                             converted_data.add_to_telemetry(telemetry_entry)
         except Exception as e:

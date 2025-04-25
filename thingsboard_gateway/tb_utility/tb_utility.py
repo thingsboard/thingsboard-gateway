@@ -136,9 +136,7 @@ class TBUtility:
             elif isinstance(body, (dict, list)):
                 try:
                     if " " in target_str:
-                        target_str = '.'.join(
-                            '"' + section_key + '"' if " " in section_key else section_key for section_key in
-                            target_str.split('.'))  # noqa
+                        target_str = '.'.join('"' + section_key + '"' if " " in section_key else section_key for section_key in target_str.split('.'))  # noqa
                     jsonpath_expression = TBUtility.JSONPATH_EXPRESSION_CACHE.get(target_str)
                     if jsonpath_expression is None:
                         jsonpath_expression = parse(target_str)

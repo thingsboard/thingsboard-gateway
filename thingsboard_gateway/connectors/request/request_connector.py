@@ -149,11 +149,9 @@ class RequestConnector(Connector, Thread):
                     response_value_expression, response.json(), get_tag=True)
                 full_value = response_value_expression
                 for (value, value_tag) in zip(values, values_tags):
-                    is_valid_value = "${" in response_value_expression and "}" in \
-                                     response_value_expression
+                    is_valid_value = "${" in response_value_expression and "}" in response_value_expression
 
-                    full_value = full_value.replace('${' + str(value_tag) + '}',
-                                                    str(value)) if is_valid_value else str(value)
+                    full_value = full_value.replace('${' + str(value_tag) + '}', str(value)) if is_valid_value else str(value)
 
                 self.__gateway.send_rpc_reply(device=content["device"], req_id=content["data"]["id"],
                                               content={'result': full_value})
@@ -249,8 +247,7 @@ class RequestConnector(Connector, Thread):
     def __fill_rpc_requests(self):
         for rpc_request in self.__config.get("serverSideRpc", []):
             if rpc_request.get("converter") is not None:
-                converter = TBModuleLoader.import_module("request", rpc_request["converter"])(rpc_request,
-                                                                                              self._converter_log)
+                converter = TBModuleLoader.import_module("request", rpc_request["converter"])(rpc_request, self._converter_log)
             else:
                 converter = JsonRequestDownlinkConverter(rpc_request, self._converter_log)
             rpc_request_dict = {**rpc_request, "converter": converter}
@@ -263,9 +260,8 @@ class RequestConnector(Connector, Thread):
             request_url_from_config = request["config"]["url"]
             request_url_from_config = str('/' + request_url_from_config) if request_url_from_config[
                                                                                 0] != '/' else request_url_from_config
-            logger.debug(request_url_from_config)
+            logger.debug("Obtained request url from config - %s ", request_url_from_config)
             url = self.__host + request_url_from_config
-            logger.debug(url)
             request_timeout = request["config"].get("timeout", 1)
             params = {
                 "method": request["config"].get("httpMethod", "GET"),
@@ -276,7 +272,7 @@ class RequestConnector(Connector, Thread):
                 "auth": self.__security,
                 "data": request["config"].get("data", {})
             }
-            logger.debug(url)
+            logger.debug("Full url request has been formed - %s", url)
 
             if request["config"].get("httpHeaders") is not None:
                 params["headers"] = request["config"]["httpHeaders"]
