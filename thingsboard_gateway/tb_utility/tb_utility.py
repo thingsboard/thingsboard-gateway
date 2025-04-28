@@ -27,7 +27,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 from jsonpath_rw import parse
-from orjson import JSONDecodeError, dumps, loads
+from orjson import JSONDecodeError, dumps, loads, OPT_NON_STR_KEYS
 
 from thingsboard_gateway.gateway.constants import SECURITY_VAR, REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
@@ -91,7 +91,7 @@ class TBUtility:
                 errors.append('No telemetry and attributes')
 
         if errors:
-            json_data = dumps(data.to_dict()) if isinstance(data, ConvertedData) else dumps(data)
+            json_data = dumps(data.to_dict(), option=OPT_NON_STR_KEYS) if isinstance(data, ConvertedData) else dumps(data, option=OPT_NON_STR_KEYS)
             if isinstance(json_data, bytes):
                 log.error("Found errors: " + str(errors) + " in data: " + json_data.decode("UTF-8"))
             else:
@@ -344,7 +344,7 @@ class TBUtility:
 
     @staticmethod
     def get_data_size(data):
-        return len(dumps(data))
+        return len(dumps(data, option=OPT_NON_STR_KEYS))
 
     @staticmethod
     def update_main_config_with_env_variables(config):
