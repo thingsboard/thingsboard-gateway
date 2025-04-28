@@ -220,10 +220,10 @@ class TBGatewayService:
 
         self.init_statistics_service(self.__config['thingsboard'].get('statistics', DEFAULT_STATISTIC))
 
-        self.__min_pack_send_delay_ms = self.__config['thingsboard'].get('minPackSendDelayMS', 50)
+        self.__min_pack_send_delay_ms = 1000 #self.__config['thingsboard'].get('minPackSendDelayMS', 50)
         self.__min_pack_send_delay_ms = self.__min_pack_send_delay_ms / 1000.0
-        self.__min_pack_size_to_send = self.__config['thingsboard'].get('minPackSizeToSend', 500)
-        self.__max_payload_size_in_bytes = self.__config["thingsboard"].get("maxPayloadSizeBytes", 8196)
+        self.__min_pack_size_to_send = 50 #self.__config['thingsboard'].get('minPackSizeToSend', 50)
+        self.__max_payload_size_in_bytes = 1_000_000 #self.__config["thingsboard"].get("maxPayloadSizeBytes", 400)
 
         self._send_thread = Thread(target=self.__read_data_from_storage, daemon=True,
                                    name="Send data to Thingsboard Thread")
@@ -1377,8 +1377,8 @@ class TBGatewayService:
     def __read_data_from_storage(self):
         devices_data_in_event_pack = {}
         global log
-        log.debug("Send data Thread has been started successfully.")
-        log.debug("Maximal size of the client message queue is: %r",
+        log.info("Send data Thread has been started successfully.")
+        log.info("Maximal size of the client message queue is: %r",
                   self.tb_client.client._client._max_queued_messages) # noqa pylint: disable=protected-access
         current_event_pack_data_size = 0
         logger_get_time = 0
@@ -2117,7 +2117,7 @@ class TBGatewayService:
         if hasattr(self, '_TBGatewayService__max_payload_size_in_bytes'):
             return int(self.__max_payload_size_in_bytes * 0.9)
 
-        return 8196
+        return 1_000_000
 
     # ----------------------------
     # Storage --------------------

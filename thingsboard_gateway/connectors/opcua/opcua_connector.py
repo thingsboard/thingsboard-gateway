@@ -121,7 +121,7 @@ class OpcUaConnector(Connector, Thread):
         # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
         self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
         self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200), 100) / 1000
-        self.__subscription_batch_size = self.__server_conf.get('subscriptionProcessBatchSize', 2000)
+        self.__subscription_batch_size = self.__server_conf.get('subscriptionBatchSize', 100_000)
 
         self.__show_map = self.__server_conf.get('showMap', False)
 
@@ -921,6 +921,10 @@ class OpcUaConnector(Connector, Thread):
     def __convert_retrieved_data(self, values, received_ts, data_retrieving_started):
         try:
             converted_nodes_count = 0
+            converted_data_dev_count = 0
+            converted_data_attr_count = 0
+            converted_telemetry_ts_count = 0
+
             for device in self.__device_nodes:
                 nodes_count = len(device.nodes)
                 device_values = values[converted_nodes_count:converted_nodes_count + nodes_count]
