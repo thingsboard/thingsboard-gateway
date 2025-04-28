@@ -35,6 +35,7 @@ except ImportError:
     from bacpypes3.apdu import ErrorRejectAbortNack
 
 from bacpypes3.pdu import Address
+from bacpypes3.vendor import get_vendor_info
 
 from thingsboard_gateway.connectors.bacnet.device import Device
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
@@ -109,7 +110,7 @@ class AsyncBACnetConnector(Thread, Connector):
         await self.__discover_devices()
         await asyncio.gather(self.__main_loop(), self.__convert_data(), self.__save_data())
 
-    def indication_callback(self, apdu):
+    async def indication_callback(self, apdu):
         """
         First check if device is already added
         If added, set active to True
@@ -123,6 +124,8 @@ class AsyncBACnetConnector(Thread, Connector):
             if added_device is None:
                 device_config = Device.find_self_in_config(self.__config['devices'], apdu)
                 if device_config:
+                    await self.__check_and_update_device_config(apdu, device_config)
+
                     device = Device(self.connector_type, device_config, apdu, self.callback, self.__converter_log)
                     self.__devices.append(device)
                     self.__gateway.add_device(device.device_info.device_name,
@@ -141,6 +144,16 @@ class AsyncBACnetConnector(Thread, Connector):
         for device in self.__devices:
             if device.details.address == address or address in device.alternative_responses_addresses:
                 return device
+
+    async def __check_and_update_device_config(self, apdu, device_config):
+        discover_for = Device.is_discovery_config(device_config)
+        if len(discover_for):
+            vendor_info = get_vendor_info(apdu.vendorID)
+            config = await self.__application.get_device_objects(apdu.pduSource,
+                                                                 apdu.iAmDeviceIdentifier,
+                                                                 vendor_info)
+            for section in discover_for:
+                device_config[section] = config
 
     def __find_device_by_name(self, name):
         device_filter = list(filter(lambda x: x.device_info.device_name == name, self.__devices))
