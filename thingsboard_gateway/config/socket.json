@@ -1,12 +1,15 @@
 {
-  "name": "TCP Connector Example",
-  "type": "TCP",
-  "address": "127.0.0.1",
-  "port": 50000,
-  "bufferSize": 1024,
+  "socket": {
+    "address": "127.0.0.1",
+    "type": "TCP",
+    "port": 50000,
+    "bufferSize": 1024
+  },
   "devices": [
     {
-      "addressFilter": "127.0.0.1:*",
+      "address": "*:*",
+      "addressFilter": "*:*",
+      "converter": "BytesSocketUplinkConverter",
       "deviceName": "Device Example",
       "deviceType": "default",
       "encoding": "utf-8",
@@ -37,6 +40,8 @@
       "attributeRequests": [
         {
           "type": "shared",
+          "requestExpressionSource": "constant",
+          "attributeNameExpressionSource": "constant",
           "requestExpression": "${[0:3]==atr}",
           "attributeNameExpression": "[3:]"
         }
@@ -51,7 +56,6 @@
         {
           "methodRPC": "rpcMethod1",
           "withResponse": true,
-          "methodProcessing": "write",
           "encoding": "utf-8"
         }
       ]
