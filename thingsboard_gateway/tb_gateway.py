@@ -22,7 +22,7 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 def main():
-    if TBUtility.from_str_to_bool(environ.get(DEV_MODE_PARAMETER_NAME, 'false')):
+    if TBUtility.str_to_bool(environ.get(DEV_MODE_PARAMETER_NAME, 'false')):
         run_debug_server()
 
     if "logs" not in listdir(curdir):
