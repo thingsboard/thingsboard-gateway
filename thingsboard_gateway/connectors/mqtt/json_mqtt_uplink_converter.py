@@ -28,7 +28,6 @@ from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 
-
 USE_RECEIVED_TS_PARAMETER = "useReceivedTs"
 
 
@@ -117,6 +116,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                             if datatype == "attributes":
                                 converted_data.add_to_attributes(converted_key, converted_value)
                             else:
+                                timestamp = TBUtility.resolve_different_ts_formats(data=data, config=datatype_config, logger=self._log, default_ts=False)
                                 telemetry_entry = TelemetryEntry({converted_key: converted_value}, timestamp)
                                 converted_data.add_to_telemetry(telemetry_entry)
         except Exception as e:
