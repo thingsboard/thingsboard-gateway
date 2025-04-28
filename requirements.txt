@@ -11,6 +11,7 @@ urllib3>=2.3.0
 requests>=2.32.3
 questionary
 pyfiglet
+python-dateutil
 termcolor
 grpcio
 mmh3

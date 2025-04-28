@@ -28,6 +28,7 @@ pymodbus==3.0.0
 pyserial
 pyserial-asyncio
 python-can
+python-dateutil
 bacpypes>=0.18.0
 aiohttp
 puresnmp>=2.0.0
