@@ -16,6 +16,7 @@ from getpass import getuser
 from logging import getLogger, setLoggerClass
 from os import environ
 from platform import system as platform_system
+from dateutil import parser
 from re import search, findall
 from time import monotonic, sleep
 from typing import Union, TYPE_CHECKING
@@ -26,6 +27,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
+from distutils.util import strtobool
 from jsonpath_rw import parse
 from orjson import JSONDecodeError, dumps, loads
 
@@ -42,7 +44,6 @@ log = getLogger("service")
 
 
 class TBUtility:
-
     JSONPATH_EXPRESSION_CACHE = TTLCache(maxsize=10000, ttl=30)
 
     # Data conversion methods
@@ -135,7 +136,7 @@ class TBUtility:
             elif isinstance(body, (dict, list)):
                 try:
                     if " " in target_str:
-                        target_str = '.'.join('"' + section_key + '"' if " " in section_key else section_key for section_key in target_str.split('.')) # noqa
+                        target_str = '.'.join('"' + section_key + '"' if " " in section_key else section_key for section_key in target_str.split('.'))  # noqa
                     jsonpath_expression = TBUtility.JSONPATH_EXPRESSION_CACHE.get(target_str)
                     if jsonpath_expression is None:
                         jsonpath_expression = parse(target_str)
@@ -185,31 +186,6 @@ class TBUtility:
             return None
 
     @staticmethod
-    def str_to_bool(val) -> bool:
-        if isinstance(val, bool):
-            return val
-
-        if isinstance(val, int):
-            if val in (0, 1):
-                return bool(val)
-            raise ValueError(f"Invalid truth value (int): {val!r}")
-
-        try:
-            s = str(val).strip().lower()
-        except Exception:
-            raise ValueError(f"Cannot convert {val!r} to boolean")
-
-        true_vals = {"y", "yes", "t", "true", "on", "1"}
-        false_vals = {"n", "no", "f", "false", "off", "0"}
-
-        if s in true_vals:
-            return True
-        if s in false_vals:
-            return False
-
-        raise ValueError(f"Invalid truth value: {val!r}")
-
-    @staticmethod
     def convert_data_type(data, new_type, use_eval=False):
         current_type = type(data)
         # use 'in' check instead of equality for such case like 'str' and 'string'
@@ -224,7 +200,7 @@ class TBUtility:
             elif 'float' == new_type or 'double' == new_type:
                 return float(evaluated_data)
             elif 'bool' in new_type:
-                return TBUtility.str_to_bool(evaluated_data)
+                return bool(strtobool(evaluated_data))
             else:
                 return str(evaluated_data)
         except ValueError:
@@ -353,6 +329,25 @@ class TBUtility:
         return config
 
     @staticmethod
+    def resolve_different_ts_formats(data: dict, config: dict, logger, default_ts: bool = True):
+        ts_field_expression = config.get('tsField')
+        if ts_field_expression is not None:
+            ts_field_key = None
+            try:
+                ts_field_key = TBUtility.get_value(ts_field_expression, data, get_tag=True)
+
+                if data.get(ts_field_key) is not None:
+                    parsed_configuration_data = parser.parse(data[ts_field_key], dayfirst=config.get('dayfirst', False), yearfirst=config.get('yearfirst', False))
+                    return int(parsed_configuration_data.timestamp() * 1000)
+                return data.get(ts_field_expression)
+
+
+            except Exception as e:
+                logger.debug("Error while parsing timestamp %s: %s with configured tsField: %s",
+                             ts_field_key, e, config['tsField'])
+        return data.get('ts', data.get('timestamp')) if default_ts else None
+
+    @staticmethod
     def get_service_environmental_variables():
         env_variables = {
             'host': environ.get('host'),
@@ -434,6 +429,3 @@ class TBUtility:
             sleep(.1)
 
         return False
-
-    def from_str_to_bool(value: str) -> bool:
-        return bool(strtobool(value.lower()))
