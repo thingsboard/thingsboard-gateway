@@ -82,6 +82,7 @@ setup(
         'mmh3',
         'grpcio',
         'protobuf',
+        'python-dateutil',
         'cachetools',
         'tb-paho-mqtt-client>=2.1.2',
         'tb-mqtt-client>=1.13.5',
