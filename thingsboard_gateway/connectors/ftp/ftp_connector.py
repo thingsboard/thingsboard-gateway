@@ -93,13 +93,14 @@ class FTPConnector(Connector, Thread):
             )
             for obj in self.config['paths']
         ]
-        self.__log.info('FTP Connector started.')
+        self.__log.info("FTP Connector started with %s and %d", self.host, self.port)
 
     def open(self):
         self.__stopped = False
         self.start()
 
     def run(self):
+        self.__log.debug('Starting connector loop')
         try:
             while not self.__stopped:
                 with self.__ftp() as ftp:
@@ -115,16 +116,20 @@ class FTPConnector(Connector, Thread):
                             if self.__stopped:
                                 break
         except Exception as e:
-            self.__log.exception(e)
+            self.__log.error("Unexpected exception in loop for %s %d with error %r", self.host, self.port, str(e))
+            self.__log.debug("Error:", exc_info=e)
             try:
                 self.close()
             except Exception as e:
-                self.__log.exception(e)
+                self.__log.error(
+                    "Can not close the connection for %s %d with error %r", self.host, self.port, str(e))
+                self.__log.debug("Error:", exc_info=e)
         while True:
             if self.__stopped:
                 break
 
     def __connect(self, ftp):
+        self.__log.debug("Connecting to ftp server on %s:%d", self.host, self.port)
         try:
             ftp.connect(self.host, self.port)
 
@@ -135,13 +140,16 @@ class FTPConnector(Connector, Thread):
                 self.__log.info('Data protection level set to "private"')
             else:
                 ftp.login(self.security['username'], self.security['password'])
+                self.__log.info("Logged in as %s", str(self.security['username']))
+
 
         except Exception as e:
-            self.__log.error(e)
+            self.__log.error("Connection failed to %s:%d: due to %r", self.host, self.port, str(e))
+            self.__log.debug("Error:", exc_info=e)
             sleep(10)
         else:
             self._connected = True
-            self.__log.info('Connected to FTP server')
+            self.__log.info("Connected to FTP server to %s:%d", self.host, self.port)
 
     def __process_paths(self, ftp):
         for path in self.paths:
@@ -153,6 +161,7 @@ class FTPConnector(Connector, Thread):
 
                 if '*' in path.path:
                     path.find_files(ftp)
+                    self.__log.trace("Found %d for pattern %s", len(path.files), path.path)
 
                 for file in path.files:
                     current_hash = file.get_current_hash(ftp)
@@ -161,6 +170,7 @@ class FTPConnector(Connector, Thread):
                         file.set_new_hash(current_hash)
 
                         handle_stream = io.BytesIO()
+                        self.__log.trace("Retrieving file %s...", file.path_to_file)
 
                         ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
 
@@ -173,6 +183,8 @@ class FTPConnector(Connector, Thread):
                                                                 stat_parameter_name='connectorBytesReceived')
 
                         convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
+
+                        self.__log.trace("Processing data from %s file", file.path_to_file)
 
                         if convert_conf['file_ext'] == 'json':
                             json_data = simplejson.loads(handled_str)
@@ -233,10 +245,13 @@ class FTPConnector(Connector, Thread):
                  converted_data.attributes_datapoints_count > 0)):
             self.__gateway.send_to_storage(self.name, self.get_id(), converted_data)
             self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
-            self.__log.debug("Data to ThingsBoard: %s", converted_data)
+            self.__log.debug("Data being sent to ThingsBoard: %s", converted_data)
 
     def close(self):
         self.__stopped = True
+        for path in self.paths:
+            for file in path.files:
+                file._hash = None
         self.__log.info('FTP Connector stopped.')
         self.__log.stop()
 
@@ -269,19 +284,21 @@ class FTPConnector(Connector, Thread):
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
+        self.__log.debug("Processing an attribute update from %r", content)
         try:
             for attribute_request in self.__attribute_updates:
                 if fullmatch(attribute_request["deviceNameFilter"], content["device"]):
                     attribute_key, attribute_value = content['data'].popitem()
+                    self.__log.info("Found an attribute key for %s and value %s", attribute_key, attribute_value)
 
                     path_str = attribute_request['path'].replace('${attributeKey}', attribute_key).replace(
                         '${attributeValue}', attribute_value)
                     path = Path(path=path_str, device_name=content['device'], attributes=[], telemetry=[],
                                 delimiter=',', txt_file_data_view='')
 
-                    data_expression = attribute_request['valueExpression'].replace('${attributeKey}',
-                                                                                   attribute_key).replace(
-                        '${attributeValue}', attribute_value)
+                    data_expression = (attribute_request['valueExpression']
+                                       .replace('${attributeKey}', attribute_key)
+                                       .replace('${attributeValue}', attribute_value))
 
                     with self.__ftp() as ftp:
                         self.__connect(ftp)
@@ -294,12 +311,14 @@ class FTPConnector(Connector, Thread):
                                     ftp.storbinary('STOR ' + file.path_to_file, io_stream)
                                     io_stream.close()
                                 else:
-                                    self.__log.error('Invalid json data')
+                                    self.__log.error("Invalid json data in attribute update %s", json_data)
+                                    self.__log.debug("Error:", exc_info=True)
                             else:
                                 if attribute_request['writingMode'] == 'OVERRIDE':
                                     io_stream = self._get_io_stream(data_expression)
                                     ftp.storbinary('STOR ' + file.path_to_file, io_stream)
                                     io_stream.close()
+                                    self.__log.info("Successfully process attribute update %s on override request", attribute_key)
                                 else:
                                     handle_stream = io.BytesIO()
                                     ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
@@ -309,9 +328,11 @@ class FTPConnector(Connector, Thread):
                                     io_stream = io.BytesIO(str.encode(str(converted_data + '\n' + data_expression)))
                                     ftp.storbinary('STOR ' + file.path_to_file, io_stream)
                                     io_stream.close()
+                                    self.__log.info("Successfully process attribute update for %s", attribute_key)
 
         except Exception as e:
-            self.__log.exception(e)
+            self.__log.error("Failed to process attribute update with error %r", str(e))
+            self.__log.debug("Error:", exc_info=e)
 
     @CollectAllReceivedBytesStatistics('allBytesSentToDevices')
     def _get_io_stream(self, data_expression):
@@ -324,7 +345,7 @@ class FTPConnector(Connector, Thread):
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
         try:
-            self.__log.info("Incoming server-side RPC: %s", content)
+            self.__log.debug("Handling incoming server-side RPC with %s", content)
 
             if content.get('data') is None:
                 content['data'] = {'params': content['params'], 'method': content['method'], 'id': content['id']}
@@ -363,6 +384,7 @@ class FTPConnector(Connector, Thread):
 
                 converted_data, success_sent = self.__process_rpc(rpc_method, value_expression)
                 self.__send_rpc_reply({}, content, converted_data, success_sent)
+                self.__log.info("Successfully sent RPC request to FTP for %s rpc method", rpc_method)
                 return
 
             for rpc_request in self.__rpc_requests:
@@ -371,10 +393,15 @@ class FTPConnector(Connector, Thread):
                     converted_data, success_sent = self.__process_rpc(rpc_method, value_expression)
 
                     self.__send_rpc_reply(rpc_request, content, converted_data, success_sent)
+                    self.__log.info("Successfully sent RPC request to FTP for %s rpc method", rpc_method)
+
         except Exception as e:
-            self.__log.exception(e)
+            self.__log.error(
+                "Failed to perform incoming server side RPC for content %s and rpc method due to %r", str(e))
+            self.__log.debug("Error:", exc_info=e)
 
     def __process_rpc(self, method, value_expression):
+        self.__log.info("Called __process_rpc, %r %r", method, value_expression)
         with self.__ftp() as ftp:
             if not self._connected or not ftp.sock:
                 self.__connect(ftp)
@@ -389,7 +416,8 @@ class FTPConnector(Connector, Thread):
                     io_stream.close()
                     success_sent = True
                 except Exception as e:
-                    self.__log.error(e)
+                    self.__log.error("Can not process for method write due to %r", str(e))
+                    self.__log.debug("Error:", exc_info=e)
                     converted_data = '{"error": "' + str(e) + '"}'
             else:
                 handle_stream = io.BytesIO()
@@ -411,4 +439,3 @@ class FTPConnector(Connector, Thread):
 
     def get_config(self):
         return self.config
-    
