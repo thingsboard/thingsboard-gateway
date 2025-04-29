@@ -17,9 +17,10 @@ from bacpypes3.ipv4.app import NormalApplication as App
 from bacpypes3.local.device import DeviceObject
 from bacpypes3.pdu import Address
 from bacpypes3.primitivedata import ObjectIdentifier
-from bacpypes3.apdu import AbortReason, AbortPDU, ErrorRejectAbortNack
+from bacpypes3.apdu import AbortPDU, ErrorRejectAbortNack
 from bacpypes3.basetypes import PropertyIdentifier
-from bacpypes3.vendor import VendorInfo
+from bacpypes3.vendor import get_vendor_info
+from bacpypes3.basetypes import Segmentation
 
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 
@@ -44,7 +45,7 @@ class Application(App):
         if len(devices):
             return devices[0]
 
-    async def get_object_identifiers(
+    async def get_object_identifiers_with_segmentation(
         self, device_address: Address, device_identifier: ObjectIdentifier
     ) -> List[ObjectIdentifier]:
         try:
@@ -53,14 +54,17 @@ class Application(App):
             )
             return object_list
         except AbortPDU as err:
-            if err.apduAbortRejectReason != AbortReason.segmentationNotSupported:
-                self.__log.warning(f"{device_identifier} objectList abort: {err}\n")
-                return []
+            self.__log.warning(f"{device_identifier} objectList abort: {err}\n")
+            return []
         except ErrorRejectAbortNack as err:
             self.__log.warning(f"{device_identifier} objectList error/reject: {err}\n")
             return []
 
+    async def get_object_identifiers_without_segmentation(
+        self, device_address: Address, device_identifier: ObjectIdentifier
+    ) -> List[ObjectIdentifier]:
         object_list = []
+
         try:
             object_list_length = await self.read_property(
                 device_address,
@@ -82,13 +86,18 @@ class Application(App):
 
         return object_list
 
-    async def get_device_objects(self,
-                                 device_address: Address,
-                                 device_identifier: ObjectIdentifier,
-                                 vendor_info: VendorInfo):
+    async def get_device_objects(self, apdu):
         result = []
 
-        object_list = await self.get_object_identifiers(device_address, device_identifier)
+        device_address = apdu.pduSource
+        device_identifier = apdu.iAmDeviceIdentifier
+        vendor_info = get_vendor_info(apdu.vendorID)
+        segmentation_supported = apdu.segmentationSupported
+
+        if segmentation_supported in (Segmentation.segmentedBoth, Segmentation.segmentedTransmit):
+            object_list = await self.get_object_identifiers_with_segmentation(device_address, device_identifier)
+        else:
+            object_list = await self.get_object_identifiers_without_segmentation(device_address, device_identifier)
 
         for object_id in object_list:
             config = {}

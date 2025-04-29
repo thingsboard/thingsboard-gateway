@@ -35,7 +35,6 @@ except ImportError:
     from bacpypes3.apdu import ErrorRejectAbortNack
 
 from bacpypes3.pdu import Address
-from bacpypes3.vendor import get_vendor_info
 
 from thingsboard_gateway.connectors.bacnet.device import Device
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
@@ -148,10 +147,7 @@ class AsyncBACnetConnector(Thread, Connector):
     async def __check_and_update_device_config(self, apdu, device_config):
         discover_for = Device.is_discovery_config(device_config)
         if len(discover_for):
-            vendor_info = get_vendor_info(apdu.vendorID)
-            config = await self.__application.get_device_objects(apdu.pduSource,
-                                                                 apdu.iAmDeviceIdentifier,
-                                                                 vendor_info)
+            config = await self.__application.get_device_objects(apdu)
             for section in discover_for:
                 device_config[section] = config
 
