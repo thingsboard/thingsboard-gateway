@@ -68,10 +68,7 @@
         }
       ]
     }
-  ],
-  "logLevel": "INFO",
-  "name": "TestOpcUa",
-  "enableRemoteLogging": false,
-  "id": "14746d3a-780d-4346-9df2-2a232f64c40c",
-  "configVersion": "3.7.3"
+  ]
 }
+
+
