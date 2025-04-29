@@ -21,7 +21,6 @@
         "deviceNameExpressionSource": "expression",
         "deviceProfileExpressionSource": "constant"
       },
-      "address": "192.168.2.110:47808",
       "altResponsesAddresses": [],
       "host": "192.168.2.110",
       "port": "47808",

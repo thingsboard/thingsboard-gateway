@@ -10,7 +10,6 @@
     "cleanSession": true,
     "cleanStart": true,
     "sessionExpiryInterval": 0,
-    "maxProcessingMessageQueue": 1000000000,
     "security": {
       "type": "anonymous"
     }
@@ -43,7 +42,7 @@
         ],
         "timeseries": [
           {
-            "type": "string",
+            "type": "double",
             "key": "temperature",
             "value": "${temp}"
           },

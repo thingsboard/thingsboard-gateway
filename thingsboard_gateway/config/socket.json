@@ -9,7 +9,6 @@
     {
       "address": "*:*",
       "addressFilter": "*:*",
-      "converter": "BytesSocketUplinkConverter",
       "deviceName": "Device Example",
       "deviceType": "default",
       "encoding": "utf-8",
@@ -40,8 +39,6 @@
       "attributeRequests": [
         {
           "type": "shared",
-          "requestExpressionSource": "constant",
-          "attributeNameExpressionSource": "constant",
           "requestExpression": "${[0:3]==atr}",
           "attributeNameExpression": "[3:]"
         }
