@@ -15,6 +15,7 @@
 import logging
 import asyncio
 import re
+from typing import Dict, Optional
 from asyncio.exceptions import CancelledError
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue, Empty
@@ -1038,7 +1039,7 @@ class OpcUaConnector(Connector, Thread):
                             full_path = ';'.join(
                                 [item for item in (args_list[0:-1] if rpc_method == 'set' else args_list)])
                         else:
-                            full_path = args_list[0].split('=')[-1]
+                            full_path = self.extract_data_from_device(device_values=device.values, params=content['data']['params'])
                     except IndexError:
                         self.__log.error('Not enough arguments. Expected min 2.')
                         self.__gateway.send_rpc_reply(device=content['device'],
@@ -1049,7 +1050,9 @@ class OpcUaConnector(Connector, Thread):
 
                     result = {}
                     if rpc_method == 'get':
-                        task = self.__loop.create_task(self.__read_value(full_path, result))
+
+                        argument = self.__read_value(full_path, result)
+                        task = self.__loop.create_task(argument)
 
                         while not task.done():
                             sleep(.2)
@@ -1117,6 +1120,30 @@ class OpcUaConnector(Connector, Thread):
                 return results
         except Exception as e:
             self.__log.exception("Error during RPC handling: ", exc_info=e)
+
+    def extract_data_from_device(self, device_values: Dict[str, list], params: str) -> Optional[str]:
+        target = re.split(r"[./]", params)[-1]
+
+        ts = device_values.get("timeseries", [])
+        attrs = device_values.get("attributes", [])
+
+        try:
+            if ts and ts[0].get("key") == target:
+                return ts[0].get("path")
+            if attrs and attrs[0].get("key") == target:
+                return attrs[0].get("path")
+            if ts:
+                ts.pop(0)
+            if attrs:
+                attrs.pop(0)
+
+        except (IndexError, KeyError) as e:
+            self.__log.error("Incorrect data provided while trying to parse %s due to: %r", target, e)
+
+        if not ts and not attrs:
+            return self.__log.info("No data to parse")
+
+        return self.extract_data_from_device(device_values, params)
 
     async def __write_value(self, path, value, result=None):
         if result is None:
