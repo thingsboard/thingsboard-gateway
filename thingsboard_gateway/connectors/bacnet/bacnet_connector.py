@@ -205,8 +205,8 @@ class AsyncBACnetConnector(Thread, Connector):
 
     async def __write_property(self, address, object_id, property_id, value):
         try:
-            result = await self.__application.write_property(address, object_id, property_id, value)
-            return result
+            await self.__application.write_property(address, object_id, property_id, value)
+            return "ok"
         except ErrorRejectAbortNack as err:
             return err
         except Exception as e:
