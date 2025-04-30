@@ -45,7 +45,7 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                     self.__log.error("Error reading object for key \"%s\", objectId: \"%s\", and propertyId: \"%s\". Error: %s",
                                      config.get('key'),
                                      config.get('objectId',
-                                                config.get("objectType", "None") + ":" + config.get("objectId", "None")
+                                                config.get("objectType", "None") + ":" + str(config.get("objectId", "None"))
                                                 ),
                                      config.get('propertyId'),
                                      value)

@@ -17,7 +17,6 @@ import time
 from threading import Thread
 
 from bacpypes3.primitivedata import ObjectIdentifier
-from bacpypes3.pdu import LocalBroadcast, Address
 
 from thingsboard_gateway.connectors.bacnet.bacnet_uplink_converter import AsyncBACnetUplinkConverter
 from thingsboard_gateway.connectors.bacnet.entities.bacnet_device_details import BACnetDeviceDetails
@@ -172,3 +171,15 @@ class Device(Thread):
     @staticmethod
     def get_object_id(config):
         return ObjectIdentifier("%s:%s" % (config['objectType'], config['objectId']))
+
+    @staticmethod
+    def is_discovery_config(config):
+        fill_for = []
+
+        if config.get('attributes', '') == '*':
+            fill_for.append('attributes')
+
+        if config.get('timeseries', '') == '*':
+            fill_for.append('timeseries')
+
+        return fill_for
