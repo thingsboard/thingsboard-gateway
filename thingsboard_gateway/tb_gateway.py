@@ -21,8 +21,16 @@ from thingsboard_gateway.gateway.hot_reloader import HotReloader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
+def is_running_under_pycharm():
+    return (
+        "PYCHARM_HOSTED" in environ
+        or "_pydevd_bundle" in sys.modules
+    )
+
 def main():
-    if TBUtility.str_to_bool(environ.get(DEV_MODE_PARAMETER_NAME, 'false')):
+    is_dev_mode = TBUtility.str_to_bool(environ.get(DEV_MODE_PARAMETER_NAME, 'false'))
+
+    if is_dev_mode and not is_running_under_pycharm:
         run_debug_server()
 
     if "logs" not in listdir(curdir):
