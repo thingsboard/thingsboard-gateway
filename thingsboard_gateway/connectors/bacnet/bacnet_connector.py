@@ -117,7 +117,7 @@ class AsyncBACnetConnector(Thread, Connector):
         """
 
         try:
-            device_address = apdu.pduSource.exploded
+            device_address = apdu.pduSource.__str__()
             self.__log.info('Received APDU, from %s, trying to find device...', device_address)
             added_device = self.__find_device_by_address(device_address)
             if added_device is None:
@@ -126,6 +126,7 @@ class AsyncBACnetConnector(Thread, Connector):
                     await self.__check_and_update_device_config(apdu, device_config)
 
                     device = Device(self.connector_type, device_config, apdu, self.callback, self.__converter_log)
+                    self.loop.create_task(device.run())
                     self.__devices.append(device)
                     self.__gateway.add_device(device.device_info.device_name,
                                               {"connector": self},
@@ -226,6 +227,11 @@ class AsyncBACnetConnector(Thread, Connector):
             try:
                 device, values = self.__data_to_convert_queue.get_nowait()
                 self.__log.trace('%s data to convert: %s', device, values)
+
+                if len(values) == 0:
+                    self.__log.warning('No values to convert for device %s', device)
+                    continue
+
                 converted_data = device.uplink_converter.convert(values)
                 self.__data_to_save_queue.put_nowait((device, converted_data))
             except Empty:
