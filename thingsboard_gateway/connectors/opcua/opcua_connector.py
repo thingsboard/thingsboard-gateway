@@ -967,6 +967,40 @@ class OpcUaConnector(Connector, Thread):
         except Exception as e:
             result['error'] = e.__str__()
 
+
+    @staticmethod
+    def determine_rpc_income_data(params, device, logger):
+        try:
+            if 'Root.' in params:
+                current_path = params
+                node_pattern = params.replace('.', '\\.')
+                return node_pattern, current_path
+            names = [v.split(':', 1)[1] for v in device.path]
+            node_pattern = "Root\\." + r"\.".join(names) + r'\.' + params
+            current_path = 'Root.' + '.'.join(names)
+            return node_pattern, current_path
+        except Exception as e:
+            logger.error("determine_rpc_income_data failed for params=%r: %s",
+                   params, e)
+
+
+    def process_path_based_on_data(self, params, device):
+        try:
+            node_pattern, current_path = self.determine_rpc_income_data(params, device, logger=self.__log)
+            node_list = node_pattern.split("\\.")[-1:]
+            nodes = []
+            find_task = self.__find_nodes(node_list, device.device_node, nodes, current_path)
+            task = self.__loop.create_task(find_task)
+            while not task.done():
+                sleep(.1)
+            found_nodes = task.result()
+            if found_nodes:
+                full_path = found_nodes[-1][0]['node'].nodeid
+                return full_path
+            self.__log.error('Node not found! (%s)', found_nodes)
+        except Exception as e:
+            self.__log.error("Error during node lookup for %r: %s", params, e)
+
     def on_attributes_update(self, content: Dict):
         self.__log.debug(content)
         try:
@@ -974,36 +1008,24 @@ class OpcUaConnector(Connector, Thread):
 
             for (key, value) in content['data'].items():
                 for attr_update in device.config['attributes_updates']:
-                    if attr_update['key'] == key:
-                        if self.__is_node_identifier(attr_update['value']):
-                            node_id = NodeId.from_string(attr_update['value'])
-                        else:
-                            result = {}
-                            task = self.__loop.create_task(
-                                self.get_shared_attr_node_id(
-                                    device.path + attr_update['value'].replace('\\', '').split('.'), result))
+                    if attr_update['key'] == key and self.__is_node_identifier(attr_update['value']):
+                        node_id = NodeId.from_string(attr_update['value'])
+                    else:
+                        node_id = self.process_path_based_on_data(key, device)
 
-                            while not task.done():
-                                sleep(.1)
-
-                            if result.get('error'):
-                                self.__log.error('Node not found! (%s)', result['error'])
-                                return
-
-                            node_id = NodeId.from_string(result['result'])
-                        execution_result = {}
-                        self.__loop.create_task(self.__write_value(node_id, value, execution_result))
-                        writing_start = monotonic()
-                        while not execution_result:
-                            if monotonic() - writing_start > 1:
-                                self.__log.error('Writing timeout!')
-                                return
-                            sleep(.1)
-                        if execution_result.get('error'):
-                            self.__log.error('Error during processing shared attribute update: %s',
-                                             execution_result['error'])
+                    execution_result = {}
+                    self.__loop.create_task(self.__write_value(node_id, value, execution_result))
+                    writing_start = monotonic()
+                    while not execution_result:
+                        if monotonic() - writing_start > 1:
+                            self.__log.error('Writing timeout!')
                             return
+                        sleep(.1)
+                    if execution_result.get('error'):
+                        self.__log.error('Error during processing shared attribute update: %s',
+                                         execution_result['error'])
                         return
+                    return
         except Exception as e:
             self.__log.exception(e)
 
@@ -1046,24 +1068,7 @@ class OpcUaConnector(Connector, Thread):
                         elif node_by_key is not None:
                             full_path = node_by_key
                         else:
-                            nodes = []
-                            if 'Root.' in params:
-                                current_path = params
-                                node_pattern = params.replace('.', '\\.')
-                            else:
-                                names = [v.split(':', 1)[1] for v in device.path]
-                                node_pattern = "Root\\." + r"\.".join(names) + r'\.' + params
-                                current_path = 'Root.' + '.'.join(names)
-                            node_list = node_pattern.split("\\.")[-1:]
-                            find_task = self.__find_nodes(node_list, device.device_node, nodes, current_path)
-                            task = self.__loop.create_task(find_task)
-                            while not task.done():
-                                sleep(.1)
-                            found_nodes = task.result()
-                            if found_nodes:
-                                full_path = found_nodes[-1][0]['node'].nodeid
-                            else:
-                                self.__log.error('Node not found! (%s)', found_nodes)
+                            full_path = self.process_path_based_on_data(params=params, device=device)
 
                         if not full_path:
                             full_path = params.split(".")[-1]
