@@ -20,6 +20,7 @@ from string import ascii_lowercase
 from random import choice
 from time import monotonic, sleep
 from typing import List
+from copy import deepcopy
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, STATISTIC_MESSAGE_SENT_PARAMETER
@@ -123,9 +124,9 @@ class AsyncBACnetConnector(Thread, Connector):
             if added_device is None:
                 device_config = Device.find_self_in_config(self.__config['devices'], apdu)
                 if device_config:
-                    await self.__check_and_update_device_config(apdu, device_config)
+                    new_device_config = await self.__check_and_update_device_config(apdu, device_config)
 
-                    device = Device(self.connector_type, device_config, apdu, self.callback, self.__converter_log)
+                    device = Device(self.connector_type, new_device_config, apdu, self.callback, self.__converter_log)
                     self.loop.create_task(device.run())
                     self.__devices.append(device)
                     self.__gateway.add_device(device.device_info.device_name,
@@ -146,11 +147,15 @@ class AsyncBACnetConnector(Thread, Connector):
                 return device
 
     async def __check_and_update_device_config(self, apdu, device_config):
+        new_config = deepcopy(device_config)
+
         discover_for = Device.is_discovery_config(device_config)
         if len(discover_for):
             config = await self.__application.get_device_objects(apdu)
             for section in discover_for:
-                device_config[section] = config
+                new_config[section] = config
+
+        return new_config
 
     def __find_device_by_name(self, name):
         device_filter = list(filter(lambda x: x.device_info.device_name == name, self.__devices))
