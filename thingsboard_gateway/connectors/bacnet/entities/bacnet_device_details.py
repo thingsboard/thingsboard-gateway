@@ -17,7 +17,7 @@ from bacpypes3.apdu import IAmRequest
 
 class BACnetDeviceDetails:
     def __init__(self, i_am_request: IAmRequest):
-        self.address = i_am_request.pduSource.exploded
+        self.address = i_am_request.pduSource.__str__()
         self.__object_identifier = i_am_request.iAmDeviceIdentifier[1]
         self.__vendor_id = i_am_request.vendorID
         self.__object_name = i_am_request.deviceName

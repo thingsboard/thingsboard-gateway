@@ -12,9 +12,9 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from asyncio import sleep
 from re import escape, match, fullmatch
-import time
-from threading import Thread
+from time import monotonic
 
 from bacpypes3.primitivedata import ObjectIdentifier
 
@@ -28,10 +28,8 @@ from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
 
-class Device(Thread):
+class Device:
     def __init__(self, connector_type, config, i_am_request, callback, logger: TbLogger):
-        super().__init__()
-
         self.__connector_type = connector_type
         self.__config = config
         DeviceObjectConfig.update_address_in_config_util(self.__config)
@@ -42,7 +40,6 @@ class Device(Thread):
         self.__stopped = False
         self.active = True
         self.callback = callback
-        self.daemon = True
 
         if not hasattr(i_am_request, 'deviceName'):
             self.__log.warning('Device name is not provided in IAmRequest. Device Id will be used as "objectName')
@@ -58,10 +55,6 @@ class Device(Thread):
         self.server_side_rpc = self.__config.get('serverSideRpc', [])
 
         self.uplink_converter = self.__load_uplink_converter()
-
-        self.__last_poll_time = 0
-
-        self.start()
 
     def __str__(self):
         return f"Device(name={self.name}, address={self.details.address})"
@@ -83,13 +76,19 @@ class Device(Thread):
         self.active = False
         self.__stopped = True
 
-    def run(self):
-        while not self.__stopped:
-            if time.monotonic() - self.__last_poll_time >= self.__poll_period and self.active:
-                self.__send_callback()
-                self.__last_poll_time = time.monotonic()
+    async def run(self):
+        self.__send_callback()
+        next_poll_time = monotonic() + self.__poll_period
 
-            time.sleep(.01)
+        while not self.__stopped:
+            current_time = monotonic()
+            if current_time >= next_poll_time:
+                self.__send_callback()
+                next_poll_time = current_time + self.__poll_period
+
+            sleep_time = max(0.0, next_poll_time - monotonic())
+
+            await sleep(sleep_time)
 
     def __send_callback(self):
         try:
@@ -99,16 +98,12 @@ class Device(Thread):
 
     @staticmethod
     def find_self_in_config(devices_config, apdu):
-        apdu_host = apdu.pduSource.addrTuple[0]
-        apdu_address = apdu_host + ':' + str(apdu.pduSource.addrTuple[1])
+        apdu_address = apdu.pduSource.__str__()
+
         for device_config in devices_config:
             if Device.is_address_match(apdu_address, device_config.get('address')):
                 return device_config
-            if device_config.get('address') == apdu_address:
-                return device_config
             elif apdu_address in device_config.get('altResponsesAddresses', []):
-                return device_config
-            elif device_config.get('host') == apdu_host:
                 return device_config
 
     @staticmethod
@@ -117,9 +112,16 @@ class Device(Thread):
         return match(regex, address) is not None
 
     @staticmethod
-    def get_address_regex(pattern):
+    def get_address_regex(initial_config_address):
         regex = ''
         i = 0
+        pattern = initial_config_address.split('@')[0]
+        if pattern == '*:*:*':
+            return r'.*'
+        elif pattern == '*:*':
+            return r'^([^:,@]+)(:[^:,@]+)?(:(47808))?$'
+        elif pattern == '*':
+            return r'^(0:[^:,@]+|[^\d:,@][^:,@]*:47808|[^:,@]+)$'
         while i < len(pattern):
             if pattern[i] == 'X':
                 while i < len(pattern) and pattern[i] == 'X':
@@ -128,6 +130,7 @@ class Device(Thread):
             else:
                 regex += escape(pattern[i])
                 i += 1
+
         return f"^{regex}$"
 
     @staticmethod
@@ -150,10 +153,10 @@ class Device(Thread):
                 network = parts[0]
                 return Device.__match_network(network)
             else:
-                return "255.255.255.255"
+                return "*:*"
 
         elif len(parts) == 1:
-            return "255.255.255.255"
+            return "*"
 
         return None
 
