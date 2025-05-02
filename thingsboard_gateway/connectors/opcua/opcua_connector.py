@@ -15,6 +15,7 @@
 import logging
 import asyncio
 import re
+from typing import Dict, Any
 from asyncio.exceptions import CancelledError
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue, Empty
@@ -44,7 +45,7 @@ except (ImportError, ModuleNotFoundError):
     import asyncua
 
 from asyncua import ua
-from asyncua.ua import NodeId
+from asyncua.ua import NodeId, UaStringParsingError
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
@@ -519,7 +520,7 @@ class OpcUaConnector(Connector, Thread):
 
         target_node_path = None
         if len(node_list) == 1:
-            target_node_path = '.'.join(node.split(':')[-1] for node in nodes) + '.' + node_list[0]
+            target_node_path = '.'.join(node['path'].split(':')[-1] for node in nodes) + '.' + node_list[0]
             if target_node_path in self.__scanning_nodes_cache:
                 if self.__show_map:
                         self.__log.debug('Found node in cache: %s', node_list[0])
@@ -535,9 +536,9 @@ class OpcUaConnector(Connector, Thread):
             counter += 1
             child_node = await node.read_browse_name()
             if len(node_list) == 1:
-                current_node_path = '.'.join(node.split(':')[-1] for node in nodes) + '.' + child_node.Name
+                current_node_path = '.'.join(node['path'].split(':')[-1] for node in nodes) + '.' + child_node.Name
                 if not current_node_path in self.__scanning_nodes_cache:
-                    self.__scanning_nodes_cache[current_node_path] = [*nodes, f'{child_node.NamespaceIndex}:{child_node.Name}']
+                    self.__scanning_nodes_cache[current_node_path] = [*nodes, {'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
             if self.__show_map and path:
                 if children_nodes_count < 1000 or counter % 1000 == 0:
                     self.__log.info('Checking path: %s', path + '.' + f'{child_node.Name}')
@@ -545,7 +546,7 @@ class OpcUaConnector(Connector, Thread):
             if re.fullmatch(re.escape(node_list[0]), child_node.Name) or node_list[0].split(':')[-1] == child_node.Name:
                 if self.__show_map:
                     self.__log.info('Found node: %s', child_node.Name)
-                new_nodes = [*nodes, f'{child_node.NamespaceIndex}:{child_node.Name}']
+                new_nodes = [*nodes, {'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
                 if len(node_list) == 1:
                     final.append(new_nodes)
                     if self.__show_map:
@@ -557,7 +558,7 @@ class OpcUaConnector(Connector, Thread):
 
         return final
 
-    async def find_nodes(self, node_pattern, current_parent_node=None, nodes=None):
+    async def find_nodes(self, node_pattern, current_parent_node=None, nodes=None) -> Dict[str, Any]:
         if nodes is None:
             nodes = []
         node_list = node_pattern.split('\\.')
@@ -698,11 +699,13 @@ class OpcUaConnector(Connector, Thread):
                             device_config.get('deviceInfo', {}).get('deviceProfileExpression', 'default'),
                             get_first=True)
                         device_config = {**device_config, 'device_name': device_name, 'device_type': device_type}
+                        device_path = [node_path_node_object['path'] for node_path_node_object in node]
                         self.__device_nodes.append(
-                            Device(path=node, name=device_name, config=device_config,
+                            Device(path=device_path, name=device_name, config=device_config,
                                    converter=converter(device_config, self.__converter_log),
                                    converter_for_sub=converter(device_config,
                                                                self.__converter_log) if self.__enable_subscriptions else None,
+                                   device_node=node[-1]['node'],
                                    logger=self.__log))
                         self.__log.info('Added device node: %s', device_name)
         self.__log.debug('Device nodes: %s', self.__device_nodes)
@@ -1029,16 +1032,42 @@ class OpcUaConnector(Connector, Thread):
                 if rpc_method == 'set' or rpc_method == 'get':
                     full_path = ''
                     args_list = []
+                    params = content['data']['params']
 
                     try:
-                        args_list = content['data']['params'].split(';')
+                        args_list = params.split(';')
 
-                        if self.__is_node_identifier(content['data']['params']):
+                        node_by_key = device.get_node_by_key(params)
+
+                        if self.__is_node_identifier(params):
                             # Node identifier
                             full_path = ';'.join(
                                 [item for item in (args_list[0:-1] if rpc_method == 'set' else args_list)])
+                        elif node_by_key is not None:
+                            full_path = node_by_key
                         else:
-                            full_path = args_list[0].split('=')[-1]
+                            nodes = []
+                            if 'Root.' in params:
+                                current_path = params
+                                node_pattern = params.replace('.', '\\.')
+                            else:
+                                names = [v.split(':', 1)[1] for v in device.path]
+                                node_pattern = "Root\\." + r"\.".join(names) + r'\.' + params
+                                current_path = 'Root.' + '.'.join(names)
+                            node_list = node_pattern.split("\\.")[-1:]
+                            find_task = self.__find_nodes(node_list, device.device_node, nodes, current_path)
+                            task = self.__loop.create_task(find_task)
+                            while not task.done():
+                                sleep(.1)
+                            found_nodes = task.result()
+                            if found_nodes:
+                                full_path = found_nodes[-1][0]['node'].nodeid
+                            else:
+                                self.__log.error('Node not found! (%s)', found_nodes)
+
+                        if not full_path:
+                            full_path = params.split(".")[-1]
+
                     except IndexError:
                         self.__log.error('Not enough arguments. Expected min 2.')
                         self.__gateway.send_rpc_reply(device=content['device'],
@@ -1049,7 +1078,9 @@ class OpcUaConnector(Connector, Thread):
 
                     result = {}
                     if rpc_method == 'get':
-                        task = self.__loop.create_task(self.__read_value(full_path, result))
+
+                        argument = self.__read_value(full_path, result)
+                        task = self.__loop.create_task(argument)
 
                         while not task.done():
                             sleep(.2)
@@ -1118,6 +1149,7 @@ class OpcUaConnector(Connector, Thread):
         except Exception as e:
             self.__log.exception("Error during RPC handling: ", exc_info=e)
 
+
     async def __write_value(self, path, value, result=None):
         if result is None:
             result = {}
@@ -1130,8 +1162,16 @@ class OpcUaConnector(Connector, Thread):
 
             await var.write_value(value)
             result['value'] = value
+
+        except UaStringParsingError as e:
+            error_response = f"Could not find identifier in string {path}"
+            result['error'] = error_response
+            self.__log.error(error_response)
+
         except Exception as e:
             result['error'] = e.__str__()
+            self.__log.error("Can not find node for provided path %s ", path)
+
 
     async def __read_value(self, path, result=None):
         if result is None:
@@ -1139,8 +1179,15 @@ class OpcUaConnector(Connector, Thread):
         try:
             var = self.__client.get_node(path)
             result['value'] = await var.read_value()
+
+        except UaStringParsingError as e:
+            error_response = f"Could not find identifier in string {path}"
+            result['error'] = error_response
+            self.__log.error(error_response)
+
         except Exception as e:
             result['error'] = e.__str__()
+            self.__log.error("Can not find node for provided path %s ", path)
 
     async def __call_method(self, path, method_name, arguments, result=None):
         if result is None:
