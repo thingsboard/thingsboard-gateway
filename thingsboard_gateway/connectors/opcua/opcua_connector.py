@@ -969,7 +969,7 @@ class OpcUaConnector(Connector, Thread):
 
 
     @staticmethod
-    def determine_rpc_income_data(params, device, logger):
+    def get_rpc_node_pattern_and_base_path(params, device, logger):
         try:
             if 'Root.' in params:
                 current_path = params
@@ -984,9 +984,9 @@ class OpcUaConnector(Connector, Thread):
                    params, e)
 
 
-    def process_path_based_on_data(self, params, device):
+    def find_full_node_path(self, params, device):
         try:
-            node_pattern, current_path = self.determine_rpc_income_data(params, device, logger=self.__log)
+            node_pattern, current_path = self.get_rpc_node_pattern_and_base_path(params, device, logger=self.__log)
             node_list = node_pattern.split("\\.")[-1:]
             nodes = []
             find_task = self.__find_nodes(node_list, device.device_node, nodes, current_path)
@@ -1011,7 +1011,7 @@ class OpcUaConnector(Connector, Thread):
                     if attr_update['key'] == key and self.__is_node_identifier(attr_update['value']):
                         node_id = NodeId.from_string(attr_update['value'])
                     else:
-                        node_id = self.process_path_based_on_data(key, device)
+                        node_id = self.find_full_node_path(key, device)
 
                     execution_result = {}
                     self.__loop.create_task(self.__write_value(node_id, value, execution_result))
@@ -1068,7 +1068,7 @@ class OpcUaConnector(Connector, Thread):
                         elif node_by_key is not None:
                             full_path = node_by_key
                         else:
-                            full_path = self.process_path_based_on_data(params=params, device=device)
+                            full_path = self.find_full_node_path(params=params, device=device)
 
                         if not full_path:
                             full_path = params.split(".")[-1]
