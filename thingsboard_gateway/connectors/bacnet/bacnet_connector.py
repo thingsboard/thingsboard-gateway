@@ -44,7 +44,7 @@ from thingsboard_gateway.connectors.bacnet.backward_compatibility_adapter import
 
 
 class AsyncBACnetConnector(Thread, Connector):
-    PROCESS_DEVICE_QUEUE = Queue(-1)
+    PROCESS_DEVICE_QUEUE = Queue(1_000_000)
 
     def __init__(self, gateway, config, connector_type):
         self.statistics = {STATISTIC_MESSAGE_RECEIVED_PARAMETER: 0,
@@ -76,9 +76,9 @@ class AsyncBACnetConnector(Thread, Connector):
 
         self.__application = None
 
-        self.__data_to_convert_queue = Queue(-1)
-        self.__data_to_save_queue = Queue(-1)
-        self.__indication_queue = Queue(-1)
+        self.__data_to_convert_queue = Queue(1_000_000)
+        self.__data_to_save_queue = Queue(1_000_000)
+        self.__indication_queue = Queue(1_000_000)
 
         try:
             self.loop = asyncio.new_event_loop()
