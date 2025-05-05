@@ -133,6 +133,12 @@ class AsyncBACnetConnector(Thread, Connector):
                     if device_config:
                         new_device_config = await self.__check_and_update_device_config(apdu, device_config)
 
+                        if Device.need_to_retriev_device_name(device_config):
+                            device_name = await self.__application.get_device_name(apdu)
+
+                            if device_name is not None:
+                                apdu.deviceName = device_name
+
                         device = Device(self.connector_type,
                                         new_device_config, apdu,
                                         self.callback,

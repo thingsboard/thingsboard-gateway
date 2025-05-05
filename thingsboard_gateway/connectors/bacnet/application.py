@@ -23,6 +23,7 @@ from bacpypes3.basetypes import PropertyIdentifier
 from bacpypes3.vendor import get_vendor_info
 from bacpypes3.basetypes import Segmentation
 
+from thingsboard_gateway.connectors.bacnet.device import Device
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 
 
@@ -133,3 +134,14 @@ class Application(App):
                 result.append(config)
 
         return result
+
+    async def get_device_name(self, apdu):
+        try:
+            device_name = await self.read_property(
+                Address(apdu.pduSource.__str__()),
+                Device.get_object_id({'objectType': 'device', 'objectId': apdu.iAmDeviceIdentifier[1]}), 'objectName')
+
+            return device_name
+        except Exception as e:
+            self.__log.warning(f"Failed to get device name: {e}")
+            return None
