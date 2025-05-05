@@ -78,6 +78,7 @@ class AsyncBACnetConnector(Thread, Connector):
 
         self.__data_to_convert_queue = Queue(-1)
         self.__data_to_save_queue = Queue(-1)
+        self.__indication_queue = Queue(-1)
 
         try:
             self.loop = asyncio.new_event_loop()
@@ -104,42 +105,53 @@ class AsyncBACnetConnector(Thread, Connector):
 
     async def __start(self):
         self.__application = Application(DeviceObjectConfig(
-            self.__config['application']), self.indication_callback, self.__log)
+            self.__config['application']), self.__handle_indication, self.__log)
 
         self.__devices_discover_period = self.__config.get('devicesDiscoverPeriodSeconds', 30)
         await self.__discover_devices()
-        await asyncio.gather(self.__main_loop(), self.__convert_data(), self.__save_data())
+        await asyncio.gather(self.__main_loop(), self.__convert_data(), self.__save_data(), self.indication_callback())
 
-    async def indication_callback(self, apdu):
+    def __handle_indication(self, apdu):
+        self.__indication_queue.put_nowait(apdu)
+
+    async def indication_callback(self):
         """
         First check if device is already added
         If added, set active to True
         If not added, check if device is in config
         """
 
-        try:
-            device_address = apdu.pduSource.__str__()
-            self.__log.info('Received APDU, from %s, trying to find device...', device_address)
-            added_device = self.__find_device_by_address(device_address)
-            if added_device is None:
-                device_config = Device.find_self_in_config(self.__config['devices'], apdu)
-                if device_config:
-                    new_device_config = await self.__check_and_update_device_config(apdu, device_config)
+        while not self.__stopped:
+            try:
+                apdu = self.__indication_queue.get_nowait()
 
-                    device = Device(self.connector_type, new_device_config, apdu, self.callback, self.__converter_log)
-                    self.loop.create_task(device.run())
-                    self.__devices.append(device)
-                    self.__gateway.add_device(device.device_info.device_name,
-                                              {"connector": self},
-                                              device_type=device.device_info.device_type)
-                    self.__log.info('Device %s found', device)
+                device_address = apdu.pduSource.__str__()
+                self.__log.info('Received APDU, from %s, trying to find device...', device_address)
+                added_device = self.__find_device_by_address(device_address)
+                if added_device is None:
+                    device_config = Device.find_self_in_config(self.__config['devices'], apdu)
+                    if device_config:
+                        new_device_config = await self.__check_and_update_device_config(apdu, device_config)
+
+                        device = Device(self.connector_type,
+                                        new_device_config, apdu,
+                                        self.callback,
+                                        self.__converter_log)
+                        self.loop.create_task(device.run())
+                        self.__devices.append(device)
+                        self.__gateway.add_device(device.device_info.device_name,
+                                                  {"connector": self},
+                                                  device_type=device.device_info.device_type)
+                        self.__log.info('Device %s found', device)
+                    else:
+                        self.__log.debug('Device %s not found in config', device_address)
                 else:
-                    self.__log.debug('Device %s not found in config', device_address)
-            else:
-                added_device.active = True
-                self.__log.debug('Device %s already added', added_device)
-        except Exception as e:
-            self.__log.error('Error processing indication callback: %s', e)
+                    added_device.active = True
+                    self.__log.debug('Device %s already added', added_device)
+            except Empty:
+                await asyncio.sleep(.01)
+            except Exception as e:
+                self.__log.error('Error processing indication callback: %s', e)
 
     def __find_device_by_address(self, address):
         for device in self.__devices:
