@@ -21,10 +21,11 @@ from thingsboard_gateway.gateway.entities.report_strategy_config import ReportSt
 
 
 class Device:
-    def __init__(self, path, name, config, converter, converter_for_sub, logger):
+    def __init__(self, path, name, config, converter, converter_for_sub, device_node, logger):
         self._log = logger
         self.__configured_values_count = 0
         self.path = path
+        self.device_node = device_node
         self.name = name
         self.config = config
         self.converter = converter
@@ -41,7 +42,8 @@ class Device:
             try:
                 self.report_strategy = ReportStrategyConfig(self.config.get(REPORT_STRATEGY_PARAMETER))
             except ValueError as e:
-                self._log.error('Invalid report strategy config for %s: %s, connector report strategy will be used', self.name, e)
+                self._log.error('Invalid report strategy config for %s: %s, connector report strategy will be used',
+                                self.name, e)
 
         self.load_values()
 
@@ -73,3 +75,13 @@ class Device:
             self.__configured_values_count += len(self.values[section])
 
         self._log.debug('Loaded %r values for %s', len(self.values), self.name)
+
+    def get_node_by_key(self, key):
+        try:
+            for node_config in self.nodes:
+                if node_config['key'] == key:
+                    return node_config['node']
+            return None
+        except KeyError:
+            return None
+
