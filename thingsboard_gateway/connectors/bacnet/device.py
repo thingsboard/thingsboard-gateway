@@ -188,7 +188,7 @@ class Device:
         return fill_for
 
     @staticmethod
-    def need_to_retriev_device_name(config):
+    def need_to_retrieve_device_name(config):
         if '${objectName}' in config.get('deviceInfo', {}).get('deviceNameExpression', ''):
             return True
         if '${objectName}' in config.get('deviceInfo', {}).get('deviceProfileExpression', ''):
