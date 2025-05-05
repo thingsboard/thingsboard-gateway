@@ -18,6 +18,7 @@ from ftplib import FTP, FTP_TLS
 from queue import Queue
 from random import choice
 from re import fullmatch
+import json
 from string import ascii_lowercase
 from threading import Thread
 from time import perf_counter as timer, sleep
@@ -34,6 +35,7 @@ from thingsboard_gateway.gateway.statistics.statistics_service import Statistics
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class FTPConnector(Connector, Thread):
@@ -388,8 +390,13 @@ class FTPConnector(Connector, Thread):
                 return
 
             for rpc_request in self.__rpc_requests:
+                if not fullmatch(rpc_request['deviceNameFilter'], content['device']):
+                    continue
                 if fullmatch(rpc_request['methodFilter'], rpc_method):
-                    value_expression = content['data']['params']['valueExpression']
+                    params_field_expression = rpc_request['valueExpression']
+
+                    value_expression_key = TBUtility.get_value(params_field_expression, content['data'], get_tag=True)
+                    value_expression = content['data'][value_expression_key]
                     converted_data, success_sent = self.__process_rpc(rpc_method, value_expression)
 
                     self.__send_rpc_reply(rpc_request, content, converted_data, success_sent)
@@ -415,6 +422,7 @@ class FTPConnector(Connector, Thread):
                     ftp.storbinary('STOR ' + arr[0], io_stream)
                     io_stream.close()
                     success_sent = True
+                    converted_data = f'The value is written to {arr[0]}' if len(arr) < 80 else True
                 except Exception as e:
                     self.__log.error("Can not process for method write due to %r", str(e))
                     self.__log.debug("Error:", exc_info=e)
