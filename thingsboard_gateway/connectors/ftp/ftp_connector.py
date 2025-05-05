@@ -18,7 +18,6 @@ from ftplib import FTP, FTP_TLS
 from queue import Queue
 from random import choice
 from re import fullmatch
-import json
 from string import ascii_lowercase
 from threading import Thread
 from time import perf_counter as timer, sleep
