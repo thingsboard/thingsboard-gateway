@@ -958,18 +958,8 @@ class OpcUaConnector(Connector, Thread):
         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
         self.__log.debug('Count data msg to storage: %s', self.statistics['MessagesSent'])
 
-    async def get_shared_attr_node_id(self, path, result=None):
-        if result is None:
-            result = {}
-        try:
-            q_path = await self.find_node_name_space_index(path)
-            result['result'] = await self.__client.nodes.root.get_child(q_path[0])
-        except Exception as e:
-            result['error'] = e.__str__()
-
-
     @staticmethod
-    def get_rpc_node_pattern_and_base_path(params, device, logger):
+    def determine_rpc_income_data(params, device, logger):
         try:
             if 'Root.' in params:
                 current_path = params
@@ -983,10 +973,9 @@ class OpcUaConnector(Connector, Thread):
             logger.error("determine_rpc_income_data failed for params=%r: %s",
                    params, e)
 
-
-    def find_full_node_path(self, params, device):
+    def process_path_based_on_data(self, params, device):
         try:
-            node_pattern, current_path = self.get_rpc_node_pattern_and_base_path(params, device, logger=self.__log)
+            node_pattern, current_path = self.determine_rpc_income_data(params, device, logger=self.__log)
             node_list = node_pattern.split("\\.")[-1:]
             nodes = []
             find_task = self.__find_nodes(node_list, device.device_node, nodes, current_path)
@@ -1011,7 +1000,7 @@ class OpcUaConnector(Connector, Thread):
                     if attr_update['key'] == key and self.__is_node_identifier(attr_update['value']):
                         node_id = NodeId.from_string(attr_update['value'])
                     else:
-                        node_id = self.find_full_node_path(key, device)
+                        node_id = self.process_path_based_on_data(key, device)
 
                     execution_result = {}
                     self.__loop.create_task(self.__write_value(node_id, value, execution_result))
@@ -1068,7 +1057,7 @@ class OpcUaConnector(Connector, Thread):
                         elif node_by_key is not None:
                             full_path = node_by_key
                         else:
-                            full_path = self.find_full_node_path(params=params, device=device)
+                            full_path = self.process_path_based_on_data(params=params, device=device)
 
                         if not full_path:
                             full_path = params.split(".")[-1]
