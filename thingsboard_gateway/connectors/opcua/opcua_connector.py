@@ -958,16 +958,6 @@ class OpcUaConnector(Connector, Thread):
         self.statistics['MessagesSent'] = self.statistics['MessagesSent'] + 1
         self.__log.debug('Count data msg to storage: %s', self.statistics['MessagesSent'])
 
-    async def get_shared_attr_node_id(self, path, result=None):
-        if result is None:
-            result = {}
-        try:
-            q_path = await self.find_node_name_space_index(path)
-            result['result'] = await self.__client.nodes.root.get_child(q_path[0])
-        except Exception as e:
-            result['error'] = e.__str__()
-
-
     @staticmethod
     def get_rpc_node_pattern_and_base_path(params, device, logger):
         try:
@@ -982,7 +972,6 @@ class OpcUaConnector(Connector, Thread):
         except Exception as e:
             logger.error("determine_rpc_income_data failed for params=%r: %s",
                    params, e)
-
 
     def find_full_node_path(self, params, device):
         try:
