@@ -30,4 +30,3 @@ class UplinkConverterConfig:
     @property
     def objects_to_read(self):
         return self.__objects_to_read
-

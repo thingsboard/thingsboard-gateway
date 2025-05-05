@@ -17,6 +17,7 @@ from bacpypes3.ipv4.app import NormalApplication as App
 from bacpypes3.local.device import DeviceObject
 from bacpypes3.pdu import Address
 from bacpypes3.primitivedata import ObjectIdentifier
+from bacpypes3.object import DeviceObject as DeviceObjectClass
 from bacpypes3.apdu import AbortPDU, ErrorRejectAbortNack
 from bacpypes3.basetypes import PropertyIdentifier
 from bacpypes3.vendor import get_vendor_info
@@ -37,7 +38,7 @@ class Application(App):
     async def indication(self, apdu) -> None:
         self.__log.debug(f"(indication) Received APDU: {apdu}")
         await super().indication(apdu)
-        await self.__indication_callback(apdu)
+        self.__indication_callback(apdu)
 
     async def do_who_is(self, device_address):
         devices = await self.who_is(address=Address(device_address),
@@ -54,10 +55,10 @@ class Application(App):
             )
             return object_list
         except AbortPDU as err:
-            self.__log.warning(f"{device_identifier} objectList abort: {err}\n")
+            self.__log.warning(f"{device_identifier} objectList abort: {err}")
             return []
         except ErrorRejectAbortNack as err:
-            self.__log.warning(f"{device_identifier} objectList error/reject: {err}\n")
+            self.__log.warning(f"{device_identifier} objectList error/reject: {err}")
             return []
 
     async def get_object_identifiers_without_segmentation(
@@ -82,7 +83,7 @@ class Application(App):
                 )
                 object_list.append(object_identifier)
         except ErrorRejectAbortNack as err:
-            self.__log.info(f"{device_identifier} object-list length error/reject: {err}\n")
+            self.__log.info(f"{device_identifier} object-list length error/reject: {err}")
 
         return object_list
 
@@ -104,8 +105,8 @@ class Application(App):
 
             object_class = vendor_info.get_object_class(object_id[0])
 
-            if object_class is None:
-                self.__log.warning(f"unknown object type: {object_id}\n")
+            if object_class is None or object_class is DeviceObjectClass:
+                self.__log.warning(f"unknown object type: {object_id}, {object_class}")
                 continue
 
             try:
@@ -113,7 +114,7 @@ class Application(App):
 
                 property_class = object_class.get_property_type(property_identifier)
                 if property_class is None:
-                    self.__log.warning(f"{object_id} unknown property: {property_identifier}\n")
+                    self.__log.warning(f"{object_id} unknown property: {property_identifier}")
                     continue
 
                 property_value = await self.read_property(
@@ -127,7 +128,7 @@ class Application(App):
                     'key': property_value,
                 }
             except ErrorRejectAbortNack as err:
-                self.__log.warning(f"{object_id} object-name error: {err}\n")
+                self.__log.warning(f"{object_id} object-name error: {err}")
             else:
                 result.append(config)
 
