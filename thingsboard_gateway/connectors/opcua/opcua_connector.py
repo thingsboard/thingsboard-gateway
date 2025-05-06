@@ -1009,10 +1009,12 @@ class OpcUaConnector(Connector, Thread):
 
             for (key, value) in content['data'].items():
                 for attr_update in device.config['attributes_updates']:
-                    if attr_update['key'] == key and self.__is_node_identifier(attr_update['value']):
-                        node_id = NodeId.from_string(attr_update['value'])
+                    if not attr_update['key'] == key:
+                        continue
+                    path_to_node = TBUtility.get_value(attr_update['value'], get_tag=True)
+                    if self.__is_node_identifier(path_to_node):
+                        node_id = NodeId.from_string(path_to_node)
                     else:
-                        path_to_node = TBUtility.get_value(attr_update['value'], get_tag=True)
                         node_id = self.find_full_node_path(path_to_node, device)
 
                     execution_result = {}
