@@ -46,6 +46,8 @@ except (ImportError, ModuleNotFoundError):
 
 from asyncua import ua, Node
 from asyncua.ua import NodeId, UaStringParsingError
+from asyncua.common.ua_utils import value_to_datavalue
+from asyncua.ua.uaerrors import BadWriteNotSupported
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
@@ -1163,7 +1165,14 @@ class OpcUaConnector(Connector, Thread):
             elif isinstance(path, NodeId):
                 var = self.__client.get_node(path)
 
-            await var.write_value(value)
+            try:
+                await var.write_value(value)
+            except BadWriteNotSupported:
+                data_value = value_to_datavalue(value)
+                data_value.SourceTimestamp = None
+                data_value.ServerTimestamp = None
+                await var.write_value(data_value)
+
             result['value'] = value
 
         except UaStringParsingError as e:
