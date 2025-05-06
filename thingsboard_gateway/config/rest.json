@@ -1,10 +1,12 @@
 {
-  "host": "127.0.0.1",
-  "port": "5000",
-  "SSL": false,
-  "security": {
-    "cert": "~/ssl/cert.pem",
-    "key": "~/ssl/key.pem"
+  "server": {
+    "host": "127.0.0.1",
+    "port": "5000",
+    "SSL": false,
+    "security": {
+      "cert": "~/ssl/cert.pem",
+      "key": "~/ssl/key.pem"
+    }
   },
   "mapping": [
     {
@@ -12,13 +14,22 @@
       "HTTPMethods": [
         "POST"
       ],
+
+      "response": {
+          "responseExpected": false,
+          "timeout": 120
+      },
       "security": {
         "type": "anonymous"
       },
       "converter": {
         "type": "json",
-        "deviceNameExpression": "${sensorName}",
-        "deviceTypeExpression": "${sensorType}",
+        "deviceInfo": {
+          "deviceNameExpressionSource": "request",
+          "deviceNameExpression": "${sensorName}",
+          "deviceProfileExpressionSource": "request",
+          "deviceProfileExpression": "${sensorType}"
+        },
         "attributes": [
           {
             "type": "string",
@@ -51,13 +62,22 @@
         "GET",
         "POST"
       ],
+
+      "response": {
+          "responseExpected": false,
+          "timeout": 120
+      },
       "security": {
         "type": "anonymous"
       },
       "converter": {
         "type": "json",
-        "deviceNameExpression": "Device 2",
-        "deviceTypeExpression": "default",
+        "deviceInfo": {
+          "deviceNameExpressionSource": "constant",
+          "deviceNameExpression": "Device 2",
+          "deviceProfileExpressionSource": "constant",
+          "deviceProfileExpression": "default"
+        },
         "attributes": [
           {
             "type": "string",
@@ -84,107 +104,119 @@
       "HTTPMethods": [
         "POST"
       ],
+
+     "response": {
+          "responseExpected": false,
+          "timeout": 120
+      },
       "security": {
         "type": "anonymous"
       },
       "converter": {
         "type": "custom",
-        "deviceNameExpression": "SuperAnonDevice",
-        "deviceTypeExpression": "default",
+        "deviceInfo": {
+          "deviceNameExpressionSource": "constant",
+          "deviceNameExpression": "SuperAnonDevice",
+          "deviceProfileExpressionSource": "constant",
+          "deviceProfileExpression": "default"
+        },
         "extension": "CustomRestUplinkConverter",
-        "extension-config": [
-          {
-            "key": "Totaliser",
-            "datatype": "float",
-            "fromByte": 0,
-            "toByte": 4,
-            "byteorder": "big",
-            "signed": true,
-            "multiplier": 1
-          }
-        ]
+        "extensionConfig": {
+          "key": "Totaliser",
+          "datatype": "float",
+          "fromByte": 0,
+          "toByte": 4,
+          "byteorder": "big",
+          "signed": true,
+          "multiplier": 1
+        }
       }
     }
   ],
-  "attributeRequests": [
-    {
-      "endpoint": "/sharedAttributes",
-      "type": "shared",
-      "HTTPMethods": [
-        "POST"
-      ],
-      "security": {
-        "type": "anonymous"
-      },
-      "timeout": 10.0,
-      "deviceNameExpression": "${deviceName}",
-      "attributeNameExpression": "${attribute}${attribute1}"
-    }
-  ],
-  "attributeUpdates": [
-    {
-      "HTTPMethod": "POST",
-      "SSLVerify": false,
-      "httpHeaders": {
-        "CONTENT-TYPE": "application/json"
-      },
-      "security": {
-        "type": "anonymous"
-      },
-      "timeout": 0.5,
-      "tries": 3,
-      "allowRedirects": true,
-      "deviceNameFilter": "SN.*",
-      "attributeFilter": ".*",
-      "requestUrlExpression": "http://127.0.0.1:5001/",
-      "valueExpression": "{\"deviceName\":\"${deviceName}\",\"${attributeKey}\":\"${attributeValue}\"}"
-    }
-  ],
-  "serverSideRpc": [
-    {
-      "deviceNameFilter": ".*",
-      "methodFilter": "echo",
-      "requestUrlExpression": "http://127.0.0.1:5001/${deviceName}",
-      "responseTimeout": 1,
-      "HTTPMethod": "GET",
-      "valueExpression": "${params}",
-      "timeout": 10.0,
-      "tries": 3,
-      "httpHeaders": {
-        "Content-Type": "application/json"
-      },
-      "security": {
-        "type": "anonymous"
+  "requestsMapping": {
+    "attributeRequests": [
+      {
+        "endpoint": "/sharedAttributes",
+        "type": "shared",
+        "HTTPMethods": [
+          "POST"
+        ],
+
+        "security": {
+          "type": "anonymous"
+        },
+        "timeout": 10,
+        "deviceNameExpression": "${deviceName}",
+        "attributeNameExpression": "${attribute}${attribute1}"
       }
-    },
-    {
-      "deviceNameFilter": "SN.*",
-      "methodFilter": "post_attributes",
-      "requestUrlExpression": "http://127.0.0.1:5000/my_devices",
-      "responseTimeout": 1,
-      "HTTPMethod": "POST",
-      "valueExpression": "{\"sensorName\":\"${deviceName}\", \"sensorModel\":\"${params.sensorModel}\", \"certificateNumber\":\"${params.certificateNumber}\", \"temp\":\"${params.temp}\", \"hum\":\"${params.hum}\"}",
-      "timeout": 10.0,
-      "tries": 3,
-      "httpHeaders": {
-        "Content-Type": "application/json"
-      },
-      "security": {
-        "type": "anonymous"
+    ],
+    "attributeUpdates": [
+      {
+        "HTTPMethod": "POST",
+        "SSLVerify": false,
+        "httpHeaders": {
+          "CONTENT-TYPE": "application/json"
+        },
+
+
+        "security": {
+          "type": "anonymous"
+        },
+        "timeout": 0.5,
+        "tries": 3,
+        "allowRedirects": true,
+        "deviceNameFilter": "SN.*",
+        "attributeFilter": ".*",
+        "requestUrlExpression": "http://127.0.0.1:5001/",
+        "valueExpression": "{\"deviceName\":\"${deviceName}\",\"${attributeKey}\":\"${attributeValue}\"}"
       }
-    },
-    {
-      "deviceNameFilter": ".*",
-      "methodFilter": "no-reply",
-      "requestUrlExpression": "sensor/${deviceName}/request/${methodName}/${requestId}",
-      "HTTPMethod": "POST",
-      "valueExpression": "${params}",
-      "httpHeaders": {
-        "Content-Type": "application/json"
+    ],
+    "serverSideRpc": [
+      {
+        "deviceNameFilter": ".*",
+        "methodFilter": "echo",
+        "requestUrlExpression": "http://127.0.0.1:5001/${deviceName}",
+        "responseTimeout": 1,
+        "HTTPMethod": "GET",
+        "valueExpression": "${params}",
+        "timeout": 10,
+        "tries": 3,
+        "httpHeaders": {
+          "Content-Type": "application/json"
+        },
+        "security": {
+          "type": "anonymous"
+        }
       },
-      "security": {
-        "type": "anonymous"
+      {
+        "deviceNameFilter": "SN.*",
+        "methodFilter": "post_attributes",
+        "requestUrlExpression": "http://127.0.0.1:5000/my_devices",
+        "responseTimeout": 1,
+        "HTTPMethod": "POST",
+        "valueExpression": "{\"sensorName\":\"${deviceName}\", \"sensorModel\":\"${params.sensorModel}\", \"certificateNumber\":\"${params.certificateNumber}\", \"temp\":\"${params.temp}\", \"hum\":\"${params.hum}\"}",
+        "timeout": 10,
+        "tries": 3,
+        "httpHeaders": {
+          "Content-Type": "application/json"
+        },
+        "security": {
+          "type": "anonymous"
+        }
+      },
+      {
+        "deviceNameFilter": ".*",
+        "methodFilter": "no-reply",
+        "requestUrlExpression": "sensor/${deviceName}/request/${methodName}/${requestId}",
+        "HTTPMethod": "POST",
+        "valueExpression": "${params}",
+        "httpHeaders": {
+          "Content-Type": "application/json"
+        },
+        "security": {
+          "type": "anonymous"
+        }
       }
-    }
-  ]
+    ]
+  }
 }

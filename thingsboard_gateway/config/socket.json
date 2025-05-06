@@ -1,12 +1,14 @@
 {
-  "name": "TCP Connector Example",
-  "type": "TCP",
-  "address": "127.0.0.1",
-  "port": 50000,
-  "bufferSize": 1024,
+  "socket": {
+    "address": "127.0.0.1",
+    "type": "TCP",
+    "port": 50000,
+    "bufferSize": 1024
+  },
   "devices": [
     {
-      "addressFilter": "127.0.0.1:*",
+      "address": "*:*",
+      "addressFilter": "*:*",
       "deviceName": "Device Example",
       "deviceType": "default",
       "encoding": "utf-8",
@@ -51,7 +53,6 @@
         {
           "methodRPC": "rpcMethod1",
           "withResponse": true,
-          "methodProcessing": "write",
           "encoding": "utf-8"
         }
       ]
