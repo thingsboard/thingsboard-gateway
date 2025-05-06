@@ -1012,7 +1012,8 @@ class OpcUaConnector(Connector, Thread):
                     if attr_update['key'] == key and self.__is_node_identifier(attr_update['value']):
                         node_id = NodeId.from_string(attr_update['value'])
                     else:
-                        node_id = self.find_full_node_path(key, device)
+                        path_to_node = TBUtility.get_value(attr_update['value'], get_tag=True)
+                        node_id = self.find_full_node_path(path_to_node, device)
 
                     execution_result = {}
                     self.__loop.create_task(self.__write_value(node_id, value, execution_result))
