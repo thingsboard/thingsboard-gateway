@@ -29,6 +29,11 @@ from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
 
 class Device:
+    ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN = compile(r'^([^:,@]+)(:[^:,@]+)?(:(47808))?$')
+    ALLOWED_LOCAL_ADDRESSES_PATTERN = compile(r'^(0:[^:,@]+|[^\d:,@][^:,@]*:47808|[^:,@]+)$')
+
+    LOCAL_ADDRESS_WITH_PORT_PATTERN = compile(r"\*:\d+")
+
     def __init__(self, connector_type, config, i_am_request, callback, logger: TbLogger):
         self.__connector_type = connector_type
         self.__config = config
@@ -119,11 +124,11 @@ class Device:
         if pattern == '*:*:*':
             return r'.*'
         elif pattern == '*:*':
-            return compile(r'^([^:,@]+)(:[^:,@]+)?(:(47808))?$')
+            return Device.ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN
         elif pattern == '*':
-            return compile(r'^(0:[^:,@]+|[^\d:,@][^:,@]*:47808|[^:,@]+)$')
-        elif match(r"\*:\d+", pattern):
-            return compile(r'^([^:,@]+)(:[^:,@]+)?(:(47808))?$')
+            return Device.ALLOWED_LOCAL_ADDRESSES_PATTERN
+        elif match(Device.LOCAL_ADDRESS_WITH_PORT_PATTERN, pattern):
+            return Device.ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN
         while i < len(pattern):
             if pattern[i] == 'X':
                 while i < len(pattern) and pattern[i] == 'X':
