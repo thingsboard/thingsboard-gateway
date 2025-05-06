@@ -1104,8 +1104,10 @@ class OpcUaConnector(Connector, Thread):
                                                   req_id=content['data'].get('id'),
                                                   content={'result': result})
                 else:
+                    rpc_method_found = False
                     for rpc in device.config['rpc_methods']:
                         if rpc['method'] == content["data"]['method']:
+                            rpc_method_found = True
                             arguments_from_config = rpc["arguments"]
                             arguments = content["data"].get("params") if content["data"].get(
                                 "params") is not None else arguments_from_config
@@ -1127,11 +1129,11 @@ class OpcUaConnector(Connector, Thread):
                                 self.__log.exception(e)
                                 self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
                                                               {"error": str(e), "code": 500})
-                        else:
-                            self.__log.error("Method %s not found for device %s", rpc_method, content["device"])
-                            self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                          {"error": "%s - Method not found" % rpc_method,
-                                                           "code": 404})
+                    if not rpc_method_found:
+                        self.__log.error("Method %s not found for device %s", rpc_method, content["device"])
+                        self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+                                                      {"error": "%s - Method not found" % rpc_method,
+                                                       "code": 404})
             else:
                 results = []
                 for device in self.__device_nodes:
