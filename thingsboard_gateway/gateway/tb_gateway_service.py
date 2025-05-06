@@ -987,78 +987,93 @@ class TBGatewayService:
             connector_type = connector_type.lower()
             for connector_config in self.connectors_configs[connector_type]:
                 if self._implemented_connectors.get(connector_type) is not None:
-                    if connector_type != 'grpc' and 'Grpc' not in self._implemented_connectors[connector_type].__name__:
-                        for config in connector_config[CONFIG_SECTION_PARAMETER]:
-                            connector = None
-                            connector_name = None
-                            connector_id = None
-                            try:
-                                if connector_config[CONFIG_SECTION_PARAMETER][config] is not None:
-                                    if ("logLevel" in connector_config[CONFIG_SECTION_PARAMETER][config]
-                                        and len(connector_config[CONFIG_SECTION_PARAMETER][config].keys()) > 3) or \
-                                            ("logLevel" not in connector_config[CONFIG_SECTION_PARAMETER][config]
-                                             and len(connector_config[CONFIG_SECTION_PARAMETER][config].keys()) >= 1):
-                                        connector_name = connector_config["name"]
-                                        connector_id = connector_config["id"]
 
-                                        available_connector = self.available_connectors_by_id.get(connector_id)
+                    if connector_type == 'grpc' or 'Grpc' in self._implemented_connectors[connector_type].__name__:
+                        self.__init_and_start_grpc_connector(connector_type, connector_config)
+                        return
 
-                                        if available_connector is None or available_connector.is_stopped():
-                                            connector = self._implemented_connectors[connector_type](self,
-                                                                                                     deepcopy(connector_config[CONFIG_SECTION_PARAMETER][config]), # noqa
-                                                                                                     connector_type)
-                                            connector.name = connector_name
-                                            self.available_connectors_by_id[connector_id] = connector
-                                            self.available_connectors_by_name[connector_name] = connector
-                                            try:
-                                                report_strategy_config_connector = connector_config[CONFIG_SECTION_PARAMETER][config].pop(REPORT_STRATEGY_PARAMETER, None) # noqa
-                                                connector_report_strategy = ReportStrategyConfig(report_strategy_config_connector) # noqa
-                                                self._report_strategy_service.register_connector_report_strategy(connector_name, connector_id, connector_report_strategy) # noqa
-                                            except ValueError:
-                                                log.info("Cannot find separated report strategy for connector %r. \
-                                                         The main report strategy \
-                                                         will be used as a connector report strategy.",
-                                                         connector_name)
-                                            self.__update_connector_devices(connector)
-                                            self.__cleanup_connectors()
-                                            connector.open()
-                                        else:
-                                            log.debug("[%r] Connector with name %s already exists and not stopped, skipping updating it...",
-                                                        connector_id, connector_name)
-                                    else:
-                                        log.warning("Config incorrect for %s", connector_type)
-                                else:
-                                    log.warning("Config is empty for %s", connector_type)
-                            except Exception as e:
-                                log.error("[%r] Error on loading connector %r: %r", connector_id, connector_name, e)
-                                if isinstance(log, TbLogger):
-                                    log.error(e, attr_name=connector_name)
-                                else:
-                                    log.error("Error on loading connector %r: %r", connector_name, e)
-                                    log.debug("Error on loading connector %r", connector_name, exc_info=e)
-                                if connector is not None and not connector.is_stopped():
-                                    connector.close()
-                                    if self.tb_client.is_connected():
-                                        for device in self.get_connector_devices(connector):
-                                            self.del_device(device)
-                    else:
-                        self.__grpc_connectors.update({connector_config['grpc_key']: connector_config})
-                        if connector_type != 'grpc':
-                            connector_dir_abs = "/".join(self._config_dir.split("/")[:-2])
-                            connector_file_name = f'{connector_type}_connector.py'
-                            connector_abs_path = f'{connector_dir_abs}/grpc_connectors/{connector_type}/{connector_file_name}' # noqa
-                            connector_config_json = dumps({
-                                **connector_config,
-                                'gateway': {
-                                    'host': 'localhost',
-                                    'port': self.__config['grpc']['serverPort']
-                                }
-                            })
+                    for config_file_name in connector_config[CONFIG_SECTION_PARAMETER]:
+                        connector = None
+                        connector_name = None
+                        connector_id = None
+                        connector_configuration = connector_config[CONFIG_SECTION_PARAMETER].get(config_file_name)
+                        try:
+                            connector_name = connector_config["name"]
+                            connector_id = connector_config["id"]
+                            connector = self.__init_and_start_regular_connector(connector_id,
+                                                                                connector_type,
+                                                                                connector_name,
+                                                                                connector_configuration)
+                        except Exception as e:
+                            log.error("[%r] Error on loading connector %r: %s", connector_id, connector_name, e)
+                            if isinstance(log, TbLogger):
+                                log.error("Error on loading connector %r: %s", connector_name, e, attr_name=connector_name)
+                            else:
+                                log.error("Error on loading connector %r: %s", connector_name, e)
+                                log.debug("Error on loading connector %r", connector_name, exc_info=e)
+                            if connector is not None and not connector.is_stopped():
+                                connector.close()
+                                if self.tb_client.is_connected():
+                                    for device in self.get_connector_devices(connector):
+                                        self.del_device(device)
 
-                            thread = Thread(target=self._run_connector,
-                                            args=(connector_abs_path, connector_config_json,),
-                                            daemon=True, name='Separated GRPC Connector')
-                            thread.start()
+    def __init_and_start_regular_connector(self, _id, _type, name, configuration):
+        connector = None
+        if configuration is not None and self.__check_connector_configuration(configuration):
+
+            available_connector = self.available_connectors_by_id.get(_id)
+
+            if available_connector is None or available_connector.is_stopped():
+                connector = self._implemented_connectors[_type](self, deepcopy(configuration), _type)
+                connector.name = name
+                self.available_connectors_by_id[_id] = connector
+                self.available_connectors_by_name[name] = connector
+                try:
+                    report_strategy_config_connector = configuration.pop(REPORT_STRATEGY_PARAMETER, None)  # noqa
+                    connector_report_strategy = ReportStrategyConfig(report_strategy_config_connector)  # noqa
+                    self._report_strategy_service.register_connector_report_strategy(name, _id, connector_report_strategy)  # noqa
+                except ValueError:
+                    log.info("Cannot find separated report strategy for connector %r. \
+                             The main report strategy \
+                             will be used as a connector report strategy.",
+                             name)
+                self.__update_connector_devices(connector)
+                self.__cleanup_connectors()
+                connector.open()
+            else:
+                log.debug("[%r] Connector with name %s already exists and not stopped, skipping updating it...",
+                          _id, name)
+        else:
+            if configuration is not None:
+                log.warning("[%r] Config incorrect for %s connector with name %s", _id, _type, name)
+            else:
+                log.warning("[%r] Config is empty for %s connector with name %s", _id, _type, name)
+
+        return connector
+
+    def __init_and_start_grpc_connector(self, _type, configuration):
+        self.__grpc_connectors.update({configuration['grpc_key']: configuration})
+        if _type != 'grpc':
+            connector_dir_abs = "/".join(self._config_dir.split("/")[:-2])
+            connector_file_name = f'{_type}_connector.py'
+            connector_abs_path = f'{connector_dir_abs}/grpc_connectors/{_type}/{connector_file_name}'  # noqa
+            connector_config_json = dumps({
+                **configuration,
+                'gateway': {
+                    'host': 'localhost',
+                    'port': self.__config['grpc']['serverPort']
+                }
+            })
+
+            thread = Thread(target=self._run_connector,
+                            args=(connector_abs_path, connector_config_json,),
+                            daemon=True, name='Separated GRPC Connector')
+            thread.start()
+
+    @staticmethod
+    def __check_connector_configuration(connector_configuration):
+        return ("logLevel" in connector_configuration and len(connector_configuration) > 3) or \
+            ("logLevel" not in connector_configuration and len(connector_configuration.keys()) >= 1)
 
     def _run_connector(self, connector_abs_path, connector_config_json):
         subprocess.run(['python3', connector_abs_path, connector_config_json, self._config_dir],
@@ -1778,6 +1793,9 @@ class TBGatewayService:
 
     @CountMessage('msgsReceivedFromPlatform')
     def _attribute_update_callback(self, content, *args):
+        if not content:
+            log.error("Attribute request received with empty content")
+            return
         log.debug("Attribute request received with content: \"%s\"", content)
         log.debug(args)
         device_name = content.get('device')
@@ -1890,6 +1908,8 @@ class TBGatewayService:
             connector.on_attributes_update(shared_attributes_request)
         else:
             if shared_attributes:
+                if shared_attributes == '*':
+                    shared_attributes = []
                 self.tb_client.client.gw_request_shared_attributes(device_name,
                                                                    shared_attributes,
                                                                    (self._attribute_update_callback, shared_attributes))
