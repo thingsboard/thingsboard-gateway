@@ -109,7 +109,11 @@ class AsyncBACnetConnector(Thread, Connector):
 
         self.__devices_discover_period = self.__config.get('devicesDiscoverPeriodSeconds', 30)
         await self.__discover_devices()
-        await asyncio.gather(self.__main_loop(), self.__convert_data(), self.__save_data(), self.indication_callback())
+        await asyncio.gather(self.__main_loop(),
+                             self.__convert_data(),
+                             self.__save_data(),
+                             self.indication_callback(),
+                             self.__application.confirmation_handler())
 
     def __handle_indication(self, apdu):
         self.__indication_queue.put_nowait(apdu)
@@ -133,7 +137,7 @@ class AsyncBACnetConnector(Thread, Connector):
                     if device_config:
                         new_device_config = await self.__check_and_update_device_config(apdu, device_config)
 
-                        if Device.need_to_retriev_device_name(device_config):
+                        if Device.need_to_retrieve_device_name(device_config):
                             device_name = await self.__application.get_device_name(apdu)
 
                             if device_name is not None:
@@ -155,7 +159,7 @@ class AsyncBACnetConnector(Thread, Connector):
                     added_device.active = True
                     self.__log.debug('Device %s already added', added_device)
             except Empty:
-                await asyncio.sleep(.01)
+                await asyncio.sleep(.1)
             except Exception as e:
                 self.__log.error('Error processing indication callback: %s', e)
 
@@ -223,7 +227,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 self.__log.trace('%s reading results: %s', device, results)
                 self.__data_to_convert_queue.put_nowait((device, results))
             except Empty:
-                await asyncio.sleep(.01)
+                await asyncio.sleep(.1)
             except Exception as e:
                 self.__log.error('Error processing device requests: %s', e)
 
@@ -258,7 +262,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 converted_data = device.uplink_converter.convert(values)
                 self.__data_to_save_queue.put_nowait((device, converted_data))
             except Empty:
-                await asyncio.sleep(.01)
+                await asyncio.sleep(.1)
             except Exception as e:
                 self.__log.error('Error converting data: %s', e)
 
