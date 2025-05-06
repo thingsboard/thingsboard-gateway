@@ -32,7 +32,9 @@ from bacpypes3.apdu import (
     SimpleAckPDU,
     ErrorRejectAbortNack
 )
+from bacpypes3.comm import bind
 
+from thingsboard_gateway.connectors.bacnet.application_service_access_point import ApplicationServiceAccessPoint
 from thingsboard_gateway.connectors.bacnet.device import Device
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 
@@ -44,6 +46,9 @@ class Application(App):
         self.__device_object_config = device_object_config
         self.__device_object = DeviceObject(**self.__device_object_config.device_object_config)
         super().__init__(self.__device_object, Address(self.__device_object_config.address))
+
+        self.asap = ApplicationServiceAccessPoint(self.device_object, self.device_info_cache)
+        bind(self, self.asap, self.nsap)
 
         self.__log = logger
         self.__indication_callback = indication_callback
@@ -125,8 +130,12 @@ class Application(App):
                 "objectList",
                 array_index=0,
             )
+        except Exception as e:
+            self.__log.error('%s error reading object-list length: %s', device_identifier, e)
+            return []
 
-            for i in range(object_list_length):
+        for i in range(object_list_length):
+            try:
                 object_identifier = await self.read_property(
                     device_address,
                     device_identifier,
@@ -134,8 +143,9 @@ class Application(App):
                     array_index=i + 1,
                 )
                 object_list.append(object_identifier)
-        except ErrorRejectAbortNack as err:
-            self.__log.info(f"{device_identifier} object-list length error/reject: {err}")
+            except Exception as e:
+                self.__log.error('%s error reading object-list[%d]: %s', device_identifier, i + 1, e)
+                continue
 
         return object_list
 
