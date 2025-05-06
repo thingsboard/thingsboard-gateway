@@ -1046,9 +1046,7 @@ class OpcUaConnector(Connector, Thread):
                 if connector_type == self._connector_type:
                     rpc_method = rpc_method_name
                     content['device'] = content['params'].split(' ')[0].split('=')[-1]
-            except (ValueError, IndexError):
-                self.__log.error('Invalid RPC method name: %s', rpc_method)
-            except AttributeError:
+            except (ValueError, IndexError, AttributeError):
                 pass
 
             if content.get('device'):
