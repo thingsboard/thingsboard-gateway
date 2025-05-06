@@ -12,16 +12,26 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from asyncio import sleep
+from queue import Queue, Empty
 from typing import List
 from bacpypes3.ipv4.app import NormalApplication as App
 from bacpypes3.local.device import DeviceObject
 from bacpypes3.pdu import Address
 from bacpypes3.primitivedata import ObjectIdentifier
 from bacpypes3.object import DeviceObject as DeviceObjectClass
-from bacpypes3.apdu import AbortPDU, ErrorRejectAbortNack
 from bacpypes3.basetypes import PropertyIdentifier
 from bacpypes3.vendor import get_vendor_info
 from bacpypes3.basetypes import Segmentation
+from bacpypes3.apdu import (
+    APDU,
+    AbortPDU,
+    ComplexAckPDU,
+    ErrorPDU,
+    RejectPDU,
+    SimpleAckPDU,
+    ErrorRejectAbortNack
+)
 
 from thingsboard_gateway.connectors.bacnet.device import Device
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
@@ -29,17 +39,58 @@ from thingsboard_gateway.connectors.bacnet.entities.device_object_config import 
 
 class Application(App):
     def __init__(self, device_object_config: DeviceObjectConfig, indication_callback, logger):
+        self.__stopped = False
+
         self.__device_object_config = device_object_config
         self.__device_object = DeviceObject(**self.__device_object_config.device_object_config)
         super().__init__(self.__device_object, Address(self.__device_object_config.address))
 
         self.__log = logger
         self.__indication_callback = indication_callback
+        self.__confirmation_queue = Queue(1_000_000)
+
+    def close(self):
+        self.__stopped = True
+        super().close()
 
     async def indication(self, apdu) -> None:
         self.__log.debug(f"(indication) Received APDU: {apdu}")
         await super().indication(apdu)
         self.__indication_callback(apdu)
+
+    async def confirmation(self, apdu: APDU) -> None:
+        self.__confirmation_queue.put_nowait(apdu)
+
+    async def confirmation_handler(self):
+        while not self.__stopped:
+            try:
+                apdu = self.__confirmation_queue.get_nowait()
+
+                if apdu.pduSource is None:
+                    self.__log.warning("Received APDU without source address: %s", apdu)
+                    return
+
+                pdu_source = apdu.pduSource
+                if pdu_source not in self._requests:
+                    return
+
+                requests = self._requests[pdu_source]
+                for indx, (request, future) in enumerate(requests):
+                    if request.apduInvokeID == apdu.apduInvokeID:
+                        break
+                else:
+                    return
+
+                if isinstance(apdu, (SimpleAckPDU, ComplexAckPDU)):
+                    future.set_result(apdu)
+                elif isinstance(apdu, (ErrorPDU, RejectPDU, AbortPDU)):
+                    future.set_exception(apdu)
+                else:
+                    raise TypeError("apdu")
+            except Empty:
+                await sleep(0.1)
+            except Exception as e:
+                self.__log.error("APDU confirmation error: %s", e)
 
     async def do_who_is(self, device_address):
         devices = await self.who_is(address=Address(device_address),
