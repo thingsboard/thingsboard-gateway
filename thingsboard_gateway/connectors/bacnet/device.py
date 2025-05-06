@@ -13,7 +13,7 @@
 #     limitations under the License.
 
 from asyncio import sleep
-from re import escape, match, fullmatch
+from re import escape, match, fullmatch, compile
 from time import monotonic
 
 from bacpypes3.primitivedata import ObjectIdentifier
@@ -119,9 +119,11 @@ class Device:
         if pattern == '*:*:*':
             return r'.*'
         elif pattern == '*:*':
-            return r'^([^:,@]+)(:[^:,@]+)?(:(47808))?$'
+            return compile(r'^([^:,@]+)(:[^:,@]+)?(:(47808))?$')
         elif pattern == '*':
-            return r'^(0:[^:,@]+|[^\d:,@][^:,@]*:47808|[^:,@]+)$'
+            return compile(r'^(0:[^:,@]+|[^\d:,@][^:,@]*:47808|[^:,@]+)$')
+        elif match(r"\*:\d+", pattern):
+            return compile(r'^([^:,@]+)(:[^:,@]+)?(:(47808))?$')
         while i < len(pattern):
             if pattern[i] == 'X':
                 while i < len(pattern) and pattern[i] == 'X':
