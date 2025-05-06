@@ -13,7 +13,6 @@
 #     limitations under the License.
 
 import io
-import json
 import re
 from ftplib import FTP, FTP_TLS
 from queue import Queue
@@ -422,7 +421,7 @@ class FTPConnector(Connector, Thread):
                     ftp.storbinary('STOR ' + arr[0], io_stream)
                     io_stream.close()
                     success_sent = True
-                    converted_data = {"result": {"value": arr[1]}} if len(arr[1]) < 8 else {"result": True}
+                    converted_data = {"result": {"value": arr[1]}} if len(arr[1]) < 80 else {"result": True}
                     self.__log.info("The value %s is written to %s", arr[1], arr[0])
                 except Exception as e:
                     self.__log.error("Can not process for method write due to %r", str(e))
