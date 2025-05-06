@@ -40,6 +40,7 @@ CONNECTED_DEVICES_FILENAME = "connected_devices.json"
 PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME = "persistent_keys.json"
 
 RENAMING_PARAMETER = "renaming"
+DISCONNECTED_PARAMETER = "disconnected"
 CONNECTOR_ID_PARAMETER = "connectorId"
 CONNECTOR_NAME_PARAMETER = "connectorName"
 

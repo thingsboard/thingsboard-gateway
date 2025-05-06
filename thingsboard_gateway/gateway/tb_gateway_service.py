@@ -40,7 +40,7 @@ from thingsboard_gateway.gateway.constants import DEFAULT_CONNECTORS, CONNECTED_
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME, RENAMING_PARAMETER, CONNECTOR_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, \
     CONNECTOR_ID_PARAMETER, ATTRIBUTES_FOR_REQUEST, CONFIG_VERSION_PARAMETER, CONFIG_SECTION_PARAMETER, \
     DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED, ReportStrategy, \
-    REPORT_STRATEGY_PARAMETER, DEFAULT_STATISTIC, DEFAULT_DEVICE_FILTER, CUSTOM_RPC_DIR
+    REPORT_STRATEGY_PARAMETER, DEFAULT_STATISTIC, DEFAULT_DEVICE_FILTER, CUSTOM_RPC_DIR, DISCONNECTED_PARAMETER
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
@@ -311,6 +311,7 @@ class TBGatewayService:
         self.__devices_shared_attributes = {}
         self.__connector_incoming_messages = {}
         self.__connected_devices = {}
+        self.disconnected_devices = []
         self.__renamed_devices = {}
         self.__saved_devices = {}
         self.__added_devices = {}
@@ -1836,6 +1837,8 @@ class TBGatewayService:
         device_type = device_type if device_type is not None else 'default'
         if (device_name in self.__connected_devices or
                 TBUtility.get_dict_key_by_value(self.__renamed_devices, device_name) is not None):
+
+
             if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'],
                                                                             'get_device_shared_attributes_keys'):
                 self.__sync_device_shared_attrs_queue.put((device_name, content['connector']))
@@ -1932,7 +1935,9 @@ class TBGatewayService:
             self.__connected_devices.pop(device_name, None)
             self.__saved_devices.pop(device_name, None)
             self.__added_devices.pop(device_name, None)
-            self.__save_persistent_devices()
+            if not device_name in self.__renamed_devices:
+                self.__save_persistent_devices()
+
         if device_name in self.__devices_shared_attributes:
             self.__devices_shared_attributes.pop(device_name, None)
 
@@ -2048,12 +2053,17 @@ class TBGatewayService:
         with self.__lock:
             data_to_save = {}
             for device in self.__connected_devices:
+
+
                 if self.__connected_devices[device][CONNECTOR_PARAMETER] is not None:
                     data_to_save[device] = {
                         CONNECTOR_NAME_PARAMETER: self.__connected_devices[device][CONNECTOR_PARAMETER].get_name(),
                         DEVICE_TYPE_PARAMETER: self.__connected_devices[device][DEVICE_TYPE_PARAMETER],
                         CONNECTOR_ID_PARAMETER: self.__connected_devices[device][CONNECTOR_PARAMETER].get_id(),
-                        RENAMING_PARAMETER: self.__renamed_devices.get(device)
+                        RENAMING_PARAMETER: self.__renamed_devices.get(device),
+                        DISCONNECTED_PARAMETER: False if device in self.__connected_devices else True
+
+
                     }
             with open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w') as config_file:
                 try:
