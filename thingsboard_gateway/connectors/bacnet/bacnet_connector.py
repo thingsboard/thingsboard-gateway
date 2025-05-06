@@ -196,11 +196,8 @@ class AsyncBACnetConnector(Thread, Connector):
                     self.__log.error('Invalid address %s', device_config['address'])
                     continue
 
-                result = await self.__application.do_who_is(device_address=who_is_address)
+                await self.__application.do_who_is(device_address=who_is_address)
                 self.__log.debug('WhoIs request sent to device %s', device_config['address'])
-
-                if result is None:
-                    self.__log.error('Device %s not found', device_config['address'])
             except Exception as e:
                 self.__log.error('Error discovering device %s: %s', device_config['address'], e)
 
