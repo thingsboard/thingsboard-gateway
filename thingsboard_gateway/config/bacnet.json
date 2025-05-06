@@ -9,7 +9,7 @@
     "segmentationSupported": "segmentedBoth",
     "vendorIdentifier": 15,
     "deviceDiscoveryTimeoutInSec": 5,
-    "networkNumber": 3,
+    "networkNumber": 0,
     "networkNumberQuality": "configured",
     "devicesDiscoverPeriodSeconds": 30
   },
@@ -29,7 +29,7 @@
       "attributes": [
         {
           "key": "temperature",
-          "objectType": "analogOutput",
+          "objectType": "analogInput",
           "objectId": "1",
           "propertyId": "presentValue"
         }
@@ -63,8 +63,8 @@
           "method": "get_state",
           "requestType": "readProperty",
           "requestTimeout": 10000,
-          "objectType": "binaryOutput",
-          "objectId": "1",
+          "objectType": "analogOutput",
+          "objectId": "2",
           "propertyId": "presentValue"
         }
       ]
