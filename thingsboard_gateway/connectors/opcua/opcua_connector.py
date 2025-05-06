@@ -44,7 +44,7 @@ except (ImportError, ModuleNotFoundError):
     TBUtility.install_package("asyncua")
     import asyncua
 
-from asyncua import ua
+from asyncua import ua, Node
 from asyncua.ua import NodeId, UaStringParsingError
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
@@ -514,16 +514,17 @@ class OpcUaConnector(Connector, Thread):
     def is_regex_pattern(pattern):
         return not re.fullmatch(pattern, pattern)
 
-    async def __find_nodes(self, node_list, current_parent_node, nodes, path="Root"):
-        assert len(node_list) > 0
+    async def __find_nodes(self, node_list_to_search, current_parent_node, nodes, path="Root"):
+        assert len(node_list_to_search) > 0
         final = []
 
         target_node_path = None
-        if len(node_list) == 1:
-            target_node_path = '.'.join(node['path'].split(':')[-1] for node in nodes) + '.' + node_list[0]
+        if len(node_list_to_search) == 1:
+            node_paths = [node['path'] if isinstance(node, dict) else node for node in nodes]
+            target_node_path = '.'.join(node_path.split(':')[-1] for node_path in node_paths) + '.' + node_list_to_search[0]
             if target_node_path in self.__scanning_nodes_cache:
                 if self.__show_map:
-                        self.__log.debug('Found node in cache: %s', node_list[0])
+                        self.__log.debug('Found node in cache: %s', node_list_to_search[0])
                 final.append(self.__scanning_nodes_cache[target_node_path])
                 return final
 
@@ -535,26 +536,27 @@ class OpcUaConnector(Connector, Thread):
         for node in children:
             counter += 1
             child_node = await node.read_browse_name()
-            if len(node_list) == 1:
-                current_node_path = '.'.join(node['path'].split(':')[-1] for node in nodes) + '.' + child_node.Name
+            if len(node_list_to_search) == 1:
+                node_paths = [node['path'] if isinstance(node, dict) else node for node in nodes]
+                current_node_path = '.'.join(node_path.split(':')[-1] for node_path in node_paths) + '.' + child_node.Name
                 if not current_node_path in self.__scanning_nodes_cache:
                     self.__scanning_nodes_cache[current_node_path] = [*nodes, {'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
             if self.__show_map and path:
                 if children_nodes_count < 1000 or counter % 1000 == 0:
                     self.__log.info('Checking path: %s', path + '.' + f'{child_node.Name}')
 
-            if re.fullmatch(re.escape(node_list[0]), child_node.Name) or node_list[0].split(':')[-1] == child_node.Name:
+            if re.fullmatch(re.escape(node_list_to_search[0]), child_node.Name) or node_list_to_search[0].split(':')[-1] == child_node.Name:
                 if self.__show_map:
                     self.__log.info('Found node: %s', child_node.Name)
                 new_nodes = [*nodes, {'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
-                if len(node_list) == 1:
+                if len(node_list_to_search) == 1:
                     final.append(new_nodes)
                     if self.__show_map:
                         self.__log.debug('Found node: %s', child_node.Name)
                     return final
                 else:
-                    final.extend(await self.__find_nodes(node_list[1:], current_parent_node=node, nodes=new_nodes,
-                                 path=path + '.' + f'{child_node.Name}'))
+                    final.extend(await self.__find_nodes(node_list_to_search[1:], current_parent_node=node, nodes=new_nodes,
+                                                         path=path + '.' + f'{child_node.Name}'))
 
         return final
 
@@ -580,7 +582,11 @@ class OpcUaConnector(Connector, Thread):
 
         resolved = path[:-u_node_count]
         resolved_level = len(path) - u_node_count
-        parent_node = await self.__client.nodes.root.get_child(resolved)
+        if resolved_level < 1:
+            path = path[1:]
+            parent_node = self.__client.get_root_node()
+        else:
+            parent_node = await self.__client.nodes.root.get_child(resolved)
 
         unresolved = path[resolved_level:]
         return await self.__find_nodes(unresolved, current_parent_node=parent_node, nodes=resolved)
@@ -722,25 +728,29 @@ class OpcUaConnector(Connector, Thread):
                         if self.__is_node_identifier(path):
                             found_node = self.__client.get_node(path)
                         else:
-                            if len(path[-1].split(':')) != 2:
-                                qualified_path = await self.find_node_name_space_index(path)
-                                if len(qualified_path) == 0:
-                                    if node.get('valid', True):
-                                        self.__log.warning('Node not found; device: %s, key: %s, path: %s',
-                                                           device.name,
-                                                           node['key'], node['path'])
-                                        if node.get('node') is not None and self.__enable_subscriptions:
-                                            await self.__unsubscribe_from_node(device, node)
-                                    continue
-                                elif len(qualified_path) > 1:
-                                    self.__log.warning(
-                                        'Multiple matching nodes found; device: %s, key: %s, path: %s; %s',
-                                        device.name,
-                                        node['key'], node['path'], qualified_path)
-                                node['qualified_path'] = qualified_path[0]
-                                path = qualified_path[0]
+                            if not isinstance(path, Node):
+                                if len(path[-1].split(':')) != 2:
+                                    qualified_path = await self.find_node_name_space_index(path)
+                                    if len(qualified_path) == 0:
+                                        if node.get('valid', True):
+                                            self.__log.warning('Node not found; device: %s, key: %s, path: %s',
+                                                               device.name,
+                                                               node['key'], node['path'])
+                                            if node.get('node') is not None and self.__enable_subscriptions:
+                                                await self.__unsubscribe_from_node(device, node)
+                                        continue
+                                    elif len(qualified_path) > 1:
+                                        self.__log.warning(
+                                            'Multiple matching nodes found; device: %s, key: %s, path: %s; %s',
+                                            device.name,
+                                            node['key'], node['path'], qualified_path)
+                                    node['qualified_path'] = qualified_path[0][-1]['node']
+                                    path = qualified_path[0][-1]['node']
 
-                            found_node = await self.__client.nodes.root.get_child(path)
+                            if isinstance(path, Node):
+                                found_node = path
+                            else:
+                                found_node = await self.__client.nodes.root.get_child(path)
 
                         node_report_strategy = node.get(REPORT_STRATEGY_PARAMETER)
                         if node_report_strategy is not None:
@@ -831,7 +841,7 @@ class OpcUaConnector(Connector, Thread):
                             device.nodes_data_change_subscriptions[node.nodeid]['subscription'] = subscription_id
                         self.__log.info('Subscribed to %i nodes for device %s', len(nodes_to_subscribe), device.name)
                     else:
-                        self.__log.debug('No nodes to subscribe for device %s', device.name)
+                        self.__log.debug('No new nodes to subscribe for device %s', device.name)
                 else:
                     self.__log.debug('Subscriptions are disabled for device %s or device subscription is None', device.name)
             except Exception as e:
@@ -1143,7 +1153,6 @@ class OpcUaConnector(Connector, Thread):
         except Exception as e:
             self.__log.exception("Error during RPC handling: ", exc_info=e)
 
-
     async def __write_value(self, path, value, result=None):
         if result is None:
             result = {}
@@ -1165,7 +1174,6 @@ class OpcUaConnector(Connector, Thread):
         except Exception as e:
             result['error'] = e.__str__()
             self.__log.error("Can not find node for provided path %s ", path)
-
 
     async def __read_value(self, path, result=None):
         if result is None:

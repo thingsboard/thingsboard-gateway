@@ -21,6 +21,10 @@ from thingsboard_gateway.gateway.entities.report_strategy_config import ReportSt
 
 
 class Device:
+    ABSOLUTE_PATH_PATTERN = re.compile(r"\${(Root\\.[A-Za-z0-9_.:\\\[\]\-()]+)}")
+    RELATIVE_PATH_PATTERN = re.compile(r"\${([A-Za-z0-9_.:\\\[\]\-()]+)}")
+    NODE_ID_PATTERN = re.compile(r"(ns=\d+;[isgb]=[^}]+)")
+
     def __init__(self, path, name, config, converter, converter_for_sub, device_node, logger):
         self._log = logger
         self.__configured_values_count = 0
@@ -52,26 +56,50 @@ class Device:
 
     def load_values(self):
         self.__configured_values_count = 0
+
         for section in ('attributes', 'timeseries'):
             for node_config in self.config.get(section, []):
                 try:
-                    if re.search(r"(ns=\d+;[isgb]=[^}]+)", node_config['value']):
-                        child = re.search(r"(ns=\d+;[isgb]=[^}]+)", node_config['value'])
-                        self.values[section].append(
-                            {'path': child.groups()[0],
-                             'key': node_config['key'],
-                             'timestampLocation': node_config.get('timestampLocation', 'gateway'),
-                             REPORT_STRATEGY_PARAMETER: node_config.get(REPORT_STRATEGY_PARAMETER)})
-                    elif re.search(r"\${([A-Za-z0-9_.:\\\[\]\-()]+)", node_config['value']):
-                        child = re.search(r"\${([A-Za-z0-9_.:\\\[\]\-()]+)", node_config['value'])
-                        self.values[section].append(
-                            {'path': self.path + child.groups()[0].split('\\.'),
-                             'key': node_config['key'],
-                             'timestampLocation': node_config.get('timestampLocation', 'gateway'),
-                             REPORT_STRATEGY_PARAMETER: node_config.get(REPORT_STRATEGY_PARAMETER)})
+                    value_str = node_config['value']
+
+                    # Match NodeId value (e.g. ns=2;s=SomeNode)
+                    node_id_match = re.search(Device.NODE_ID_PATTERN, value_str)
+                    if node_id_match:
+                        self.values[section].append({
+                            'path': node_id_match.group(1),
+                            'key': node_config['key'],
+                            'timestampLocation': node_config.get('timestampLocation', 'gateway'),
+                            REPORT_STRATEGY_PARAMETER: node_config.get(REPORT_STRATEGY_PARAMETER)
+                        })
+                        continue
+
+                    # Match absolute path (e.g. ${Root\.Objects.Device.SomeNode})
+                    absolute_path_match = re.search(Device.ABSOLUTE_PATH_PATTERN, value_str)
+                    if absolute_path_match:
+                        full_path = absolute_path_match.group(1).split('\\.')
+                        self.values[section].append({
+                            'path': full_path,
+                            'key': node_config['key'],
+                            'timestampLocation': node_config.get('timestampLocation', 'gateway'),
+                            REPORT_STRATEGY_PARAMETER: node_config.get(REPORT_STRATEGY_PARAMETER)
+                        })
+                        continue
+
+                    # Match relative path (e.g. ${Device.SomeNode})
+                    relative_path_match = re.search(Device.RELATIVE_PATH_PATTERN, value_str)
+                    if relative_path_match:
+                        full_path = self.path + relative_path_match.group(1).split('\\.')
+                        self.values[section].append({
+                            'path': full_path,
+                            'key': node_config['key'],
+                            'timestampLocation': node_config.get('timestampLocation', 'gateway'),
+                            REPORT_STRATEGY_PARAMETER: node_config.get(REPORT_STRATEGY_PARAMETER)
+                        })
+                        continue
 
                 except KeyError as e:
                     self._log.error('Invalid config for %s (key %s not found)', node_config, e)
+
             self.__configured_values_count += len(self.values[section])
 
         self._log.debug('Loaded %r values for %s', len(self.values), self.name)
