@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from asyncio import sleep
+from asyncio import Lock, sleep
 from re import escape, match, fullmatch, compile
 from time import monotonic
 
@@ -67,6 +67,16 @@ class Device:
 
     def __str__(self):
         return f"Device(name={self.name}, address={self.details.address})"
+
+    @property
+    def config(self):
+        return self.__config
+
+    @config.setter
+    def config(self, new_config):
+        self.__config = new_config
+        self.uplink_converter_config = UplinkConverterConfig(new_config, self.device_info, self.details)
+        self.uplink_converter = self.__load_uplink_converter()
 
     def __load_uplink_converter(self):
         try:
@@ -228,3 +238,55 @@ class Device:
             return True
 
         return False
+
+
+class Devices:
+    def __init__(self):
+        self.__devices = {}
+        self.__lock = Lock()
+
+    async def add(self, device):
+        if not isinstance(device, Device):
+            raise TypeError("Expected a Device instance")
+
+        await self.__lock.acquire()
+        try:
+            self.__devices[device.details.object_id] = device
+        finally:
+            self.__lock.release()
+
+    async def remove(self, device):
+        await self.__lock.acquire()
+        try:
+            self.__devices.pop(device.details.object_id, None)
+        finally:
+            self.__lock.release()
+
+    async def get_device_by_id(self, id):
+        item = None
+
+        await self.__lock.acquire()
+        try:
+            item = self.__devices.get(id)
+        finally:
+            self.__lock.release()
+
+        return item
+
+    async def get_device_by_name(self, name):
+        item = None
+
+        await self.__lock.acquire()
+        try:
+            for device in self.__devices.values():
+                if device.device_info.device_name == name:
+                    item = device
+                    break
+        finally:
+            self.__lock.release()
+
+        return item
+
+    def stop_all(self):
+        for device in self.__devices.values():
+            device.stop()
