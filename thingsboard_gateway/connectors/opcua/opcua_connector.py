@@ -1040,6 +1040,8 @@ class OpcUaConnector(Connector, Thread):
 
             rpc_method = content["data"].get("method")
 
+            self.__log.debug('Received RPC request with method %s', rpc_method)
+
             # check if RPC type is connector RPC (can be only 'get' or 'set')
             try:
                 (connector_type, rpc_method_name) = rpc_method.split('_')
@@ -1079,9 +1081,7 @@ class OpcUaConnector(Connector, Thread):
                         self.__log.error('Not enough arguments. Expected min 2.')
                         self.__gateway.send_rpc_reply(device=content['device'],
                                                       req_id=content['data'].get('id'),
-                                                      content={content['data'][
-                                                                   'method']: 'Not enough arguments. Expected min 2.',
-                                                               'code': 400})
+                                                      content={"result": {"error": 'Not enough arguments. Expected min 2.'}})
 
                     result = {}
                     if rpc_method == 'get':
@@ -1100,7 +1100,8 @@ class OpcUaConnector(Connector, Thread):
 
                     self.__gateway.send_rpc_reply(device=content['device'],
                                                   req_id=content['data'].get('id'),
-                                                  content={'result': result})
+                                                  content={"result": result})
+                    self.__log.debug("RPC with method %s execution result is: %s", rpc_method, result)
                 else:
                     rpc_method_found = False
                     for rpc in device.config['rpc_methods']:
@@ -1119,19 +1120,18 @@ class OpcUaConnector(Connector, Thread):
                                 while not task.done():
                                     sleep(.2)
 
+                                self.__log.debug("RPC with method %s execution result is: %s", rpc['method'], result)
                                 self.__gateway.send_rpc_reply(content["device"],
                                                               content["data"]["id"],
-                                                              {content["data"]["method"]: result, "code": 200})
-                                self.__log.debug("method %s result is: %s", rpc['method'], result)
+                                                              {"result": result})
                             except Exception as e:
                                 self.__log.exception(e)
                                 self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                              {"error": str(e), "code": 500})
+                                                              {"result": {"error": str(e)}})
                     if not rpc_method_found:
                         self.__log.error("Method %s not found for device %s", rpc_method, content["device"])
                         self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                      {"error": "%s - Method not found" % rpc_method,
-                                                       "code": 404})
+                                                      {"result": {"error": "%s - Method not found" % rpc_method}})
             else:
                 results = []
                 for device in self.__device_nodes:
@@ -1148,15 +1148,16 @@ class OpcUaConnector(Connector, Thread):
                             sleep(.2)
 
                         results.append(result)
-                        self.__log.debug("method %s result is: %s", rpc_method, result)
+                        self.__log.debug("RPC with method %s execution result is: %s", rpc_method, result)
                     except Exception as e:
                         self.__log.exception(e)
                         self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                      {"error": str(e), "code": 500})
+                                                      {"result": {"error": str(e)}})
 
                 return results
         except Exception as e:
-            self.__log.exception("Error during RPC handling: ", exc_info=e)
+            self.__log.error("Error during RPC request handling: %s", e)
+            self.__log.debug("Error during RPC request handling: ", exc_info=e)
 
     async def __write_value(self, path, value, result=None):
         if result is None:
