@@ -19,7 +19,7 @@ from threading import Thread
 from string import ascii_lowercase
 from random import choice
 from time import monotonic, sleep
-from typing import List
+from typing import List, TYPE_CHECKING
 from copy import deepcopy
 
 from thingsboard_gateway.connectors.connector import Connector
@@ -42,6 +42,9 @@ from thingsboard_gateway.connectors.bacnet.entities.device_object_config import 
 from thingsboard_gateway.connectors.bacnet.application import Application
 from thingsboard_gateway.connectors.bacnet.backward_compatibility_adapter import BackwardCompatibilityAdapter
 
+if TYPE_CHECKING:
+    from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
+
 
 class AsyncBACnetConnector(Thread, Connector):
     PROCESS_DEVICE_QUEUE = Queue(1_000_000)
@@ -51,7 +54,7 @@ class AsyncBACnetConnector(Thread, Connector):
                            STATISTIC_MESSAGE_SENT_PARAMETER: 0}
         self.__connector_type = connector_type
         super().__init__()
-        self.__gateway = gateway
+        self.__gateway: 'TBGatewayService' = gateway
         self.__config = config
         self.name = config.get('name', 'BACnet ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         remote_logging = self.__config.get('enableRemoteLogging', False)
@@ -132,10 +135,14 @@ class AsyncBACnetConnector(Thread, Connector):
                 device_address = apdu.pduSource.__str__()
                 self.__log.info('Received APDU, from %s, trying to find device...', device_address)
                 added_device = self.__find_device_by_address(device_address)
+                self.__log.debug('Found device %s for APDU %s', added_device, str(apdu.pduSource))
                 if added_device is None:
                     device_config = Device.find_self_in_config(self.__config['devices'], apdu)
                     if device_config:
+                        self.__log.debug('Checking config for device %s', device_address)
+                        started_updating_config = monotonic()
                         new_device_config = await self.__check_and_update_device_config(apdu, device_config)
+                        self.__log.debug('New device config for device with address: %s, configuration updating took: %r seconds', device_address, monotonic() - started_updating_config)  # noqa
 
                         if Device.need_to_retrieve_device_name(device_config):
                             device_name = await self.__application.get_device_name(apdu)
@@ -143,16 +150,19 @@ class AsyncBACnetConnector(Thread, Connector):
                             if device_name is not None:
                                 apdu.deviceName = device_name
 
+                        self.__log.debug('Creating device %s', device_config['deviceInfo'])
                         device = Device(self.connector_type,
                                         new_device_config, apdu,
                                         self.callback,
                                         self.__converter_log)
-                        self.loop.create_task(device.run())
-                        self.__devices.append(device)
+                        self.__log.debug('Connecting device to platform %s', device)
                         self.__gateway.add_device(device.device_info.device_name,
                                                   {"connector": self},
                                                   device_type=device.device_info.device_type)
-                        self.__log.info('Device %s found', device)
+                        self.__log.debug('Starting device %s', device)
+                        self.loop.create_task(device.run())
+                        self.__devices.append(device)
+                        self.__log.info('Device %s added', device)
                     else:
                         self.__log.debug('Device %s not found in config', device_address)
                 else:

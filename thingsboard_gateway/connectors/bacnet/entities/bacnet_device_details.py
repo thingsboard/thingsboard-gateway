@@ -30,7 +30,7 @@ class BACnetDeviceDetails:
     def as_dict(self):
         return {
             "address": self.address,
-            "objectIdentifier": self.__object_identifier,
+            "objectId": self.__object_identifier,
             "vendorId": self.__vendor_id,
             "objectName": self.__object_name
         }

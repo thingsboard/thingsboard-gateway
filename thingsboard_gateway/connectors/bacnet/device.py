@@ -30,9 +30,13 @@ from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
 class Device:
     ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN = compile(r'^([^:,@]+)(:[^:,@]+)?(:(47808))?$')
-    ALLOWED_LOCAL_ADDRESSES_PATTERN = compile(r'^(0:[^:,@]+|[^\d:,@][^:,@]*:47808|[^:,@]+)$')
-
-    LOCAL_ADDRESS_WITH_PORT_PATTERN = compile(r"\*:\d+")
+    ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_DEFAULT_PORT = compile(r'^(0:[^:,@]+|[^\d:,@][^:,@]*:47808|[^:,@]+)$')
+    ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_CUSTOM_PORT = (
+        r'^((:(0:)?)[^:,@]+|[^\d:,@][^:,@]*|[^:,@]+)'
+        r'(?:\:{expectedPort})?'
+        r'(@[^:,@]+(:\d+)?)?$'  # noqa
+    )
+    ANY_LOCAL_ADDRESS_WITH_PORT_PATTERN = compile(r"\*:\d+")
 
     def __init__(self, connector_type, config, i_am_request, callback, logger: TbLogger):
         self.__connector_type = connector_type
@@ -126,17 +130,39 @@ class Device:
         elif pattern == '*:*':
             return Device.ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN
         elif pattern == '*':
-            return Device.ALLOWED_LOCAL_ADDRESSES_PATTERN
-        elif match(Device.LOCAL_ADDRESS_WITH_PORT_PATTERN, pattern):
+            return Device.ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_DEFAULT_PORT
+        elif match(Device.ANY_LOCAL_ADDRESS_WITH_PORT_PATTERN, pattern):
             return Device.ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN
-        while i < len(pattern):
-            if pattern[i] == 'X':
-                while i < len(pattern) and pattern[i] == 'X':
-                    i += 1
-                regex += r'\d+'
+        elif 'X' in pattern:
+            port_present = False
+            if pattern.count(':') == 1:
+                port_present = True
+                pattern_for_check = pattern.split(':')[0]
             else:
-                regex += escape(pattern[i])
-                i += 1
+                pattern_for_check = pattern
+            while i < len(pattern_for_check):
+                if pattern_for_check[i] == 'X':
+                    while i < len(pattern_for_check) and pattern_for_check[i] == 'X':
+                        i += 1
+                    regex += r'\d+'
+                else:
+                    regex += escape(pattern_for_check[i])
+                    i += 1
+            if port_present:
+                if pattern.split(':')[1] == '*':
+                    regex += r'(:\d+)?'
+                else:
+                    regex += pattern.split(':')[1]
+            return f"^{regex}$"
+        elif ':' in pattern:
+            if pattern.count(':') == 2:
+                return Device.ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN
+            elif pattern.count(':') == 1:
+                if pattern.split(':')[1] == '47808':
+                    return Device.ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_DEFAULT_PORT
+                else:
+                    expected_port = r'\d+' if pattern.split(':')[1] == '*' else pattern.split(':')[1]
+                    return Device.ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_CUSTOM_PORT.replace('{expectedPort}', expected_port)  # noqa
 
         return f"^{regex}$"
 

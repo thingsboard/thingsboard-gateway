@@ -55,14 +55,14 @@ class BackwardCompatibilityAdapter:
         if address:
             return old_config_section
         if 'host' in old_config_section:
-            address += old_config_section.pop('host')
+            address += old_config_section['host']
             address = address.rstrip('/')
         if 'mask' in old_config_section:
-            network_mask = old_config_section.pop('mask', None)
+            network_mask = old_config_section['mask']
             if network_mask:
-                address += '/' + network_mask
+                address += '/' + (str(network_mask) if not isinstance(network_mask, str) else network_mask)
         if 'port' in old_config_section:
-            address += ':' + str(old_config_section.pop('port', 47808))
+            address += ':' + (str(old_config_section['port']) if not isinstance(old_config_section['port'], str) else old_config_section['port'])  # noqa
         old_config_section['address'] = address
 
     @staticmethod
