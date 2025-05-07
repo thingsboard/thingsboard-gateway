@@ -311,7 +311,7 @@ class TBGatewayService:
         self.__devices_shared_attributes = {}
         self.__connector_incoming_messages = {}
         self.__connected_devices = {}
-        self.disconnected_devices = []
+        self.disconnected_devices = {}
         self.__renamed_devices = {}
         self.__saved_devices = {}
         self.__added_devices = {}
@@ -585,7 +585,7 @@ class TBGatewayService:
                     self.available_connectors_by_id[current_connector].close()
                     if self.tb_client.is_connected():
                         for device in self.get_connector_devices(self.available_connectors_by_id[current_connector]):
-                            self.del_device(device)
+                            self.del_device(device, False)
                     if monotonic() - close_start > 5:
                         log.error("Connector %s close timeout", current_connector)
                         break
@@ -710,7 +710,7 @@ class TBGatewayService:
         log.info("Received deleted gateway device notification: %s", deleted_device_name)
         if deleted_device_name in list(self.__renamed_devices.values()):
             first_device_name = TBUtility.get_dict_key_by_value(self.__renamed_devices, deleted_device_name)
-            del self.__renamed_devices[first_device_name]
+            del self.__renamed_devices[first_device_name] # TODO: Check case when triggered, probably on device removal on TB
             deleted_device_name = first_device_name
             log.debug("Current renamed_devices dict: %s", self.__renamed_devices)
         if deleted_device_name in self.__connected_devices:
@@ -1834,15 +1834,24 @@ class TBGatewayService:
             self.__devices_shared_attributes = {}
             return False
 
-        device_type = device_type if device_type is not None else 'default'
-        if (device_name in self.__connected_devices or
-                TBUtility.get_dict_key_by_value(self.__renamed_devices, device_name) is not None):
+        self.disconnected_devices[device_name] = False
 
+        if (device_name in self.__connected_devices or TBUtility.get_dict_key_by_value(self.__renamed_devices,
+                                                                                       device_name) is not None):
 
             if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'],
                                                                             'get_device_shared_attributes_keys'):
                 self.__sync_device_shared_attrs_queue.put((device_name, content['connector']))
             return True
+
+        device_type = device_type if device_type is not None else 'default'
+        configuration_file = load_file(self._config_dir + CONNECTED_DEVICES_FILENAME, )
+        configuration_key = configuration_file.get(device_name)
+
+        if configuration_key:
+            device_renamed_status = configuration_key.get(RENAMING_PARAMETER)
+            if device_renamed_status:
+                return True
 
         self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
         self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
@@ -1854,8 +1863,9 @@ class TBGatewayService:
                 connector_name = content['connector'].get_name()
                 try:
                     if (self.__added_devices.get(device_name) is None
-                        or (self.__added_devices[device_name]['device_details']['connectorType'] != connector_type
-                            or self.__added_devices[device_name]['device_details']['connectorName'] != connector_name)):
+                            or (self.__added_devices[device_name]['device_details']['connectorType'] != connector_type
+                                or self.__added_devices[device_name]['device_details'][
+                                    'connectorName'] != connector_name)):
                         device_details = {
                             'connectorType': connector_type,
                             'connectorName': connector_name
@@ -1872,30 +1882,6 @@ class TBGatewayService:
                                                                         'get_device_shared_attributes_keys'):
             self.__sync_device_shared_attrs_queue.put((device_name, content['connector']))
         return True
-
-    def __sync_device_shared_attrs_loop(self):
-        while not self.stopped:
-            try:
-                device_name, connector = self.__sync_device_shared_attrs_queue.get_nowait()
-                self.__process_sync_device_shared_attrs(device_name, connector)
-            except Empty:
-                self.stop_event.wait(0.1)
-
-    def __process_sync_device_shared_attrs(self, device_name, connector):
-        shared_attributes = connector.get_device_shared_attributes_keys(device_name)
-        if device_name in self.__devices_shared_attributes:
-            device_shared_attrs = self.__devices_shared_attributes.get(device_name)
-            shared_attributes_request = {
-                'device': device_name,
-                'data': device_shared_attrs
-            }
-            # TODO: request shared attributes on init for all configured devices simultaneously to synchronize shared attributes  # noqa
-            connector.on_attributes_update(shared_attributes_request)
-        else:
-            if shared_attributes:
-                self.tb_client.client.gw_request_shared_attributes(device_name,
-                                                                   shared_attributes,
-                                                                   (self._attribute_update_callback, shared_attributes))
 
     def update_device(self, device_name, event, content: Connector):
         should_save = False
@@ -1925,17 +1911,26 @@ class TBGatewayService:
         else:
             return Status.FAILURE
 
-    def del_device(self, device_name):
+    def del_device(self, device_name, remove_device=True):
         if device_name in self.__connected_devices:
             try:
                 self.tb_client.client.gw_disconnect_device(device_name)
             except Exception as e:
                 log.error("Error on disconnecting device %s", device_name, exc_info=e)
 
-            self.__connected_devices.pop(device_name, None)
-            self.__saved_devices.pop(device_name, None)
-            self.__added_devices.pop(device_name, None)
-            if not device_name in self.__renamed_devices:
+            if device_name in self.__renamed_devices:
+                self.disconnected_devices[device_name] = True
+                self.__save_persistent_devices()
+                self.__connected_devices.pop(device_name, None)
+                self.__saved_devices.pop(device_name, None)
+                self.__added_devices.pop(device_name, None)
+
+
+            else:
+
+                self.__connected_devices.pop(device_name, None)
+                self.__saved_devices.pop(device_name, None)
+                self.__added_devices.pop(device_name, None)
                 self.__save_persistent_devices()
 
         if device_name in self.__devices_shared_attributes:
@@ -2061,10 +2056,11 @@ class TBGatewayService:
                         DEVICE_TYPE_PARAMETER: self.__connected_devices[device][DEVICE_TYPE_PARAMETER],
                         CONNECTOR_ID_PARAMETER: self.__connected_devices[device][CONNECTOR_PARAMETER].get_id(),
                         RENAMING_PARAMETER: self.__renamed_devices.get(device),
-                        DISCONNECTED_PARAMETER: False if device in self.__connected_devices else True
+                        DISCONNECTED_PARAMETER: self.disconnected_devices.get(device, False),
 
 
                     }
+
             with open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w') as config_file:
                 try:
                     config_file.write(dumps(data_to_save, indent=2, sort_keys=True))
@@ -2091,7 +2087,7 @@ class TBGatewayService:
                     for_deleting.append(device_name)
 
             for device_name in for_deleting:
-                self.del_device(device_name)
+                self.del_device(device_name, False)
 
                 log.debug('Delete device %s for the reason of idle time > %s.',
                           device_name,
