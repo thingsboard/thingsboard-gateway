@@ -27,6 +27,10 @@ class BACnetDeviceDetails:
                 f"vendorId={self.__vendor_id}, objectName={self.__object_name}")
 
     @property
+    def object_id(self):
+        return self.__object_identifier
+
+    @property
     def as_dict(self):
         return {
             "address": self.address,
