@@ -46,9 +46,9 @@ python /thingsboard_gateway/tb_gateway.py' > /start-gateway.sh && chmod +x /star
     python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
     python3 -m pip install --no-cache-dir cryptography && \
     python3 -m pip install --no-cache-dir -r requirements.txt && \
+    rustup self uninstall -y && \
     apt-get remove --purge -y gcc python3-dev build-essential libssl-dev libffi-dev zlib1g-dev pkg-config && \
-    apt-get autoremove -y && \
-    rustup self uninstall -y
+    apt-get autoremove -y
 
 VOLUME ["${configs}", "${extensions}", "${logs}"]
 
