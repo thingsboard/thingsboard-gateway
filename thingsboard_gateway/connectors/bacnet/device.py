@@ -38,7 +38,7 @@ class Device:
     )
     ANY_LOCAL_ADDRESS_WITH_PORT_PATTERN = compile(r"\*:\d+")
 
-    def __init__(self, connector_type, config, i_am_request, callback, logger: TbLogger):
+    def __init__(self, connector_type, config, i_am_request, queue, logger: TbLogger):
         self.__connector_type = connector_type
         self.__config = config
         DeviceObjectConfig.update_address_in_config_util(self.__config)
@@ -48,7 +48,7 @@ class Device:
 
         self.__stopped = False
         self.active = True
-        self.callback = callback
+        self.__request_process_queue = queue
 
         if not hasattr(i_am_request, 'deviceName'):
             self.__log.warning('Device name is not provided in IAmRequest. Device Id will be used as "objectName')
@@ -96,24 +96,18 @@ class Device:
         self.__stopped = True
 
     async def run(self):
-        self.__send_callback()
+        self.__request_process_queue.put_nowait(self)
         next_poll_time = monotonic() + self.__poll_period
 
         while not self.__stopped:
             current_time = monotonic()
             if current_time >= next_poll_time:
-                self.__send_callback()
+                self.__request_process_queue.put_nowait(self)
                 next_poll_time = current_time + self.__poll_period
 
             sleep_time = max(0.0, next_poll_time - monotonic())
 
             await sleep(sleep_time)
-
-    def __send_callback(self):
-        try:
-            self.callback(self)
-        except Exception as e:
-            self.__log.error('Error sending callback from device %s: %s', self, e)
 
     @staticmethod
     def find_self_in_config(devices_config, apdu):
@@ -243,6 +237,7 @@ class Device:
 class Devices:
     def __init__(self):
         self.__devices = {}
+        self.__devices_by_name = {}
         self.__lock = Lock()
 
     async def add(self, device):
@@ -252,6 +247,7 @@ class Devices:
         await self.__lock.acquire()
         try:
             self.__devices[device.details.object_id] = device
+            self.__devices_by_name[device.name] = device
         finally:
             self.__lock.release()
 
@@ -259,6 +255,7 @@ class Devices:
         await self.__lock.acquire()
         try:
             self.__devices.pop(device.details.object_id, None)
+            self.__devices.pop(device.name, None)
         finally:
             self.__lock.release()
 
@@ -278,10 +275,7 @@ class Devices:
 
         await self.__lock.acquire()
         try:
-            for device in self.__devices.values():
-                if device.device_info.device_name == name:
-                    item = device
-                    break
+            item = self.__devices_by_name.get(name)
         finally:
             self.__lock.release()
 
