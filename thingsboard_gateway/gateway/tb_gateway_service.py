@@ -73,11 +73,13 @@ except ImportError:
     class GrpcConnector:
         pass
 
+
     class TBGRPCServerManager:
         pass
 
 logging.setLoggerClass(TbLogger)
 log: TbLogger = None  # type: ignore
+
 
 def load_file(path_to_file):
     with open(path_to_file, 'r') as target_file:
@@ -101,7 +103,6 @@ class GatewayManager(multiprocessing.managers.BaseManager):
 
 
 class TBGatewayService:
-
     DEFAULT_TIMEOUT = 5
 
     EXPOSED_GETTERS = [
@@ -594,7 +595,6 @@ class TBGatewayService:
                 log.debug("Connector %s closed connection.", current_connector)
             except Exception as e:
                 log.error("Error while closing connector %s", current_connector, exc_info=e)
-
 
     def __stop_gateway(self):
         self.stopped = True
@@ -2083,38 +2083,45 @@ class TBGatewayService:
             log.debug("No device found in connected device file.")
             self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices
 
+    def __process_connected_devices(self, data_to_save: dict) -> dict:
+        for device, info in self.__connected_devices.items():
+            connector = info.get(CONNECTOR_PARAMETER)
+            if connector is None:
+                continue
+            data_to_save[device] = {
+                CONNECTOR_NAME_PARAMETER: connector.get_name(),
+                DEVICE_TYPE_PARAMETER: info[DEVICE_TYPE_PARAMETER],
+                CONNECTOR_ID_PARAMETER: connector.get_id(),
+                RENAMING_PARAMETER: self.__renamed_devices.get(device),
+                DISCONNECTED_PARAMETER: False
+            }
+        return data_to_save
+
+    def __process_disconnected_devices(self, data_to_save: dict) -> dict:
+        for device, info in self.__disconnected_devices.items():
+            connector = info.get(CONNECTOR_PARAMETER)
+            if connector is not None:
+                name = connector.get_name()
+                cid = connector.get_id()
+            else:
+                name = info[CONNECTOR_NAME_PARAMETER]
+                cid = info[CONNECTOR_ID_PARAMETER]
+
+            data_to_save[device] = {
+                CONNECTOR_NAME_PARAMETER: name,
+                DEVICE_TYPE_PARAMETER: info[DEVICE_TYPE_PARAMETER],
+                CONNECTOR_ID_PARAMETER: cid,
+                RENAMING_PARAMETER: self.__renamed_devices.get(device),
+                DISCONNECTED_PARAMETER: True
+            }
+        return data_to_save
+
     def __save_persistent_devices(self):
         with self.__lock:
             data_to_save = {}
+            data_to_save = self.__process_connected_devices(data_to_save)
+            data_to_save = self.__process_disconnected_devices(data_to_save)
 
-            for device in self.__connected_devices:
-                if self.__connected_devices[device][CONNECTOR_PARAMETER] is not None:
-                    data_to_save[device] = {
-                        CONNECTOR_NAME_PARAMETER: self.__connected_devices[device][CONNECTOR_PARAMETER].get_name(),
-                        DEVICE_TYPE_PARAMETER: self.__connected_devices[device][DEVICE_TYPE_PARAMETER],
-                        CONNECTOR_ID_PARAMETER: self.__connected_devices[device][CONNECTOR_PARAMETER].get_id(),
-                        RENAMING_PARAMETER: self.__renamed_devices.get(device),
-                        DISCONNECTED_PARAMETER: False
-                    }
-            for device in self.__disconnected_devices:
-                device_dict = self.__disconnected_devices[device]
-                if device_dict.get(CONNECTOR_PARAMETER) is not None:
-                    data_to_save[device] = {
-                        CONNECTOR_NAME_PARAMETER: self.__disconnected_devices[device][CONNECTOR_PARAMETER].get_name(),
-                        DEVICE_TYPE_PARAMETER: self.__disconnected_devices[device][DEVICE_TYPE_PARAMETER],
-                        CONNECTOR_ID_PARAMETER: self.__disconnected_devices[device][CONNECTOR_PARAMETER].get_id(),
-                        RENAMING_PARAMETER: self.__renamed_devices.get(device),
-                        DISCONNECTED_PARAMETER: True
-                    }
-                else:
-
-                    data_to_save[device] = {
-                        CONNECTOR_NAME_PARAMETER: self.__disconnected_devices[device][CONNECTOR_NAME_PARAMETER],
-                        DEVICE_TYPE_PARAMETER: self.__disconnected_devices[device][DEVICE_TYPE_PARAMETER],
-                        CONNECTOR_ID_PARAMETER: self.__disconnected_devices[device][CONNECTOR_ID_PARAMETER],
-                        RENAMING_PARAMETER: self.__renamed_devices.get(device),
-                        DISCONNECTED_PARAMETER: True
-                    }
             with open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w') as config_file:
                 try:
                     config_file.write(dumps(data_to_save, indent=2, sort_keys=True))
