@@ -460,7 +460,8 @@ class AsyncModbusConnector(Connector, Thread):
 
                 return results
         except Exception as e:
-            self.__log.exception('Failed to process server side rpc request: %s', e)
+            self.__log.error('Failed to process server side rpc request: %s', e)
+            self.__log.debug('Failed to process server side rpc request', exc_info=e)
             return {'error': '%r' % e, 'success': False}
 
     def __create_task(self, func, args, kwargs):
@@ -499,6 +500,10 @@ class AsyncModbusConnector(Connector, Thread):
 
             if rpc_method == 'set':
                 input_params_and_value_list = content['data']['params'].split(' ')
+                if len(input_params_and_value_list) == 1:
+                    if ";value" in input_params_and_value_list[0]:
+                        input_params_and_value_list = input_params_and_value_list[0].split(';value')
+                        input_params_and_value_list[1] = "value" + input_params_and_value_list[1]
                 if len(input_params_and_value_list) < 2:
                     raise ValueError('Invalid RPC request format. '
                                      'Expected RPC request format: '
