@@ -1032,12 +1032,13 @@ class MqttConnector(Connector, Thread):
                 self.__gateway.update_connector_config_file(self.name, self.config)
 
     def _init_send_current_converter_config(self):
-        for converter_obj in self.get_converters():
-            try:
-                self.__gateway.send_attributes(
-                    {self.name + ':' + converter_obj.__class__.__name__: converter_obj.config})
-            except AttributeError:
-                continue
+        if self.__gateway.tb_client.is_connected():
+            for converter_obj in self.get_converters():
+                try:
+                    self.__gateway.send_attributes(
+                        {self.name + ':' + converter_obj.__class__.__name__: converter_obj.config})
+                except AttributeError:
+                    continue
 
     def _send_current_converter_config(self, name, config):
         self.__gateway.send_attributes({name: config})
