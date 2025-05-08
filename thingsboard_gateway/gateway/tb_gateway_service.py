@@ -40,7 +40,7 @@ from thingsboard_gateway.gateway.constants import DEFAULT_CONNECTORS, CONNECTED_
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME, RENAMING_PARAMETER, CONNECTOR_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, \
     CONNECTOR_ID_PARAMETER, ATTRIBUTES_FOR_REQUEST, CONFIG_VERSION_PARAMETER, CONFIG_SECTION_PARAMETER, \
     DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED, ReportStrategy, \
-    REPORT_STRATEGY_PARAMETER, DEFAULT_STATISTIC, DEFAULT_DEVICE_FILTER, CUSTOM_RPC_DIR
+    REPORT_STRATEGY_PARAMETER, DEFAULT_STATISTIC, DEFAULT_DEVICE_FILTER, CUSTOM_RPC_DIR, DISCONNECTED_PARAMETER
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
@@ -171,6 +171,8 @@ class TBGatewayService:
         self.__connectors_not_found = False
         self._load_connectors()
         self.__connectors_init_start_success = True
+
+        self.__load_persistent_devices()
         try:
             self.__connect_with_connectors()
         except Exception as e:
@@ -314,6 +316,7 @@ class TBGatewayService:
         self.__renamed_devices = {}
         self.__saved_devices = {}
         self.__added_devices = {}
+        self.__disconnected_devices = {}
         self.__events = []
         self.__grpc_connectors = {}
         self._default_connectors = DEFAULT_CONNECTORS
@@ -584,13 +587,19 @@ class TBGatewayService:
                     self.available_connectors_by_id[current_connector].close()
                     if self.tb_client.is_connected():
                         for device in self.get_connector_devices(self.available_connectors_by_id[current_connector]):
-                            self.del_device(device)
+                            self.del_device(device, False)
                     if monotonic() - close_start > 5:
                         log.error("Connector %s close timeout", current_connector)
                         break
                 log.debug("Connector %s closed connection.", current_connector)
             except Exception as e:
                 log.error("Error while closing connector %s", current_connector, exc_info=e)
+        if self.tb_client.is_connected():
+            for device in list(self.__disconnected_devices.keys()):
+                self.del_device(device, False)
+        if self.tb_client.is_connected():
+            for device in list(self.__connected_devices.keys()):
+                self.del_device(device, False)
 
     def __stop_gateway(self):
         self.stopped = True
@@ -1015,7 +1024,7 @@ class TBGatewayService:
                                 connector.close()
                                 if self.tb_client.is_connected():
                                     for device in self.get_connector_devices(connector):
-                                        self.del_device(device)
+                                        self.del_device(device, False)
 
     def __init_and_start_regular_connector(self, _id, _type, name, configuration):
         connector = None
@@ -1809,12 +1818,15 @@ class TBGatewayService:
                 else:
                     log.error("Unexpected format of attribute response received: \"%s\"", content)
             try:
+                target_device_name = TBUtility.get_dict_key_by_value(self.__renamed_devices, device_name)
+                if target_device_name is None:
+                    target_device_name = device_name
                 if self.__sync_devices_shared_attributes_on_connect:
-                    if device_name in self.__devices_shared_attributes:
-                        self.__devices_shared_attributes[device_name].update(content['data'])  # noqa
+                    if target_device_name in self.__devices_shared_attributes:
+                        self.__devices_shared_attributes[target_device_name].update(content['data'])  # noqa
                     else:
-                        self.__devices_shared_attributes[device_name] = content['data']
-                if self.__connected_devices.get(device_name) is not None:
+                        self.__devices_shared_attributes[target_device_name] = content['data']
+                if self.__connected_devices.get(target_device_name) is not None:
                     device_connector = self.__connected_devices[device_name][CONNECTOR_PARAMETER]
                     device_connector.on_attributes_update(content)
             except Exception as e:
@@ -1858,6 +1870,11 @@ class TBGatewayService:
                                                                             'get_device_shared_attributes_keys'):
                 self.__sync_device_shared_attrs_queue.put((device_name, content['connector']))
             return True
+        if device_name in self.__renamed_devices:
+            if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'],
+                                                                            'get_device_shared_attributes_keys'):
+                self.__sync_device_shared_attrs_queue.put((self.__renamed_devices[device_name], content['connector']))
+            return True
 
         self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
         self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
@@ -1879,7 +1896,7 @@ class TBGatewayService:
                                                              "last_send_ts": monotonic()}
                         self.gw_send_attributes(device_name, device_details)
                 except Exception as e:
-                    global log
+                    # global log
                     log.error("Error on sending device details about the device %s", device_name, exc_info=e)
                     return False
 
@@ -1897,9 +1914,12 @@ class TBGatewayService:
                 self.stop_event.wait(0.1)
 
     def __process_sync_device_shared_attrs(self, device_name, connector):
+        target_device_name = device_name
+        if device_name in self.__renamed_devices:
+            target_device_name = self.__renamed_devices[device_name]
         shared_attributes = connector.get_device_shared_attributes_keys(device_name)
-        if device_name in self.__devices_shared_attributes:
-            device_shared_attrs = self.__devices_shared_attributes.get(device_name)
+        if target_device_name in self.__devices_shared_attributes:
+            device_shared_attrs = self.__devices_shared_attributes.get(target_device_name)
             shared_attributes_request = {
                 'device': device_name,
                 'data': device_shared_attrs
@@ -1910,7 +1930,7 @@ class TBGatewayService:
             if shared_attributes:
                 if shared_attributes == '*':
                     shared_attributes = []
-                self.tb_client.client.gw_request_shared_attributes(device_name,
+                self.tb_client.client.gw_request_shared_attributes(target_device_name,
                                                                    shared_attributes,
                                                                    (self._attribute_update_callback, shared_attributes))
 
@@ -1942,19 +1962,23 @@ class TBGatewayService:
         else:
             return Status.FAILURE
 
-    def del_device(self, device_name):
-        if device_name in self.__connected_devices:
+    def del_device(self, device_name, remove_device=True):
+        device = self.__connected_devices.pop(device_name, None)
+        if device is None:
+            device = self.__disconnected_devices.pop(device_name, None)
+        if device_name is not None:
             try:
                 self.tb_client.client.gw_disconnect_device(device_name)
             except Exception as e:
                 log.error("Error on disconnecting device %s", device_name, exc_info=e)
-
-            self.__connected_devices.pop(device_name, None)
+            if device_name in self.__renamed_devices:
+                self.__disconnected_devices[device_name] = device
             self.__saved_devices.pop(device_name, None)
             self.__added_devices.pop(device_name, None)
             self.__save_persistent_devices()
-        if device_name in self.__devices_shared_attributes:
-            self.__devices_shared_attributes.pop(device_name, None)
+        if remove_device:
+            if device_name in self.__devices_shared_attributes:
+                self.__devices_shared_attributes.pop(device_name, None)
 
     def get_report_strategy_service(self):
         return self._report_strategy_service
@@ -2014,41 +2038,41 @@ class TBGatewayService:
             log.debug("Loaded devices:\n %s", loaded_connected_devices)
             for device_name in loaded_connected_devices:
                 try:
-                    if isinstance(loaded_connected_devices[device_name], str):
+                    loaded_connected_device = loaded_connected_devices[device_name]
+                    if isinstance(loaded_connected_device, str):
                         open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w').close()
                         log.debug("Old connected_devices file, new file will be created")
                         return
                     device_data_to_save = {}
-                    if isinstance(loaded_connected_devices[device_name], list) \
-                            and self.available_connectors_by_name.get(loaded_connected_devices[device_name][0]):
+                    if isinstance(loaded_connected_device, list) \
+                            and self.available_connectors_by_name.get(loaded_connected_device[0]):
                         device_data_to_save = {
-                            CONNECTOR_PARAMETER: self.available_connectors_by_name[loaded_connected_devices[device_name][0]], # noqa
-                            DEVICE_TYPE_PARAMETER: loaded_connected_devices[device_name][1]}
-                        if len(loaded_connected_devices[device_name]) > 2 and device_name not in self.__renamed_devices:
-                            new_device_name = loaded_connected_devices[device_name][2]
+                            CONNECTOR_PARAMETER: self.available_connectors_by_name[loaded_connected_device[0]], # noqa
+                            DEVICE_TYPE_PARAMETER: loaded_connected_device[1]}
+                        if len(loaded_connected_device) > 2 and device_name not in self.__renamed_devices:
+                            new_device_name = loaded_connected_device[2]
                             self.__renamed_devices[device_name] = new_device_name
-                    elif isinstance(loaded_connected_devices[device_name], dict):
-                        connector = None
-                        if not self.available_connectors_by_id.get(
-                                loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER]):
-                            log.warning("Connector with id %s not found, trying to use connector by name!",
-                                        loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER])
-                            connector = self.available_connectors_by_name.get(
-                                loaded_connected_devices[device_name][CONNECTOR_NAME_PARAMETER])
-                        else:
-                            connector = self.available_connectors_by_id.get(
-                                loaded_connected_devices[device_name][CONNECTOR_ID_PARAMETER])
+                    elif isinstance(loaded_connected_device, dict):
+                        device_connector_id = loaded_connected_device[CONNECTOR_ID_PARAMETER]
+                        connector = self.available_connectors_by_id.get(device_connector_id)
                         if connector is None:
-                            log.warning("Connector with name %s not found! probably it is disabled, device %s will be "
+                            log.warning("Connector with id %s not found, trying to use connector by name!",
+                                        device_connector_id)
+                            connector = self.available_connectors_by_name.get(
+                                loaded_connected_device[CONNECTOR_NAME_PARAMETER])
+                        if loaded_connected_device.get(RENAMING_PARAMETER) is not None:
+                            new_device_name = loaded_connected_device[RENAMING_PARAMETER]
+                            self.__renamed_devices[device_name] = new_device_name
+                            self.__disconnected_devices[device_name] = loaded_connected_device
+                        if connector is None:
+                            log.debug("Connector with name %s not found! probably it is disabled, device %s will be "
                                         "removed from the saved devices",
-                                        loaded_connected_devices[device_name][CONNECTOR_NAME_PARAMETER], device_name)
+                                      loaded_connected_device[CONNECTOR_NAME_PARAMETER], device_name)
                             continue
                         device_data_to_save = {
                             CONNECTOR_PARAMETER: connector,
-                            DEVICE_TYPE_PARAMETER: loaded_connected_devices[device_name][DEVICE_TYPE_PARAMETER]}
-                        if loaded_connected_devices[device_name].get(RENAMING_PARAMETER) is not None:
-                            new_device_name = loaded_connected_devices[device_name][RENAMING_PARAMETER]
-                            self.__renamed_devices[device_name] = new_device_name
+                            DEVICE_TYPE_PARAMETER: loaded_connected_device[DEVICE_TYPE_PARAMETER]
+                        }
                     self.__connected_devices[device_name] = device_data_to_save
                     for device in list(self.__connected_devices.keys()):
                         if device in self.__connected_devices:
@@ -2059,7 +2083,6 @@ class TBGatewayService:
                 except Exception as e:
                     log.error("Error while loading connected devices from file with error: %s", e, exc_info=e)
                     continue
-            self.__save_persistent_devices()
         else:
             log.debug("No device found in connected device file.")
             self.__connected_devices = {} if self.__connected_devices is None else self.__connected_devices
@@ -2067,14 +2090,24 @@ class TBGatewayService:
     def __save_persistent_devices(self):
         with self.__lock:
             data_to_save = {}
+
             for device in self.__connected_devices:
                 if self.__connected_devices[device][CONNECTOR_PARAMETER] is not None:
                     data_to_save[device] = {
                         CONNECTOR_NAME_PARAMETER: self.__connected_devices[device][CONNECTOR_PARAMETER].get_name(),
                         DEVICE_TYPE_PARAMETER: self.__connected_devices[device][DEVICE_TYPE_PARAMETER],
                         CONNECTOR_ID_PARAMETER: self.__connected_devices[device][CONNECTOR_PARAMETER].get_id(),
-                        RENAMING_PARAMETER: self.__renamed_devices.get(device)
+                        RENAMING_PARAMETER: self.__renamed_devices.get(device),
+                        DISCONNECTED_PARAMETER: True
                     }
+            for device in self.__disconnected_devices:
+                data_to_save[device] = {
+                    CONNECTOR_NAME_PARAMETER: self.__disconnected_devices[device][CONNECTOR_NAME_PARAMETER],
+                    DEVICE_TYPE_PARAMETER: self.__disconnected_devices[device][DEVICE_TYPE_PARAMETER],
+                    CONNECTOR_ID_PARAMETER: self.__disconnected_devices[device][CONNECTOR_ID_PARAMETER],
+                    RENAMING_PARAMETER: self.__renamed_devices.get(device),
+                    DISCONNECTED_PARAMETER: False
+                }
             with open(self._config_dir + CONNECTED_DEVICES_FILENAME, 'w') as config_file:
                 try:
                     config_file.write(dumps(data_to_save, indent=2, sort_keys=True))
