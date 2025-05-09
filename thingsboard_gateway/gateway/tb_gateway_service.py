@@ -1657,7 +1657,7 @@ class TBGatewayService:
                 self.stop_event.wait(.1)
 
     def __rpc_gateway_processing(self, request_id, content):
-        log.info("Received RPC request to the gateway, id: %s, method: %s", str(request_id), content["method"])
+        log.debug("Received RPC request to the gateway, id: %s, method: %s", str(request_id), content["method"])
         arguments = content.get('params', {})
         method_to_call = content["method"].replace("gateway_", "")
 
