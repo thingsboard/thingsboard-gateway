@@ -12,8 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from asyncio import sleep
-from queue import Queue, Empty
+from asyncio import Queue, QueueEmpty, sleep
 from typing import List
 from bacpypes3.ipv4.app import NormalApplication as App
 from bacpypes3.local.device import DeviceObject
@@ -92,7 +91,7 @@ class Application(App):
                     future.set_exception(apdu)
                 else:
                     raise TypeError("apdu")
-            except Empty:
+            except QueueEmpty:
                 await sleep(0.1)
             except Exception as e:
                 self.__log.error("APDU confirmation error: %s", e)
@@ -111,11 +110,14 @@ class Application(App):
                 device_address, device_identifier, "objectList"
             )
             return object_list
-        except AbortPDU as err:
-            self.__log.warning(f"{device_identifier} objectList abort: {err}")
+        except AbortPDU as e:
+            self.__log.warning(f"{device_identifier} objectList abort: {e}")
             return []
-        except ErrorRejectAbortNack as err:
-            self.__log.warning(f"{device_identifier} objectList error/reject: {err}")
+        except ErrorRejectAbortNack as e:
+            self.__log.warning(f"{device_identifier} objectList error/reject: {e}")
+            return []
+        except Exception as e:
+            self.__log.error(f"{device_identifier} objectList error: {e}")
             return []
 
     async def get_object_identifiers_without_segmentation(
@@ -130,6 +132,9 @@ class Application(App):
                 "objectList",
                 array_index=0,
             )
+        except ErrorPDU:
+            self.__log.error('ErrorPDU reading object-list length')
+            return []
         except Exception as e:
             self.__log.error('%s error reading object-list length: %s', device_identifier, e)
             return []
@@ -143,6 +148,9 @@ class Application(App):
                     array_index=i + 1,
                 )
                 object_list.append(object_identifier)
+            except ErrorPDU:
+                self.__log.error('ErrorPDU reading object-list[%d]', i + 1)
+                continue
             except Exception as e:
                 self.__log.error('%s error reading object-list[%d]: %s', device_identifier, i + 1, e)
                 continue
@@ -163,15 +171,14 @@ class Application(App):
             object_list = await self.get_object_identifiers_without_segmentation(device_address, device_identifier)
 
         for object_id in object_list:
-            config = {}
-
-            object_class = vendor_info.get_object_class(object_id[0])
-
-            if object_class is None or object_class is DeviceObjectClass:
-                self.__log.warning(f"unknown object type: {object_id}, {object_class}")
-                continue
-
             try:
+                config = {}
+
+                object_class = vendor_info.get_object_class(object_id[0])
+                if object_class is None or object_class is DeviceObjectClass:
+                    self.__log.warning(f"unknown object type: {object_id}, {object_class}")
+                    continue
+
                 property_identifier = PropertyIdentifier('object-name')
 
                 property_class = object_class.get_property_type(property_identifier)
@@ -189,10 +196,17 @@ class Application(App):
                     'propertyId': 'presentValue',
                     'key': property_value,
                 }
+
+                result.append(config)
             except ErrorRejectAbortNack as err:
                 self.__log.warning(f"{object_id} object-name error: {err}")
-            else:
-                result.append(config)
+                continue
+            except ErrorPDU:
+                self.__log.warning(f"{object_id} object-name error: ErrorPDU")
+                continue
+            except Exception as e:
+                self.__log.error(f"{object_id} object-name error: {e}")
+                continue
 
         return result
 
