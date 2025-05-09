@@ -990,7 +990,7 @@ class MqttConnector(Connector, Thread):
     def _publish(self, request_topic, data_to_send, retain):
         result = False
         try:
-            if self._connected and self._client.is_connected():
+            if self._connected and self._client is not None and self._client.is_connected():
                 self._client.publish(request_topic, data_to_send, retain).wait_for_publish()
                 result = True
         except Exception as e:
@@ -1032,6 +1032,7 @@ class MqttConnector(Connector, Thread):
                 self.__gateway.update_connector_config_file(self.name, self.config)
 
     def _init_send_current_converter_config(self):
+      
         while not self.__gateway.tb_client is None:
 
 

@@ -23,8 +23,16 @@ class UplinkConverterConfig:
         self.report_strategy = self.__config.get('reportStrategy', {})
 
     def __get_objects_to_read(self):
-        attributes = [{**item, 'type': 'attributes'} for item in self.__config.get('attributes', [])]
-        timeseries = [{**item, 'type': 'telemetry'} for item in self.__config.get('timeseries', [])]
+        if self.__config.get('attributes', []) != '*':
+            attributes = [{**item, 'type': 'attributes'} for item in self.__config.get('attributes', [])]
+        else:
+            attributes = []
+
+        if self.__config.get('timeseries', []) != '*':
+            timeseries = [{**item, 'type': 'telemetry'} for item in self.__config.get('timeseries', [])]
+        else:
+            timeseries = []
+
         return attributes + timeseries
 
     @property
