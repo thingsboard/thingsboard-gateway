@@ -1032,6 +1032,7 @@ class MqttConnector(Connector, Thread):
                 self.__gateway.update_connector_config_file(self.name, self.config)
 
     def _init_send_current_converter_config(self):
+
         while not self.__gateway.tb_client is None:
 
 
