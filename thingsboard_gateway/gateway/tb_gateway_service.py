@@ -1859,17 +1859,21 @@ class TBGatewayService:
             return False
 
         device_type = device_type if device_type is not None else 'default'
-        if (device_name in self.__connected_devices or
-                TBUtility.get_dict_key_by_value(self.__renamed_devices, device_name) is not None):
-            if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'],
-                                                                            'get_device_shared_attributes_keys'):
-                self.__sync_device_shared_attrs_queue.put((device_name, content['connector']))
-            return True
+
         if device_name in self.__renamed_devices:
             if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'],
                                                                             'get_device_shared_attributes_keys'):
                 self.__sync_device_shared_attrs_queue.put((self.__renamed_devices[device_name], content['connector']))
+            self.__disconnected_devices.pop(device_name, None)
+            self.__save_persistent_devices()
             return True
+
+        if (device_name in self.__connected_devices or TBUtility.get_dict_key_by_value(self.__renamed_devices, device_name) is not None):
+            if self.__sync_devices_shared_attributes_on_connect and hasattr(content['connector'],'get_device_shared_attributes_keys'):
+                self.__sync_device_shared_attrs_queue.put((device_name, content['connector']))
+
+            return True
+
 
         self.__connected_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
         self.__saved_devices[device_name] = {**content, DEVICE_TYPE_PARAMETER: device_type}
