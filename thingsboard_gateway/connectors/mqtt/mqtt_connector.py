@@ -512,8 +512,6 @@ class MqttConnector(Connector, Thread):
             else:
                 self.__log.error("%s connection FAIL with unknown error!", self.get_name())
 
-        self._init_send_current_converter_config()
-
     def _on_disconnect(self, *args):
         self._connected = False
         self.__log.debug('"%s" was disconnected. %s', self.get_name(), str(args))
@@ -1004,41 +1002,6 @@ class MqttConnector(Connector, Thread):
     def get_converters(self):
         return [item[0] for _, item in self.__mapping_sub_topics.items()]
 
-    def update_converter_config(self, converter_name, config):
-        self.__log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
-                         config)
-        converters = self.get_converters()
-        for converter_class_obj in converters:
-            converter_class_name = converter_class_obj.__class__.__name__
-            converter_obj = converter_class_obj
-            if converter_class_name == converter_name:
-                converter_obj.config = config
-                self._send_current_converter_config(self.name + ':' + converter_name, config)
-                self.__log.info('Updated converter configuration for: %s with configuration %s',
-                                converter_name, converter_obj.config)
-                mapping_key = 'mapping' if self.config.get('mapping') else 'dataMapping'
-                for device_config in self.config[mapping_key]:
-                    try:
-                        if device_config['converter']['deviceInfo']['deviceNameExpression'] == config[
-                                'deviceNameExpression']:
-                            device_config['converter'].update(config)
-
-                        if device_config['converter']['deviceInfo']['deviceProfileExpression'] == config[
-                                'deviceProfileExpression']:
-                            device_config['converter'].update(config)
-                    except KeyError:
-                        continue
-
-                self.__gateway.update_connector_config_file(self.name, self.config)
-
-    def _init_send_current_converter_config(self):
-        if self.__gateway.tb_client is not None and self.__gateway.tb_client.is_connected():
-            for converter_obj in self.get_converters():
-                try:
-                    self.__gateway.send_attributes(
-                        {self.name + ':' + converter_obj.__class__.__name__: converter_obj.config})
-                except AttributeError:
-                    continue
 
     def _send_current_converter_config(self, name, config):
         self.__gateway.send_attributes({name: config})
