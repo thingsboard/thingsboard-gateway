@@ -1643,7 +1643,12 @@ class TBGatewayService:
                 if monotonic() - received_time > timeout:
                     log.error("RPC request %s timeout", request_id)
                     self.send_rpc_reply(content["device"], request_id, "{\"error\":\"Request timeout\", \"code\": 408}")
+                    continue
                 device = content.get("device")
+                original_name = TBUtility.get_dict_key_by_value(self.__renamed_devices, device)
+                if original_name is not None:
+                    content['device'] = original_name
+                    device = original_name
                 if device in self.get_devices():
                     connector = self.get_devices()[content['device']].get(CONNECTOR_PARAMETER)
                     if connector is not None:
@@ -1750,6 +1755,8 @@ class TBGatewayService:
     def __send_rpc_reply(self, device=None, req_id=None, content=None, success_sent=None, wait_for_publish=None,
                          quality_of_service=0, to_connector_rpc=False):
         try:
+            if device in self.__renamed_devices:
+                device = self.__renamed_devices[device]
             self.__rpc_reply_sent = True
             rpc_response = {"success": False}
             if success_sent is not None:
@@ -1822,7 +1829,8 @@ class TBGatewayService:
                     else:
                         self.__devices_shared_attributes[target_device_name] = content['data']
                 if self.__connected_devices.get(target_device_name) is not None:
-                    device_connector = self.__connected_devices[device_name][CONNECTOR_PARAMETER]
+                    device_connector = self.__connected_devices[target_device_name][CONNECTOR_PARAMETER]
+                    content['device'] = target_device_name
                     device_connector.on_attributes_update(content)
             except Exception as e:
                 log.error("Error while processing attributes update", exc_info=e)
@@ -1913,12 +1921,12 @@ class TBGatewayService:
                 self.stop_event.wait(0.1)
 
     def __process_sync_device_shared_attrs(self, device_name, connector):
-        target_device_name = device_name
-        if device_name in self.__renamed_devices:
-            target_device_name = self.__renamed_devices[device_name]
-        shared_attributes = connector.get_device_shared_attributes_keys(device_name)
-        if target_device_name in self.__devices_shared_attributes:
-            device_shared_attrs = self.__devices_shared_attributes.get(target_device_name)
+        target_device_name = TBUtility.get_dict_key_by_value(self.__renamed_devices, device_name)
+        if target_device_name is None:
+            target_device_name = device_name
+        shared_attributes = connector.get_device_shared_attributes_keys(target_device_name)
+        if device_name in self.__devices_shared_attributes:
+            device_shared_attrs = self.__devices_shared_attributes.get(device_name)
             shared_attributes_request = {
                 'device': device_name,
                 'data': device_shared_attrs
@@ -1929,7 +1937,7 @@ class TBGatewayService:
             if shared_attributes:
                 if shared_attributes == '*':
                     shared_attributes = []
-                self.tb_client.client.gw_request_shared_attributes(target_device_name,
+                self.tb_client.client.gw_request_shared_attributes(device_name,
                                                                    shared_attributes,
                                                                    (self._attribute_update_callback, shared_attributes))
 
@@ -1982,12 +1990,18 @@ class TBGatewayService:
     def get_report_strategy_service(self):
         return self._report_strategy_service
 
-    def get_devices(self, connector_id: str = None):
-        return self.__connected_devices if connector_id is None else {
-            device_name: self.__connected_devices[device_name][DEVICE_TYPE_PARAMETER] for device_name in
-            self.__connected_devices.keys() if
-            self.__connected_devices[device_name].get(CONNECTOR_PARAMETER) is not None and
-            self.__connected_devices[device_name][CONNECTOR_PARAMETER].get_id() == connector_id}
+    def get_devices(self, connector_id: str = None) -> dict[str, dict]:
+        if connector_id is None:
+            result = self.__connected_devices
+        else:
+            result = {
+                name: info[DEVICE_TYPE_PARAMETER]
+                for name, info in self.__connected_devices.items()
+                if info.get(CONNECTOR_PARAMETER) is not None
+                   and info[CONNECTOR_PARAMETER].get_id() == connector_id
+            }
+
+        return result
 
     def __process_async_device_actions(self):
         while not self.stopped:
