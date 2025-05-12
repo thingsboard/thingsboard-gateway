@@ -108,17 +108,20 @@ class SerialDevice(Thread):
         """
         self.__log.info("Device %s started", self.name)
         self.stopped = False
-        self.get_serial()
         while not self.__connector_stopped.is_set() and not self.stopped:
             try:
-                if not self.__rpc_in_progress.is_set():
-                    data_from_device = self.__read_data_from_serial()
-                    if data_from_device:
-                        try:
-                            converted_data = self.uplink_converter.convert(None, data_from_device)
-                            self.uplink_queue.put(converted_data)
-                        except Exception as e:
-                            self.__log.error("Failed to convert data from device %s: %s", self.name, e)
+                # Avoid excessive "Failed to connect to device" errors when __read_data_from_serial() calls get_serial()
+                if self.get_serial() is None or not self.__serial.is_open:
+                    sleep(3)
+                else:
+                    if not self.__rpc_in_progress.is_set():
+                        data_from_device = self.__read_data_from_serial()
+                        if data_from_device:
+                            try:
+                                converted_data = self.uplink_converter.convert(None, data_from_device)
+                                self.uplink_queue.put(converted_data)
+                            except Exception as e:
+                                self.__log.error("Failed to convert data from device %s: %s", self.name, e)
             except Exception as e:
                 self.__log.exception("Error in device %s: %s", self.name, e)
                 self.stop()
@@ -198,8 +201,9 @@ class SerialDevice(Thread):
         serial_conn = None
         try:
             serial_conn = self.get_serial()
-            previous_timeout = serial_conn.timeout
-            if serial_conn:
+            if serial_conn and serial_conn.is_open: 
+                # Ensure serial_conn is not None before accessing its timeout attribute
+                previous_timeout = serial_conn.timeout
                 while not data_from_device.endswith(self.delimiter.encode('utf-8')):
                     serial_conn.timeout = timeout
                     chunk = serial_conn.read(1)
@@ -226,12 +230,13 @@ class SerialDevice(Thread):
         Method to check if the device is connected.
         If the device is not connected, it tries to reconnect.
         """
-        if self.__serial is None or not self.__serial.isOpen():
+        if self.__serial is None or not self.__serial.is_open:
             if monotonic() - self.__previous_connect > 1:
                 self.__previous_connect = monotonic()
                 self.__log.info("Reconnecting to device %s", self.name)
                 self.get_serial()
-                return self.__serial is None or not self.__serial.isOpen()
+                # Only return True if the serial connection is successful
+                return self.__serial and self.__serial.is_open
         else:
             return True
 
