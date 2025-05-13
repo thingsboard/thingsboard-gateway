@@ -727,6 +727,7 @@ class TBGatewayService:
             log.debug("Device %s - was removed from __added_devices", deleted_device_name)
         if hasattr(self, "__duplicate_detector"):
             self.__duplicate_detector.delete_device(deleted_device_name)
+        self.__disconnected_devices.pop(deleted_device_name, None)
         self.__save_persistent_devices()
         self.__load_persistent_devices()
         return {'success': True}
