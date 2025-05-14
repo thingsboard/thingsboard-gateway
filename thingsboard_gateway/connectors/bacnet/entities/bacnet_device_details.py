@@ -13,14 +13,18 @@
 #     limitations under the License.
 
 from bacpypes3.apdu import IAmRequest
+from bacpypes3.basetypes import Segmentation
 
 
 class BACnetDeviceDetails:
     def __init__(self, i_am_request: IAmRequest):
         self.address = i_am_request.pduSource.__str__()
+        self.__identifier = i_am_request.iAmDeviceIdentifier
         self.__object_identifier = i_am_request.iAmDeviceIdentifier[1]
         self.__vendor_id = i_am_request.vendorID
         self.__object_name = i_am_request.deviceName
+        self.__max_apdu_length = i_am_request.maxAPDULengthAccepted
+        self.__segmentation = i_am_request.segmentationSupported
 
     def __str__(self):
         return (f"DeviceDetails(address={self.address}, objectIdentifier={self.__object_identifier}, "
@@ -31,6 +35,18 @@ class BACnetDeviceDetails:
         return self.__object_identifier
 
     @property
+    def identifier(self):
+        return self.__identifier
+
+    @property
+    def max_apdu_length(self):
+        return self.__max_apdu_length
+
+    @property
+    def vendor_id(self):
+        return self.__vendor_id
+
+    @property
     def as_dict(self):
         return {
             "address": self.address,
@@ -38,3 +54,9 @@ class BACnetDeviceDetails:
             "vendorId": self.__vendor_id,
             "objectName": self.__object_name
         }
+
+    def is_segmentation_supported(self):
+        return self.__segmentation in (Segmentation.segmentedBoth, Segmentation.segmentedTransmit)
+
+    def get_max_apdu_count(self) -> int:
+        return int(self.__max_apdu_length / 26)  # TODO: move 26 to constant

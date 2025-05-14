@@ -50,9 +50,10 @@ class Device:
         self.active = True
         self.__request_process_queue = queue
 
-        if not hasattr(i_am_request, 'deviceName'):
+        if Device.need_to_retrieve_device_name(self.__config) and i_am_request.deviceName is None:
             self.__log.warning('Device name is not provided in IAmRequest. Device Id will be used as "objectName')
             i_am_request.deviceName = str(i_am_request.iAmDeviceIdentifier[1])
+
         self.details = BACnetDeviceDetails(i_am_request)
         self.device_info = DeviceInfo(self.__config.get('deviceInfo', {}), self.details)
         self.uplink_converter_config = UplinkConverterConfig(self.__config, self.device_info, self.details)
@@ -71,6 +72,10 @@ class Device:
     @property
     def config(self):
         return self.__config
+
+    @property
+    def stopped(self):
+        return self.__stopped
 
     @config.setter
     def config(self, new_config):

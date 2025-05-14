@@ -17,11 +17,10 @@ from typing import List
 from bacpypes3.ipv4.app import NormalApplication as App
 from bacpypes3.local.device import DeviceObject
 from bacpypes3.pdu import Address
-from bacpypes3.primitivedata import ObjectIdentifier
-from bacpypes3.object import DeviceObject as DeviceObjectClass
-from bacpypes3.basetypes import PropertyIdentifier
+from bacpypes3.primitivedata import ObjectIdentifier, Unsigned
+from bacpypes3.basetypes import PropertyIdentifier, ReadAccessSpecification
 from bacpypes3.vendor import get_vendor_info
-from bacpypes3.basetypes import Segmentation
+from bacpypes3.constructeddata import SequenceOf, Array
 from bacpypes3.apdu import (
     APDU,
     AbortPDU,
@@ -29,7 +28,8 @@ from bacpypes3.apdu import (
     ErrorPDU,
     RejectPDU,
     SimpleAckPDU,
-    ErrorRejectAbortNack
+    ErrorRejectAbortNack,
+    ReadPropertyMultipleRequest
 )
 from bacpypes3.comm import bind
 
@@ -112,13 +112,14 @@ class Application(App):
             return object_list
         except AbortPDU as e:
             self.__log.warning(f"{device_identifier} objectList abort: {e}")
-            return []
         except ErrorRejectAbortNack as e:
             self.__log.warning(f"{device_identifier} objectList error/reject: {e}")
-            return []
+        except ErrorPDU:
+            self.__log.error('ErrorPDU reading object-list')
         except Exception as e:
             self.__log.error(f"{device_identifier} objectList error: {e}")
-            return []
+
+        return []
 
     async def get_object_identifiers_without_segmentation(
         self, device_address: Address, device_identifier: ObjectIdentifier
@@ -147,6 +148,10 @@ class Application(App):
                     "objectList",
                     array_index=i + 1,
                 )
+
+                if object_identifier[0].__str__() == 'device':
+                    continue
+
                 object_list.append(object_identifier)
             except ErrorPDU:
                 self.__log.error('ErrorPDU reading object-list[%d]', i + 1)
@@ -157,66 +162,190 @@ class Application(App):
 
         return object_list
 
-    async def get_device_objects(self, apdu):
-        result = []
+    async def read_multiple_objects(self, device, object_list):
+        read_access_specifications = self.__get_read_access_specifications(object_list, device.details.vendor_id)
+        if len(read_access_specifications) == 0:
+            self.__log.warning("no read access specifications")
+            return []
 
-        device_address = apdu.pduSource
-        device_identifier = apdu.iAmDeviceIdentifier
-        vendor_info = get_vendor_info(apdu.vendorID)
-        segmentation_supported = apdu.segmentationSupported
+        request = ReadPropertyMultipleRequest(
+            listOfReadAccessSpecs=SequenceOf(ReadAccessSpecification)(
+                read_access_specifications
+            ),
+            destination=Address(device.details.address),
+        )
 
-        if segmentation_supported in (Segmentation.segmentedBoth, Segmentation.segmentedTransmit):
-            object_list = await self.get_object_identifiers_with_segmentation(device_address, device_identifier)
+        try:
+            result = await self.request(request)
+        except AbortPDU as e:
+            self.__log.warning("%s objectList abort: %s", device.details.object_id, e)
+        except ErrorRejectAbortNack as e:
+            self.__log.warning("%s objectList error/reject: %s", device.details.object_id, e)
+        except ErrorPDU:
+            self.__log.error('ErrorPDU reading object-list')
+        except Exception as e:
+            self.__log.error("%s objectList error: %s", device.details.object_id, e)
+
+        return self.decode_tag_list(result, device.details.vendor_id)
+
+    async def get_device_objects(self, device):
+        if device.details.is_segmentation_supported():
+            object_list = await self.get_object_identifiers_with_segmentation(device.details.address,
+                                                                              device.details.identifier)
         else:
-            object_list = await self.get_object_identifiers_without_segmentation(device_address, device_identifier)
+            object_list = await self.get_object_identifiers_without_segmentation(device.details.address,
+                                                                                 device.details.identifier)
 
-        for object_id in object_list:
+        if len(object_list) == 0:
+            self.__log.warning("%s no objects to read", device.details.object_id)
+            return
+
+        object_list = [{'objectId': obj, 'propertyId': 'object-name'} for obj in object_list]
+
+        return ObjectIterator(self, device, object_list, self.read_multiple_objects)
+
+    async def get_device_values(self, device):
+        return ObjectIterator(self,
+                              device,
+                              device.uplink_converter_config.objects_to_read,
+                              self.read_multiple_objects)
+
+    def __get_read_access_specifications(self, object_list, vendor_id):
+        read_access_specifications = []
+        vendor_info = get_vendor_info(vendor_id)
+
+        for object in object_list:
             try:
-                config = {}
+                object_id = object['objectId']
+                if not isinstance(object_id, ObjectIdentifier):
+                    obj_str = f"{object['objectType']},{object_id}"
+                    object_id = ObjectIdentifier(obj_str)
 
                 object_class = vendor_info.get_object_class(object_id[0])
-                if object_class is None or object_class is DeviceObjectClass:
+                if object_class is None:
                     self.__log.warning(f"unknown object type: {object_id}, {object_class}")
                     continue
 
-                property_identifier = PropertyIdentifier('object-name')
+                property_identifier = PropertyIdentifier(object['propertyId'])
 
                 property_class = object_class.get_property_type(property_identifier)
                 if property_class is None:
                     self.__log.warning(f"{object_id} unknown property: {property_identifier}")
                     continue
 
-                property_value = await self.read_property(
-                    device_address, object_id, property_identifier
+                ras = ReadAccessSpecification(
+                    objectIdentifier=object_id,
+                    listOfPropertyReferences=[property_identifier],
                 )
 
-                config = {
-                    'objectType': object_id[0].__str__(),
-                    'objectId': object_id[-1],
-                    'propertyId': 'presentValue',
-                    'key': property_value,
-                }
-
-                result.append(config)
-            except ErrorRejectAbortNack as err:
-                self.__log.warning(f"{object_id} object-name error: {err}")
-                continue
-            except ErrorPDU:
-                self.__log.warning(f"{object_id} object-name error: ErrorPDU")
-                continue
+                read_access_specifications.append(ras)
             except Exception as e:
-                self.__log.error(f"{object_id} object-name error: {e}")
+                self.__log.error("failed to create read access specification for %s: %s", object_id, e)
                 continue
 
-        return result
+        return read_access_specifications
 
     async def get_device_name(self, apdu):
         try:
+            address = apdu.pduSource.__str__()
             device_name = await self.read_property(
-                Address(apdu.pduSource.__str__()),
+                Address(address),
                 Device.get_object_id({'objectType': 'device', 'objectId': apdu.iAmDeviceIdentifier[1]}), 'objectName')
 
             return device_name
+        except AbortPDU as e:
+            self.__log.warning("Reading %s device name abort: %s", device_name, e)
+        except ErrorRejectAbortNack as e:
+            self.__log.warning("Reading %s device name reject: %s", device_name, e)
+        except ErrorPDU:
+            self.__log.error('ErrorPDU reading %s device name', device_name)
         except Exception as e:
-            self.__log.warning(f"Failed to get device name: {e}")
-            return None
+            self.__log.warning("Failed to get %s device name: %s", device_name, e)
+
+        return None
+
+    def decode_tag_list(self, tag_list, vendor_id):
+        vendor_info = get_vendor_info(vendor_id)
+        result_list = []
+
+        for read_access_result in tag_list.listOfReadAccessResults:
+            # get the object class
+            object_identifier = read_access_result.objectIdentifier
+            object_class = vendor_info.get_object_class(object_identifier[0])
+
+            for read_access_result_element in read_access_result.listOfResults:
+                property_identifier = read_access_result_element.propertyIdentifier
+                property_array_index = read_access_result_element.propertyArrayIndex
+                read_result = read_access_result_element.readResult
+
+                if read_result.propertyAccessError:
+                    result_list.append(
+                        (
+                            object_identifier,
+                            property_identifier,
+                            property_array_index,
+                            read_result.propertyAccessError,
+                        )
+                    )
+                    continue
+
+                # get the datatype
+                property_type = object_class.get_property_type(property_identifier)
+                if property_type is None:
+                    # ReadWritePropertyMultipleServices._warning(
+                    #     "%r not supported", property_identifier
+                    # )
+                    result_list.append(
+                        (
+                            object_identifier,
+                            property_identifier,
+                            property_array_index,
+                            None,
+                        )
+                    )
+                    continue
+
+                if issubclass(property_type, Array):
+                    if property_array_index is None:
+                        pass
+                    elif property_array_index == 0:
+                        property_type = Unsigned
+                    else:
+                        property_type = property_type._subtype
+
+                property_value = read_result.propertyValue.cast_out(property_type)
+
+                result_list.append(
+                    (
+                        object_identifier,
+                        property_identifier,
+                        property_array_index,
+                        property_value,
+                    )
+                )
+
+        # return the list of results
+        return result_list
+
+
+class ObjectIterator:
+    def __init__(self, app, device, object_list, func):
+        self.app = app
+        self.items = object_list
+        self.device = device
+        self.limit = device.details.get_max_apdu_count()
+        self.func = func
+        self.index = 0
+
+    async def get_next(self):
+        if self.index >= len(self.items):
+            return [], True
+
+        end_index = self.index + self.limit
+        result = self.items[self.index:end_index]
+        self.index = end_index
+        finished = self.index >= len(self.items)
+
+        r = await self.func(self.device, result)
+
+        return r, finished
