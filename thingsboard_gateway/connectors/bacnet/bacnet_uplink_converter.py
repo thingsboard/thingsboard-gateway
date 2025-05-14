@@ -14,6 +14,7 @@
 
 
 from bacpypes3.basetypes import DateTime
+from bacpypes3.constructeddata import AnyAtomic
 
 from thingsboard_gateway.connectors.bacnet.bacnet_converter import AsyncBACnetConverter
 from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config import UplinkConverterConfig
@@ -53,6 +54,8 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                 try:
                     if isinstance(value, DateTime):
                         value = value.isoformat()
+                    if isinstance(value, AnyAtomic):
+                        value = value.get_value().__str__()
 
                     datapoint_key = TBUtility.convert_key_to_datapoint_key(config['key'],
                                                                            device_report_strategy,

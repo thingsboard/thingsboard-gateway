@@ -29,7 +29,8 @@ from bacpypes3.apdu import (
     RejectPDU,
     SimpleAckPDU,
     ErrorRejectAbortNack,
-    ReadPropertyMultipleRequest
+    ReadPropertyMultipleRequest,
+    ReadPropertyMultipleACK
 )
 from bacpypes3.comm import bind
 
@@ -186,7 +187,13 @@ class Application(App):
         except Exception as e:
             self.__log.error("%s objectList error: %s", device.details.object_id, e)
 
-        return self.decode_tag_list(result, device.details.vendor_id)
+        if not isinstance(result, ReadPropertyMultipleACK):
+            self.__log.error("Invalid response type: %s", type(result))
+            return []
+
+        decoded_result = self.decode_tag_list(result, device.details.vendor_id)
+
+        return decoded_result
 
     async def get_device_objects(self, device):
         if device.details.is_segmentation_supported():
@@ -274,55 +281,59 @@ class Application(App):
             object_class = vendor_info.get_object_class(object_identifier[0])
 
             for read_access_result_element in read_access_result.listOfResults:
-                property_identifier = read_access_result_element.propertyIdentifier
-                property_array_index = read_access_result_element.propertyArrayIndex
-                read_result = read_access_result_element.readResult
+                try:
+                    property_identifier = read_access_result_element.propertyIdentifier
+                    property_array_index = read_access_result_element.propertyArrayIndex
+                    read_result = read_access_result_element.readResult
 
-                if read_result.propertyAccessError:
+                    if read_result.propertyAccessError:
+                        result_list.append(
+                            (
+                                object_identifier,
+                                property_identifier,
+                                property_array_index,
+                                read_result.propertyAccessError,
+                            )
+                        )
+                        continue
+
+                    # get the datatype
+                    property_type = object_class.get_property_type(property_identifier)
+                    if property_type is None:
+                        # ReadWritePropertyMultipleServices._warning(
+                        #     "%r not supported", property_identifier
+                        # )
+                        result_list.append(
+                            (
+                                object_identifier,
+                                property_identifier,
+                                property_array_index,
+                                None,
+                            )
+                        )
+                        continue
+
+                    if issubclass(property_type, Array):
+                        if property_array_index is None:
+                            pass
+                        elif property_array_index == 0:
+                            property_type = Unsigned
+                        else:
+                            property_type = property_type._subtype
+
+                    property_value = read_result.propertyValue.cast_out(property_type)
+
                     result_list.append(
                         (
                             object_identifier,
                             property_identifier,
                             property_array_index,
-                            read_result.propertyAccessError,
+                            property_value,
                         )
                     )
+                except Exception as e:
+                    self.__log.error('failed to decode read access result: %s', e)
                     continue
-
-                # get the datatype
-                property_type = object_class.get_property_type(property_identifier)
-                if property_type is None:
-                    # ReadWritePropertyMultipleServices._warning(
-                    #     "%r not supported", property_identifier
-                    # )
-                    result_list.append(
-                        (
-                            object_identifier,
-                            property_identifier,
-                            property_array_index,
-                            None,
-                        )
-                    )
-                    continue
-
-                if issubclass(property_type, Array):
-                    if property_array_index is None:
-                        pass
-                    elif property_array_index == 0:
-                        property_type = Unsigned
-                    else:
-                        property_type = property_type._subtype
-
-                property_value = read_result.propertyValue.cast_out(property_type)
-
-                result_list.append(
-                    (
-                        object_identifier,
-                        property_identifier,
-                        property_array_index,
-                        property_value,
-                    )
-                )
 
         # return the list of results
         return result_list

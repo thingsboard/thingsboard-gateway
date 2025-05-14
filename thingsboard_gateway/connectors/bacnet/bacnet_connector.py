@@ -87,9 +87,16 @@ class AsyncBACnetConnector(Thread, Connector):
         except RuntimeError:
             self.loop = asyncio.get_event_loop()
 
+        self.loop.set_exception_handler(self.exception_handler)
+
         self.__devices = Devices()
-        self.__devices_discover_period = 30
+        self.__devices_discover_period = self.__config.get('devicesDiscoverPeriodSeconds', 30)
         self.__previous_discover_time = 0
+
+    def exception_handler(self, _, context):
+        if context.get('exception') is not None:
+            if isinstance(context['exception'], RuntimeError):
+                pass
 
     def open(self):
         self.start()
@@ -108,7 +115,6 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__application = Application(DeviceObjectConfig(
             self.__config['application']), self.__handle_indication, self.__log)
 
-        self.__devices_discover_period = self.__config.get('devicesDiscoverPeriodSeconds', 30)
         await self.__discover_devices()
         await asyncio.gather(self.__main_loop(),
                              self.__convert_data(),
