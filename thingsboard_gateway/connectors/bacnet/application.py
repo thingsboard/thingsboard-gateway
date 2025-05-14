@@ -164,6 +164,10 @@ class Application(App):
         return object_list
 
     async def read_multiple_objects(self, device, object_list):
+        if len(object_list) == 0:
+            self.__log.warning("%s no objects to read", device.details.object_id)
+            return []
+
         read_access_specifications = self.__get_read_access_specifications(object_list, device.details.vendor_id)
         if len(read_access_specifications) == 0:
             self.__log.warning("no read access specifications")
@@ -359,4 +363,4 @@ class ObjectIterator:
 
         r = await self.func(self.device, result)
 
-        return r, finished
+        return r, result, finished

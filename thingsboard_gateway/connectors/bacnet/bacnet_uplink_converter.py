@@ -30,50 +30,52 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
         self.__config = config
 
     def convert(self, data):
-        if len(data):
-            StatisticsService.count_connector_message(self.__log.name, 'convertersMsgProcessed')
-            converted_data = ConvertedData(device_name=self.__config.device_name, device_type=self.__config.device_type)
-            converted_data_append_methods = {
-                'attributes': converted_data.add_to_attributes,
-                'telemetry': converted_data.add_to_telemetry
-            }
+        StatisticsService.count_connector_message(self.__log.name, 'convertersMsgProcessed')
+        converted_data = ConvertedData(device_name=self.__config.device_name, device_type=self.__config.device_type)
+        converted_data_append_methods = {
+            'attributes': converted_data.add_to_attributes,
+            'telemetry': converted_data.add_to_telemetry
+        }
 
-            device_report_strategy = self._get_device_report_strategy(self.__config.report_strategy,
-                                                                      self.__config.device_name)
+        device_report_strategy = self._get_device_report_strategy(self.__config.report_strategy,
+                                                                  self.__config.device_name)
 
-            for config, value in zip(self.__config.objects_to_read, data):
-                if isinstance(value, Exception):
-                    self.__log.error("Error reading object for key \"%s\", objectId: \"%s\", and propertyId: \"%s\". Error: %s",
-                                     config.get('key'),
-                                     config.get('objectId',
-                                                config.get("objectType", "None") + ":" + str(config.get("objectId", "None"))
-                                                ),
-                                     config.get('propertyId'),
-                                     value)
-                    continue
-                try:
-                    if isinstance(value, DateTime):
-                        value = value.isoformat()
-                    if isinstance(value, AnyAtomic):
-                        value = value.get_value().__str__()
+        for config, value in data:
+            if isinstance(value, Exception):
+                self.__log.error("Error reading object for key \"%s\", objectId: \"%s\", and propertyId: \"%s\". Error: %s",
+                                 config.get('key'),
+                                 config.get('objectId',
+                                            config.get(
+                                                "objectType", "None") + ":" + str(config.get("objectId", "None"))
+                                            ),
+                                 config.get('propertyId'),
+                                 value)
+                continue
+            try:
+                if isinstance(value, DateTime):
+                    value = value.isoformat()
+                if isinstance(value, AnyAtomic):
+                    value = value.get_value().__str__()
 
-                    datapoint_key = TBUtility.convert_key_to_datapoint_key(config['key'],
-                                                                           device_report_strategy,
-                                                                           config,
-                                                                           self.__log)
-                    converted_data_append_methods[config['type']]({datapoint_key: round(value, 2) if isinstance(value, float) else value})
-                except Exception as e:
-                    self.__log.error("Error converting datapoint with key %s: %s", config.get('key'), e)
+                datapoint_key = TBUtility.convert_key_to_datapoint_key(config['key'],
+                                                                       device_report_strategy,
+                                                                       config,
+                                                                       self.__log)
+                converted_data_append_methods[config['type']](
+                    {datapoint_key: round(value, 2) if isinstance(value, float) else value})
+            except Exception as e:
+                self.__log.error(
+                    "Error converting datapoint with key %s: %s", config.get('key'), e)
 
-            StatisticsService.count_connector_message(self.__log.name,
-                                                      'convertersAttrProduced',
-                                                      count=converted_data.attributes_datapoints_count)
-            StatisticsService.count_connector_message(self.__log.name,
-                                                      'convertersTsProduced',
-                                                      count=converted_data.telemetry_datapoints_count)
+        StatisticsService.count_connector_message(self.__log.name,
+                                                  'convertersAttrProduced',
+                                                  count=converted_data.attributes_datapoints_count)
+        StatisticsService.count_connector_message(self.__log.name,
+                                                  'convertersTsProduced',
+                                                  count=converted_data.telemetry_datapoints_count)
 
-            self.__log.debug("Converted data: %s", converted_data)
-            return converted_data
+        self.__log.debug("Converted data: %s", converted_data)
+        return converted_data
 
     def _get_device_report_strategy(self, report_strategy, device_name):
         try:

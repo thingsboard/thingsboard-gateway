@@ -195,7 +195,7 @@ class AsyncBACnetConnector(Thread, Connector):
             if iter is not None:
                 all_done = False
                 while not self.__stopped and not all_done:
-                    objects, all_done = await iter.get_next()
+                    objects, _, all_done = await iter.get_next()
                     config = self.from_object_to_config(objects)
                     for section in discover_for:
                         if isinstance(new_config[section], str):
@@ -270,10 +270,10 @@ class AsyncBACnetConnector(Thread, Connector):
         if iter is not None:
             all_done = False
             while not self.__stopped and not all_done:
-                results, all_done = await iter.get_next()
+                results, config, all_done = await iter.get_next()
                 if len(results) > 0:
                     self.__log.trace('%s reading results: %s', device, results)
-                    self.__data_to_convert_queue.put_nowait((device, [result[-1] for result in results]))
+                    self.__data_to_convert_queue.put_nowait((device, zip(config, [result[-1] for result in results])))
 
     async def __read_property(self, address, object_id, property_id):
         try:
@@ -298,10 +298,6 @@ class AsyncBACnetConnector(Thread, Connector):
             try:
                 device, values = self.__data_to_convert_queue.get_nowait()
                 self.__log.trace('%s data to convert: %s', device, values)
-
-                if len(values) == 0:
-                    self.__log.warning('No values to convert for device %s', device)
-                    continue
 
                 converted_data = device.uplink_converter.convert(values)
                 self.__data_to_save_queue.put_nowait((device, converted_data))
