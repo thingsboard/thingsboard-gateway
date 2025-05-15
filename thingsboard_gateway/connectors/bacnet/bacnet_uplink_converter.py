@@ -15,6 +15,7 @@
 
 from bacpypes3.basetypes import DateTime
 from bacpypes3.constructeddata import AnyAtomic
+from bacpypes3.basetypes import ErrorType
 
 from thingsboard_gateway.connectors.bacnet.bacnet_converter import AsyncBACnetConverter
 from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config import UplinkConverterConfig
@@ -34,14 +35,14 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
         converted_data = ConvertedData(device_name=self.__config.device_name, device_type=self.__config.device_type)
         converted_data_append_methods = {
             'attributes': converted_data.add_to_attributes,
-            'telemetry': converted_data.add_to_telemetry
+            'timeseries': converted_data.add_to_telemetry
         }
 
         device_report_strategy = self._get_device_report_strategy(self.__config.report_strategy,
                                                                   self.__config.device_name)
 
         for config, value in data:
-            if isinstance(value, Exception):
+            if isinstance(value, Exception) or isinstance(value, ErrorType):
                 self.__log.error("Error reading object for key \"%s\", objectId: \"%s\", and propertyId: \"%s\". Error: %s",
                                  config.get('key'),
                                  config.get('objectId',

@@ -277,7 +277,9 @@ class AsyncBACnetConnector(Thread, Connector):
                     self.__log.trace('%s reading results: %s', device, results)
                     self.__data_to_convert_queue.put_nowait((device, zip(config, [result[-1] for result in results])))
 
-        if device.reading_time == 0:
+        reading_ended = monotonic()
+
+        if device.reading_time == 0 or reading_ended - reading_started > device.reading_time:
             device.reading_time = monotonic() - reading_started
 
     async def __read_property(self, address, object_id, property_id):
