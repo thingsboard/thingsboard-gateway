@@ -266,6 +266,8 @@ class AsyncBACnetConnector(Thread, Connector):
                 self.__log.error('Error processing device requests: %s', e)
 
     async def __read_multiple_properties(self, device):
+        reading_started = monotonic()
+
         iter = await self.__application.get_device_values(device)
         if iter is not None:
             all_done = False
@@ -274,6 +276,9 @@ class AsyncBACnetConnector(Thread, Connector):
                 if len(results) > 0:
                     self.__log.trace('%s reading results: %s', device, results)
                     self.__data_to_convert_queue.put_nowait((device, zip(config, [result[-1] for result in results])))
+
+        if device.reading_time == 0:
+            device.reading_time = monotonic() - reading_started
 
     async def __read_property(self, address, object_id, property_id):
         try:
