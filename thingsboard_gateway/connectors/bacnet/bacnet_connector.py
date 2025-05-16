@@ -285,6 +285,11 @@ class AsyncBACnetConnector(Thread, Connector):
 
         if current_reading_time > device.poll_period:
             device.poll_period = current_reading_time
+        elif current_reading_time < device.poll_period:
+            if current_reading_time < device.original_poll_period:
+                device.poll_period = device.original_poll_period
+            else:
+                device.poll_period = device.original_poll_period
 
     async def __read_property(self, address, object_id, property_id):
         try:

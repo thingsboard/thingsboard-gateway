@@ -60,7 +60,8 @@ class Device:
 
         self.name = self.device_info.device_name
 
-        self.__poll_period = self.__config.get('pollPeriod', 10000) / 1000
+        self.__config_poll_period = self.__config.get('pollPeriod', 10000) / 1000
+        self.__poll_period = self.__config_poll_period
         self.attributes_updates = self.__config.get('attributeUpdates', [])
         self.server_side_rpc = self.__config.get('serverSideRpc', [])
 
@@ -76,6 +77,10 @@ class Device:
     @property
     def stopped(self):
         return self.__stopped
+
+    @property
+    def original_poll_period(self):
+        return self.__config_poll_period
 
     @property
     def poll_period(self):
