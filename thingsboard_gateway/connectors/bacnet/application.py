@@ -180,6 +180,7 @@ class Application(App):
             destination=Address(device.details.address),
         )
 
+        result = None
         try:
             result = await self.request(request)
         except AbortPDU as e:

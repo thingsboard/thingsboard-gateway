@@ -62,8 +62,7 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                                                                        device_report_strategy,
                                                                        config,
                                                                        self.__log)
-                converted_data_append_methods[config['type']](
-                    {datapoint_key: round(value, 2) if isinstance(value, float) else value})
+                converted_data_append_methods[config['type']]({datapoint_key: round(value, 2) if isinstance(value, float) else value})  # noqa
             except Exception as e:
                 self.__log.error(
                     "Error converting datapoint with key %s: %s", config.get('key'), e)

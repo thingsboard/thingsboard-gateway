@@ -95,8 +95,11 @@ class AsyncBACnetConnector(Thread, Connector):
 
     def exception_handler(self, _, context):
         if context.get('exception') is not None:
-            if str(context['exception']) == 'invalid state transition from COMPLETED to AWAIT_CONFIRMATION':
+            if str(context['exception']) == 'invalid state transition from COMPLETED to AWAIT_CONFIRMATION' \
+                    or str(context['exception']) == 'no more packet data':
                 pass
+            else:
+                self.__log.exception('handled exception', exc_info=context['exception'])
 
     def open(self):
         self.start()
@@ -289,7 +292,7 @@ class AsyncBACnetConnector(Thread, Connector):
             if current_reading_time < device.original_poll_period:
                 device.poll_period = device.original_poll_period
             else:
-                device.poll_period = device.original_poll_period
+                device.poll_period = current_reading_time
 
     async def __read_property(self, address, object_id, property_id):
         try:
