@@ -95,7 +95,7 @@ class AsyncBACnetConnector(Thread, Connector):
 
     def exception_handler(self, _, context):
         if context.get('exception') is not None:
-            if isinstance(context['exception'], RuntimeError):
+            if str(context['exception']) == 'invalid state transition from COMPLETED to AWAIT_CONFIRMATION':
                 pass
 
     def open(self):
@@ -196,7 +196,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 all_done = False
                 while not self.__stopped and not all_done:
                     objects, _, all_done = await iter.get_next()
-                    config = self.from_object_to_config(objects)
+                    config = self.from_object_to_config(device, objects)
                     for section in discover_for:
                         if isinstance(new_config[section], str):
                             new_config[section] = []
@@ -209,7 +209,7 @@ class AsyncBACnetConnector(Thread, Connector):
                              device.details.address,
                              monotonic() - discovering_started)
 
-    def from_object_to_config(self, object_list):
+    def from_object_to_config(self, device, object_list):
         config = []
         for obj in object_list:
             try:
@@ -221,7 +221,7 @@ class AsyncBACnetConnector(Thread, Connector):
                     'key': key
                 })
             except Exception as e:
-                self.__log.error('Error converting object to config: %s', e)
+                self.__log.error('Error converting object to config for device %s: %s', device, e)
                 continue
 
         return config
@@ -230,6 +230,9 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__previous_discover_time = monotonic()
         self.__log.info('Discovering devices...')
         for device_config in self.__config.get('devices', []):
+            if self.__stopped:
+                break
+
             try:
                 DeviceObjectConfig.update_address_in_config_util(device_config)
 
@@ -278,9 +281,10 @@ class AsyncBACnetConnector(Thread, Connector):
                     self.__data_to_convert_queue.put_nowait((device, zip(config, [result[-1] for result in results])))
 
         reading_ended = monotonic()
+        current_reading_time = reading_ended - reading_started
 
-        if device.reading_time == 0 or reading_ended - reading_started > device.reading_time:
-            device.reading_time = monotonic() - reading_started
+        if current_reading_time > device.poll_period:
+            device.poll_period = current_reading_time
 
     async def __read_property(self, address, object_id, property_id):
         try:

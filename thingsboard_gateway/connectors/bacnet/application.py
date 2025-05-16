@@ -280,7 +280,6 @@ class Application(App):
         result_list = []
 
         for read_access_result in tag_list.listOfReadAccessResults:
-            # get the object class
             object_identifier = read_access_result.objectIdentifier
             object_class = vendor_info.get_object_class(object_identifier[0])
 
@@ -301,12 +300,10 @@ class Application(App):
                         )
                         continue
 
-                    # get the datatype
                     property_type = object_class.get_property_type(property_identifier)
                     if property_type is None:
-                        # ReadWritePropertyMultipleServices._warning(
-                        #     "%r not supported", property_identifier
-                        # )
+                        self.__log.warning("%r not supported", property_identifier)
+
                         result_list.append(
                             (
                                 object_identifier,
@@ -339,7 +336,6 @@ class Application(App):
                     self.__log.error('failed to decode read access result: %s', e)
                     continue
 
-        # return the list of results
         return result_list
 
 

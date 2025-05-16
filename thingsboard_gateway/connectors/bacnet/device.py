@@ -61,7 +61,6 @@ class Device:
         self.name = self.device_info.device_name
 
         self.__poll_period = self.__config.get('pollPeriod', 10000) / 1000
-        self.__reading_time = 0
         self.attributes_updates = self.__config.get('attributeUpdates', [])
         self.server_side_rpc = self.__config.get('serverSideRpc', [])
 
@@ -79,13 +78,12 @@ class Device:
         return self.__stopped
 
     @property
-    def reading_time(self):
-        return self.__reading_time
+    def poll_period(self):
+        return self.__poll_period
 
-    @reading_time.setter
-    def reading_time(self, new_reading_time):
-        self.__reading_time = new_reading_time
-        self.__poll_period += new_reading_time
+    @poll_period.setter
+    def poll_period(self, new_poll_period):
+        self.__poll_period = new_poll_period
 
     @config.setter
     def config(self, new_config):

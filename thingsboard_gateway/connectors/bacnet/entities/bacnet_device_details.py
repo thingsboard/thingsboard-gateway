@@ -15,6 +15,8 @@
 from bacpypes3.apdu import IAmRequest
 from bacpypes3.basetypes import Segmentation
 
+MAX_REQUEST_SIZE = 26
+
 
 class BACnetDeviceDetails:
     def __init__(self, i_am_request: IAmRequest):
@@ -59,4 +61,4 @@ class BACnetDeviceDetails:
         return self.__segmentation in (Segmentation.segmentedBoth, Segmentation.segmentedTransmit)
 
     def get_max_apdu_count(self) -> int:
-        return int(self.__max_apdu_length / 26)  # TODO: move 26 to constant
+        return int(self.__max_apdu_length / MAX_REQUEST_SIZE)

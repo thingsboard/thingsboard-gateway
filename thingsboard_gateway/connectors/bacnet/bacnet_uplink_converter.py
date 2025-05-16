@@ -56,7 +56,7 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                 if isinstance(value, DateTime):
                     value = value.isoformat()
                 if isinstance(value, AnyAtomic):
-                    value = value.get_value().__str__()
+                    value = str(value.get_value())
 
                 datapoint_key = TBUtility.convert_key_to_datapoint_key(config['key'],
                                                                        device_report_strategy,
