@@ -50,16 +50,18 @@ class Device:
         self.active = True
         self.__request_process_queue = queue
 
-        if not hasattr(i_am_request, 'deviceName'):
+        if Device.need_to_retrieve_device_name(self.__config) and i_am_request.deviceName is None:
             self.__log.warning('Device name is not provided in IAmRequest. Device Id will be used as "objectName')
             i_am_request.deviceName = str(i_am_request.iAmDeviceIdentifier[1])
+
         self.details = BACnetDeviceDetails(i_am_request)
         self.device_info = DeviceInfo(self.__config.get('deviceInfo', {}), self.details)
         self.uplink_converter_config = UplinkConverterConfig(self.__config, self.device_info, self.details)
 
         self.name = self.device_info.device_name
 
-        self.__poll_period = self.__config.get('pollPeriod', 10000) / 1000
+        self.__config_poll_period = self.__config.get('pollPeriod', 10000) / 1000
+        self.__poll_period = self.__config_poll_period
         self.attributes_updates = self.__config.get('attributeUpdates', [])
         self.server_side_rpc = self.__config.get('serverSideRpc', [])
 
@@ -71,6 +73,22 @@ class Device:
     @property
     def config(self):
         return self.__config
+
+    @property
+    def stopped(self):
+        return self.__stopped
+
+    @property
+    def original_poll_period(self):
+        return self.__config_poll_period
+
+    @property
+    def poll_period(self):
+        return self.__poll_period
+
+    @poll_period.setter
+    def poll_period(self, new_poll_period):
+        self.__poll_period = new_poll_period
 
     @config.setter
     def config(self, new_config):
@@ -105,7 +123,7 @@ class Device:
                 self.__request_process_queue.put_nowait(self)
                 next_poll_time = current_time + self.__poll_period
 
-            sleep_time = max(0.0, next_poll_time - monotonic())
+            sleep_time = max(0.0, next_poll_time - current_time)
 
             await sleep(sleep_time)
 

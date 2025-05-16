@@ -87,9 +87,19 @@ class AsyncBACnetConnector(Thread, Connector):
         except RuntimeError:
             self.loop = asyncio.get_event_loop()
 
+        self.loop.set_exception_handler(self.exception_handler)
+
         self.__devices = Devices()
-        self.__devices_discover_period = 30
+        self.__devices_discover_period = self.__config.get('devicesDiscoverPeriodSeconds', 30)
         self.__previous_discover_time = 0
+
+    def exception_handler(self, _, context):
+        if context.get('exception') is not None:
+            if str(context['exception']) == 'invalid state transition from COMPLETED to AWAIT_CONFIRMATION' \
+                    or str(context['exception']) == 'no more packet data':
+                pass
+            else:
+                self.__log.exception('handled exception', exc_info=context['exception'])
 
     def open(self):
         self.start()
@@ -108,7 +118,6 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__application = Application(DeviceObjectConfig(
             self.__config['application']), self.__handle_indication, self.__log)
 
-        self.__devices_discover_period = self.__config.get('devicesDiscoverPeriodSeconds', 30)
         await self.__discover_devices()
         await asyncio.gather(self.__main_loop(),
                              self.__convert_data(),
@@ -152,6 +161,7 @@ class AsyncBACnetConnector(Thread, Connector):
 
     async def __add_device(self, apdu, device_config):
         if Device.need_to_retrieve_device_name(device_config):
+            apdu.deviceName = None
             device_name = await self.__application.get_device_name(apdu)
 
             if device_name is not None:
@@ -169,34 +179,63 @@ class AsyncBACnetConnector(Thread, Connector):
                                   device_type=device.device_info.device_type)
         self.__log.info('Device %s connected to platform', device.device_info.device_name)
 
-        self.__log.debug('Checking device %s configuration...', device.device_info.device_name)
-        new_device_config = await self.__check_and_update_device_config(apdu, device_config)
-        device.config = new_device_config
-        self.__log.debug('Checked device %s configuration.', device.device_info.device_name)
-
         self.loop.create_task(device.run())
         self.__log.debug('Device %s started', device)
 
-    async def __check_and_update_device_config(self, apdu, device_config):
+        self.__log.debug('Checking device %s configuration...', device.device_info.device_name)
+        await self.__check_and_update_device_config(device, device_config)
+        self.__log.debug('Checked device %s configuration.', device.device_info.device_name)
+
+    async def __check_and_update_device_config(self, device, device_config):
         new_config = deepcopy(device_config)
 
         discover_for = Device.is_discovery_config(device_config)
         if len(discover_for):
-            self.__log.debug('Discovering %s device objects...', apdu.pduSource.__str__())
+            self.__log.debug('Discovering %s device objects...', device.details.address)
             discovering_started = monotonic()
-            config = await self.__application.get_device_objects(apdu)
-            self.__log.debug('Device %s objects discovered, discovering took (sec): %r',
-                             apdu.pduSource.__str__(),
-                             monotonic() - discovering_started)
-            for section in discover_for:
-                new_config[section] = config
 
-        return new_config
+            iter = await self.__application.get_device_objects(device)
+            if iter is not None:
+                all_done = False
+                while not self.__stopped and not all_done:
+                    objects, _, all_done = await iter.get_next()
+                    config = self.from_object_to_config(device, objects)
+                    for section in discover_for:
+                        if isinstance(new_config[section], str):
+                            new_config[section] = []
+
+                        new_config[section].extend(config)
+
+                    device.config = new_config
+
+            self.__log.debug('Device %s objects discovered, discovering took (sec): %r',
+                             device.details.address,
+                             monotonic() - discovering_started)
+
+    def from_object_to_config(self, device, object_list):
+        config = []
+        for obj in object_list:
+            try:
+                obj_id, _, _, key = obj
+                config.append({
+                    'objectType': obj_id[0].__str__(),
+                    'objectId': obj_id[-1],
+                    'propertyId': 'presentValue',
+                    'key': key
+                })
+            except Exception as e:
+                self.__log.error('Error converting object to config for device %s: %s', device, e)
+                continue
+
+        return config
 
     async def __discover_devices(self):
         self.__previous_discover_time = monotonic()
         self.__log.info('Discovering devices...')
         for device_config in self.__config.get('devices', []):
+            if self.__stopped:
+                break
+
             try:
                 DeviceObjectConfig.update_address_in_config_util(device_config)
 
@@ -218,24 +257,42 @@ class AsyncBACnetConnector(Thread, Connector):
             except Exception as e:
                 self.__log.error('Error in main loop during discovering devices: %s', e)
                 await asyncio.sleep(1)
+
             try:
                 device: Device = self.__process_device_queue.get_nowait()
+                if device.stopped:
+                    self.__log.trace('Device %s stopped', device)
+                    continue
 
-                results = []
-                for object_to_read in device.uplink_converter_config.objects_to_read:
-                    result = await self.__read_property(Address(device.details.address),
-                                                        Device.get_object_id(object_to_read),
-                                                        object_to_read['propertyId'])
-                    results.append(result)
-
+                self.loop.create_task(self.__read_multiple_properties(device))
                 # TODO: Add handling for device activity/inactivity
-
-                self.__log.trace('%s reading results: %s', device, results)
-                self.__data_to_convert_queue.put_nowait((device, results))
             except QueueEmpty:
                 await asyncio.sleep(.1)
             except Exception as e:
                 self.__log.error('Error processing device requests: %s', e)
+
+    async def __read_multiple_properties(self, device):
+        reading_started = monotonic()
+
+        iter = await self.__application.get_device_values(device)
+        if iter is not None:
+            all_done = False
+            while not self.__stopped and not all_done:
+                results, config, all_done = await iter.get_next()
+                if len(results) > 0:
+                    self.__log.trace('%s reading results: %s', device, results)
+                    self.__data_to_convert_queue.put_nowait((device, zip(config, [result[-1] for result in results])))
+
+        reading_ended = monotonic()
+        current_reading_time = reading_ended - reading_started
+
+        if current_reading_time > device.poll_period:
+            device.poll_period = current_reading_time
+        elif current_reading_time < device.poll_period:
+            if current_reading_time < device.original_poll_period:
+                device.poll_period = device.original_poll_period
+            else:
+                device.poll_period = current_reading_time
 
     async def __read_property(self, address, object_id, property_id):
         try:
@@ -260,10 +317,6 @@ class AsyncBACnetConnector(Thread, Connector):
             try:
                 device, values = self.__data_to_convert_queue.get_nowait()
                 self.__log.trace('%s data to convert: %s', device, values)
-
-                if len(values) == 0:
-                    self.__log.warning('No values to convert for device %s', device)
-                    continue
 
                 converted_data = device.uplink_converter.convert(values)
                 self.__data_to_save_queue.put_nowait((device, converted_data))
