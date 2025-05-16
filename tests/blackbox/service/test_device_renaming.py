@@ -13,15 +13,13 @@
 #     limitations under the License.
 
 from os import path
-from time import time, sleep
 import logging
-from unittest import skip
 
 from pymodbus.exceptions import ConnectionException
 import pymodbus.client as ModbusClient
+from tb_rest_client.rest import ApiException
 from tb_rest_client.rest_client_ce import *
 from simplejson import load, loads
-from twisted.words.protocols.jabber.jstrports import client
 
 from tests.base_test import BaseTest
 from tests.test_utils.gateway_device_util import GatewayDeviceUtil
@@ -56,7 +54,7 @@ class ModbusRenameBaseTestClass(BaseTest):
         with RestClientCE(url) as cls.client:
             cls.client.login(username, password)
 
-            cls.gateway = cls.client.get_tenant_devices(10, 0, text_search='Gateway').data[0]
+            cls.gateway = cls.client.get_tenant_devices(10, 0, text_search='Test Gateway device').data[0]
 
             assert cls.gateway is not None
 
@@ -77,7 +75,7 @@ class ModbusRenameBaseTestClass(BaseTest):
             sleep(3)
 
             (config, _) = cls.change_connector_configuration(
-                cls.CONFIG_PATH + 'configs/default_modbus_config.json')
+                cls.CONFIG_PATH + 'modbus_rename_configs/default_modbus_config.json')
 
             start_device_creation_time = time()
             while time() - start_device_creation_time < DEVICE_CREATION_TIMEOUT:
@@ -89,11 +87,32 @@ class ModbusRenameBaseTestClass(BaseTest):
                     break
 
             assert cls.device is not None
+        cls.GATEWAY_DEVICE_NAME = cls.gateway.name
+
+    def rename_device(self, new_name: str):
+        try:
+            self.device = self.client.get_device_by_id(self.device.id)
+            self.device.name = new_name
+            updated_device = self.client.save_device(body=self.device)
+            return updated_device
+        except ConnectionException as e:
+            LOG.debug("Connection exception: %s", e)
+
+    def update_device_shared_attributes(self, config_file_path):
+        config = self.load_configuration(self.CONFIG_PATH + config_file_path)
+        self.client.save_device_attributes(self.device.id, 'SHARED_SCOPE', config)
+
+    def update_device_and_connector_shared_attributes(self, connector_config_file_path, device_config_file_path):
+        self.change_connector_configuration(self.CONFIG_PATH + connector_config_file_path)
+        self.update_device_shared_attributes(device_config_file_path)
 
     @classmethod
     def tearDownClass(cls):
         GatewayDeviceUtil.clear_connectors()
-        GatewayDeviceUtil.delete_device(cls.device.id)
+        try:
+            cls.client.delete_device(cls.device.id)
+        except ApiException as e:
+            LOG.info("Api Exception during removing device: ", exc_info=e)
 
         client = ModbusClient.ModbusTcpClient('localhost', port=5021)
         client.connect()
@@ -107,6 +126,30 @@ class ModbusRenameBaseTestClass(BaseTest):
         client.close()
         super(ModbusRenameBaseTestClass, cls).tearDownClass()
         sleep(2)
+
+    def setUp(self):
+        self.change_connector_configuration(self.CONFIG_PATH + 'modbus_rename_configs/default_modbus_config.json')
+        start_device_creation_time = time()
+        while time() - start_device_creation_time < DEVICE_CREATION_TIMEOUT:
+            try:
+
+                self.device = self.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
+
+            except IndexError:
+                sleep(1)
+
+            else:
+                break
+
+        assert self.device is not None
+
+    def tearDown(self):
+        GatewayDeviceUtil.clear_connectors()
+
+        self.client.delete_device(self.device.id)
+
+        GatewayDeviceUtil.restart_gateway()
+        self.device = None
 
     @classmethod
     def load_configuration(cls, config_file_path):
@@ -135,67 +178,143 @@ class ModbusRenameBaseTestClass(BaseTest):
 
 class TestModbusRename(ModbusRenameBaseTestClass):
 
-    def test_rename_device(self):
-        new_device_name = "Temp Sensor1"
-        self.device.name = new_device_name
-
+    def test_no_device_appear_after_rename(self):
         original_device_id = self.device.id
-        self.client.save_device(body=self.device)
-        device_after_rename = self.client.get_device_by_id(self.device.id)
-        self.assertEqual(new_device_name, device_after_rename.name)
-        self.assertEqual(original_device_id, device_after_rename.id)
+        renamed = self.rename_device("Renamed device")
+        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
+                            not device.name == self.GATEWAY_DEVICE_NAME]
+        self.assertEqual(all_device_names, ["Renamed device"])
+        self.assertEqual(original_device_id, renamed.id)
 
-    def test_no_new_device_appear_after_gateway_restart(self):
-        new_device_name = "Temp Sensor1"
-        self.device.name = new_device_name
-        print(self.device)
-        self.client.save_device(body=self.device)
-        AVAILABLE_DEVICE_NAMES = ("Temp Sensor1", "Test Gateway device")
-        self.client.handle_two_way_device_rpc_request(self.gateway.id, {"method": "gateway_restart"})
-        start_time = time()
-        sleep(15)
-        while not GatewayDeviceUtil.is_gateway_connected(start_time):
-            LOG.info('Gateway connecting to TB...')
-            sleep(1)
-        all_devices = self.client.get_tenant_devices(10, 0).data
+        GatewayDeviceUtil.restart_gateway()
 
-        for index, element in enumerate(all_devices):
-            self.assertIn(element.name, AVAILABLE_DEVICE_NAMES)
+        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
+                            not device.name == self.GATEWAY_DEVICE_NAME]
+        self.assertEqual(all_device_names, ["Renamed device"])
 
-    def test_no_new_device_appear_after_deletion(self):
-        AVAILABLE_DEVICE_NAMES = ("Test Gateway device")
-        new_device_name = "Temp Sensor1"
+    def test_delete_device(self):
+        self.rename_device("Renamed device")
+        GatewayDeviceUtil.delete_device(self.device.id)
+        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
+                            not device.name == self.GATEWAY_DEVICE_NAME]
+        self.assertEqual(all_device_names, [])
+        self.device = None
 
-        self.device.name = new_device_name
-        self.client.save_device(body=self.device)
-        self.client.delete_device(self.device.id)
-        all_devices = self.client.get_tenant_devices(10, 0).data
-        all_devices_names = [device.name for device in all_devices]
-        self.assertFalse(
-            any(name not in AVAILABLE_DEVICE_NAMES for name in all_devices_names),
-            f"Found invalid device names: {[n for n in all_devices_names if n not in AVAILABLE_DEVICE_NAMES]}"
+        GatewayDeviceUtil.restart_gateway()
+        self.device = self.client.get_tenant_devices(10, 0, text_search='Temp Sensor').data[0]
+
+        names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
+                 not device.name == self.GATEWAY_DEVICE_NAME]
+
+        self.assertEqual(len(names), 1)
+        self.assertNotIn("Renamed device", names)
+
+    def test_device_reads_rpc_after_rename(self):
+
+        config, _ = self.change_connector_configuration(
+            self.CONFIG_PATH + 'modbus_rename_configs/modbus_uplink_converter_input_registers_reading_little.json'
         )
+        self.rename_device("Renamed device")
+        sleep(GENERAL_TIMEOUT)
 
-    def test_no_new_device_remain_after_deletion_and_gateway_restart(self):
-        AVAILABLE_DEVICE_NAMES = ("Test Gateway device")
-        new_device_name = "Temp Sensor1"
-
-        self.device.name = new_device_name
-        self.client.save_device(body=self.device)
-        self.client.delete_device(self.device.id)
-        all_devices = self.client.get_tenant_devices(10, 0).data
-        all_devices_names = [device.name for device in all_devices]
-        unexpected = set(all_devices_names) - set(AVAILABLE_DEVICE_NAMES)
-        self.assertFalse(unexpected, f"Found unexpected devices: {unexpected}")
-        self.client.handle_two_way_device_rpc_request(self.gateway.id, {"method": "gateway_restart"})
-        start_time = time()
-        sleep(15)
-        while not GatewayDeviceUtil.is_gateway_connected(start_time):
-            LOG.info('Gateway connecting to TB...')
-            sleep(1)
-        all_devices = self.client.get_tenant_devices(10, 0).data
-        all_devices_names = [device.name for device in all_devices]
-        self.assertFalse(
-            any(name not in AVAILABLE_DEVICE_NAMES for name in all_devices_names),
-            f"Found invalid device names: {[n for n in all_devices_names if n not in AVAILABLE_DEVICE_NAMES]}"
+        expected = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/rpc/input_registers_values_reading_big.json'
         )
+        for rpc_conf in config['Modbus']['configurationJson']['master']['slaves'][0]['rpc']:
+            tag = rpc_conf.pop('tag')
+            result = self.client.handle_two_way_device_rpc_request(
+                self.device.id,
+                {"method": tag, "params": rpc_conf, "timeout": 5000}
+            )
+            self.assertEqual(
+                result,
+                {'result': expected[tag]},
+                f"RPC '{tag}' returned unexpected value"
+            )
+        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
+                            not device.name == self.GATEWAY_DEVICE_NAME]
+        self.assertEqual(all_device_names, ["Renamed device"])
+
+    def test_device_writes_rpc_after_rename(self):
+        (config, _) = self.change_connector_configuration(
+            self.CONFIG_PATH + 'configs/rpc_configs/holding_registers_writing_rpc_little.json')
+        self.rename_device("Renamed device")
+        sleep(GENERAL_TIMEOUT)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/rpc/holding_registers_values_writing_little.json')
+        telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
+                          slave['timeseries']]
+
+        for rpc in config['Modbus']['configurationJson']['master']['slaves'][0]['rpc']:
+            rpc_tag = rpc.pop('tag')
+            self.client.handle_two_way_device_rpc_request(self.device.id,
+                                                          {
+                                                              "method": rpc_tag,
+                                                              "params": expected_values[rpc_tag],
+                                                              "timeout": 5000
+                                                          })
+        sleep(GENERAL_TIMEOUT)
+        latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        for (_type, value) in expected_values.items():
+            if _type == 'bits':
+                latest_ts[_type][0]['value'] = loads(latest_ts[_type][0]['value'])
+            else:
+                value = str(value)
+
+            self.assertEqual(value, latest_ts[_type][0]['value'],
+                             f'Value is not equal for the next telemetry key: {_type}')
+        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
+                            not device.name == self.GATEWAY_DEVICE_NAME]
+        self.assertEqual(all_device_names, ["Renamed device"])
+
+    def test_device_reads_telemetry_after_rename(self):
+        config, _ = self.change_connector_configuration(
+            self.CONFIG_PATH + 'modbus_rename_configs/modbus_uplink_converter_input_registers_reading_little.json'
+        )
+        self.rename_device("Renamed device")
+        keys = [k['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for k in
+                slave['timeseries']]
+        sleep(GENERAL_TIMEOUT)
+
+        actual = self.client.get_latest_timeseries(self.device.id, ','.join(keys))
+        expected = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/uplink/input_registers_values_little.json'
+        )
+        for tag, val in expected.items():
+            self.assertEqual(
+                val,
+                actual[tag][0]['value'],
+                f"Telemetry '{tag}' mismatch after rename"
+            )
+        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
+                            not device.name == self.GATEWAY_DEVICE_NAME]
+        self.assertEqual(all_device_names, ["Renamed device"])
+
+    def test_device_update_shared_attributes_after_rename(self):
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/attrs_update_input_registers_little.json',
+            'test_values/attrs_update/input_registers_values_little.json'
+        )
+        sleep(GENERAL_TIMEOUT)
+
+        expected = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_little.json'
+        )
+        self.rename_device("Renamed device")
+        actual = self.client.get_latest_timeseries(
+            self.device.id,
+            ','.join(expected.keys())
+        )
+        for tag, val in expected.items():
+            if tag == 'bits':
+                actual[tag][0]['value'] = loads(actual[tag][0]['value'])
+            self.assertEqual(
+                val,
+                actual[tag][0]['value'],
+                f"Attribute '{tag}' mismatch after rename"
+            )
+        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
+                            not device.name == self.GATEWAY_DEVICE_NAME]
+        self.assertEqual(all_device_names, ["Renamed device"])
+        self.update_device_shared_attributes("test_values/default_slave_values.json")
+
