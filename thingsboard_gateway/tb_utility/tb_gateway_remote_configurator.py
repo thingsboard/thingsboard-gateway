@@ -499,7 +499,7 @@ class RemoteConfigurator:
                     connector_to_close = self._gateway.available_connectors_by_name[active_connector_name]
                     connector_to_close.close()
                     for device in self._gateway.get_connector_devices(connector_to_close):
-                        self._gateway.del_device(device)
+                        self._gateway.del_device(device, False)
                     connector_id = connector_to_close.get_id()
                     self._gateway.available_connectors_by_id.pop(connector_id)
                     for_deletion.append(active_connector_name)
@@ -692,7 +692,7 @@ class RemoteConfigurator:
                                 retrieved_connector.close()
                                 if self._gateway.tb_client.is_connected():
                                     for device in self._gateway.get_connector_devices(retrieved_connector):
-                                        self._gateway.del_device(device)
+                                        self._gateway.del_device(device, False)
                                 self._gateway.clean_shared_attributes_cache_for_connector_devices(retrieved_connector)
                                 if monotonic() - close_start > 5:
                                     self.__log.error('Connector %s not stopped in 5 seconds', connector_configuration['id']) # noqa
@@ -707,7 +707,7 @@ class RemoteConfigurator:
                                 retrieved_connector.close()
                                 if self._gateway.tb_client.is_connected():
                                     for device in self._gateway.get_connector_devices(retrieved_connector):
-                                        self._gateway.del_device(device)
+                                        self._gateway.del_device(device, False)
                                 self._gateway.clean_shared_attributes_cache_for_connector_devices(retrieved_connector)
                                 if monotonic() - close_start > 5:
                                     self.__log.error('Connector %s not stopped in 5 seconds',
