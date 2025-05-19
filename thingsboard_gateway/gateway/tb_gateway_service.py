@@ -156,10 +156,13 @@ class TBGatewayService:
         self._event_storage = self._event_storage_types[self.__config["storage"]["type"]](self.__config["storage"],
                                                                                           storage_log,
                                                                                           self.stop_event)
-        self._report_strategy_service = ReportStrategyService(self.__config['thingsboard'],
-                                                              self,
-                                                              self.__converted_data_queue,
-                                                              log)
+        if self.__config['thingsboard'].get('reportStrategy', {}).get('type') != "DISABLED":
+            self._report_strategy_service = ReportStrategyService(self.__config['thingsboard'],
+                                                                  self,
+                                                                  self.__converted_data_queue,
+                                                                  log)
+        else:
+            self._report_strategy_service = None
         self.__updater = TBUpdater()
         self.version = self.__updater.get_version()
         log.info("ThingsBoard IoT gateway version: %s", self.version["current_version"])
@@ -1034,7 +1037,8 @@ class TBGatewayService:
                 try:
                     report_strategy_config_connector = configuration.pop(REPORT_STRATEGY_PARAMETER, None)  # noqa
                     connector_report_strategy = ReportStrategyConfig(report_strategy_config_connector)  # noqa
-                    self._report_strategy_service.register_connector_report_strategy(name, _id, connector_report_strategy)  # noqa
+                    if self._report_strategy_service is not None:
+                        self._report_strategy_service.register_connector_report_strategy(name, _id, connector_report_strategy)  # noqa
                 except ValueError:
                     log.info("Cannot find separated report strategy for connector %r. \
                              The main report strategy \
@@ -1131,7 +1135,10 @@ class TBGatewayService:
                     data.add_to_metadata({SEND_TO_STORAGE_TS_PARAMETER: int(time() * 1000),
                                           CONNECTOR_PARAMETER: connector_name})
             filtration_start = time() * 1000
-            self._report_strategy_service.filter_data_and_send(data, connector_name, connector_id)
+            if self._report_strategy_service is not None:
+                self._report_strategy_service.filter_data_and_send(data, connector_name, connector_id)
+            else:
+                self.__converted_data_queue.put((connector_name, connector_id, data))
             filtration_end = time() * 1000
             if self.__latency_debug_mode:
                 log.debug("Data filtration took %r ms", filtration_end - filtration_start)
@@ -2001,6 +2008,7 @@ class TBGatewayService:
             }
 
         return result
+
 
     def __process_async_device_actions(self):
         while not self.stopped:

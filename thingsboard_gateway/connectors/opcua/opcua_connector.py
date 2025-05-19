@@ -15,6 +15,7 @@
 import logging
 import asyncio
 import re
+from functools import partial
 from typing import Dict, Any
 from asyncio.exceptions import CancelledError
 from concurrent.futures import ThreadPoolExecutor
@@ -70,6 +71,9 @@ MESSAGE_SECURITY_MODES = {
     "SignAndEncrypt": asyncua.ua.MessageSecurityMode.SignAndEncrypt
 }
 
+RPC_SET_SPLIT_PATTERNS = ["; ", ";=", "=", " "]
+
+
 
 class OpcUaConnector(Connector, Thread):
     def __init__(self, gateway: 'TBGatewayService', config, connector_type):
@@ -95,13 +99,14 @@ class OpcUaConnector(Connector, Thread):
                                            enable_remote_logging=self.__enable_remote_logging,
                                            is_converter_logger=True, attr_name=self.name)
         self.__replace_loggers()
-        report_strategy = self.__config.get('reportStrategy')
-        self.__connector_report_strategy_config = gateway.get_report_strategy_service().get_main_report_strategy()
-        try:
-            if report_strategy is not None:
-                self.__connector_report_strategy_config = ReportStrategyConfig(report_strategy)
-        except ValueError as e:
-            self.__log.error('Error in report strategy configuration: %s, the gateway main strategy will be used.', e)
+        if gateway.get_report_strategy_service() is not None:
+            report_strategy = self.__config.get('reportStrategy')
+            self.__connector_report_strategy_config = gateway.get_report_strategy_service().get_main_report_strategy()
+            try:
+                if report_strategy is not None:
+                    self.__connector_report_strategy_config = ReportStrategyConfig(report_strategy)
+            except ValueError as e:
+                self.__log.error('Error in report strategy configuration: %s, the gateway main strategy will be used.', e)
         if using_old_configuration_format:
             backward_compatibility_adapter = BackwardCompatibilityAdapter(self.__config, self.__log)
             self.__config = backward_compatibility_adapter.convert()
@@ -755,18 +760,19 @@ class OpcUaConnector(Connector, Thread):
                                 found_node = await self.__client.nodes.root.get_child(path)
 
                         node_report_strategy = node.get(REPORT_STRATEGY_PARAMETER)
-                        if node_report_strategy is not None:
-                            try:
-                                node_report_strategy = ReportStrategyConfig(node_report_strategy)
-                            except ValueError as e:
-                                self.__log.error('Error in report strategy configuration: %s, for key %s the device or connector report strategy will be used.', e, node['key'])
-                                node_report_strategy = self.__connector_report_strategy_config if device.report_strategy is None else device.report_strategy
-                        elif device.report_strategy is not None:
-                            node_report_strategy = device.report_strategy
+                        if self.__gateway.get_report_strategy_service() is not None:
+                            if node_report_strategy is not None:
+                                try:
+                                    node_report_strategy = ReportStrategyConfig(node_report_strategy)
+                                except ValueError as e:
+                                    self.__log.error('Error in report strategy configuration: %s, for key %s the device or connector report strategy will be used.', e, node['key'])
+                                    node_report_strategy = self.__connector_report_strategy_config if device.report_strategy is None else device.report_strategy
+                            elif device.report_strategy is not None:
+                                node_report_strategy = device.report_strategy
 
                         node_config = {"node": found_node, "key": node['key'],
                                        "section": section, 'timestampLocation': node.get('timestampLocation', 'gateway')}
-                        if node_report_strategy is not None:
+                        if self.__gateway.get_report_strategy_service() is not None and node_report_strategy is not None:
                             node_config[REPORT_STRATEGY_PARAMETER] = node_report_strategy
                             node_report_strategy = None # Cleaning for next iteration
 
@@ -1059,23 +1065,36 @@ class OpcUaConnector(Connector, Thread):
                     full_path = ''
                     args_list = []
                     params = content['data']['params']
+                    value = None
 
                     try:
                         args_list = params.split(';')
+                        if not self.__is_node_identifier(params):
+                            found = False
+                            for pattern in RPC_SET_SPLIT_PATTERNS:
+                                if pattern in params:
+                                    args_list = params.split(pattern)
+                                    part_for_search, value = args_list
+                                    found = True
+                                    break
+                            if not found:
+                                part_for_search = params
+                        else:
+                            part_for_search = params
 
-                        node_by_key = device.get_node_by_key(params)
+                        node_by_key = device.get_node_by_key(part_for_search)
 
-                        if self.__is_node_identifier(params):
+                        if self.__is_node_identifier(part_for_search):
                             # Node identifier
                             full_path = ';'.join(
                                 [item for item in (args_list[0:-1] if rpc_method == 'set' else args_list)])
                         elif node_by_key is not None:
                             full_path = node_by_key
                         else:
-                            full_path = self.find_full_node_path(params=params, device=device)
+                            full_path = self.find_full_node_path(params=part_for_search, device=device)
 
                         if not full_path:
-                            full_path = params.split(".")[-1]
+                            full_path = part_for_search.split(".")[-1]
 
                     except IndexError:
                         self.__log.error('Not enough arguments. Expected min 2.')
@@ -1092,11 +1111,19 @@ class OpcUaConnector(Connector, Thread):
                         while not task.done():
                             sleep(.2)
                     elif rpc_method == 'set':
-                        value = args_list[2].split('=')[-1]
-                        task = self.__loop.create_task(self.__write_value(full_path, value, result))
+                        try:
+                            if value is None:
+                                value = args_list[2].split('=')[-1]
+                            task = self.__loop.create_task(self.__write_value(full_path, value, result))
 
-                        while not task.done():
-                            sleep(.2)
+                            while not task.done():
+                                sleep(.2)
+                        except IndexError as e:
+                            self.__log.error('Cannot determine value from incoming request. Supported format: set <node>=<value>')
+                            self.__gateway.send_rpc_reply(device=content['device'],
+                                                          req_id=content['data'].get('id'),
+                                                          content={"result": {"error": 'Cannot determine value from incoming request. Supported format: set <node>=<value>'}})
+                            return
 
                     self.__gateway.send_rpc_reply(device=content['device'],
                                                   req_id=content['data'].get('id'),
@@ -1158,6 +1185,8 @@ class OpcUaConnector(Connector, Thread):
         except Exception as e:
             self.__log.error("Error during RPC request handling: %s", e)
             self.__log.debug("Error during RPC request handling: ", exc_info=e)
+            self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+                                          {"result": {"error": str(e)}})
 
     async def __write_value(self, path, value, result=None):
         if result is None:

@@ -87,6 +87,7 @@ class ReportStrategy(Enum):
     ON_CHANGE = "ON_CHANGE"
     ON_CHANGE_OR_REPORT_PERIOD = "ON_CHANGE_OR_REPORT_PERIOD"
     ON_RECEIVED = "ON_RECEIVED"
+    DISABLED = "DISABLED"
 
     @classmethod
     def from_string(cls, value: str):
