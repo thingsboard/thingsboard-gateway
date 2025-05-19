@@ -11,6 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+from datetime import timedelta
 
 from thingsboard_gateway.connectors.converter import Converter
 from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
@@ -61,6 +62,8 @@ class SNMPUplinkConverter(Converter):
                         value = item_data
                     elif isinstance(item_data, bytes):
                         value = item_data.decode("UTF-8")
+                    elif isinstance(item_data, timedelta):
+                        value = item_data.total_seconds()
                     else:
                         value = item_data
 
