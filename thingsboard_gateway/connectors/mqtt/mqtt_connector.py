@@ -748,7 +748,8 @@ class MqttConnector(Connector, Thread):
                                         found_attribute_names,
                                         handler.get("topicExpression"),
                                         handler.get("valueExpression"),
-                                        handler.get('retain', False)))
+                                        handler.get('retain', False),
+                                        handler.get('qos', 0)))
 
                             if scope == 'client':
                                 self.__gateway.tb_client.client.gw_request_client_attributes(*request_arguments)
@@ -777,7 +778,7 @@ class MqttConnector(Connector, Thread):
             else:
                 sleep(.2)
 
-    def notify_attribute(self, incoming_data, attribute_name, topic_expression, value_expression, retain):
+    def notify_attribute(self, incoming_data, attribute_name, topic_expression, value_expression, retain, qos):
         if incoming_data.get("device") is None or incoming_data.get("value", incoming_data.get('values')) is None:
             return
 
@@ -794,7 +795,7 @@ class MqttConnector(Connector, Thread):
         else:
             data = orjson.dumps(attribute_values)
 
-        self._client.publish(topic, data, retain=retain).wait_for_publish()
+        self._client.publish(topic, data, qos=qos, retain=retain).wait_for_publish()
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
@@ -830,7 +831,7 @@ class MqttConnector(Connector, Thread):
                                 self.__log.exception("Cannot form topic, key %s - not found", e)
                                 raise e
 
-                            self._publish(topic, data, attribute_update.get('retain', False))
+                            self._publish(topic, data, attribute_update.get('retain', False), attribute_update.get('qos', 0))
                             self.__log.debug("Attribute Update data: %s for device %s to topic: %s", data,
                                              content["device"], topic)
                         else:
@@ -916,7 +917,7 @@ class MqttConnector(Connector, Thread):
                 self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
                 result = None
                 try:
-                    result = self._publish(request_topic, data_to_send, rpc_config.get('retain', False))
+                    result = self._publish(request_topic, data_to_send, rpc_config.get('retain', False), rpc_config.get('qos', 0))
                 except Exception as e:
                     self.__log.exception("Error during publishing to target broker: %r", e)
                     self.__gateway.send_rpc_reply(device=content.get("device"),
@@ -987,11 +988,11 @@ class MqttConnector(Connector, Thread):
             self.__log.exception("Error during handling RPC request", exc_info=e)
 
     @CustomCollectStatistics(start_stat_type='allBytesSentToDevices')
-    def _publish(self, request_topic, data_to_send, retain):
+    def _publish(self, request_topic, data_to_send, retain, qos):
         result = False
         try:
             if self._connected and self._client is not None and self._client.is_connected():
-                self._client.publish(request_topic, data_to_send, retain).wait_for_publish()
+                self._client.publish(request_topic, data_to_send, qos=qos, retain=retain).wait_for_publish()
                 result = True
         except Exception as e:
             self.__log.error("Error during publishing to target broker: %r", e)

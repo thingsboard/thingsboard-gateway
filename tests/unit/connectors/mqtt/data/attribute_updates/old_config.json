@@ -16,6 +16,7 @@
   "attributeUpdates": [
     {
       "retain": true,
+      "qos": 0,
       "deviceNameFilter": ".*",
       "attributeFilter": "uploadFrequency",
       "topicExpression": "sensor/${deviceName}/${attributeKey}",
