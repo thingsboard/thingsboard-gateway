@@ -1964,6 +1964,9 @@ class TBGatewayService:
     def get_report_strategy_service(self):
         return self._report_strategy_service
 
+    def get_converted_data_queue(self):
+        return self.__converted_data_queue
+
     def get_devices(self, connector_id: str = None):
         return self.__connected_devices if connector_id is None else {
             device_name: self.__connected_devices[device_name][DEVICE_TYPE_PARAMETER] for device_name in

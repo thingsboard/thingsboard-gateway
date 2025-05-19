@@ -13,7 +13,7 @@
 #     limitations under the License.
 
 from queue import SimpleQueue
-from threading import Thread
+from threading import Thread, Event
 from time import monotonic, time
 from typing import Dict, Set, Union, TYPE_CHECKING
 
@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 class ReportStrategyService:
     def __init__(self, config: dict, gateway: 'TBGatewayService', send_data_queue: SimpleQueue, logger: TbLogger):
         self.__gateway = gateway
+        self.stop_event = Event()
         self.__send_data_queue = send_data_queue
         self._logger = logger
         report_strategy = config.get(REPORT_STRATEGY_PARAMETER, {})
@@ -193,7 +194,7 @@ class ReportStrategyService:
         report_strategy_data_cache_get = self._report_strategy_data_cache.get
         send_data_queue_put_nowait = self.__send_data_queue.put_nowait
         to_removal_by_expiration = []
-        while not self.__gateway.stop_event.is_set():
+        while not self.__gateway.stop_event.is_set() and not self.stop_event.is_set():
             try:
                 if not self.__keys_to_report_periodically:
                     self.__gateway.stop_event.wait(1)

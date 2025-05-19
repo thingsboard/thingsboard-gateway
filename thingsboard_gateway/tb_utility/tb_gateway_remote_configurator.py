@@ -29,8 +29,9 @@ from simplejson import dumps, load
 from tb_gateway_mqtt import TBGatewayMqttClient
 
 from thingsboard_gateway.gateway.constants import CONFIG_VERSION_PARAMETER, REPORT_STRATEGY_PARAMETER, \
-    DEFAULT_REPORT_STRATEGY_CONFIG, CONNECTOR_PARAMETER
+    DEFAULT_REPORT_STRATEGY_CONFIG, CONNECTOR_PARAMETER, ReportStrategy
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
+from thingsboard_gateway.gateway.report_strategy.report_strategy_service import ReportStrategyService
 from thingsboard_gateway.gateway.tb_client import TBClient
 
 if TYPE_CHECKING:
@@ -894,15 +895,27 @@ class RemoteConfigurator:
             return False
 
     def _apply_report_strategy_config(self, config):
-        old_main_report_strategy = self._gateway._report_strategy_service.main_report_strategy
+        old_main_report_strategy = None
+        if self._gateway.get_report_strategy_service() is not None:
+            old_main_report_strategy = self._gateway.get_report_strategy_service().main_report_strategy
         try:
             new_main_report_strategy = ReportStrategyConfig(config.get(REPORT_STRATEGY_PARAMETER,
                                                                        DEFAULT_REPORT_STRATEGY_CONFIG))
-            self._gateway._report_strategy_service.main_report_strategy = new_main_report_strategy
-            self._gateway._report_strategy_service.clear_cache()
+            if self._gateway.get_report_strategy_service() is None:
+                self._gateway._report_strategy_service = ReportStrategyService(config,
+                                                                               self._gateway,
+                                                                               self._gateway.get_converted_data_queue(),
+                                                                               self.__log)
+                self._gateway.get_report_strategy_service().main_report_strategy = new_main_report_strategy
+                self._gateway.get_report_strategy_service().clear_cache()
+            elif ReportStrategy.DISABLED == new_main_report_strategy.report_strategy:
+                self._gateway.get_report_strategy_service().stop_event.set()
+                self._gateway.get_report_strategy_service().clear_cache()
+                self._gateway._report_strategy_service = None
             return True
         except Exception as e:
-            self._gateway._report_strategy_service.main_report_strategy = old_main_report_strategy
+            if old_main_report_strategy is not None:
+                self._gateway.get_report_strategy_service().main_report_strategy = old_main_report_strategy
             self.__log.error('Something went wrong with applying the new Report Strategy configuration. Reverting...')
             self.__log.exception(e)
             return False
