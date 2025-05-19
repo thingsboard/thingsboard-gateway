@@ -99,13 +99,14 @@ class OpcUaConnector(Connector, Thread):
                                            enable_remote_logging=self.__enable_remote_logging,
                                            is_converter_logger=True, attr_name=self.name)
         self.__replace_loggers()
-        report_strategy = self.__config.get('reportStrategy')
-        self.__connector_report_strategy_config = gateway.get_report_strategy_service().get_main_report_strategy()
-        try:
-            if report_strategy is not None:
-                self.__connector_report_strategy_config = ReportStrategyConfig(report_strategy)
-        except ValueError as e:
-            self.__log.error('Error in report strategy configuration: %s, the gateway main strategy will be used.', e)
+        if gateway.get_report_strategy_service() is not None:
+            report_strategy = self.__config.get('reportStrategy')
+            self.__connector_report_strategy_config = gateway.get_report_strategy_service().get_main_report_strategy()
+            try:
+                if report_strategy is not None:
+                    self.__connector_report_strategy_config = ReportStrategyConfig(report_strategy)
+            except ValueError as e:
+                self.__log.error('Error in report strategy configuration: %s, the gateway main strategy will be used.', e)
         if using_old_configuration_format:
             backward_compatibility_adapter = BackwardCompatibilityAdapter(self.__config, self.__log)
             self.__config = backward_compatibility_adapter.convert()
@@ -759,18 +760,19 @@ class OpcUaConnector(Connector, Thread):
                                 found_node = await self.__client.nodes.root.get_child(path)
 
                         node_report_strategy = node.get(REPORT_STRATEGY_PARAMETER)
-                        if node_report_strategy is not None:
-                            try:
-                                node_report_strategy = ReportStrategyConfig(node_report_strategy)
-                            except ValueError as e:
-                                self.__log.error('Error in report strategy configuration: %s, for key %s the device or connector report strategy will be used.', e, node['key'])
-                                node_report_strategy = self.__connector_report_strategy_config if device.report_strategy is None else device.report_strategy
-                        elif device.report_strategy is not None:
-                            node_report_strategy = device.report_strategy
+                        if self.__gateway.get_report_strategy_service() is not None:
+                            if node_report_strategy is not None:
+                                try:
+                                    node_report_strategy = ReportStrategyConfig(node_report_strategy)
+                                except ValueError as e:
+                                    self.__log.error('Error in report strategy configuration: %s, for key %s the device or connector report strategy will be used.', e, node['key'])
+                                    node_report_strategy = self.__connector_report_strategy_config if device.report_strategy is None else device.report_strategy
+                            elif device.report_strategy is not None:
+                                node_report_strategy = device.report_strategy
 
                         node_config = {"node": found_node, "key": node['key'],
                                        "section": section, 'timestampLocation': node.get('timestampLocation', 'gateway')}
-                        if node_report_strategy is not None:
+                        if self.__gateway.get_report_strategy_service() is not None and node_report_strategy is not None:
                             node_config[REPORT_STRATEGY_PARAMETER] = node_report_strategy
                             node_report_strategy = None # Cleaning for next iteration
 
