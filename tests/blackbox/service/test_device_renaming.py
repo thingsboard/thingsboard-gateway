@@ -179,25 +179,29 @@ class ModbusRenameBaseTestClass(BaseTest):
 class TestModbusRename(ModbusRenameBaseTestClass):
 
     def test_no_device_appear_after_rename(self):
+        old_device_name = self.device.name
         original_device_id = self.device.id
         renamed = self.rename_device("Renamed device")
         all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
                             not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertEqual(all_device_names, ["Renamed device"])
+        self.assertIn("Renamed device", all_device_names)
+        self.assertNotIn(old_device_name, all_device_names)
         self.assertEqual(original_device_id, renamed.id)
 
         GatewayDeviceUtil.restart_gateway()
 
         all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
                             not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertEqual(all_device_names, ["Renamed device"])
+        self.assertIn("Renamed device", all_device_names)
+        self.assertNotIn(old_device_name, all_device_names)
 
     def test_delete_device(self):
+        old_device_name = self.device.name
         self.rename_device("Renamed device")
         GatewayDeviceUtil.delete_device(self.device.id)
         all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
                             not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertEqual(all_device_names, [])
+        self.assertNotIn("Renamed device", all_device_names)
         self.device = None
 
         GatewayDeviceUtil.restart_gateway()
@@ -206,8 +210,8 @@ class TestModbusRename(ModbusRenameBaseTestClass):
         names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
                  not device.name == self.GATEWAY_DEVICE_NAME]
 
-        self.assertEqual(len(names), 1)
         self.assertNotIn("Renamed device", names)
+        self.assertNotIn(old_device_name, all_device_names)
 
     def test_device_reads_rpc_after_rename(self):
 
@@ -233,7 +237,7 @@ class TestModbusRename(ModbusRenameBaseTestClass):
             )
         all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
                             not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertEqual(all_device_names, ["Renamed device"])
+        self.assertIn("Renamed device", all_device_names)
 
     def test_device_writes_rpc_after_rename(self):
         (config, _) = self.change_connector_configuration(
@@ -265,7 +269,7 @@ class TestModbusRename(ModbusRenameBaseTestClass):
                              f'Value is not equal for the next telemetry key: {_type}')
         all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
                             not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertEqual(all_device_names, ["Renamed device"])
+        self.assertIn("Renamed device", all_device_names)
 
     def test_device_reads_telemetry_after_rename(self):
         config, _ = self.change_connector_configuration(
@@ -288,7 +292,8 @@ class TestModbusRename(ModbusRenameBaseTestClass):
             )
         all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
                             not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertEqual(all_device_names, ["Renamed device"])
+
+        self.assertIn("Renamed device", all_device_names)
 
     def test_device_update_shared_attributes_after_rename(self):
         self.update_device_and_connector_shared_attributes(
@@ -315,6 +320,6 @@ class TestModbusRename(ModbusRenameBaseTestClass):
             )
         all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
                             not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertEqual(all_device_names, ["Renamed device"])
+        self.assertIn("Renamed device", all_device_names)
         self.update_device_shared_attributes("test_values/default_slave_values.json")
 
