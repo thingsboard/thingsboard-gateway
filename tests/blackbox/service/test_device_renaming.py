@@ -220,6 +220,9 @@ class TestModbusRename(ModbusRenameBaseTestClass):
         )
         self.rename_device("Renamed device")
         sleep(GENERAL_TIMEOUT)
+        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
+                            not device.name == self.GATEWAY_DEVICE_NAME]
+        self.assertIn("Renamed device", all_device_names)
 
         expected = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/input_registers_values_reading_big.json'
@@ -235,15 +238,15 @@ class TestModbusRename(ModbusRenameBaseTestClass):
                 {'result': expected[tag]},
                 f"RPC '{tag}' returned unexpected value"
             )
-        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
-                            not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertIn("Renamed device", all_device_names)
 
     def test_device_writes_rpc_after_rename(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/holding_registers_writing_rpc_little.json')
         self.rename_device("Renamed device")
         sleep(GENERAL_TIMEOUT)
+        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
+                            not device.name == self.GATEWAY_DEVICE_NAME]
+        self.assertIn("Renamed device", all_device_names)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/holding_registers_values_writing_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -267,9 +270,7 @@ class TestModbusRename(ModbusRenameBaseTestClass):
 
             self.assertEqual(value, latest_ts[_type][0]['value'],
                              f'Value is not equal for the next telemetry key: {_type}')
-        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
-                            not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertIn("Renamed device", all_device_names)
+
 
     def test_device_reads_telemetry_after_rename(self):
         config, _ = self.change_connector_configuration(
@@ -279,6 +280,10 @@ class TestModbusRename(ModbusRenameBaseTestClass):
         keys = [k['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for k in
                 slave['timeseries']]
         sleep(GENERAL_TIMEOUT)
+        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
+                            not device.name == self.GATEWAY_DEVICE_NAME]
+
+        self.assertIn("Renamed device", all_device_names)
 
         actual = self.client.get_latest_timeseries(self.device.id, ','.join(keys))
         expected = self.load_configuration(
@@ -290,10 +295,6 @@ class TestModbusRename(ModbusRenameBaseTestClass):
                 actual[tag][0]['value'],
                 f"Telemetry '{tag}' mismatch after rename"
             )
-        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
-                            not device.name == self.GATEWAY_DEVICE_NAME]
-
-        self.assertIn("Renamed device", all_device_names)
 
     def test_device_update_shared_attributes_after_rename(self):
         self.update_device_and_connector_shared_attributes(
@@ -306,6 +307,9 @@ class TestModbusRename(ModbusRenameBaseTestClass):
             self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_little.json'
         )
         self.rename_device("Renamed device")
+        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
+                            not device.name == self.GATEWAY_DEVICE_NAME]
+        self.assertIn("Renamed device", all_device_names)
         actual = self.client.get_latest_timeseries(
             self.device.id,
             ','.join(expected.keys())
@@ -318,8 +322,5 @@ class TestModbusRename(ModbusRenameBaseTestClass):
                 actual[tag][0]['value'],
                 f"Attribute '{tag}' mismatch after rename"
             )
-        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
-                            not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertIn("Renamed device", all_device_names)
         self.update_device_shared_attributes("test_values/default_slave_values.json")
 
