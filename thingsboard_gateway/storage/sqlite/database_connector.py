@@ -97,6 +97,8 @@ class DatabaseConnector:
                     return result
         except sqlite3.ProgrammingError as e:
             self.__log.debug("Failed to execute read query in database", exc_info=e)
+        except sqlite3.OperationalError as e:
+            self.__log.debug("Failed to execute read query in database", exc_info=e)
         except Exception as e:
             self.__log.exception("Failed to execute read query in database", exc_info=e)
 

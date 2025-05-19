@@ -692,8 +692,6 @@ class TBGatewayService:
             log.info('Got remote converter configuration update')
             if not self.available_connectors_by_name.get(connector_name):
                 raise ValueError
-
-            self.available_connectors_by_name[connector_name].update_converter_config(converter_name, content[key])  # noqa
         except (ValueError, AttributeError, IndexError) as e:
             log.trace('Failed to process remote converter update: %s', e)
 

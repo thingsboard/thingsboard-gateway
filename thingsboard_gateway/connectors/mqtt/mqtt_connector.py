@@ -512,8 +512,6 @@ class MqttConnector(Connector, Thread):
             else:
                 self.__log.error("%s connection FAIL with unknown error!", self.get_name())
 
-        self._init_send_current_converter_config()
-
     def _on_disconnect(self, *args):
         self._connected = False
         self.__log.debug('"%s" was disconnected. %s', self.get_name(), str(args))
@@ -1004,6 +1002,7 @@ class MqttConnector(Connector, Thread):
     def get_converters(self):
         return [item[0] for _, item in self.__mapping_sub_topics.items()]
 
+
     def update_converter_config(self, converter_name, config):
         self.__log.debug('Received remote converter configuration update for %s with configuration %s', converter_name,
                          config)
@@ -1045,6 +1044,7 @@ class MqttConnector(Connector, Thread):
                         continue
                 break
             sleep(1)
+
 
     def _send_current_converter_config(self, name, config):
         self.__gateway.send_attributes({name: config})
