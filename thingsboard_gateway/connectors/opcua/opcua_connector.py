@@ -15,6 +15,7 @@
 import logging
 import asyncio
 import re
+from functools import partial
 from typing import Dict, Any
 from asyncio.exceptions import CancelledError
 from concurrent.futures import ThreadPoolExecutor
@@ -69,6 +70,9 @@ MESSAGE_SECURITY_MODES = {
     "Sign": asyncua.ua.MessageSecurityMode.Sign,
     "SignAndEncrypt": asyncua.ua.MessageSecurityMode.SignAndEncrypt
 }
+
+RPC_SET_SPLIT_PATTERNS = ["; ", ";=", "=", " "]
+
 
 
 class OpcUaConnector(Connector, Thread):
@@ -1059,23 +1063,36 @@ class OpcUaConnector(Connector, Thread):
                     full_path = ''
                     args_list = []
                     params = content['data']['params']
+                    value = None
 
                     try:
                         args_list = params.split(';')
+                        if not self.__is_node_identifier(params):
+                            found = False
+                            for pattern in RPC_SET_SPLIT_PATTERNS:
+                                if pattern in params:
+                                    args_list = params.split(pattern)
+                                    part_for_search, value = args_list
+                                    found = True
+                                    break
+                            if not found:
+                                part_for_search = params
+                        else:
+                            part_for_search = params
 
-                        node_by_key = device.get_node_by_key(params)
+                        node_by_key = device.get_node_by_key(part_for_search)
 
-                        if self.__is_node_identifier(params):
+                        if self.__is_node_identifier(part_for_search):
                             # Node identifier
                             full_path = ';'.join(
                                 [item for item in (args_list[0:-1] if rpc_method == 'set' else args_list)])
                         elif node_by_key is not None:
                             full_path = node_by_key
                         else:
-                            full_path = self.find_full_node_path(params=params, device=device)
+                            full_path = self.find_full_node_path(params=part_for_search, device=device)
 
                         if not full_path:
-                            full_path = params.split(".")[-1]
+                            full_path = part_for_search.split(".")[-1]
 
                     except IndexError:
                         self.__log.error('Not enough arguments. Expected min 2.')
@@ -1092,11 +1109,19 @@ class OpcUaConnector(Connector, Thread):
                         while not task.done():
                             sleep(.2)
                     elif rpc_method == 'set':
-                        value = args_list[2].split('=')[-1]
-                        task = self.__loop.create_task(self.__write_value(full_path, value, result))
+                        try:
+                            if value is None:
+                                value = args_list[2].split('=')[-1]
+                            task = self.__loop.create_task(self.__write_value(full_path, value, result))
 
-                        while not task.done():
-                            sleep(.2)
+                            while not task.done():
+                                sleep(.2)
+                        except IndexError as e:
+                            self.__log.error('Cannot determine value from incoming request. Supported format: set <node>=<value>')
+                            self.__gateway.send_rpc_reply(device=content['device'],
+                                                          req_id=content['data'].get('id'),
+                                                          content={"result": {"error": 'Cannot determine value from incoming request. Supported format: set <node>=<value>'}})
+                            return
 
                     self.__gateway.send_rpc_reply(device=content['device'],
                                                   req_id=content['data'].get('id'),
@@ -1158,6 +1183,8 @@ class OpcUaConnector(Connector, Thread):
         except Exception as e:
             self.__log.error("Error during RPC request handling: %s", e)
             self.__log.debug("Error during RPC request handling: ", exc_info=e)
+            self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+                                          {"result": {"error": str(e)}})
 
     async def __write_value(self, path, value, result=None):
         if result is None:
