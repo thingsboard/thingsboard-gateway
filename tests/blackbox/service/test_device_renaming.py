@@ -218,11 +218,8 @@ class TestModbusRename(ModbusRenameBaseTestClass):
         config, _ = self.change_connector_configuration(
             self.CONFIG_PATH + 'modbus_rename_configs/modbus_uplink_converter_input_registers_reading_little.json'
         )
-        self.rename_device("Renamed device")
+        updated_device = self.rename_device("Renamed device")
         sleep(GENERAL_TIMEOUT)
-        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
-                            not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertIn("Renamed device", all_device_names)
 
         expected = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/input_registers_values_reading_big.json'
@@ -230,7 +227,7 @@ class TestModbusRename(ModbusRenameBaseTestClass):
         for rpc_conf in config['Modbus']['configurationJson']['master']['slaves'][0]['rpc']:
             tag = rpc_conf.pop('tag')
             result = self.client.handle_two_way_device_rpc_request(
-                self.device.id,
+                updated_device.id,
                 {"method": tag, "params": rpc_conf, "timeout": 5000}
             )
             self.assertEqual(
@@ -242,11 +239,8 @@ class TestModbusRename(ModbusRenameBaseTestClass):
     def test_device_writes_rpc_after_rename(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/holding_registers_writing_rpc_little.json')
-        self.rename_device("Renamed device")
+        updated_device = self.rename_device("Renamed device")
         sleep(GENERAL_TIMEOUT)
-        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
-                            not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertIn("Renamed device", all_device_names)
         expected_values = self.load_configuration(
             self.CONFIG_PATH + 'test_values/rpc/holding_registers_values_writing_little.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
@@ -254,14 +248,14 @@ class TestModbusRename(ModbusRenameBaseTestClass):
 
         for rpc in config['Modbus']['configurationJson']['master']['slaves'][0]['rpc']:
             rpc_tag = rpc.pop('tag')
-            self.client.handle_two_way_device_rpc_request(self.device.id,
+            self.client.handle_two_way_device_rpc_request(updated_device.id,
                                                           {
                                                               "method": rpc_tag,
                                                               "params": expected_values[rpc_tag],
                                                               "timeout": 5000
                                                           })
         sleep(GENERAL_TIMEOUT)
-        latest_ts = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
+        latest_ts = self.client.get_latest_timeseries(updated_device.id, ','.join(telemetry_keys))
         for (_type, value) in expected_values.items():
             if _type == 'bits':
                 latest_ts[_type][0]['value'] = loads(latest_ts[_type][0]['value'])
@@ -276,16 +270,12 @@ class TestModbusRename(ModbusRenameBaseTestClass):
         config, _ = self.change_connector_configuration(
             self.CONFIG_PATH + 'modbus_rename_configs/modbus_uplink_converter_input_registers_reading_little.json'
         )
-        self.rename_device("Renamed device")
+        updated_device = self.rename_device("Renamed device")
         keys = [k['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for k in
                 slave['timeseries']]
         sleep(GENERAL_TIMEOUT)
-        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
-                            not device.name == self.GATEWAY_DEVICE_NAME]
 
-        self.assertIn("Renamed device", all_device_names)
-
-        actual = self.client.get_latest_timeseries(self.device.id, ','.join(keys))
+        actual = self.client.get_latest_timeseries(updated_device.id, ','.join(keys))
         expected = self.load_configuration(
             self.CONFIG_PATH + 'test_values/uplink/input_registers_values_little.json'
         )
@@ -306,12 +296,9 @@ class TestModbusRename(ModbusRenameBaseTestClass):
         expected = self.load_configuration(
             self.CONFIG_PATH + 'test_values/attrs_update/input_registers_values_little.json'
         )
-        self.rename_device("Renamed device")
-        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
-                            not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertIn("Renamed device", all_device_names)
+        updated_device = self.rename_device("Renamed device")
         actual = self.client.get_latest_timeseries(
-            self.device.id,
+            updated_device.id,
             ','.join(expected.keys())
         )
         for tag, val in expected.items():
