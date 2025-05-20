@@ -1909,7 +1909,7 @@ class TBGatewayService:
                                                              "last_send_ts": monotonic()}
                         self.gw_send_attributes(device_name, device_details)
                 except Exception as e:
-                    # global log
+                    global log
                     log.error("Error on sending device details about the device %s", device_name, exc_info=e)
                     return False
 
