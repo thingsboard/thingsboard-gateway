@@ -76,16 +76,16 @@ class AsyncBACnetConnector(Thread, Connector):
 
         self.__application = None
 
-        self.__process_device_queue = Queue(1_000_000)
-        self.__data_to_convert_queue = Queue(1_000_000)
-        self.__data_to_save_queue = Queue(1_000_000)
-        self.__indication_queue = Queue(1_000_000)
-
         try:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
         except RuntimeError:
             self.loop = asyncio.get_event_loop()
+
+        self.__process_device_queue = Queue(1_000_000)
+        self.__data_to_convert_queue = Queue(1_000_000)
+        self.__data_to_save_queue = Queue(1_000_000)
+        self.__indication_queue = Queue(1_000_000)
 
         self.loop.set_exception_handler(self.exception_handler)
 
