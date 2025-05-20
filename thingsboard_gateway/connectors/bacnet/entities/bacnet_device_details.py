@@ -27,10 +27,33 @@ class BACnetDeviceDetails:
         self.__object_name = i_am_request.deviceName if hasattr(i_am_request, 'deviceName') else i_am_request.iAmDeviceIdentifier[1]
         self.__max_apdu_length = i_am_request.maxAPDULengthAccepted
         self.__segmentation = i_am_request.segmentationSupported
+        self.__objects_len = 0
+        self.__failed_to_read_indexes = []
 
     def __str__(self):
         return (f"DeviceDetails(address={self.address}, objectIdentifier={self.__object_identifier}, "
                 f"vendorId={self.__vendor_id}, objectName={self.__object_name}")
+
+    @property
+    def failed_to_read_indexes(self):
+        return self.__failed_to_read_indexes
+
+    @failed_to_read_indexes.setter
+    def failed_to_read_indexes(self, value: int):
+        if value not in self.__failed_to_read_indexes:
+            self.__failed_to_read_indexes.append(value)
+
+    def sucess_read_for(self, value: int):
+        if value in self.__failed_to_read_indexes:
+            self.__failed_to_read_indexes.remove(value)
+
+    @property
+    def objects_len(self):
+        return self.__objects_len
+
+    @objects_len.setter
+    def objects_len(self, value):
+        self.__objects_len = value
 
     @property
     def object_id(self):

@@ -77,6 +77,7 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__application = None
 
         self.__process_device_queue = Queue(1_000_000)
+        self.__process_device_rescan_queue = Queue(1_000_000)
         self.__data_to_convert_queue = Queue(1_000_000)
         self.__data_to_save_queue = Queue(1_000_000)
         self.__indication_queue = Queue(1_000_000)
@@ -92,6 +93,11 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__devices = Devices()
         self.__devices_discover_period = self.__config.get('devicesDiscoverPeriodSeconds', 30)
         self.__previous_discover_time = 0
+
+        self.__devices_rescan_objects_period = self.__config.get('devicesRescanObjectsPeriodSeconds', 30)
+        if self.__devices_rescan_objects_period is None:
+            self.__devices_rescan_objects_period = self.__devices_discover_period
+        self.__can_rescan_devices_objects = False
 
     def exception_handler(self, _, context):
         if context.get('exception') is not None:
@@ -120,6 +126,7 @@ class AsyncBACnetConnector(Thread, Connector):
 
         await self.__discover_devices()
         await asyncio.gather(self.__main_loop(),
+                             self.__rescan_devices(),
                              self.__convert_data(),
                              self.__save_data(),
                              self.indication_callback(),
@@ -127,6 +134,14 @@ class AsyncBACnetConnector(Thread, Connector):
 
     def __handle_indication(self, apdu):
         self.__indication_queue.put_nowait(apdu)
+
+    async def __rescan_devices(self):
+        while not self.__stopped:
+            try:
+                device = self.__process_device_rescan_queue.get_nowait()
+                self.loop.create_task(self.__check_and_update_device_config(device, device.details.failed_to_read_indexes))
+            except QueueEmpty:
+                await asyncio.sleep(.1)
 
     async def indication_callback(self):
         """
@@ -171,7 +186,8 @@ class AsyncBACnetConnector(Thread, Connector):
                         device_config,
                         apdu,
                         self.__process_device_queue,
-                        self.__converter_log)
+                        self.__converter_log,
+                        self.__log)
 
         await self.__devices.add(device)
         self.__gateway.add_device(device.device_info.device_name,
@@ -183,22 +199,24 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__log.debug('Device %s started', device)
 
         self.__log.debug('Checking device %s configuration...', device.device_info.device_name)
-        await self.__check_and_update_device_config(device, device_config)
+        await self.__check_and_update_device_config(device)
         self.__log.debug('Checked device %s configuration.', device.device_info.device_name)
 
-    async def __check_and_update_device_config(self, device, device_config):
-        new_config = deepcopy(device_config)
+        self.loop.create_task(device.rescan())
 
-        discover_for = Device.is_discovery_config(device_config)
+    async def __check_and_update_device_config(self, device, index_to_read=None):
+        new_config = deepcopy(device.config)
+
+        discover_for = Device.is_discovery_config(device.config)
         if len(discover_for):
             self.__log.debug('Discovering %s device objects...', device.details.address)
             discovering_started = monotonic()
 
-            iter = await self.__application.get_device_objects(device)
-            if iter is not None:
+            itr = await self.__application.get_device_objects(device, index_to_read=index_to_read)
+            if itr is not None:
                 all_done = False
                 while not self.__stopped and not all_done:
-                    objects, _, all_done = await iter.get_next()
+                    objects, _, all_done = await itr.get_next()
                     config = self.from_object_to_config(device, objects)
                     for section in discover_for:
                         if isinstance(new_config[section], str):
@@ -274,11 +292,11 @@ class AsyncBACnetConnector(Thread, Connector):
     async def __read_multiple_properties(self, device):
         reading_started = monotonic()
 
-        iter = await self.__application.get_device_values(device)
-        if iter is not None:
+        itr = await self.__application.get_device_values(device)
+        if itr is not None:
             all_done = False
             while not self.__stopped and not all_done:
-                results, config, all_done = await iter.get_next()
+                results, config, all_done = await itr.get_next()
                 if len(results) > 0:
                     self.__log.trace('%s reading results: %s', device, results)
                     self.__data_to_convert_queue.put_nowait((device, zip(config, [result[-1] for result in results])))
@@ -334,7 +352,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 self.__gateway.send_to_storage(self.get_name(), self.get_id(), data_to_save)
                 self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
             except QueueEmpty:
-                await asyncio.sleep(.01)
+                await asyncio.sleep(.1)
             except Exception as e:
                 self.__log.error('Error saving data: %s', e)
 
@@ -381,6 +399,7 @@ class AsyncBACnetConnector(Thread, Connector):
 
             future = asyncio.run_coroutine_threadsafe(self.__devices.get_device_by_name(content['device']), self.loop)
 
+            device = None
             try:
                 device = future.result(10)
             except asyncio.TimeoutError:
@@ -420,6 +439,7 @@ class AsyncBACnetConnector(Thread, Connector):
 
         future = asyncio.run_coroutine_threadsafe(self.__devices.get_device_by_name(content['device']), self.loop)
 
+        device = None
         try:
             device = future.result(10)
         except asyncio.TimeoutError:

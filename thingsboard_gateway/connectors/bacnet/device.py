@@ -38,7 +38,7 @@ class Device:
     )
     ANY_LOCAL_ADDRESS_WITH_PORT_PATTERN = compile(r"\*:\d+")
 
-    def __init__(self, connector_type, config, i_am_request, queue, logger: TbLogger):
+    def __init__(self, connector_type, config, i_am_request, reading_queue, rescan_queue, logger: TbLogger):
         self.__connector_type = connector_type
         self.__config = config
         DeviceObjectConfig.update_address_in_config_util(self.__config)
@@ -48,7 +48,8 @@ class Device:
 
         self.__stopped = False
         self.active = True
-        self.__request_process_queue = queue
+        self.__request_process_queue = reading_queue
+        self.__rescan_process_queue = rescan_queue
 
         if Device.need_to_retrieve_device_name(self.__config) and i_am_request.deviceName is None:
             self.__log.warning('Device name is not provided in IAmRequest. Device Id will be used as "objectName')
@@ -60,6 +61,7 @@ class Device:
 
         self.name = self.device_info.device_name
 
+        self.__objects_rescan_period = 30  # TODO: get it from config
         self.__config_poll_period = self.__config.get('pollPeriod', 10000) / 1000
         self.__poll_period = self.__config_poll_period
         self.attributes_updates = self.__config.get('attributeUpdates', [])
@@ -125,6 +127,20 @@ class Device:
 
             sleep_time = max(0.0, next_poll_time - current_time)
 
+            await sleep(sleep_time)
+
+    async def rescan(self):
+        next_rescan_time = monotonic() + self.__objects_rescan_period
+
+        while not self.__stopped:
+            current_time = monotonic()
+            if current_time >= next_rescan_time:
+                if self.need_to_rescan():
+                    self.__rescan_process_queue.put_nowait(self)
+
+                next_rescan_time = current_time + self.__objects_rescan_period
+
+            sleep_time = max(0.0, next_rescan_time - current_time)
             await sleep(sleep_time)
 
     @staticmethod
@@ -251,6 +267,9 @@ class Device:
 
         return False
 
+    def need_to_rescan(self):
+        return len(self.details.failed_to_read_indexes) > 0 and not self.details.is_segmentation_supported()
+
 
 class Devices:
     def __init__(self):
@@ -277,20 +296,16 @@ class Devices:
         finally:
             self.__lock.release()
 
-    async def get_device_by_id(self, id):
-        item = None
-
+    async def get_device_by_id(self, _id):
         await self.__lock.acquire()
         try:
-            item = self.__devices.get(id)
+            item = self.__devices.get(_id)
         finally:
             self.__lock.release()
 
         return item
 
     async def get_device_by_name(self, name):
-        item = None
-
         await self.__lock.acquire()
         try:
             item = self.__devices_by_name.get(name)
