@@ -16,7 +16,6 @@
   "attributeRequests": [
     {
       "retain": false,
-      "qos": 0,
       "topicFilter": "v1/devices/me/attributes/request",
       "deviceNameJsonExpression": "${serialNumber}",
       "attributeNameJsonExpression": "${versionAttribute}, ${pduAttribute}",

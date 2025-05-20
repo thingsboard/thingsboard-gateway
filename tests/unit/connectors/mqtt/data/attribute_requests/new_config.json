@@ -20,7 +20,6 @@
     "attributeRequests": [
       {
         "retain": false,
-        "qos": 0,
         "topicFilter": "v1/devices/me/attributes/request",
         "deviceInfo": {
           "deviceNameExpressionSource": "message",
