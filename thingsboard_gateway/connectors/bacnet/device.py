@@ -180,13 +180,18 @@ class Device:
             if pattern.count(':') == 2:
                 return Device.ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN
             elif pattern.count(':') == 1:
-                if pattern.split(':')[1] == '47808':
-                    return Device.ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_DEFAULT_PORT
+                #differentiate between *:47808 and *:{expectedPort} AND explicit set IP 1.2.3.4:47808 and 1.2.3.4:${ecpectedPort}
+                if pattern.split(':')[0] == "*":
+                    if pattern.split(':')[1] == '47808':
+                        return Device.ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_DEFAULT_PORT
+                    else:
+                        expected_port = r'\d+' if pattern.split(':')[1] == '*' else pattern.split(':')[1]
+                        return Device.ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_CUSTOM_PORT.replace('{expectedPort}', expected_port)  # noqa
                 else:
                     expected_port = r'\d+' if pattern.split(':')[1] == '*' else pattern.split(':')[1]
-                    return Device.ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_CUSTOM_PORT.replace('{expectedPort}', expected_port)  # noqa
+                    return f"^{pattern.split(':')[0]}(?::{expected_port})?$"
 
-        return f"^{regex}$"
+        return f"^{pattern}$"
 
     @staticmethod
     def get_who_is_address(address):
