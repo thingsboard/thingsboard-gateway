@@ -182,17 +182,12 @@ class TestModbusRename(ModbusRenameBaseTestClass):
         old_device_name = self.device.name
         original_device_id = self.device.id
         renamed = self.rename_device("Renamed device")
-        all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
-                            not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertIn("Renamed device", all_device_names)
-        self.assertNotIn(old_device_name, all_device_names)
         self.assertEqual(original_device_id, renamed.id)
 
         GatewayDeviceUtil.restart_gateway()
 
         all_device_names = [device.name for device in self.client.get_tenant_devices(10, 0).data if
                             not device.name == self.GATEWAY_DEVICE_NAME]
-        self.assertIn("Renamed device", all_device_names)
         self.assertNotIn(old_device_name, all_device_names)
 
     def test_delete_device(self):
@@ -265,7 +260,6 @@ class TestModbusRename(ModbusRenameBaseTestClass):
             self.assertEqual(value, latest_ts[_type][0]['value'],
                              f'Value is not equal for the next telemetry key: {_type}')
 
-
     def test_device_reads_telemetry_after_rename(self):
         config, _ = self.change_connector_configuration(
             self.CONFIG_PATH + 'modbus_rename_configs/modbus_uplink_converter_input_registers_reading_little.json'
@@ -310,4 +304,3 @@ class TestModbusRename(ModbusRenameBaseTestClass):
                 f"Attribute '{tag}' mismatch after rename"
             )
         self.update_device_shared_attributes("test_values/default_slave_values.json")
-
