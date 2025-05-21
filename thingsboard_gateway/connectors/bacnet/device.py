@@ -29,11 +29,11 @@ from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 
 
 class Device:
-    ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN = compile(r'^([^:,@]+)(:[^:,@]+)?(:(47808))?$')
+    ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN = compile(r'^([^:,@]+)(:[^:,@]+)?(:(:47808))?$')
     ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_DEFAULT_PORT = compile(r'^(0:[^:,@]+|[^\d:,@][^:,@]*:47808|[^:,@]+)$')
     ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_CUSTOM_PORT = (
         r'^((:(0:)?)[^:,@]+|[^\d:,@][^:,@]*|[^:,@]+)'
-        r'(?:\:{expectedPort})?'
+        r'\:{expectedPort}'
         r'(@[^:,@]+(:\d+)?)?$'  # noqa
     )
     ANY_LOCAL_ADDRESS_WITH_PORT_PATTERN = compile(r"\*:\d+")
@@ -144,7 +144,6 @@ class Device:
 
     @staticmethod
     def get_address_regex(initial_config_address):
-        regex = ''
         i = 0
         pattern = initial_config_address.split('@')[0]
         if pattern == '*:*:*':
@@ -153,8 +152,6 @@ class Device:
             return Device.ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN
         elif pattern == '*':
             return Device.ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_DEFAULT_PORT
-        elif match(Device.ANY_LOCAL_ADDRESS_WITH_PORT_PATTERN, pattern):
-            return Device.ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN
         elif 'X' in pattern:
             port_present = False
             if pattern.count(':') == 1:
@@ -162,6 +159,7 @@ class Device:
                 pattern_for_check = pattern.split(':')[0]
             else:
                 pattern_for_check = pattern
+            regex = ''
             while i < len(pattern_for_check):
                 if pattern_for_check[i] == 'X':
                     while i < len(pattern_for_check) and pattern_for_check[i] == 'X':
@@ -174,9 +172,13 @@ class Device:
                 if pattern.split(':')[1] == '*':
                     regex += r'(:\d+)?'
                 else:
-                    regex += pattern.split(':')[1]
+                    if pattern.split(':')[1] == '47808':
+                        regex += r'(?::47808)?'
+                    else:
+                        regex += r':'
+                        regex += pattern.split(':')[1]
             return f"^{regex}$"
-        elif ':' in pattern:
+        elif ':' in pattern and '*' in pattern:
             if pattern.count(':') == 2:
                 return Device.ALLOWED_WITH_ROUTERS_ADDRESSES_PATTERN
             elif pattern.count(':') == 1:
@@ -185,8 +187,12 @@ class Device:
                 else:
                     expected_port = r'\d+' if pattern.split(':')[1] == '*' else pattern.split(':')[1]
                     return Device.ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_CUSTOM_PORT.replace('{expectedPort}', expected_port)  # noqa
+        elif ':' in pattern:
+            splitted = pattern.split(':')
+            if len(splitted) > 1 and splitted[1] == "47808":
+                return f"^{splitted[0]}(?::47808)?$"
 
-        return f"^{regex}$"
+        return f"^{pattern}$"
 
     @staticmethod
     def get_who_is_address(address):
@@ -277,20 +283,16 @@ class Devices:
         finally:
             self.__lock.release()
 
-    async def get_device_by_id(self, id):
-        item = None
-
+    async def get_device_by_id(self, _id):
         await self.__lock.acquire()
         try:
-            item = self.__devices.get(id)
+            item = self.__devices.get(_id)
         finally:
             self.__lock.release()
 
         return item
 
     async def get_device_by_name(self, name):
-        item = None
-
         await self.__lock.acquire()
         try:
             item = self.__devices_by_name.get(name)
