@@ -29,7 +29,7 @@ pyserial
 pyserial-asyncio
 python-can
 python-dateutil
-bacpypes>=0.18.0
+bacpypes3>=0.0.102
 aiohttp
 puresnmp>=2.0.0
 slixmpp
