@@ -133,8 +133,8 @@ class Device:
         apdu_device_identifier = apdu.iAmDeviceIdentifier[1]
         for device_config in devices_config:
             #if objectIds field is present just compare device identifier and not ip address
-            if device_config.get('objectIds'):
-                if Device.is_device_identifier_match(apdu_device_identifier, device_config.get('objectIds'), device_config.get('address')):
+            if device_config.get('objectIdFilter'):
+                if Device.is_device_identifier_match(apdu_device_identifier, device_config.get('objectIdFilter'), device_config.get('address')):
                     return device_config
             elif Device.is_address_match(apdu_address, device_config.get('address')):
                 return device_config
