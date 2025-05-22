@@ -14,8 +14,8 @@
 
 
 from bacpypes3.basetypes import DateTime
-from bacpypes3.constructeddata import AnyAtomic
-from bacpypes3.basetypes import ErrorType
+from bacpypes3.constructeddata import AnyAtomic, Array
+from bacpypes3.basetypes import ErrorType, PriorityValue, ObjectPropertyReference
 
 from thingsboard_gateway.connectors.bacnet.bacnet_converter import AsyncBACnetConverter
 from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config import UplinkConverterConfig
@@ -52,11 +52,28 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                                  config.get('propertyId'),
                                  value)
                 continue
+
             try:
                 if isinstance(value, DateTime):
                     value = value.isoformat()
-                if isinstance(value, AnyAtomic):
+                elif isinstance(value, AnyAtomic):
                     value = str(value.get_value())
+                elif isinstance(value, ObjectPropertyReference):
+                    result = {
+                        'objectId': str(value.objectIdentifier),
+                        'propertyId': str(value.propertyIdentifier),
+                        'propertyArrayIndex': str(value.propertyArrayIndex)
+                    }
+                    value = result
+                elif isinstance(value, Array):
+                    result = []
+                    for item in value:
+                        if isinstance(item, PriorityValue):
+                            result.append(str(getattr(item, item._choice)))
+                        else:
+                            result.append(item)
+
+                    value = result
 
                 datapoint_key = TBUtility.convert_key_to_datapoint_key(config['key'],
                                                                        device_report_strategy,
