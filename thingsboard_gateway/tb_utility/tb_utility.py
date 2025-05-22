@@ -56,8 +56,8 @@ class TBUtility:
                 content = loads(message.payload)
         except JSONDecodeError:
             try:
-                content = message.payload.decode("utf-8", "ignore")
-            except JSONDecodeError:
+                content = message.payload.decode("utf-8")
+            except UnicodeDecodeError:
                 content = message.payload
         return content
 
