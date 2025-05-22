@@ -130,12 +130,57 @@ class Device:
     @staticmethod
     def find_self_in_config(devices_config, apdu):
         apdu_address = apdu.pduSource.__str__()
-
+        apdu_device_identifier = apdu.iAmDeviceIdentifier[1]
         for device_config in devices_config:
-            if Device.is_address_match(apdu_address, device_config.get('address')):
+            #if objectIds field is present just compare device identifier and not ip address
+            if device_config.get('objectIds'):
+                if Device.is_device_identifier_match(apdu_device_identifier, device_config.get('objectIds'), device_config.get('address')):
+                    return device_config
+            elif Device.is_address_match(apdu_address, device_config.get('address')):
                 return device_config
             elif apdu_address in device_config.get('altResponsesAddresses', []):
                 return device_config
+    @staticmethod
+    def is_device_identifier_match(device_identifier, obect_identifiers, initial_config_address):
+        address_pattern = initial_config_address.split('@')[0]
+        if address_pattern == '*:*:*':
+            return device_identifier in obect_identifiers
+        elif address_pattern == '*:*':
+            return device_identifier in obect_identifiers
+        elif address_pattern == '*':
+            return device_identifier in obect_identifiers
+        elif 'X' in address_pattern:
+            port_present = False
+            if pattern.count(':') == 1:
+                port_present = True
+                pattern_for_check = pattern.split(':')[0]
+            else:
+                pattern_for_check = pattern
+            regex = ''
+            while i < len(pattern_for_check):
+                if pattern_for_check[i] == 'X':
+                    while i < len(pattern_for_check) and pattern_for_check[i] == 'X':
+                        i += 1
+                    regex += r'\d+'
+                else:
+                    regex += escape(pattern_for_check[i])
+                    i += 1
+            if port_present:
+                if pattern.split(':')[1] == '*':
+                    regex += r'(:\d+)?'
+                else:
+                    if pattern.split(':')[1] == '47808':
+                        regex += r'(?::47808)?'
+                    else:
+                        regex += r':'
+                        regex += pattern.split(':')[1]
+            return f"^{regex}$"
+        elif ':' in address_pattern and '*' in address_pattern:
+            if address_pattern.count(':') == 2:
+                return device_identifier in obect_identifiers
+            elif address_pattern.count(':') == 1:
+                return device_identifier in obect_identifiers
+        return False
 
     @staticmethod
     def is_address_match(address, pattern):
