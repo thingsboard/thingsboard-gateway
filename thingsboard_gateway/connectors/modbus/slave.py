@@ -189,7 +189,11 @@ class Slave(Thread):
                 self.connection_attempt_count += 1
                 self.last_connection_attempt_time = cur_time
                 self._log.debug("Trying connect to %s", self)
-                await self.master.connect()
+
+                try:
+                    await asyncio.wait_for(self.master.connect(), timeout=self.timeout)
+                except asyncio.exceptions.TimeoutError:
+                    self._log.warning("Timeout error while connecting to %s", self)
 
                 if self.connection_attempt_count == self.connection_attempt:
                     self._log.warning("Maximum attempt count (%i) for device \"%s\" - encountered.",
