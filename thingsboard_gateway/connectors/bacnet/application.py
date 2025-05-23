@@ -103,49 +103,58 @@ class Application(App):
         if len(devices):
             return devices[0]
 
-    async def get_object_identifiers_with_segmentation(
-        self, device_address: Address, device_identifier: ObjectIdentifier
-    ) -> List[ObjectIdentifier]:
+        return None
+
+    async def get_object_identifiers_with_segmentation(self, device) -> List[ObjectIdentifier]:
         try:
             object_list = await self.read_property(
-                device_address, device_identifier, "objectList"
+                device.details.address, device.details.identifier, "objectList"
             )
             return object_list
         except AbortPDU as e:
-            self.__log.warning(f"{device_identifier} objectList abort: {e}")
+            self.__log.warning(f"{device.details.identifier} objectList abort: {e}")
         except ErrorRejectAbortNack as e:
-            self.__log.warning(f"{device_identifier} objectList error/reject: {e}")
+            self.__log.warning(f"{device.details.identifier} objectList error/reject: {e}")
         except ErrorPDU:
             self.__log.error('ErrorPDU reading object-list')
         except Exception as e:
-            self.__log.error(f"{device_identifier} objectList error: {e}")
+            self.__log.error(f"{device.details.identifier} objectList error: {e}")
 
         return []
 
-    async def get_object_identifiers_without_segmentation(
-        self, device_address: Address, device_identifier: ObjectIdentifier
-    ) -> List[ObjectIdentifier]:
-        object_list = []
-
+    async def get_device_object_list_len(self, device):
         try:
             object_list_length = await self.read_property(
-                device_address,
-                device_identifier,
+                device.details.address,
+                device.details.identifier,
                 "objectList",
                 array_index=0,
             )
         except ErrorPDU:
             self.__log.error('ErrorPDU reading object-list length')
-            return []
+            return 0
         except Exception as e:
-            self.__log.error('%s error reading object-list length: %s', device_identifier, e)
-            return []
+            self.__log.error('%s error reading object-list length: %s', device.details.identifier, e)
+            return 0
 
-        for i in range(object_list_length):
+        return object_list_length
+
+    async def get_object_identifiers_without_segmentation(self, device, index_to_read=None) -> List[ObjectIdentifier]:
+        object_list = []
+
+        if index_to_read is None:
+            object_list_length = await self.get_device_object_list_len(device)
+            if object_list == 0:
+                return []
+
+            device.details.objects_len = object_list_length
+            index_to_read = range(object_list_length)
+
+        for i in index_to_read:
             try:
                 object_identifier = await self.read_property(
-                    device_address,
-                    device_identifier,
+                    device.details.address,
+                    device.details.identifier,
                     "objectList",
                     array_index=i + 1,
                 )
@@ -154,11 +163,16 @@ class Application(App):
                     continue
 
                 object_list.append(object_identifier)
+
+                if index_to_read is not None:
+                    device.details.sucess_read_for(i)
             except ErrorPDU:
                 self.__log.error('ErrorPDU reading object-list[%d]', i + 1)
+                device.details.failed_to_read_indexes = i
                 continue
             except Exception as e:
-                self.__log.error('%s error reading object-list[%d]: %s', device_identifier, i + 1, e)
+                self.__log.error('%s error reading object-list[%d]: %s', device.details.identifier, i + 1, e)
+                device.details.failed_to_read_indexes = i
                 continue
 
         return object_list
@@ -200,17 +214,16 @@ class Application(App):
 
         return decoded_result
 
-    async def get_device_objects(self, device):
+    async def get_device_objects(self, device, index_to_read=None):
         if device.details.is_segmentation_supported():
-            object_list = await self.get_object_identifiers_with_segmentation(device.details.address,
-                                                                              device.details.identifier)
+            object_list = await self.get_object_identifiers_with_segmentation(device)
         else:
-            object_list = await self.get_object_identifiers_without_segmentation(device.details.address,
-                                                                                 device.details.identifier)
+            object_list = await self.get_object_identifiers_without_segmentation(device,
+                                                                                 index_to_read=index_to_read)
 
         if len(object_list) == 0:
             self.__log.warning("%s no objects to read", device.details.object_id)
-            return
+            return None
 
         object_list = [{'objectId': obj, 'propertyId': 'object-name'} for obj in object_list]
 
@@ -226,11 +239,11 @@ class Application(App):
         read_access_specifications = []
         vendor_info = get_vendor_info(vendor_id)
 
-        for object in object_list:
+        for obj in object_list:
             try:
-                object_id = object['objectId']
+                object_id = obj.get('objectId')
                 if not isinstance(object_id, ObjectIdentifier):
-                    obj_str = f"{object['objectType']},{object_id}"
+                    obj_str = f"{obj['objectType']},{object_id}"
                     object_id = ObjectIdentifier(obj_str)
 
                 object_class = vendor_info.get_object_class(object_id[0])
@@ -238,7 +251,7 @@ class Application(App):
                     self.__log.warning(f"unknown object type: {object_id}, {object_class}")
                     continue
 
-                property_identifier = PropertyIdentifier(object['propertyId'])
+                property_identifier = PropertyIdentifier(obj['propertyId'])
 
                 property_class = object_class.get_property_type(property_identifier)
                 if property_class is None:
@@ -258,13 +271,13 @@ class Application(App):
         return read_access_specifications
 
     async def get_device_name(self, apdu):
+        device_name = None
+
         try:
             address = apdu.pduSource.__str__()
             device_name = await self.read_property(
                 Address(address),
                 Device.get_object_id({'objectType': 'device', 'objectId': apdu.iAmDeviceIdentifier[1]}), 'objectName')
-
-            return device_name
         except AbortPDU as e:
             self.__log.warning("Reading %s device name abort: %s", device_name, e)
         except ErrorRejectAbortNack as e:
@@ -274,7 +287,7 @@ class Application(App):
         except Exception as e:
             self.__log.warning("Failed to get %s device name: %s", device_name, e)
 
-        return None
+        return device_name
 
     def decode_tag_list(self, tag_list, vendor_id):
         vendor_info = get_vendor_info(vendor_id)
