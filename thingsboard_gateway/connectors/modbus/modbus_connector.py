@@ -646,7 +646,10 @@ class AsyncModbusConnector(Connector, Thread):
                 }
 
     def __get_device_by_name(self, device_name) -> Slave:
-        return tuple(filter(lambda slave: slave.device_name == device_name, self.__slaves))[0]
+        try:
+            return tuple(filter(lambda slave: slave.device_name == device_name, self.__slaves))[0]
+        except IndexError as e:
+            return None
 
     @property
     def connector_type(self):

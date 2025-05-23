@@ -129,11 +129,15 @@ class GatewayDeviceUtil:
         with RestClientCE(base_url=GatewayDeviceUtil.DEFAULT_URL) as rest_client:
             rest_client.login(username=GatewayDeviceUtil.DEFAULT_USERNAME,
                               password=GatewayDeviceUtil.DEFAULT_PASSWORD)
-            rest_client.handle_two_way_device_rpc_request(cls.GATEWAY_DEVICE.id,
-                                                          {"method": "gateway_restart", "timeout": 60000})
+            try:
+                rest_client.handle_two_way_device_rpc_request(cls.GATEWAY_DEVICE.id,
+                                                              {"method": "gateway_restart", "timeout": 60000})
+            except ApiException as e:
+                LOG.debug("Restart gateway appeared exception: %s", e)
             sleep(10)
 
-        while not cls.is_gateway_connected():
+        start_time = time()
+        while not cls.is_gateway_connected(start_time):
             LOG.info('Gateway connecting to TB...')
             sleep(1)
 

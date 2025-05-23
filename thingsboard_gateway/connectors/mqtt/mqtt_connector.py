@@ -46,7 +46,6 @@ except ImportError:
 
 from paho.mqtt.client import MQTTv31, MQTTv311, MQTTv5
 
-
 MQTT_VERSIONS = {
     3: MQTTv31,
     4: MQTTv311,
@@ -62,9 +61,9 @@ RESULT_CODES_V3 = {
 }
 
 RESULT_CODES_V5 = {
-    4:   "Disconnect with Will Message",
-    16:  "No matching subscribers",
-    17:  "No subscription existed",
+    4: "Disconnect with Will Message",
+    16: "No matching subscribers",
+    17: "No subscription existed",
     128: "Unspecified error",
     129: "Malformed Packet",
     130: "Protocol Error",
@@ -222,7 +221,7 @@ class MqttConnector(Connector, Thread):
 
         if "caCert" in self.__broker["security"] \
                 or self.__broker["security"].get("type", "none").lower() == "certificates":
-            
+
             self.__log.debug("Connector connecting with certificates")
             ca_cert = self.__broker["security"].get("pathToCACert")
             private_key = self.__broker["security"].get("pathToPrivateKey")
@@ -600,7 +599,7 @@ class MqttConnector(Connector, Thread):
             found_device_type = TBUtility.get_value(device_info["deviceProfileExpression"], content,
                                                     expression_instead_none=True)
         elif device_info.get("deviceProfileExpressionSource") == 'constant':
-            found_device_type = TBUtility.get_value(device_info["deviceProfileExpression"], content,)
+            found_device_type = TBUtility.get_value(device_info["deviceProfileExpression"], content, )
 
         return found_device_name, found_device_type
 
@@ -739,15 +738,15 @@ class MqttConnector(Connector, Thread):
                                 scope = TBUtility.get_value(f'${scope}', content, get_tag=True)
 
                             request_arguments = (
-                                    found_device_name,
+                                found_device_name,
+                                found_attribute_names,
+                                lambda data, *args: self.notify_attribute(
+                                    data,
                                     found_attribute_names,
-                                    lambda data, *args: self.notify_attribute(
-                                        data,
-                                        found_attribute_names,
-                                        handler.get("topicExpression"),
-                                        handler.get("valueExpression"),
-                                        handler.get('retain', False),
-                                        handler.get('qos', 0)))
+                                    handler.get("topicExpression"),
+                                    handler.get("valueExpression"),
+                                    handler.get('retain', False),
+                                    handler.get('qos', 0)))
 
                             if scope == 'client':
                                 self.__gateway.tb_client.client.gw_request_client_attributes(*request_arguments)
@@ -829,7 +828,8 @@ class MqttConnector(Connector, Thread):
                                 self.__log.exception("Cannot form topic, key %s - not found", e)
                                 raise e
 
-                            self._publish(topic, data, attribute_update.get('retain', False), attribute_update.get('qos', 0))
+                            self._publish(topic, data, attribute_update.get('retain', False),
+                                          attribute_update.get('qos', 0))
                             self.__log.debug("Attribute Update data: %s for device %s to topic: %s", data,
                                              content["device"], topic)
                         else:
@@ -915,7 +915,8 @@ class MqttConnector(Connector, Thread):
                 self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
                 result = None
                 try:
-                    result = self._publish(request_topic, data_to_send, rpc_config.get('retain', False), rpc_config.get('qos', 0))
+                    result = self._publish(request_topic, data_to_send, rpc_config.get('retain', False),
+                                           rpc_config.get('qos', 0))
                 except Exception as e:
                     self.__log.exception("Error during publishing to target broker: %r", e)
                     self.__gateway.send_rpc_reply(device=content.get("device"),
@@ -923,12 +924,14 @@ class MqttConnector(Connector, Thread):
                                                   content={
                                                       "error": str.format("Error on publish to target broker: %r",
                                                                           str(e))},
-                                                  success_sent=False, to_connector_rpc=True if content.get('device') is None else False) # noqa
+                                                  success_sent=False, to_connector_rpc=True if content.get(
+                            'device') is None else False)  # noqa
                     return
                 if not expects_response or not defines_timeout:
                     self.__log.info("One-way RPC: sending ack to ThingsBoard immediately")
                     self.__gateway.send_rpc_reply(device=content.get('device'), req_id=content["data"]["id"],
-                                                  success_sent=result is not None, to_connector_rpc=True if content.get('device') is None else False) # noqa
+                                                  success_sent=result is not None, to_connector_rpc=True if content.get(
+                            'device') is None else False)  # noqa
 
                 # Everything went out smoothly: RPC is served
                 return
@@ -976,7 +979,6 @@ class MqttConnector(Connector, Thread):
                     for rpc_config in self.__server_side_rpc:
                         if search(rpc_config["deviceNameFilter"], content["device"]) \
                                 and search(rpc_config["methodFilter"], rpc_method) is not None:
-
                             return self.__process_rpc_request(content, rpc_config)
 
                     self.__log.error("RPC not handled: %s", content)
@@ -1002,7 +1004,6 @@ class MqttConnector(Connector, Thread):
 
     def get_converters(self):
         return [item[0] for _, item in self.__mapping_sub_topics.items()]
-
 
     def _send_current_converter_config(self, name, config):
         self.__gateway.send_attributes({name: config})
