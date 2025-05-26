@@ -28,6 +28,11 @@ class BACnetDeviceDetails:
         self.__max_apdu_length = i_am_request.maxAPDULengthAccepted
         self.__segmentation = i_am_request.segmentationSupported
 
+        self.__router_id = i_am_request.routerId if hasattr(i_am_request, 'routerId') else None
+        self.__router_name = i_am_request.routerName if hasattr(i_am_request, 'routerName') else None
+        self.__router_address = i_am_request.routerAddress if hasattr(i_am_request, 'routerAddress') else None
+        self.__router_vendor_id = i_am_request.routerVendorId if hasattr(i_am_request, 'routerVendorId') else None
+
     def __str__(self):
         return (f"DeviceDetails(address={self.address}, objectIdentifier={self.__object_identifier}, "
                 f"vendorId={self.__vendor_id}, objectName={self.__object_name}")
@@ -54,7 +59,11 @@ class BACnetDeviceDetails:
             "address": self.address,
             "objectId": self.__object_identifier,
             "vendorId": self.__vendor_id,
-            "objectName": self.__object_name
+            "objectName": self.__object_name,
+            "routerId": self.__router_id,
+            "routerName": self.__router_name,
+            "routerAddress": self.__router_address,
+            "routerVendorId": self.__router_vendor_id,
         }
 
     def is_segmentation_supported(self):

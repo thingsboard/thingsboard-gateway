@@ -160,12 +160,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 self.__log.error('Error processing indication callback: %s', e)
 
     async def __add_device(self, apdu, device_config):
-        if Device.need_to_retrieve_device_name(device_config):
-            apdu.deviceName = None
-            device_name = await self.__application.get_device_name(apdu)
-
-            if device_name is not None:
-                apdu.deviceName = device_name
+        await self.__set_additional_device_info_to_apdu(apdu, device_config)
 
         device = Device(self.connector_type,
                         device_config,
@@ -185,6 +180,37 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__log.debug('Checking device %s configuration...', device.device_info.device_name)
         await self.__check_and_update_device_config(device, device_config)
         self.__log.debug('Checked device %s configuration.', device.device_info.device_name)
+
+    async def __set_additional_device_info_to_apdu(self, apdu, device_config):
+        if Device.need_to_retrieve_device_name(device_config):
+            apdu.deviceName = None
+            device_name = await self.__application.get_device_name(apdu.pduSource, apdu.iAmDeviceIdentifier)
+
+            if device_name is not None:
+                apdu.deviceName = device_name
+
+        if Device.need_to_retrieve_router_info(device_config):
+            try:
+                address_net = apdu.pduSource.addrNet
+                result = list(filter(lambda net: address_net in net[1],
+                                     self.__application.elementService.clientPeer.router_info_cache.router_dnets.items()))  # noqa
+
+                if len(result) > 0:
+                    (_, router_address), _ = result[0]
+
+                    router_info = await self.__application.get_router_info(router_address)
+                    if router_info is not None:
+                        apdu.routerName = router_info['routerName']
+                        apdu.routerAddress = router_info['routerAddress']
+                        apdu.routerId = router_info['routerId']
+                        apdu.routerVendorId = router_info['routerVendorId']
+                        self.__log.debug('Router info for device %s: %s', router_address, router_info)
+                    else:
+                        self.__log.error('Failed to retrieve router %s info', device_config['address'])
+                else:
+                    self.__log.warning('Router not found for device %s', device_config['address'])
+            except Exception as e:
+                self.__log.error('Error retrieving router info for device %s: %s', device_config['address'], e)
 
     async def __check_and_update_device_config(self, device, device_config):
         new_config = deepcopy(device_config)

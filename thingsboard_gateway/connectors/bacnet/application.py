@@ -257,22 +257,57 @@ class Application(App):
 
         return read_access_specifications
 
-    async def get_device_name(self, apdu):
-        try:
-            address = apdu.pduSource.__str__()
-            device_name = await self.read_property(
-                Address(address),
-                Device.get_object_id({'objectType': 'device', 'objectId': apdu.iAmDeviceIdentifier[1]}), 'objectName')
+    async def get_device_name(self, address: Address, object_id: ObjectIdentifier):
+        device_name = await self.__send_request_wrapper(self.read_property,
+                                                        err_msg=f"Failed to read {address} device name",
+                                                        address=address,
+                                                        objid=object_id,
+                                                        prop='objectName')
 
-            return device_name
-        except AbortPDU as e:
-            self.__log.warning("Reading %s device name abort: %s", device_name, e)
-        except ErrorRejectAbortNack as e:
-            self.__log.warning("Reading %s device name reject: %s", device_name, e)
-        except ErrorPDU:
-            self.__log.error('ErrorPDU reading %s device name', device_name)
+        return device_name
+
+    async def get_router_info(self, device_address: Address):
+        router_info = {}
+
+        # who-is method direct call doesn't trigger the indication callback
+        router = await self.__send_request_wrapper(self.who_is,
+                                                   err_msg=f"Failed to discover router info for {device_address}",
+                                                   address=device_address)
+        if router is not None:
+            router = router[0] if isinstance(router, list) else router
+        else:
+            return None
+
+        router_name = await self.get_device_name(router.pduSource, router.iAmDeviceIdentifier)
+        if router_name is None:
+            return None
+
+        try:
+            router_info['routerVendorId'] = router.vendorID
+            router_info['routerId'] = router.iAmDeviceIdentifier[1]
+            router_info['routerAddress'] = str(router.pduSource)
+            router_info['routerName'] = router_name
         except Exception as e:
-            self.__log.warning("Failed to get %s device name: %s", device_name, e)
+            self.__log.error("Failed to parse router %s info: %s", device_address, e)
+            return None
+
+        return router_info
+
+    async def __send_request_wrapper(self, func, err_msg=None, *args, **kwargs):
+        """
+        Helper method to send a request and handle exceptions.
+        """
+
+        try:
+            return await func(*args, **kwargs)
+        except AbortPDU as e:
+            self.__log.warning("(Request aborted) %s: %s", err_msg, e)
+        except ErrorRejectAbortNack as e:
+            self.__log.warning("(Request rejected) %s: %s", err_msg, e)
+        except ErrorPDU as e:
+            self.__log.error("(Error in request) %s: %s", err_msg, e)
+        except Exception as e:
+            self.__log.error("(Unexpected error in request) %s: %s", err_msg, e)
 
         return None
 
