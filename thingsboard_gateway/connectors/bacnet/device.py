@@ -34,9 +34,15 @@ class Device:
     ALLOWED_LOCAL_ADDRESSES_PATTERN_WITH_CUSTOM_PORT = (
         r'^((:(0:)?)[^:,@]+|[^\d:,@][^:,@]*|[^:,@]+)'
         r'\:{expectedPort}'
-        r'(@[^:,@]+(:\d+)?)?$'  # noqa
+        r'(@[^:,@]+(:\d+)?)?$'
     )
     ANY_LOCAL_ADDRESS_WITH_PORT_PATTERN = compile(r"\*:\d+")
+    ROUTER_INFO_PARAMS = [
+        '${routerName}',
+        '${routerId}',
+        '${routerVendorId}',
+        '${routerAddress}'
+    ]
 
     def __init__(self, connector_type, config, i_am_request, queue, logger: TbLogger):
         self.__connector_type = connector_type
@@ -254,6 +260,16 @@ class Device:
             return True
         if '${objectName}' in config.get('deviceInfo', {}).get('deviceProfileExpression', ''):
             return True
+
+        return False
+
+    @staticmethod
+    def need_to_retrieve_router_info(config):
+        for param in Device.ROUTER_INFO_PARAMS:
+            if param in config.get('deviceInfo', {}).get('deviceNameExpression', ''):
+                return True
+            if param in config.get('deviceInfo', {}).get('deviceProfileExpression', ''):
+                return True
 
         return False
 
