@@ -505,6 +505,7 @@ class AsyncModbusConnector(Connector, Thread):
                         input_params_and_value_list = input_params_and_value_list[0].split(';value=')
                     if len(input_params_and_value_list) == 1:
                         input_params_and_value_list = input_params_and_value_list[0].split(';value')
+                    input_params_and_value_list[1] = input_params_and_value_list[1].replace(";", '')
                 if len(input_params_and_value_list) < 2:
                     raise ValueError('Invalid RPC request format. '
                                      'Expected RPC request format: '
