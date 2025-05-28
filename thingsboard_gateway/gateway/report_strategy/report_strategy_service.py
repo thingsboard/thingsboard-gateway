@@ -173,6 +173,7 @@ class ReportStrategyService:
                     if is_telemetry:
                         self._report_strategy_data_cache.update_ts(datapoint_key, device_name, connector_id, ts)
                     return True
+                return False
             else:
                 return False
         else:
@@ -203,7 +204,10 @@ class ReportStrategyService:
                 current_time = int(monotonic() * 1000)
                 data_to_report = {}
                 for item in to_removal_by_expiration:
-                    self.__keys_to_report_periodically.remove(item)
+                    try:
+                        self.__keys_to_report_periodically.remove(item)
+                    except KeyError:
+                        continue
                 to_removal_by_expiration.clear()
                 keys_set = set(self.__keys_to_report_periodically)
 
@@ -215,12 +219,8 @@ class ReportStrategyService:
                     if report_strategy_data_record is None:
                         if not self.__keys_to_report_periodically:
                             continue
-                        if key.report_strategy is not None and \
-                                key.report_strategy.report_strategy != ReportStrategy.ON_RECEIVED and \
-                                key.report_strategy.ttl > 0:
-                            to_removal_by_expiration.append((key, device_name, connector_id))
-                            continue
-                        raise ValueError(f"Data record for key '{key}' is absent in the cache")
+                        to_removal_by_expiration.append((key, device_name, connector_id))
+                        continue
 
                     if not report_strategy_data_record.should_be_reported_by_period(current_time):
                         continue
@@ -286,7 +286,6 @@ class ReportStrategyService:
 
     def __is_equal(self, old_value, new_value):
         if isinstance(old_value, float) and isinstance(new_value, float):
-            if abs(old_value - new_value) < 0.001:
-                return True
+            return abs(old_value - new_value) < 0.001
         else:
             return old_value == new_value
