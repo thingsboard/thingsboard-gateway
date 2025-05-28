@@ -274,8 +274,8 @@ class ReportStrategyService:
 
     def delete_all_records_for_connector_by_connector_id_and_connector_name(self, connector_id, connector_name):
         self._report_strategy_data_cache.delete_all_records_for_connector_by_connector_id(connector_id)
-        for key, device_name, connector_id in self.__keys_to_report_periodically.copy():
-            if connector_id == connector_id:
+        for key, device_name, _connector_id in self.__keys_to_report_periodically.copy():
+            if connector_id == _connector_id:
                 self.__keys_to_report_periodically.remove((key, device_name, connector_id))
         self._connectors_report_strategies.pop(connector_id, None)
         self._connectors_report_strategies.pop(connector_name, None)
