@@ -1796,6 +1796,7 @@ class TBGatewayService:
             self.__rpc_reply_sent = False
         except Exception as e:
             log.error("Error while sending RPC reply", exc_info=e)
+            self.__rpc_reply_sent = False
 
     def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
         # Put request in outgoing RPC queue. It will be eventually dispatched.
