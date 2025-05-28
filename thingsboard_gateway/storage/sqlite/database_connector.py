@@ -14,7 +14,7 @@
 
 import sqlite3
 from sqlite3 import connect, Connection
-from threading import Lock
+from threading import RLock
 from time import sleep
 from typing import Optional
 
@@ -22,12 +22,12 @@ from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 
 
 class DatabaseConnector:
-    def __init__(self, settings: StorageSettings, logger, stopped):
+    def __init__(self, data_file_path, logger, database_stopped_event):
         self.__log = logger
-        self.data_file_path = settings.data_folder_path
+        self.data_file_path = data_file_path
         self.connection: Optional[Connection] = None
-        self.lock = Lock()
-        self.stopped = stopped
+        self.lock = RLock()
+        self.database_stopped_event = database_stopped_event
         self.__closed = True
 
     def connect(self):
@@ -55,18 +55,18 @@ class DatabaseConnector:
             self.__log.exception("Failed to connect reading connection to database", exc_info=e)
 
     def commit(self):
-        if self.__closed or self.stopped.is_set():
+        if self.__closed or self.database_stopped_event.is_set():
             return False
         retry_count = 0
         max_retries = 5
         base_sleep_time = 0.05
 
-        while retry_count < max_retries and not self.stopped.is_set():
+        while retry_count < max_retries and not self.database_stopped_event.is_set():
             try:
-                while not self.stopped.is_set() and self.connection is None and not self.__closed:
+                while not self.database_stopped_event.is_set() and self.connection is None and not self.__closed:
                     self.__log.debug("Connection is None. Waiting for connection...")
                     sleep(0.1)
-                if not self.stopped.is_set() and not self.__closed:
+                if not self.database_stopped_event.is_set() and not self.__closed:
                     with self.lock:
                         self.connection.commit()
                 return True
@@ -87,10 +87,10 @@ class DatabaseConnector:
         if self.__closed:
             return None
         try:
-            while not self.stopped.is_set() and self.connection is None and not self.__closed:
+            while not self.database_stopped_event.is_set() and self.connection is None and not self.__closed:
                 self.__log.debug("Connection is None. Waiting for connection...")
                 sleep(0.1)
-            if not self.stopped.is_set() and not self.__closed and self.connection is not None:
+            if not self.database_stopped_event.is_set() and not self.__closed and self.connection is not None:
                 with self.lock:
                     cursor = self.connection.cursor()
                     result = cursor.execute(*args)
@@ -112,10 +112,10 @@ class DatabaseConnector:
         current_try = 0
         while current_try < tries:
             try:
-                while not self.stopped.is_set() and self.connection is None and not self.__closed:
+                while not self.database_stopped_event.is_set() and self.connection is None and not self.__closed:
                     self.__log.debug("Connection is None. Waiting for connection...")
                     sleep(0.1)
-                if not self.stopped.is_set() and not self.__closed and self.connection is not None:
+                if not self.database_stopped_event.is_set() and not self.__closed and self.connection is not None:
                     with self.lock:
                         cursor = self.connection.cursor()
                         result = cursor.execute(*args)
@@ -142,10 +142,10 @@ class DatabaseConnector:
         current_try = 0
         while current_try < tries:
             try:
-                while not self.stopped.is_set() and self.connection is None:
+                while not self.database_stopped_event.is_set() and self.connection is None:
                     self.__log.debug("Connection is None. Waiting for connection...")
                     sleep(0.1)
-                if not self.stopped.is_set() and not self.__closed and self.connection is not None:
+                if not self.database_stopped_event.is_set() and not self.__closed and self.connection is not None:
                     with self.lock:
                         cursor = self.connection.cursor()
                         cursor.execute("BEGIN TRANSACTION;")

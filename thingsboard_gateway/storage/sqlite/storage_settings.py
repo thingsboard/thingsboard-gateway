@@ -11,6 +11,9 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+import os
+from os.path import pardir
+os.sep
 
 class StorageSettings:
     def __init__(self, config):
@@ -19,3 +22,6 @@ class StorageSettings:
         self.messages_ttl_in_days = config.get('messages_ttl_in_days', 7)
         self.max_read_records_count = config.get('max_read_records_count', 1000)
         self.batch_size = config.get('writing_batch_size', 1000)
+        self.directory_path = "/".join(self.data_folder_path.split("/")[:-1])
+
+        self.db_file_name = self.data_folder_path.split("/")[-1]
