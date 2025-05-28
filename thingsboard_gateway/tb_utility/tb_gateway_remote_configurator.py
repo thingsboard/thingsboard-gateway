@@ -363,7 +363,11 @@ class RemoteConfigurator:
         if config.get(REPORT_STRATEGY_PARAMETER) != self.general_configuration.get(REPORT_STRATEGY_PARAMETER):
             self.__log.debug('---- Report Strategy configuration changed. Processing...')
             success = self._apply_report_strategy_config(config)
-            if not success:
+            if success:
+                if REPORT_STRATEGY_PARAMETER not in config:
+                    config[REPORT_STRATEGY_PARAMETER] = DEFAULT_REPORT_STRATEGY_CONFIG
+                self.general_configuration[REPORT_STRATEGY_PARAMETER].update(config[REPORT_STRATEGY_PARAMETER])
+            else:
                 config[REPORT_STRATEGY_PARAMETER].update(self.general_configuration[REPORT_STRATEGY_PARAMETER])
         else:
             self.__log.debug('--- Report Strategy configuration not changed.')
@@ -901,14 +905,17 @@ class RemoteConfigurator:
         try:
             new_main_report_strategy = ReportStrategyConfig(config.get(REPORT_STRATEGY_PARAMETER,
                                                                        DEFAULT_REPORT_STRATEGY_CONFIG))
-            if self._gateway.get_report_strategy_service() is None:
+            if ReportStrategy.DISABLED != new_main_report_strategy.report_strategy:
+                if self._gateway.get_report_strategy_service() is not None:
+                    self._gateway.get_report_strategy_service().stop_event.set()
+                    self._gateway.get_report_strategy_service().clear_cache()
                 self._gateway._report_strategy_service = ReportStrategyService(config,
                                                                                self._gateway,
                                                                                self._gateway.get_converted_data_queue(),
                                                                                self.__log)
                 self._gateway.get_report_strategy_service().main_report_strategy = new_main_report_strategy
                 self._gateway.get_report_strategy_service().clear_cache()
-            elif ReportStrategy.DISABLED == new_main_report_strategy.report_strategy:
+            else:
                 self._gateway.get_report_strategy_service().stop_event.set()
                 self._gateway.get_report_strategy_service().clear_cache()
                 self._gateway._report_strategy_service = None

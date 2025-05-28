@@ -2212,6 +2212,9 @@ class TBGatewayService:
 
         return 8196
 
+    def get_converted_data_queue(self):
+        return self.__converted_data_queue
+
     # ----------------------------
     # Storage --------------------
     def get_storage_name(self):
