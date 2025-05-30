@@ -60,6 +60,7 @@ class SQLiteEventStorage(EventStorage):
         self.__log.info("Sqlite Storage initializing...")
         self.write_queue = Queue(-1)
         self.stopped = Event()
+        self.__current_data_from_storage = None
         self.__read_db_file_change_lock = Lock()
         self.__write_db_file_creation_lock = Lock()
         self.__config_copy = copy.deepcopy(config)  # TODO: Work with StorageSettings instead
@@ -157,14 +158,14 @@ class SQLiteEventStorage(EventStorage):
             if self.__read_database.reached_size_limit:
                 # Will watch over this lock perhaps data loses are during database initialization and threads switching
 
-
-                if not self.read_data():
-                    self.__pointer.update_position(self.delete_time_point)
-                    self.old_db_data_is_read = True
-                    self.__read_database.close_db()
-                    self.__read_database.join(5)
-                    self.delete_oversize_db_file(self.__read_database.settings.data_folder_path)
-                    self.__read_database = None
+                with self.__read_db_file_change_lock:
+                    if not self.read_data():
+                        self.__pointer.update_position(self.delete_time_point)
+                        self.old_db_data_is_read = True
+                        self.__read_database.close_db()
+                        self.__read_database.join(5)
+                        self.delete_oversize_db_file(self.__read_database.settings.data_folder_path)
+                        self.__read_database = None
         collect()
 
     def delete_oversize_db_file(self, path_to_oversize_db_file):
