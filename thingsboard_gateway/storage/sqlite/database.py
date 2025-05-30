@@ -117,7 +117,7 @@ class Database(Thread):
                                         message TEXT NOT NULL
                                     );''')
             cursor = self.db.execute_write("CREATE INDEX IF NOT EXISTS idx_timestamp ON messages (timestamp);")
-            cursor.close()
+            cursor.close() # Does not have attrobitre
             self.db.commit()
 
         except Exception as e:
@@ -156,10 +156,18 @@ class Database(Thread):
         self.__log.info("Database thread stopped %r", id(self))
         self.db.close()
 
+        # TODO: ADD INTERRUPTION WHEN STOPPING EVENT_STORAGE
+
 
     def process_file_limit(self, path_to_file, file_size_limit=18000):
-        if getsize(path_to_file) >= file_size_limit:
+        try:
+            if getsize(path_to_file) >= file_size_limit:
+                self.__reached_size_limit = True
+        except FileNotFoundError as e:
             self.__reached_size_limit = True
+            self.__log.debug("File is not found it is likely you deleted it ")
+            self.__log.exception("Failed to find file ! Error: %s", e)
+
 
     def create_db_file(self):
         with self.__creation_new_db_lock:
