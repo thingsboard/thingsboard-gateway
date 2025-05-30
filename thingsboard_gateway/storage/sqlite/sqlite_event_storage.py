@@ -31,13 +31,7 @@ from sqlite3 import InterfaceError
 from threading import Event, Lock
 from time import sleep, time, monotonic
 import re
-from aiofiles.ospath import exists
 import os
-from rdflib.plugins.parsers.ntriples import r_wspace
-from simplejson import dumps
-from typing import List
-
-from twisted.words.protocols.jabber.jstrports import client
 
 from thingsboard_gateway.storage.event_storage import EventStorage
 from thingsboard_gateway.storage.sqlite.database import Database
@@ -67,8 +61,10 @@ class SQLiteEventStorage(EventStorage):
         self.old_db_data_is_read = False
         self.__settings = StorageSettings(config)
         self.__pointer = Pointer(self.__settings.data_folder_path, log=self.__log, settings=self.__settings)
+
         self.__read_database = Database(config, self.write_queue, self.__log,
-                                        stopped=self.stopped)  # TODO: provide storage settings instead of raw config
+                                        stopped=self.stopped)
+        # TODO: provide storage settings instead of raw config
         if self.__pointer.read_database_file == self.__pointer.write_database_file:
             self.__write_database = self.__read_database
             self.__write_database.start()
@@ -80,43 +76,53 @@ class SQLiteEventStorage(EventStorage):
             self.__read_database.should_write = False
             self.__write_database = Database(self.__config_copy, self.write_queue, self.__log, stopped=self.stopped,
                                              should_read=False, should_write=True)
+            self.__write_database.process_database_creation_process()
             self.__read_database.start()
             self.__write_database.start()
 
-        self.__read_database.init_table()
+        self.__write_database.init_table()
         self.__log.info("Sqlite storage initialized!")
         self.delete_time_point = None
         self.__event_pack_processing_start = monotonic()
         self.last_read = time()
+
+    def __assign_existing_read_database(self):
+
+        read_database_file = self.__pointer.sort_db_files()[0]
+        full_path_to_read_db_file = os.path.join(self.__settings.directory_path, read_database_file)
+        self.__config_copy['data_file_path'] = full_path_to_read_db_file
+        self.__read_database = Database(self.__config_copy, self.write_queue, self.__log,
+                                        stopped=self.stopped, should_read=True, should_write=False)
+        self.__read_database.start()
+        self.__pointer.update_read_database_filename(read_database_file)
+        self.__log.info("Sqlite storage updated read_database_file to: %s", read_database_file)
+
+    def __old_db_is_read_and_write_database_in_size_limit(self):
+        self.__read_database = self.__write_database
+        self.__read_database.should_read = True
+
+    def __multiple_files_to_read_after_first_oversized_db_is_read(self):
+        with self.__read_db_file_change_lock:
+            self.__assign_existing_read_database()
 
     def get_event_pack(self):
         if not self.stopped.is_set():
             self.__event_pack_processing_start = monotonic()
             event_pack_messages = []
             try:
-                if self.__pointer.read_database_file != self.__pointer.write_database_file and not self.__read_database:
-                    with self.__read_db_file_change_lock:
-                        read_database_file = self.__pointer.sort_db_files()[0]
-                        full_path_to_read_db_file = os.path.join(self.__settings.directory_path, read_database_file)
-                        self.__config_copy['data_file_path'] = full_path_to_read_db_file
-                        self.__read_database = Database(self.__config_copy, self.write_queue, self.__log,
-                                                        stopped=self.stopped, should_read=True, should_write=False)
-                        self.__read_database.start()
-                        self.__pointer.update_read_database_filename(read_database_file)
-                        self.__log.info("Sqlite storage updated read_database_file to: %s", read_database_file)
-                #This occurs when we already delete oversize db and read data from it  and write data to new and this new did not reach it's
-                # Me seems I do not lock here since at this condition only one thread exists
-                # TODO what If I disconnect internet when code in this condition
-                elif not self.__read_database:
-                    self.__read_database = self.__write_database
-                    self.__read_database.should_read = True
-                elif self.old_db_data_is_read:
+                if len(self.__pointer.sort_db_files()) > 1 and not self.__read_database:
+                    self.__multiple_files_to_read_after_first_oversized_db_is_read()
+                elif not self.__read_database and not self.old_db_data_is_read:
+                    self.__old_db_is_read_and_write_database_in_size_limit()
+
+                elif self.old_db_data_is_read and not self.__read_database:
                     with self.__read_db_file_change_lock:
                         if len(self.__pointer.sort_db_files()) > 1:
                             read_database_file = self.__pointer.sort_db_files()[0]
                             full_path_to_read_db_file = os.path.join(self.__settings.directory_path, read_database_file)
                             self.__config_copy['data_file_path'] = full_path_to_read_db_file
-                            self.__read_database = Database(self.__config_copy, self.write_queue, self.__log,stopped=self.stopped, should_read=True, should_write=False)
+                            self.__read_database = Database(self.__config_copy, self.write_queue, self.__log,
+                                                            stopped=self.stopped, should_read=True, should_write=False)
                             self.__read_database.start()
                             self.__log.info("Successfully created new read database after deletion old")
                         else:
@@ -124,8 +130,8 @@ class SQLiteEventStorage(EventStorage):
                             self.__read_database.should_read = True
 
                         self.old_db_data_is_read = False
-                with self.__read_db_file_change_lock:
-                    data_from_storage = self.read_data()
+
+                data_from_storage = self.read_data()
 
             except InterfaceError as e:
                 self.__log.error("InterfaceError occurred while reading data from storage: %s", e)
@@ -155,21 +161,24 @@ class SQLiteEventStorage(EventStorage):
         if not self.stopped.is_set():
             self.delete_data(self.delete_time_point)
             if self.__read_database.reached_size_limit and self.delete_time_point == self.__pointer.read_position:
-                # Will watch over this lock perhaps data loses are during database initialization and threads switching
-
-                with self.__read_db_file_change_lock:
-                    self.old_db_data_is_read = True
-                    self.__read_database.close_db()
-                    self.__read_database.join(5)
-                    self.delete_oversize_db_file(self.__read_database.settings.data_folder_path)
-                    self.__read_database = None
+                self.__handle_oversized_db_after_succesful_reading()
             self.__pointer.update_position(self.delete_time_point)
 
         collect()
 
+    def __handle_oversized_db_after_succesful_reading(self):
+        with self.__read_db_file_change_lock:
+            self.old_db_data_is_read = True
+            self.__read_database.close_db()
+            self.__read_database.join(5)
+            self.delete_oversize_db_file(self.__read_database.settings.data_folder_path)
+
+            self.__read_database = None
+            self.old_db_data_is_read = False
+
     def delete_oversize_db_file(self, path_to_oversize_db_file):
 
-        for suffix in ("","-shm", "-wal"):
+        for suffix in ("", "-shm", "-wal"):
             path_to_file_with_sufix = f"{path_to_oversize_db_file}{suffix}"
             try:
                 os.remove(path_to_file_with_sufix)
@@ -179,7 +188,6 @@ class SQLiteEventStorage(EventStorage):
             except Exception as e:
                 self.__log.exception("Failed to delete %s: %s", path_to_file_with_sufix, e)
             sleep(0.5)
-
 
     def read_data(self):
         data = self.__read_database.read_data()
@@ -194,27 +202,10 @@ class SQLiteEventStorage(EventStorage):
 
     def put(self, message):
         try:
-            # During shut down the database after the first ocurness of size limit some data is lost
             if not self.stopped.is_set():
 
                 if self.__write_database.reached_size_limit:
-                    with self.__write_db_file_creation_lock:
-                        new_db_name = self.__pointer.generate_new_file_name()
-                        data_file_path_to_new_db_file = self._config["data_folder_path"] + new_db_name
-                        self.__config_copy['data_file_path'] = data_file_path_to_new_db_file
-                        if self.__read_database != self.__write_database:
-                            self.__write_database.close_db()
-                            self.__write_database.join(5)
-                            del self.__write_database
-                        else:
-                            self.__read_database.should_write = False
-                        sleep(0.1)
-                        self.__write_database = Database(
-                            self.__config_copy, self.write_queue, self.__log,
-                            stopped=self.stopped, should_read=False, should_write=True
-                        )
-                        self.__write_database.start()
-                        self.__pointer.update_write_database_file(new_db_name)
+                    self.__handle_write_database_reached_size()
                 self.__log.trace("Sending data to storage: %s", message)
                 self.write_queue.put_nowait(message)
                 return True
@@ -225,6 +216,27 @@ class SQLiteEventStorage(EventStorage):
             return False
         except Exception as e:
             self.__log.exception("Failed to write data to storage! Error: %s", e)
+
+    def __handle_write_database_reached_size(self):
+
+        with self.__write_db_file_creation_lock:
+            new_db_name = self.__pointer.generate_new_file_name()
+            data_file_path = os.path.join(self.__settings.directory_path, new_db_name)
+            self.__config_copy['data_file_path'] = data_file_path
+            if self.__read_database != self.__write_database:
+                self.__write_database.close_db()
+                self.__write_database.join(5)
+                del self.__write_database
+            else:
+                self.__read_database.should_write = False
+            sleep(0.1)
+            self.__write_database = Database(
+                self.__config_copy, self.write_queue, self.__log,
+                stopped=self.stopped, should_read=False, should_write=True
+            )
+            self.__write_database.process_database_creation_process()
+            self.__write_database.start()
+            self.__pointer.update_write_database_file(new_db_name)
 
     def stop(self):
         self.stopped.set()

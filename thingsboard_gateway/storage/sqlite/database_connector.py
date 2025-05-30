@@ -37,7 +37,7 @@ class DatabaseConnector:
         try:
             with self.lock:
                 self.connection = connect(self.data_file_path, check_same_thread=False)
-                self.connection.execute("PRAGMA journal_mode=WAL;")
+                self.connection.execute("PRAGMA journal_mode=DELETE;")
                 self.connection.execute("PRAGMA synchronous=NORMAL;")
                 self.connection.execute("PRAGMA cache_size=-20000;")
                 self.connection.execute("PRAGMA temp_store=MEMORY;")

@@ -66,18 +66,11 @@ class Database(Thread):
         self.directory = dirname(self.settings.data_folder_path)
 
         # Ensure database file and directory exist
-        if not exists(self.settings.data_folder_path):
-            if not exists(self.directory):
-                self.__log.info("SQLite database file not found, creating new one...")
-                try:
-                    makedirs(self.directory)
-                    self.__log.info(f"Directory {self.directory} created")
-                except Exception as e:
-                    self.__log.exception(f"Failed to create directory {self.directory}", exc_info=e)
-            self.create_db_file()
+
 
         # Initialize database connections
-        self.db = DatabaseConnector(self.settings.data_folder_path, self.__log,self.database_stopped_event) # TODO: use path to db file instead of self.settings.data_folder_path
+        self.db = DatabaseConnector(self.settings.data_folder_path, self.__log,
+                                    self.database_stopped_event)  # TODO: use path to db file instead of self.settings.data_folder_path
         self.db.connect()
         self.init_table()
         self.process_queue = processing_queue
@@ -90,7 +83,7 @@ class Database(Thread):
         try:
             # Check if the old schema exists
             # Will ask about that
-            #Here appears an intersting bug - when it returns None - "SELECT sql FROM sqlite_master WHERE type='table' AND name='messages';
+            # Here appears an intersting bug - when it returns None - "SELECT sql FROM sqlite_master WHERE type='table' AND name='messages';
             try:
 
                 result = self.db.execute_read(
@@ -110,14 +103,14 @@ class Database(Thread):
                     self.migrate_old_data()
 
             # Create table if not exists
-            #Welcome to deadlock !!!
+            # Welcome to deadlock !!!
             self.db.execute_write('''CREATE TABLE IF NOT EXISTS messages (
                                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                                         timestamp INTEGER NOT NULL,
                                         message TEXT NOT NULL
                                     );''')
             cursor = self.db.execute_write("CREATE INDEX IF NOT EXISTS idx_timestamp ON messages (timestamp);")
-            cursor.close() # Does not have attrobitre
+            cursor.close()  # Does not have attrobitre
             self.db.commit()
 
         except Exception as e:
@@ -158,8 +151,19 @@ class Database(Thread):
 
         # TODO: ADD INTERRUPTION WHEN STOPPING EVENT_STORAGE
 
+    def process_database_creation_process(self):
 
-    def process_file_limit(self, path_to_file, file_size_limit=18000):
+        if not exists(self.settings.data_folder_path):
+            if not exists(self.directory):
+                self.__log.info("SQLite database file not found, creating new one...")
+                try:
+                    makedirs(self.directory)
+                    self.__log.info(f"Directory {self.directory} created")
+                except Exception as e:
+                    self.__log.exception(f"Failed to create directory {self.directory}", exc_info=e)
+            self.create_db_file()
+
+    def process_file_limit(self, path_to_file, file_size_limit=40000):
         try:
             if getsize(path_to_file) >= file_size_limit:
                 self.__reached_size_limit = True
@@ -167,7 +171,6 @@ class Database(Thread):
             self.__reached_size_limit = True
             self.__log.debug("File is not found it is likely you deleted it ")
             self.__log.exception("Failed to find file ! Error: %s", e)
-
 
     def create_db_file(self):
         with self.__creation_new_db_lock:
