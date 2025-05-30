@@ -26,6 +26,7 @@ from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config impo
 from thingsboard_gateway.gateway.constants import UPLINK_PREFIX, CONVERTER_PARAMETER
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class Device:
@@ -120,13 +121,17 @@ class Device:
         self.__stopped = True
 
     async def run(self):
-        self.__request_process_queue.put_nowait(self)
+        if len(self.uplink_converter_config.objects_to_read) > 0:
+            self.__request_process_queue.put_nowait(self)
+
         next_poll_time = monotonic() + self.__poll_period
 
         while not self.__stopped:
             current_time = monotonic()
             if current_time >= next_poll_time:
-                self.__request_process_queue.put_nowait(self)
+                if len(self.uplink_converter_config.objects_to_read) > 0:
+                    self.__request_process_queue.put_nowait(self)
+
                 next_poll_time = current_time + self.__poll_period
 
             sleep_time = max(0.0, next_poll_time - current_time)
@@ -243,7 +248,7 @@ class Device:
         return ObjectIdentifier("%s:%s" % (config['objectType'], config['objectId']))
 
     @staticmethod
-    def is_discovery_config(config):
+    def is_global_discovery_config(config):
         fill_for = []
 
         if config.get('attributes', '') == '*':
@@ -251,6 +256,18 @@ class Device:
 
         if config.get('timeseries', '') == '*':
             fill_for.append('timeseries')
+
+        return fill_for
+
+    @staticmethod
+    def is_local_discovery_config(config):
+        fill_for = []
+
+        for section in ('attributes', 'timeseries'):
+            for item_config in config.get(section, []):
+                if item_config['objectId'] == '*':
+                    item_config['type'] = section
+                    fill_for.append(item_config)
 
         return fill_for
 
@@ -272,6 +289,44 @@ class Device:
                 return True
 
         return False
+
+    @staticmethod
+    def parse_config_key(config):
+        if '${' in config['key']:
+            result_tags = set()
+            result_tags.update(TBUtility.get_values(config['key'], {}, get_tag=True))
+            if len(result_tags) > 0:
+                if config['propertyId'] != '*':
+                    if isinstance(config['propertyId'], list):
+                        result_tags.update(config['propertyId'])
+                        config['propertyId'] = result_tags
+                    elif isinstance(config['propertyId'], str):
+                        result_tags.add(config['propertyId'])
+                        config['propertyId'] = result_tags
+
+    @staticmethod
+    def parse_ranges(object_id_config):
+        ranges = []
+
+        if isinstance(object_id_config, list):
+            for rng in object_id_config:
+                start, end = Device.__parse_range(rng)
+                ranges.append((start, end))
+        elif isinstance(object_id_config, str):
+            if object_id_config != '*':
+                start, end = Device.__parse_range(object_id_config)
+                ranges.append((start, end))
+
+        return ranges
+
+    @staticmethod
+    def __parse_range(rng):
+        rng = rng.strip()
+        if '-' in rng:
+            start, end = map(str.strip, rng.split('-'))
+            return int(start), int(end) + 1
+        else:
+            return int(rng), int(rng) + 1
 
 
 class Devices:

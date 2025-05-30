@@ -35,7 +35,6 @@ from bacpypes3.apdu import (
 from bacpypes3.comm import bind
 
 from thingsboard_gateway.connectors.bacnet.application_service_access_point import ApplicationServiceAccessPoint
-from thingsboard_gateway.connectors.bacnet.device import Device
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 
 
@@ -106,60 +105,47 @@ class Application(App):
     async def get_object_identifiers_with_segmentation(
         self, device_address: Address, device_identifier: ObjectIdentifier
     ) -> List[ObjectIdentifier]:
-        try:
-            object_list = await self.read_property(
-                device_address, device_identifier, "objectList"
-            )
-            return object_list
-        except AbortPDU as e:
-            self.__log.warning(f"{device_identifier} objectList abort: {e}")
-        except ErrorRejectAbortNack as e:
-            self.__log.warning(f"{device_identifier} objectList error/reject: {e}")
-        except ErrorPDU:
-            self.__log.error('ErrorPDU reading object-list')
-        except Exception as e:
-            self.__log.error(f"{device_identifier} objectList error: {e}")
+        object_list = await self.__send_request_wrapper(self.read_property,
+                                                        err_msg=f"Failed to read {device_identifier} object-list",
+                                                        address=device_address,
+                                                        objid=device_identifier,
+                                                        prop='objectList',
+                                                        array_index=0)
 
-        return []
+        if object_list is None:
+            return []
+
+        return object_list
 
     async def get_object_identifiers_without_segmentation(
         self, device_address: Address, device_identifier: ObjectIdentifier
     ) -> List[ObjectIdentifier]:
         object_list = []
 
-        try:
-            object_list_length = await self.read_property(
-                device_address,
-                device_identifier,
-                "objectList",
-                array_index=0,
-            )
-        except ErrorPDU:
-            self.__log.error('ErrorPDU reading object-list length')
-            return []
-        except Exception as e:
-            self.__log.error('%s error reading object-list length: %s', device_identifier, e)
+        object_list_length = await self.__send_request_wrapper(self.read_property,
+                                                               err_msg=f"Failed to read {device_identifier} object-list length",  # noqa
+                                                               address=device_address,
+                                                               objid=device_identifier,
+                                                               prop='objectList',
+                                                               array_index=0)
+
+        if object_list_length is None:
             return []
 
         for i in range(object_list_length):
-            try:
-                object_identifier = await self.read_property(
-                    device_address,
-                    device_identifier,
-                    "objectList",
-                    array_index=i + 1,
-                )
-
-                if object_identifier[0].__str__() == 'device':
-                    continue
-
-                object_list.append(object_identifier)
-            except ErrorPDU:
-                self.__log.error('ErrorPDU reading object-list[%d]', i + 1)
+            object_identifier = await self.__send_request_wrapper(self.read_property,
+                                                                  err_msg=f"Failed to read {device_identifier} object-list[{i + 1}]",  # noqa
+                                                                  address=device_address,
+                                                                  objid=device_identifier,
+                                                                  prop='objectList',
+                                                                  array_index=i + 1)
+            if object_identifier is None:
                 continue
-            except Exception as e:
-                self.__log.error('%s error reading object-list[%d]: %s', device_identifier, i + 1, e)
+
+            if object_identifier[0].__str__() == 'device':
                 continue
+
+            object_list.append(object_identifier)
 
         return object_list
 
@@ -180,17 +166,9 @@ class Application(App):
             destination=Address(device.details.address),
         )
 
-        result = None
-        try:
-            result = await self.request(request)
-        except AbortPDU as e:
-            self.__log.warning("%s objectList abort: %s", device.details.object_id, e)
-        except ErrorRejectAbortNack as e:
-            self.__log.warning("%s objectList error/reject: %s", device.details.object_id, e)
-        except ErrorPDU:
-            self.__log.error('ErrorPDU reading object-list')
-        except Exception as e:
-            self.__log.error("%s objectList error: %s", device.details.object_id, e)
+        result = await self.__send_request_wrapper(self.request,
+                                                   err_msg=f"Failed to read {device.details.object_id} objects",
+                                                   apdu=request)
 
         if not isinstance(result, ReadPropertyMultipleACK):
             self.__log.error("Invalid response type: %s", type(result))
@@ -200,7 +178,7 @@ class Application(App):
 
         return decoded_result
 
-    async def get_device_objects(self, device):
+    async def get_device_objects(self, device, with_all_properties=False):
         if device.details.is_segmentation_supported():
             object_list = await self.get_object_identifiers_with_segmentation(device.details.address,
                                                                               device.details.identifier)
@@ -212,7 +190,8 @@ class Application(App):
             self.__log.warning("%s no objects to read", device.details.object_id)
             return
 
-        object_list = [{'objectId': obj, 'propertyId': 'object-name'} for obj in object_list]
+        object_list = [{'objectId': obj, 'propertyId': 'object-name' if not with_all_properties else 'all'}
+                       for obj in object_list]
 
         return ObjectIterator(self, device, object_list, self.read_multiple_objects)
 
@@ -238,16 +217,18 @@ class Application(App):
                     self.__log.warning(f"unknown object type: {object_id}, {object_class}")
                     continue
 
-                property_identifier = PropertyIdentifier(object['propertyId'])
+                properties = []
+                if not isinstance(object['propertyId'], set):
+                    object['propertyId'] = {object['propertyId']}
 
-                property_class = object_class.get_property_type(property_identifier)
-                if property_class is None:
-                    self.__log.warning(f"{object_id} unknown property: {property_identifier}")
-                    continue
+                for prop in object['propertyId']:
+                    property_identifier = PropertyIdentifier(prop)
+
+                    properties.append(property_identifier)
 
                 ras = ReadAccessSpecification(
                     objectIdentifier=object_id,
-                    listOfPropertyReferences=[property_identifier],
+                    listOfPropertyReferences=properties,
                 )
 
                 read_access_specifications.append(ras)
@@ -380,7 +361,7 @@ class ObjectIterator:
         self.app = app
         self.items = object_list
         self.device = device
-        self.limit = device.details.get_max_apdu_count()
+        self.limit = self.get_limit()
         self.func = func
         self.index = 0
 
@@ -396,3 +377,17 @@ class ObjectIterator:
         r = await self.func(self.device, result)
 
         return r, result, finished
+
+    def get_limit(self):
+        max_prop_count = 0
+
+        for item in self.items:
+            cur_prop_count = len(item['propertyId']) if isinstance(item['propertyId'], set) else 1
+            if item['propertyId'] == 'all':
+                max_prop_count = 6
+                break
+
+            if cur_prop_count > max_prop_count:
+                max_prop_count = cur_prop_count
+
+        return int(self.device.details.get_max_apdu_count() / max_prop_count) if max_prop_count > 0 else 1

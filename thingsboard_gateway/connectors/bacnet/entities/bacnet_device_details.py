@@ -24,7 +24,7 @@ class BACnetDeviceDetails:
         self.__identifier = i_am_request.iAmDeviceIdentifier
         self.__object_identifier = i_am_request.iAmDeviceIdentifier[1]
         self.__vendor_id = i_am_request.vendorID
-        self.__object_name = i_am_request.deviceName if hasattr(i_am_request, 'deviceName') else i_am_request.iAmDeviceIdentifier[1]
+        self.__object_name = i_am_request.deviceName if hasattr(i_am_request, 'deviceName') else i_am_request.iAmDeviceIdentifier[1]  # noqa
         self.__max_apdu_length = i_am_request.maxAPDULengthAccepted
         self.__segmentation = i_am_request.segmentationSupported
 
