@@ -453,3 +453,8 @@ class TBUtility:
             sleep(.1)
 
         return False
+
+    @staticmethod
+    def kebab_case_to_camel_case(snake_str: str) -> str:
+        components = snake_str.split('-')
+        return components[0] + ''.join(x.title() for x in components[1:]) if len(components) > 1 else components[0]

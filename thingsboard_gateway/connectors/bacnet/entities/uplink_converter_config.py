@@ -30,12 +30,14 @@ class UplinkConverterConfig:
 
             if section_config != '*':
                 for item in section_config:
-                    object_to_read = {**item, 'type': section}
+                    is_local_discovery_config = list(filter(lambda key_value: key_value == '*', item.values()))
+                    if len(is_local_discovery_config) == 0:
+                        object_to_read = {**item, 'type': section}
 
-                    if item['objectType'] == 'device':
-                        object_to_read['objectId'] = self.device_details.object_id
+                        if item['objectType'] == 'device':
+                            object_to_read['objectId'] = self.device_details.object_id
 
-                    objects_to_read.append(object_to_read)
+                        objects_to_read.append(object_to_read)
 
         return objects_to_read
 

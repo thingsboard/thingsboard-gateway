@@ -30,7 +30,7 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
         self.__log = logger
         self.__config = config
 
-    def convert(self, data):
+    def convert(self, config, data):
         StatisticsService.count_connector_message(self.__log.name, 'convertersMsgProcessed')
         converted_data = ConvertedData(device_name=self.__config.device_name, device_type=self.__config.device_type)
         converted_data_append_methods = {
@@ -41,19 +41,55 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
         device_report_strategy = self._get_device_report_strategy(self.__config.report_strategy,
                                                                   self.__config.device_name)
 
-        for config, value in data:
-            if isinstance(value, Exception) or isinstance(value, ErrorType):
-                self.__log.error("Error reading object for key \"%s\", objectId: \"%s\", and propertyId: \"%s\". Error: %s",
-                                 config.get('key'),
-                                 config.get('objectId',
-                                            config.get(
-                                                "objectType", "None") + ":" + str(config.get("objectId", "None"))
-                                            ),
-                                 config.get('propertyId'),
-                                 value)
+        for item_config in config:
+            try:
+                values_group = self.__find_values(data, item_config['objectId'])
+
+                converted_values = self.__convert_data(values_group)
+                if len(converted_values) > 0:
+                    data_key, unsed_values = self.__get_data_key_name(item_config['key'], converted_values)
+
+                    if len(unsed_values) == 1:
+                        datapoint_key = TBUtility.convert_key_to_datapoint_key(data_key,
+                                                                               device_report_strategy,
+                                                                               item_config,
+                                                                               self.__log)
+                        converted_data_append_methods[item_config['type']]({datapoint_key: round(unsed_values[0]['value'], 2) if isinstance(unsed_values[0]['value'], float) else str(unsed_values[0]['value'])})  # noqa
+                    else:
+                        for item in unsed_values:
+                            datapoint_key = TBUtility.convert_key_to_datapoint_key(f'{data_key}.{item["propName"]}',
+                                                                                   device_report_strategy,
+                                                                                   item_config,
+                                                                                   self.__log)
+                            converted_data_append_methods[item_config['type']]({datapoint_key: round(item['value'], 2) if isinstance(item['value'], float) else str(item['value'])}) # noqa
+            except Exception as e:
+                self.__log.error("Error converting data for item %s: %s", item_config, e)
+                StatisticsService.count_connector_message(self.__log.name, 'convertersError', count=1)
                 continue
 
+        StatisticsService.count_connector_message(self.__log.name,
+                                                  'convertersAttrProduced',
+                                                  count=converted_data.attributes_datapoints_count)
+        StatisticsService.count_connector_message(self.__log.name,
+                                                  'convertersTsProduced',
+                                                  count=converted_data.telemetry_datapoints_count)
+
+        self.__log.debug("Converted data: %s", converted_data)
+        return converted_data
+
+    def __convert_data(self, data):
+        converted_data = []
+
+        for value_obj in data:
             try:
+                object_id, value_prop_id, _, value = value_obj
+                if isinstance(value, Exception) or isinstance(value, ErrorType):
+                    self.__log.error("Error converting object with objectId: \"%s\", and propertyId: \"%s\". Error: %s",
+                                     object_id,
+                                     value_prop_id,
+                                     value)
+                    continue
+
                 if isinstance(value, DateTime):
                     value = value.isoformat()
                 elif isinstance(value, AnyAtomic):
@@ -75,23 +111,10 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
 
                     value = result
 
-                datapoint_key = TBUtility.convert_key_to_datapoint_key(config['key'],
-                                                                       device_report_strategy,
-                                                                       config,
-                                                                       self.__log)
-                converted_data_append_methods[config['type']]({datapoint_key: round(value, 2) if isinstance(value, float) else value})  # noqa
+                converted_data.append({'propName': str(value_prop_id), 'value': value})
             except Exception as e:
-                self.__log.error(
-                    "Error converting datapoint with key %s: %s", config.get('key'), e)
+                self.__log.error("Error converting datapoint %s: %s", value_obj, e)
 
-        StatisticsService.count_connector_message(self.__log.name,
-                                                  'convertersAttrProduced',
-                                                  count=converted_data.attributes_datapoints_count)
-        StatisticsService.count_connector_message(self.__log.name,
-                                                  'convertersTsProduced',
-                                                  count=converted_data.telemetry_datapoints_count)
-
-        self.__log.debug("Converted data: %s", converted_data)
         return converted_data
 
     def _get_device_report_strategy(self, report_strategy, device_name):
@@ -99,3 +122,18 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
             return ReportStrategyConfig(report_strategy)
         except ValueError as e:
             self.__log.trace("Report strategy config is not specified for device %s: %s", device_name, e)
+
+    def __find_values(self, data, object_id):
+        return list(filter(lambda value: value[0][-1] == object_id, data))
+
+    def __get_data_key_name(self, key_expression, data):
+        unused_keys = []
+
+        for value_item in data:
+            key_camel_case = TBUtility.kebab_case_to_camel_case(value_item['propName'])
+            if key_camel_case in key_expression:
+                key_expression = key_expression.replace('${' + key_camel_case + '}', str(value_item['value']))
+            else:
+                unused_keys.append(value_item)
+
+        return key_expression, unused_keys
