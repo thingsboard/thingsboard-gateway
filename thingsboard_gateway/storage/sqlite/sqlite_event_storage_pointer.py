@@ -102,7 +102,8 @@ class Pointer:
             self.__log.debug("Failed to update state file! Error:", exc_info=e)
 
     def update_position(self, position):
-        self.__read_position = position
+        with self.__state_file_lock:
+            self.__read_position = position
         # Remove it here to set lock later
         # with self.__state_file_lock:
         #     self.__read_position = position

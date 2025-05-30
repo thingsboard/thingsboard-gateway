@@ -30,7 +30,7 @@ from gc import collect
 from sqlite3 import InterfaceError
 from threading import Event, Lock
 from time import sleep, time, monotonic
-
+import re
 from aiofiles.ospath import exists
 import os
 from rdflib.plugins.parsers.ntriples import r_wspace
@@ -116,8 +116,7 @@ class SQLiteEventStorage(EventStorage):
                             read_database_file = self.__pointer.sort_db_files()[0]
                             full_path_to_read_db_file = os.path.join(self.__settings.directory_path, read_database_file)
                             self.__config_copy['data_file_path'] = full_path_to_read_db_file
-                            self.__read_database = Database(self.__config_copy, self.write_queue, self.__log,
-                                                            self.stopped, should_read=True, should_write=False)
+                            self.__read_database = Database(self.__config_copy, self.write_queue, self.__log,stopped=self.stopped, should_read=True, should_write=False)
                             self.__read_database.start()
                             self.__log.info("Successfully created new read database after deletion old")
                         else:
@@ -125,8 +124,8 @@ class SQLiteEventStorage(EventStorage):
                             self.__read_database.should_read = True
 
                         self.old_db_data_is_read = False
-
-                data_from_storage = self.read_data()
+                with self.__read_db_file_change_lock:
+                    data_from_storage = self.read_data()
 
             except InterfaceError as e:
                 self.__log.error("InterfaceError occurred while reading data from storage: %s", e)
@@ -155,27 +154,32 @@ class SQLiteEventStorage(EventStorage):
                          int((monotonic() - self.__event_pack_processing_start) * 1000))
         if not self.stopped.is_set():
             self.delete_data(self.delete_time_point)
-            if self.__read_database.reached_size_limit:
+            if self.__read_database.reached_size_limit and self.delete_time_point == self.__pointer.read_position:
                 # Will watch over this lock perhaps data loses are during database initialization and threads switching
 
                 with self.__read_db_file_change_lock:
-                    if not self.read_data():
-                        self.__pointer.update_position(self.delete_time_point)
-                        self.old_db_data_is_read = True
-                        self.__read_database.close_db()
-                        self.__read_database.join(5)
-                        self.delete_oversize_db_file(self.__read_database.settings.data_folder_path)
-                        self.__read_database = None
+                    self.old_db_data_is_read = True
+                    self.__read_database.close_db()
+                    self.__read_database.join(5)
+                    self.delete_oversize_db_file(self.__read_database.settings.data_folder_path)
+                    self.__read_database = None
+            self.__pointer.update_position(self.delete_time_point)
+
         collect()
 
     def delete_oversize_db_file(self, path_to_oversize_db_file):
 
-        try:
-            if os.path.exists(path_to_oversize_db_file):
-                os.remove(path_to_oversize_db_file)
-            self.__log.debug("FileStorage_reader -- Cleanup old data file")
-        except Exception as e:
-            self.__log.exception("Failed to delete file! Error: %s", e)
+        for suffix in ("","-shm", "-wal"):
+            path_to_file_with_sufix = f"{path_to_oversize_db_file}{suffix}"
+            try:
+                os.remove(path_to_file_with_sufix)
+                self.__log.debug("Deleted %s ", path_to_file_with_sufix)
+            except FileNotFoundError:
+                continue
+            except Exception as e:
+                self.__log.exception("Failed to delete %s: %s", path_to_file_with_sufix, e)
+            sleep(0.5)
+
 
     def read_data(self):
         data = self.__read_database.read_data()
