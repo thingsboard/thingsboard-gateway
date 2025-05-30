@@ -642,6 +642,9 @@ class RemoteConfigurator:
                         self.create_configuration_file_backup(connector_config_data, config_file_name)
                         changed = True
 
+                if self._gateway._report_strategy_service is not None:
+                    self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name)  # noqa
+
                 connector_configuration = None
                 if (found_connector.get('id') != connector_id
                         or found_connector.get('name') != connector_name
@@ -687,7 +690,8 @@ class RemoteConfigurator:
                     if connector_configuration is None:
                         connector_configuration = found_connector
 
-                    self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name) # noqa
+                    if self._gateway._report_strategy_service is not None:
+                        self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name)  # noqa
 
                     if connector_configuration.get('id') in self._gateway.available_connectors_by_id:
                         try:
