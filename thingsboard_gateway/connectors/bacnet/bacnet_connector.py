@@ -21,6 +21,7 @@ from time import monotonic, sleep
 from typing import TYPE_CHECKING
 from copy import deepcopy
 
+from thingsboard_gateway.connectors.bacnet.entities.routers import Routers
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, STATISTIC_MESSAGE_SENT_PARAMETER
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -90,6 +91,7 @@ class AsyncBACnetConnector(Thread, Connector):
         self.loop.set_exception_handler(self.exception_handler)
 
         self.__devices = Devices()
+        self.__routers_cache = Routers()
         self.__devices_discover_period = self.__config.get('devicesDiscoverPeriodSeconds', 30)
         self.__previous_discover_time = 0
 
@@ -192,25 +194,35 @@ class AsyncBACnetConnector(Thread, Connector):
         if Device.need_to_retrieve_router_info(device_config):
             try:
                 address_net = apdu.pduSource.addrNet
-                result = list(filter(lambda net: address_net in net[1],
-                                     self.__application.elementService.clientPeer.router_info_cache.router_dnets.items()))  # noqa
 
-                if len(result) > 0:
-                    (_, router_address), _ = result[0]
-
-                    router_info = await self.__application.get_router_info(router_address)
+                router_info = await self.__routers_cache.get_router_info_by_address(address_net)
+                if router_info is None:
+                    router_info = await self.__get_router_info(address_net)
                     if router_info is not None:
-                        apdu.routerName = router_info['routerName']
-                        apdu.routerAddress = router_info['routerAddress']
-                        apdu.routerId = router_info['routerId']
-                        apdu.routerVendorId = router_info['routerVendorId']
-                        self.__log.debug('Router info for device %s: %s', router_address, router_info)
+                        await self.__routers_cache.add_router_info(address_net, router_info)
                     else:
-                        self.__log.error('Failed to retrieve router %s info', device_config['address'])
+                        self.__log.warning('Router not found for device %s', device_config['address'])
+
+                if router_info is not None:
+                    apdu.routerName = router_info['routerName']
+                    apdu.routerAddress = router_info['routerAddress']
+                    apdu.routerId = router_info['routerId']
+                    apdu.routerVendorId = router_info['routerVendorId']
+                    self.__log.debug('Router info for device %s: %s', device_config['address'], router_info)
                 else:
-                    self.__log.warning('Router not found for device %s', device_config['address'])
+                    self.__log.error('Failed to retrieve router %s info', device_config['address'])
             except Exception as e:
                 self.__log.error('Error retrieving router info for device %s: %s', device_config['address'], e)
+
+    async def __get_router_info(self, address_net):
+        result = list(filter(lambda net: address_net in net[1],
+                             self.__application.elementService.clientPeer.router_info_cache.router_dnets.items()))
+
+        if len(result) > 0:
+            (_, router_address), _ = result[0]
+
+            router_info = await self.__application.get_router_info(router_address)
+            return router_info
 
     async def __check_and_update_device_config(self, device, device_config):
         new_config = deepcopy(device_config)
