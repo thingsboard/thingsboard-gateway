@@ -363,7 +363,11 @@ class RemoteConfigurator:
         if config.get(REPORT_STRATEGY_PARAMETER) != self.general_configuration.get(REPORT_STRATEGY_PARAMETER):
             self.__log.debug('---- Report Strategy configuration changed. Processing...')
             success = self._apply_report_strategy_config(config)
-            if not success:
+            if success:
+                if REPORT_STRATEGY_PARAMETER not in config:
+                    config[REPORT_STRATEGY_PARAMETER] = DEFAULT_REPORT_STRATEGY_CONFIG
+                self.general_configuration[REPORT_STRATEGY_PARAMETER].update(config[REPORT_STRATEGY_PARAMETER])
+            else:
                 config[REPORT_STRATEGY_PARAMETER].update(self.general_configuration[REPORT_STRATEGY_PARAMETER])
         else:
             self.__log.debug('--- Report Strategy configuration not changed.')
@@ -505,10 +509,16 @@ class RemoteConfigurator:
                     self._gateway.available_connectors_by_id.pop(connector_id)
                     for_deletion.append(active_connector_name)
                     for_deletion_ids.append(connector_id)
-                    self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, active_connector_name) # noqa
+                    if self._gateway._report_strategy_service is not None:
+                        if self._gateway.available_connectors_by_name.get(active_connector_name) is not None and \
+                            connector_id != self._gateway.available_connectors_by_name[active_connector_name].get_id():
+                            another_connector_id = self._gateway.available_connectors_by_name[active_connector_name].get_id()
+                            self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(another_connector_id, active_connector_name)  # noqa
+                        self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, active_connector_name)  # noqa
                     has_changed = True
                 except Exception as e:
                     self.__log.exception("Exception on removing connector occurred:", exc_info=e)
+
 
         if has_changed:
             for name in for_deletion:
@@ -623,6 +633,16 @@ class RemoteConfigurator:
                     file.writelines(dumps(self._get_general_config_in_local_format(), indent='  '))
 
                 self._gateway.load_connectors(self._get_general_config_in_local_format())
+
+                if self._gateway._report_strategy_service is not None:
+                    if self._gateway.available_connectors_by_name.get(connector_name) is not None and \
+                            connector_id != self._gateway.available_connectors_by_name[connector_name].get_id():
+                        another_connector_id = self._gateway.available_connectors_by_name[connector_name].get_id()
+                        self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(
+                            another_connector_id, connector_name)  # noqa
+                    self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(
+                        connector_id, connector_name)  # noqa
+
                 self._gateway.connect_with_connectors()
             else:
                 found_connector = found_connectors[0]
@@ -683,8 +703,6 @@ class RemoteConfigurator:
                     if connector_configuration is None:
                         connector_configuration = found_connector
 
-                    self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name) # noqa
-
                     if connector_configuration.get('id') in self._gateway.available_connectors_by_id:
                         try:
                             retrieved_connector = self._gateway.available_connectors_by_id[connector_configuration['id']]
@@ -730,10 +748,18 @@ class RemoteConfigurator:
                                            connector_configuration.get('id'))
 
                     self._gateway.load_connectors(self._get_general_config_in_local_format())
+
+                    if self._gateway._report_strategy_service is not None:
+                        if self._gateway.available_connectors_by_name.get(connector_name) is not None and \
+                            connector_id != self._gateway.available_connectors_by_name[connector_name].get_id():
+                            another_connector_id = self._gateway.available_connectors_by_name[connector_name].get_id()
+                            self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(another_connector_id, connector_name)  # noqa
+                        self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name)  # noqa
+
                     self._gateway.connect_with_connectors()
 
             # can be removed in the future versions:
-            config['sendDataOnlyOnChange'] = config['configurationJson'].get('sendDataOnlyOnChange', False)
+            # config['sendDataOnlyOnChange'] = config['configurationJson'].get('sendDataOnlyOnChange', False)
 
             if connector_type != 'modbus':
                 config['configurationJson'].pop('reportStrategy', None)
@@ -901,14 +927,25 @@ class RemoteConfigurator:
         try:
             new_main_report_strategy = ReportStrategyConfig(config.get(REPORT_STRATEGY_PARAMETER,
                                                                        DEFAULT_REPORT_STRATEGY_CONFIG))
-            if self._gateway.get_report_strategy_service() is None:
+            if ReportStrategy.DISABLED != new_main_report_strategy.report_strategy:
+                if self._gateway.get_report_strategy_service() is not None:
+                    self._gateway.get_report_strategy_service().stop_event.set()
+                    self._gateway.get_report_strategy_service().clear_cache()
                 self._gateway._report_strategy_service = ReportStrategyService(config,
                                                                                self._gateway,
                                                                                self._gateway.get_converted_data_queue(),
                                                                                self.__log)
                 self._gateway.get_report_strategy_service().main_report_strategy = new_main_report_strategy
                 self._gateway.get_report_strategy_service().clear_cache()
-            elif ReportStrategy.DISABLED == new_main_report_strategy.report_strategy:
+                for connector in self._gateway.available_connectors_by_id.values():
+                    try:
+                        connector_report_strategy = ReportStrategyConfig(connector.get_config().get(REPORT_STRATEGY_PARAMETER, {}))
+                        self._gateway.get_report_strategy_service().register_connector_report_strategy(connector_name=connector.get_name(),
+                                                                                                       connector_id=connector.get_id(),
+                                                                                                       report_strategy_config=connector_report_strategy)
+                    except ValueError:
+                        pass
+            else:
                 self._gateway.get_report_strategy_service().stop_event.set()
                 self._gateway.get_report_strategy_service().clear_cache()
                 self._gateway._report_strategy_service = None

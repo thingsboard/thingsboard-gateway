@@ -260,8 +260,8 @@ class Slave(Thread):
         if isinstance(result, Future):
             if not result.done():
                 result = await result
-            if result.exception(True) is not None:
-                raise result.exception(True)
+            if result.exception() is not None:
+                raise result.exception()
 
         StatisticsService.count_connector_message(self.connector.get_name(),
                                                   stat_parameter_name='connectorMsgsReceived')

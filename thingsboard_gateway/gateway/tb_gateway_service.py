@@ -1050,6 +1050,16 @@ class TBGatewayService:
             else:
                 log.debug("[%r] Connector with name %s already exists and not stopped, skipping updating it...",
                           _id, name)
+                try:
+                    report_strategy_config_connector = configuration.pop(REPORT_STRATEGY_PARAMETER, None)  # noqa
+                    connector_report_strategy = ReportStrategyConfig(report_strategy_config_connector)  # noqa
+                    if self._report_strategy_service is not None:
+                        self._report_strategy_service.register_connector_report_strategy(name, _id, connector_report_strategy)  # noqa
+                except ValueError:
+                    log.info("Cannot find separated report strategy for connector %r. \
+                             The main report strategy \
+                             will be used as a connector report strategy.",
+                             name)
         else:
             if configuration is not None:
                 log.warning("[%r] Config incorrect for %s connector with name %s", _id, _type, name)
@@ -1796,6 +1806,7 @@ class TBGatewayService:
             self.__rpc_reply_sent = False
         except Exception as e:
             log.error("Error while sending RPC reply", exc_info=e)
+            self.__rpc_reply_sent = False
 
     def register_rpc_request_timeout(self, content, timeout, topic, cancel_method):
         # Put request in outgoing RPC queue. It will be eventually dispatched.
@@ -2210,6 +2221,9 @@ class TBGatewayService:
             return int(self.__max_payload_size_in_bytes * 0.9)
 
         return 8196
+
+    def get_converted_data_queue(self):
+        return self.__converted_data_queue
 
     # ----------------------------
     # Storage --------------------

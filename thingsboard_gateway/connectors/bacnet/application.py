@@ -367,7 +367,7 @@ class ObjectIterator:
 
     async def get_next(self):
         if self.index >= len(self.items):
-            return [], True
+            return [], {}, True
 
         end_index = self.index + self.limit
         result = self.items[self.index:end_index]

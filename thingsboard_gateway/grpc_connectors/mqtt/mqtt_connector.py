@@ -410,7 +410,7 @@ class GrpcMqttConnector(GwGrpcConnector):
                 worker.stopped = True
                 self.__workers_thread_pool.remove(worker)
 
-    def _on_message(self, client, userdata, message):
+    def _on_message(self, client, userdata, message, *extra_params):
         self._on_message_queue.put((client, userdata, message))
 
     def _process_on_message(self):
@@ -599,6 +599,7 @@ class GrpcMqttConnector(GwGrpcConnector):
                 log.debug("Received message to topic \"%s\" with unknown interpreter data: \n\n\"%s\"",
                           message.topic,
                           content)
+        return None
 
     def notify_attribute(self, content):
         try:
@@ -606,7 +607,7 @@ class GrpcMqttConnector(GwGrpcConnector):
                 'device': content.deviceName,
                 'values': content.responseMsg.sharedAttributeList
             }
-            attribute_name, topic_expression, value_expression, retain = self._attribute_requests_queue.get(), qos = self._attribute_requests_queue.get()
+            attribute_name, topic_expression, value_expression, retain, qos = self._attribute_requests_queue.get()
 
             device_name = incoming_data.get("device")
             attribute_values = [item.string_v for item in incoming_data.get('values')]

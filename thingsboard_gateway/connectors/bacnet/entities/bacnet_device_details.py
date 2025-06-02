@@ -55,16 +55,23 @@ class BACnetDeviceDetails:
 
     @property
     def as_dict(self):
-        return {
+        result = {
             "address": self.address,
             "objectId": self.__object_identifier,
             "vendorId": self.__vendor_id,
             "objectName": self.__object_name,
-            "routerId": self.__router_id,
-            "routerName": self.__router_name,
-            "routerAddress": self.__router_address,
-            "routerVendorId": self.__router_vendor_id,
         }
+
+        if self.__router_id is not None:
+            result['routerId'] = self.__router_id
+        if self.__router_name is not None:
+            result['routerName'] = self.__router_name
+        if self.__router_address is not None:
+            result['routerAddress'] = self.__router_address
+        if self.__router_vendor_id is not None:
+            result['routerVendorId'] = self.__router_vendor_id
+
+        return result
 
     def is_segmentation_supported(self):
         return self.__segmentation in (Segmentation.segmentedBoth, Segmentation.segmentedTransmit)
