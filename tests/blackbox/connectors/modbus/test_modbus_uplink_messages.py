@@ -136,6 +136,7 @@ class ModbusUplinkMessagesTest(BaseTest):
             self.CONFIG_PATH + 'configs/initial_modbus_uplink_converter_report_strategy_on_change.json')
         telemetry_keys = [key['tag'] for slave in config['Modbus']['configurationJson']['master']['slaves'] for key in
                           slave['timeseries']]
+        sleep(GENERAL_TIMEOUT)
         actual_values = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
         sleep(GENERAL_TIMEOUT)
         latest_ts_1 = self.client.get_latest_timeseries(self.device.id, ','.join(telemetry_keys))
