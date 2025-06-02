@@ -512,10 +512,8 @@ class RemoteConfigurator:
                     if self._gateway._report_strategy_service is not None:
                         if self._gateway.available_connectors_by_name.get(active_connector_name) is not None and \
                             connector_id != self._gateway.available_connectors_by_name[active_connector_name].get_id():
-                            self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, active_connector_name)  # noqa
-                            connector_id = self._gateway.available_connectors_by_name[active_connector_name].get_id()
-                        self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, active_connector_name)  # noqa
-                    else:
+                            another_connector_id = self._gateway.available_connectors_by_name[active_connector_name].get_id()
+                            self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(another_connector_id, active_connector_name)  # noqa
                         self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, active_connector_name)  # noqa
                     has_changed = True
                 except Exception as e:
@@ -650,15 +648,6 @@ class RemoteConfigurator:
                         self.create_configuration_file_backup(connector_config_data, config_file_name)
                         changed = True
 
-                    if self._gateway._report_strategy_service is not None:
-                        if self._gateway.available_connectors_by_name.get(connector_name) is not None and \
-                            connector_id != self._gateway.available_connectors_by_name[connector_name].get_id():
-                            self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name)  # noqa
-                            connector_id = self._gateway.available_connectors_by_name[connector_name].get_id()
-                        self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name)  # noqa
-                    else:
-                        self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name)  # noqa
-
                 connector_configuration = None
                 if (found_connector.get('id') != connector_id
                         or found_connector.get('name') != connector_name
@@ -703,15 +692,6 @@ class RemoteConfigurator:
 
                     if connector_configuration is None:
                         connector_configuration = found_connector
-
-                    if self._gateway._report_strategy_service is not None:
-                        if self._gateway.available_connectors_by_name.get(connector_name) is not None and \
-                            connector_id != self._gateway.available_connectors_by_name[connector_name].get_id():
-                            self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name)  # noqa
-                            connector_id = self._gateway.available_connectors_by_name[connector_name].get_id()
-                        self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name)  # noqa
-                    else:
-                        self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name)  # noqa
 
                     if connector_configuration.get('id') in self._gateway.available_connectors_by_id:
                         try:
@@ -759,6 +739,13 @@ class RemoteConfigurator:
 
                     self._gateway.load_connectors(self._get_general_config_in_local_format())
                     self._gateway.connect_with_connectors()
+
+            if self._gateway._report_strategy_service is not None:
+                if self._gateway.available_connectors_by_name.get(connector_name) is not None and \
+                    connector_id != self._gateway.available_connectors_by_name[connector_name].get_id():
+                    another_connector_id = self._gateway.available_connectors_by_name[connector_name].get_id()
+                    self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(another_connector_id, connector_name)  # noqa
+                self._gateway._report_strategy_service.delete_all_records_for_connector_by_connector_id_and_connector_name(connector_id, connector_name)  # noqa
 
             # can be removed in the future versions:
             # config['sendDataOnlyOnChange'] = config['configurationJson'].get('sendDataOnlyOnChange', False)

@@ -36,6 +36,11 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
     def __init__(self, config, logger):
         self._log = logger
+        self.__device_report_strategy = None
+        try:
+            self.__device_report_strategy = ReportStrategyConfig(config.get(REPORT_STRATEGY_PARAMETER))
+        except ValueError as e:
+            pass
         self.__config = config.get('converter')
         self.__use_eval = self.__config.get(self.CONFIGURATION_OPTION_USE_EVAL, False)
 
@@ -70,11 +75,6 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         converted_data = ConvertedData(device_name=device_name,
                                        device_type=self.parse_device_type(topic, data, self.__config),
                                        metadata={RECEIVED_TS_PARAMETER: int(time() * 1000)})
-        device_report_strategy = None
-        try:
-            device_report_strategy = ReportStrategyConfig(self.__config.get(REPORT_STRATEGY_PARAMETER))
-        except ValueError as e:
-            self._log.trace("Report strategy config is not specified for device %s: %s", device_name, e)
 
         try:
             for datatype in datatypes:
@@ -111,7 +111,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                             full_value = full_value.replace('${' + str(value_tag) + '}', str(value)) if is_valid_value else value
 
                         if full_key != 'None' and full_value != 'None':
-                            converted_key = TBUtility.convert_key_to_datapoint_key(full_key, device_report_strategy, datatype_config, self._log)
+                            converted_key = TBUtility.convert_key_to_datapoint_key(full_key, self.__device_report_strategy, datatype_config, self._log)
                             converted_value = TBUtility.convert_data_type(full_value, datatype_config["type"], self.__use_eval)
                             if datatype == "attributes":
                                 converted_data.add_to_attributes(converted_key, converted_value)
