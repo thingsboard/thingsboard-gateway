@@ -14,12 +14,12 @@
 
 import asyncio
 from asyncio import Queue, CancelledError, QueueEmpty
+from copy import deepcopy
 from threading import Thread
 from string import ascii_lowercase
 from random import choice
 from time import monotonic, sleep
 from typing import TYPE_CHECKING
-from copy import deepcopy
 
 from thingsboard_gateway.connectors.bacnet.entities.routers import Routers
 from thingsboard_gateway.connectors.connector import Connector
@@ -90,10 +90,52 @@ class AsyncBACnetConnector(Thread, Connector):
 
         self.loop.set_exception_handler(self.exception_handler)
 
+        self.__update_devices_data_config()
         self.__devices = Devices()
         self.__routers_cache = Routers()
         self.__devices_discover_period = self.__config.get('devicesDiscoverPeriodSeconds', 30)
         self.__previous_discover_time = 0
+
+    def __update_devices_data_config(self):
+        for device_config in self.__config.get('devices', []):
+            new_attributes = []
+            new_timeseries = []
+
+            for section in ('attributes', 'timeseries'):
+                if device_config.get(section, '') == '*':
+                    if section == 'attributes':
+                        new_attributes = '*'
+                    else:
+                        new_timeseries = '*'
+
+                    continue
+
+                for config_item in device_config.get(section, []):
+                    try:
+                        if ((isinstance(config_item['objectId'], str) and not config_item['objectId'] == '*') or isinstance(config_item['objectId'], list)) \
+                                and isinstance(config_item['objectType'], list):
+                            self.__log.warning('Invalid using list of object types with string (except "*") or list objectId in config item %s. Skipping...', config_item)  # noqa
+                            continue
+
+                        Device.parse_config_key(config_item)
+
+                        ranges = Device.parse_ranges(config_item['objectId'])
+                        if len(ranges) > 0:
+                            for rng in ranges:
+                                if section == 'attributes':
+                                    new_attributes.extend([{**config_item, 'objectId': i} for i in range(*rng)])
+                                else:
+                                    new_timeseries.extend([{**config_item, 'objectId': i} for i in range(*rng)])
+                        else:
+                            if section == 'attributes':
+                                new_attributes.append(config_item)
+                            else:
+                                new_timeseries.append(config_item)
+                    except Exception as e:
+                        self.__log.warning('Error parsing config item %s: %s', config_item, e)
+
+            device_config['attributes'] = new_attributes
+            device_config['timeseries'] = new_timeseries
 
     def exception_handler(self, _, context):
         if context.get('exception') is not None:
@@ -180,7 +222,7 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__log.debug('Device %s started', device)
 
         self.__log.debug('Checking device %s configuration...', device.device_info.device_name)
-        await self.__check_and_update_device_config(device, device_config)
+        await self.__check_and_update_device_config(device)
         self.__log.debug('Checked device %s configuration.', device.device_info.device_name)
 
     async def __set_additional_device_info_to_apdu(self, apdu, device_config):
@@ -224,39 +266,47 @@ class AsyncBACnetConnector(Thread, Connector):
             router_info = await self.__application.get_router_info(router_address)
             return router_info
 
-    async def __check_and_update_device_config(self, device, device_config):
-        new_config = deepcopy(device_config)
-
-        discover_for = Device.is_discovery_config(device_config)
+    async def __check_and_update_device_config(self, device):
+        discover_for = Device.is_global_discovery_config(device.config)
         if len(discover_for):
-            self.__log.debug('Discovering %s device objects...', device.details.address)
-            discovering_started = monotonic()
+            await self.__global_objects_discovery(device, discover_for)
 
-            iter = await self.__application.get_device_objects(device)
-            if iter is not None:
-                all_done = False
-                while not self.__stopped and not all_done:
-                    objects, _, all_done = await iter.get_next()
-                    config = self.from_object_to_config(device, objects)
-                    for section in discover_for:
-                        if isinstance(new_config[section], str):
-                            new_config[section] = []
+        discover_for = Device.is_local_discovery_config(device.config)
+        if len(discover_for):
+            await self.__local_objects_discovery(device, discover_for)
 
-                        new_config[section].extend(config)
+    async def __global_objects_discovery(self, device, discover_for):
+        self.__log.debug('Discovering %s device objects...', device.details.address)
 
-                    device.config = new_config
+        new_config = deepcopy(device.config)
+        discovering_started = monotonic()
 
-            self.__log.debug('Device %s objects discovered, discovering took (sec): %r',
-                             device.details.address,
-                             monotonic() - discovering_started)
+        iter = await self.__application.get_device_objects(device)
+        if iter is not None:
+            all_done = False
+            while not self.__stopped and not all_done:
+                objects, _, all_done = await iter.get_next()
+                config = self.from_objects_to_config(device, objects)
 
-    def from_object_to_config(self, device, object_list):
+                for section in discover_for:
+                    if isinstance(new_config[section], str):
+                        new_config[section] = []
+
+                    new_config[section].extend(config)
+
+                device.config = new_config
+
+        self.__log.debug('Device %s objects discovered, discovering took (sec): %r',
+                         device.details.address,
+                         monotonic() - discovering_started)
+
+    def from_objects_to_config(self, device, object_list):
         config = []
         for obj in object_list:
             try:
                 obj_id, _, _, key = obj
                 config.append({
-                    'objectType': obj_id[0].__str__(),
+                    'objectType': str(obj_id[0]),
                     'objectId': obj_id[-1],
                     'propertyId': 'presentValue',
                     'key': key
@@ -266,6 +316,62 @@ class AsyncBACnetConnector(Thread, Connector):
                 continue
 
         return config
+
+    async def __local_objects_discovery(self, device, discover_for):
+        new_config = deepcopy(device.config)
+
+        with_all_properties = any(item['propertyId'] == '*' for item in discover_for)
+        iter = await self.__application.get_device_objects(device, with_all_properties=with_all_properties)
+        if iter is not None:
+            all_done = False
+            items_to_remove = []
+            while not self.__stopped and not all_done:
+                objects, _, all_done = await iter.get_next()
+
+                for item_config in discover_for:
+                    current_obj_id = None
+                    new_config_item = {}
+
+                    for obj in objects:
+                        obj_id, prop_id, _, _ = obj
+                        obj_type = str(obj_id[0])
+
+                        if current_obj_id is None or current_obj_id != obj_id[-1]:
+                            if current_obj_id != obj_id[-1] and current_obj_id is not None:
+                                if item_config['type'] == 'attributes':
+                                    new_config['attributes'].append(new_config_item)
+                                elif item_config['type'] == 'timeseries':
+                                    new_config['timeseries'].append(new_config_item)
+
+                                if item_config not in items_to_remove:
+                                    items_to_remove.append(item_config)
+
+                            current_obj_id = obj_id[-1]
+
+                            camel_case_obj_type = TBUtility.kebab_case_to_camel_case(obj_type)
+                            if camel_case_obj_type in item_config['objectType'] or item_config['objectType'] == '*':
+                                new_config_item = {
+                                    **item_config,
+                                    'objectType': obj_type,
+                                    'objectId': obj_id[-1],
+                                }
+
+                                if with_all_properties:
+                                    if not isinstance(new_config_item['propertyId'], set):
+                                        new_config_item['propertyId'] = set()
+
+                                    new_config_item['propertyId'].add(str(prop_id))
+
+                            else:
+                                self.__log.debug('Object type %s not matching config %s for device %s',
+                                                 obj_type, item_config['objectType'], device.details.address)
+                        else:
+                            new_config_item['propertyId'].add(str(prop_id))
+
+            for item in items_to_remove:
+                new_config[item['type']].remove(item)
+
+            device.config = new_config
 
     async def __discover_devices(self):
         self.__previous_discover_time = monotonic()
@@ -319,7 +425,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 results, config, all_done = await iter.get_next()
                 if len(results) > 0:
                     self.__log.trace('%s reading results: %s', device, results)
-                    self.__data_to_convert_queue.put_nowait((device, zip(config, [result[-1] for result in results])))
+                    self.__data_to_convert_queue.put_nowait((device, config, results))
 
         reading_ended = monotonic()
         current_reading_time = reading_ended - reading_started
@@ -353,10 +459,10 @@ class AsyncBACnetConnector(Thread, Connector):
     async def __convert_data(self):
         while not self.__stopped:
             try:
-                device, values = self.__data_to_convert_queue.get_nowait()
+                device, config, values = self.__data_to_convert_queue.get_nowait()
                 self.__log.trace('%s data to convert: %s', device, values)
 
-                converted_data = device.uplink_converter.convert(values)
+                converted_data = device.uplink_converter.convert(config, values)
                 self.__data_to_save_queue.put_nowait((device, converted_data))
             except QueueEmpty:
                 await asyncio.sleep(.1)
