@@ -15,8 +15,6 @@
 import logging
 import asyncio
 import re
-from functools import partial
-from typing import Dict, Any
 from asyncio.exceptions import CancelledError
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue, Empty
@@ -567,7 +565,7 @@ class OpcUaConnector(Connector, Thread):
 
         return final
 
-    async def find_nodes(self, node_pattern, current_parent_node=None, nodes=None) -> Dict[str, Any]:
+    async def find_nodes(self, node_pattern, current_parent_node=None, nodes=None):
         if nodes is None:
             nodes = []
         node_list = node_pattern.split('\\.')
@@ -615,7 +613,7 @@ class OpcUaConnector(Connector, Thread):
 
             for node in nodes:
                 try:
-                    var = await self.__client.nodes.root.get_child(node)
+                    var = node[-1]['node']
                     value = await var.read_value()
                     result.append(pattern.replace(group, str(value)))
                 except Exception as e:
