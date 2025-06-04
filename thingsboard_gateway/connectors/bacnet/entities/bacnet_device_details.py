@@ -33,6 +33,9 @@ class BACnetDeviceDetails:
         self.__router_address = i_am_request.routerAddress if hasattr(i_am_request, 'routerAddress') else None
         self.__router_vendor_id = i_am_request.routerVendorId if hasattr(i_am_request, 'routerVendorId') else None
 
+        self.__objects_len = 0
+        self.__failed_to_read_indexes = set()
+
     def __str__(self):
         return (f"DeviceDetails(address={self.address}, objectIdentifier={self.__object_identifier}, "
                 f"vendorId={self.__vendor_id}, objectName={self.__object_name}")
@@ -72,6 +75,27 @@ class BACnetDeviceDetails:
             result['routerVendorId'] = self.__router_vendor_id
 
         return result
+
+    @property
+    def failed_to_read_indexes(self):
+        return self.__failed_to_read_indexes
+
+    @failed_to_read_indexes.setter
+    def failed_to_read_indexes(self, value: int):
+        if value not in self.__failed_to_read_indexes:
+            self.__failed_to_read_indexes.add(value)
+
+    @property
+    def objects_len(self):
+        return self.__objects_len
+
+    @objects_len.setter
+    def objects_len(self, value):
+        self.__objects_len = value
+
+    def sucess_read_for(self, value: int):
+        if value in self.__failed_to_read_indexes:
+            self.__failed_to_read_indexes.discard(value)
 
     def is_segmentation_supported(self):
         return self.__segmentation in (Segmentation.segmentedBoth, Segmentation.segmentedTransmit)
