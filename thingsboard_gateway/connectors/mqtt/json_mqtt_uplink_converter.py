@@ -78,10 +78,9 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
 
         try:
             for datatype in datatypes:
+                timestamp = None
                 if self.__config.get(USE_RECEIVED_TS_PARAMETER, False) is True:
                     timestamp = converted_data.metadata["receivedTs"]
-                else:
-                    timestamp = data.get("ts", data.get("timestamp")) if datatype == 'timeseries' else None
 
                 for datatype_config in self.__config.get(datatype, []):
                     if isinstance(datatype_config, str) and datatype_config == "*":
@@ -116,7 +115,8 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                             if datatype == "attributes":
                                 converted_data.add_to_attributes(converted_key, converted_value)
                             else:
-                                timestamp = TBUtility.resolve_different_ts_formats(data=data, config=datatype_config, logger=self._log, default_ts=False)
+                                if timestamp is None:
+                                    timestamp = TBUtility.resolve_different_ts_formats(data=data, config=datatype_config, logger=self._log, default_ts=False)
                                 telemetry_entry = TelemetryEntry({converted_key: converted_value}, timestamp)
                                 converted_data.add_to_telemetry(telemetry_entry)
         except Exception as e:
