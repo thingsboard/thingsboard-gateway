@@ -43,7 +43,7 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
 
         for item_config in config:
             try:
-                values_group = self.__find_values(data, item_config['objectId'])
+                values_group = self.__find_values(data, item_config['objectId'], item_config['objectType'])
 
                 converted_values = self.__convert_data(values_group)
                 if len(converted_values) > 0:
@@ -123,8 +123,10 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
         except ValueError as e:
             self.__log.trace("Report strategy config is not specified for device %s: %s", device_name, e)
 
-    def __find_values(self, data, object_id):
-        return list(filter(lambda value: value[0][-1] == object_id, data))
+    def __find_values(self, data, object_id, object_type):
+        required_object_type = TBUtility.kebab_case_to_camel_case(object_type)
+        return list(filter(
+            lambda value: value[0][-1] == object_id and TBUtility.kebab_case_to_camel_case(str(value[0][0])) == required_object_type, data))  # noqa
 
     def __get_data_key_name(self, key_expression, data):
         unused_keys = []

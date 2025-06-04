@@ -25,7 +25,6 @@ from thingsboard_gateway.connectors.bacnet.entities.device_object_config import 
 from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config import UplinkConverterConfig
 from thingsboard_gateway.gateway.constants import UPLINK_PREFIX, CONVERTER_PARAMETER
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
-from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -45,17 +44,20 @@ class Device:
         '${routerAddress}'
     ]
 
-    def __init__(self, connector_type, config, i_am_request, queue, logger: TbLogger):
+    def __init__(self, connector_type, config, i_am_request, reading_queue, rescan_queue, logger, converter_logger):
         self.__connector_type = connector_type
         self.__config = config
         DeviceObjectConfig.update_address_in_config_util(self.__config)
         self.alternative_responses_addresses = self.__config.get('altResponsesAddresses', [])
 
         self.__log = logger
+        self.__converter_log = converter_logger
 
         self.__stopped = False
         self.active = True
-        self.__request_process_queue = queue
+
+        self.__request_process_queue = reading_queue
+        self.__rescan_process_queue = rescan_queue
 
         if Device.need_to_retrieve_device_name(self.__config) and i_am_request.deviceName is None:
             self.__log.warning('Device name is not provided in IAmRequest. Device Id will be used as "objectName')
@@ -66,6 +68,9 @@ class Device:
         self.uplink_converter_config = UplinkConverterConfig(self.__config, self.device_info, self.details)
 
         self.name = self.device_info.device_name
+
+        self.__objects_rescan_period = self.__config.get('devicesRescanObjectsPeriodSeconds', 60)
+        self.rescan_objects_config = []
 
         self.__config_poll_period = self.__config.get('pollPeriod', 10000) / 1000
         self.__poll_period = self.__config_poll_period
@@ -108,9 +113,9 @@ class Device:
             if self.__config.get(UPLINK_PREFIX + CONVERTER_PARAMETER) is not None:
                 converter_class = TBModuleLoader.import_module(self.__connector_type,
                                                                self.__config[UPLINK_PREFIX + CONVERTER_PARAMETER])
-                converter = converter_class(self.uplink_converter_config, self.__log)
+                converter = converter_class(self.uplink_converter_config, self.__converter_log)
             else:
-                converter = AsyncBACnetUplinkConverter(self.uplink_converter_config, self.__log)
+                converter = AsyncBACnetUplinkConverter(self.uplink_converter_config, self.__converter_log)
 
             return converter
         except Exception as e:
@@ -136,6 +141,20 @@ class Device:
 
             sleep_time = max(0.0, next_poll_time - current_time)
 
+            await sleep(sleep_time)
+
+    async def rescan(self):
+        next_rescan_time = monotonic() + self.__objects_rescan_period
+
+        while not self.__stopped:
+            current_time = monotonic()
+            if current_time >= next_rescan_time:
+                if self.need_to_rescan():
+                    self.__rescan_process_queue.put_nowait(self)
+
+                next_rescan_time = current_time + self.__objects_rescan_period
+
+            sleep_time = max(0.0, next_rescan_time - current_time)
             await sleep(sleep_time)
 
     @staticmethod
@@ -327,6 +346,9 @@ class Device:
             return int(start), int(end) + 1
         else:
             return int(rng), int(rng) + 1
+
+    def need_to_rescan(self):
+        return len(self.details.failed_to_read_indexes) > 0 and not self.details.is_segmentation_supported()
 
 
 class Devices:

@@ -102,13 +102,11 @@ class Application(App):
         if len(devices):
             return devices[0]
 
-    async def get_object_identifiers_with_segmentation(
-        self, device_address: Address, device_identifier: ObjectIdentifier
-    ) -> List[ObjectIdentifier]:
+    async def get_object_identifiers_with_segmentation(self, device) -> List[ObjectIdentifier]:
         object_list = await self.__send_request_wrapper(self.read_property,
-                                                        err_msg=f"Failed to read {device_identifier} object-list",
-                                                        address=device_address,
-                                                        objid=device_identifier,
+                                                        err_msg=f"Failed to read {device.details.identifier} object-list",  # noqa
+                                                        address=device.details.address,
+                                                        objid=device.details.identifier,
                                                         prop='objectList',
                                                         array_index=0)
 
@@ -117,35 +115,42 @@ class Application(App):
 
         return object_list
 
-    async def get_object_identifiers_without_segmentation(
-        self, device_address: Address, device_identifier: ObjectIdentifier
-    ) -> List[ObjectIdentifier]:
+    async def get_object_identifiers_without_segmentation(self, device, index_to_read=None) -> List[ObjectIdentifier]:
         object_list = []
+        success_indexes = []
 
-        object_list_length = await self.__send_request_wrapper(self.read_property,
-                                                               err_msg=f"Failed to read {device_identifier} object-list length",  # noqa
-                                                               address=device_address,
-                                                               objid=device_identifier,
-                                                               prop='objectList',
-                                                               array_index=0)
+        if index_to_read is None:
+            object_list_length = await self.__send_request_wrapper(self.read_property,
+                                                                   err_msg=f"Failed to read {device.details.identifier} object-list length",  # noqa
+                                                                   address=device.details.address,
+                                                                   objid=device.details.identifier,
+                                                                   prop='objectList',
+                                                                   array_index=0)
+            if object_list_length is None:
+                return []
 
-        if object_list_length is None:
-            return []
+            device.details.objects_len = object_list_length
+            index_to_read = range(object_list_length)
 
-        for i in range(object_list_length):
+        for i in index_to_read:
             object_identifier = await self.__send_request_wrapper(self.read_property,
-                                                                  err_msg=f"Failed to read {device_identifier} object-list[{i + 1}]",  # noqa
-                                                                  address=device_address,
-                                                                  objid=device_identifier,
+                                                                  err_msg=f"Failed to read {device.details.identifier} object-list[{i + 1}]",  # noqa
+                                                                  address=device.details.address,
+                                                                  objid=device.details.identifier,
                                                                   prop='objectList',
                                                                   array_index=i + 1)
             if object_identifier is None:
+                device.details.failed_to_read_indexes = i
                 continue
 
             if object_identifier[0].__str__() == 'device':
                 continue
 
             object_list.append(object_identifier)
+            success_indexes.append(i)
+
+        for i in success_indexes:
+            device.details.sucess_read_for(i)
 
         return object_list
 
@@ -178,13 +183,12 @@ class Application(App):
 
         return decoded_result
 
-    async def get_device_objects(self, device, with_all_properties=False):
+    async def get_device_objects(self, device, with_all_properties=False, index_to_read=None):
         if device.details.is_segmentation_supported():
-            object_list = await self.get_object_identifiers_with_segmentation(device.details.address,
-                                                                              device.details.identifier)
+            object_list = await self.get_object_identifiers_with_segmentation(device)
         else:
-            object_list = await self.get_object_identifiers_without_segmentation(device.details.address,
-                                                                                 device.details.identifier)
+            object_list = await self.get_object_identifiers_without_segmentation(device,
+                                                                                 index_to_read=index_to_read)
 
         if len(object_list) == 0:
             self.__log.warning("%s no objects to read", device.details.object_id)
