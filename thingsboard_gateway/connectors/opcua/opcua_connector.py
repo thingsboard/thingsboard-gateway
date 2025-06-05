@@ -643,19 +643,18 @@ class OpcUaConnector(Connector, Thread):
         return results
 
     async def __get_device_expression_value_by_identifier(self, pattern: str) -> List[str]:
-        results = []
-
+        result = pattern
         node_ids_search_result = re.findall(r"\${(ns=\d+;[isgb]=[^}]+)}", pattern)
         if node_ids_search_result:
             for group in node_ids_search_result:
                 try:
                     node_id = NodeId.from_string(group)
                     value = await self.__client.get_node(node_id).read_value()
-                    results.append(pattern.replace(f'${{{group}}}', str(value)))
+                    result = result.replace(f'${{{group}}}', str(value))
                 except Exception as e:
                     self.__log.error('Invalid NodeId format %s: %s', group, e)
 
-        return results
+        return [result]
 
     def __convert_sub_data(self):
         device_converted_data_map = {}
