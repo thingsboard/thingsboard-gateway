@@ -69,9 +69,23 @@ class Master:
     def connected(self):
         return self.__client.connected
 
-    @with_lock_for_serial
     async def connect(self):
-        await self.__client.connect()
+        """
+        Connect to the Modbus client if client is not connected.
+
+        Lock is required to ensure that only one coroutine can connect at a time to the same Modbus client.
+        Also it prevents multiple attempts to connect to the same client
+        while another coroutine is already trying to connect.
+
+        For example, if two coroutines try to connect to the same Modbus client
+        (address: 0.0.0.0:502, unitId: 1 and address: 0.0.0.0:502, unitId: 2)
+        at the same time without lock the following error occurs:
+        'Factory protocol connect callback called while connected.'
+        """
+
+        async with self.lock:
+            if not self.__client.connected:
+                await self.__client.connect()
 
     @with_lock_for_serial
     async def close(self):
