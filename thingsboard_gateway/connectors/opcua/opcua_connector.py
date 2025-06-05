@@ -597,7 +597,27 @@ class OpcUaConnector(Connector, Thread):
         return await self.__find_nodes(unresolved, current_parent_node=parent_node, nodes=resolved)
 
     async def _get_device_info_by_pattern(self, pattern, get_first=False):
-        result = []
+        """
+        Method used to retrieve device name/profile by pattern.
+        Device name/profile can consist of path expressions or NodeId expressions but not both.
+        It will search for device name in the following order:
+        1. By path expressions (e.g. "My Device ${Root\\.Objects\\.Device\\.serialNumber}}")
+        2. By NodeId expressions (e.g. "My Device ${ns=2;i=1003} - ${ns=2;i=1008}")
+        3. If no matches found, returns the pattern as is.
+        """
+
+        search_results = await self.__get_device_expression_value_by_path(pattern)
+        if len(search_results) > 0:
+            return search_results[0] if get_first else search_results
+
+        search_results = await self.__get_device_expression_value_by_identifier(pattern)
+        if len(search_results) > 0:
+            return search_results[0] if get_first else search_results
+
+        return [pattern]
+
+    async def __get_device_expression_value_by_path(self, pattern: str) -> List[str]:
+        results = []
 
         search_result = re.search(r"\${([A-Za-z.:\\\d\[\]]+)}", pattern)
         if search_result:
@@ -606,7 +626,7 @@ class OpcUaConnector(Connector, Thread):
                 node_path = search_result.group(1)
             except IndexError:
                 self.__log.error('Invalid pattern: %s', pattern)
-                return result
+                return results
 
             nodes = await self.find_nodes(node_path)
             self.__log.debug('Found device name nodes: %s', nodes)
@@ -615,14 +635,26 @@ class OpcUaConnector(Connector, Thread):
                 try:
                     var = node[-1]['node']
                     value = await var.read_value()
-                    result.append(pattern.replace(group, str(value)))
+                    results.append(pattern.replace(group, str(value)))
                 except Exception as e:
                     self.__log.exception(e)
                     continue
-        else:
-            result.append(pattern)
 
-        return result[0] if len(result) > 0 and get_first else result
+        return results
+
+    async def __get_device_expression_value_by_identifier(self, pattern: str) -> List[str]:
+        result = pattern
+        node_ids_search_result = re.findall(r"\${(ns=\d+;[isgb]=[^}]+)}", pattern)
+        if node_ids_search_result:
+            for group in node_ids_search_result:
+                try:
+                    node_id = NodeId.from_string(group)
+                    value = await self.__client.get_node(node_id).read_value()
+                    result = result.replace(f'${{{group}}}', str(value))
+                except Exception as e:
+                    self.__log.error('Invalid NodeId format %s: %s', group, e)
+
+        return [result]
 
     def __convert_sub_data(self):
         device_converted_data_map = {}
