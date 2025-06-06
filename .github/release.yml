@@ -12,23 +12,48 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-name: Release Drafter
-on:
-  push:
-    branches:
-      - master
-permissions:
-  contents: read
-jobs:
-  update_release_draft:
-    permissions:
-      contents: write
-      pull-requests: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: release-drafter/release-drafter@v6.1.0
-        with:
-          config-name: release.yml
-          disable-autolabeler: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+exclude-labels:
+  - 'Ignore for release'
+categories:
+  - title: '📌 Major improvements'
+    labels:
+      - 'Major'
+  - title: '⚛ Core improvements'
+    labels:
+      - 'Core'
+  - title: '🔗 Connectors improvements'
+    labels:
+      - 'Connectors'
+      - 'Connector'
+      - 'Modbus'
+      - 'MQTT'
+      - 'BACnet'
+      - 'BLE'
+      - 'CAN'
+      - 'FTP'
+      - 'KNX'
+      - 'OCPP'
+      - 'ODBC'
+      - 'OPC-UA'
+      - 'Request'
+      - 'REST'
+      - 'SNMP'
+      - 'Socket'
+      - 'XMPP'
+  - title: '🗄 Storages improvements'
+    labels:
+      - 'Storages'
+      - 'Storage'
+      - 'Memory'
+      - 'File'
+      - 'SQLite'
+  - title: '🐛 Bug fixes'
+    labels:
+      - 'Bug'
+  - title: 'Other'
+    labels:
+      - 'Other'
+      - 'Tests'
+template: |
+  ## What's Changed
+  $CHANGES
