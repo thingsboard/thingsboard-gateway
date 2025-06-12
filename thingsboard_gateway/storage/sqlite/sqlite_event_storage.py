@@ -29,7 +29,7 @@ import copy
 from gc import collect
 from threading import Event, Lock
 from time import sleep, time, monotonic
-import os
+from os import path, makedirs, remove
 
 from thingsboard_gateway.storage.event_storage import EventStorage
 from thingsboard_gateway.storage.sqlite.database import Database
@@ -56,16 +56,13 @@ class SQLiteEventStorage(EventStorage):
         self.__write_db_file_creation_lock = Lock()
         self.__config_copy = copy.deepcopy(config)
         self.__settings = StorageSettings(config)
+        self.create_folder()
         self.__pointer = Pointer(self.__settings.data_folder_path, log=self.__log)
         self.__all_db_files = self.__pointer.sort_db_files()
-        if (
-            self.__all_db_files
-            and self.__settings.db_file_name < self.__all_db_files[0]
-        ):
+
+        if (self.__all_db_files and self.__settings.db_file_name < self.__all_db_files[0]):
             read_database_filename = self.__all_db_files[0]
-            self.__config_copy["data_file_path"] = os.path.join(
-                self.__settings.directory_path, read_database_filename
-            )
+            self.__config_copy["data_file_path"] = path.join(self.__settings.directory_path, read_database_filename)
             self.__read_database = Database(
                 self.__config_copy, self.write_queue, self.__log, stopped=self.stopped
             )
@@ -74,13 +71,14 @@ class SQLiteEventStorage(EventStorage):
             self.__read_database = Database(
                 config, self.write_queue, self.__log, stopped=self.stopped
             )
+
         if self.__pointer.read_database_file == self.__pointer.write_database_file:
             self.__write_database = self.__read_database
             self.__write_database.start()
 
         else:
             write_database_name = self.__pointer.write_database_file
-            data_file_path_to_new_db_file = os.path.join(
+            data_file_path_to_new_db_file = path.join(
                 self.__settings.directory_path, write_database_name
             )
             self.__config_copy["data_file_path"] = data_file_path_to_new_db_file
@@ -102,9 +100,21 @@ class SQLiteEventStorage(EventStorage):
         self.__event_pack_processing_start = monotonic()
         self.last_read = time()
 
+    def create_folder(self):
+
+        if not path.exists(self.__settings.data_folder_path):
+            directory = path.dirname(self.__settings.data_folder_path)
+            if not path.exists(directory):
+                self.__log.info("SQLite database file not found, creating new one...")
+                try:
+                    makedirs(directory)
+                    self.__log.info(f"Directory {directory} created")
+                except Exception as e:
+                    self.__log.exception(f"Failed to create directory {directory}", exc_info=e)
+
     def __assign_existing_read_database(self, read_database_filename: str):
 
-        full_path_to_read_db_file = os.path.join(
+        full_path_to_read_db_file = path.join(
             self.__settings.directory_path, read_database_filename
         )
         self.__config_copy["data_file_path"] = full_path_to_read_db_file
@@ -209,8 +219,8 @@ class SQLiteEventStorage(EventStorage):
             timeout = 2.0
             start = monotonic()
             while (
-                not self.__read_database.process_queue.empty()
-                and monotonic() - start < timeout
+                    not self.__read_database.process_queue.empty()
+                    and monotonic() - start < timeout
             ):
                 sleep(0.01)
             self.__read_database.db.commit()
@@ -224,10 +234,10 @@ class SQLiteEventStorage(EventStorage):
 
         deleted_any = False
         for suffix in ("", "-shm", "-wal"):
-            path = path_to_oversize_db_file + suffix
-            if os.path.exists(path):
+            path_to_db = path_to_oversize_db_file + suffix
+            if path.exists(path_to_db):
                 try:
-                    os.remove(path)
+                    remove(path_to_db)
                     self.__log.info("Deleted %s", path)
                     deleted_any = True
                     sleep(0.05)
@@ -280,7 +290,7 @@ class SQLiteEventStorage(EventStorage):
 
     def __create_new_database_existing_after_max_db_amount_is_read(self):
         new_db_name = self.__pointer.generate_new_file_name()
-        data_file_path = os.path.join(self.__settings.directory_path, new_db_name)
+        data_file_path = path.join(self.__settings.directory_path, new_db_name)
         self.__config_copy["data_file_path"] = data_file_path
         self.__write_database = Database(
             self.__config_copy,
@@ -296,14 +306,14 @@ class SQLiteEventStorage(EventStorage):
     def __handle_write_database_reached_size(self):
 
         new_db_name = self.__pointer.generate_new_file_name()
-        data_file_path = os.path.join(self.__settings.directory_path, new_db_name)
+        data_file_path = path.join(self.__settings.directory_path, new_db_name)
         self.__config_copy["data_file_path"] = data_file_path
         if self.__read_database != self.__write_database:
             timeout = 2.0
             start = monotonic()
             while (
-                not self.__write_database.process_queue.empty()
-                and monotonic() - start < timeout
+                    not self.__write_database.process_queue.empty()
+                    and monotonic() - start < timeout
             ):
                 sleep(0.01)
             self.__write_database.db.commit()

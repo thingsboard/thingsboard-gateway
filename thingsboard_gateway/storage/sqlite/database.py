@@ -25,7 +25,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from os.path import dirname, getsize
+from os.path import dirname, getsize, exists
+from os import makedirs
 from sqlite3 import DatabaseError, ProgrammingError, InterfaceError, OperationalError
 from time import sleep, monotonic, time
 from logging import getLogger
@@ -47,13 +48,13 @@ class Database(Thread):
     """
 
     def __init__(
-        self,
-        config,
-        processing_queue: Queue,
-        logger,
-        stopped: Event,
-        should_read: bool = True,
-        should_write: bool = True,
+            self,
+            config,
+            processing_queue: Queue,
+            logger,
+            stopped: Event,
+            should_read: bool = True,
+            should_write: bool = True,
     ):
         self.__initialized = False
         self.__log = logger
@@ -138,7 +139,7 @@ class Database(Thread):
                         last_time = now
                         self.process_file_limit(
                             self.db.data_file_path,
-                            self.settings.max_db_amount,
+                            self.settings.size_limit,
                         )
 
             except Exception as e:
@@ -160,10 +161,10 @@ class Database(Thread):
         try:
             cur_time = int(time() * 1000)
             if (
-                cur_time - self.__last_msg_check
-                >= self.__last_msg_check + self.settings.messages_ttl_check_in_hours
-                and not self.stopped.is_set()
-                and not self.database_stopped_event.is_set()
+                    cur_time - self.__last_msg_check
+                    >= self.__last_msg_check + self.settings.messages_ttl_check_in_hours
+                    and not self.stopped.is_set()
+                    and not self.database_stopped_event.is_set()
             ):
                 self.__last_msg_check = cur_time
                 self.delete_data_lte(self.settings.messages_ttl_in_days)
@@ -171,9 +172,9 @@ class Database(Thread):
                 batch = []
                 start_collecting = monotonic()
                 while (
-                    len(batch) < self.settings.batch_size
-                    and not self.stopped.is_set()
-                    and monotonic() - start_collecting < 0.1
+                        len(batch) < self.settings.batch_size
+                        and not self.stopped.is_set()
+                        and monotonic() - start_collecting < 0.1
                 ):
                     try:
                         batch.append((cur_time, self.process_queue.get_nowait()))
@@ -206,6 +207,18 @@ class Database(Thread):
 
     def clean_next_batch(self):
         self.__next_batch = []
+
+    def database_has_records(self):
+        try:
+            data = self.db.execute_read("SELECT EXISTS(SELECT 1 FROM messages);")
+            return data
+        except DatabaseError:
+            return []
+        except (ProgrammingError, InterfaceError) as e:
+            self.__log.debug("Error reading data from storage: %s", e)
+            return []
+        except MemoryError:
+            return []
 
     def read_data(self):
         if self.database_stopped_event.is_set() or not self.__initialized:
