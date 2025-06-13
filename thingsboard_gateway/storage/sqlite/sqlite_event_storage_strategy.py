@@ -23,7 +23,8 @@
 
 
 from abc import ABC, abstractmethod, abstractstaticmethod
-from time import sleep,monotonic
+from time import sleep, monotonic
+from typing import List
 from thingsboard_gateway.storage.sqlite.sqlite_event_storage_pointer import Pointer
 
 
@@ -40,11 +41,11 @@ class OnInitDatabaseStrategy(ABC):
 class PointerInitStrategy(OnInitDatabaseStrategy):
 
     def __init__(
-        self,
-        data_folder_path: str,
-        default_database_name: str,
-        log,
-        state_file_name: str = "state.txt",
+            self,
+            data_folder_path: str,
+            default_database_name: str,
+            log,
+            state_file_name: str = "state.txt",
     ):
         self.pointer = Pointer(data_folder_path, log, state_file_name)
         self.default_database_name = default_database_name
@@ -85,8 +86,8 @@ class RotateOnOversizeDbStrategy(OverSizeDbStrategyOnGatewayDisconnected):
             timeout = 2.0
             start = monotonic()
             while (
-                not storage.write_database.process_queue.empty()
-                and monotonic() - start < timeout
+                    not storage.write_database.process_queue.empty()
+                    and monotonic() - start < timeout
             ):
                 sleep(0.01)
 
@@ -114,3 +115,31 @@ class DropOnMaxCountReachedStrategy(OverSizeDbStrategyOnGatewayDisconnected):
             storage.is_max_db_amount_reached = True
             storage.write_database = None
             return True
+
+
+class ReadOversizeStrategy(ABC):
+    @abstractmethod
+    def handle(self, storage: "SQLiteEventStorage") -> List[dict]:
+        pass
+
+
+class RotateReadOversizeStrategy(ReadOversizeStrategy):
+    def handle(self, storage: "SQLiteEventStorage") -> List[dict]:
+        storage.delete_oversize_db_file(
+            storage.read_database.settings.data_folder_path
+        )
+        storage.delete_time_point = 0
+        all_files = storage.rotation.pointer.sort_db_files()
+        if len(all_files) > 1:
+            storage.assign_existing_read_database(all_files[0])
+        else:
+            storage.old_db_is_read_and_write_database_in_size_limit()
+        return storage.read_data()
+
+
+class DropReadOversizeStrategy(ReadOversizeStrategy):
+    def handle(self, storage: "SQLiteEventStorage") -> List[dict]:
+        if storage.max_db_amount_reached():
+            storage.is_max_db_amount_reached = True
+            storage.write_database = None
+            return []
