@@ -25,6 +25,8 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
+
 import copy
 from gc import collect
 from threading import Event, Lock
@@ -33,7 +35,9 @@ from os import path, makedirs, remove
 
 from thingsboard_gateway.storage.event_storage import EventStorage
 from thingsboard_gateway.storage.sqlite.database import Database
-from thingsboard_gateway.storage.sqlite.sqlite_event_storage_pointer import Pointer
+from thingsboard_gateway.storage.sqlite.sqlite_event_storage_strategy import (
+    PointerInitStrategy,
+)
 
 from queue import Queue, Full
 from logging import getLogger
@@ -57,45 +61,60 @@ class SQLiteEventStorage(EventStorage):
         self.__config_copy = copy.deepcopy(config)
         self.__settings = StorageSettings(config)
         self.create_folder()
-        self.__pointer = Pointer(self.__settings.data_folder_path, log=self.__log)
-        self.__all_db_files = self.__pointer.sort_db_files()
+        self.__database_init_strategy = PointerInitStrategy(
+            data_folder_path=self.__settings.data_folder_path,
+            default_database_name=self.__settings.db_file_name,
+            log=self.__log,
+        )
+        self.read_database_name = self.__database_init_strategy.check_should_create_or_assign_database_on_gateway_init()
+        self.write_database_name = self.__database_init_strategy.initial_write_files()
+        self.read_database_path = path.join(
+            self.__settings.directory_path, self.read_database_name
+        )
+        self.write_database_path = path.join(
+            self.__settings.directory_path, self.write_database_name
+        )
+        self.override_read_db_configuration = {
+            **self.__config_copy,
+            "data_file_path": self.read_database_path,
+        }
+        self.read_database_is_write_database = self.write_database_name == self.read_database_name
 
-        if (self.__all_db_files and self.__settings.db_file_name < self.__all_db_files[0]):
-            read_database_filename = self.__all_db_files[0]
-            self.__config_copy["data_file_path"] = path.join(self.__settings.directory_path, read_database_filename)
-            self.__read_database = Database(
-                self.__config_copy, self.write_queue, self.__log, stopped=self.stopped
-            )
+        self.__read_database = Database(
+            self.override_read_db_configuration,
+            self.write_queue,
+            self.__log,
+            stopped=self.stopped,
+            should_read=True,
+            should_write=self.read_database_is_write_database,
+        )
+        self.__read_database.start()
 
-        else:
-            self.__read_database = Database(
-                config, self.write_queue, self.__log, stopped=self.stopped
-            )
-
-        if self.__pointer.read_database_file == self.__pointer.write_database_file:
+        if self.read_database_is_write_database:
             self.__write_database = self.__read_database
-            self.__write_database.start()
 
         else:
-            write_database_name = self.__pointer.write_database_file
-            data_file_path_to_new_db_file = path.join(
-                self.__settings.directory_path, write_database_name
-            )
-            self.__config_copy["data_file_path"] = data_file_path_to_new_db_file
-            self.__read_database.should_write = False
+            self.override_write_configuration = {
+                **self.__config_copy,
+                "data_file_path": self.write_database_path,
+            }
             self.__write_database = Database(
-                self.__config_copy,
+                self.override_write_configuration,
                 self.write_queue,
                 self.__log,
                 stopped=self.stopped,
                 should_read=False,
                 should_write=True,
             )
-            self.__read_database.start()
             self.__write_database.start()
 
         self.__write_database.init_table()
-        self.__log.info("Sqlite storage initialized!")
+        self.__log.info(
+            "Sqlite storage initialized (read=%s, write=%s)",
+            self.read_database_name,
+            self.write_database_name,
+        )
+        self._rotation = self.__database_init_strategy
         self.delete_time_point = 0
         self.__event_pack_processing_start = monotonic()
         self.last_read = time()
@@ -110,7 +129,9 @@ class SQLiteEventStorage(EventStorage):
                     makedirs(directory)
                     self.__log.info(f"Directory {directory} created")
                 except Exception as e:
-                    self.__log.exception(f"Failed to create directory {directory}", exc_info=e)
+                    self.__log.exception(
+                        f"Failed to create directory {directory}", exc_info=e
+                    )
 
     def __assign_existing_read_database(self, read_database_filename: str):
 
@@ -127,7 +148,7 @@ class SQLiteEventStorage(EventStorage):
             should_write=False,
         )
         self.__read_database.start()
-        self.__pointer.update_read_database_filename(read_database_filename)
+        self._rotation.update_read_database_file(read_database_filename)
         self.__log.info(
             "Sqlite storage updated read_database_file to: %s", read_database_filename
         )
@@ -135,7 +156,7 @@ class SQLiteEventStorage(EventStorage):
     def __old_db_is_read_and_write_database_in_size_limit(self):
         self.__read_database = self.__write_database
         self.__read_database.should_read = True
-        self.__pointer.update_read_database_filename(
+        self._rotation.update_read_database_file(
             self.__read_database.settings.db_file_name
         )
 
@@ -150,7 +171,7 @@ class SQLiteEventStorage(EventStorage):
                     self.__read_database.settings.data_folder_path
                 )
                 self.delete_time_point = 0
-                all_files = self.__pointer.sort_db_files()
+                all_files = self._rotation.pointer.sort_db_files()
                 if len(all_files) > 1:
                     first_database_filename = all_files[0]
 
@@ -219,8 +240,8 @@ class SQLiteEventStorage(EventStorage):
             timeout = 2.0
             start = monotonic()
             while (
-                    not self.__read_database.process_queue.empty()
-                    and monotonic() - start < timeout
+                not self.__read_database.process_queue.empty()
+                and monotonic() - start < timeout
             ):
                 sleep(0.01)
             self.__read_database.db.commit()
@@ -257,7 +278,7 @@ class SQLiteEventStorage(EventStorage):
         return self.__read_database.delete_data(row_id=row_id)
 
     def __max_db_amount_reached(self):
-        if self.__settings.max_db_amount == len(self.__pointer.sort_db_files()):
+        if self.__settings.max_db_amount == len(self._rotation.pointer.sort_db_files()):
             return True
 
     def put(self, message):
@@ -289,7 +310,7 @@ class SQLiteEventStorage(EventStorage):
             self.__log.exception("Failed to write data to storage! Error: %s", e)
 
     def __create_new_database_existing_after_max_db_amount_is_read(self):
-        new_db_name = self.__pointer.generate_new_file_name()
+        new_db_name = self._rotation.pointer.generate_new_file_name()
         data_file_path = path.join(self.__settings.directory_path, new_db_name)
         self.__config_copy["data_file_path"] = data_file_path
         self.__write_database = Database(
@@ -301,19 +322,19 @@ class SQLiteEventStorage(EventStorage):
             should_write=True,
         )
         self.__write_database.start()
-        self.__pointer.update_write_database_file(new_db_name)
+        self._rotation.update_write_database_file(new_db_name)
 
     def __handle_write_database_reached_size(self):
 
-        new_db_name = self.__pointer.generate_new_file_name()
+        new_db_name = self._rotation.pointer.generate_new_file_name()
         data_file_path = path.join(self.__settings.directory_path, new_db_name)
         self.__config_copy["data_file_path"] = data_file_path
         if self.__read_database != self.__write_database:
             timeout = 2.0
             start = monotonic()
             while (
-                    not self.__write_database.process_queue.empty()
-                    and monotonic() - start < timeout
+                not self.__write_database.process_queue.empty()
+                and monotonic() - start < timeout
             ):
                 sleep(0.01)
             self.__write_database.db.commit()
@@ -340,7 +361,7 @@ class SQLiteEventStorage(EventStorage):
             should_write=True,
         )
         self.__write_database.start()
-        self.__pointer.update_write_database_file(new_db_name)
+        self._rotation.update_write_database_file(new_db_name)
 
     def stop(self):
         self.stopped.set()
