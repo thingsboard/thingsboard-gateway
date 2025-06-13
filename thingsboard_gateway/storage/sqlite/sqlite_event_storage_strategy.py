@@ -22,8 +22,8 @@
 #     limitations under the License.
 
 
-from abc import ABC, abstractmethod
-
+from abc import ABC, abstractmethod, abstractstaticmethod
+from time import sleep,monotonic
 from thingsboard_gateway.storage.sqlite.sqlite_event_storage_pointer import Pointer
 
 
@@ -39,7 +39,8 @@ class OnInitDatabaseStrategy(ABC):
 
 class PointerInitStrategy(OnInitDatabaseStrategy):
 
-    def __init__(self,
+    def __init__(
+        self,
         data_folder_path: str,
         default_database_name: str,
         log,
@@ -48,16 +49,16 @@ class PointerInitStrategy(OnInitDatabaseStrategy):
         self.pointer = Pointer(data_folder_path, log, state_file_name)
         self.default_database_name = default_database_name
 
-    def check_should_create_or_assign_database_on_gateway_init(self):
+    def check_should_create_or_assign_database_on_gateway_init(self) -> str:
         all_db_files = self.pointer.sort_db_files()
         if all_db_files and self.default_database_name < all_db_files[0]:
             return all_db_files[0]
         return self.default_database_name
 
-    def initial_read_files(self):
+    def initial_read_files(self) -> str:
         return self.pointer.read_database_file
 
-    def initial_write_files(self):
+    def initial_write_files(self) -> str:
         return self.pointer.write_database_file
 
     def update_read_database_file(self, new_filename: str) -> None:
@@ -68,3 +69,48 @@ class PointerInitStrategy(OnInitDatabaseStrategy):
 
     def generate_new_file_name(self) -> str:
         return self.pointer.generate_new_file_name()
+
+
+class OverSizeDbStrategyOnGatewayDisconnected(ABC):
+
+    @abstractmethod
+    def handle_oversize(self, storage: "SQLiteEventStorage") -> None:
+        pass
+
+
+class RotateOnOversizeDbStrategy(OverSizeDbStrategyOnGatewayDisconnected):
+
+    def handle_oversize(self, storage: "SQLiteEventStorage") -> None:
+        if storage.read_database != storage.write_database:
+            timeout = 2.0
+            start = monotonic()
+            while (
+                not storage.write_database.process_queue.empty()
+                and monotonic() - start < timeout
+            ):
+                sleep(0.01)
+
+            self.__clean_database_after_read_and_oversize(storage=storage)
+
+            del storage.write_database
+        else:
+            storage.read_database.should_write = False
+
+    @staticmethod
+    def __clean_database_after_read_and_oversize(storage: "SQLiteEventStorage") -> None:
+        storage.write_database.db.commit()
+        storage.write_database.interrupt()
+        storage.write_database.join(timeout=1)
+
+        storage.write_database.close_db()
+        storage.write_database.db.close()
+
+
+class DropOnMaxCountReachedStrategy(OverSizeDbStrategyOnGatewayDisconnected):
+
+    @staticmethod
+    def handle_oversize(storage: "SQLiteEventStorage") -> bool:
+        if storage.max_db_amount_reached():
+            storage.is_max_db_amount_reached = True
+            storage.write_database = None
+            return True
