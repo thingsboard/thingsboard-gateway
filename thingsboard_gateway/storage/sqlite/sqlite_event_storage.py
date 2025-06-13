@@ -36,7 +36,7 @@ from os import path, makedirs, remove
 from thingsboard_gateway.storage.event_storage import EventStorage
 from thingsboard_gateway.storage.sqlite.database import Database
 from thingsboard_gateway.storage.sqlite.sqlite_event_storage_strategy import (
-    PointerInitStrategy,
+    PointerInitStrategy, RotateOnOversizeDbStrategy, DropOnMaxCountReachedStrategy
 )
 
 from queue import Queue, Full
@@ -66,6 +66,11 @@ class SQLiteEventStorage(EventStorage):
             default_database_name=self.__settings.db_file_name,
             log=self.__log,
         )
+        self.is_max_db_amount_reached = False
+        self.__oversize_db_strategy_with_no_limit = RotateOnOversizeDbStrategy()
+        self.__oversize_db_strategy_with_limit = DropOnMaxCountReachedStrategy()
+        self.__rotation = self.__database_init_strategy
+
         self.read_database_name = self.__database_init_strategy.check_should_create_or_assign_database_on_gateway_init()
         self.write_database_name = self.__database_init_strategy.initial_write_files()
         self.read_database_path = path.join(
@@ -80,7 +85,7 @@ class SQLiteEventStorage(EventStorage):
         }
         self.read_database_is_write_database = self.write_database_name == self.read_database_name
 
-        self.__read_database = Database(
+        self.read_database = Database(
             self.override_read_db_configuration,
             self.write_queue,
             self.__log,
@@ -88,17 +93,17 @@ class SQLiteEventStorage(EventStorage):
             should_read=True,
             should_write=self.read_database_is_write_database,
         )
-        self.__read_database.start()
+        self.read_database.start()
 
         if self.read_database_is_write_database:
-            self.__write_database = self.__read_database
+            self.write_database = self.read_database
 
         else:
             self.override_write_configuration = {
                 **self.__config_copy,
                 "data_file_path": self.write_database_path,
             }
-            self.__write_database = Database(
+            self.write_database = Database(
                 self.override_write_configuration,
                 self.write_queue,
                 self.__log,
@@ -106,15 +111,14 @@ class SQLiteEventStorage(EventStorage):
                 should_read=False,
                 should_write=True,
             )
-            self.__write_database.start()
+            self.write_database.start()
 
-        self.__write_database.init_table()
+        self.write_database.init_table()
         self.__log.info(
             "Sqlite storage initialized (read=%s, write=%s)",
             self.read_database_name,
             self.write_database_name,
         )
-        self._rotation = self.__database_init_strategy
         self.delete_time_point = 0
         self.__event_pack_processing_start = monotonic()
         self.last_read = time()
@@ -139,7 +143,7 @@ class SQLiteEventStorage(EventStorage):
             self.__settings.directory_path, read_database_filename
         )
         self.__config_copy["data_file_path"] = full_path_to_read_db_file
-        self.__read_database = Database(
+        self.read_database = Database(
             self.__config_copy,
             self.write_queue,
             self.__log,
@@ -147,17 +151,17 @@ class SQLiteEventStorage(EventStorage):
             should_read=True,
             should_write=False,
         )
-        self.__read_database.start()
-        self._rotation.update_read_database_file(read_database_filename)
+        self.read_database.start()
+        self.__rotation.update_read_database_file(read_database_filename)
         self.__log.info(
             "Sqlite storage updated read_database_file to: %s", read_database_filename
         )
 
     def __old_db_is_read_and_write_database_in_size_limit(self):
-        self.__read_database = self.__write_database
-        self.__read_database.should_read = True
-        self._rotation.update_read_database_file(
-            self.__read_database.settings.db_file_name
+        self.read_database = self.write_database
+        self.read_database.should_read = True
+        self.__rotation.update_read_database_file(
+            self.read_database.settings.db_file_name
         )
 
     def get_event_pack(self):
@@ -165,13 +169,13 @@ class SQLiteEventStorage(EventStorage):
             self.__event_pack_processing_start = monotonic()
             event_pack_messages = []
             data_from_storage = self.read_data()
-            if self.__read_database.reached_size_limit and not data_from_storage:
+            if self.read_database.reached_size_limit and not data_from_storage:
 
                 self.delete_oversize_db_file(
-                    self.__read_database.settings.data_folder_path
+                    self.read_database.settings.data_folder_path
                 )
                 self.delete_time_point = 0
-                all_files = self._rotation.pointer.sort_db_files()
+                all_files = self.__rotation.pointer.sort_db_files()
                 if len(all_files) > 1:
                     first_database_filename = all_files[0]
 
@@ -180,6 +184,12 @@ class SQLiteEventStorage(EventStorage):
                     )
                 else:
                     self.__old_db_is_read_and_write_database_in_size_limit()
+                if self.write_database is None and self.is_max_db_amount_reached:
+                    self.is_max_db_amount_reached = False
+                    new_write_database_name = self.__change_database_config()
+                    self.__create_new_write_database()
+                    self.__rotation.update_write_database_file(new_write_database_name)
+
                 data_from_storage = self.read_data()
 
             event_pack_messages = self.process_event_storage_data(
@@ -192,10 +202,10 @@ class SQLiteEventStorage(EventStorage):
                     "Retrieved %r records from storage in %r ms, left in storage: %r",
                     len(event_pack_messages),
                     int((monotonic() - self.__event_pack_processing_start) * 1000),
-                    self.__read_database.get_stored_messages_count(),
+                    self.read_database.get_stored_messages_count(),
                 )
 
-            self.__read_database.can_prepare_new_batch()
+            self.read_database.can_prepare_new_batch()
 
             return event_pack_messages
 
@@ -240,16 +250,16 @@ class SQLiteEventStorage(EventStorage):
             timeout = 2.0
             start = monotonic()
             while (
-                not self.__read_database.process_queue.empty()
-                and monotonic() - start < timeout
+                    not self.read_database.process_queue.empty()
+                    and monotonic() - start < timeout
             ):
                 sleep(0.01)
-            self.__read_database.db.commit()
-            self.__read_database.interrupt()
-            self.__read_database.join(timeout=1)
+            self.read_database.db.commit()
+            self.read_database.interrupt()
+            self.read_database.join(timeout=1)
 
-            self.__read_database.close_db()
-            self.__read_database.db.close()
+            self.read_database.close_db()
+            self.read_database.db.close()
         except Exception:
             time.sleep(0.1)
 
@@ -268,36 +278,45 @@ class SQLiteEventStorage(EventStorage):
             self.__log.error(
                 "No such DB files found to delete under %s", path_to_oversize_db_file
             )
-        self.__read_database = None
+        self.read_database = None
 
     def read_data(self):
-        data = self.__read_database.read_data()
+        data = self.read_database.read_data()
         return data
 
     def delete_data(self, row_id):
-        return self.__read_database.delete_data(row_id=row_id)
+        return self.read_database.delete_data(row_id=row_id)
 
-    def __max_db_amount_reached(self):
-        if self.__settings.max_db_amount == len(self._rotation.pointer.sort_db_files()):
+    def max_db_amount_reached(self):
+        if self.__settings.max_db_amount == len(self.__rotation.pointer.sort_db_files()):
             return True
+
+    def __change_database_config(self):
+        new_db_name = self.__rotation.pointer.generate_new_file_name()
+        data_file_path = path.join(self.__settings.directory_path, new_db_name)
+        self.__config_copy["data_file_path"] = data_file_path
+        return new_db_name
 
     def put(self, message):
         try:
+            if self.is_max_db_amount_reached:
+                return False
+
             if not self.stopped.is_set():
-                if self.__write_database is None and self.__max_db_amount_reached():
+                if self.write_database.reached_size_limit and self.__oversize_db_strategy_with_limit.handle_oversize(
+                        self):
                     return False
 
-                if self.__write_database is None and not self.__max_db_amount_reached():
-                    self.__create_new_database_existing_after_max_db_amount_is_read()
-                    self.write_queue.put_nowait(message)
-                    return True
-
-                if self.__write_database.reached_size_limit:
+                if self.write_database.reached_size_limit:
                     self.__log.debug(
                         "Write database %s has reached its limit",
-                        self.__write_database.settings.db_file_name,
+                        self.write_database.settings.db_file_name,
                     )
-                    self.__handle_write_database_reached_size()
+                    new_write_database_name = self.__change_database_config()
+                    self.__oversize_db_strategy_with_no_limit.handle_oversize(self)
+                    self.__create_new_write_database()
+                    self.__rotation.update_write_database_file(new_write_database_name)
+
                 self.__log.trace("Sending data to storage: %s", message)
                 self.write_queue.put_nowait(message)
                 return True
@@ -309,11 +328,8 @@ class SQLiteEventStorage(EventStorage):
         except Exception as e:
             self.__log.exception("Failed to write data to storage! Error: %s", e)
 
-    def __create_new_database_existing_after_max_db_amount_is_read(self):
-        new_db_name = self._rotation.pointer.generate_new_file_name()
-        data_file_path = path.join(self.__settings.directory_path, new_db_name)
-        self.__config_copy["data_file_path"] = data_file_path
-        self.__write_database = Database(
+    def __create_new_write_database(self):
+        self.write_database = Database(
             self.__config_copy,
             self.write_queue,
             self.__log,
@@ -321,57 +337,17 @@ class SQLiteEventStorage(EventStorage):
             should_read=False,
             should_write=True,
         )
-        self.__write_database.start()
-        self._rotation.update_write_database_file(new_db_name)
-
-    def __handle_write_database_reached_size(self):
-
-        new_db_name = self._rotation.pointer.generate_new_file_name()
-        data_file_path = path.join(self.__settings.directory_path, new_db_name)
-        self.__config_copy["data_file_path"] = data_file_path
-        if self.__read_database != self.__write_database:
-            timeout = 2.0
-            start = monotonic()
-            while (
-                not self.__write_database.process_queue.empty()
-                and monotonic() - start < timeout
-            ):
-                sleep(0.01)
-            self.__write_database.db.commit()
-            self.__write_database.interrupt()
-            self.__write_database.join(timeout=1)
-
-            self.__write_database.close_db()
-            self.__write_database.db.close()
-
-            del self.__write_database
-        else:
-            self.__read_database.should_write = False
-
-        if self.__max_db_amount_reached():
-            self.__write_database = None
-            return
-
-        self.__write_database = Database(
-            self.__config_copy,
-            self.write_queue,
-            self.__log,
-            stopped=self.stopped,
-            should_read=False,
-            should_write=True,
-        )
-        self.__write_database.start()
-        self._rotation.update_write_database_file(new_db_name)
+        self.write_database.start()
 
     def stop(self):
         self.stopped.set()
-        self.__read_database.close_db()
-        self.__write_database.close_db()
+        self.read_database.close_db()
+        self.write_database.close_db()
         collect()
 
     def len(self):
         qsize = self.write_queue.qsize()
-        stored_messages = self.__read_database.get_stored_messages_count()
+        stored_messages = self.read_database.get_stored_messages_count()
         return qsize + stored_messages
 
     def update_logger(self):
