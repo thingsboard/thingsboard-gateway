@@ -12,10 +12,20 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+
+from os import path
+
+
 class StorageSettings:
     def __init__(self, config):
         self.data_folder_path = config.get("data_file_path", "./")
-        self.messages_ttl_check_in_hours = config.get('messages_ttl_check_in_hours', 1) * 3600
-        self.messages_ttl_in_days = config.get('messages_ttl_in_days', 7)
-        self.max_read_records_count = config.get('max_read_records_count', 1000)
-        self.batch_size = config.get('writing_batch_size', 1000)
+        self.messages_ttl_check_in_hours = (
+            config.get("messages_ttl_check_in_hours", 1) * 3600
+        )
+        self.messages_ttl_in_days = config.get("messages_ttl_in_days", 7)
+        self.max_read_records_count = config.get("max_read_records_count", 1000)
+        self.batch_size = config.get("writing_batch_size", 1000)
+        self.directory_path = path.dirname(self.data_folder_path)
+        self.db_file_name = path.basename(self.data_folder_path)
+        self.size_limit = config.get("size_limit", 40000)
+        self.max_db_amount = config.get("max_db_amount", 4)
