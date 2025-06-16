@@ -172,7 +172,8 @@ class SQLiteEventStorage(EventStorage):
             self.__event_pack_processing_start = monotonic()
             event_pack_messages = []
             data_from_storage = self.read_data()
-            if self.read_database.reached_size_limit and not data_from_storage:
+
+            if not data_from_storage and self.read_database.reached_size_limit:
                 self.__read_oversize_strategy = RotateReadOversizeStrategy()
                 data_from_storage = self.__read_oversize_strategy.handle(storage=self)
                 self._read_oversize_strategy_on_max_db_count = DropReadOversizeStrategy()
@@ -228,6 +229,9 @@ class SQLiteEventStorage(EventStorage):
 
         if not self.stopped.is_set():
             self.delete_data(self.delete_time_point)
+            if self.read_database.reached_size_limit and not self.read_database.database_has_records():
+                self.delete_oversize_db_file(self.read_database.settings.data_folder_path)
+                self.delete_time_point = 0
 
         collect()
 
@@ -264,7 +268,6 @@ class SQLiteEventStorage(EventStorage):
             self.__log.error(
                 "No such DB files found to delete under %s", path_to_oversize_db_file
             )
-        self.read_database = None
 
     def read_data(self):
         data = self.read_database.read_data()

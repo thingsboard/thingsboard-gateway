@@ -125,10 +125,6 @@ class ReadOversizeStrategy(ABC):
 
 class RotateReadOversizeStrategy(ReadOversizeStrategy):
     def handle(self, storage: "SQLiteEventStorage") -> List[dict]:
-        storage.delete_oversize_db_file(
-            storage.read_database.settings.data_folder_path
-        )
-        storage.delete_time_point = 0
         all_files = storage.rotation.pointer.sort_db_files()
         if len(all_files) > 1:
             storage.assign_existing_read_database(all_files[0])
