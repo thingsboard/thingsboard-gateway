@@ -113,10 +113,10 @@ class SQLiteEventStorage(EventStorage):
         self.__event_pack_processing_start = monotonic()
         self.last_read = time()
 
-    def handle_database_files_on_gateway_init(self) -> tuple[str, list[str] ]:
+    def handle_database_files_on_gateway_init(self) -> tuple[str, list[str]]:
         all_db_files = self.__pointer.sort_db_files()
         if all_db_files and self.__default_database_name < all_db_files[0]:
-            return all_db_files[0]
+            return all_db_files[0], all_db_files
         return self.__default_database_name, all_db_files
 
     def create_folder(self):
@@ -214,13 +214,12 @@ class SQLiteEventStorage(EventStorage):
         self.read_database.should_read = True
         self.__pointer.update_read_database_filename(self.read_database.settings.db_file_name)
 
-    def handle(self) -> List[dict]:
+    def handle(self):
         all_files = self.__pointer.sort_db_files()
         if len(all_files) > 1:
             self.assign_existing_read_database(all_files[0])
         else:
             self.old_db_is_read_and_write_database_in_size_limit()
-        return self.read_data()
 
     def handle_max_db_amount_reached(self):
         if self.max_db_amount_reached():
@@ -233,11 +232,6 @@ class SQLiteEventStorage(EventStorage):
             self.__event_pack_processing_start = monotonic()
             event_pack_messages = []
             data_from_storage = self.read_data()
-
-            if not data_from_storage and self.read_database.reached_size_limit:
-                with self.__read_db_file_change_lock:
-                    data_from_storage = self.handle()
-                    self.handle_max_db_amount_reached()
 
             event_pack_messages = self.process_event_storage_data(
                 data_from_storage=data_from_storage,
@@ -279,6 +273,11 @@ class SQLiteEventStorage(EventStorage):
                     "IndexError occurred while reading data from storage: %s", e
                 )
                 continue
+            except Exception as e:
+                self.__log.error(
+                    "Error occurred while reading data from storage: %s", e
+                )
+
         return event_pack_messages
 
     def event_pack_processing_done(self):
@@ -290,9 +289,10 @@ class SQLiteEventStorage(EventStorage):
         if not self.stopped.is_set():
             self.delete_data(self.delete_time_point)
             if self.read_database.reached_size_limit and not self.read_database.database_has_records():
-                with self.__read_db_file_change_lock:
-                    self.delete_oversize_db_file(self.read_database.settings.data_folder_path)
-                    self.delete_time_point = 0
+                self.delete_oversize_db_file(self.read_database.settings.data_folder_path)
+                self.delete_time_point = 0
+                self.handle()
+                self.handle_max_db_amount_reached()
 
         collect()
 
@@ -361,10 +361,10 @@ class SQLiteEventStorage(EventStorage):
                         "Write database %s has reached its limit",
                         self.write_database.settings.db_file_name,
                     )
-                    with self.__write_db_file_creation_lock:
-                        new_write_database_name = self.__change_database_config()
-                        self.handle_oversize()
-                        self.__create_new_write_database()
+
+                    new_write_database_name = self.__change_database_config()
+                    self.handle_oversize()
+                    self.__create_new_write_database()
                     self.__pointer.update_write_database_file(new_write_database_name)
 
                 self.__log.trace("Sending data to storage: %s", message)
