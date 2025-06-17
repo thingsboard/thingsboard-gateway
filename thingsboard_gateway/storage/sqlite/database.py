@@ -119,20 +119,23 @@ class Database(Thread):
     def run(self):
         self.__log.info("Database thread started %r", id(self))
         interval = 20
+        sleep_time = 0.2
 
         last_time = monotonic()
         while not self.stopped.is_set() and not self.database_stopped_event.is_set():
             try:
+                processing_started = monotonic()
                 if self.__should_read:
                     if self.__can_prepare_new_batch and not self.__next_batch:
                         self.__next_batch = self.read_data()
                         self.__can_prepare_new_batch = False
                 if self.__should_write:
                     self.process()
-                    if self.process_queue.empty():
-                        sleep(0.1)
 
-                sleep(0.01)
+                remaining = sleep_time - (monotonic() - processing_started)
+                if remaining > 0 and self.process_queue.empty():
+                    sleep(remaining)
+
                 if not self.__reached_size_limit:
                     now = monotonic()
                     if now - last_time >= interval:
@@ -208,17 +211,24 @@ class Database(Thread):
     def clean_next_batch(self):
         self.__next_batch = []
 
-    def database_has_records(self):
+    def database_has_records(self) -> bool:
+        """
+        Returns True if there's at least one row in messages, False otherwise.
+        """
         try:
-            data = self.db.execute_read("SELECT EXISTS(SELECT 1 FROM messages);")
-            return data
-        except DatabaseError:
-            return []
-        except (ProgrammingError, InterfaceError) as e:
-            self.__log.debug("Error reading data from storage: %s", e)
-            return []
+            cursor = self.db.execute_read(
+                "SELECT EXISTS(SELECT 1 FROM messages);"
+            )
+            if not cursor:
+                return False
+            row = cursor.fetchone()
+            return bool(row[0])
+        except (DatabaseError, ProgrammingError, InterfaceError) as e:
+            self.__log.debug("Error checking for records: %s", e)
+            return False
         except MemoryError:
-            return []
+            self.__log.debug("Out of memory checking for records")
+            return False
 
     def read_data(self):
         if self.database_stopped_event.is_set() or not self.__initialized:
