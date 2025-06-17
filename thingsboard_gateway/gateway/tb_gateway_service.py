@@ -1223,7 +1223,8 @@ class TBGatewayService:
                                         {CONNECTOR_PARAMETER: self.available_connectors_by_name[connector_name]},
                                         device_type=data.device_type)
                     else:
-                        log.warning("Connector %s is not available, probably it was disabled", connector_name)
+                        log.trace("Connector %s is not available, probably it was disabled, skipping data...", connector_name)
+                        continue
 
                 if not self.__connector_incoming_messages.get(connector_id):
                     self.__connector_incoming_messages[connector_id] = 0
