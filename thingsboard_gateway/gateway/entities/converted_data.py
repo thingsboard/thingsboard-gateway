@@ -137,7 +137,7 @@ class ConvertedData:
 
             self.telemetry[index].values.update(telemetry_entry.values)
             self._telemetry_datapoints_count -= old_values_len
-            self._telemetry_datapoints_count += len(telemetry_entry.values)
+            self._telemetry_datapoints_count += len(self.telemetry[index].values)
         else:
             self.telemetry.append(telemetry_entry)
             self._telemetry_datapoints_count += len(telemetry_entry.values)
