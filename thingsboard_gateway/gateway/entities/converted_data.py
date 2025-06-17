@@ -134,7 +134,7 @@ class ConvertedData:
             index = self.ts_index[telemetry_entry.ts]
             existing_values = self.telemetry[index].values
 
-            new_keys = telemetry_entry.values.keys()
+            new_keys = telemetry_entry.values.keys() - existing_values.keys()
             new_values = {key_and_rs: telemetry_entry.values[key_and_rs] for key_and_rs in new_keys}
 
             self._telemetry_datapoints_count += len(new_values)
