@@ -506,7 +506,7 @@ class RemoteConfigurator:
                     for device in self._gateway.get_connector_devices(connector_to_close):
                         self._gateway.del_device(device, False)
                     connector_id = connector_to_close.get_id()
-                    self._gateway.available_connectors_by_id.pop(connector_id)
+                    self._gateway.available_connectors_by_id.pop(connector_id, None)
                     for_deletion.append(active_connector_name)
                     for_deletion_ids.append(connector_id)
                     if self._gateway._report_strategy_service is not None:
