@@ -14,11 +14,12 @@
 
 from os import path
 import logging
+from time import sleep, time
 
 from pymodbus.exceptions import ConnectionException
 import pymodbus.client as ModbusClient
 from tb_rest_client.rest import ApiException
-from tb_rest_client.rest_client_ce import *
+from tb_rest_client.rest_client_ce import TBRestClientCE
 from simplejson import load, loads
 
 from tests.base_test import BaseTest
@@ -146,7 +147,8 @@ class ModbusRenameBaseTestClass(BaseTest):
     def tearDown(self):
         GatewayDeviceUtil.clear_connectors()
 
-        self.client.delete_device(self.device.id)
+        if self.device is not None:
+            self.client.delete_device(self.device.id)
 
         GatewayDeviceUtil.restart_gateway()
         self.device = None
