@@ -129,6 +129,10 @@ class OpcUaConnector(Connector, Thread):
         self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200), 100) / 1000
         self.__subscription_batch_size = self.__server_conf.get('subscriptionProcessBatchSize', 2000)
 
+        self.__reconnect_retries_count = self.__server_conf.get('reconnectRetriesCount', 8)
+        self.__reconnect_backoff_initial_delay = self.__server_conf.get('reconnectBackoffInitialDelay', 1)
+        self.__reconnect_backoff_factor = self.__server_conf.get('reconnectBackoffFactor', 2)
+
         self.__show_map = self.__server_conf.get('showMap', False)
 
         self.__sub_data_to_convert = Queue(-1)
@@ -300,7 +304,8 @@ class OpcUaConnector(Connector, Thread):
                         break
                     if self.__enable_subscriptions and self.__device_nodes:
                         self.__log.debug("Subscriptions are enabled, client will reconnect, unsubscribe old subscriptions and subscribe to new nodes.")
-                        await self.retry_connect_with_backoff()
+                        await self.retry_connect_with_backoff(self.__reconnect_retries_count, self.__reconnect_backoff_initial_delay,
+                                                              self.__reconnect_backoff_factor)
                         self.__last_contact_time = monotonic()
                         if not (self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open'):
                             self.__log.error("Failed to connect to server, retrying...")
@@ -316,7 +321,8 @@ class OpcUaConnector(Connector, Thread):
                     self.__client_recreation_required = False
 
                 if reconnect_required:
-                    await self.retry_connect_with_backoff()
+                    await self.retry_connect_with_backoff(self.__reconnect_retries_count, self.__reconnect_backoff_initial_delay,
+                                                          self.__reconnect_backoff_factor)
                     self.__last_contact_time = monotonic()
 
                 if not (self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open'):
