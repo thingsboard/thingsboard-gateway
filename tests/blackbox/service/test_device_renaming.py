@@ -19,7 +19,7 @@ from time import sleep, time
 from pymodbus.exceptions import ConnectionException
 import pymodbus.client as ModbusClient
 from tb_rest_client.rest import ApiException
-from tb_rest_client.rest_client_ce import TBRestClientCE
+from tb_rest_client.rest_client_ce import RestClientCE
 from simplejson import load, loads
 
 from tests.base_test import BaseTest
