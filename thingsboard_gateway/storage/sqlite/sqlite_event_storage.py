@@ -224,8 +224,14 @@ class SQLiteEventStorage(EventStorage):
     def handle_max_db_amount_reached(self):
         if self.max_db_amount_reached():
             self.is_max_db_amount_reached = True
-            self.write_database = None
             return True
+        if self.is_max_db_amount_reached:
+            self.is_max_db_amount_reached = False
+            new_write_database_name = self.__change_database_config()
+            self.__create_new_write_database()
+            self.__databases_file_list_on_init.append(new_write_database_name)
+            self.__pointer.update_write_database_file(new_write_database_name)
+            return False
 
     def get_event_pack(self):
         if not self.stopped.is_set():
@@ -288,11 +294,15 @@ class SQLiteEventStorage(EventStorage):
 
         if not self.stopped.is_set():
             self.delete_data(self.delete_time_point)
-            if self.read_database.reached_size_limit and not self.read_database.database_has_records():
-                self.delete_oversize_db_file(self.read_database.settings.data_folder_path)
-                self.delete_time_point = 0
-                self.handle()
-                self.handle_max_db_amount_reached()
+            with self.__read_db_file_change_lock:
+                if not self.read_database.database_has_records():
+                    self.read_database.process_file_limit(self.read_database.settings.data_folder_path,
+                                                          self.__settings.size_limit)
+                    if self.read_database.reached_size_limit:
+                        self.delete_oversize_db_file(self.read_database.settings.data_folder_path)
+                        self.delete_time_point = 0
+                        self.handle()
+                        self.handle_max_db_amount_reached()
 
         collect()
 
@@ -355,21 +365,22 @@ class SQLiteEventStorage(EventStorage):
             if not self.stopped.is_set():
                 if self.write_database.reached_size_limit and self.handle_max_db_amount_reached():
                     return False
+                with self.__write_db_file_creation_lock:
 
-                if self.write_database.reached_size_limit:
-                    self.__log.debug(
-                        "Write database %s has reached its limit",
-                        self.write_database.settings.db_file_name,
-                    )
+                    if self.write_database.reached_size_limit:
+                        self.__log.debug(
+                            "Write database %s has reached its limit",
+                            self.write_database.settings.db_file_name,
+                        )
 
-                    new_write_database_name = self.__change_database_config()
-                    self.handle_oversize()
-                    self.__create_new_write_database()
-                    self.__pointer.update_write_database_file(new_write_database_name)
+                        new_write_database_name = self.__change_database_config()
+                        self.handle_oversize()
+                        self.__create_new_write_database()
+                        self.__pointer.update_write_database_file(new_write_database_name)
 
-                self.__log.trace("Sending data to storage: %s", message)
-                self.write_queue.put_nowait(message)
-                return True
+                    self.__log.trace("Sending data to storage: %s", message)
+                    self.write_queue.put_nowait(message)
+                    return True
             else:
                 return False
         except Full:

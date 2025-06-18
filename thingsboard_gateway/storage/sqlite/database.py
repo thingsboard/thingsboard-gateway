@@ -118,7 +118,7 @@ class Database(Thread):
 
     def run(self):
         self.__log.info("Database thread started %r", id(self))
-        interval = 20
+        interval = 60
         sleep_time = 0.2
 
         last_time = monotonic()
