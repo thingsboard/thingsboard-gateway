@@ -1,18 +1,4 @@
-#      Copyright 2025. ThingsBoard
-#  #
-#      Licensed under the Apache License, Version 2.0 (the "License");
-#      you may not use this file except in compliance with the License.
-#      You may obtain a copy of the License at
-#  #
-#          http://www.apache.org/licenses/LICENSE-2.0
-#  #
-#      Unless required by applicable law or agreed to in writing, software
-#      distributed under the License is distributed on an "AS IS" BASIS,
-#      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#      See the License for the specific language governing permissions and
-#      limitations under the License.
-#
-#
+#     Copyright 2025. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -26,13 +12,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-
 import copy
 from gc import collect
 from threading import Event, Lock
 from time import sleep, time, monotonic
 from os import path, makedirs, remove
-from typing import List
 from sqlite3 import ProgrammingError, DatabaseError
 from thingsboard_gateway.storage.event_storage import EventStorage
 from thingsboard_gateway.storage.sqlite.database import Database
@@ -59,12 +43,14 @@ class SQLiteEventStorage(EventStorage):
         self.__config_copy = copy.deepcopy(config)
         self.__settings = StorageSettings(config)
         self.create_folder()
-        self.__pointer = Pointer(self.__settings.data_folder_path, log=self.__log, state_file_name="state.txt")
+        self.__pointer = Pointer(self.__settings.data_folder_path, log=self.__log)
         self.__default_database_name = self.__settings.db_file_name
-        self.__read_database_name_on_init, self.__databases_file_list_on_init = self.handle_database_files_on_gateway_init()
+        self.__read_database_name_on_init, self.__write_database_on_init = self.handle_database_files_on_gateway_init()
         self.is_max_db_amount_reached = False
+
         self.read_database_name = self.__read_database_name_on_init
-        self.write_database_name = self.__pointer.write_database_file
+
+        self.write_database_name = self.__write_database_on_init
         self.read_database_path = path.join(self.__settings.directory_path, self.read_database_name)
         self.write_database_path = path.join(
             self.__settings.directory_path, self.write_database_name
@@ -109,15 +95,20 @@ class SQLiteEventStorage(EventStorage):
             self.read_database_name,
             self.write_database_name,
         )
+        if self.read_database.reached_size_limit and not self.read_database.database_has_records():
+            self.__handle_read_database_after_database_is_read()
+
         self.delete_time_point = 0
         self.__event_pack_processing_start = monotonic()
-        self.last_read = time()
 
-    def handle_database_files_on_gateway_init(self) -> tuple[str, list[str]]:
+    def handle_database_files_on_gateway_init(self):
         all_db_files = self.__pointer.sort_db_files()
-        if all_db_files and self.__default_database_name < all_db_files[0]:
-            return all_db_files[0], all_db_files
-        return self.__default_database_name, all_db_files
+        if len(all_db_files) == 1 and self.__default_database_name < all_db_files[0]:
+            return all_db_files[0], all_db_files[0]
+        if len(all_db_files) > 1:
+            return all_db_files[0], all_db_files[-1]
+
+        return self.__default_database_name, self.__default_database_name
 
     def create_folder(self):
 
@@ -148,7 +139,7 @@ class SQLiteEventStorage(EventStorage):
             should_write=False,
         )
         self.read_database.start()
-        self.__pointer.update_read_database_filename(read_database_filename)
+        # self.__pointer.update_read_database_filename(read_database_filename)
         self.__log.info(
             "Sqlite storage updated read_database_file to: %s", read_database_filename
         )
@@ -162,6 +153,7 @@ class SQLiteEventStorage(EventStorage):
             try:
                 self.__clean_database_after_read_and_oversize()
                 self.__log.info("Successfully handled SQLite storage on oversize")
+
 
             except RuntimeError as e:
                 self.__log.error("During oversize clean: thread error: %s", e)
@@ -212,7 +204,7 @@ class SQLiteEventStorage(EventStorage):
     def old_db_is_read_and_write_database_in_size_limit(self):
         self.read_database = self.write_database
         self.read_database.should_read = True
-        self.__pointer.update_read_database_filename(self.read_database.settings.db_file_name)
+        # self.__pointer.update_read_database_filename(self.read_database.settings.db_file_name)
 
     def handle(self):
         all_files = self.__pointer.sort_db_files()
@@ -225,12 +217,12 @@ class SQLiteEventStorage(EventStorage):
         if self.max_db_amount_reached():
             self.is_max_db_amount_reached = True
             return True
-        if self.is_max_db_amount_reached:
+        elif self.is_max_db_amount_reached:
             self.is_max_db_amount_reached = False
-            new_write_database_name = self.__change_database_config()
+            self.__change_database_config()
             self.__create_new_write_database()
-            self.__databases_file_list_on_init.append(new_write_database_name)
-            self.__pointer.update_write_database_file(new_write_database_name)
+            # self.__databases_file_list_on_init.append(new_write_database_name)
+            # self.__pointer.update_write_database_file(new_write_database_name)
             return False
 
     def get_event_pack(self):
@@ -238,6 +230,8 @@ class SQLiteEventStorage(EventStorage):
             self.__event_pack_processing_start = monotonic()
             event_pack_messages = []
             data_from_storage = self.read_data()
+            if not data_from_storage and not path.exists(self.read_database.settings.data_folder_path):
+                self.__handle_read_database_after_database_is_read()
 
             event_pack_messages = self.process_event_storage_data(
                 data_from_storage=data_from_storage,
@@ -286,6 +280,12 @@ class SQLiteEventStorage(EventStorage):
 
         return event_pack_messages
 
+    def __handle_read_database_after_database_is_read(self):
+        self.delete_oversize_db_file(self.read_database.settings.data_folder_path)
+        self.delete_time_point = 0
+        self.handle()
+        self.handle_max_db_amount_reached()
+
     def event_pack_processing_done(self):
         self.__log.trace(
             "Batch processing done, processing time: %i milliseconds",
@@ -299,10 +299,7 @@ class SQLiteEventStorage(EventStorage):
                     self.read_database.process_file_limit(self.read_database.settings.data_folder_path,
                                                           self.__settings.size_limit)
                     if self.read_database.reached_size_limit:
-                        self.delete_oversize_db_file(self.read_database.settings.data_folder_path)
-                        self.delete_time_point = 0
-                        self.handle()
-                        self.handle_max_db_amount_reached()
+                        self.__handle_read_database_after_database_is_read()
 
         collect()
 
@@ -373,10 +370,10 @@ class SQLiteEventStorage(EventStorage):
                             self.write_database.settings.db_file_name,
                         )
 
-                        new_write_database_name = self.__change_database_config()
+                        self.__change_database_config()
                         self.handle_oversize()
                         self.__create_new_write_database()
-                        self.__pointer.update_write_database_file(new_write_database_name)
+                        # self.__pointer.update_write_database_file(new_write_database_name)
 
                     self.__log.trace("Sending data to storage: %s", message)
                     self.write_queue.put_nowait(message)
