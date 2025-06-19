@@ -1,17 +1,4 @@
-#      Copyright 2025. ThingsBoard
-#  #
-#      Licensed under the Apache License, Version 2.0 (the "License");
-#      you may not use this file except in compliance with the License.
-#      You may obtain a copy of the License at
-#  #
-#          http://www.apache.org/licenses/LICENSE-2.0
-#  #
-#      Unless required by applicable law or agreed to in writing, software
-#      distributed under the License is distributed on an "AS IS" BASIS,
-#      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#      See the License for the specific language governing permissions and
-#      limitations under the License.
-#
+#     Copyright 2025. ThingsBoard
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
 #     you may not use this file except in compliance with the License.
@@ -118,7 +105,7 @@ class Database(Thread):
 
     def run(self):
         self.__log.info("Database thread started %r", id(self))
-        interval = 60
+        interval = 20
         sleep_time = 0.2
 
         last_time = monotonic()
@@ -150,15 +137,17 @@ class Database(Thread):
         self.__log.info("Database thread stopped %r", id(self))
         self.db.close()
 
-    def process_file_limit(self, path_to_file, file_size_limit):
-        try:
-            if getsize(path_to_file) >= file_size_limit:
-                self.__reached_size_limit = True
+    def process_file_limit(self, path_to_file, file_size_limit, mb=1000000):
+        if exists(path_to_file):
+            try:
+                if getsize(path_to_file) >= float(file_size_limit):
+                    self.__reached_size_limit = True
 
-        except FileNotFoundError as e:
-            self.__reached_size_limit = True
-            self.__log.debug("File is not found it is likely you deleted it ")
-            self.__log.exception("Failed to find file ! Error: %s", e)
+
+            except FileNotFoundError as e:
+                self.__reached_size_limit = True
+                self.__log.debug("File is not found it is likely you deleted it ")
+                self.__log.exception("Failed to find file ! Error: %s", e)
 
     def process(self):
         try:

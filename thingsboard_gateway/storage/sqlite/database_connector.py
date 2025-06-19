@@ -13,13 +13,10 @@
 #     limitations under the License.
 
 import sqlite3
-from sqlite3 import connect, Connection, DatabaseError, ProgrammingError, InterfaceError
+from sqlite3 import connect, Connection
 from threading import Lock
 from time import sleep
 from typing import Optional
-
-from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
-
 
 class DatabaseConnector:
     def __init__(self, data_file_path, logger, database_stopped_event):
