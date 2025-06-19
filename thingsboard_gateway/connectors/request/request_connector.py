@@ -218,7 +218,7 @@ class RequestConnector(Connector, Thread):
                 converter = None
                 if endpoint["converter"]["type"] == "custom":
                     module = TBModuleLoader.import_module(self._connector_type, endpoint["converter"]["extension"])
-                    if module is not None:
+                    if module:
                         self._log.debug('Custom converter for url %s - found!', endpoint["url"])
                         converter = module(endpoint, self._converter_log)
                     else:
@@ -257,6 +257,9 @@ class RequestConnector(Connector, Thread):
         url = ""
         try:
             request["next_time"] = time() + request["config"].get("scanPeriod", 10)
+            if request.get("converter") is None and isinstance(request["config"].get("converter"), dict):
+                logger.error("Converter for request to '%s' endpoint is not defined. Request will be skipped.", request["config"].get("url"))
+                return
             request_url_from_config = request["config"]["url"]
             request_url_from_config = str('/' + request_url_from_config) if request_url_from_config[
                                                                                 0] != '/' else request_url_from_config
