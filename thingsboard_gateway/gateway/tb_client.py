@@ -13,6 +13,7 @@
 #     limitations under the License.
 
 import random
+import socket
 import ssl
 import string
 import threading
@@ -399,7 +400,9 @@ class TBClient(threading.Thread):
                         else:
                             sleep(1)
                     except ConnectionRefusedError:
-                        self.__logger.error("Connection refused. Check ThingsBoard is running.")
+                        self.__logger.error("Connection refused.")
+                    except ConnectionError as e:
+                        self.__logger.error("Connection error, cannot connect with error: %s", e)
                     except (ssl.SSLEOFError, ssl.SSLZeroReturnError) as e:
                         self.__logger.warning("Cannot use TLS connection on this port. "
                                               "Client will try to connect without TLS.")
@@ -418,9 +421,12 @@ class TBClient(threading.Thread):
 
     def __send_connect(self):
         self.__logger.info(f"Sending connect to {self.__host}:{self.__port}")
-        self.client.connect(keepalive=self.__config.get("keep_alive", 120),
-                            min_reconnect_delay=self.__min_reconnect_delay)
-        self.__logger.debug("Connect msg sent to platform.")
+        try:
+            self.client.connect(keepalive=self.__config.get("keep_alive", 120),
+                                min_reconnect_delay=self.__min_reconnect_delay)
+            self.__logger.debug("Connect msg sent to platform.")
+        except socket.gaierror as e:
+            raise ConnectionError(e) from e
 
     def run(self):
         while not self.__stopped:
