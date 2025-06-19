@@ -22,6 +22,8 @@ from importlib.metadata import version as metadata_version
 from requests import ConnectionError, post
 from simplejson import loads
 
+from threading import Thread
+
 from thingsboard_gateway import version
 from thingsboard_gateway.tb_utility.tb_logger import TbLogger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -48,16 +50,16 @@ class TBUpdater:
         self.__os_version = platform()
         self.__previous_check = 0
         self.__check_period = 3600.0
-        self.__request_timeout = 5
+        self.__request_timeout = (1,2)
         self.__stopped = True
-        self.check_for_new_version()
+        Thread(target=self.check_for_new_version, daemon=True).start()
 
     def stop(self):
         self.__stopped = True
 
     def get_version(self):
         if time() >= self.__previous_check + self.__check_period:
-            self.check_for_new_version()
+            Thread(target=self.check_for_new_version, daemon=True).start()
             self.__previous_check = time()
         return self.__version
 
@@ -68,6 +70,7 @@ class TBUpdater:
         return self.__release
 
     def check_for_new_version(self):
+        self.__previous_check = time()
         log.debug("Checking for new version")
         request_args = self.form_request_params()
         try:
@@ -86,7 +89,8 @@ class TBUpdater:
         except ConnectionError:
             log.warning("Cannot connect to the update service. Please check your internet connection.")
         except Exception as e:
-            log.exception(e)
+            log.error("An error occurred while checking for a new version: %s", e)
+            log.debug("Error details", exc_info=e)
 
     def form_request_params(self):
         json_data = {
