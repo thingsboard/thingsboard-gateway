@@ -30,6 +30,11 @@ class FTPBackwardCompatibilityAdapter:
         }
 
     def convert(self) -> dict:
+        self._converted_config['id'] = self._config.get('id')
+        self._converted_config['name'] = self._config.get('name')
+        self._converted_config['logLevel'] = self._config.get('logLevel', 'INFO')
+        self._converted_config['enableRemoteLogging'] = self._config.get('enableRemoteLogging', False)
+        self._converted_config['configVersion'] = self._config.get('configVersion')
 
         self._converted_config['parameters']['host'] = self._config.get('host')
         self._converted_config['parameters']['port'] = self._config.get('port')
