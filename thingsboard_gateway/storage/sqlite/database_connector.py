@@ -18,6 +18,7 @@ from threading import Lock
 from time import sleep
 from typing import Optional
 
+
 class DatabaseConnector:
     def __init__(self, data_file_path, logger, database_stopped_event):
         self.__log = logger
@@ -34,11 +35,12 @@ class DatabaseConnector:
         try:
             with self.lock:
                 self.connection = connect(self.data_file_path, check_same_thread=False)
-                self.connection.execute("PRAGMA journal_mode=DELETE;")
+                self.connection.execute("PRAGMA journal_mode=WAL;")
                 self.connection.execute("PRAGMA synchronous=NORMAL;")
                 self.connection.execute("PRAGMA cache_size=-20000;")
                 self.connection.execute("PRAGMA temp_store=MEMORY;")
-                self.connection.execute("PRAGMA journal_size_limit=5000000;")
+                self.connection.execute("PRAGMA journal_size_limit=1000000;")
+
                 self.connection.execute("PRAGMA mmap_size=536870912;")
                 self.connection.execute("PRAGMA busy_timeout=15000;")
                 self.connection.execute("PRAGMA page_size=4096;")
@@ -246,3 +248,4 @@ class DatabaseConnector:
 
     def update_logger(self, logger):
         self.__log = logger
+

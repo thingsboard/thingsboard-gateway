@@ -13,7 +13,6 @@
 #     limitations under the License.
 
 from os.path import dirname, getsize, exists
-from os import makedirs
 from sqlite3 import DatabaseError, ProgrammingError, InterfaceError, OperationalError
 from time import sleep, monotonic, time
 from logging import getLogger
@@ -41,7 +40,7 @@ class Database(Thread):
             logger,
             stopped: Event,
             should_read: bool = True,
-            should_write: bool = True,
+            should_write: bool = True
     ):
         self.__initialized = False
         self.__log = logger
@@ -105,7 +104,7 @@ class Database(Thread):
 
     def run(self):
         self.__log.info("Database thread started %r", id(self))
-        interval = 20
+        interval = self.settings.oversize_check_period * 60
         sleep_time = 0.2
 
         last_time = monotonic()
@@ -127,23 +126,18 @@ class Database(Thread):
                     now = monotonic()
                     if now - last_time >= interval:
                         last_time = now
-                        self.process_file_limit(
-                            self.db.data_file_path,
-                            self.settings.size_limit,
-                        )
+                        self.process_file_limit()
 
             except Exception as e:
                 self.__log.exception("Error in database thread: %s", exc_info=e)
         self.__log.info("Database thread stopped %r", id(self))
         self.db.close()
 
-    def process_file_limit(self, path_to_file, file_size_limit, mb=1000000):
-        if exists(path_to_file):
+    def process_file_limit(self):
+        if exists(self.db.data_file_path):
             try:
-                if getsize(path_to_file) >= float(file_size_limit):
-                    self.__reached_size_limit = True
-
-
+                if getsize(self.db.data_file_path) >= float(self.settings.size_limit) * 1000000:
+                     self.__reached_size_limit = True
             except FileNotFoundError as e:
                 self.__reached_size_limit = True
                 self.__log.debug("File is not found it is likely you deleted it ")
@@ -375,3 +369,4 @@ class Database(Thread):
         if not isinstance(value, bool):
             raise TypeError("should_write must be a boolean")
         self.__should_write = value
+

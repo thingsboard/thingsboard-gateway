@@ -29,7 +29,8 @@ class Pointer:
         all_db_files = sorted(filter(lambda file: file.endswith(".db"), all_files))
         return all_db_files
 
-    def generate_new_file_name(self):
+    @staticmethod
+    def generate_new_file_name():
         prefix = "data_"
         ts = str(int(time.time()) * 1000)
         db_file_name = f"{prefix}{ts}.db"
