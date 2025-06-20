@@ -24,13 +24,14 @@ from packaging import version
 
 from thingsboard_gateway.connectors.modbus.constants import ADDRESS_PARAMETER, TAG_PARAMETER, \
     FUNCTION_CODE_PARAMETER
+from thingsboard_gateway.connectors.modbus.entities.rpc_request import RPCRequest, RPCType
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, \
     STATISTIC_MESSAGE_SENT_PARAMETER, CONNECTOR_PARAMETER, DEVICE_SECTION_PARAMETER, DATA_PARAMETER, \
-    RPC_METHOD_PARAMETER, RPC_PARAMS_PARAMETER, RPC_ID_PARAMETER
+    RPC_METHOD_PARAMETER, RPC_PARAMS_PARAMETER
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 # Try import Pymodbus library or install it and import
@@ -278,7 +279,7 @@ class AsyncModbusConnector(Connector, Thread):
                 try:
                     response = await slave.read(config['functionCode'], config['address'], config['objectsCount'])
                 except asyncio.exceptions.TimeoutError:
-                    self.__log.error("Timeout error for device %s function code %s address %s, it may be caused by wrong data in server register.",
+                    self.__log.error("Timeout error for device %s function code %s address %s, it may be caused by wrong data in server register.",  # noqa
                                      slave.device_name, config['functionCode'], config[ADDRESS_PARAMETER])
                     continue
 
@@ -420,122 +421,101 @@ class AsyncModbusConnector(Connector, Thread):
         self.__log.info('Received server side rpc request: %r', content)
 
         try:
-            if self.__is_old_format_rpc_content(content):
-                self.__convert_old_format_rpc_content(content)
+            rpc_request = RPCRequest(content)
 
-            self.__check_is_connector_rpc(content)
+            response = None
+            if rpc_request.rpc_type == RPCType.CONNECTOR:
+                response = self.__process_connector_rpc_request(rpc_request)
+            elif rpc_request.rpc_type == RPCType.RESERVED:
+                response = self.__process_reserved_rpc_request(rpc_request)
+            elif rpc_request.rpc_type == RPCType.DEVICE:
+                response = self.__process_device_rpc_request(rpc_request)
 
-            if content.get(DEVICE_SECTION_PARAMETER) is not None:
-                self.__log.debug("Modbus connector received rpc request for %s with server_rpc_request: %s",
-                                 content[DEVICE_SECTION_PARAMETER],
-                                 content)
-                device = self.__get_device_by_name(content[DEVICE_SECTION_PARAMETER])
-
-                config = self.__get_rpc_config(device, content)
-                if config is None:
-                    self.__log.error("Received rpc request, but method %s not found in config for %s.",
-                                     content['data']['method'],
-                                     self.get_name())
-                    self.__gateway.send_rpc_reply(content[DEVICE_SECTION_PARAMETER],
-                                                  content[DATA_PARAMETER][RPC_ID_PARAMETER],
-                                                  {content['data']['method']: "METHOD NOT FOUND!"})
-                    return
-
-                result = {}
-                self.__create_task(self.__process_rpc_request, (device, config, content), {'result': result})
-
-                self.__log.debug("Result: %r", result)
-
-                return result['response']
-            else:
-                self.__log.debug("Received RPC to connector: %r", content)
-                results = []
-                for device in self.__slaves:
-                    content[DEVICE_SECTION_PARAMETER] = device.device_name
-                    result = {}
-                    self.__create_task(self.__process_rpc_request,
-                                       (device, content, content),
-                                       {'with_response': True, 'result': result})
-                    results.append(result['response'])
-
-                return results
+            return response
         except Exception as e:
             self.__log.error('Failed to process server side rpc request: %s', e)
-            self.__log.debug('Failed to process server side rpc request', exc_info=e)
             return {'error': '%r' % e, 'success': False}
 
-    def __create_task(self, func, args, kwargs):
-        task = self.loop.create_task(func(*args, **kwargs))
+    def __process_connector_rpc_request(self, rpc_request: RPCRequest):
+        self.__log.debug("Received RPC to connector: %r", rpc_request)
 
-        while not task.done() and not self.__stopped:
-            sleep(.02)
+        if rpc_request.for_existing_device():
+            results = []
+            for device in self.__slaves:
+                rpc_request.device_name = device.device_name
+                result = {}
+                self.__create_task(self.__process_rpc_request,
+                                   (device, rpc_request.params, rpc_request),
+                                   {'with_response': True, 'result': result},
+                                   timeout=rpc_request.timeout)
+                results.append(result['response'])
 
-    @staticmethod
-    def __is_old_format_rpc_content(content):
-        return content.get('data') is None
-
-    @staticmethod
-    def __convert_old_format_rpc_content(content):
-        content['data'] = {'params': content['params'],
-                           'method': content['method']}
-
-    def __check_is_connector_rpc(self, content):
-        """
-        Check if RPC type is connector RPC (can be only 'set')
-        """
-
-        try:
-            (connector_type, rpc_method_name) = content['data']['method'].split('_')
-            if connector_type == self._connector_type:
-                content['data']['method'] = rpc_method_name
-                content['device'] = content['params'].split(' ')[0].split('=')[-1]
-        except (IndexError, ValueError, AttributeError):
-            pass
-
-    @staticmethod
-    def __get_rpc_config(device: Slave, content):
-        rpc_method = content['data']['method']
-        if rpc_method == 'get' or rpc_method == 'set':
-            params = {}
-
-            if rpc_method == 'set':
-                input_params_and_value_list = content['data']['params'].split(' ')
-                if len(input_params_and_value_list) == 1:
-                    if ";value" in input_params_and_value_list[0]:
-                        input_params_and_value_list = input_params_and_value_list[0].split(';value=')
-                    if len(input_params_and_value_list) == 1:
-                        input_params_and_value_list = input_params_and_value_list[0].split(';value')
-                    input_params_and_value_list[1] = input_params_and_value_list[1].replace(";", '')
-                if len(input_params_and_value_list) < 2:
-                    raise ValueError('Invalid RPC request format. '
-                                     'Expected RPC request format: '
-                                     'set param_name1=param_value1;param_name2=param_value2;...; value')
-
-                (input_params, input_value) = input_params_and_value_list
-                content['data']['params'] = input_value
-
-            if rpc_method == 'get':
-                input_params = content.get('data', {}).get('params', {})
-
-            for param in input_params.split(';'):
-                try:
-                    (key, value) = param.split('=')
-                except ValueError:
-                    continue
-
-                if key and value:
-                    params[key] = value if key not in ('functionCode', 'objectsCount', 'address') else int(
-                        value)
-
-            return params
-        elif isinstance(device.rpc_requests_config, dict):
-            return device.rpc_requests_config.get(rpc_method)
-        elif isinstance(device.rpc_requests_config, list):
-            for rpc_command_config in device.rpc_requests_config:
-                if rpc_command_config[TAG_PARAMETER] == rpc_method:
-                    return rpc_command_config
+            return results
         else:
-            return None
+            slave = Slave(self, self.__log, rpc_request.params)
+            master = self.__get_master(slave)
+            slave.master = master
+            rpc_request.device_name = slave.device_name
+
+            connected_to_master_task = self.loop.create_task(slave.connect())
+            connect_started = monotonic()
+            while not connected_to_master_task.done() and not self.__stopped and \
+                    monotonic() - connect_started < rpc_request.timeout:
+                sleep(.02)
+
+            if connected_to_master_task.result():
+                result = {}
+                self.__create_task(self.__process_rpc_request,
+                                   (slave, rpc_request.params, rpc_request),
+                                   {'with_response': True, 'result': result},
+                                   timeout=rpc_request.timeout)
+                return result['response']
+            else:
+                self.__log.error('Failed to connect to device %s', slave.device_name)
+                return {'error': 'Failed to connect to device %s' % slave.device_name, 'success': False}
+
+    def __process_reserved_rpc_request(self, rpc_request: RPCRequest):
+        device = self.__get_device_by_name(rpc_request.device_name)
+
+        result = {}
+        self.__create_task(self.__process_rpc_request,
+                           (device, rpc_request.params, rpc_request),
+                           {'result': result},
+                           timeout=rpc_request.timeout)
+
+        self.__log.debug("Result: %r", result)
+
+        return result['response']
+
+    def __process_device_rpc_request(self, rpc_request: RPCRequest):
+        device = self.__get_device_by_name(rpc_request.device_name)
+
+        device_rpc_config = device.get_device_rpc_config(rpc_request.method)
+        if device_rpc_config is None:
+            self.__log.error("Received rpc request, but method %s not found in config for %s.",
+                             rpc_request.method,
+                             self.get_name())
+            self.__gateway.send_rpc_reply(rpc_request.device_name,
+                                          rpc_request.id,
+                                          {rpc_request.method: "METHOD NOT FOUND!"})
+            return
+
+        result = {}
+        self.__create_task(self.__process_rpc_request,
+                           (device, device_rpc_config, rpc_request),
+                           {'result': result},
+                           timeout=rpc_request.timeout)
+
+        self.__log.debug("Result: %r", result)
+
+        return result['response']
+
+    def __create_task(self, func, args, kwargs, timeout=5.0):
+        task = self.loop.create_task(func(*args, **kwargs))
+        task_started = monotonic()
+
+        while not task.done() and not self.__stopped and monotonic() - task_started < timeout:
+            sleep(.02)
 
     async def __process_rpc_request(self, device: Slave, config, data, with_response=False, result={}):
         try:
@@ -547,7 +527,7 @@ class AsyncModbusConnector(Connector, Thread):
                 else:
                     response = 'Unsupported function code in RPC request.'
 
-                if self.__can_rpc_return_response(data):
+                if data.can_return_response():
                     result['response'] = self.__send_rpc_response(data, response, with_response)
         except Exception as e:
             self.__log.error('Failed to process rpc request: %r', e)
@@ -611,25 +591,20 @@ class AsyncModbusConnector(Connector, Thread):
 
         return response
 
-    @staticmethod
-    def __can_rpc_return_response(content):
-        return content.get(RPC_ID_PARAMETER) or (content.get(DATA_PARAMETER) is not None
-                                                 and content[DATA_PARAMETER].get(RPC_ID_PARAMETER) is not None)
-
     def __send_rpc_response(self, content, response, with_response=False):
-        method = content[DATA_PARAMETER][RPC_METHOD_PARAMETER]
+        method = content.method
         if isinstance(response, Exception) or isinstance(response, ExceptionResponse):
             if not with_response:
-                self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
-                                              req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                self.__gateway.send_rpc_reply(device=content.device_name,
+                                              req_id=content.id,
                                               content={
                                                   method: response.__repr__()
                                               },
                                               success_sent=False)
             else:
                 return {
-                    'device': content[DEVICE_SECTION_PARAMETER],
-                    'req_id': content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                    'device': content.device_name,
+                    'req_id': content.id,
                     'content': {
                         method: str(response)
                     },
@@ -637,15 +612,16 @@ class AsyncModbusConnector(Connector, Thread):
                 }
         else:
             if not with_response:
-                self.__gateway.send_rpc_reply(device=content[DEVICE_SECTION_PARAMETER],
-                                              req_id=content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
+                self.__gateway.send_rpc_reply(device=content.device_name,
+                                              req_id=content.id,
                                               content={'result': response})
             else:
-                return {
-                    'device': content[DEVICE_SECTION_PARAMETER],
-                    'req_id': content[DATA_PARAMETER].get(RPC_ID_PARAMETER),
-                    'content': response
-                }
+                response = {'device': content.device_name, 'content': response}
+
+                if content.id is not None:
+                    response['req_id'] = content.id
+
+                return response
 
     def __get_device_by_name(self, device_name) -> Slave:
         return tuple(filter(lambda slave: slave.device_name == device_name, self.__slaves))[0]
