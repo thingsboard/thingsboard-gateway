@@ -11,6 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
 import asyncio
 from threading import Thread
 from time import sleep, monotonic
@@ -24,9 +25,9 @@ from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import 
 from thingsboard_gateway.connectors.modbus.constants import BAUDRATE_PARAMETER, BYTE_ORDER_PARAMETER, \
     BYTESIZE_PARAMETER, CONNECT_ATTEMPT_COUNT_PARAMETER, CONNECT_ATTEMPT_TIME_MS_PARAMETER, HOST_PARAMETER, \
     METHOD_PARAMETER, PARITY_PARAMETER, PORT_PARAMETER, REPACK_PARAMETER, RETRIES_PARAMETER, RETRY_ON_EMPTY_PARAMETER, \
-    RETRY_ON_INVALID_PARAMETER, RPC_SECTION, SERIAL_CONNECTION_TYPE_PARAMETER, STOPBITS_PARAMETER, STRICT_PARAMETER, TAG_PARAMETER, \
+    RETRY_ON_INVALID_PARAMETER, RPC_SECTION, SERIAL_CONNECTION_TYPE_PARAMETER, STOPBITS_PARAMETER, STRICT_PARAMETER, \
     TIMEOUT_PARAMETER, UNIT_ID_PARAMETER, WAIT_AFTER_FAILED_ATTEMPTS_MS_PARAMETER, WORD_ORDER_PARAMETER, \
-    DELAY_BETWEEN_REQUESTS_MS_PARAMETER
+    DELAY_BETWEEN_REQUESTS_MS_PARAMETER, TAG_PARAMETER
 from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
 from thingsboard_gateway.gateway.constants import DEVICE_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, TYPE_PARAMETER, \
@@ -135,7 +136,8 @@ class Slave(Thread):
             self._log.exception('Error sending slave callback: %s', e)
 
     def run(self):
-        self.__timer()
+        if self.uplink_converter_config.is_readable():
+            self.__timer()
 
     def close(self, loop):
         future = asyncio.run_coroutine_threadsafe(self.disconnect(), loop)
@@ -296,6 +298,16 @@ class Slave(Thread):
 
     def is_connected_to_platform(self):
         return self.last_connect_time != 0 and monotonic() - self.last_connect_time < 10
+
+    def get_device_rpc_config(self, rpc_method):
+        if isinstance(self.rpc_requests_config, dict):
+            return self.rpc_requests_config.get(rpc_method)
+        elif isinstance(self.rpc_requests_config, list):
+            for rpc_command_config in self.rpc_requests_config:
+                if rpc_command_config[TAG_PARAMETER] == rpc_method:
+                    return rpc_command_config
+        else:
+            return None
 
     def __str__(self):
         return f'{self.device_name}'
