@@ -37,11 +37,16 @@ class RPCRequest:
         self.rpc_type = self._get_rpc_type(content)
         self.method = None
         self.params = None
+        self._value = None
         self.timeout = content.get('timeout', 5.0)
         self.id = content[DATA_PARAMETER].get(RPC_ID_PARAMETER)
         self.device_name = content.get(DEVICE_SECTION_PARAMETER)
 
         self._fill_rpc_request(content)
+
+    @property
+    def value(self):
+        return {DATA_PARAMETER: {RPC_PARAMS_PARAMETER: self._value}}
 
     def is_old_format_rpc_content(self, content):
         return content.get(DATA_PARAMETER) is None
@@ -100,7 +105,7 @@ class RPCRequest:
 
     def _fill_device_rpc_request(self, content):
         self.method = content[DATA_PARAMETER][RPC_METHOD_PARAMETER]
-        self.params = content[DATA_PARAMETER][RPC_PARAMS_PARAMETER]
+        self._value = content[DATA_PARAMETER][RPC_PARAMS_PARAMETER]
 
     def _fill_reserved_rpc_request(self, content):
         self.method = content[DATA_PARAMETER][RPC_METHOD_PARAMETER]
@@ -121,7 +126,7 @@ class RPCRequest:
                                  'set param_name1=param_value1;param_name2=param_value2;...; value')
 
             (input_params, input_value) = input_params_and_value_list
-            params = input_value
+            self._value = input_value
 
         if self.method == 'get':
             input_params = content.get(DATA_PARAMETER, {}).get(RPC_PARAMS_PARAMETER, {})

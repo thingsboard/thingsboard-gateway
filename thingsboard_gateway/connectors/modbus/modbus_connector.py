@@ -565,7 +565,7 @@ class AsyncModbusConnector(Connector, Thread):
             address=config.get(ADDRESS_PARAMETER)
         )
 
-        converted_data = device.downlink_converter.convert(config, data)
+        converted_data = device.downlink_converter.convert(config, data.value)
 
         if config.function_code in (5, 6):
             try:
