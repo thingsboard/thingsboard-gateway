@@ -116,7 +116,7 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
                                 converted_data.add_to_attributes(converted_key, converted_value)
                             else:
                                 if timestamp is None:
-                                    timestamp = TBUtility.resolve_different_ts_formats(data=data, config=datatype_config, logger=self._log, default_ts=False)
+                                    timestamp = TBUtility.resolve_different_ts_formats(data=data, config=datatype_config, logger=self._log)
                                 telemetry_entry = TelemetryEntry({converted_key: converted_value}, timestamp)
                                 converted_data.add_to_telemetry(telemetry_entry)
         except Exception as e:
