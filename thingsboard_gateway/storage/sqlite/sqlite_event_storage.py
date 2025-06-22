@@ -87,7 +87,7 @@ class SQLiteEventStorage(EventStorage):
         if self.__read_database.reached_size_limit and not self.__read_database.database_has_records():
             self.__log.debug("Initial read DB oversize & empty → rotating")
             self.__rotate_after_read_completion()
-
+        self.__initial_db_file_list = self.__pointer.sort_db_files()
         self.delete_time_point = 0
         self.__event_pack_processing_start = monotonic()
 
@@ -98,6 +98,10 @@ class SQLiteEventStorage(EventStorage):
         if len(all_db_files) > 1:
             return all_db_files[0], all_db_files[-1]
         return self.__default_database_name, self.__default_database_name
+
+    def __sort_db_files_list(self):
+        all_db_files_from_list = sorted(filter(lambda file: file.endswith(".db"), self.__initial_db_file_list))
+        return all_db_files_from_list
 
     def __ensure_data_folder_exists(self):
         data_path = self.__settings.data_folder_path
@@ -179,7 +183,7 @@ class SQLiteEventStorage(EventStorage):
 
     def __rotate_read_database(self):
         self.__log.debug("Rotating read database")
-        all_files = self.__pointer.sort_db_files()
+        all_files = self.__sort_db_files_list()
         if len(all_files) > 1:
             self.__start_read_database(all_files[0])
         else:
@@ -188,7 +192,7 @@ class SQLiteEventStorage(EventStorage):
             self.__read_database.should_read = True
 
     def __check_and_handle_max_db_count(self) -> bool:
-        count = len(self.__pointer.sort_db_files())
+        count = len(self.__sort_db_files_list())
         if count >= self.__settings.max_db_amount:
             self.__is_max_db_amount_reached = True
             self.__log.warning("Max DB count (%d) reached—dropping writes", count)
@@ -278,6 +282,8 @@ class SQLiteEventStorage(EventStorage):
                     deleted = True
                 except Exception as e:
                     self.__log.exception("Failed delete %s: %s", full, e)
+        if deleted:
+            self.__initial_db_file_list.remove(self.__read_database.settings.db_file_name)
         if not deleted:
             self.__log.error("No DB files to delete under %s", path_to_db_file)
 
@@ -306,6 +312,7 @@ class SQLiteEventStorage(EventStorage):
         self.__log.debug(
             "Started new write DB %s", self.__write_database.settings.db_file_name
         )
+        self.__initial_db_file_list.append(self.__write_database.settings.db_file_name)
 
     def put(self, message):
         try:
@@ -343,4 +350,3 @@ class SQLiteEventStorage(EventStorage):
 
     def update_logger(self):
         self.__log = getLogger("storage")
-
