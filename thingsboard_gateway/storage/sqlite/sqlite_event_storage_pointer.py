@@ -12,16 +12,13 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from os import path, listdir
 import time
-from threading import Lock
+from os import path, listdir
 
 
 class Pointer:
     def __init__(self, path_to_folder, log):
-        self.__path_to_folder = path_to_folder
         self.__log = log
-        self.__state_file_lock = Lock()
         self.__directory = path.dirname(path_to_folder)
 
     def sort_db_files(self):
@@ -35,3 +32,4 @@ class Pointer:
         ts = str(int(time.time()) * 1000)
         db_file_name = f"{prefix}{ts}.db"
         return db_file_name
+
