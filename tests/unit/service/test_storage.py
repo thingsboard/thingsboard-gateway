@@ -1,18 +1,15 @@
+from logging import getLogger
 from os import listdir, remove, removedirs, path
 from random import randint
-from time import sleep
-from unittest import TestCase
-
-from ply.yacc import resultlimit
-
-from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
-from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
 from shutil import rmtree
 from tempfile import mkdtemp
 from threading import Event
+from time import sleep
+from unittest import TestCase
 
+from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
+from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.sqlite.sqlite_event_storage import SQLiteEventStorage
-from logging import getLogger
 
 LOG = getLogger("TEST")
 LOG.trace = LOG.debug
@@ -110,7 +107,8 @@ class TestSQLiteEventStorageRotation(TestCase):
         self.stop_event.set()
         rmtree(self.tmpdir)
 
-    def _drain_storage(self, storage: SQLiteEventStorage):
+    @staticmethod
+    def _drain_storage(storage: SQLiteEventStorage):
         out = []
         while True:
             batch = storage.get_event_pack()
@@ -142,7 +140,7 @@ class TestSQLiteEventStorageRotation(TestCase):
 
         storage.stop()
 
-    def test_rotation_creates_new_db_and_reads_all(self):
+    def test_rotation_creates_new_db_and_reads_all_data(self):
         DATA_RANGE = 1000
 
         storage = SQLiteEventStorage(self.config, LOG, self.stop_event)
@@ -179,11 +177,11 @@ class TestSQLiteEventStorageRotation(TestCase):
         put_results = []
         for i in range(3000):
             result = storage.put(str(i))
-            messages_before_db_amount_reached.append(i)
 
             put_results.append(result)
             if not result:
                 break
+            messages_before_db_amount_reached.append(i)
             sleep(0.07)
         sleep(2.0)
         dbs = sorted(f for f in listdir(self.tmpdir) if f.endswith(".db"))
@@ -199,32 +197,45 @@ class TestSQLiteEventStorageRotation(TestCase):
             "Expected storage.put(...) to eventually return False once max_db_amount was reached",
         )
         all_messages = self._drain_storage(storage)
-        self.assertAlmostEqual(len(all_messages), len(messages_before_db_amount_reached) - 1)
+        self.assertEqual(len(all_messages), len(messages_before_db_amount_reached))
         self.assertListEqual(
             all_messages,
-            [str(i) for i in range(len(messages_before_db_amount_reached) - 1)],
+            [str(i) for i in range(len(messages_before_db_amount_reached))],
         )
         storage.stop()
 
-    def test_sqlite_storage_is_operational_after_max_db_amount_reached_and_storage_restart(self):
+    def test_sqlite_storage_is_operational_after_max_db_amount_reached_and_storage_restart(
+        self,
+    ):
+        messages_before_db_amount_reached = []
         storage = SQLiteEventStorage(self.config, LOG, self.stop_event)
         put_results = []
         for i in range(3000):
             result = storage.put(str(i))
+
             put_results.append(result)
-            sleep(0.07)
             if not result:
                 break
+            messages_before_db_amount_reached.append(i)
+            sleep(0.07)
+        sleep(2.0)
         storage.stop()
         storage2 = SQLiteEventStorage(self.config, LOG, self.stop_event)
         dbs = sorted(f for f in listdir(self.tmpdir) if f.endswith(".db"))
-        self.assertEqual(len(dbs), self.config["max_db_amount"],
-                         f"Expected exactly {self.config['max_db_amount']} files, got {len(dbs)}")
-        self.assertIn(False, put_results,
-                      "Expected storage.put(...) eventually to return False once max_db_amount was reached")
+        self.assertEqual(
+            len(dbs),
+            self.config["max_db_amount"],
+            f"Expected exactly {self.config['max_db_amount']} files, got {len(dbs)}",
+        )
+        self.assertIn(
+            False,
+            put_results,
+            "Expected storage.put(...) eventually to return False once max_db_amount was reached",
+        )
         all_messages = list(self._drain_storage(storage2))
+        self.assertEqual(len(all_messages), len(messages_before_db_amount_reached))
+        self.assertListEqual(
+            all_messages,
+            [str(i) for i in range(len(messages_before_db_amount_reached))],
+        )
         storage2.stop()
-        first_false_index = put_results.index(False)
-        self.assertEqual(len(all_messages) -1, first_false_index,
-                         "Should have read exactly all messages that succeeded before the drop")
-        self.assertListEqual(all_messages, [str(i) for i in range(first_false_index)])
