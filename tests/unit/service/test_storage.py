@@ -85,6 +85,47 @@ class TestStorage(TestCase):
 
         stop_event.set()
 
+    def test_sqlite_storage(self):
+        storage_test_config = {
+            "data_file_path": "storage/data/data.db",
+            "messages_ttl_check_in_hours": 1,
+            "messages_ttl_in_days": 7,
+            "max_read_records_count": 70,
+        }
+
+        stop_event = Event()
+
+        storage = SQLiteEventStorage(storage_test_config, LOG, stop_event)
+        test_size = 20
+        expected_result = []
+        save_results = []
+
+        for test_value_int in range(test_size * 10):
+            test_value = str(test_value_int)
+            expected_result.append(test_value)
+            save_result = storage.put(test_value)
+            save_results.append(save_result)
+            sleep(0.01)
+        sleep(1)
+
+        self.assertTrue(all(save_results))
+
+        result = []
+        for _ in range(test_size):
+            batch = storage.get_event_pack()
+            result.append(batch)
+            storage.event_pack_processing_done()
+
+        unpacked_result = []
+        for batch in result:
+            for item in batch:
+                unpacked_result.append(item)
+
+        remove(storage_test_config["data_file_path"])
+        self.assertListEqual(unpacked_result, expected_result)
+
+        stop_event.set()
+
 
 class TestSQLiteEventStorageRotation(TestCase):
 
