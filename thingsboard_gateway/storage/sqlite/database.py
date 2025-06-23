@@ -35,7 +35,7 @@ class Database(Thread):
 
     def __init__(
             self,
-            config,
+            settings: StorageSettings,
             processing_queue: Queue,
             logger,
             stopped: Event,
@@ -53,7 +53,7 @@ class Database(Thread):
         self.__should_write = should_write
         self.__creation_new_db_lock = Lock()
         self.__reached_size_limit = False
-        self.settings = StorageSettings(config)
+        self.settings = settings
 
         self.directory = dirname(self.settings.data_file_path)
         self.db = DatabaseConnector(
