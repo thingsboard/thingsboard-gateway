@@ -20,6 +20,7 @@ from queue import Queue, Empty
 from re import fullmatch, match, search
 from threading import Thread, Event
 from time import sleep, time
+from typing import List, Union
 
 import orjson
 
@@ -1033,11 +1034,17 @@ class MqttConnector(Connector, Thread):
                         continue
 
                     for convert_function, config, incoming_data in batch:
-                        converted_data: ConvertedData = convert_function(config, incoming_data)
-                        converted_data.add_to_metadata({CONVERTED_TS_PARAMETER: int(time() * 1000)})
-                        if converted_data and (converted_data.telemetry_datapoints_count > 0 or
-                                               converted_data.attributes_datapoints_count > 0):
-                            self.__send_result(config, converted_data)
+                        converted_data: Union[ConvertedData, List[ConvertedData]] = convert_function(config, incoming_data)
+                        if isinstance(converted_data, ConvertedData):
+                            converted_data.add_to_metadata({CONVERTED_TS_PARAMETER: int(time() * 1000)})
+                            if converted_data and (converted_data.telemetry_datapoints_count > 0 or
+                                                   converted_data.attributes_datapoints_count > 0):
+                                self.__send_result(config, converted_data)
+                        else:
+                            for data in converted_data:
+                                data.add_to_metadata({CONVERTED_TS_PARAMETER: int(time() * 1000)})
+                                if data.telemetry_datapoints_count > 0 or data.attributes_datapoints_count > 0:
+                                    self.__send_result(config, data)
                 except Exception as e:
                     # Log the exception if needed
                     print("Error in worker: ", e)

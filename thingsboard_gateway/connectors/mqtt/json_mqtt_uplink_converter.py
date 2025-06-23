@@ -14,6 +14,7 @@
 
 from re import search
 from time import time
+from typing import Dict
 
 from simplejson import dumps
 
@@ -58,11 +59,16 @@ class JsonMqttUplinkConverter(MqttUplinkConverter):
         StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
 
         if isinstance(data, list):
-            converted_data = []
+            converted_data_devices: Dict[str, ConvertedData] = {}
             for item in data:
-                converted_data.append(self._convert_single_item(topic, item))
-            self._log.debug(converted_data)
-            return converted_data
+                converted_item = self._convert_single_item(topic, item)
+                if converted_item.device_name not in converted_data_devices:
+                    converted_data_devices[converted_item.device_name] = converted_item
+                else:
+                    existing_item = converted_data_devices[converted_item.device_name]
+                    existing_item.extend(converted_item)
+            self._log.debug("Converted data for %s devices", len(converted_data_devices))
+            return list(converted_data_devices.values())
         else:
             return self._convert_single_item(topic, data)
 
