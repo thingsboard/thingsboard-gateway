@@ -39,7 +39,7 @@ class DatabaseConnector:
                 self.connection.execute("PRAGMA synchronous=NORMAL;")
                 self.connection.execute("PRAGMA cache_size=-20000;")
                 self.connection.execute("PRAGMA temp_store=MEMORY;")
-                self.connection.execute("PRAGMA journal_size_limit=1000000;")
+                self.connection.execute("PRAGMA journal_size_limit=5000000;")
 
                 self.connection.execute("PRAGMA mmap_size=536870912;")
                 self.connection.execute("PRAGMA busy_timeout=15000;")

@@ -1,4 +1,4 @@
-from copy import copy, deepcopy
+from copy import copy
 from gc import collect
 from logging import getLogger
 from os import path, makedirs, remove
@@ -46,7 +46,7 @@ class SQLiteEventStorage(EventStorage):
         )
 
         self.__read_database_is_write_database = (
-            self.__read_database_name == self.__write_database_name
+                self.__read_database_name == self.__write_database_name
         )
         self.__read_database = Database(
             override_read_db_settings,
@@ -381,16 +381,17 @@ class SQLiteEventStorage(EventStorage):
                 self.__log.debug("Database row count check thread failed:", exc_info=e)
 
         return (
-            write_queue_size
-            + read_database_stored_messages_count
-            + write_database_stored_messages_count
-            + saved_databases_rows_count
+                write_queue_size
+                + read_database_stored_messages_count
+                + write_database_stored_messages_count
+                + saved_databases_rows_count
         )
 
     def __check_db_sizes(self, result):
         databases_rows_count = 0
         for database_name in self.__initial_db_file_list:
-            if database_name not in (self.__read_database.settings.db_file_name, self.__write_database.settings.db_file_name):
+            if database_name not in (
+            self.__read_database.settings.db_file_name, self.__write_database.settings.db_file_name):
                 try:
                     current_db_check_settings = copy(self.__settings)
                     current_db_check_settings.data_file_path = path.join(
@@ -426,12 +427,11 @@ class SQLiteEventStorage(EventStorage):
 
     @staticmethod
     def update_settings(
-        storage_settings: StorageSettings, data_file_path: str
+            storage_settings: StorageSettings, data_file_path: str
     ) -> StorageSettings:
         storage_settings.data_file_path = data_file_path
         storage_settings.directory_path = path.dirname(data_file_path)
         storage_settings.db_file_name = path.basename(data_file_path)
-        return storage_settings
 
     def update_logger(self):
         self.__log = getLogger("storage")
