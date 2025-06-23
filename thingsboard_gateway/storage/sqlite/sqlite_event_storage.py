@@ -1,14 +1,15 @@
-import copy
+from copy import copy, deepcopy
 from gc import collect
 from logging import getLogger
 from os import path, makedirs, remove
 from queue import Queue, Full
 from sqlite3 import ProgrammingError, DatabaseError
-from threading import Event
+from threading import Event, Thread
 from time import sleep, monotonic
 
 from thingsboard_gateway.storage.event_storage import EventStorage
 from thingsboard_gateway.storage.sqlite.database import Database
+from thingsboard_gateway.storage.sqlite.database_connector import DatabaseConnector
 from thingsboard_gateway.storage.sqlite.sqlite_event_storage_pointer import Pointer
 from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 
@@ -21,10 +22,10 @@ class SQLiteEventStorage(EventStorage):
         self.__log.info("Sqlite Storage initializing...")
         self.write_queue = Queue(-1)
         self.stopped = Event()
-        self.__config_copy = copy.deepcopy(config)
+        self.__config_copy = deepcopy(config)
         self.__settings = StorageSettings(config)
         self.__ensure_data_folder_exists()
-        self.__pointer = Pointer(self.__settings.data_folder_path, log=self.__log)
+        self.__pointer = Pointer(self.__settings.data_file_path, log=self.__log)
         self.__default_database_name = self.__settings.db_file_name
         self.__read_database_name_on_init, self.__write_database_name_on_init = (
             self.__select_initial_db_files()
@@ -104,7 +105,7 @@ class SQLiteEventStorage(EventStorage):
         return all_db_files_from_list
 
     def __ensure_data_folder_exists(self):
-        data_path = self.__settings.data_folder_path
+        data_path = self.__settings.data_file_path
         if not path.exists(data_path):
             directory = path.dirname(data_path)
             if not path.exists(directory):
@@ -206,7 +207,7 @@ class SQLiteEventStorage(EventStorage):
 
     def __rotate_after_read_completion(self):
         self.__log.debug("Rotate after read completion")
-        self.__delete_db_files(self.__read_database.settings.data_folder_path)
+        self.__delete_db_files(self.__read_database.settings.data_file_path)
         self.delete_time_point = 0
         self.__rotate_read_database()
         self.__check_and_handle_max_db_count()
@@ -217,14 +218,12 @@ class SQLiteEventStorage(EventStorage):
             int((monotonic() - self.__event_pack_processing_start) * 1000),
         )
         if not self.stopped.is_set():
-            try:
-                self.delete_data(self.delete_time_point)
-                if not self.__read_database.database_has_records():
-                    self.__read_database.process_file_limit()
-                    if self.__read_database.reached_size_limit:
-                        self.__rotate_after_read_completion()
-            except Exception:
-                self.__log.exception("Error in event_pack_processing_done")
+            self.delete_data(self.delete_time_point)
+            if not self.__read_database.database_has_records():
+                self.__read_database.process_file_limit()
+                if self.__read_database.reached_size_limit:
+                    self.__rotate_after_read_completion()
+
         collect()
 
     def get_event_pack(self):
@@ -233,7 +232,7 @@ class SQLiteEventStorage(EventStorage):
         self.__event_pack_processing_start = monotonic()
         event_pack_messages = []
         data_from_storage = self.read_data()
-        if not data_from_storage and not path.exists(self.__read_database.settings.data_folder_path):
+        if not data_from_storage and not path.exists(self.__read_database.settings.data_file_path):
             self.__rotate_after_read_completion()
         for row in data_from_storage or []:
             try:
@@ -346,7 +345,58 @@ class SQLiteEventStorage(EventStorage):
         collect()
 
     def len(self):
-        return self.write_queue.qsize() + self.__read_database.get_stored_messages_count()
+        write_queue_size = self.write_queue.qsize()
+        read_database_stored_messages_count = self.__read_database.get_stored_messages_count()
+        saved_databases_rows_count = 0
+        write_database_stored_messages_count = 0
+
+        if self.__write_database is not None and self.__write_database != self.__read_database:
+            write_database_stored_messages_count = self.__write_database.get_stored_messages_count()
+
+        if len(self.__initial_db_file_list) > 2:
+            result = {"result": 0}
+            check_thread = Thread(target=self.__check_db_sizes,
+                                  args=(result,),
+                                  daemon=True,
+                                  name="Database row count check thread")
+            check_thread.start()
+            try:
+                check_thread.join(timeout=5.0)
+                saved_databases_rows_count = result["result"]
+            except Exception as e:
+                self.__log.error("Database row count check thread failed: %s", e)
+                self.__log.debug("Database row count check thread failed:", exc_info=e)
+
+        return (write_queue_size
+                + read_database_stored_messages_count
+                + write_database_stored_messages_count
+                + saved_databases_rows_count)
+
+    def __check_db_sizes(self, result):
+        databases_rows_count = 0
+        for database_name in self.__initial_db_file_list:
+            if database_name not in (self.__read_database.settings.db_file_name,
+                                     self.__write_database.settings.db_file_name
+                                     ):
+                try:
+                    current_db_check_settings = copy(self.__settings)
+                    db_connector = DatabaseConnector(current_db_check_settings.data_file_path, self.__log, self._main_stop_event)
+
+                    cursor = db_connector.execute_read("SELECT COUNT(id) FROM messages;")
+
+                    if cursor is None:
+                        continue
+
+                    row = cursor.fetchone()
+                    if not row:
+                        continue
+
+                    databases_rows_count += row[0]
+
+                except Exception as e:
+                    self.__log.error("Failed to check db size:", exc_info=e)
+                    continue
+        result["result"] = databases_rows_count
 
     def update_logger(self):
         self.__log = getLogger("storage")
