@@ -1,12 +1,10 @@
 from logging import getLogger
 from os import listdir, remove, removedirs, path
 from random import randint
-from shutil import rmtree
-from tempfile import mkdtemp
 from threading import Event
 from time import sleep
 from unittest import TestCase
-
+from shutil import rmtree
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.sqlite.sqlite_event_storage import SQLiteEventStorage
@@ -130,10 +128,10 @@ class TestStorage(TestCase):
 class TestSQLiteEventStorageRotation(TestCase):
 
     def setUp(self):
-        self.tmpdir = mkdtemp()
-        self.base_db = path.join(self.tmpdir, "data.db")
+        self.directory = path.join("storage", "data")
+        self.db_path = path.join(self.directory, "data.db")
         self.config = {
-            "data_file_path": self.base_db,
+            "data_file_path": self.db_path,
             "messages_ttl_check_in_hours": 1,
             "messages_ttl_in_days": 7,
             "max_read_records_count": 1000,
@@ -143,10 +141,12 @@ class TestSQLiteEventStorageRotation(TestCase):
             "writing_batch_size": 10000,
         }
         self.stop_event = Event()
+        self.sqlite_storage = SQLiteEventStorage(self.config, LOG, self.stop_event)
 
     def tearDown(self):
         self.stop_event.set()
-        rmtree(self.tmpdir)
+        self.sqlite_storage.stop()
+        rmtree(self.directory)
 
     @staticmethod
     def _drain_storage(storage: SQLiteEventStorage):
@@ -168,24 +168,21 @@ class TestSQLiteEventStorageRotation(TestCase):
                 sleep(delay)
 
     def _db_files(self):
-        return sorted(f for f in listdir(self.tmpdir) if f.endswith(".db"))
+        return sorted(f for f in listdir(self.directory) if f.endswith(".db"))
 
     def test_write_read_without_rotation(self):
-        storage = SQLiteEventStorage(self.config, LOG, self.stop_event)
-        self._fill_storage(storage, 50)
+        self._fill_storage(self.sqlite_storage, 50)
         sleep(0.5)
         self.assertListEqual(self._db_files(), ["data.db"])
-        all_messages = self._drain_storage(storage)
+        all_messages = self._drain_storage(self.sqlite_storage)
         self.assertEqual(len(all_messages), 50)
         self.assertListEqual(all_messages, [str(i) for i in range(50)])
 
-        storage.stop()
+        self.sqlite_storage.stop()
 
     def test_rotation_creates_new_db_and_reads_all_data(self):
         DATA_RANGE = 1000
-
-        storage = SQLiteEventStorage(self.config, LOG, self.stop_event)
-        self._fill_storage(storage, DATA_RANGE, delay=0.07)
+        self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.07)
         sleep(1.0)
 
         dbs = self._db_files()
@@ -194,18 +191,17 @@ class TestSQLiteEventStorageRotation(TestCase):
             self.assertLessEqual(len(dbs), self.config["max_db_amount"])
 
         with self.subTest("round-trip all messages"):
-            all_messages = self._drain_storage(storage)
+            all_messages = self._drain_storage(self.sqlite_storage)
             self.assertEqual(len(all_messages), DATA_RANGE)
             self.assertListEqual(all_messages, [str(i) for i in range(DATA_RANGE)])
 
-        storage.stop()
+        self.sqlite_storage.stop()
 
     def test_rotation_persists_across_restart(self):
         DATA_RANGE = 1000
-        storage1 = SQLiteEventStorage(self.config, LOG, self.stop_event)
-        self._fill_storage(storage1, DATA_RANGE, delay=0.07)
+        self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.07)
         sleep(1.0)
-        storage1.stop()
+        self.sqlite_storage.stop()
         storage2 = SQLiteEventStorage(self.config, LOG, self.stop_event)
         all_messages = self._drain_storage(storage2)
         self.assertEqual(len(all_messages), DATA_RANGE)
@@ -214,10 +210,9 @@ class TestSQLiteEventStorageRotation(TestCase):
 
     def test_no_new_database_appear_after_max_db_amount_reached(self):
         messages_before_db_amount_reached = []
-        storage = SQLiteEventStorage(self.config, LOG, self.stop_event)
         put_results = []
         for i in range(3000):
-            result = storage.put(str(i))
+            result = self.sqlite_storage.put(str(i))
 
             put_results.append(result)
             if not result:
@@ -225,7 +220,7 @@ class TestSQLiteEventStorageRotation(TestCase):
             messages_before_db_amount_reached.append(i)
             sleep(0.07)
         sleep(2.0)
-        dbs = sorted(f for f in listdir(self.tmpdir) if f.endswith(".db"))
+        dbs = sorted(f for f in listdir(self.directory) if f.endswith(".db"))
 
         self.assertEqual(
             len(dbs),
@@ -235,24 +230,23 @@ class TestSQLiteEventStorageRotation(TestCase):
         self.assertIn(
             False,
             put_results,
-            "Expected storage.put(...) to eventually return False once max_db_amount was reached",
+            "Expected self.sqlite_storage.put(...) to eventually return False once max_db_amount was reached",
         )
-        all_messages = self._drain_storage(storage)
+        all_messages = self._drain_storage(self.sqlite_storage)
         self.assertEqual(len(all_messages), len(messages_before_db_amount_reached))
         self.assertListEqual(
             all_messages,
             [str(i) for i in range(len(messages_before_db_amount_reached))],
         )
-        storage.stop()
+        self.sqlite_storage.stop()
 
     def test_sqlite_storage_is_operational_after_max_db_amount_reached_and_storage_restart(
-        self,
+            self,
     ):
         messages_before_db_amount_reached = []
-        storage = SQLiteEventStorage(self.config, LOG, self.stop_event)
         put_results = []
         for i in range(3000):
-            result = storage.put(str(i))
+            result = self.sqlite_storage.put(str(i))
 
             put_results.append(result)
             if not result:
@@ -260,9 +254,9 @@ class TestSQLiteEventStorageRotation(TestCase):
             messages_before_db_amount_reached.append(i)
             sleep(0.07)
         sleep(2.0)
-        storage.stop()
+        self.sqlite_storage.stop()
         storage2 = SQLiteEventStorage(self.config, LOG, self.stop_event)
-        dbs = sorted(f for f in listdir(self.tmpdir) if f.endswith(".db"))
+        dbs = sorted(f for f in listdir(self.directory) if f.endswith(".db"))
         self.assertEqual(
             len(dbs),
             self.config["max_db_amount"],
