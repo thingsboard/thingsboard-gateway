@@ -102,6 +102,7 @@ class RPCRequest:
         if connector_type == 'modbus':
             self.method = rpc_method_name
             self.params = content[DATA_PARAMETER][RPC_PARAMS_PARAMETER]
+            self._value = content[DATA_PARAMETER][RPC_PARAMS_PARAMETER].get('value')
 
     def _fill_device_rpc_request(self, content):
         self.method = content[DATA_PARAMETER][RPC_METHOD_PARAMETER]
