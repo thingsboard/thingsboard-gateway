@@ -55,9 +55,9 @@ class Database(Thread):
         self.__reached_size_limit = False
         self.settings = StorageSettings(config)
 
-        self.directory = dirname(self.settings.data_folder_path)
+        self.directory = dirname(self.settings.data_file_path)
         self.db = DatabaseConnector(
-            self.settings.data_folder_path, self.__log, self.database_stopped_event
+            self.settings.data_file_path, self.__log, self.database_stopped_event
         )
         self.db.connect()
         self.init_table()
@@ -75,11 +75,10 @@ class Database(Thread):
                     "SELECT sql FROM sqlite_master WHERE type='table' AND name='messages';"
                 ).fetchone()
 
-            except Exception as e:
-                result = None
 
-            except OperationalError:
+            except OperationalError as e:
                 result = None
+                self.__log.trace("Failed to execute read query in database:", exc_info=e)
 
             if result:
                 if "timestamp" not in result[0] or "id" not in result[0]:
@@ -137,7 +136,7 @@ class Database(Thread):
         if exists(self.db.data_file_path):
             try:
                 if getsize(self.db.data_file_path) >= float(self.settings.size_limit) * 1000000:
-                     self.__reached_size_limit = True
+                    self.__reached_size_limit = True
             except FileNotFoundError as e:
                 self.__reached_size_limit = True
                 self.__log.debug("File is not found it is likely you deleted it ")
@@ -369,4 +368,3 @@ class Database(Thread):
         if not isinstance(value, bool):
             raise TypeError("should_write must be a boolean")
         self.__should_write = value
-
