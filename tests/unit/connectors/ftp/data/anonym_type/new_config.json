@@ -1,4 +1,9 @@
 {
+  "logLevel": "INFO",
+  "name": null,
+  "id": null,
+  "enableRemoteLogging": false,
+  "configVersion": null,
   "parameters": {
     "host": "0.0.0.0",
     "port": 21,
