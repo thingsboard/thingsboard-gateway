@@ -18,6 +18,6 @@ mmh3
 protobuf<=3.20.0
 cachetools
 tb-paho-mqtt-client>=2.1.2
-tb-mqtt-client>=1.13.5
+tb-mqtt-client==1.13.6
 service-identity
 psutil
