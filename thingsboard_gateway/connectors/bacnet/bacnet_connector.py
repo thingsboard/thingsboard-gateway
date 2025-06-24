@@ -41,6 +41,7 @@ from thingsboard_gateway.connectors.bacnet.device import Device, Devices
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.application import Application
 from thingsboard_gateway.connectors.bacnet.backward_compatibility_adapter import BackwardCompatibilityAdapter
+from bacpypes3.primitivedata import Null
 
 if TYPE_CHECKING:
     from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
@@ -490,14 +491,30 @@ class AsyncBACnetConnector(Thread, Connector):
         except Exception as e:
             self.__log.error('Error reading property %s:%s from device %s: %s', object_id, property_id, address, e)
 
-    async def __write_property(self, address, object_id, property_id, value):
+    async def __write_property(self, address, object_id, property_id, value, priority=None):
         try:
-            await self.__application.write_property(address, object_id, property_id, value)
+            if value is None and priority is None:
+                self.__log.error('Value and priority are both None for property %s:%s on device %s. Cannot write.',
+                                 object_id, property_id, address)
+                return ValueError('Value and priority cannot be None')
+
+            if priority is not None:
+                priority = int(priority)
+                if priority < 1 or priority > 16:
+                    self.__log.error('Invalid priority %s for property %s:%s on device %s. Using default priority 8.',
+                                     priority, object_id, property_id, address)
+                    return ValueError('Invalid priority value')
+
+            if value is None:
+                value = Null(())
+
+            await self.__application.write_property(address, object_id, property_id, value, priority=priority)
             return "ok"
         except ErrorRejectAbortNack as err:
-            return err
-        except Exception as e:
-            self.__log.error('Error writing property %s:%s to device %s: %s', object_id, property_id, address, e)
+            return err.__str__()
+        except Exception as err:
+            self.__log.error('Error writing property %s:%s to device %s: %s', object_id, property_id, address, err)
+            return err.__str__()
 
     async def __convert_data(self):
         while not self.__stopped:
@@ -587,20 +604,22 @@ class AsyncBACnetConnector(Thread, Connector):
                     try:
                         object_id = Device.get_object_id(attribute_update_config)
                         result = {}
+
+                        kwargs = {'priority': attribute_update_config.get('priority'), 'result': result}
                         self.__create_task(self.__process_attribute_update,
                                            (Address(device.details.address),
                                             object_id,
                                             attribute_update_config['propertyId'],
                                             value),
-                                           {'result': result})
+                                           kwargs)
                         self.__log.info('Processed attribute update with result: %r', result)
                     except Exception as e:
                         self.__log.error('Error updating attribute %s: %s', attribute_name, e)
         except Exception as e:
             self.__log.error('Error processing attribute update%s with error: %s', content, e)
 
-    async def __process_attribute_update(self, address, object_id, property_id, value, result={}):
-        result['response'] = await self.__write_property(address, object_id, property_id, value)
+    async def __process_attribute_update(self, address, object_id, property_id, value, priority=None, result={}):
+        result['response'] = await self.__write_property(address, object_id, property_id, value, priority=priority)
 
     def server_side_rpc_handler(self, content):
         self.__log.debug('Received RPC request: %r', content)
@@ -636,11 +655,13 @@ class AsyncBACnetConnector(Thread, Connector):
             object_id = Device.get_object_id(rpc_config)
             result = {}
             value = content.get('data', {}).get('params')
+
+            kwargs = {'priority': rpc_config.get('priority'), 'value': value, 'result': result}
             self.__create_task(self.__process_rpc_request,
                                (Address(device.details.address),
                                 object_id,
                                 rpc_config['propertyId']),
-                               {'value': value, 'result': result})
+                               kwargs)
             self.__log.info('Processed RPC request with result: %r', result)
             self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                           req_id=content['data'].get('id'),
@@ -653,11 +674,11 @@ class AsyncBACnetConnector(Thread, Connector):
                                           content={'result': str(e)},
                                           success_sent=False)
 
-    async def __process_rpc_request(self, address, object_id, property_id, value=None, result={}):
-        if value is None:
+    async def __process_rpc_request(self, address, object_id, property_id, priority=None, value=None, result={}):
+        if value is None and priority is None:
             result['response'] = await self.__read_property(address, object_id, property_id)
         else:
-            result['response'] = await self.__write_property(address, object_id, property_id, value)
+            result['response'] = await self.__write_property(address, object_id, property_id, value, priority=priority)
 
     def __check_and_process_reserved_rpc(self, rpc_method_name, device, content):
         if rpc_method_name in ('get', 'set'):
@@ -677,7 +698,7 @@ class AsyncBACnetConnector(Thread, Connector):
             elif rpc_method_name == 'set':
                 params['requestType'] = 'writeProperty'
                 content['data'].pop('params')
-                content['data']['params'] = params['value']
+                content['data']['params'] = params.get('value')
 
             self.__process_rpc(rpc_method_name, params, content, device)
 
