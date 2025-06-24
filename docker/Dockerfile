@@ -1,4 +1,4 @@
-FROM --platform=$TARGETPLATFORM python:3.11-slim AS build
+FROM python:3.11-slim AS build
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
@@ -46,7 +46,10 @@ python /thingsboard_gateway/tb_gateway.py' > /start-gateway.sh && chmod +x /star
     python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
     python3 -m pip install --no-cache-dir cryptography && \
     python3 -m pip install --no-cache-dir -r requirements.txt && \
-    rustup self uninstall -y && \
+    RUN rustup self uninstall -y || { \
+        echo "rustup uninstall failed, removing manually..."; \
+        rm -rf /root/.rustup /root/.cargo; \
+    } && \
     apt-get remove --purge -y gcc python3-dev build-essential libssl-dev libffi-dev zlib1g-dev pkg-config && \
     apt-get autoremove -y
 
