@@ -16,7 +16,7 @@
 set -e
 
 ###############################################################################
-# docker-build-multiarch.sh
+# docker_build_multiarch.sh
 #
 # Multi-Architecture Docker Build Script for ThingsBoard Gateway
 #
@@ -28,13 +28,13 @@ set -e
 #   4. --help:  Show this help
 #
 # Usage Examples:
-#   ./docker-build-multiarch.sh
+#   ./docker_build_multiarch.sh
 #       → Build and load locally for the current host platform
 #
-#   ./docker-build-multiarch.sh --push -r myregistry/tb-gateway
+#   ./docker_build_multiarch.sh --push -r myregistry/tb-gateway
 #       → Detect platforms automatically and push multi-arch image to registry
 #
-#   ./docker-build-multiarch.sh --push -r myregistry/tb-gateway --platform linux/amd64,linux/arm64
+#   ./docker_build_multiarch.sh --push -r myregistry/tb-gateway --platform linux/amd64,linux/arm64
 #       → Push multi-arch image to registry with manually specified platforms
 #
 # Notes:
@@ -72,7 +72,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         -h|--help)
-            echo "Usage: ./docker-build-multiarch.sh [OPTIONS]"
+            echo "Usage: ./docker_build_multiarch.sh [OPTIONS]"
             echo ""
             echo "Build ThingsBoard Gateway Docker image for the current platform (default) or for multiple platforms with push."
             echo ""
@@ -83,9 +83,9 @@ while [[ $# -gt 0 ]]; do
             echo "  -h, --help            Show this help message"
             echo ""
             echo "Examples:"
-            echo "  ./docker-build-multiarch.sh"
-            echo "  ./docker-build-multiarch.sh --push -r myrepo/tb-gateway"
-            echo "  ./docker-build-multiarch.sh --push -r myrepo/tb-gateway --platform linux/amd64,linux/arm64"
+            echo "  ./docker_build_multiarch.sh"
+            echo "  ./docker_build_multiarch.sh --push -r myrepo/tb-gateway"
+            echo "  ./docker_build_multiarch.sh --push -r myrepo/tb-gateway --platform linux/amd64,linux/arm64"
             exit 0
             ;;
         *)
