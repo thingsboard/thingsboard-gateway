@@ -26,7 +26,7 @@ from queue import SimpleQueue, Empty
 from random import choice
 from signal import signal, SIGINT
 from string import ascii_lowercase, hexdigits
-from sys import argv, executable
+from sys import argv, executable, stdin, stdout, stderr
 from threading import RLock, Thread, main_thread, current_thread, Event
 from time import sleep, time, monotonic
 from typing import Union, List
@@ -355,7 +355,7 @@ class TBGatewayService:
         }
         self.load_custom_rpc_methods(CUSTOM_RPC_DIR)
         self.__rpc_scheduled_methods_functions = {
-            "restart": {"function": execv, "arguments": (executable, [executable.split(pathsep)[-1]] + argv)},
+            "restart": {"function": self.restart_program, "arguments": ()},
             "reboot": {"function": subprocess.call, "arguments": (["shutdown", "-r", "-t", "0"],)},
         }
         self.async_device_actions = {
@@ -2211,10 +2211,45 @@ class TBGatewayService:
     def gw_send_attributes(self, device, attributes, quality_of_service=1):
         return self.tb_client.client.gw_send_attributes(device, attributes, quality_of_service=quality_of_service)
 
-    # GETTERS --------------------
+    # Service RPC methods ----------------
     def ping(self):
         return self.name
 
+    def restart_program(self, *args):
+
+        current_script = os.path.abspath(argv[0])
+        new_args = [executable, current_script] + argv[1:]
+
+        if platform_system() == 'Windows':
+            try:
+                self.stop_event.set()
+                si = subprocess.STARTUPINFO()
+
+                si.dwFlags |= subprocess.STARTF_USESTDHANDLES
+
+                si.hStdInput = stdin.fileno()
+                si.hStdOutput = stdout.fileno()
+                si.hStdError = stderr.fileno()
+
+                subprocess.Popen(new_args,
+                                 stdin=stdin,
+                                 stdout=stdout,
+                                 stderr=stderr,
+                                 creationflags=0,
+                                 startupinfo=si)
+                self.__stop_gateway()
+                exit(0)
+            except Exception as e:
+                print(f"Error restarting on Windows: {e}")
+                exit(1)
+        else:
+            try:
+                os.execv(executable, new_args)
+            except Exception as e:
+                print(f"Error restarting on Unix: {e}")
+                exit(1)
+
+    # GETTERS --------------------
     def get_max_payload_size_bytes(self):
         if hasattr(self.tb_client.client, 'max_payload_size'):
             return self.tb_client.get_max_payload_size()
