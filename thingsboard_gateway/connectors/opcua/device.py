@@ -38,6 +38,7 @@ class Device:
             'timeseries': [],
             'attributes': []
         }
+        self.shared_attributes_keys = self.__get_shared_attributes_keys()
         self.nodes = []
         self.subscription: Subscription | None = None
         self.nodes_data_change_subscriptions = {}
@@ -50,6 +51,14 @@ class Device:
                                 self.name, e)
 
         self.load_values()
+
+    def __get_shared_attributes_keys(self):
+        result = []
+
+        for attr_config in self.config.get('attributes_updates', []):
+            result.append(attr_config['key'])
+
+        return result
 
     def __repr__(self):
         return f'<Device> Path: {self.path}, Name: {self.name}, Configured values: {self.__configured_values_count}'

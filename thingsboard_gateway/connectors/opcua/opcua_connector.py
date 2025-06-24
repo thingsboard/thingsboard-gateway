@@ -174,6 +174,12 @@ class OpcUaConnector(Connector, Thread):
                             is_connector_logger=True,
                             attr_name=self.name)
 
+    def get_device_shared_attributes_keys(self, device_name):
+        device = self.__get_device_by_name(device_name)
+        if device is not None:
+            return device.shared_attributes_keys
+        return []
+
     def open(self):
         self.__stopped = False
         self.start()
@@ -1044,10 +1050,20 @@ class OpcUaConnector(Connector, Thread):
         except Exception as e:
             self.__log.error("Error during node lookup for %r: %s", params, e)
 
+    def __get_device_by_name(self, device_name: str):
+        device_list = tuple(filter(lambda i: i.name == device_name, self.__device_nodes))
+        if len(device_list) > 0:
+            return device_list[0]
+
+        return None
+
     def on_attributes_update(self, content: Dict):
         self.__log.debug(content)
         try:
-            device = tuple(filter(lambda i: i.name == content['device'], self.__device_nodes))[0]
+            device = self.__get_device_by_name(content['device'])
+            if device is None:
+                self.__log.error('Device %s not found for attributes update', content['device'])
+                return
 
             for (key, value) in content['data'].items():
                 for attr_update in device.config['attributes_updates']:
@@ -1094,7 +1110,13 @@ class OpcUaConnector(Connector, Thread):
                 pass
 
             if content.get('device'):
-                device = tuple(filter(lambda i: i.name == content['device'], self.__device_nodes))[0]
+                device = self.__get_device_by_name(content['device'])
+                if device is None:
+                    self.__log.error('Device %s not found for RPC request', content['device'])
+                    self.__gateway.send_rpc_reply(device=content['device'],
+                                                  req_id=content['data'].get('id'),
+                                                  content={"result": {"error": 'Device not found'}})
+                    return
 
                 # Check is a service method
                 if rpc_method == 'set' or rpc_method == 'get':

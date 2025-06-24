@@ -98,6 +98,18 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__previous_discover_time = 0
         self.__devices_rescan_objects_period = self.__config['application'].get('devicesRescanObjectsPeriodSeconds', 60)
 
+    def get_device_shared_attributes_keys(self, device_name):
+        task = self.loop.create_task(self.__devices.get_device_by_name(device_name))
+        started = monotonic()
+        while not task.done() and not self.__stopped and monotonic() - started < 1.0:
+            sleep(.02)
+
+        device = task.result() if not task.cancelled() else None
+        if device is not None:
+            return device.shared_attributes_keys
+
+        return []
+
     def __update_devices_data_config(self):
         for device_config in self.__config.get('devices', []):
             new_attributes = []

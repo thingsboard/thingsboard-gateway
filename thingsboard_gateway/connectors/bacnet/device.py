@@ -75,6 +75,7 @@ class Device:
         self.__config_poll_period = self.__config.get('pollPeriod', 10000) / 1000
         self.__poll_period = self.__config_poll_period
         self.attributes_updates = self.__config.get('attributeUpdates', [])
+        self.shared_attributes_keys = self.__get_shared_attributes_keys()
         self.server_side_rpc = self.__config.get('serverSideRpc', [])
 
         self.uplink_converter = self.__load_uplink_converter()
@@ -107,6 +108,14 @@ class Device:
         self.__config = new_config
         self.uplink_converter_config = UplinkConverterConfig(new_config, self.device_info, self.details)
         self.uplink_converter = self.__load_uplink_converter()
+
+    def __get_shared_attributes_keys(self):
+        result = []
+
+        for attr_config in self.attributes_updates:
+            result.append(attr_config['key'])
+
+        return result
 
     def __load_uplink_converter(self):
         try:
