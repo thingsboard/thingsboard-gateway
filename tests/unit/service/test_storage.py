@@ -8,6 +8,7 @@ from shutil import rmtree
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
 from thingsboard_gateway.storage.memory.memory_event_storage import MemoryEventStorage
 from thingsboard_gateway.storage.sqlite.sqlite_event_storage import SQLiteEventStorage
+from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 
 LOG = getLogger("TEST")
 LOG.trace = LOG.debug
@@ -140,8 +141,9 @@ class TestSQLiteEventStorageRotation(TestCase):
             "oversize_check_period": 1 / 6,
             "writing_batch_size": 10000,
         }
+        self.settings = StorageSettings(self.config, enable_validation=False)
         self.stop_event = Event()
-        self.sqlite_storage = SQLiteEventStorage(self.config, LOG, self.stop_event, enable_settings_validation=False)
+        self.sqlite_storage = SQLiteEventStorage(self.settings, LOG, self.stop_event)
 
     def tearDown(self):
         self.stop_event.set()
@@ -202,7 +204,7 @@ class TestSQLiteEventStorageRotation(TestCase):
         self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.07)
         sleep(2.0)
         self.sqlite_storage.stop()
-        storage2 = SQLiteEventStorage(self.config, LOG, self.stop_event, enable_settings_validation=False)
+        storage2 = SQLiteEventStorage(self.settings, LOG, self.stop_event)
         all_messages = self._drain_storage(storage2)
         self.assertEqual(len(all_messages), DATA_RANGE)
         self.assertListEqual(all_messages, [str(i) for i in range(DATA_RANGE)])
@@ -255,7 +257,7 @@ class TestSQLiteEventStorageRotation(TestCase):
             sleep(0.07)
         sleep(2.0)
         self.sqlite_storage.stop()
-        storage2 = SQLiteEventStorage(self.config, LOG, self.stop_event, enable_settings_validation=False)
+        storage2 = SQLiteEventStorage(self.settings, LOG, self.stop_event)
         dbs = sorted(f for f in listdir(self.directory) if f.endswith(".db"))
         self.assertEqual(
             len(dbs),
