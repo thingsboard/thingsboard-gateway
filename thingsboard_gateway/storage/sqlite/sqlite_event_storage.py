@@ -16,13 +16,13 @@ from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 
 class SQLiteEventStorage(EventStorage):
 
-    def __init__(self, config, logger, main_stop_event):
+    def __init__(self, config, logger, main_stop_event, enable_settings_validation=True):
         super().__init__(config, logger, main_stop_event)
         self.__log = logger
         self.__log.info("Sqlite Storage initializing...")
         self.write_queue = Queue(-1)
         self.stopped = Event()
-        self.__settings = StorageSettings(config)
+        self.__settings = StorageSettings(config, enable_settings_validation)
         self.__ensure_data_folder_exists()
         self.__pointer = Pointer(self.__settings.data_file_path, log=self.__log)
         self.__default_database_name = self.__settings.db_file_name
