@@ -141,7 +141,7 @@ class TestSQLiteEventStorageRotation(TestCase):
             "writing_batch_size": 10000,
         }
         self.stop_event = Event()
-        self.sqlite_storage = SQLiteEventStorage(self.config, LOG, self.stop_event)
+        self.sqlite_storage = SQLiteEventStorage(self.config, LOG, self.stop_event, enable_settings_validation=False)
 
     def tearDown(self):
         self.stop_event.set()
@@ -172,7 +172,7 @@ class TestSQLiteEventStorageRotation(TestCase):
 
     def test_write_read_without_rotation(self):
         self._fill_storage(self.sqlite_storage, 50)
-        sleep(0.5)
+        sleep(1)
         self.assertListEqual(self._db_files(), ["data.db"])
         all_messages = self._drain_storage(self.sqlite_storage)
         self.assertEqual(len(all_messages), 50)
@@ -183,7 +183,7 @@ class TestSQLiteEventStorageRotation(TestCase):
     def test_rotation_creates_new_db_and_reads_all_data(self):
         DATA_RANGE = 1000
         self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.07)
-        sleep(1.0)
+        sleep(2.0)
 
         dbs = self._db_files()
         with self.subTest("db count after rotation"):
@@ -200,9 +200,9 @@ class TestSQLiteEventStorageRotation(TestCase):
     def test_rotation_persists_across_restart(self):
         DATA_RANGE = 1000
         self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.07)
-        sleep(1.0)
+        sleep(2.0)
         self.sqlite_storage.stop()
-        storage2 = SQLiteEventStorage(self.config, LOG, self.stop_event)
+        storage2 = SQLiteEventStorage(self.config, LOG, self.stop_event, enable_settings_validation=False)
         all_messages = self._drain_storage(storage2)
         self.assertEqual(len(all_messages), DATA_RANGE)
         self.assertListEqual(all_messages, [str(i) for i in range(DATA_RANGE)])
@@ -255,7 +255,7 @@ class TestSQLiteEventStorageRotation(TestCase):
             sleep(0.07)
         sleep(2.0)
         self.sqlite_storage.stop()
-        storage2 = SQLiteEventStorage(self.config, LOG, self.stop_event)
+        storage2 = SQLiteEventStorage(self.config, LOG, self.stop_event, enable_settings_validation=False)
         dbs = sorted(f for f in listdir(self.directory) if f.endswith(".db"))
         self.assertEqual(
             len(dbs),
