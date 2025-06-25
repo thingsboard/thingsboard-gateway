@@ -94,11 +94,7 @@ class DatabaseConnector:
         if self.__closed:
             return None
         try:
-            while (
-                    not self.database_stopped_event.is_set()
-                    and self.connection is None
-                    and not self.__closed
-            ):
+            while not self.database_stopped_event.is_set() and self.connection is None and not self.__closed:
                 self.__log.debug("Connection is None. Waiting for connection...")
                 sleep(0.1)
             if (
