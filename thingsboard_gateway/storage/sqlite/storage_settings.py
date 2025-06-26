@@ -16,17 +16,18 @@ from os import path
 
 
 class StorageSettings:
-    def __init__(self, config):
+    def __init__(self, config, enable_validation=True):
+        self.enable_validation = enable_validation
         self.data_file_path = config.get("data_file_path", "./")
         self.messages_ttl_check_in_hours = (
                 config.get("messages_ttl_check_in_hours", 1) * 3600
         )
         self.messages_ttl_in_days = config.get("messages_ttl_in_days", 7)
-        self.max_read_records_count = config.get("max_read_records_count", 100000)
+        self.max_read_records_count = config.get("max_read_records_count", 1000)
         self.batch_size = config.get("writing_batch_size", 1000)
         self.directory_path = path.dirname(self.data_file_path)
         self.db_file_name = path.basename(self.data_file_path)
-        self.size_limit = config.get("size_limit", 1)
+        self.size_limit = config.get("size_limit", 1024)
         self.max_db_amount = config.get("max_db_amount", 10)
         self.oversize_check_period = config.get("oversize_check_period", 1)
         self.validate_settings()
@@ -34,3 +35,7 @@ class StorageSettings:
     def validate_settings(self):
         if not self.db_file_name:
             self.db_file_name = "data.db"
+        if self.size_limit < 1 and self.enable_validation:
+            self.size_limit = 1
+        if self.oversize_check_period < 1 and self.enable_validation:
+            self.oversize_check_period = 1
