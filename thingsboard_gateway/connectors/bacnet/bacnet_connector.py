@@ -310,7 +310,7 @@ class AsyncBACnetConnector(Thread, Connector):
             await self.__local_objects_discovery(device, discover_for, index_to_read=index_to_read)
 
     async def __global_objects_discovery(self, device, discover_for, index_to_read=None):
-        self.__log.debug('Discovering %s device objects...', device.details.address)
+        self.__log.info('Discovering %s device objects...', device.details.address)
 
         new_config = deepcopy(device.config)
         discovering_started = monotonic()
@@ -359,6 +359,8 @@ class AsyncBACnetConnector(Thread, Connector):
         return config
 
     async def __local_objects_discovery(self, device, discover_for, index_to_read=None):
+        self.__log.info('Discovering %s device objects...', device.details.address)
+
         new_config = deepcopy(device.config)
 
         with_all_properties = any(item['propertyId'] == '*' for item in discover_for)
@@ -452,6 +454,7 @@ class AsyncBACnetConnector(Thread, Connector):
                     self.__log.trace('Device %s stopped', device)
                     continue
 
+                self.__log.info('Reading data from device %s...', device.details.address)
                 self.loop.create_task(self.__read_multiple_properties(device))
                 # TODO: Add handling for device activity/inactivity
             except QueueEmpty:
