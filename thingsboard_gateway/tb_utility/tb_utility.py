@@ -48,7 +48,9 @@ class TBUtility:
     # Data conversion methods
 
     @staticmethod
-    def decode(message):
+    def decode(message, return_raw=False):
+        if return_raw:
+            return message.payload
         try:
             if isinstance(message.payload, bytes):
                 content = loads(message.payload.decode("utf-8", "ignore"))
