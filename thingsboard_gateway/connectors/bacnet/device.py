@@ -293,7 +293,7 @@ class Device:
 
         for section in ('attributes', 'timeseries'):
             for item_config in config.get(section, []):
-                if item_config['objectId'] == '*':
+                if isinstance(item_config, dict) and item_config['objectId'] == '*':
                     item_config['type'] = section
                     fill_for.append(item_config)
 
