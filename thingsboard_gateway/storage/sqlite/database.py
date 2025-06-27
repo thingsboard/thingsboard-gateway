@@ -20,6 +20,8 @@ from threading import Event, Thread, Lock
 from queue import Queue, Empty
 import datetime
 
+from jaraco.functools import retry
+
 from thingsboard_gateway.storage.sqlite.database_connector import DatabaseConnector
 from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 
@@ -137,6 +139,7 @@ class Database(Thread):
             try:
                 if getsize(self.db.data_file_path) >= float(self.settings.size_limit) * 1000000:
                     self.__reached_size_limit = True
+                    return True
             except FileNotFoundError as e:
                 self.__reached_size_limit = True
                 self.__log.debug("File is not found it is likely you deleted it ")
@@ -163,6 +166,8 @@ class Database(Thread):
                 ):
                     try:
                         batch.append((cur_time, self.process_queue.get_nowait()))
+                        self.process_queue.task_done()
+
                     except Empty:
                         if monotonic() - start_collecting > 0.1:
                             break
