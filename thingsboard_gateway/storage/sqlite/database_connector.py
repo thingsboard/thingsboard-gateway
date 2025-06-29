@@ -55,6 +55,16 @@ class DatabaseConnector:
                 "Failed to connect reading connection to database", exc_info=e
             )
 
+    def connect_on_closed_db(self, database_path):
+        try:
+            with self.lock:
+                self.closed_db_connection = connect(database_path, check_same_thread=False)
+        except Exception as e:
+            self.__log.exception(
+                "Failed to connect reading connection to database", exc_info=e)
+
+
+
     def commit(self):
         if self.__closed or self.database_stopped_event.is_set():
             return False
@@ -244,4 +254,3 @@ class DatabaseConnector:
 
     def update_logger(self, logger):
         self.__log = logger
-
