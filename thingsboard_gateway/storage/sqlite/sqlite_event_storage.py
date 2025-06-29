@@ -4,7 +4,7 @@ from logging import getLogger
 from os import path, makedirs, remove
 from queue import Queue, Full
 from sqlite3 import ProgrammingError, DatabaseError
-from threading import Event, Thread
+from threading import Event, Thread, Lock
 from time import sleep, monotonic
 
 from thingsboard_gateway.storage.event_storage import EventStorage
@@ -21,6 +21,7 @@ class SQLiteEventStorage(EventStorage):
         self.__log = logger
         self.__log.info("Sqlite Storage initializing...")
         self.write_queue = Queue(-1)
+        self.current_data_from_storage = None
         self.stopped = Event()
         if isinstance(config, StorageSettings):
             self.__settings = config
@@ -33,7 +34,7 @@ class SQLiteEventStorage(EventStorage):
             self.__select_initial_db_files()
         )
         self.__is_max_db_amount_reached = False
-
+        self.__rotation_lock = Lock()
         self.__read_database_name = self.__read_database_name_on_init
         self.__write_database_name = self.__write_database_name_on_init
         self.__read_database_path = path.join(
@@ -91,10 +92,10 @@ class SQLiteEventStorage(EventStorage):
             self.__read_database_name,
             self.__write_database_name,
         )
-        if self.__read_database.reached_size_limit and not self.__read_database.database_has_records():
+        self.__initial_db_file_list = self.__pointer.sort_db_files()
+        if not self.__read_database.database_has_records() and len(self.__initial_db_file_list) > 1:
             self.__log.debug("Initial read DB oversize & empty → rotating")
             self.__rotate_after_read_completion()
-        self.__initial_db_file_list = self.__pointer.sort_db_files()
         self.delete_time_point = 0
         self.__event_pack_processing_start = monotonic()
 
@@ -175,7 +176,7 @@ class SQLiteEventStorage(EventStorage):
         except AttributeError:
             pass
         try:
-            self.__write_database.join(timeout=1)
+            self.__write_database.join(timeout=5)
             if self.__write_database.is_alive():
                 self.__log.warning("DB thread alive after join timeout")
         except RuntimeError as e:
@@ -228,7 +229,7 @@ class SQLiteEventStorage(EventStorage):
         )
         if not self.stopped.is_set():
             self.delete_data(self.delete_time_point)
-            if not self.__read_database.database_has_records():
+            if not self.current_data_from_storage and not self.__read_database.database_has_records():
                 self.__read_database.process_file_limit()
                 if self.__read_database.reached_size_limit:
                     self.__rotate_after_read_completion()
@@ -236,34 +237,62 @@ class SQLiteEventStorage(EventStorage):
         collect()
 
     def get_event_pack(self):
-        if self.stopped.is_set():
-            return []
-        self.__event_pack_processing_start = monotonic()
-        event_pack_messages = []
-        data_from_storage = self.read_data()
-        if not data_from_storage and not path.exists(self.__read_database.settings.data_file_path):
-            self.__rotate_after_read_completion()
-        for row in data_from_storage or []:
-            try:
-                element = row["message"]
-                if element:
-                    event_pack_messages.append(element)
-                    if not self.delete_time_point or self.delete_time_point < row["id"]:
-                        self.delete_time_point = row["id"]
-            except KeyError as e:
-                self.__log.error("KeyError reading storage: %s", e)
-                self.__log.debug("Stack:", exc_info=e)
-            except Exception as e:
-                self.__log.error("Error reading storage: %s", e)
-                self.__log.debug("Stack:", exc_info=e)
-        if event_pack_messages:
-            self.__log.trace(
-                "Retrieved %d msgs in %d ms, remaining: %d",
-                len(event_pack_messages),
-                int((monotonic() - self.__event_pack_processing_start) * 1000),
-                self.__read_database.get_stored_messages_count(),
+        if not self.stopped.is_set():
+            self.__event_pack_processing_start = monotonic()
+            event_pack_messages = []
+            data_from_storage = self.read_data()
+            self.current_data_from_storage = data_from_storage
+            if (not data_from_storage and not path.exists(self.__read_database.settings.data_file_path)) or (
+                    not data_from_storage and len(self.__initial_db_file_list) > 1):
+                self.__log.debug("Initial read DB oversize & empty → rotating")
+                self.__rotate_after_read_completion()
+
+            event_pack_messages = self.process_event_storage_data(
+                data_from_storage=data_from_storage,
+                event_pack_messages=event_pack_messages,
             )
-        self.__read_database.can_prepare_new_batch()
+
+            if event_pack_messages:
+                self.__log.trace(
+                    "Retrieved %r records from storage in %r ms, left in storage: %r",
+                    len(event_pack_messages),
+                    int((monotonic() - self.__event_pack_processing_start) * 1000),
+                    self.__read_database.get_stored_messages_count(),
+                )
+
+            self.__read_database.can_prepare_new_batch()
+
+            return event_pack_messages
+
+        else:
+            return []
+
+    def process_event_storage_data(self, data_from_storage, event_pack_messages):
+
+        if not data_from_storage:
+            return []
+        for row in data_from_storage:
+            try:
+                if not row:
+                    return []
+                element_to_insert = row["message"]
+                if not element_to_insert:
+                    continue
+
+                event_pack_messages.append(element_to_insert)
+                if not self.delete_time_point or self.delete_time_point < row["id"]:
+                    self.delete_time_point = row["id"]
+            except (IndexError, KeyError) as e:
+
+                self.__log.error(
+                    "Failed to extract message from storage row %r: %s", row, e, )
+                self.__log.debug("Stack:", exc_info=e)
+                continue
+            except Exception as e:
+                self.__log.error(
+                    "Error occurred while reading data from storage: %s", e
+                )
+
         return event_pack_messages
 
     def __delete_db_files(self, path_to_db_file):
@@ -274,26 +303,26 @@ class SQLiteEventStorage(EventStorage):
                 sleep(0.05)
             self.__read_database.db.commit()
             self.__read_database.interrupt()
-            self.__read_database.join(timeout=1)
+            self.__read_database.join(timeout=5)
             self.__read_database.close_db()
             self.__read_database.db.close()
         except Exception:
             self.__log.debug("Interruption during delete cleanup")
             sleep(0.1)
-
-        deleted = False
-        for suffix in ("", "-shm", "-wal"):
-            full = path_to_db_file + suffix
-            if path.exists(full):
-                try:
-                    remove(full)
-                    deleted = True
-                except Exception as e:
-                    self.__log.exception("Failed delete %s: %s", full, e)
-        if deleted:
-            self.__initial_db_file_list.remove(self.__read_database.settings.db_file_name)
-        if not deleted:
-            self.__log.error("No DB files to delete under %s", path_to_db_file)
+        with self.__rotation_lock:
+            deleted = False
+            for suffix in ("", "-shm", "-wal"):
+                full = path_to_db_file + suffix
+                if path.exists(full):
+                    try:
+                        remove(full)
+                        deleted = True
+                    except Exception as e:
+                        self.__log.exception("Failed delete %s: %s", full, e)
+            if deleted:
+                self.__initial_db_file_list.remove(self.__read_database.settings.db_file_name)
+            if not deleted:
+                self.__log.error("No DB files to delete under %s", path_to_db_file)
 
     def read_data(self):
         return self.__read_database.read_data()
@@ -394,38 +423,29 @@ class SQLiteEventStorage(EventStorage):
         databases_rows_count = 0
         for database_name in self.__initial_db_file_list:
             if database_name not in (
-            self.__read_database.settings.db_file_name, self.__write_database.settings.db_file_name):
+                    self.__read_database.settings.db_file_name,
+                    self.__write_database.settings.db_file_name,
+            ):
                 try:
-                    current_db_check_settings = copy(self.__settings)
-                    current_db_check_settings.data_file_path = path.join(
-                        self.__settings.directory_path, database_name
-                    )
-                    current_db_check_settings.data_file_path = path.basename(
-                        current_db_check_settings.data_file_path
-                    )
-
+                    db_path = path.join(self.__settings.directory_path, database_name)
                     db_connector = DatabaseConnector(
-                        current_db_check_settings.data_file_path,
+                        db_path,
                         self.__log,
                         self._main_stop_event,
                     )
-
-                    cursor = db_connector.execute_read(
-                        "SELECT COUNT(id) FROM messages;"
-                    )
-
-                    if cursor is None:
-                        continue
+                    db_connector.connect_on_closed_db(database_path=db_path)
+                    cursor = db_connector.closed_db_connection.cursor()
+                    cursor.execute("SELECT COUNT(id) FROM messages;")
 
                     row = cursor.fetchone()
-                    if not row:
-                        continue
-
-                    databases_rows_count += row[0]
+                    if row:
+                        databases_rows_count += row[0]
 
                 except Exception as e:
-                    self.__log.error("Failed to check db size:", exc_info=e)
+                    self.__log.error("Failed to check db size for %s: %s", database_name, e)
+                    self.__log.debug("Stack trace:", exc_info=e)
                     continue
+
         result["result"] = databases_rows_count
 
     @staticmethod
