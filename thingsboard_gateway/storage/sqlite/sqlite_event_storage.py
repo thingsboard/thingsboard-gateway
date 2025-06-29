@@ -21,6 +21,7 @@ class SQLiteEventStorage(EventStorage):
         self.__log = logger
         self.__log.info("Sqlite Storage initializing...")
         self.write_queue = Queue(-1)
+        self.current_data_from_storage = None
         self.stopped = Event()
         if isinstance(config, StorageSettings):
             self.__settings = config
@@ -91,10 +92,10 @@ class SQLiteEventStorage(EventStorage):
             self.__read_database_name,
             self.__write_database_name,
         )
-        if self.__read_database.reached_size_limit and not self.__read_database.database_has_records():
+        self.__initial_db_file_list = self.__pointer.sort_db_files()
+        if not self.__read_database.database_has_records() and len(self.__initial_db_file_list) > 1:
             self.__log.debug("Initial read DB oversize & empty → rotating")
             self.__rotate_after_read_completion()
-        self.__initial_db_file_list = self.__pointer.sort_db_files()
         self.delete_time_point = 0
         self.__event_pack_processing_start = monotonic()
 
@@ -227,9 +228,8 @@ class SQLiteEventStorage(EventStorage):
             int((monotonic() - self.__event_pack_processing_start) * 1000),
         )
         if not self.stopped.is_set():
-            current_records = self.len()
             self.delete_data(self.delete_time_point)
-            if not self.__read_database.database_has_records():
+            if not self.current_data_from_storage and not self.__read_database.database_has_records():
                 self.__read_database.process_file_limit()
                 if self.__read_database.reached_size_limit:
                     self.__rotate_after_read_completion()
@@ -241,7 +241,10 @@ class SQLiteEventStorage(EventStorage):
             self.__event_pack_processing_start = monotonic()
             event_pack_messages = []
             data_from_storage = self.read_data()
-            if not data_from_storage and not path.exists(self.__read_database.settings.data_file_path):
+            self.current_data_from_storage = data_from_storage
+            if (not data_from_storage and not path.exists(self.__read_database.settings.data_file_path)) or (
+                    not data_from_storage and len(self.__initial_db_file_list) > 1):
+                self.__log.debug("Initial read DB oversize & empty → rotating")
                 self.__rotate_after_read_completion()
 
             event_pack_messages = self.process_event_storage_data(
@@ -420,38 +423,29 @@ class SQLiteEventStorage(EventStorage):
         databases_rows_count = 0
         for database_name in self.__initial_db_file_list:
             if database_name not in (
-                    self.__read_database.settings.db_file_name, self.__write_database.settings.db_file_name):
+                    self.__read_database.settings.db_file_name,
+                    self.__write_database.settings.db_file_name,
+            ):
                 try:
-                    current_db_check_settings = copy(self.__settings)
-                    current_db_check_settings.data_file_path = path.join(
-                        self.__settings.directory_path, database_name
-                    )
-                    current_db_check_settings.data_file_path = path.basename(
-                        current_db_check_settings.data_file_path
-                    )
-
+                    db_path = path.join(self.__settings.directory_path, database_name)
                     db_connector = DatabaseConnector(
-                        current_db_check_settings.data_file_path,
+                        db_path,
                         self.__log,
                         self._main_stop_event,
                     )
-
-                    cursor = db_connector.execute_read(
-                        "SELECT COUNT(id) FROM messages;"
-                    )
-
-                    if cursor is None:
-                        continue
+                    db_connector.connect_on_closed_db(database_path=db_path)
+                    cursor = db_connector.closed_db_connection.cursor()
+                    cursor.execute("SELECT COUNT(id) FROM messages;")
 
                     row = cursor.fetchone()
-                    if not row:
-                        continue
-
-                    databases_rows_count += row[0]
+                    if row:
+                        databases_rows_count += row[0]
 
                 except Exception as e:
-                    self.__log.error("Failed to check db size:", exc_info=e)
+                    self.__log.error("Failed to check db size for %s: %s", database_name, e)
+                    self.__log.debug("Stack trace:", exc_info=e)
                     continue
+
         result["result"] = databases_rows_count
 
     @staticmethod
