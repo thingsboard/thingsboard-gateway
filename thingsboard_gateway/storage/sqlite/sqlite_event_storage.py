@@ -21,7 +21,6 @@ class SQLiteEventStorage(EventStorage):
         self.__log = logger
         self.__log.info("Sqlite Storage initializing...")
         self.write_queue = Queue(-1)
-        self.current_data_from_storage = None
         self.stopped = Event()
         if isinstance(config, StorageSettings):
             self.__settings = config
@@ -229,7 +228,7 @@ class SQLiteEventStorage(EventStorage):
         )
         if not self.stopped.is_set():
             self.delete_data(self.delete_time_point)
-            if not self.current_data_from_storage and not self.__read_database.database_has_records():
+            if not self.__read_database.database_has_records():
                 self.__read_database.process_file_limit()
                 if self.__read_database.reached_size_limit:
                     self.__rotate_after_read_completion()
@@ -241,10 +240,7 @@ class SQLiteEventStorage(EventStorage):
             self.__event_pack_processing_start = monotonic()
             event_pack_messages = []
             data_from_storage = self.read_data()
-            self.current_data_from_storage = data_from_storage
-            if (not data_from_storage and not path.exists(self.__read_database.settings.data_file_path)) or (
-                    not data_from_storage and len(self.__initial_db_file_list) > 1):
-                self.__log.debug("Initial read DB oversize & empty → rotating")
+            if not data_from_storage and (not path.exists(self.__read_database.settings.data_file_path) or len(self.__initial_db_file_list) > 1):
                 self.__rotate_after_read_completion()
 
             event_pack_messages = self.process_event_storage_data(
@@ -309,20 +305,20 @@ class SQLiteEventStorage(EventStorage):
         except Exception:
             self.__log.debug("Interruption during delete cleanup")
             sleep(0.1)
-        with self.__rotation_lock:
-            deleted = False
-            for suffix in ("", "-shm", "-wal"):
-                full = path_to_db_file + suffix
-                if path.exists(full):
-                    try:
-                        remove(full)
-                        deleted = True
-                    except Exception as e:
-                        self.__log.exception("Failed delete %s: %s", full, e)
-            if deleted:
-                self.__initial_db_file_list.remove(self.__read_database.settings.db_file_name)
-            if not deleted:
-                self.__log.error("No DB files to delete under %s", path_to_db_file)
+
+        deleted = False
+        for suffix in ("", "-shm", "-wal"):
+            full = path_to_db_file + suffix
+            if path.exists(full):
+                try:
+                    remove(full)
+                    deleted = True
+                except Exception as e:
+                    self.__log.exception("Failed delete %s: %s", full, e)
+        if deleted:
+            self.__initial_db_file_list.remove(self.__read_database.settings.db_file_name)
+        if not deleted:
+            self.__log.error("No DB files to delete under %s", path_to_db_file)
 
     def read_data(self):
         return self.__read_database.read_data()
