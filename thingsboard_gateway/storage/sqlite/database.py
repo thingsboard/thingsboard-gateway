@@ -106,7 +106,7 @@ class Database(Thread):
     def run(self):
         self.__log.info("Database thread started %r", id(self))
         interval = self.settings.oversize_check_period * 60
-        sleep_time = 0.02
+        sleep_time = 0.2
 
         last_time = monotonic()
         while not self.stopped.is_set() and not self.database_stopped_event.is_set():
