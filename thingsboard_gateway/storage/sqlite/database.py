@@ -56,7 +56,6 @@ class Database(Thread):
         self.__creation_new_db_lock = Lock()
         self.__reached_size_limit = False
         self.settings = settings
-
         self.directory = dirname(self.settings.data_file_path)
         self.db = DatabaseConnector(
             self.settings.data_file_path, self.__log, self.database_stopped_event
@@ -166,7 +165,6 @@ class Database(Thread):
                 ):
                     try:
                         batch.append((cur_time, self.process_queue.get_nowait()))
-                        self.process_queue.task_done()
 
                     except Empty:
                         if monotonic() - start_collecting > 0.1:
@@ -175,10 +173,12 @@ class Database(Thread):
 
                 if batch:
                     start_writing = monotonic()
+
                     self.db.execute_many_write(
                         """INSERT INTO messages (timestamp, message) VALUES (?, ?);""",
                         batch,
                     )
+
                     self.db.commit()
 
                     self.__log.trace(
@@ -216,6 +216,7 @@ class Database(Thread):
         except MemoryError:
             self.__log.debug("Out of memory checking for records")
             return False
+
 
     def read_data(self):
         if self.database_stopped_event.is_set() or not self.__initialized:
