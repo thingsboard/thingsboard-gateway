@@ -92,9 +92,11 @@ class SQLiteEventStorage(EventStorage):
             self.__write_database_name,
         )
         self.__initial_db_file_list = self.__pointer.sort_db_files()
-        if not self.__read_database.database_has_records() and len(self.__initial_db_file_list) > 1:
-            self.__log.debug("Initial read DB oversize & empty → rotating")
-            self.__rotate_after_read_completion()
+        if not self.__read_database.database_has_records():
+            self.__read_database.process_file_limit()
+            if self.__read_database.reached_size_limit:
+                self.__log.debug("Initial read DB oversize & empty → rotating")
+                self.__rotate_after_read_completion()
         self.delete_time_point = 0
         self.__event_pack_processing_start = monotonic()
 
@@ -240,7 +242,7 @@ class SQLiteEventStorage(EventStorage):
             self.__event_pack_processing_start = monotonic()
             event_pack_messages = []
             data_from_storage = self.read_data()
-            if not data_from_storage and (not path.exists(self.__read_database.settings.data_file_path) or len(self.__initial_db_file_list) > 1):
+            if not data_from_storage and not path.exists(self.__read_database.settings.data_file_path):
                 self.__rotate_after_read_completion()
 
             event_pack_messages = self.process_event_storage_data(
