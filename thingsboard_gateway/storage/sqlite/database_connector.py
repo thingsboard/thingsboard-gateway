@@ -63,8 +63,6 @@ class DatabaseConnector:
             self.__log.exception(
                 "Failed to connect reading connection to database", exc_info=e)
 
-
-
     def commit(self):
         if self.__closed or self.database_stopped_event.is_set():
             return False

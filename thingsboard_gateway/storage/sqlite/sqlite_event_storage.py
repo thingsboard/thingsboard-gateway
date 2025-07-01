@@ -33,7 +33,6 @@ class SQLiteEventStorage(EventStorage):
             self.__select_initial_db_files()
         )
         self.__is_max_db_amount_reached = False
-        self.__rotation_lock = Lock()
         self.__read_database_name = self.__read_database_name_on_init
         self.__write_database_name = self.__write_database_name_on_init
         self.__read_database_path = path.join(
@@ -98,6 +97,7 @@ class SQLiteEventStorage(EventStorage):
                 self.__log.debug("Initial read DB oversize & empty → rotating")
                 self.__rotate_after_read_completion()
         self.delete_time_point = 0
+        self.__join_thread_timeout = 5
         self.__event_pack_processing_start = monotonic()
 
     def __select_initial_db_files(self):
@@ -177,7 +177,7 @@ class SQLiteEventStorage(EventStorage):
         except AttributeError:
             pass
         try:
-            self.__write_database.join(timeout=5)
+            self.__write_database.join(timeout=self.__join_thread_timeout)
             if self.__write_database.is_alive():
                 self.__log.warning("DB thread alive after join timeout")
         except RuntimeError as e:
@@ -301,7 +301,7 @@ class SQLiteEventStorage(EventStorage):
                 sleep(0.05)
             self.__read_database.db.commit()
             self.__read_database.interrupt()
-            self.__read_database.join(timeout=5)
+            self.__read_database.join(timeout=self.__join_thread_timeout)
             self.__read_database.close_db()
             self.__read_database.db.close()
         except Exception:
@@ -404,7 +404,7 @@ class SQLiteEventStorage(EventStorage):
             )
             check_thread.start()
             try:
-                check_thread.join(timeout=5.0)
+                check_thread.join(timeout=self.__join_thread_timeout)
                 saved_databases_rows_count = result["result"]
             except Exception as e:
                 self.__log.error("Database row count check thread failed: %s", e)

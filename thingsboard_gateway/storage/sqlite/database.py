@@ -20,8 +20,6 @@ from threading import Event, Thread, Lock
 from queue import Queue, Empty
 import datetime
 
-from jaraco.functools import retry
-
 from thingsboard_gateway.storage.sqlite.database_connector import DatabaseConnector
 from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
 
@@ -216,7 +214,6 @@ class Database(Thread):
         except MemoryError:
             self.__log.debug("Out of memory checking for records")
             return False
-
 
     def read_data(self):
         if self.database_stopped_event.is_set() or not self.__initialized:
