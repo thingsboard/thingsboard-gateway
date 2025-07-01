@@ -400,6 +400,13 @@ class RESTConnector(Connector, Thread):
                 security = HTTPBasicAuthRequest(request_dict["config"]["security"]["username"],
                                                 request_dict["config"]["security"]["password"])
 
+            cert = None
+            if request_dict["config"].get('security', {}).get('type', 'anonymous').lower() == "cert":
+                if request_dict["config"]["security"].get('key', ''):
+                    cert = (request_dict["config"]["security"]["cert"], request_dict["config"]["security"]["key"])
+                else:
+                    cert = request_dict["config"]["security"]["cert"]
+
             request_timeout = request_dict["config"].get("timeout")
 
             data = {"data": request_dict["config"]["data"]}
@@ -410,6 +417,7 @@ class RESTConnector(Connector, Thread):
                 "allow_redirects": request_dict["config"].get("allowRedirects", False),
                 "verify": request_dict["config"].get("SSLVerify"),
                 "auth": security,
+                "cert": cert,
                 **data,
             }
             logger.debug(url)

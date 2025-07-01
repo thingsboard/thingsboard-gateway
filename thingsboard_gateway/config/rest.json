@@ -169,6 +169,25 @@
         "attributeFilter": ".*",
         "requestUrlExpression": "http://127.0.0.1:5001/",
         "valueExpression": "{\"deviceName\":\"${deviceName}\",\"${attributeKey}\":\"${attributeValue}\"}"
+      },
+      {
+        "HTTPMethod": "POST",
+        "SSLVerify": false,
+        "httpHeaders": {
+          "CONTENT-TYPE": "application/json"
+        },
+        "security": {
+          "type": "cert",
+          "cert": "/thingsboard_gateway/config/cert.pem",
+          "key": "/thingsboard_gateway/config/key.pem"
+        },
+        "timeout": 0.5,
+        "tries": 3,
+        "allowRedirects": true,
+        "deviceNameFilter": "CERT.*",
+        "attributeFilter": ".*",
+        "requestUrlExpression": "http://127.0.0.1:5002/",
+        "valueExpression": "{\"deviceName\":\"${deviceName}\",\"${attributeKey}\":\"${attributeValue}\"}"
       }
     ],
     "serverSideRpc": [
