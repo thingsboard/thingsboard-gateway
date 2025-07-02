@@ -374,3 +374,4 @@ class Database(Thread):
         if not isinstance(value, bool):
             raise TypeError("should_write must be a boolean")
         self.__should_write = value
+

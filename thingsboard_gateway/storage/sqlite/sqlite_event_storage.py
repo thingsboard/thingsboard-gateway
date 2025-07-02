@@ -1,3 +1,17 @@
+#     Copyright 2025. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 from copy import copy
 from gc import collect
 from logging import getLogger
@@ -28,10 +42,7 @@ class SQLiteEventStorage(EventStorage):
             self.__settings = StorageSettings(config)
         self.__ensure_data_folder_exists()
         self.__pointer = Pointer(self.__settings.data_file_path, log=self.__log)
-        self._default_database_name = self.__settings.db_file_name
-
-        self._database_files = self.__pointer.sort_db_files()
-
+        self.__default_database_name = self.__settings.db_file_name
         self.__is_max_db_amount_reached = False
         self.__read_database_name, self.__write_database_name = self.__select_initial_db_files()
 
@@ -90,7 +101,7 @@ class SQLiteEventStorage(EventStorage):
             self.__read_database_name,
             self.__write_database_name,
         )
-
+        self._database_files = self.__pointer.sort_db_files()
         if not self.__read_database.database_has_records():
             self.__read_database.process_file_limit()
             if self.__read_database.reached_size_limit:
@@ -101,11 +112,12 @@ class SQLiteEventStorage(EventStorage):
         self.__event_pack_processing_start = monotonic()
 
     def __select_initial_db_files(self):
-        if len(self._database_files) == 1:
-            return self._database_files[0], self._database_files[0]
-        if len(self._database_files) > 1:
-            return self._database_files[0], self._database_files[-1]
-        return self._default_database_name, self._default_database_name
+        all_db_files = self.__pointer.sort_db_files()
+        if len(all_db_files) == 1 and self.__default_database_name < all_db_files[0]:
+            return all_db_files[0], all_db_files[0]
+        if len(all_db_files) > 1:
+            return all_db_files[0], all_db_files[-1]
+        return self.__default_database_name, self.__default_database_name
 
     def __ensure_data_folder_exists(self):
         data_path = self.__settings.data_file_path
@@ -238,7 +250,7 @@ class SQLiteEventStorage(EventStorage):
             event_pack_messages = []
             data_from_storage = self.read_data()
             if not data_from_storage and not path.exists(
-                    self.__read_database.settings.data_file_path) and not self.__read_database.is_unexpected_deleted:
+                    self.__read_database.settings.data_file_path):
                 self.__rotate_read_database()
             event_pack_messages = self.process_event_storage_data(
                 data_from_storage=data_from_storage,
@@ -453,3 +465,4 @@ class SQLiteEventStorage(EventStorage):
 
     def update_logger(self):
         self.__log = getLogger("storage")
+

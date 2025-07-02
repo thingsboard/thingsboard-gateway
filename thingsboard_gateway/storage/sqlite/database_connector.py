@@ -252,3 +252,4 @@ class DatabaseConnector:
 
     def update_logger(self, logger):
         self.__log = logger
+
