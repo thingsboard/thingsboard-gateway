@@ -16,7 +16,7 @@ from os.path import dirname, getsize, exists
 from sqlite3 import DatabaseError, ProgrammingError, InterfaceError, OperationalError
 from time import sleep, monotonic, time
 from logging import getLogger
-from threading import Event, Thread, Lock
+from threading import Event, Thread
 from queue import Queue, Empty
 import datetime
 
@@ -51,7 +51,6 @@ class Database(Thread):
         self.database_stopped_event = Event()
         self.__should_read = should_read
         self.__should_write = should_write
-        self.__creation_new_db_lock = Lock()
         self.__reached_size_limit = False
         self.settings = settings
         self.directory = dirname(self.settings.data_file_path)
@@ -125,6 +124,10 @@ class Database(Thread):
                     if now - last_time >= interval:
                         last_time = now
                         self.process_file_limit()
+
+
+
+
 
             except Exception as e:
                 self.__log.exception("Error in database thread: %s", exc_info=e)
