@@ -169,12 +169,39 @@ class Device:
     @staticmethod
     def find_self_in_config(devices_config, apdu):
         apdu_address = apdu.pduSource.__str__()
+        device_identifier = apdu.iAmDeviceIdentifier[-1]
 
         for device_config in devices_config:
+            if Device.is_device_identifier_match(device_identifier, str(device_config.get('deviceIdentifier'))):
+                return device_config
             if Device.is_address_match(apdu_address, device_config.get('address')):
                 return device_config
             elif apdu_address in device_config.get('altResponsesAddresses', []):
                 return device_config
+
+    @staticmethod
+    def is_device_identifier_match(device_identifier, pattern):
+        """
+        Check if the device identifier matches the given pattern.
+        :param device_identifier: The device identifier to check.
+        :param pattern ("deviceIdentifier" in configuration file in device section):
+        The pattern to match against. Can be a string, list, int or "*":
+        - Asterisk (`*`) to match any device identifier.
+        - A list of device identifiers to match against.
+        - A string pattern that can include wildcards or regex patterns.
+        - An integer to match a specific device identifier.
+        """
+
+        if pattern is not None:
+            if pattern == '*':
+                return True
+
+            if isinstance(pattern, list):
+                return device_identifier in pattern
+
+            return match(pattern, str(device_identifier)) is not None
+
+        return False
 
     @staticmethod
     def is_address_match(address, pattern):
