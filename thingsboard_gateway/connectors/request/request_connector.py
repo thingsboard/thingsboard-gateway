@@ -261,10 +261,17 @@ class RequestConnector(Connector, Thread):
                 logger.error("Converter for request to '%s' endpoint is not defined. Request will be skipped.", request["config"].get("url"))
                 return
             request_url_from_config = request["config"]["url"]
-            request_url_from_config = str('/' + request_url_from_config) if request_url_from_config[
-                                                                                0] != '/' else request_url_from_config
+            request_url_from_config = (
+                str("/" + request_url_from_config)
+                if not request_url_from_config.startswith("/")
+                   and not request_url_from_config.startswith("http")
+                else request_url_from_config
+            )
             logger.debug("Obtained request url from config - %s ", request_url_from_config)
-            url = self.__host + request_url_from_config
+            if not request_url_from_config.startswith("http"):
+                url = self.__host + request_url_from_config
+            else:
+                url = request_url_from_config
             request_timeout = request["config"].get("timeout", 1)
             params = {
                 "method": request["config"].get("httpMethod", "GET"),
