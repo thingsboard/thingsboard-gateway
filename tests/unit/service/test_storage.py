@@ -1,3 +1,17 @@
+#     Copyright 2025. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 from logging import getLogger
 from os import listdir, remove, removedirs, path
 from random import randint
@@ -149,16 +163,17 @@ class TestSQLiteEventStorageRotation(TestCase):
         self.stop_event.set()
         self.sqlite_storage.stop()
         rmtree(self.directory)
+        sleep(2)
 
-    @staticmethod
-    def _drain_storage(storage: SQLiteEventStorage):
+    def _drain_storage(self, storage: SQLiteEventStorage):
         out = []
-        while True:
+        while not self.stop_event.is_set():
             batch = storage.get_event_pack()
             if not batch:
                 break
             out.extend(batch)
             storage.event_pack_processing_done()
+        sleep(2)
         return out
 
     def _fill_storage(self, storage, count, delay=0.0):
@@ -184,24 +199,21 @@ class TestSQLiteEventStorageRotation(TestCase):
 
     def test_rotation_creates_new_db_and_reads_all_data(self):
         DATA_RANGE = 1000
-        self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.07)
+        self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.1)
         sleep(2.0)
 
         dbs = self._db_files()
-        with self.subTest("db count after rotation"):
-            self.assertEqual(len(dbs), 2)
-            self.assertLessEqual(len(dbs), self.config["max_db_amount"])
-
-        with self.subTest("round-trip all messages"):
-            all_messages = self._drain_storage(self.sqlite_storage)
-            self.assertEqual(len(all_messages), DATA_RANGE)
-            self.assertListEqual(all_messages, [str(i) for i in range(DATA_RANGE)])
+        self.assertEqual(len(dbs), 2)
+        self.assertLessEqual(len(dbs), self.config["max_db_amount"])
+        all_messages = self._drain_storage(self.sqlite_storage)
+        self.assertEqual(len(all_messages), DATA_RANGE)
+        self.assertListEqual(all_messages, [str(i) for i in range(DATA_RANGE)])
 
         self.sqlite_storage.stop()
 
     def test_rotation_persists_across_restart(self):
         DATA_RANGE = 1000
-        self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.07)
+        self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.1)
         sleep(2.0)
         self.sqlite_storage.stop()
         storage2 = SQLiteEventStorage(self.settings, LOG, self.stop_event)
