@@ -35,11 +35,12 @@ except ImportError:
     TBUtility.install_package("bacpypes3")
     from bacpypes3.apdu import ErrorRejectAbortNack
 
-from bacpypes3.pdu import Address
+from bacpypes3.pdu import Address, IPv4Address
 
 from thingsboard_gateway.connectors.bacnet.device import Device, Devices
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.application import Application
+from thingsboard_gateway.connectors.bacnet.foreign_application import ForeignApplication
 from thingsboard_gateway.connectors.bacnet.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from bacpypes3.primitivedata import Null
 
@@ -182,8 +183,16 @@ class AsyncBACnetConnector(Thread, Connector):
                 await asyncio.sleep(.1)
 
     async def __start(self):
-        self.__application = Application(DeviceObjectConfig(
-            self.__config['application']), self.__handle_indication, self.__log)
+        if self.__config.get('foreignDevice', {}).get('address', ''):
+            self.__application = ForeignApplication(DeviceObjectConfig(
+                self.__config['application']), self.__handle_indication, self.__log)
+
+            foreign_device_address = IPv4Address(self.__config['foreignDevice']['address'])
+            foreign_device_ttl = int(self.__config['foreignDevice']['ttl'])
+            self.__application.register_device(foreign_device_address, foreign_device_ttl)
+        else:
+            self.__application = Application(DeviceObjectConfig(
+                self.__config['application']), self.__handle_indication, self.__log)
 
         await self.__discover_devices()
         await asyncio.gather(self.__main_loop(),
@@ -310,7 +319,7 @@ class AsyncBACnetConnector(Thread, Connector):
             await self.__local_objects_discovery(device, discover_for, index_to_read=index_to_read)
 
     async def __global_objects_discovery(self, device, discover_for, index_to_read=None):
-        self.__log.debug('Discovering %s device objects...', device.details.address)
+        self.__log.info('Discovering %s device objects...', device.details.address)
 
         new_config = deepcopy(device.config)
         discovering_started = monotonic()
@@ -359,6 +368,8 @@ class AsyncBACnetConnector(Thread, Connector):
         return config
 
     async def __local_objects_discovery(self, device, discover_for, index_to_read=None):
+        self.__log.info('Discovering %s device objects...', device.details.address)
+
         new_config = deepcopy(device.config)
 
         with_all_properties = any(item['propertyId'] == '*' for item in discover_for)
@@ -452,6 +463,7 @@ class AsyncBACnetConnector(Thread, Connector):
                     self.__log.trace('Device %s stopped', device)
                     continue
 
+                self.__log.info('Reading data from device %s...', device.details.address)
                 self.loop.create_task(self.__read_multiple_properties(device))
                 # TODO: Add handling for device activity/inactivity
             except QueueEmpty:

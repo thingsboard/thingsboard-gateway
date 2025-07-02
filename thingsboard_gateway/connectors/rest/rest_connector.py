@@ -400,6 +400,13 @@ class RESTConnector(Connector, Thread):
                 security = HTTPBasicAuthRequest(request_dict["config"]["security"]["username"],
                                                 request_dict["config"]["security"]["password"])
 
+            cert = None
+            if request_dict["config"].get('security', {}).get('type', 'anonymous').lower() == "cert":
+                if request_dict["config"]["security"].get('key', ''):
+                    cert = (request_dict["config"]["security"]["cert"], request_dict["config"]["security"]["key"])
+                else:
+                    cert = request_dict["config"]["security"]["cert"]
+
             request_timeout = request_dict["config"].get("timeout")
 
             data = {"data": request_dict["config"]["data"]}
@@ -410,6 +417,7 @@ class RESTConnector(Connector, Thread):
                 "allow_redirects": request_dict["config"].get("allowRedirects", False),
                 "verify": request_dict["config"].get("SSLVerify"),
                 "auth": security,
+                "cert": cert,
                 **data,
             }
             logger.debug(url)
@@ -491,21 +499,24 @@ class BaseDataHandler:
 
     @staticmethod
     async def _convert_data_from_request(request):
-        if request.method == 'GET':
-            params = request.query
+        result = dict(request.match_info)
+        result.update(dict(request.query))
 
-            return dict(params)
-        else:
+        if request.method != "GET":
             try:
                 json_data = await request.json()
+                if isinstance(json_data, list):
+                    json_data = json_data[0]
             except json.decoder.JSONDecodeError:
                 data = await request.post()
                 if len(data):
                     json_data = dict(data)
                 else:
-                    json_data = await request.text()
+                    json_data = {"text": await request.text()}
 
-            return json_data
+            result.update(json_data)
+
+        return result
 
     @staticmethod
     def modify_data_for_remote_response(data, modify):

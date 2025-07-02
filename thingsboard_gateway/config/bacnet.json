@@ -13,6 +13,10 @@
     "networkNumberQuality": "configured",
     "devicesDiscoverPeriodSeconds": 30
   },
+  "foreignDevice": {
+    "address": "0.0.0.0",
+    "ttl": 900
+  },
   "devices": [
     {
       "deviceInfo": {

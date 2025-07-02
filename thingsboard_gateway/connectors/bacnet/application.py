@@ -107,13 +107,12 @@ class Application(App):
                                                         err_msg=f"Failed to read {device.details.identifier} object-list",  # noqa
                                                         address=device.details.address,
                                                         objid=device.details.identifier,
-                                                        prop='objectList',
-                                                        array_index=0)
+                                                        prop='objectList')
 
         if object_list is None:
             return []
 
-        return object_list
+        return list(filter(lambda obj_id: str(obj_id[0]) != 'device', object_list))
 
     async def get_object_identifiers_without_segmentation(self, device, index_to_read=None) -> List[ObjectIdentifier]:
         object_list = []
