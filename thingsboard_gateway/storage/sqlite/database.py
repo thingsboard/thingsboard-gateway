@@ -34,13 +34,13 @@ class Database(Thread):
     """
 
     def __init__(
-            self,
-            settings: StorageSettings,
-            processing_queue: Queue,
-            logger,
-            stopped: Event,
-            should_read: bool = True,
-            should_write: bool = True
+        self,
+        settings: StorageSettings,
+        processing_queue: Queue,
+        logger,
+        stopped: Event,
+        should_read: bool = True,
+        should_write: bool = True,
     ):
         self.__initialized = False
         self.__log = logger
@@ -73,10 +73,11 @@ class Database(Thread):
                     "SELECT sql FROM sqlite_master WHERE type='table' AND name='messages';"
                 ).fetchone()
 
-
             except OperationalError as e:
                 result = None
-                self.__log.trace("Failed to execute read query in database:", exc_info=e)
+                self.__log.trace(
+                    "Failed to execute read query in database:", exc_info=e
+                )
 
             if result:
                 if "timestamp" not in result[0] or "id" not in result[0]:
@@ -125,10 +126,6 @@ class Database(Thread):
                         last_time = now
                         self.process_file_limit()
 
-
-
-
-
             except Exception as e:
                 self.__log.exception("Error in database thread: %s", exc_info=e)
         self.__log.info("Database thread stopped %r", id(self))
@@ -149,10 +146,10 @@ class Database(Thread):
         try:
             cur_time = int(time() * 1000)
             if (
-                    cur_time - self.__last_msg_check
-                    >= self.__last_msg_check + self.settings.messages_ttl_check_in_hours
-                    and not self.stopped.is_set()
-                    and not self.database_stopped_event.is_set()
+                cur_time - self.__last_msg_check
+                >= self.__last_msg_check + self.settings.messages_ttl_check_in_hours
+                and not self.stopped.is_set()
+                and not self.database_stopped_event.is_set()
             ):
                 self.__last_msg_check = cur_time
                 self.delete_data_lte(self.settings.messages_ttl_in_days)
@@ -160,9 +157,9 @@ class Database(Thread):
                 batch = []
                 start_collecting = monotonic()
                 while (
-                        len(batch) < self.settings.batch_size
-                        and not self.stopped.is_set()
-                        and monotonic() - start_collecting < 0.1
+                    len(batch) < self.settings.batch_size
+                    and not self.stopped.is_set()
+                    and monotonic() - start_collecting < 0.1
                 ):
                     try:
                         batch.append((cur_time, self.process_queue.get_nowait()))
@@ -204,9 +201,7 @@ class Database(Thread):
         Returns True if there's at least one row in messages, False otherwise.
         """
         try:
-            cursor = self.db.execute_read(
-                "SELECT EXISTS(SELECT 1 FROM messages);"
-            )
+            cursor = self.db.execute_read("SELECT EXISTS(SELECT 1 FROM messages);")
             if not cursor:
                 return False
             row = cursor.fetchone()
@@ -374,4 +369,3 @@ class Database(Thread):
         if not isinstance(value, bool):
             raise TypeError("should_write must be a boolean")
         self.__should_write = value
-

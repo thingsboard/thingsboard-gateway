@@ -44,14 +44,16 @@ class SQLiteEventStorage(EventStorage):
         self.__pointer = Pointer(self.__settings.data_file_path, log=self.__log)
         self.__default_database_name = self.__settings.db_file_name
         self.__is_max_db_amount_reached = False
-        self.__read_database_name, self.__write_database_name = self.__select_initial_db_files()
+        self.__read_database_name, self.__write_database_name = (
+            self.__select_initial_db_files()
+        )
 
-        read_database_path = str(path.join(
-            self.__settings.directory_path, self.__read_database_name
-        ))
-        write_database_path = str(path.join(
-            self.__settings.directory_path, self.__write_database_name
-        ))
+        read_database_path = str(
+            path.join(self.__settings.directory_path, self.__read_database_name)
+        )
+        write_database_path = str(
+            path.join(self.__settings.directory_path, self.__write_database_name)
+        )
         override_write_settings = copy(self.__settings)
         self.update_settings(
             storage_settings=override_write_settings,
@@ -67,9 +69,7 @@ class SQLiteEventStorage(EventStorage):
             should_write=True,
         )
         self.__write_database.start()
-        self.__log.debug(
-            "Write DB thread started for %s", self.__write_database_name
-        )
+        self.__log.debug("Write DB thread started for %s", self.__write_database_name)
 
         self.__write_database.init_table()
 
@@ -137,10 +137,14 @@ class SQLiteEventStorage(EventStorage):
 
     def __create_read_database(self):
         read_database_filename = self._database_files[0]
-        full_path = str(path.join(self.__settings.directory_path, read_database_filename))
+        full_path = str(
+            path.join(self.__settings.directory_path, read_database_filename)
+        )
 
         rotate_read_database_settings = copy(self.__settings)
-        self.update_settings(storage_settings=rotate_read_database_settings, data_file_path=full_path)
+        self.update_settings(
+            storage_settings=rotate_read_database_settings, data_file_path=full_path
+        )
 
         try:
             self.__read_database = Database(
@@ -161,7 +165,10 @@ class SQLiteEventStorage(EventStorage):
         if self.__read_database != self.__write_database:
             timeout = 2.0
             start = monotonic()
-            while not self.__write_database.process_queue.empty() and monotonic() - start < timeout:
+            while (
+                not self.__write_database.process_queue.empty()
+                and monotonic() - start < timeout
+            ):
                 sleep(0.1)
             try:
                 self.__finalize_write_database_thread()
@@ -250,7 +257,8 @@ class SQLiteEventStorage(EventStorage):
             event_pack_messages = []
             data_from_storage = self.read_data()
             if not data_from_storage and not path.exists(
-                    self.__read_database.settings.data_file_path):
+                self.__read_database.settings.data_file_path
+            ):
                 self.__rotate_read_database()
             event_pack_messages = self.process_event_storage_data(
                 data_from_storage=data_from_storage,
@@ -290,7 +298,7 @@ class SQLiteEventStorage(EventStorage):
             except (IndexError, KeyError) as e:
 
                 self.__log.error(
-                    "Failed to extract message from storage row %r: %s", row, e, )
+                    "Failed to extract message from storage row %r: %s", row, e,)
                 self.__log.debug("Stack:", exc_info=e)
                 continue
             except Exception as e:
@@ -304,7 +312,10 @@ class SQLiteEventStorage(EventStorage):
         try:
             timeout = 2.0
             start = monotonic()
-            while not self.__read_database.process_queue.empty() and monotonic() - start < timeout:
+            while (
+                not self.__read_database.process_queue.empty()
+                and monotonic() - start < timeout
+            ):
                 sleep(0.05)
             self.__read_database.db.commit()
             self.__read_database.interrupt()
@@ -343,7 +354,9 @@ class SQLiteEventStorage(EventStorage):
         data_file_path = str(path.join(self.__settings.directory_path, new_db_name))
 
         created_database_settings = copy(self.__settings)
-        self.update_settings(storage_settings=created_database_settings, data_file_path=data_file_path)
+        self.update_settings(
+            storage_settings=created_database_settings, data_file_path=data_file_path
+        )
 
         return created_database_settings
 
@@ -368,7 +381,10 @@ class SQLiteEventStorage(EventStorage):
             if self.__is_max_db_amount_reached:
                 return False
             if not self.stopped.is_set():
-                if self.__write_database.reached_size_limit and self.__check_and_handle_max_db_count():
+                if (
+                    self.__write_database.reached_size_limit
+                    and self.__check_and_handle_max_db_count()
+                ):
                     return False
                 if self.__write_database.reached_size_limit:
                     self.__log.debug(
@@ -396,11 +412,16 @@ class SQLiteEventStorage(EventStorage):
 
     def len(self):
         write_queue_size = self.write_queue.qsize()
-        read_database_stored_messages_count = self.__read_database.get_stored_messages_count()
+        read_database_stored_messages_count = (
+            self.__read_database.get_stored_messages_count()
+        )
         saved_databases_rows_count = 0
         write_database_stored_messages_count = 0
 
-        if self.__write_database is not None and self.__write_database != self.__read_database:
+        if (
+            self.__write_database is not None
+            and self.__write_database != self.__read_database
+        ):
             write_database_stored_messages_count = (
                 self.__write_database.get_stored_messages_count()
             )
@@ -422,18 +443,18 @@ class SQLiteEventStorage(EventStorage):
                 self.__log.debug("Database row count check thread failed:", exc_info=e)
 
         return (
-                write_queue_size
-                + read_database_stored_messages_count
-                + write_database_stored_messages_count
-                + saved_databases_rows_count
+            write_queue_size
+            + read_database_stored_messages_count
+            + write_database_stored_messages_count
+            + saved_databases_rows_count
         )
 
     def __check_db_sizes(self, result):
         databases_rows_count = 0
         for database_name in self._database_files:
             if database_name not in (
-                    self.__read_database.settings.db_file_name,
-                    self.__write_database.settings.db_file_name,
+                self.__read_database.settings.db_file_name,
+                self.__write_database.settings.db_file_name,
             ):
                 try:
                     db_path = path.join(self.__settings.directory_path, database_name)
@@ -451,7 +472,9 @@ class SQLiteEventStorage(EventStorage):
                         databases_rows_count += row[0]
 
                 except Exception as e:
-                    self.__log.error("Failed to check db size for %s: %s", database_name, e)
+                    self.__log.error(
+                        "Failed to check db size for %s: %s", database_name, e
+                    )
                     self.__log.debug("Stack trace:", exc_info=e)
                     continue
 
@@ -465,4 +488,3 @@ class SQLiteEventStorage(EventStorage):
 
     def update_logger(self):
         self.__log = getLogger("storage")
-

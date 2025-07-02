@@ -32,4 +32,3 @@ class Pointer:
         ts = str(int(time.time()) * 1000)
         db_file_name = f"{prefix}{ts}.db"
         return db_file_name
-
