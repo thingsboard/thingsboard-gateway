@@ -172,7 +172,7 @@ class Device:
         device_identifier = apdu.iAmDeviceIdentifier[-1]
 
         for device_config in devices_config:
-            if Device.is_device_identifier_match(device_identifier, str(device_config.get('deviceIdentifier'))):
+            if Device.is_device_identifier_match(device_identifier, device_config.get('deviceIdentifier')):
                 return device_config
             if Device.is_address_match(apdu_address, device_config.get('address')):
                 return device_config
@@ -199,7 +199,7 @@ class Device:
             if isinstance(pattern, list):
                 return device_identifier in pattern
 
-            return match(pattern, str(device_identifier)) is not None
+            return match(str(pattern), str(device_identifier)) is not None
 
         return False
 
