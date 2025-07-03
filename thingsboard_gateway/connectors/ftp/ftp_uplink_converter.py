@@ -71,6 +71,7 @@ class FTPUplinkConverter(FTPConverter):
             arr = data.split(self.__config.get('delimiter',';'))
             for data_type in self.__data_types:
                 ts = None
+                old_ts = ts
                 if data_type == 'timeseries':
                     ts = self._retrieve_ts_for_sliced_or_table(self.__config[data_type], arr, config['headers'])
                 for information in self.__config[data_type]:
@@ -95,6 +96,18 @@ class FTPUplinkConverter(FTPConverter):
                         if data_type == 'attributes':
                             converted_data.add_to_attributes(datapoint_key, value)
                         else:
+                            if information.get('tsField'):
+                                old_ts = ts
+                                try:
+                                    data_to_retrieve_ts = {}
+                                    for index, item in enumerate(config['headers']):
+                                       data_to_retrieve_ts[item] = arr[index]
+                                    ts = TBUtility.resolve_different_ts_formats(data=data_to_retrieve_ts, config=information, logger=self._log)
+                                except Exception as e:
+                                    self._log.error('Error while retrieving timestamp for key %s: %s', key, e)
+                                    ts = old_ts
+                            else:
+                                ts = old_ts
                             telemetry_entry = TelemetryEntry({datapoint_key: value}, ts)
                             converted_data.add_to_telemetry(telemetry_entry)
 
@@ -186,7 +199,7 @@ class FTPUplinkConverter(FTPConverter):
 
     def _retrieve_ts_for_sliced_or_table(self, config, data, headers=[]):
         for config_object in config:
-            if config_object.get('key') == 'ts':
+            if config_object.get('key') == 'ts' or config_object.get('key') == 'timestamp':
                 value = config_object['value']
                 if '${' in config_object.get('value') and '}' in config_object.get('value') and headers:
                     value = headers.index(re.sub(r'[^\w]', '', config_object['value']))
