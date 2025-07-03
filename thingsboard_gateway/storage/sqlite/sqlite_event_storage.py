@@ -102,11 +102,14 @@ class SQLiteEventStorage(EventStorage):
             self.__write_database_name,
         )
         self._database_files = self.__pointer.sort_db_files()
+
         if not self.__read_database.database_has_records():
             self.__read_database.process_file_limit()
             if self.__read_database.reached_size_limit:
                 self.__log.debug("Initial read DB oversize & empty → rotating")
                 self.__rotate_read_database()
+        if not self.__read_database.database_has_records() and len(self._database_files) > 1:
+            self.__rotate_read_database()
         self.delete_time_point = 0
         self.__join_thread_timeout = 5
         self.__event_pack_processing_start = monotonic()
@@ -166,8 +169,8 @@ class SQLiteEventStorage(EventStorage):
             timeout = 2.0
             start = monotonic()
             while (
-                not self.__write_database.process_queue.empty()
-                and monotonic() - start < timeout
+                    not self.__write_database.process_queue.empty()
+                    and monotonic() - start < timeout
             ):
                 sleep(0.1)
             try:
@@ -257,8 +260,10 @@ class SQLiteEventStorage(EventStorage):
             event_pack_messages = []
             data_from_storage = self.read_data()
             if not data_from_storage and not path.exists(
-                self.__read_database.settings.data_file_path
+                    self.__read_database.settings.data_file_path
             ):
+                self.__rotate_read_database()
+            if not data_from_storage and len(self._database_files) > 1 and not self.__read_database.database_has_records():
                 self.__rotate_read_database()
             event_pack_messages = self.process_event_storage_data(
                 data_from_storage=data_from_storage,
@@ -298,7 +303,7 @@ class SQLiteEventStorage(EventStorage):
             except (IndexError, KeyError) as e:
 
                 self.__log.error(
-                    "Failed to extract message from storage row %r: %s", row, e,)
+                    "Failed to extract message from storage row %r: %s", row, e, )
                 self.__log.debug("Stack:", exc_info=e)
                 continue
             except Exception as e:
@@ -313,8 +318,8 @@ class SQLiteEventStorage(EventStorage):
             timeout = 2.0
             start = monotonic()
             while (
-                not self.__read_database.process_queue.empty()
-                and monotonic() - start < timeout
+                    not self.__read_database.process_queue.empty()
+                    and monotonic() - start < timeout
             ):
                 sleep(0.05)
             self.__read_database.db.commit()
@@ -382,8 +387,8 @@ class SQLiteEventStorage(EventStorage):
                 return False
             if not self.stopped.is_set():
                 if (
-                    self.__write_database.reached_size_limit
-                    and self.__check_and_handle_max_db_count()
+                        self.__write_database.reached_size_limit
+                        and self.__check_and_handle_max_db_count()
                 ):
                     return False
                 if self.__write_database.reached_size_limit:
@@ -419,8 +424,8 @@ class SQLiteEventStorage(EventStorage):
         write_database_stored_messages_count = 0
 
         if (
-            self.__write_database is not None
-            and self.__write_database != self.__read_database
+                self.__write_database is not None
+                and self.__write_database != self.__read_database
         ):
             write_database_stored_messages_count = (
                 self.__write_database.get_stored_messages_count()
@@ -443,18 +448,18 @@ class SQLiteEventStorage(EventStorage):
                 self.__log.debug("Database row count check thread failed:", exc_info=e)
 
         return (
-            write_queue_size
-            + read_database_stored_messages_count
-            + write_database_stored_messages_count
-            + saved_databases_rows_count
+                write_queue_size
+                + read_database_stored_messages_count
+                + write_database_stored_messages_count
+                + saved_databases_rows_count
         )
 
     def __check_db_sizes(self, result):
         databases_rows_count = 0
         for database_name in self._database_files:
             if database_name not in (
-                self.__read_database.settings.db_file_name,
-                self.__write_database.settings.db_file_name,
+                    self.__read_database.settings.db_file_name,
+                    self.__write_database.settings.db_file_name,
             ):
                 try:
                     db_path = path.join(self.__settings.directory_path, database_name)
