@@ -197,6 +197,7 @@ class MqttConnector(Connector, Thread):
         # Set up external MQTT broker connection -----------------------------------------------------------------------
         client_id = self.__broker.get("clientId", ''.join(random.choice(string.ascii_lowercase) for _ in range(23)))
 
+        self._keepAlive = self.__broker.get("keepAlive", 60)
         self._cleanSession = self.__broker.get("cleanSession", True)
         self._cleanStart = self.__broker.get("cleanStart", True)
         self._sessionExpiryInterval = self.__broker.get("sessionExpiryInterval", 0)
@@ -353,12 +354,15 @@ class MqttConnector(Connector, Thread):
         while not self._connected and not self.__stopped:
             try:
                 if self._mqtt_version != 5:
-                    self._client.connect(self.__broker['host'], self.__broker.get('port', 1883))
+                    self._client.connect(self.__broker['host'],
+                                         self.__broker.get('port', 1883),
+                                         keepalive=self._keepAlive)
                 else:
                     properties = Properties(PacketTypes.CONNECT)
                     properties.SessionExpiryInterval = self._sessionExpiryInterval
                     self._client.connect(self.__broker['host'],
                                          self.__broker.get('port', 1883),
+                                         keepalive=self._keepAlive,
                                          clean_start=self._cleanStart,
                                          properties=properties)
                 self._client.loop_start()
