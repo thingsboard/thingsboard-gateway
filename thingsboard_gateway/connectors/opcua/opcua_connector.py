@@ -321,6 +321,7 @@ class OpcUaConnector(Connector, Thread):
                         reconnect_required = False
 
                     self.__nodes_config_cache = {}
+                    self.__delete_devices_from_platform()
                     self.__device_nodes = []
                     self.__next_scan = 0
                     self.__next_poll = 0
@@ -417,6 +418,10 @@ class OpcUaConnector(Connector, Thread):
                 await self.__client.disconnect()
             except Exception:
                 pass  # ignore
+
+    def __delete_devices_from_platform(self):
+        for device in self.__device_nodes:
+            self.__gateway.del_device(device.name)
 
     async def retry_connect_with_backoff(self, max_retries=8, initial_delay=1, backoff_factor=2):
         last_contact_delta = monotonic() - self.__last_contact_time

@@ -605,7 +605,7 @@ class MqttConnector(Connector, Thread):
             found_device_type = TBUtility.get_value(device_info["deviceProfileExpression"], content,
                                                     expression_instead_none=True)
         elif device_info.get("deviceProfileExpressionSource") == 'constant':
-            found_device_type = TBUtility.get_value(device_info["deviceProfileExpression"], content,)
+            found_device_type = device_info["deviceProfileExpression"]
 
         return found_device_name, found_device_type
 

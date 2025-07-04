@@ -39,3 +39,4 @@ class StorageSettings:
             self.size_limit = 1
         if self.oversize_check_period < 1 and self.enable_validation:
             self.oversize_check_period = 1
+

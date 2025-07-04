@@ -55,6 +55,17 @@ class DatabaseConnector:
                 "Failed to connect reading connection to database", exc_info=e
             )
 
+    def connect_on_closed_db(self, database_path):
+        try:
+            with self.lock:
+                self.closed_db_connection = connect(
+                    database_path, check_same_thread=False
+                )
+        except Exception as e:
+            self.__log.exception(
+                "Failed to connect reading connection to database", exc_info=e
+            )
+
     def commit(self):
         if self.__closed or self.database_stopped_event.is_set():
             return False
@@ -65,9 +76,9 @@ class DatabaseConnector:
         while retry_count < max_retries and not self.database_stopped_event.is_set():
             try:
                 while (
-                        not self.database_stopped_event.is_set()
-                        and self.connection is None
-                        and not self.__closed
+                    not self.database_stopped_event.is_set()
+                    and self.connection is None
+                    and not self.__closed
                 ):
                     self.__log.debug("Connection is None. Waiting for connection...")
                     sleep(0.1)
@@ -76,7 +87,7 @@ class DatabaseConnector:
                         self.connection.commit()
                 return True
             except sqlite3.OperationalError:
-                sleep_time = base_sleep_time * (2 ** retry_count)
+                sleep_time = base_sleep_time * (2**retry_count)
                 self.__log.warning(
                     "Database locked! Retrying in %.2f ms...", sleep_time * 1000
                 )
@@ -94,13 +105,17 @@ class DatabaseConnector:
         if self.__closed:
             return None
         try:
-            while not self.database_stopped_event.is_set() and self.connection is None and not self.__closed:
+            while (
+                not self.database_stopped_event.is_set()
+                and self.connection is None
+                and not self.__closed
+            ):
                 self.__log.debug("Connection is None. Waiting for connection...")
                 sleep(0.1)
             if (
-                    not self.database_stopped_event.is_set()
-                    and not self.__closed
-                    and self.connection is not None
+                not self.database_stopped_event.is_set()
+                and not self.__closed
+                and self.connection is not None
             ):
                 with self.lock:
                     cursor = self.connection.cursor()
@@ -124,16 +139,16 @@ class DatabaseConnector:
         while current_try < tries:
             try:
                 while (
-                        not self.database_stopped_event.is_set()
-                        and self.connection is None
-                        and not self.__closed
+                    not self.database_stopped_event.is_set()
+                    and self.connection is None
+                    and not self.__closed
                 ):
                     self.__log.debug("Connection is None. Waiting for connection...")
                     sleep(0.1)
                 if (
-                        not self.database_stopped_event.is_set()
-                        and not self.__closed
-                        and self.connection is not None
+                    not self.database_stopped_event.is_set()
+                    and not self.__closed
+                    and self.connection is not None
                 ):
                     with self.lock:
                         cursor = self.connection.cursor()
@@ -166,14 +181,14 @@ class DatabaseConnector:
         while current_try < tries:
             try:
                 while (
-                        not self.database_stopped_event.is_set() and self.connection is None
+                    not self.database_stopped_event.is_set() and self.connection is None
                 ):
                     self.__log.debug("Connection is None. Waiting for connection...")
                     sleep(0.1)
                 if (
-                        not self.database_stopped_event.is_set()
-                        and not self.__closed
-                        and self.connection is not None
+                    not self.database_stopped_event.is_set()
+                    and not self.__closed
+                    and self.connection is not None
                 ):
                     with self.lock:
                         cursor = self.connection.cursor()
@@ -244,4 +259,3 @@ class DatabaseConnector:
 
     def update_logger(self, logger):
         self.__log = logger
-

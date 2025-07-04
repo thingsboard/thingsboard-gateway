@@ -16,7 +16,7 @@ from os.path import dirname, getsize, exists
 from sqlite3 import DatabaseError, ProgrammingError, InterfaceError, OperationalError
 from time import sleep, monotonic, time
 from logging import getLogger
-from threading import Event, Thread, Lock
+from threading import Event, Thread
 from queue import Queue, Empty
 import datetime
 
@@ -34,13 +34,13 @@ class Database(Thread):
     """
 
     def __init__(
-            self,
-            settings: StorageSettings,
-            processing_queue: Queue,
-            logger,
-            stopped: Event,
-            should_read: bool = True,
-            should_write: bool = True
+        self,
+        settings: StorageSettings,
+        processing_queue: Queue,
+        logger,
+        stopped: Event,
+        should_read: bool = True,
+        should_write: bool = True,
     ):
         self.__initialized = False
         self.__log = logger
@@ -51,10 +51,8 @@ class Database(Thread):
         self.database_stopped_event = Event()
         self.__should_read = should_read
         self.__should_write = should_write
-        self.__creation_new_db_lock = Lock()
         self.__reached_size_limit = False
         self.settings = settings
-
         self.directory = dirname(self.settings.data_file_path)
         self.db = DatabaseConnector(
             self.settings.data_file_path, self.__log, self.database_stopped_event
@@ -75,10 +73,11 @@ class Database(Thread):
                     "SELECT sql FROM sqlite_master WHERE type='table' AND name='messages';"
                 ).fetchone()
 
-
             except OperationalError as e:
                 result = None
-                self.__log.trace("Failed to execute read query in database:", exc_info=e)
+                self.__log.trace(
+                    "Failed to execute read query in database:", exc_info=e
+                )
 
             if result:
                 if "timestamp" not in result[0] or "id" not in result[0]:
@@ -137,6 +136,7 @@ class Database(Thread):
             try:
                 if getsize(self.db.data_file_path) >= float(self.settings.size_limit) * 1000000:
                     self.__reached_size_limit = True
+                    return True
             except FileNotFoundError as e:
                 self.__reached_size_limit = True
                 self.__log.debug("File is not found it is likely you deleted it ")
@@ -146,10 +146,10 @@ class Database(Thread):
         try:
             cur_time = int(time() * 1000)
             if (
-                    cur_time - self.__last_msg_check
-                    >= self.__last_msg_check + self.settings.messages_ttl_check_in_hours
-                    and not self.stopped.is_set()
-                    and not self.database_stopped_event.is_set()
+                cur_time - self.__last_msg_check
+                >= self.__last_msg_check + self.settings.messages_ttl_check_in_hours
+                and not self.stopped.is_set()
+                and not self.database_stopped_event.is_set()
             ):
                 self.__last_msg_check = cur_time
                 self.delete_data_lte(self.settings.messages_ttl_in_days)
@@ -157,12 +157,13 @@ class Database(Thread):
                 batch = []
                 start_collecting = monotonic()
                 while (
-                        len(batch) < self.settings.batch_size
-                        and not self.stopped.is_set()
-                        and monotonic() - start_collecting < 0.1
+                    len(batch) < self.settings.batch_size
+                    and not self.stopped.is_set()
+                    and monotonic() - start_collecting < 0.1
                 ):
                     try:
                         batch.append((cur_time, self.process_queue.get_nowait()))
+
                     except Empty:
                         if monotonic() - start_collecting > 0.1:
                             break
@@ -170,10 +171,12 @@ class Database(Thread):
 
                 if batch:
                     start_writing = monotonic()
+
                     self.db.execute_many_write(
                         """INSERT INTO messages (timestamp, message) VALUES (?, ?);""",
                         batch,
                     )
+
                     self.db.commit()
 
                     self.__log.trace(
@@ -198,9 +201,7 @@ class Database(Thread):
         Returns True if there's at least one row in messages, False otherwise.
         """
         try:
-            cursor = self.db.execute_read(
-                "SELECT EXISTS(SELECT 1 FROM messages);"
-            )
+            cursor = self.db.execute_read("SELECT EXISTS(SELECT 1 FROM messages);")
             if not cursor:
                 return False
             row = cursor.fetchone()
