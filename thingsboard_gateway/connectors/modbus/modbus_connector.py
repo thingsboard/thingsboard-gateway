@@ -230,7 +230,11 @@ class AsyncModbusConnector(Connector, Thread):
         while not self.__stopped:
             try:
                 slave = self.process_device_requests.get_nowait()
-                self.loop.create_task(self.__poll_device(slave))
+
+                if slave.type == 'serial':
+                    await self.__poll_device(slave)
+                else:
+                    self.loop.create_task(self.__poll_device(slave))
             except QueueEmpty:
                 await asyncio.sleep(0.1)
                 continue
