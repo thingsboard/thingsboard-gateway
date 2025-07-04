@@ -193,6 +193,7 @@ class OpcUaConnector(Connector, Thread):
         self.__connected = False
         self.__log.info("Stopping OPC-UA Connector")
 
+        self.__delete_devices_from_platform()
         asyncio.run_coroutine_threadsafe(self.__disconnect(), self.__loop)
         asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.__loop)
 
