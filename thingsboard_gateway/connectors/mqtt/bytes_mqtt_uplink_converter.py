@@ -14,6 +14,7 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
 class BytesMqttUplinkConverter(MqttUplinkConverter):
+    SUPPORTS_BYTES_PAYLOAD = True
     def __init__(self, config, logger):
         self.__config = config.get('converter')
         self._log = logger
@@ -48,8 +49,8 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
         try:
             for datatype in datatypes:
                 for datatype_config in self.__config.get(datatype, []):
-                    key = self.parse_data(datatype_config['key'], data)
-                    value = self.parse_data(datatype_config['value'], data)
+                    key = self.parse_data(datatype_config['key'], data, hex_mode=datatype_config.get('hexMode', False))
+                    value = self.parse_data(datatype_config['value'], data, hex_mode=datatype_config.get('hexMode', False))
                     datapoint_key = TBUtility.convert_key_to_datapoint_key(key,
                                                                            device_report_strategy,
                                                                            datatype_config,
@@ -74,23 +75,25 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
         return converted_data
 
     @staticmethod
-    def parse_data(expression, data):
+    def parse_data(expression: str, data: list, hex_mode: bool = False) -> str:
         expression_arr = findall(r'\[\S[0-9:]*]', expression)
         converted_data = expression
 
         for exp in expression_arr:
             indexes = exp[1:-1].split(':')
-
             data_to_replace = ''
+
             if len(indexes) == 2:
-                from_index, to_index = indexes
-                concat_arr = data[
-                             int(from_index) if from_index != '' else None:int(
-                                 to_index) if to_index != '' else None]
-                for sub_item in concat_arr:
-                    data_to_replace += str(sub_item)
+                from_index = int(indexes[0]) if indexes[0] else None
+                to_index = int(indexes[1]) if indexes[1] else None
+                slice_data = data[from_index:to_index]
             else:
-                data_to_replace += str(data[int(indexes[0])])
+                slice_data = [data[int(indexes[0])]]
+
+            if hex_mode:
+                data_to_replace = ''.join(f'{int(b):02x}' for b in slice_data)
+            else:
+                data_to_replace = ''.join(str(b) for b in slice_data)
 
             converted_data = converted_data.replace(exp, data_to_replace)
 

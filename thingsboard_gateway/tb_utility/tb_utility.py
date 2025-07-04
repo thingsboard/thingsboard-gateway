@@ -50,18 +50,25 @@ class TBUtility:
     @staticmethod
     def decode(message, return_raw=False):
         if return_raw:
-            return message.payload
-        try:
-            if isinstance(message.payload, bytes):
-                content = loads(message.payload.decode("utf-8", "ignore"))
-            else:
-                content = loads(message.payload)
-        except JSONDecodeError:
+            return getattr(message, 'payload', message)
+
+        payload = message if isinstance(message, bytes) else getattr(message, 'payload', None)
+        if payload is None:
+            return message
+
+        if isinstance(payload, bytes):
             try:
-                content = message.payload.decode("utf-8")
-            except UnicodeDecodeError:
-                content = message.payload
-        return content
+                return loads(payload.decode("utf-8", "ignore"))
+            except JSONDecodeError:
+                try:
+                    return payload.decode("utf-8")
+                except UnicodeDecodeError:
+                    return payload
+        else:
+            try:
+                return loads(payload)
+            except JSONDecodeError:
+                return payload
 
     @staticmethod
     def validate_converted_data(data: Union[dict, 'ConvertedData']):

@@ -544,6 +544,8 @@ class MqttConnector(Connector, Thread):
 
     def put_data_to_convert(self, converter, message, content) -> bool:
         if not self.__msg_queue.full():
+            if not hasattr(converter, 'SUPPORTS_BYTES_PAYLOAD'):
+                content = TBUtility.decode(content)
             self.__msg_queue.put((converter.convert, message.topic, content), True, 100)
             return True
         return False
@@ -615,7 +617,7 @@ class MqttConnector(Connector, Thread):
                 client, userdata, message = self._on_message_queue.get_nowait()
 
                 self.statistics['MessagesReceived'] += 1
-                content = TBUtility.decode(message)
+                content = None
 
                 # Check if message topic exists in mappings "i.e., I'm posting telemetry/attributes" -------------------
                 topic_handlers = [regex for regex in self.__mapping_sub_topics if fullmatch(regex, message.topic)]
@@ -632,7 +634,7 @@ class MqttConnector(Connector, Thread):
                         available_converters = self.__mapping_sub_topics[topic]
                         for converter in available_converters:
                             try:
-                                request_handled = self.put_data_to_convert(converter, message, content)
+                                request_handled = self.put_data_to_convert(converter, message, message.payload)
                             except Exception as e:
                                 self.__log.exception(e)
 
@@ -651,6 +653,8 @@ class MqttConnector(Connector, Thread):
                                   fullmatch(regex, message.topic)]
 
                 if topic_handlers:
+                    if content is None:
+                        content = TBUtility.decode(message)
                     for topic in topic_handlers:
                         handler = self.__connect_requests_sub_topics[topic]
 
@@ -677,6 +681,8 @@ class MqttConnector(Connector, Thread):
                 topic_handlers = [regex for regex in self.__disconnect_requests_sub_topics if
                                   fullmatch(regex, message.topic)]
                 if topic_handlers:
+                    if content is None:
+                        content = TBUtility.decode(message)
                     for topic in topic_handlers:
                         handler = self.__disconnect_requests_sub_topics[topic]
 
@@ -705,6 +711,8 @@ class MqttConnector(Connector, Thread):
                 topic_handlers = [regex for regex in self.__attribute_requests_sub_topics if
                                   fullmatch(regex, message.topic)]
                 if topic_handlers:
+                    if content is None:
+                        content = TBUtility.decode(message)
                     try:
                         for topic in topic_handlers:
                             handler = self.__attribute_requests_sub_topics[topic]
