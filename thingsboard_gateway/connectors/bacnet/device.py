@@ -172,7 +172,7 @@ class Device:
         device_identifier = apdu.iAmDeviceIdentifier[-1]
 
         for device_config in devices_config:
-            if Device.is_device_identifier_match(device_identifier, device_config.get('deviceIdentifier')):
+            if Device.is_device_identifier_match(device_identifier, device_config.get('deviceId')):
                 return device_config
             if Device.is_address_match(apdu_address, device_config.get('address')):
                 return device_config
@@ -184,7 +184,7 @@ class Device:
         """
         Check if the device identifier matches the given pattern.
         :param device_identifier: The device identifier to check.
-        :param pattern ("deviceIdentifier" in configuration file in device section):
+        :param pattern ("deviceId" in configuration file in device section):
         The pattern to match against. Can be a string, list, int or "*":
         - Asterisk (`*`) to match any device identifier.
         - A list of device identifiers to match against.
@@ -196,8 +196,15 @@ class Device:
             if pattern == '*':
                 return True
 
+            if isinstance(pattern, str):
+                start, end = Device.__parse_range(pattern)
+                return start <= device_identifier < end
+
             if isinstance(pattern, list):
-                return device_identifier in pattern
+                for rng in pattern:
+                    start, end = Device.__parse_range(str(rng))
+                    if start <= device_identifier < end:
+                        return True
 
             return match(str(pattern), str(device_identifier)) is not None
 
