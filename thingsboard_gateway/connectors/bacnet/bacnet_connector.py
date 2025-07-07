@@ -21,6 +21,7 @@ from random import choice
 from time import monotonic, sleep
 from typing import TYPE_CHECKING
 
+from thingsboard_gateway.connectors.bacnet.ede_parser import EDEParser
 from thingsboard_gateway.connectors.bacnet.entities.routers import Routers
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, STATISTIC_MESSAGE_SENT_PARAMETER
@@ -68,6 +69,11 @@ class AsyncBACnetConnector(Thread, Connector):
                                            is_converter_logger=True, attr_name=self.name)
         self.__log.info('Starting BACnet connector...')
 
+        if EDEParser.is_ede_config(self.__config):
+            self.__log.info('EDE config detected, parsing...')
+            self.__parse_ede_config()
+            self.__log.debug('EDE config parsed')
+
         if BackwardCompatibilityAdapter.is_old_config(config):
             backward_compatibility_adapter = BackwardCompatibilityAdapter(config, self.__log)
             self.__config = backward_compatibility_adapter.convert()
@@ -99,6 +105,13 @@ class AsyncBACnetConnector(Thread, Connector):
         self.__devices_discover_period = self.__config.get('devicesDiscoverPeriodSeconds', 30)
         self.__previous_discover_time = 0
         self.__devices_rescan_objects_period = self.__config['application'].get('devicesRescanObjectsPeriodSeconds', 60)
+
+    def __parse_ede_config(self):
+        try:
+            parsed_ede_config = EDEParser.parse(self.__config)
+            self.__config = parsed_ede_config
+        except Exception as e:
+            self.__log.error(f"Error parsing EDE config: {e}")
 
     def get_device_shared_attributes_keys(self, device_name):
         task = self.loop.create_task(self.__devices.get_device_by_name(device_name))
