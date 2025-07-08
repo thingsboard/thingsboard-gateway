@@ -12,4 +12,19 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-VERSION = "3.7.6"
+DEVICE_OBJECT_TYPE_CODE = '8'
+OBJECT_TYPE_PARAMETER = 'object-type'
+OBJECT_INSTANCE_PARAMETER = 'object-instance'
+DEVICE_OBJ_INSTANCE_PARAMETER = 'device obj.-instance'
+OBJECT_NAME_PARAMETER = 'object-name'
+DEFAULT_POLL_PERIOD = 10000
+EDE_FILE_PATH_PARAMETER = 'edeFilePath'
+EDE_CONFIG_PARAMETER = 'edeConfig'
+SUPPORTED_OBJECTS_TYPES = {
+    '0': 'analogInput',
+    '1': 'analogOutput',
+    '2': 'analogValue',
+    '3': 'binaryInput',
+    '4': 'binaryOutput',
+    '5': 'binaryValue',
+}
