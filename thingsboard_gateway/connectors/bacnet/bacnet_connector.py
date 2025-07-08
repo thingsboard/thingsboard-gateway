@@ -106,9 +106,12 @@ class AsyncBACnetConnector(Thread, Connector):
         while not task.done() and not self.__stopped and monotonic() - started < 1.0:
             sleep(.02)
 
-        device = task.result() if not task.cancelled() else None
-        if device is not None:
-            return device.shared_attributes_keys
+        try:
+            device = task.result() if not task.cancelled() else None
+            if device is not None:
+                return device.shared_attributes_keys
+        except Exception:
+            return []
 
         return []
 
