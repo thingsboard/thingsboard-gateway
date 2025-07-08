@@ -189,7 +189,7 @@ class AsyncBACnetConnector(Thread, Connector):
 
             foreign_device_address = IPv4Address(self.__config['foreignDevice']['address'])
             foreign_device_ttl = int(self.__config['foreignDevice']['ttl'])
-            self.__application.register_device(foreign_device_address, foreign_device_ttl)
+            self.__application.register_foreign_device(foreign_device_address, foreign_device_ttl)
         else:
             self.__application = Application(DeviceObjectConfig(
                 self.__config['application']), self.__handle_indication, self.__log)
