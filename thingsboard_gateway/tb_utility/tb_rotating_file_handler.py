@@ -1,22 +1,23 @@
 import logging
-import os
-import re
+from os import sep
+from os.path import isfile, exists
+from re import compile, ASCII
 from logging.handlers import TimedRotatingFileHandler as BaseTimedRotatingFileHandler
 from os import environ
 from pathlib import Path
 
 
 class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
-    DELIMITER_RE = re.compile(r'[\s-]+')
-    CAMEL_BOUNDARY_RE = re.compile(r'(?<=[a-z0-9])([A-Z])')
-    SPECIAL_CHAR_RE = re.compile(r'[^A-Za-z0-9_]')
-    MULTI_UNDERSCORE_RE = re.compile(r'_+')
+    DELIMITER_RE = compile(r'[\s-]+')
+    CAMEL_BOUNDARY_RE = compile(r'(?<=[a-z0-9])([A-Z])')
+    SPECIAL_CHAR_RE = compile(r'[^A-Za-z0-9_]')
+    MULTI_UNDERSCORE_RE = compile(r'_+')
 
     def __init__(self, filename, when='h', interval=1, backupCount=0,
                  encoding=None, delay=False, utc=False, maxBytes=0):
         file_path = filename
         config_path = environ.get('TB_GW_LOGS_PATH')
-        original_log_filename = file_path.split(os.sep)[-1]
+        original_log_filename = file_path.split(sep)[-1]
 
         final_filename = original_log_filename.replace('.log', '')
         final_filename = TimedRotatingFileHandler.to_snake_case(final_filename)
@@ -25,7 +26,7 @@ class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
         file_path = file_path.replace(original_log_filename, final_filename)
 
         if config_path:
-            file_path = config_path + os.sep + final_filename
+            file_path = config_path + sep + final_filename
 
         if not Path(file_path).exists():
             with open(file_path, 'w'):
@@ -37,7 +38,7 @@ class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
         self.maxBytes = maxBytes
         if self.maxBytes > 0:
             self.suffix = "%Y-%m-%d_%H-%M-%S"
-            self.extMatch = re.compile(r"(?<!\d)\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?!\d)", re.ASCII)
+            self.extMatch = compile(r"(?<!\d)\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?!\d)", ASCII)
 
     def shouldRolloverOnSize(self, record):
         if self.stream is None:
@@ -49,7 +50,7 @@ class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
                 return False
             msg = "%s\n" % self.format(record)
             if pos + len(msg) >= self.maxBytes:
-                if os.path.exists(self.baseFilename) and not os.path.isfile(self.baseFilename):
+                if exists(self.baseFilename) and not isfile(self.baseFilename):
                     return False
                 return True
 
@@ -87,7 +88,7 @@ class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
 
     @staticmethod
     def __create_file_handler_copy(handler, file_name):
-        file_name = f'{os.sep}'.join(handler.baseFilename.split(os.sep)[:-1]) + os.sep + file_name
+        file_name = f'{sep}'.join(handler.baseFilename.split(sep)[:-1]) + sep + file_name
         handler_copy = TimedRotatingFileHandler(file_name,
                                                 when=handler.when,
                                                 backupCount=handler.backupCount,
