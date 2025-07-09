@@ -226,7 +226,7 @@ class RequestConnector(Connector, Thread):
                             "\n\nCannot find extension module for %s url.\nPlease check your configuration.\n",
                             endpoint["url"])
                 else:
-                    converter = JsonRequestUplinkConverter(endpoint, self._log)
+                    converter = JsonRequestUplinkConverter(endpoint, self._log, self)
                 self.__requests_in_progress.append({"config": endpoint,
                                                     "converter": converter,
                                                     "next_time": time(),
@@ -386,3 +386,46 @@ class RequestConnector(Connector, Thread):
 
     def get_config(self):
         return self.__config
+
+    def send_sub_request(self, mapping_config, sub_request_url):
+        url = ""
+        try:
+            sub_request_url = str("/" + sub_request_url) if sub_request_url[0] != "/" else sub_request_url
+            self._log.debug(sub_request_url)
+            url = self.__host + sub_request_url
+            self._log.debug(url)
+            request_timeout = mapping_config.get("timeout", 1)
+
+            params = {
+                "method": mapping_config.get("httpMethod", "GET"),
+                "url": url,
+                "timeout": request_timeout,
+                "allow_redirects": mapping_config.get("allowRedirects", False),
+                "verify": self.__ssl_verify,
+                "auth": self.__security,
+                "data": mapping_config.get("data", {}),
+            }
+            self._log.debug(url)
+            if mapping_config.get("httpHeaders") is not None:
+                params["headers"] = mapping_config["httpHeaders"]
+            self._log.debug("Request to %s will be sent with params: %s", url, params)
+            response = request(**params)
+
+            if response and response.ok:
+                try:
+                    return response.json()
+                except UnicodeDecodeError:
+                    return response.content
+                except JSONDecodeError:
+                    return response.content
+            else:
+                self._log.error("Request to URL: %s finished with code: %i", url, response.status_code)
+        except Timeout:
+            self._log.error("Timeout error on request %s.", url)
+        except RequestException as e:
+            self._log.error("Cannot connect to %s. Connection error.", url)
+            self._log.debug(e)
+        except ConnectionError:
+            self._log.error("Cannot connect to %s. Connection error.", url)
+        except Exception as e:
+            self._log.exception(e)
