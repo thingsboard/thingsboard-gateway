@@ -53,15 +53,15 @@ class JsonRequestDownlinkConverter(RequestConverter):
                     .replace("${deviceName}", data["device"])
                 }
 
-                result['url'] = TBUtility.replace_params_tags(result['url'], data)
+            result['url'] = TBUtility.replace_params_tags(result['url'], data)
 
-                data_tags = TBUtility.get_values(config.get('requestValueExpression'), data['data'], 'params',
-                                                 get_tag=True)
-                data_values = TBUtility.get_values(config.get('requestValueExpression'), data['data'], 'params',
-                                                   expression_instead_none=True)
+            data_tags = TBUtility.get_values(config.get('requestValueExpression'), data['data'], 'params',
+                                             get_tag=True)
+            data_values = TBUtility.get_values(config.get('requestValueExpression'), data['data'], 'params',
+                                               expression_instead_none=True)
 
-                for (tag, value) in zip(data_tags, data_values):
-                    result['data'] = result["data"].replace('${' + tag + '}', str(value))
+            for (tag, value) in zip(data_tags, data_values):
+                result['data'] = result["data"].replace('${' + tag + '}', str(value))
 
             return result
         except Exception as e:
