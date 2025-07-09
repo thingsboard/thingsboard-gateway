@@ -34,24 +34,24 @@ class JsonRESTDownlinkConverter(RESTConverter):
 
                 result = {
                     "url": self.__config["requestUrlExpression"]
-                        .replace("${attributeKey}", quote(attribute_key))
-                        .replace("${attributeValue}", quote(str(attribute_value)))
-                        .replace("${deviceName}", quote(data["device"])),
+                    .replace("${attributeKey}", quote(attribute_key))
+                    .replace("${attributeValue}", quote(str(attribute_value)))
+                    .replace("${deviceName}", quote(data["device"])),
                     "data": self.__config["valueExpression"]
-                        .replace("${attributeKey}", quote(attribute_key))
-                        .replace("${attributeValue}", quote(str(attribute_value)))
-                        .replace("${deviceName}", quote(data["device"]))}
+                    .replace("${attributeKey}", attribute_key)
+                    .replace("${attributeValue}", str(attribute_value))
+                    .replace("${deviceName}", data["device"])}
             else:
                 rest_id = str(data["data"]["id"])
                 method_name = data["data"]["method"]
 
                 result = {
                     "url": self.__config["requestUrlExpression"].replace("${restId}", rest_id)
-                        .replace("${methodName}", method_name)
-                        .replace("${deviceName}", quote(data["device"])),
+                    .replace("${methodName}", method_name)
+                    .replace("${deviceName}", quote(data["device"])),
                     "data": self.__config["valueExpression"].replace("${restId}", rest_id)
-                        .replace("${methodName}", method_name)
-                        .replace("${deviceName}", quote(data["device"]))
+                    .replace("${methodName}", method_name)
+                    .replace("${deviceName}", data["device"])
                 }
 
                 result['url'] = TBUtility.replace_params_tags(result['url'], data)
