@@ -12,7 +12,10 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+import ast
 from urllib.parse import quote
+
+from simplejson import dumps
 
 from thingsboard_gateway.connectors.request.request_converter import RequestConverter
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
@@ -63,6 +66,7 @@ class JsonRequestDownlinkConverter(RequestConverter):
             for (tag, value) in zip(data_tags, data_values):
                 result['data'] = result["data"].replace('${' + tag + '}', str(value))
 
+            result["data"] = dumps(ast.literal_eval(result["data"]))
             return result
         except Exception as e:
             self.__log.exception(e)
