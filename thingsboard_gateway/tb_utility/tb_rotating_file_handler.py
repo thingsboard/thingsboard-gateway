@@ -1,24 +1,24 @@
-import os
 import logging
-from re import compile
+import os
+import re
 from logging.handlers import TimedRotatingFileHandler as BaseTimedRotatingFileHandler
 from os import environ
 from pathlib import Path
 
 
 class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
-    DELIMITER_RE         = compile(r'[\s-]+')
-    CAMEL_BOUNDARY_RE    = compile(r'(?<=[a-z0-9])([A-Z])')
-    SPECIAL_CHAR_RE      = compile(r'[^A-Za-z0-9_]')
-    MULTI_UNDERSCORE_RE  = compile(r'_+')
+    DELIMITER_RE = re.compile(r'[\s-]+')
+    CAMEL_BOUNDARY_RE = re.compile(r'(?<=[a-z0-9])([A-Z])')
+    SPECIAL_CHAR_RE = re.compile(r'[^A-Za-z0-9_]')
+    MULTI_UNDERSCORE_RE = re.compile(r'_+')
 
     def __init__(self, filename, when='h', interval=1, backupCount=0,
-                 encoding=None, delay=False, utc=False):
+                 encoding=None, delay=False, utc=False, maxBytes=0):
         file_path = filename
         config_path = environ.get('TB_GW_LOGS_PATH')
         original_log_filename = file_path.split(os.sep)[-1]
 
-        final_filename = original_log_filename.replace('.log' ,'')
+        final_filename = original_log_filename.replace('.log', '')
         final_filename = TimedRotatingFileHandler.to_snake_case(final_filename)
         final_filename += '.log'
 
@@ -33,6 +33,30 @@ class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
 
         super().__init__(filename=file_path, when=when, interval=interval, backupCount=backupCount,
                          encoding=encoding, delay=delay, utc=utc)
+
+        self.maxBytes = maxBytes
+        if self.maxBytes > 0:
+            self.suffix = "%Y-%m-%d_%H-%M-%S"
+            self.extMatch = re.compile(r"(?<!\d)\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?!\d)", re.ASCII)
+
+    def shouldRolloverOnSize(self, record):
+        if self.stream is None:
+            return False
+
+        if self.maxBytes > 0:
+            pos = self.stream.tell()
+            if not pos:
+                return False
+            msg = "%s\n" % self.format(record)
+            if pos + len(msg) >= self.maxBytes:
+                if os.path.exists(self.baseFilename) and not os.path.isfile(self.baseFilename):
+                    return False
+                return True
+
+        return False
+
+    def shouldRollover(self, record):
+        return self.shouldRolloverOnSize(record) or super().shouldRollover(record)
 
     @staticmethod
     def get_connector_file_handler(file_name):
@@ -70,7 +94,8 @@ class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
                                                 interval=handler.interval,
                                                 encoding=handler.encoding,
                                                 delay=handler.delay,
-                                                utc=handler.utc)
+                                                utc=handler.utc,
+                                                maxBytes=handler.maxBytes)
         handler_copy.setFormatter(handler.formatter)
         return handler_copy
 

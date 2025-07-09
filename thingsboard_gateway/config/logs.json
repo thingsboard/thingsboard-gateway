@@ -29,6 +29,7 @@
       "backupCount": 7,
       "interval": 3,
       "when": "D",
+      "maxBytes": 0,
       "encoding": "utf-8"
     },
     "connectorHandler": {
@@ -38,6 +39,7 @@
       "backupCount": 7,
       "interval": 3,
       "when": "D",
+      "maxBytes": 0,
       "encoding": "utf-8"
     },
     "converterHandler": {
@@ -47,6 +49,7 @@
       "backupCount": 7,
       "interval": 3,
       "when": "D",
+      "maxBytes": 0,
       "encoding": "utf-8"
     },
     "tb_connectionHandler": {
@@ -56,6 +59,7 @@
       "backupCount": 7,
       "interval": 3,
       "when": "D",
+      "maxBytes": 0,
       "encoding": "utf-8"
     },
     "storageHandler": {
@@ -65,6 +69,7 @@
       "backupCount": 7,
       "interval": 3,
       "when": "D",
+      "maxBytes": 0,
       "encoding": "utf-8"
     },
     "extensionHandler": {
@@ -74,6 +79,7 @@
       "backupCount": 7,
       "interval": 3,
       "when": "D",
+      "maxBytes": 0,
       "encoding": "utf-8"
     }
   },
