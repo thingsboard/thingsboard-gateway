@@ -17,68 +17,68 @@ header: |
 category-template: '#### $TITLE'
 categories:
 
-  - title: '🐛 Core bug fixes'
+  - title: '🐛 Core:'
     labels:
       - 'core'
 
-  - title: '🐛 MQTT connector bug fixes'
+  - title: '🐛 MQTT connector:'
     labels:
       - 'Connector:MQTT'
 
-  - title: '🐛 Modbus connector bug fixes'
+  - title: '🐛 Modbus connector:'
     labels:
       - 'Connector:Modbus'
 
-  - title: '🐛 OPC-UA connector bug fixes'
+  - title: '🐛 OPC-UA connector:'
     labels:
       - 'Connector:OPC-UA'
 
-  - title: '🐛 BLE connector bug fixes'
+  - title: '🐛 BLE connector:'
     labels:
       - 'Connector:BLE'
 
-  - title: '🐛 BACnet connector bug fixes'
+  - title: '🐛 BACnet connector:'
     labels:
       - 'Connector:BACnet'
 
-  - title: '🐛 KNX connector bug fixes'
+  - title: '🐛 KNX connector:'
     labels:
       - 'Connector:KNX'
 
-  - title: '🐛 CAN connector bug fixes'
+  - title: '🐛 CAN connector:'
     labels:
       - 'Connector:CAN'
 
-  - title: '🐛 FTP connector bug fixes'
+  - title: '🐛 FTP connector:'
     labels:
       - 'Connector:FTP'
 
-  - title: '🐛 OCPP connector bug fixes'
+  - title: '🐛 OCPP connector:'
     labels:
       - 'Connector:OCPP'
 
-  - title: '🐛 ODBC connector bug fixes'
+  - title: '🐛 ODBC connector:'
     labels:
       - 'Connector:ODBC'
 
-  - title: '🐛 Request connector bug fixes'
+  - title: '🐛 Request connector:'
     labels:
       - 'Connector:Request'
 
-  - title: '🐛 REST connector bug fixes'
+  - title: '🐛 REST connector:'
     labels:
       - 'Connector:REST'
 
-  - title: '🐛 SNMP connector bug fixes'
+  - title: '🐛 SNMP connector:'
     labels:
       - 'Connector:SNMP'
 
-  - title: '🐛 Socket connector bug fixes'
+  - title: '🐛 Socket connector:'
     labels:
       - 'Connector:Socket'
 
-  - title: '🐛 XMPP connector bug fixes'
+  - title: '🐛 XMPP connector:'
     labels:
       - 'Connector:XMPP'
 
-  - title: '🐛 Other bug fixes'
+  - title: '🐛 Other:'
