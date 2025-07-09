@@ -299,7 +299,18 @@ class RequestConnector(Connector, Thread):
                 if not converter_queue.full():
                     config_converter_data = [url, request["converter"]]
                     try:
-                        config_converter_data.append(response.json())
+                        json_response = response.json()
+
+                        # Unpack data if dataUnpackExpression is defined in config
+                        # This allows to unpack JSON responses that have final data at a sub key on any level
+                        # {
+                        #   "device": [...]
+                        # }
+                        data_unpack_expression = request["config"].get("dataUnpackExpression")
+                        if data_unpack_expression:
+                            json_response = TBUtility.get_values(data_unpack_expression, json_response, expression_instead_none=True)
+
+                        config_converter_data.append(json_response)
                     except UnicodeDecodeError:
                         config_converter_data.append(response.content)
                     except JSONDecodeError:
