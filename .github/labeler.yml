@@ -1,0 +1,105 @@
+core:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/gateway/**
+          - thingsboard_gateway/storage/**
+          - thingsboard_gateway/tb_utility/**
+          - thingsboard_gateway/*.py
+
+bug:
+  - head-branch:
+      - '^fix/*'
+      - '^bug/*'
+      - '^hotfix/*'
+      - '^issue/*'
+      - '^bugfix/*'
+
+Connector:BACnet:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/bacnet/**
+          - thingsboard_gateway/extensions/bacnet/**
+
+Connector:BLE:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/ble/**
+          - thingsboard_gateway/extensions/ble/**
+
+Connector:CAN:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/can/**
+          - thingsboard_gateway/extensions/can/**
+
+Connector:FTP:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/ftp/**
+          - thingsboard_gateway/extensions/ftp/**
+
+Connector:KNX:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/knx/**
+          - thingsboard_gateway/extensions/knx/**
+
+Connector:Modbus:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/modbus/**
+          - thingsboard_gateway/extensions/modbus/**
+
+Connector:MQTT:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/mqtt/**
+          - thingsboard_gateway/extensions/mqtt/**
+
+Connector:OCPP:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/ocpp/**
+          - thingsboard_gateway/extensions/ocpp/**
+
+Connector:ODBC:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/odbc/**
+          - thingsboard_gateway/extensions/odbc/**
+
+Connector:OPC-UA:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/opcua/**
+          - thingsboard_gateway/extensions/opcua/**
+
+Connector:Request:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/request/**
+          - thingsboard_gateway/extensions/request/**
+
+Connector:REST:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/rest/**
+          - thingsboard_gateway/extensions/rest/**
+
+Connector:SNMP:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/snmp/**
+          - thingsboard_gateway/extensions/snmp/**
+
+Connector:Socket:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/socket/**
+          - thingsboard_gateway/extensions/socket/**
+
+Connector:XMPP:
+  - changed-files:
+      - any-glob-to-any-file:
+          - thingsboard_gateway/connectors/xmpp/**
+          - thingsboard_gateway/extensions/xmpp/**

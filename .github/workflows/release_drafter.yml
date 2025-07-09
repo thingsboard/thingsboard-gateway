@@ -1,34 +1,111 @@
-#     Copyright 2025. ThingsBoard
-#
-#     Licensed under the Apache License, Version 2.0 (the "License");
-#     you may not use this file except in compliance with the License.
-#     You may obtain a copy of the License at
-#
-#         http://www.apache.org/licenses/LICENSE-2.0
-#
-#     Unless required by applicable law or agreed to in writing, software
-#     distributed under the License is distributed on an "AS IS" BASIS,
-#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#     See the License for the specific language governing permissions and
-#     limitations under the License.
-
 name: Release Drafter
+
 on:
   push:
     branches:
       - master
+
 permissions:
   contents: read
+
 jobs:
   update_release_draft:
     permissions:
       contents: write
-      pull-requests: read
+      pull-requests: write
     runs-on: ubuntu-latest
+
     steps:
-      - uses: release-drafter/release-drafter@v6.1.0
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate main release draft using Release Drafter Action
+        uses: release-drafter/release-drafter@v6
         with:
           config-name: release.yml
-          disable-autolabeler: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch main draft body
+        run: |
+          echo "Fetching main draft body..."
+          gh api /repos/${{ github.repository }}/releases \
+            | jq -r '[.[] | select(.draft == true)][0].body' > main_draft.md
+
+          echo "---- MAIN DRAFT BEGIN ----"
+          cat main_draft.md
+          echo "---- MAIN DRAFT END ----"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Label PRs from main draft
+        run: |
+          echo "Extracting PR numbers from main draft..."
+          grep -oE '\(#([0-9]+)\)' main_draft.md | tr -d '()#' | sort -u > pr_list.txt || true
+          cat pr_list.txt
+
+          while read -r pr; do
+            echo "Labeling PR #$pr"
+            gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --add-label "Temp:IncludedInMainDraft"
+          done < pr_list.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate bugfixes draft using Release Drafter Action
+        uses: release-drafter/release-drafter@v6
+        with:
+          config-name: release_bugfixes.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch bugfixes draft body
+        run: |
+          echo "Fetching bugfixes draft body..."
+          gh api /repos/${{ github.repository }}/releases \
+            | jq -r '[.[] | select(.draft == true)][0].body' > bugfixes_draft.md
+
+          echo "---- BUGFIXES DRAFT BEGIN ----"
+          cat bugfixes_draft.md
+          echo "---- BUGFIXES DRAFT END ----"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch current draft tag name
+        id: fetch_tag
+        run: |
+          tag_name=$(gh api /repos/${{ github.repository }}/releases \
+            | jq -r '[.[] | select(.draft == true)][0].tag_name')
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge drafts and update release
+        run: |
+          echo "Merging main and bugfixes drafts..."
+          cat main_draft.md > draft_body.md
+          echo "" >> draft_body.md
+          cat bugfixes_draft.md >> draft_body.md
+
+          echo "---- MERGED DRAFT BEGIN ----"
+          cat draft_body.md
+          echo "---- MERGED DRAFT END ----"
+
+          echo "Updating draft: ${{ steps.fetch_tag.outputs.tag_name }}"
+          gh release edit "${{ steps.fetch_tag.outputs.tag_name }}" \
+            --draft --notes-file draft_body.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Remove temporary labels from PRs
+        if: always()
+        run: |
+          if [ -f pr_list.txt ]; then
+            while read -r pr; do
+              echo "Removing label from PR #$pr"
+              gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --remove-label "Temp:IncludedInMainDraft"
+            done < pr_list.txt
+          else
+            echo "No PRs to clean up"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,5 +1,7 @@
 exclude-labels:
   - 'Ignore for release'
+  - 'Temp:IncludedInMainDraft'
+include-labels:
   - 'bug'
 
 name-template: 'ThingsBoard IoT Gateway v$NEXT_PATCH_VERSION'
@@ -10,73 +12,73 @@ template: |
 change-template: '* $TITLE (#$NUMBER) @$AUTHOR'
 
 header: |
-  ## 🛠 Improvements
+  ## 🐛 Bug fixes
 
 category-template: '#### $TITLE'
 categories:
 
-  - title: '⚙️ Core improvements'
+  - title: '🐛 Core bug fixes'
     labels:
       - 'core'
 
-  - title: '🧩 MQTT connector improvements'
+  - title: '🐛 MQTT connector bug fixes'
     labels:
       - 'Connector:MQTT'
 
-  - title: '🧩 Modbus connector improvements'
+  - title: '🐛 Modbus connector bug fixes'
     labels:
       - 'Connector:Modbus'
 
-  - title: '🧩 OPC-UA connector improvements'
+  - title: '🐛 OPC-UA connector bug fixes'
     labels:
       - 'Connector:OPC-UA'
 
-  - title: '🧩 BLE connector improvements'
+  - title: '🐛 BLE connector bug fixes'
     labels:
       - 'Connector:BLE'
 
-  - title: '🧩 BACnet connector improvements'
+  - title: '🐛 BACnet connector bug fixes'
     labels:
       - 'Connector:BACnet'
 
-  - title: '🧩 KNX connector improvements'
+  - title: '🐛 KNX connector bug fixes'
     labels:
       - 'Connector:KNX'
 
-  - title: '🧩 CAN connector improvements'
+  - title: '🐛 CAN connector bug fixes'
     labels:
       - 'Connector:CAN'
 
-  - title: '🧩 FTP connector improvements'
+  - title: '🐛 FTP connector bug fixes'
     labels:
       - 'Connector:FTP'
 
-  - title: '🧩 OCPP connector improvements'
+  - title: '🐛 OCPP connector bug fixes'
     labels:
       - 'Connector:OCPP'
 
-  - title: '🧩 ODBC connector improvements'
+  - title: '🐛 ODBC connector bug fixes'
     labels:
       - 'Connector:ODBC'
 
-  - title: '🧩 Request connector improvements'
+  - title: '🐛 Request connector bug fixes'
     labels:
       - 'Connector:Request'
 
-  - title: '🧩 REST connector improvements'
+  - title: '🐛 REST connector bug fixes'
     labels:
       - 'Connector:REST'
 
-  - title: '🧩 SNMP connector improvements'
+  - title: '🐛 SNMP connector bug fixes'
     labels:
       - 'Connector:SNMP'
 
-  - title: '🧩 Socket connector improvements'
+  - title: '🐛 Socket connector bug fixes'
     labels:
       - 'Connector:Socket'
 
-  - title: '🧩 XMPP connector improvements'
+  - title: '🐛 XMPP connector bug fixes'
     labels:
       - 'Connector:XMPP'
 
-  - title: "Other improvements"
+  - title: '🐛 Other bug fixes'
