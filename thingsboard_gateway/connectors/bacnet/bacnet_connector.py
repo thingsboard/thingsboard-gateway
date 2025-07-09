@@ -41,7 +41,6 @@ from bacpypes3.pdu import Address, IPv4Address
 from thingsboard_gateway.connectors.bacnet.device import Device, Devices
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.application import Application
-from thingsboard_gateway.connectors.bacnet.foreign_application import ForeignApplication
 from thingsboard_gateway.connectors.bacnet.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from bacpypes3.primitivedata import Null
 
@@ -200,12 +199,13 @@ class AsyncBACnetConnector(Thread, Connector):
 
     async def __start(self):
         if self.__config.get('foreignDevice', {}).get('address', ''):
-            self.__application = ForeignApplication(DeviceObjectConfig(
-                self.__config['application']), self.__handle_indication, self.__log)
+            self.__application = Application(DeviceObjectConfig(
+                self.__config['application']), self.__handle_indication, self.__log,
+                is_foreign_application=True)
 
             foreign_device_address = IPv4Address(self.__config['foreignDevice']['address'])
             foreign_device_ttl = int(self.__config['foreignDevice']['ttl'])
-            self.__application.register_device(foreign_device_address, foreign_device_ttl)
+            self.__application.register_foreign_device(foreign_device_address, foreign_device_ttl)
         else:
             self.__application = Application(DeviceObjectConfig(
                 self.__config['application']), self.__handle_indication, self.__log)
@@ -234,6 +234,10 @@ class AsyncBACnetConnector(Thread, Connector):
 
                 device_address = apdu.pduSource.__str__()
                 self.__log.info('Received APDU, from %s, trying to find device...', device_address)
+
+                # Continue if APDU has no iAmDeviceIdentifier or it is None
+                if not hasattr(apdu, 'iAmDeviceIdentifier') or apdu.iAmDeviceIdentifier is None:
+                    continue
 
                 added_device = await self.__devices.get_device_by_id(apdu.iAmDeviceIdentifier[1])
                 if added_device is None:

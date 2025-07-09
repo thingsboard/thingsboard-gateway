@@ -14,9 +14,9 @@
 
 from asyncio import Queue, QueueEmpty, sleep
 from typing import List
-from bacpypes3.ipv4.app import NormalApplication as App
+from bacpypes3.ipv4.app import NormalApplication, ForeignApplication
 from bacpypes3.local.device import DeviceObject
-from bacpypes3.pdu import Address
+from bacpypes3.pdu import Address, IPv4Address
 from bacpypes3.primitivedata import ObjectIdentifier, Unsigned
 from bacpypes3.basetypes import PropertyIdentifier, ReadAccessSpecification
 from bacpypes3.vendor import get_vendor_info
@@ -38,13 +38,21 @@ from thingsboard_gateway.connectors.bacnet.application_service_access_point impo
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 
 
-class Application(App):
-    def __init__(self, device_object_config: DeviceObjectConfig, indication_callback, logger):
+class Application(NormalApplication, ForeignApplication):
+    def __init__(self, device_object_config: DeviceObjectConfig, indication_callback, logger, is_foreign_application: bool = False):
         self.__stopped = False
 
         self.__device_object_config = device_object_config
         self.__device_object = DeviceObject(**self.__device_object_config.device_object_config)
-        super().__init__(self.__device_object, Address(self.__device_object_config.address))
+
+        if not is_foreign_application:
+            NormalApplication.__init__(
+                self, self.__device_object, Address(self.__device_object_config.address)
+            )
+        else:
+            ForeignApplication.__init__(
+                self, self.__device_object, Address(self.__device_object_config.address)
+            )
 
         self.asap = ApplicationServiceAccessPoint(self.device_object, self.device_info_cache)
         bind(self, self.asap, self.nsap)
@@ -52,9 +60,25 @@ class Application(App):
         self.__log = logger
         self.__indication_callback = indication_callback
         self.__confirmation_queue = Queue(1_000_000)
+        self.__is_foreign_application = is_foreign_application
+
+    def register_foreign_device(self, address: IPv4Address, ttl: int) -> None:
+        if self.__is_foreign_application:
+            self.__log.debug(f"(register_foreign_device) Registering foreign device")
+            self.register(address, ttl)
+        else:
+            self.__log.error(f"(register_foreign_device) Registering foreign device not possible because application is no foreign application")
+
+    def unregister_foreign_device(self) -> None:
+        if self.__is_foreign_application:
+            self.__log.debug(f"(unregister_foreign_device) Unregistering foreign device")
+            self.unregister()
+        else:
+            self.__log.debug(f"(unregister_foreign_device) Unregistering foreign device not needed because application is no foreign application")
 
     def close(self):
         self.__stopped = True
+        self.unregister_foreign_device()
         super().close()
 
     async def indication(self, apdu) -> None:
