@@ -226,7 +226,7 @@ class RequestConnector(Connector, Thread):
                             "\n\nCannot find extension module for %s url.\nPlease check your configuration.\n",
                             endpoint["url"])
                 else:
-                    converter = JsonRequestUplinkConverter(endpoint, self._log, self)
+                    converter = JsonRequestUplinkConverter(endpoint, self._log)
                 self.__requests_in_progress.append({"config": endpoint,
                                                     "converter": converter,
                                                     "next_time": time(),
@@ -268,28 +268,7 @@ class RequestConnector(Connector, Thread):
                 else request_url_from_config
             )
             logger.debug("Obtained request url from config - %s ", request_url_from_config)
-            if not request_url_from_config.startswith("http"):
-                url = self.__host + request_url_from_config
-            else:
-                url = request_url_from_config
-            request_timeout = request["config"].get("timeout", 1)
-            params = {
-                "method": request["config"].get("httpMethod", "GET"),
-                "url": url,
-                "timeout": request_timeout,
-                "allow_redirects": request["config"].get("allowRedirects", False),
-                "verify": self.__ssl_verify,
-                "auth": self.__security,
-                "data": request["config"].get("data", {})
-            }
-            logger.debug("Full url request has been formed - %s", url)
-
-            if request["config"].get("httpHeaders") is not None:
-                params["headers"] = request["config"]["httpHeaders"]
-                if 'application/json' == request["config"]["httpHeaders"].get("Content-Type"):
-                    params['json'] = params.pop("data")
-            logger.debug("Request to %s will be sent", url)
-            response = request["request"](**params)
+            url, response = self.__execute_request(request, request_url_from_config, logger)
 
             if request.get('withResponse'):
                 converter_queue.put(response)
@@ -306,6 +285,9 @@ class RequestConnector(Connector, Thread):
                         config_converter_data.append(response.content)
 
                     if len(config_converter_data) == 3:
+                        # Process sub requests if defined in config
+                        if request["config"].get("subRequests"):
+                            self.__process_sub_requests(request, url, config_converter_data[2], logger)
                         self.__convert_data(config_converter_data)
             else:
                 logger.error("Request to URL: %s finished with code: %i", url, response.status_code)
@@ -318,6 +300,31 @@ class RequestConnector(Connector, Thread):
             logger.error("Cannot connect to %s. Connection error.", url)
         except Exception as e:
             logger.exception(e)
+
+    def __execute_request(self, request, request_url, logger):
+        url = self.__host + request_url if not request_url.lower().startswith("http") else request_url
+
+        request_timeout = request["config"].get("timeout", 1)
+        params = {
+            "method": request["config"].get("httpMethod", "GET"),
+            "url": url,
+            "timeout": request_timeout,
+            "allow_redirects": request["config"].get("allowRedirects", False),
+            "verify": self.__ssl_verify,
+            "auth": self.__security,
+            "data": request["config"].get("data", {})
+        }
+        logger.debug("Full url request has been formed - %s", url)
+
+        if request["config"].get("httpHeaders") is not None:
+            params["headers"] = request["config"]["httpHeaders"]
+            if 'application/json' == request["config"]["httpHeaders"].get("Content-Type"):
+                params['json'] = params.pop("data")
+
+        logger.debug("Request to %s will be sent", url)
+        response = request["request"](**params)
+
+        return url, response
 
     def __convert_data(self, data):
         try:
@@ -387,30 +394,47 @@ class RequestConnector(Connector, Thread):
     def get_config(self):
         return self.__config
 
-    def send_sub_request(self, mapping_config, sub_request_url):
+    def __process_sub_requests(self, request, url, data, logger):
+        datatypes = {"attributes": "attributes",
+                     "telemetry": "telemetry"}
+        data = data if isinstance(data, list) else [data]
+
+        for data_item in data:
+            for datatype in datatypes:
+                for datatype_object_config in request["config"]["converter"].get(datatype, []):
+                    # Check if a sub request for key is needed
+                    key = datatype_object_config.get("key")
+                    if key in request["config"].get("subRequests", {}):
+                        request_url_from_config = TBUtility.replace_params_tags(request["config"]["subRequests"][key]["url"],
+                                                                                {"data": data_item})
+
+                        if not request_url_from_config.lower().startswith("http"):
+                            if not request_url_from_config.startswith("/"):
+                                request_url_from_config = "/" + request_url_from_config
+                            request_url_from_config = url + request_url_from_config
+                        logger.debug("Sub request needed for key %s with url %s", key, request_url_from_config)
+
+                        response = self.__send_sub_request(request, request_url_from_config, logger)
+                        logger.debug("Sub request response: %s", response)
+
+                        # Only if a response is available, process it
+                        if response:
+                            result = response
+                            # Make processing function available if defined and call it
+                            processing_function = request["config"]["subRequests"][key].get("processingFunction")
+                            if processing_function:
+                                logger.trace("Processing sub request response with function:\n%s", processing_function)
+                                local_scope = {}
+                                exec(processing_function, {}, local_scope)
+                                result = local_scope["process_data"](response, key)
+                            # Update data with result of sub request
+                            data_item.update(result)
+                            logger.debug("Data after sub request processing: %s", data_item)
+
+    def __send_sub_request(self, request, sub_request_url, logger):
         url = ""
         try:
-            sub_request_url = str("/" + sub_request_url) if sub_request_url[0] != "/" else sub_request_url
-            self._log.debug(sub_request_url)
-            url = self.__host + sub_request_url
-            self._log.debug(url)
-            request_timeout = mapping_config.get("timeout", 1)
-
-            params = {
-                "method": mapping_config.get("httpMethod", "GET"),
-                "url": url,
-                "timeout": request_timeout,
-                "allow_redirects": mapping_config.get("allowRedirects", False),
-                "verify": self.__ssl_verify,
-                "auth": self.__security,
-                "data": mapping_config.get("data", {}),
-            }
-            self._log.debug(url)
-            if mapping_config.get("httpHeaders") is not None:
-                params["headers"] = mapping_config["httpHeaders"]
-            self._log.debug("Request to %s will be sent with params: %s", url, params)
-            response = request(**params)
-
+            url, response = self.__execute_request(request, sub_request_url, logger)
             if response and response.ok:
                 try:
                     return response.json()
@@ -419,13 +443,13 @@ class RequestConnector(Connector, Thread):
                 except JSONDecodeError:
                     return response.content
             else:
-                self._log.error("Request to URL: %s finished with code: %i", url, response.status_code)
+                logger.error("Request to URL: %s finished with code: %i", url, response.status_code)
         except Timeout:
-            self._log.error("Timeout error on request %s.", url)
+            logger.error("Timeout error on request %s.", url)
         except RequestException as e:
-            self._log.error("Cannot connect to %s. Connection error.", url)
-            self._log.debug(e)
+            logger.error("Cannot connect to %s. Connection error.", url)
+            logger.debug(e)
         except ConnectionError:
-            self._log.error("Cannot connect to %s. Connection error.", url)
+            logger.error("Cannot connect to %s. Connection error.", url)
         except Exception as e:
-            self._log.exception(e)
+            logger.exception(e)

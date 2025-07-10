@@ -26,12 +26,11 @@ from thingsboard_gateway.gateway.statistics.statistics_service import Statistics
 
 
 class JsonRequestUplinkConverter(RequestConverter):
-    def __init__(self, config, logger, connector):
+    def __init__(self, config, logger):
         self.__log = logger
         self.__config = config
         self.__datatypes = {"attributes": "attributes",
                             "telemetry": "telemetry"}
-        self.__connector = connector
 
     @CollectStatistics(start_stat_type='receivedBytesFromDevices',
                        end_stat_type='convertedBytesFromDevice')
@@ -87,35 +86,6 @@ class JsonRequestUplinkConverter(RequestConverter):
         try:
             for datatype in self.__datatypes:
                 for datatype_object_config in self.__config["converter"].get(datatype, []):
-                    # Check if a sub request is needed
-                    key = datatype_object_config.get("key")
-                    if key in self.__config["converter"].get("subRequests", {}):
-                        request_url_from_config = TBUtility.replace_params_tags(
-                            self.__config["converter"]["subRequests"][key]["url"], {"data": data})
-                        request_url_from_config = str("/" + request_url_from_config) if request_url_from_config[
-                                                                                            0] != "/" else request_url_from_config
-                        request_url_from_config = self.__config["url"] + request_url_from_config
-
-                        self.__log.debug("Sub request needed for key %s with url %s", key, request_url_from_config)
-
-                        response = self.__connector.send_sub_request(self.__config, request_url_from_config)
-                        self.__log.debug("Sub request response: %s", response)
-
-                        # Only if a response is available, process it
-                        if response:
-                            # Make processing function available, call it and update data
-                            processing_function = self.__config["converter"].get("subRequests").get(key).get(
-                                "processingFunction")
-                            if processing_function:
-                                self.__log.trace("Processing sub request response with function:\n%s",
-                                                 processing_function)
-                                local_scope = {}
-                                exec(processing_function, {}, local_scope)
-                                data.update(local_scope["process_data"](response, key))
-                                self.__log.debug("Sub request processed data: %s", data)
-                            else:
-                                data.update(response)
-
                     values = TBUtility.get_values(datatype_object_config["value"], data, datatype_object_config["type"],
                                                   expression_instead_none=True)
                     values_tags = TBUtility.get_values(datatype_object_config["value"], data,
