@@ -38,6 +38,7 @@ from thingsboard_gateway.connectors.ble.device import Device
 
 class BLEConnector(Connector, Thread):
     process_data = Queue(-1)
+    #Some change
 
     def __init__(self, gateway, config, connector_type):
         self.statistics = {'MessagesReceived': 0,
