@@ -224,7 +224,7 @@ class MqttConnector(Connector, Thread):
 
         if "caCert" in self.__broker["security"] \
                 or self.__broker["security"].get("type", "none").lower() == "certificates":
-            
+
             self.__log.debug("Connector connecting with certificates")
             ca_cert = self.__broker["security"].get("pathToCACert")
             private_key = self.__broker["security"].get("pathToPrivateKey")
@@ -817,7 +817,7 @@ class MqttConnector(Connector, Thread):
                         if match(attribute_update["attributeFilter"], attribute_key):
                             received_value = content["data"][attribute_key]
                             if isinstance(received_value, dict) or isinstance(received_value, list):
-                                received_value = orjson.dumps(received_value)
+                                received_value = orjson.dumps(received_value).decode('utf-8')
                             elif isinstance(received_value, bool):
                                 received_value = str(received_value).lower()
                             elif isinstance(received_value, float) or isinstance(received_value, int):
@@ -989,7 +989,6 @@ class MqttConnector(Connector, Thread):
                     for rpc_config in self.__server_side_rpc:
                         if search(rpc_config["deviceNameFilter"], content["device"]) \
                                 and search(rpc_config["methodFilter"], rpc_method) is not None:
-
                             return self.__process_rpc_request(content, rpc_config)
 
                     self.__log.error("RPC not handled: %s", content)
@@ -1015,7 +1014,6 @@ class MqttConnector(Connector, Thread):
 
     def get_converters(self):
         return [item[0] for _, item in self.__mapping_sub_topics.items()]
-
 
     def _send_current_converter_config(self, name, config):
         self.__gateway.send_attributes({name: config})
