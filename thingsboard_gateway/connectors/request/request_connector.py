@@ -308,7 +308,7 @@ class RequestConnector(Connector, Thread):
                         # }
                         data_unpack_expression = request["config"].get("dataUnpackExpression")
                         if data_unpack_expression:
-                            json_response = TBUtility.get_value(data_unpack_expression, json_response)
+                            json_response = TBUtility.get_value(data_unpack_expression, json_response, value_type="json")
 
                         config_converter_data.append(json_response)
                     except UnicodeDecodeError:
