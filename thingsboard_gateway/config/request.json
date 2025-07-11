@@ -20,6 +20,7 @@
       "allowRedirects": true,
       "timeout": 0.5,
       "scanPeriod": 5,
+      "dataUnpackExpression": "",
       "converter": {
         "type": "json",
         "deviceNameJsonExpression": "SD8500",
@@ -54,6 +55,7 @@
       "allowRedirects": true,
       "timeout": 0.5,
       "scanPeriod": 100,
+      "dataUnpackExpression": "",
       "converter": {
         "type": "custom",
         "deviceNameJsonExpression": "SD8500",
