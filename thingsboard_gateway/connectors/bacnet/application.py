@@ -237,7 +237,7 @@ class Application(NormalApplication, ForeignApplication):
                 object_id = object['objectId']
                 if not isinstance(object_id, ObjectIdentifier):
                     obj_str = f"{object['objectType']},{object_id}"
-                    object_id = ObjectIdentifier(obj_str)
+                    object_id = vendor_info.object_identifier(obj_str)
 
                 object_class = vendor_info.get_object_class(object_id[0])
                 if object_class is None:
@@ -249,7 +249,7 @@ class Application(NormalApplication, ForeignApplication):
                     object['propertyId'] = {object['propertyId']}
 
                 for prop in object['propertyId']:
-                    property_identifier = PropertyIdentifier(prop)
+                    property_identifier = vendor_info.property_identifier(prop)
 
                     properties.append(property_identifier)
 
