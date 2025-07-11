@@ -123,6 +123,61 @@
           }
         ]
       }
+    },
+    {
+      "url": "/devices",
+      "httpMethod": "GET",
+      "httpHeaders": {
+        "ACCEPT": "application/json"
+      },
+      "allowRedirects": true,
+      "timeout": 3.0,
+      "scanPeriod": 1800,
+      "subRequests": {
+        "cumPwr": {
+          "url": "/${id}/hist/values/ActiveEnergy/SUM13/3600?start=RELATIVE_-1HOUR&end=RELATIVE_-1HOUR&online=false&aggregate=false",
+          "processingFunction": "def process_data(data, key): return {key: float(data[\"values\"][0][\"avg\"])/1000.0}"
+        }
+      },
+      "converter": {
+        "type": "json",
+        "deviceNameJsonExpression": "${id}-${type}",
+        "deviceTypeJsonExpression": "GridVis",
+        "attributes": [
+          {
+            "key": "id",
+            "type": "int",
+            "value": "${id}"
+          },
+          {
+            "key": "type",
+            "type": "string",
+            "value": "${type}"
+          },
+          {
+            "key": "serialNr",
+            "type": "string",
+            "value": "${serialNr}"
+          },
+          {
+            "key": "name",
+            "type": "string",
+            "value": "${name}"
+          },
+          {
+            "key": "description",
+            "type": "string",
+            "value": "${description}"
+          }
+        ],
+        "telemetry": [
+          {
+            "key": "cumPwr",
+            "type": "float",
+            "value": "${cumPwr}"
+          }
+        ]
+      }
     }
   ],
   "attributeUpdates": [
