@@ -129,7 +129,7 @@
     {
       "httpMethod": "POST",
       "httpHeaders": {
-        "CONTENT-TYPE": "application/json"
+        "Content-Type": "application/json"
       },
       "timeout": 0.5,
       "tries": 3,
