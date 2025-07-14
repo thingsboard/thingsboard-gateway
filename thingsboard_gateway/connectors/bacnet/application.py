@@ -324,12 +324,12 @@ class Application(NormalApplication, ForeignApplication):
         result_list = []
 
         for read_access_result in tag_list.listOfReadAccessResults:
-            object_identifier = read_access_result.objectIdentifier
+            object_identifier = vendor_info.object_identifier(read_access_result.objectIdentifier)
             object_class = vendor_info.get_object_class(object_identifier[0])
 
             for read_access_result_element in read_access_result.listOfResults:
                 try:
-                    property_identifier = read_access_result_element.propertyIdentifier
+                    property_identifier = vendor_info.property_identifier(read_access_result_element.propertyIdentifier)
                     property_array_index = read_access_result_element.propertyArrayIndex
                     read_result = read_access_result_element.readResult
 
