@@ -172,8 +172,12 @@ class Device:
         device_identifier = apdu.iAmDeviceIdentifier[-1]
 
         for device_config in devices_config:
-            if Device.is_device_identifier_match(device_identifier, device_config.get('deviceId')):
-                return device_config
+            if device_config.get('deviceId'):
+                if Device.is_device_identifier_match(device_identifier, device_config.get('deviceId')):
+                    return device_config
+                else:
+                    continue
+
             if Device.is_address_match(apdu_address, device_config.get('address')):
                 return device_config
             elif apdu_address in device_config.get('altResponsesAddresses', []):
