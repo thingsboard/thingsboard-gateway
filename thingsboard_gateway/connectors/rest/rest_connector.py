@@ -429,6 +429,8 @@ class RESTConnector(Connector, Thread):
             response = None
             data_to_storage = []
             try:
+                if isinstance(params["data"], str):
+                    params["data"] = params["data"].encode("utf-8")
                 response = request_dict["request"](**params)
 
             except Timeout:
