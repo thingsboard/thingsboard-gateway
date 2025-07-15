@@ -706,7 +706,7 @@ class OpcUaConnector(Connector, Thread):
                         if sub_node.nodeid not in device.nodes_data_change_subscriptions:
                             continue
                         if device not in device_converted_data_map:
-                            device_converted_data_map[device] = ConvertedData(device_name=device.name, device_type=device.device_type)
+                            device_converted_data_map[device] = ConvertedData(device_name=device.name, device_type=device.device_profile)
 
                         nodes_configs = device.nodes_data_change_subscriptions[sub_node.nodeid]['nodes_configs']
                         nodes_values = [data.monitored_item.Value for _ in range(len(nodes_configs))]
@@ -756,13 +756,13 @@ class OpcUaConnector(Connector, Thread):
                 if device_name not in existing_devices:
                     for node in nodes:
                         converter = self.__load_converter(device_config)
-                        device_type = await self._get_device_info_by_pattern(
+                        device_profile = await self._get_device_info_by_pattern(
                             device_config.get('deviceInfo', {}).get('deviceProfileExpression', 'default'),
                             get_first=True)
-                        device_config = {**device_config, 'device_name': device_name, 'device_type': device_type}
+                        device_config = {**device_config, 'device_name': device_name, 'device_type': device_profile}
                         device_path = [node_path_node_object['path'] for node_path_node_object in node]
                         self.__device_nodes.append(
-                            Device(path=device_path, name=device_name, type=device_type, config=device_config,
+                            Device(path=device_path, name=device_name, device_profile=device_profile, config=device_config,
                                    converter=converter(device_config, self.__converter_log),
                                    converter_for_sub=converter(device_config,
                                                                self.__converter_log) if self.__enable_subscriptions else None,
