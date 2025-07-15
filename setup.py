@@ -34,7 +34,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     include_package_data=True,
-    python_requires=">=3.7",
+    python_requires=">=3.10",
     packages=['thingsboard_gateway', 'thingsboard_gateway.gateway',
               'thingsboard_gateway.gateway.entities',
               'thingsboard_gateway.gateway.proto', 'thingsboard_gateway.gateway.grpc_service',
