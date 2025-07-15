@@ -16,9 +16,10 @@ from os.path import dirname, getsize, exists
 from sqlite3 import DatabaseError, ProgrammingError, InterfaceError, OperationalError
 from time import sleep, monotonic, time
 from logging import getLogger
-from threading import Event, Thread
+from threading import Event, Thread, Lock
 from queue import Queue, Empty
 import datetime
+from typing import Callable
 
 from thingsboard_gateway.storage.sqlite.database_connector import DatabaseConnector
 from thingsboard_gateway.storage.sqlite.storage_settings import StorageSettings
@@ -34,13 +35,14 @@ class Database(Thread):
     """
 
     def __init__(
-        self,
-        settings: StorageSettings,
-        processing_queue: Queue,
-        logger,
-        stopped: Event,
-        should_read: bool = True,
-        should_write: bool = True,
+            self,
+            settings: StorageSettings,
+            processing_queue: Queue,
+            logger,
+            stopped: Event,
+            should_read: bool = True,
+            should_write: bool = True,
+            on_rotate_callback: Callable = None,
     ):
         self.__initialized = False
         self.__log = logger
@@ -49,10 +51,13 @@ class Database(Thread):
         self.daemon = True
         self.stopped = stopped
         self.database_stopped_event = Event()
+        self._rotation_lock = Lock()
         self.__should_read = should_read
         self.__should_write = should_write
         self.__reached_size_limit = False
         self.settings = settings
+        self.max_db_amount_reached = False
+        self._on_rotate_callback = on_rotate_callback
         self.directory = dirname(self.settings.data_file_path)
         self.db = DatabaseConnector(
             self.settings.data_file_path, self.__log, self.database_stopped_event
@@ -119,7 +124,6 @@ class Database(Thread):
                 remaining = sleep_time - (monotonic() - processing_started)
                 if remaining > 0 and self.process_queue.empty():
                     sleep(remaining)
-
                 if not self.__reached_size_limit:
                     now = monotonic()
                     if now - last_time >= interval:
@@ -134,9 +138,14 @@ class Database(Thread):
     def process_file_limit(self):
         if exists(self.db.data_file_path):
             try:
+
                 if getsize(self.db.data_file_path) >= float(self.settings.size_limit) * 1000000:
                     self.__reached_size_limit = True
+                    if self._on_rotate_callback and self.__should_write:
+                        with self._rotation_lock:
+                            self._on_rotate_callback()
                     return True
+
             except FileNotFoundError as e:
                 self.__reached_size_limit = True
                 self.__log.debug("File is not found it is likely you deleted it ")
@@ -146,10 +155,10 @@ class Database(Thread):
         try:
             cur_time = int(time() * 1000)
             if (
-                cur_time - self.__last_msg_check
-                >= self.__last_msg_check + self.settings.messages_ttl_check_in_hours
-                and not self.stopped.is_set()
-                and not self.database_stopped_event.is_set()
+                    cur_time - self.__last_msg_check
+                    >= self.__last_msg_check + self.settings.messages_ttl_check_in_hours
+                    and not self.stopped.is_set()
+                    and not self.database_stopped_event.is_set()
             ):
                 self.__last_msg_check = cur_time
                 self.delete_data_lte(self.settings.messages_ttl_in_days)
@@ -157,9 +166,9 @@ class Database(Thread):
                 batch = []
                 start_collecting = monotonic()
                 while (
-                    len(batch) < self.settings.batch_size
-                    and not self.stopped.is_set()
-                    and monotonic() - start_collecting < 0.1
+                        len(batch) < self.settings.batch_size
+                        and not self.stopped.is_set()
+                        and monotonic() - start_collecting < 0.1
                 ):
                     try:
                         batch.append((cur_time, self.process_queue.get_nowait()))

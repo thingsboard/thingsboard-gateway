@@ -67,6 +67,8 @@ class SQLiteEventStorage(EventStorage):
             stopped=self.stopped,
             should_read=False,
             should_write=True,
+            on_rotate_callback=self.on_write_database_callback
+
         )
         self.__write_database.start()
         self.__log.debug("Write DB thread started for %s", self.__write_database_name)
@@ -183,7 +185,7 @@ class SQLiteEventStorage(EventStorage):
             except Exception:
                 self.__log.debug("Unexpected error cleaning oversize DB")
             finally:
-                del self.__write_database
+                self.__write_database = None
         else:
             self.__log.trace("Oversize cleanup skipped (read==write)")
             self.__read_database.should_write = False
@@ -248,6 +250,7 @@ class SQLiteEventStorage(EventStorage):
         if not self.stopped.is_set():
             self.delete_data(self.delete_time_point)
             if not self.__read_database.database_has_records():
+
                 self.__read_database.process_file_limit()
                 if self.__read_database.reached_size_limit:
                     self.__rotate_read_database()
@@ -263,7 +266,8 @@ class SQLiteEventStorage(EventStorage):
                     self.__read_database.settings.data_file_path
             ):
                 self.__rotate_read_database()
-            if not data_from_storage and len(self._database_files) > 1 and not self.__read_database.database_has_records():
+            if not data_from_storage and len(
+                    self._database_files) > 1 and not self.__read_database.database_has_records():
                 self.__rotate_read_database()
             event_pack_messages = self.process_event_storage_data(
                 data_from_storage=data_from_storage,
@@ -373,6 +377,7 @@ class SQLiteEventStorage(EventStorage):
             stopped=self.stopped,
             should_read=False,
             should_write=True,
+            on_rotate_callback=self.on_write_database_callback,
         )
         self.__write_database.start()
         self.__log.debug(
@@ -380,25 +385,23 @@ class SQLiteEventStorage(EventStorage):
         )
         self._database_files.append(self.__write_database.settings.db_file_name)
 
+    def on_write_database_callback(self):
+        if self.__write_database.reached_size_limit and not len(self._database_files) >= self.__settings.max_db_amount:
+            self.__log.debug("Write DB %s reached limit",
+                             self.__write_database.settings.db_file_name, )
+            new_write_database_config = self.__prepare_new_db_configuration()
+            self.__cleanup_write_db_after_thread_termination()
+            self.__start_write_database(new_config=new_write_database_config)
+            return True
+
     def put(self, message):
         try:
 
             if self.__is_max_db_amount_reached:
                 return False
             if not self.stopped.is_set():
-                if (
-                        self.__write_database.reached_size_limit
-                        and self.__check_and_handle_max_db_count()
-                ):
+                if self.__write_database is None or self.__write_database.reached_size_limit and self.__check_and_handle_max_db_count():
                     return False
-                if self.__write_database.reached_size_limit:
-                    self.__log.debug(
-                        "Write DB %s reached limit",
-                        self.__write_database.settings.db_file_name,
-                    )
-                    new_write_database_config = self.__prepare_new_db_configuration()
-                    self.__cleanup_write_db_after_thread_termination()
-                    self.__start_write_database(new_config=new_write_database_config)
                 self.__log.trace("Queuing message: %r", message)
                 self.write_queue.put_nowait(message)
                 return True
@@ -406,8 +409,8 @@ class SQLiteEventStorage(EventStorage):
         except Full:
             self.__log.error("Storage queue full—dropped message")
             return False
-        except Exception:
-            self.__log.exception("Failed to put message")
+        except Exception as e:
+            self.__log.exception("Failed to put message, %s", e)
 
     def stop(self):
         self.stopped.set()
@@ -493,4 +496,3 @@ class SQLiteEventStorage(EventStorage):
 
     def update_logger(self):
         self.__log = getLogger("storage")
-
