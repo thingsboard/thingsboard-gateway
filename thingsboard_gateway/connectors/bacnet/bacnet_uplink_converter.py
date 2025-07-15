@@ -47,16 +47,16 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
 
                 converted_values = self.__convert_data(values_group)
                 if len(converted_values) > 0:
-                    data_key, unsed_values = self.__get_data_key_name(item_config['key'], converted_values)
+                    data_key, unused_values = self.__get_data_key_name(item_config['key'], converted_values)
 
-                    if len(unsed_values) == 1:
+                    if len(unused_values) == 1:
                         datapoint_key = TBUtility.convert_key_to_datapoint_key(data_key,
                                                                                device_report_strategy,
                                                                                item_config,
                                                                                self.__log)
-                        converted_data_append_methods[item_config['type']]({datapoint_key: round(unsed_values[0]['value'], 2) if isinstance(unsed_values[0]['value'], float) else str(unsed_values[0]['value'])})  # noqa
+                        converted_data_append_methods[item_config['type']]({datapoint_key: round(unused_values[0]['value'], 2) if isinstance(unused_values[0]['value'], float) else str(unused_values[0]['value'])})  # noqa
                     else:
-                        for item in unsed_values:
+                        for item in unused_values:
                             datapoint_key = TBUtility.convert_key_to_datapoint_key(f'{data_key}.{item["propName"]}',
                                                                                    device_report_strategy,
                                                                                    item_config,
