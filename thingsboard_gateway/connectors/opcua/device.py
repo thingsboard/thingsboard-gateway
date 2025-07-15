@@ -25,12 +25,13 @@ class Device:
     RELATIVE_PATH_PATTERN = re.compile(r"\${([A-Za-z0-9_.:\\\[\]\-()]+)}")
     NODE_ID_PATTERN = re.compile(r"(ns=\d+;[isgb]=[^}]+)")
 
-    def __init__(self, path, name, config, converter, converter_for_sub, device_node, logger):
+    def __init__(self, path, name, type, config, converter, converter_for_sub, device_node, logger):
         self._log = logger
         self.__configured_values_count = 0
         self.path = path
         self.device_node = device_node
         self.name = name
+        self.type = type
         self.config = config
         self.converter = converter
         self.converter_for_sub = converter_for_sub

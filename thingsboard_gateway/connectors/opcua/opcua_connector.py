@@ -706,7 +706,7 @@ class OpcUaConnector(Connector, Thread):
                         if sub_node.nodeid not in device.nodes_data_change_subscriptions:
                             continue
                         if device not in device_converted_data_map:
-                            device_converted_data_map[device] = ConvertedData(device_name=device.name)
+                            device_converted_data_map[device] = ConvertedData(device_name=device.name, device_type=device.device_type)
 
                         nodes_configs = device.nodes_data_change_subscriptions[sub_node.nodeid]['nodes_configs']
                         nodes_values = [data.monitored_item.Value for _ in range(len(nodes_configs))]
@@ -762,7 +762,7 @@ class OpcUaConnector(Connector, Thread):
                         device_config = {**device_config, 'device_name': device_name, 'device_type': device_type}
                         device_path = [node_path_node_object['path'] for node_path_node_object in node]
                         self.__device_nodes.append(
-                            Device(path=device_path, name=device_name, config=device_config,
+                            Device(path=device_path, name=device_name, type=device_type, config=device_config,
                                    converter=converter(device_config, self.__converter_log),
                                    converter_for_sub=converter(device_config,
                                                                self.__converter_log) if self.__enable_subscriptions else None,
