@@ -305,6 +305,9 @@ class Slave(Thread):
                 result = await self.available_functions[function_code](address=address, value=value,
                                                                        unit_id=self.unit_id)
             elif function_code in (15, 16):
+                if not isinstance(value, list):
+                    value = [value]
+
                 result = await self.available_functions[function_code](address=address, values=value,
                                                                        unit_id=self.unit_id)
             else:
