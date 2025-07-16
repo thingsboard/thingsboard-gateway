@@ -14,6 +14,35 @@
 
 from thingsboard_gateway.gateway.constants import *  # noqa
 
+
+class PymodbusDefaults:
+    TcpPort = 502
+    TlsPort = 802
+    UdpPort = 502
+    Backoff = 0.3
+    CloseCommOnError = False
+    HandleLocalEcho = False
+    Retries = 3
+    RetryOnEmpty = False
+    RetryOnInvalid = False
+    Timeout = 3
+    Reconnects = 0
+    TransactionId = 0
+    Strict = True
+    ProtocolId = 0
+    Slave = 0x00
+    Baudrate = 19200
+    Parity = "N"
+    Bytesize = 8
+    Stopbits = 1
+    ZeroMode = False
+    IgnoreMissingSlaves = False
+    ReadSize = 1024
+    BroadcastEnable = False
+    ReconnectDelay = 1000 * 60 * 5
+    Count = 1
+
+
 # Connector constants
 
 LAST_PREFIX = "last_"
@@ -59,14 +88,11 @@ METHOD_PARAMETER = "method"
 STOPBITS_PARAMETER = "stopbits"
 BYTESIZE_PARAMETER = "bytesize"
 PARITY_PARAMETER = "parity"
-STRICT_PARAMETER = "strict"
 TYPE_PARAMETER = "type"
 REPACK_PARAMETER = "repack"
 SERIAL_CONNECTION_TYPE_PARAMETER = "serial"
 
 RETRIES_PARAMETER = "retries"
-RETRY_ON_EMPTY_PARAMETER = "retryOnEmpty"
-RETRY_ON_INVALID_PARAMETER = "retryOnInvalid"
 
 PAYLOAD_PARAMETER = "payload"
 TAG_PARAMETER = "tag"

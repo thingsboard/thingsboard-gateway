@@ -20,8 +20,8 @@ class BytesUplinkConverterConfig:
         self.report_strategy = kwargs.get('reportStrategy')
         self.device_name = kwargs['deviceName']
         self.device_type = kwargs.get('deviceType', 'default')
-        self.byte_order = Endian.Big if kwargs.get('byteOrder', 'LITTLE').upper() == "BIG" else Endian.Little
-        self.word_order = Endian.Big if kwargs.get('wordOrder', 'LITTLE').upper() == "BIG" else Endian.Little
+        self.byte_order = Endian.BIG if kwargs.get('byteOrder', 'LITTLE').upper() == "BIG" else Endian.LITTLE
+        self.word_order = Endian.BIG if kwargs.get('wordOrder', 'LITTLE').upper() == "BIG" else Endian.LITTLE
         self.telemetry = kwargs.get('timeseries', [])
         self.attributes = kwargs.get('attributes', [])
 

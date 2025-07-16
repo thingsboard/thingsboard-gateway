@@ -57,8 +57,10 @@ class BytesModbusUplinkConverter(ModbusConverter):
                                                         self.__config.word_order)
 
                         if decoded_data is not None:
-                            datapoint_key = TBUtility.convert_key_to_datapoint_key(config['tag'], device_report_strategy,
-                                                                                   config, self._log)
+                            datapoint_key = TBUtility.convert_key_to_datapoint_key(config['tag'],
+                                                                                   device_report_strategy,
+                                                                                   config,
+                                                                                   self._log)
                             converted_data_append_methods[config_section]({datapoint_key: decoded_data})
 
             self._log.trace("Decoded data: %s", result)
@@ -97,14 +99,14 @@ class BytesModbusUplinkConverter(ModbusConverter):
         return decoded_data
 
     @staticmethod
-    def from_coils(coils, endian_order=Endian.Little, word_endian_order=Endian.Big):
+    def from_coils(coils, endian_order=Endian.LITTLE, word_endian_order=Endian.BIG):
         _is_wordorder = '_wordorder' in BinaryPayloadDecoder.fromCoils.__code__.co_varnames
         if _is_wordorder:
             try:
                 decoder = BinaryPayloadDecoder.fromCoils(coils, byteorder=endian_order,
-                                                         wordorder=word_endian_order)
+                                                         _wordorder=word_endian_order)
             except TypeError:
-                decoder = BinaryPayloadDecoder.fromCoils(coils, wordorder=word_endian_order)
+                decoder = BinaryPayloadDecoder.fromCoils(coils, _wordorder=word_endian_order)
         else:
             try:
                 decoder = BinaryPayloadDecoder.fromCoils(coils, byteorder=endian_order,
@@ -185,7 +187,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
         elif isinstance(decoded, list):
             if configuration.get('bit') is not None:
                 result_data = int(decoded[configuration['bit'] if
-                configuration['bit'] < len(decoded) else len(decoded) - 1])
+                                          configuration['bit'] < len(decoded) else len(decoded) - 1])
             else:
                 bitAsBoolean = configuration.get('bitTargetType', 'bool') == 'bool'
                 if objects_count == 1:
