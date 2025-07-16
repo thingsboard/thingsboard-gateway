@@ -56,7 +56,6 @@ class Database(Thread):
         self.__should_write = should_write
         self.__reached_size_limit = False
         self.settings = settings
-        self.max_db_amount_reached = False
         self._on_rotate_callback = on_rotate_callback
         self.directory = dirname(self.settings.data_file_path)
         self.db = DatabaseConnector(

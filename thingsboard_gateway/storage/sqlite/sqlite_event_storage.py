@@ -392,7 +392,6 @@ class SQLiteEventStorage(EventStorage):
             new_write_database_config = self.__prepare_new_db_configuration()
             self.__cleanup_write_db_after_thread_termination()
             self.__start_write_database(new_config=new_write_database_config)
-            return True
 
     def put(self, message):
         try:
