@@ -89,7 +89,7 @@ class ModbusUplinkMessagesTest(BaseTest):
 
         try:
             # trigger register 28 to restart the modbus server
-            client.write_register(28, 10, 2)
+            client.write_register(28, 10, slave=2)
         except ConnectionException:
             # will call pymodbus.exceptions.ConnectionException because of restarting the server
             pass
