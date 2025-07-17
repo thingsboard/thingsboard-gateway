@@ -18,20 +18,42 @@ from time import sleep, monotonic
 from typing import TYPE_CHECKING, Dict, Union
 
 from _asyncio import Future
-from pymodbus.constants import Defaults
 
+from thingsboard_gateway.connectors.modbus.constants import PymodbusDefaults
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.connectors.modbus.bytes_modbus_uplink_converter import BytesModbusUplinkConverter
-from thingsboard_gateway.connectors.modbus.constants import BAUDRATE_PARAMETER, BYTE_ORDER_PARAMETER, \
-    BYTESIZE_PARAMETER, CONNECT_ATTEMPT_COUNT_PARAMETER, CONNECT_ATTEMPT_TIME_MS_PARAMETER, HOST_PARAMETER, \
-    METHOD_PARAMETER, PARITY_PARAMETER, PORT_PARAMETER, REPACK_PARAMETER, RETRIES_PARAMETER, RETRY_ON_EMPTY_PARAMETER, \
-    RETRY_ON_INVALID_PARAMETER, RPC_SECTION, SERIAL_CONNECTION_TYPE_PARAMETER, STOPBITS_PARAMETER, STRICT_PARAMETER, \
-    TIMEOUT_PARAMETER, UNIT_ID_PARAMETER, WAIT_AFTER_FAILED_ATTEMPTS_MS_PARAMETER, WORD_ORDER_PARAMETER, \
-    DELAY_BETWEEN_REQUESTS_MS_PARAMETER, TAG_PARAMETER
+from thingsboard_gateway.connectors.modbus.constants import (
+    BAUDRATE_PARAMETER,
+    BYTE_ORDER_PARAMETER,
+    BYTESIZE_PARAMETER,
+    CONNECT_ATTEMPT_COUNT_PARAMETER,
+    CONNECT_ATTEMPT_TIME_MS_PARAMETER,
+    HOST_PARAMETER,
+    METHOD_PARAMETER,
+    PARITY_PARAMETER,
+    PORT_PARAMETER,
+    REPACK_PARAMETER,
+    RETRIES_PARAMETER,
+    RPC_SECTION,
+    SERIAL_CONNECTION_TYPE_PARAMETER,
+    STOPBITS_PARAMETER,
+    TIMEOUT_PARAMETER,
+    UNIT_ID_PARAMETER,
+    WAIT_AFTER_FAILED_ATTEMPTS_MS_PARAMETER,
+    WORD_ORDER_PARAMETER,
+    DELAY_BETWEEN_REQUESTS_MS_PARAMETER,
+    TAG_PARAMETER
+)
 from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
-from thingsboard_gateway.gateway.constants import DEVICE_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, TYPE_PARAMETER, \
-    UPLINK_PREFIX, CONVERTER_PARAMETER, DOWNLINK_PREFIX
+from thingsboard_gateway.gateway.constants import (
+    DEVICE_NAME_PARAMETER,
+    DEVICE_TYPE_PARAMETER,
+    TYPE_PARAMETER,
+    UPLINK_PREFIX,
+    CONVERTER_PARAMETER,
+    DOWNLINK_PREFIX
+)
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
@@ -63,20 +85,18 @@ class Slave(Thread):
         self.unit_id = config[UNIT_ID_PARAMETER]
         self.host = config.get(HOST_PARAMETER)
         self.port = config[PORT_PARAMETER]
-        self.method = config[METHOD_PARAMETER]
+        self.method = config[METHOD_PARAMETER].upper()
         self.tls = config.get('tls', {})
         self.timeout = config.get(TIMEOUT_PARAMETER, 30)
-        self.retry_on_empty = config.get(RETRY_ON_EMPTY_PARAMETER, False)
-        self.retry_on_invalid = config.get(RETRY_ON_INVALID_PARAMETER, False)
         self.retries = config.get(RETRIES_PARAMETER, 3)
         self.baudrate = config.get(BAUDRATE_PARAMETER, 19200)
-        self.stopbits = config.get(STOPBITS_PARAMETER, Defaults.Stopbits)
-        self.bytesize = config.get(BYTESIZE_PARAMETER, Defaults.Bytesize)
-        self.parity = config.get(PARITY_PARAMETER, Defaults.Parity)
-        self.strict = config.get(STRICT_PARAMETER, Defaults.Strict)
+        self.stopbits = config.get(STOPBITS_PARAMETER, PymodbusDefaults.Stopbits)
+        self.bytesize = config.get(BYTESIZE_PARAMETER, PymodbusDefaults.Bytesize)
+        self.parity = config.get(PARITY_PARAMETER, PymodbusDefaults.Parity)
         self.repack = config.get(REPACK_PARAMETER, False)
         self.word_order = config.get(WORD_ORDER_PARAMETER, 'LITTLE').upper()
         self.byte_order = config.get(BYTE_ORDER_PARAMETER, 'LITTLE').upper()
+        self.handle_local_echo = config.get('handleLocalEcho', False)
 
         self.attributes_updates_config = config.get('attributeUpdates', [])
         self.rpc_requests_config = config.get(RPC_SECTION, [])
@@ -112,20 +132,19 @@ class Slave(Thread):
         for attr_config in self.attributes_updates_config:
             self.shared_attributes_keys.append(attr_config[TAG_PARAMETER])
 
-        self.start()
-
     def __timer(self):
-        self.__send_callback(monotonic())
-        next_poll_time = monotonic() + self.poll_period
+        if self.__master is not None:
+            self.__send_callback(monotonic())
+            next_poll_time = monotonic() + self.poll_period
 
-        while not self.stopped and not self.connector.is_stopped():
-            current_time = monotonic()
-            if current_time >= next_poll_time:
-                self.__send_callback(current_time)
-                next_poll_time = current_time + self.poll_period
+            while not self.stopped and not self.connector.is_stopped():
+                current_time = monotonic()
+                if current_time >= next_poll_time:
+                    self.__send_callback(current_time)
+                    next_poll_time = current_time + self.poll_period
 
-            sleep_time = max(0.0, next_poll_time - monotonic())
-            sleep(sleep_time)
+                sleep_time = max(0.0, next_poll_time - monotonic())
+                sleep(sleep_time)
 
     def __send_callback(self, current_monotonic):
         self.last_polled_time = current_monotonic
@@ -223,8 +242,11 @@ class Slave(Thread):
 
     @master.setter
     def master(self, master):
-        self.__master = master
-        self.available_functions = self.__master.get_available_functions()
+        if master is not None:
+            self.__master = master
+            self.available_functions = self.__master.get_available_functions()
+        else:
+            self._log.warning('Master is not set for slave %s', self.device_name)
 
     async def read(self, function_code, address, objects_count):
         self._log.debug('Reading %s registers from address %s with function code %s', objects_count, address,
@@ -283,6 +305,9 @@ class Slave(Thread):
                 result = await self.available_functions[function_code](address=address, value=value,
                                                                        unit_id=self.unit_id)
             elif function_code in (15, 16):
+                if not isinstance(value, list):
+                    value = [value]
+
                 result = await self.available_functions[function_code](address=address, values=value,
                                                                        unit_id=self.unit_id)
             else:
