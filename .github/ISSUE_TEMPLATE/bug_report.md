@@ -3,7 +3,7 @@ name: Bug report
 about: Create a report to help us improve
 title: "[BUG]"
 labels: bug
-assignees: imbeacon, samson0v
+assignees: samson0v
 
 ---
 
