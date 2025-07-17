@@ -2,7 +2,7 @@ import asyncio
 import logging
 import unittest
 from os import path
-from time import sleep
+from time import sleep, monotonic
 from unittest.mock import Mock, patch
 
 from simplejson import load
@@ -32,6 +32,7 @@ from thingsboard_gateway.connectors.modbus.modbus_connector import AsyncModbusCo
 class ModbusConnectorTestsBase(BaseTest):
     CONFIG_PATH = path.join(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))),
                             "data" + path.sep + "modbus" + path.sep)
+    TIMEOUT = 8
 
     def setUp(self) -> None:
         super().setUp()
@@ -92,9 +93,20 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
 
         modbus_connector_results = []
         for item in attrs:
-            modbus_connector_results.append(asyncio.run(self.__get_available_functions()[4](address=item['address'],
-                                                        count=item['objectsCount'],
-                                                        unit_id=self.connector._AsyncModbusConnector__slaves[0].unit_id)).registers) # noqa
+            task = self.connector.loop.create_task(
+                self.__get_available_functions()[4](address=item['address'],
+                                                    count=item['objectsCount'],
+                                                    unit_id=self.connector._AsyncModbusConnector__slaves[0].unit_id)
+            )
+            task_started = monotonic()
+
+            while not task.done() and monotonic() - task_started < self.TIMEOUT:
+                sleep(.1)
+
+            if task.done():
+                modbus_connector_results.append(task.result().registers)
+            else:
+                modbus_connector_results.append(None)
 
         for ir, ir1 in zip(modbus_client_results, modbus_connector_results):
             self.assertEqual(ir, ir1)
@@ -109,9 +121,20 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
 
         modbus_connector_results = []
         for item in attrs:
-            modbus_connector_results.append(asyncio.run(self.__get_available_functions()[3](address=item['address'],
-                                                        count=item['objectsCount'],
-                                                        unit_id=self.connector._AsyncModbusConnector__slaves[0].unit_id)).registers) # noqa
+            task = self.connector.loop.create_task(
+                self.__get_available_functions()[3](address=item['address'],
+                                                    count=item['objectsCount'],
+                                                    unit_id=self.connector._AsyncModbusConnector__slaves[0].unit_id)
+            )
+            task_started = monotonic()
+
+            while not task.done() and monotonic() - task_started < self.TIMEOUT:
+                sleep(.1)
+
+            if task.done():
+                modbus_connector_results.append(task.result().registers)
+            else:
+                modbus_connector_results.append(None)
 
         for hr, hr1 in zip(modbus_client_results, modbus_connector_results):
             self.assertEqual(hr, hr1)
@@ -129,9 +152,21 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
 
         modbus_connector_results = []
         for item in attrs:
-            result = asyncio.run(self.__get_available_functions()[2](address=item['address'],
-                                                        count=item['objectsCount'],
-                                                        unit_id=self.connector._AsyncModbusConnector__slaves[0].unit_id)) # noqa
+            task = self.connector.loop.create_task(
+                self.__get_available_functions()[2](address=item['address'],
+                                                    count=item['objectsCount'],
+                                                    unit_id=self.connector._AsyncModbusConnector__slaves[0].unit_id)
+            )
+            task_started = monotonic()
+
+            while not task.done() and monotonic() - task_started < self.TIMEOUT:
+                sleep(.1)
+
+            if task.done():
+                result = task.result()
+            else:
+                result = None
+
             if not isinstance(result, ExceptionResponse):
                 modbus_connector_results.append(result.bits) # noqa
             else:
@@ -151,19 +186,26 @@ class ModbusReadRegisterTypesTests(ModbusConnectorTestsBase):
 
         modbus_connector_results = []
         for item in attrs:
-            rc = asyncio.run(self.__get_available_functions()[1](address=item['address'],
+            task = self.connector.loop.create_task(self.__get_available_functions()[1](address=item['address'],
                                                      count=item['objectsCount'],
-                                                     unit_id=self.connector._AsyncModbusConnector__slaves[0].unit_id)) # noqa
+                                                     unit_id=self.connector._AsyncModbusConnector__slaves[0].unit_id))
+            task_started = monotonic()
+            while not task.done() and monotonic() - task_started < self.TIMEOUT:
+                sleep(.1)
+
+            if task.done():
+                rc = task.result()
+            else:
+                rc = None
+
             if rc and hasattr(rc, 'bits'):
                 modbus_connector_results.append(rc.bits)
 
         for rc, rc1 in zip(modbus_client_results, modbus_connector_results):
             self.assertEqual(rc, rc1)
 
-
     def __get_available_functions(self):
         return self.connector._AsyncModbusConnector__slaves[0].available_functions # noqa
-
 
 
 class ModbusConnectorRpcTest(ModbusConnectorTestsBase):
