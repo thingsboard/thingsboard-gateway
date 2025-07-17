@@ -15,8 +15,8 @@
 from logging import getLogger
 from os import listdir, remove, removedirs, path
 from random import randint
-from threading import Event
-from time import sleep
+from threading import Event, Thread
+from time import sleep, time
 from unittest import TestCase
 from shutil import rmtree
 from thingsboard_gateway.storage.file.file_event_storage import FileEventStorage
@@ -152,8 +152,8 @@ class TestSQLiteEventStorageRotation(TestCase):
             "max_read_records_count": 1000,
             "size_limit": 0.025,
             "max_db_amount": 3,
-            "oversize_check_period": 1 / 6,
-            "writing_batch_size": 10000,
+            "oversize_check_period": 1 / 60,
+            "writing_batch_size": 1000,
         }
         self.settings = StorageSettings(self.config, enable_validation=False)
         self.stop_event = Event()
@@ -179,7 +179,8 @@ class TestSQLiteEventStorageRotation(TestCase):
     def _fill_storage(self, storage, count, delay=0.0):
 
         for i in range(count):
-            result = storage.put(str(i))
+            fat_msg = "X" * 32768
+            result = storage.put(f"{i}:{fat_msg}")
             self.assertTrue(result, f"put() failed at index {i}")
             if delay:
                 sleep(delay)
@@ -188,17 +189,19 @@ class TestSQLiteEventStorageRotation(TestCase):
         return sorted(f for f in listdir(self.directory) if f.endswith(".db"))
 
     def test_write_read_without_rotation(self):
-        self._fill_storage(self.sqlite_storage, 50)
+        self._fill_storage(self.sqlite_storage, 20)
+        fat_msg = "X" * 32768
         sleep(1)
         self.assertListEqual(self._db_files(), ["data.db"])
         all_messages = self._drain_storage(self.sqlite_storage)
-        self.assertEqual(len(all_messages), 50)
-        self.assertListEqual(all_messages, [str(i) for i in range(50)])
+        self.assertEqual(len(all_messages), 20)
+        self.assertListEqual(all_messages, [f"{i}:{fat_msg}" for i in range(20)])
 
         self.sqlite_storage.stop()
 
     def test_rotation_creates_new_db_and_reads_all_data(self):
-        DATA_RANGE = 1000
+        DATA_RANGE = 150
+        fat_msg = "X" * 32768
         self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.1)
         sleep(2.0)
 
@@ -207,35 +210,36 @@ class TestSQLiteEventStorageRotation(TestCase):
         self.assertLessEqual(len(dbs), self.config["max_db_amount"])
         all_messages = self._drain_storage(self.sqlite_storage)
         self.assertEqual(len(all_messages), DATA_RANGE)
-        self.assertListEqual(all_messages, [str(i) for i in range(DATA_RANGE)])
+        self.assertListEqual(all_messages, [f"{i}:{fat_msg}" for i in range(DATA_RANGE)])
 
         self.sqlite_storage.stop()
 
     def test_rotation_persists_across_restart(self):
-        DATA_RANGE = 1000
+        DATA_RANGE = 150
+        fat_msg = "X" * 32768
         self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.1)
         sleep(2.0)
         self.sqlite_storage.stop()
         storage2 = SQLiteEventStorage(self.settings, LOG, self.stop_event)
         all_messages = self._drain_storage(storage2)
         self.assertEqual(len(all_messages), DATA_RANGE)
-        self.assertListEqual(all_messages, [str(i) for i in range(DATA_RANGE)])
+        self.assertListEqual(all_messages, [f"{i}:{fat_msg}" for i in range(DATA_RANGE)])
         storage2.stop()
 
     def test_no_new_database_appear_after_max_db_amount_reached(self):
         messages_before_db_amount_reached = []
         put_results = []
-        for i in range(3000):
-            result = self.sqlite_storage.put(str(i))
+        for i in range(1800):
+            fat_msg = "X" * 32768
+            result = self.sqlite_storage.put(f"{i}:{fat_msg}")
 
             put_results.append(result)
             if not result:
                 break
-            messages_before_db_amount_reached.append(i)
+            messages_before_db_amount_reached.append(f"{i}:{fat_msg}")
             sleep(0.07)
         sleep(2.0)
         dbs = sorted(f for f in listdir(self.directory) if f.endswith(".db"))
-
         self.assertEqual(
             len(dbs),
             self.config["max_db_amount"],
@@ -249,8 +253,7 @@ class TestSQLiteEventStorageRotation(TestCase):
         all_messages = self._drain_storage(self.sqlite_storage)
         self.assertEqual(len(all_messages), len(messages_before_db_amount_reached))
         self.assertListEqual(
-            all_messages,
-            [str(i) for i in range(len(messages_before_db_amount_reached))],
+            all_messages, messages_before_db_amount_reached
         )
         self.sqlite_storage.stop()
 
@@ -259,13 +262,14 @@ class TestSQLiteEventStorageRotation(TestCase):
     ):
         messages_before_db_amount_reached = []
         put_results = []
-        for i in range(3000):
-            result = self.sqlite_storage.put(str(i))
+        for i in range(1800):
+            fat_msg = "X" * 32768
+            result = self.sqlite_storage.put(f"{i}:{fat_msg}")
 
             put_results.append(result)
             if not result:
                 break
-            messages_before_db_amount_reached.append(i)
+            messages_before_db_amount_reached.append(f"{i}:{fat_msg}")
             sleep(0.07)
         sleep(2.0)
         self.sqlite_storage.stop()
@@ -284,7 +288,6 @@ class TestSQLiteEventStorageRotation(TestCase):
         all_messages = list(self._drain_storage(storage2))
         self.assertEqual(len(all_messages), len(messages_before_db_amount_reached))
         self.assertListEqual(
-            all_messages,
-            [str(i) for i in range(len(messages_before_db_amount_reached))],
+            all_messages, messages_before_db_amount_reached
         )
         storage2.stop()
