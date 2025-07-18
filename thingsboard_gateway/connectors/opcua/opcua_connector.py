@@ -72,7 +72,6 @@ MESSAGE_SECURITY_MODES = {
 RPC_SET_SPLIT_PATTERNS = ["; ", ";=", "=", " "]
 
 
-
 class OpcUaConnector(Connector, Thread):
     def __init__(self, gateway: 'TBGatewayService', config, connector_type):
         self.statistics = {'MessagesReceived': 0,
@@ -104,7 +103,8 @@ class OpcUaConnector(Connector, Thread):
                 if report_strategy is not None:
                     self.__connector_report_strategy_config = ReportStrategyConfig(report_strategy)
             except ValueError as e:
-                self.__log.error('Error in report strategy configuration: %s, the gateway main strategy will be used.', e)
+                self.__log.error('Error in report strategy configuration: %s, the gateway main strategy will be used.',
+                                 e)
         if using_old_configuration_format:
             backward_compatibility_adapter = BackwardCompatibilityAdapter(self.__config, self.__log)
             self.__config = backward_compatibility_adapter.convert()
@@ -126,7 +126,8 @@ class OpcUaConnector(Connector, Thread):
         self.__sub_check_period_in_millis = max(self.__server_conf.get("subCheckPeriodInMillis", 100), 100)
         # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
         self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
-        self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200), 100) / 1000
+        self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200),
+                                                      100) / 1000
         self.__subscription_batch_size = self.__server_conf.get('subscriptionProcessBatchSize', 2000)
 
         self.__reconnect_retries_count = self.__server_conf.get('reconnectRetriesCount', 8)
@@ -241,8 +242,8 @@ class OpcUaConnector(Connector, Thread):
                         await self.__unsubscribe_from_node(device, node)
 
             if (device_name is None and device.subscription is not None
-                and self.__client.uaclient.protocol is not None
-                and self.__client.uaclient.protocol.state == 'open'):
+                    and self.__client.uaclient.protocol is not None
+                    and self.__client.uaclient.protocol.state == 'open'):
                 try:
                     await device.subscription.delete()
                 except AttributeError:
@@ -310,8 +311,10 @@ class OpcUaConnector(Connector, Thread):
                     if self.__stopped:
                         break
                     if self.__enable_subscriptions and self.__device_nodes:
-                        self.__log.debug("Subscriptions are enabled, client will reconnect, unsubscribe old subscriptions and subscribe to new nodes.")
-                        await self.retry_connect_with_backoff(self.__reconnect_retries_count, self.__reconnect_backoff_initial_delay,
+                        self.__log.debug(
+                            "Subscriptions are enabled, client will reconnect, unsubscribe old subscriptions and subscribe to new nodes.")
+                        await self.retry_connect_with_backoff(self.__reconnect_retries_count,
+                                                              self.__reconnect_backoff_initial_delay,
                                                               self.__reconnect_backoff_factor)
                         self.__last_contact_time = monotonic()
                         if not (self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open'):
@@ -329,7 +332,8 @@ class OpcUaConnector(Connector, Thread):
                     self.__client_recreation_required = False
 
                 if reconnect_required:
-                    await self.retry_connect_with_backoff(self.__reconnect_retries_count, self.__reconnect_backoff_initial_delay,
+                    await self.retry_connect_with_backoff(self.__reconnect_retries_count,
+                                                          self.__reconnect_backoff_initial_delay,
                                                           self.__reconnect_backoff_factor)
                     self.__last_contact_time = monotonic()
 
@@ -429,7 +433,7 @@ class OpcUaConnector(Connector, Thread):
         if last_contact_delta < self.__client.session_timeout / 1000 and self.__last_contact_time > 0:
             time_to_wait = self.__client.session_timeout / 1000 - last_contact_delta
             self.__log.info('Last contact was %.2f seconds ago, next connection try in %.2f seconds...',
-                             last_contact_delta, time_to_wait)
+                            last_contact_delta, time_to_wait)
             await asyncio.sleep(time_to_wait)
         delay = initial_delay
         for attempt in range(max_retries):
@@ -438,7 +442,8 @@ class OpcUaConnector(Connector, Thread):
             try:
                 return await self.__client.connect()
             except Exception as e:
-                base_time = self.__client.session_timeout / 1000 if (last_contact_delta > 0 and last_contact_delta < self.__client.session_timeout / 1000) else 0
+                base_time = self.__client.session_timeout / 1000 if (
+                        last_contact_delta > 0 and last_contact_delta < self.__client.session_timeout / 1000) else 0
                 time_to_wait = base_time / 1000 + delay
                 self.__log.error('Encountered error: %r. Next connection try in %i second(s)...', e, time_to_wait)
                 await asyncio.sleep(time_to_wait)
@@ -544,10 +549,11 @@ class OpcUaConnector(Connector, Thread):
         target_node_path = None
         if len(node_list_to_search) == 1:
             node_paths = [node['path'] if isinstance(node, dict) else node for node in nodes]
-            target_node_path = '.'.join(node_path.split(':')[-1] for node_path in node_paths) + '.' + node_list_to_search[0]
+            target_node_path = '.'.join(node_path.split(':')[-1] for node_path in node_paths) + '.' + \
+                               node_list_to_search[0]
             if target_node_path in self.__scanning_nodes_cache:
                 if self.__show_map:
-                        self.__log.debug('Found node in cache: %s', node_list_to_search[0])
+                    self.__log.debug('Found node in cache: %s', node_list_to_search[0])
                 final.append(self.__scanning_nodes_cache[target_node_path])
                 return final
 
@@ -561,14 +567,17 @@ class OpcUaConnector(Connector, Thread):
             child_node = await node.read_browse_name()
             if len(node_list_to_search) == 1:
                 node_paths = [node['path'] if isinstance(node, dict) else node for node in nodes]
-                current_node_path = '.'.join(node_path.split(':')[-1] for node_path in node_paths) + '.' + child_node.Name
+                current_node_path = '.'.join(
+                    node_path.split(':')[-1] for node_path in node_paths) + '.' + child_node.Name
                 if not current_node_path in self.__scanning_nodes_cache:
-                    self.__scanning_nodes_cache[current_node_path] = [*nodes, {'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
+                    self.__scanning_nodes_cache[current_node_path] = [*nodes, {
+                        'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
             if self.__show_map and path:
                 if children_nodes_count < 1000 or counter % 1000 == 0:
                     self.__log.info('Checking path: %s', path + '.' + f'{child_node.Name}')
 
-            if re.fullmatch(re.escape(node_list_to_search[0]), child_node.Name) or node_list_to_search[0].split(':')[-1] == child_node.Name:
+            if re.fullmatch(re.escape(node_list_to_search[0]), child_node.Name) or node_list_to_search[0].split(':')[
+                -1] == child_node.Name:
                 if self.__show_map:
                     self.__log.info('Found node: %s', child_node.Name)
                 new_nodes = [*nodes, {'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
@@ -578,8 +587,9 @@ class OpcUaConnector(Connector, Thread):
                         self.__log.debug('Found node: %s', child_node.Name)
                     return final
                 else:
-                    final.extend(await self.__find_nodes(node_list_to_search[1:], current_parent_node=node, nodes=new_nodes,
-                                                         path=path + '.' + f'{child_node.Name}'))
+                    final.extend(
+                        await self.__find_nodes(node_list_to_search[1:], current_parent_node=node, nodes=new_nodes,
+                                                path=path + '.' + f'{child_node.Name}'))
 
         return final
 
@@ -706,7 +716,8 @@ class OpcUaConnector(Connector, Thread):
                         if sub_node.nodeid not in device.nodes_data_change_subscriptions:
                             continue
                         if device not in device_converted_data_map:
-                            device_converted_data_map[device] = ConvertedData(device_name=device.name, device_type=device.device_profile)
+                            device_converted_data_map[device] = ConvertedData(device_name=device.name,
+                                                                              device_type=device.device_profile)
 
                         nodes_configs = device.nodes_data_change_subscriptions[sub_node.nodeid]['nodes_configs']
                         nodes_values = [data.monitored_item.Value for _ in range(len(nodes_configs))]
@@ -762,7 +773,8 @@ class OpcUaConnector(Connector, Thread):
                         device_config = {**device_config, 'device_name': device_name, 'device_type': device_profile}
                         device_path = [node_path_node_object['path'] for node_path_node_object in node]
                         self.__device_nodes.append(
-                            Device(path=device_path, name=device_name, device_profile=device_profile, config=device_config,
+                            Device(path=device_path, name=device_name, device_profile=device_profile,
+                                   config=device_config,
                                    converter=converter(device_config, self.__converter_log),
                                    converter_for_sub=converter(device_config,
                                                                self.__converter_log) if self.__enable_subscriptions else None,
@@ -813,16 +825,19 @@ class OpcUaConnector(Connector, Thread):
                                 try:
                                     node_report_strategy = ReportStrategyConfig(node_report_strategy)
                                 except ValueError as e:
-                                    self.__log.error('Error in report strategy configuration: %s, for key %s the device or connector report strategy will be used.', e, node['key'])
+                                    self.__log.error(
+                                        'Error in report strategy configuration: %s, for key %s the device or connector report strategy will be used.',
+                                        e, node['key'])
                                     node_report_strategy = self.__connector_report_strategy_config if device.report_strategy is None else device.report_strategy
                             elif device.report_strategy is not None:
                                 node_report_strategy = device.report_strategy
 
                         node_config = {"node": found_node, "key": node['key'],
-                                       "section": section, 'timestampLocation': node.get('timestampLocation', 'gateway')}
+                                       "section": section,
+                                       'timestampLocation': node.get('timestampLocation', 'gateway')}
                         if self.__gateway.get_report_strategy_service() is not None and node_report_strategy is not None:
                             node_config[REPORT_STRATEGY_PARAMETER] = node_report_strategy
-                            node_report_strategy = None # Cleaning for next iteration
+                            node_report_strategy = None  # Cleaning for next iteration
 
                         device.nodes.append(node_config)
 
@@ -845,7 +860,8 @@ class OpcUaConnector(Connector, Thread):
                                     }
                                     device.nodes_data_change_subscriptions[found_node.nodeid] = device_node_config
 
-                                device.nodes_data_change_subscriptions[found_node.nodeid]['nodes_configs'].append(node_config)
+                                device.nodes_data_change_subscriptions[found_node.nodeid]['nodes_configs'].append(
+                                    node_config)
 
                                 if device.subscription is None:
                                     device.subscription = await self.__client.create_subscription(
@@ -899,7 +915,8 @@ class OpcUaConnector(Connector, Thread):
                     else:
                         self.__log.debug('No new nodes to subscribe for device %s', device.name)
                 else:
-                    self.__log.debug('Subscriptions are disabled for device %s or device subscription is None', device.name)
+                    self.__log.debug('Subscriptions are disabled for device %s or device subscription is None',
+                                     device.name)
             except Exception as e:
                 self.__log.exception("Error loading nodes: %s", e)
                 raise e
@@ -918,16 +935,20 @@ class OpcUaConnector(Connector, Thread):
                 bad_results = list(filter(lambda r: not isinstance(r, int), subscription_result))
                 if bad_results:
                     reasons = [r.doc for r in bad_results]
-                    self.__log.error("Failed subscribing to nodes, server returned the following reasons: %r, nodes count with these problems - %r", set(reasons), len(reasons))
+                    self.__log.error(
+                        "Failed subscribing to nodes, server returned the following reasons: %r, nodes count with these problems - %r",
+                        set(reasons), len(reasons))
                     self.__log.trace("Failed nodes: %r", bad_results)
                 result.append(subscription_result)
                 successfully_processed = batch_len - len(bad_results)
                 total_successfully_subscribed += successfully_processed
                 total_failed_to_subscribe += len(bad_results)
                 if successfully_processed > 0:
-                    self.__log.info("Succesfully subscribed to batch number %i with %i nodes.", i // batch_size + 1, successfully_processed)
+                    self.__log.info("Succesfully subscribed to batch number %i with %i nodes.", i // batch_size + 1,
+                                    successfully_processed)
                 else:
-                    self.__log.warning("Failed to subscribe to batch number %i with %i nodes.", i // batch_size + 1, batch_len)
+                    self.__log.warning("Failed to subscribe to batch number %i with %i nodes.", i // batch_size + 1,
+                                       batch_len)
             except Exception as e:
                 self.__log.warning("Error subscribing to batch %i with %i : %r", i // batch_size + 1, batch_len, e)
                 # self.__log.error("%r", batch) # Uncomment to see the nodes that failed to subscribe
@@ -942,7 +963,6 @@ class OpcUaConnector(Connector, Thread):
         self.__log.debug('Received status change event: %s', status.Status.doc)
         if status.Status.is_bad():
             self.__client_recreation_required = True
-
 
     async def __poll_nodes(self):
         data_retrieving_started = int(time() * 1000)
@@ -981,7 +1001,7 @@ class OpcUaConnector(Connector, Thread):
             try:
                 values, received_ts, data_retrieving_started = self.__data_to_convert.get_nowait()
                 futures.append(self.__thread_pool_executor.submit(self.__convert_retrieved_data, values, received_ts,
-                                                            data_retrieving_started))
+                                                                  data_retrieving_started))
                 if len(futures) >= pack:
                     continue
             except Empty:
@@ -994,7 +1014,8 @@ class OpcUaConnector(Connector, Thread):
                 nodes_count = len(device.nodes)
                 device_values = values[converted_nodes_count:converted_nodes_count + nodes_count]
                 converted_nodes_count += nodes_count
-                converted_data: ConvertedData = self.__convert_device_data(device.converter, device.nodes, device_values)
+                converted_data: ConvertedData = self.__convert_device_data(device.converter, device.nodes,
+                                                                           device_values)
                 converted_data.add_to_metadata({
                     CONNECTOR_PARAMETER: self.get_name(),
                     RECEIVED_TS_PARAMETER: received_ts,
@@ -1005,7 +1026,7 @@ class OpcUaConnector(Connector, Thread):
                     self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
 
                     StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-                    #TODO: Should these counters be here, or on upper level?
+                    # TODO: Should these counters be here, or on upper level?
                     StatisticsService.count_connector_bytes(self.name, converted_data,
                                                             stat_parameter_name='connectorBytesReceived')
             self.__log.info('Converted data from %s nodes', converted_nodes_count)
@@ -1037,7 +1058,7 @@ class OpcUaConnector(Connector, Thread):
             return node_pattern, current_path
         except Exception as e:
             logger.error("determine_rpc_income_data failed for params=%r: %s",
-                   params, e)
+                         params, e)
 
     def find_full_node_path(self, params, device):
         try:
@@ -1063,6 +1084,48 @@ class OpcUaConnector(Connector, Thread):
 
         return None
 
+    def __resolve_node_id(self, payload: dict, device: Device):
+        for (key, value) in payload.get("data", {}).items():
+            for attr_spec in device.config.get("attributes_updates", []):
+                if attr_spec["key"] != key:
+                    self.__log.debug("Config key %s does not match %s", attr_spec["key"], key)
+                    continue
+
+                raw_path = TBUtility.get_value(attr_spec["value"], get_tag=True)
+                node_id = (
+                    NodeId.from_string(raw_path)
+                    if self.__is_node_identifier(raw_path)
+                    else self.find_full_node_path(raw_path, device)
+                )
+
+                return node_id, value
+
+        self.__log.error("No attribute mapping found for device %s", device.name)
+
+    def __write_node_value(self, node_id: NodeId, value) -> bool:
+        try:
+            result: dict[str, str] = {}
+            self.__loop.create_task(self.__write_value(node_id, value, result))
+
+            start_ts = monotonic()
+            while not result:
+                if monotonic() - start_ts:
+                    self.__log.error("Write to %s timed out after", node_id)
+                    return False
+                sleep(0.1)
+
+            if err := result.get("error"):
+                self.__log.error("Write error on %s: %s", node_id, err)
+                return False
+
+            self.__log.debug("Successfully wrote %s to %s", value, node_id)
+            return True
+
+        except Exception as exc:
+            self.__log.exception("Unexpected error during write: %s", exc)
+            self.__log.debug("Unexpected error during write: %s", exc_info=exc)
+            return False
+
     def on_attributes_update(self, content: Dict):
         self.__log.debug(content)
         try:
@@ -1070,30 +1133,12 @@ class OpcUaConnector(Connector, Thread):
             if device is None:
                 self.__log.error('Device %s not found for attributes update', content['device'])
                 return
+            node_id, value = self.__resolve_node_id(payload=content, device=device)
+            if isinstance(node_id, NodeId):
+                self.__write_node_value(node_id=node_id, value=value)
+                return
+            self.__log.error("Could not resolve path for device %s", device.name)
 
-            for (key, value) in content['data'].items():
-                for attr_update in device.config['attributes_updates']:
-                    if not attr_update['key'] == key:
-                        continue
-                    path_to_node = TBUtility.get_value(attr_update['value'], get_tag=True)
-                    if self.__is_node_identifier(path_to_node):
-                        node_id = NodeId.from_string(path_to_node)
-                    else:
-                        node_id = self.find_full_node_path(path_to_node, device)
-
-                    execution_result = {}
-                    self.__loop.create_task(self.__write_value(node_id, value, execution_result))
-                    writing_start = monotonic()
-                    while not execution_result:
-                        if monotonic() - writing_start > 1:
-                            self.__log.error('Writing timeout!')
-                            return
-                        sleep(.1)
-                    if execution_result.get('error'):
-                        self.__log.error('Error during processing shared attribute update: %s',
-                                         execution_result['error'])
-                        return
-                    return
         except Exception as e:
             self.__log.exception(e)
 
@@ -1164,7 +1209,8 @@ class OpcUaConnector(Connector, Thread):
                         self.__log.error('Not enough arguments. Expected min 2.')
                         self.__gateway.send_rpc_reply(device=content['device'],
                                                       req_id=content['data'].get('id'),
-                                                      content={"result": {"error": 'Not enough arguments. Expected min 2.'}})
+                                                      content={
+                                                          "result": {"error": 'Not enough arguments. Expected min 2.'}})
 
                     result = {}
                     if rpc_method == 'get':
@@ -1183,10 +1229,12 @@ class OpcUaConnector(Connector, Thread):
                             while not task.done():
                                 sleep(.2)
                         except IndexError as e:
-                            self.__log.error('Cannot determine value from incoming request. Supported format: set <node>=<value>')
+                            self.__log.error(
+                                'Cannot determine value from incoming request. Supported format: set <node>=<value>')
                             self.__gateway.send_rpc_reply(device=content['device'],
                                                           req_id=content['data'].get('id'),
-                                                          content={"result": {"error": 'Cannot determine value from incoming request. Supported format: set <node>=<value>'}})
+                                                          content={"result": {
+                                                              "error": 'Cannot determine value from incoming request. Supported format: set <node>=<value>'}})
                             return
 
                     self.__gateway.send_rpc_reply(device=content['device'],
