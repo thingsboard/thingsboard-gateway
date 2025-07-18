@@ -17,7 +17,7 @@ from asyncio import CancelledError
 from threading import Thread
 from time import monotonic, sleep
 
-from pymodbus.datastore import ModbusSparseDataBlock, ModbusServerContext, ModbusSlaveContext
+from pymodbus.datastore import ModbusSparseDataBlock, ModbusServerContext
 from pymodbus.device import ModbusDeviceIdentification
 from pymodbus.framer.base import FramerType
 from pymodbus.server import StartAsyncTcpServer, StartAsyncTlsServer, StartAsyncUdpServer, StartAsyncSerialServer
@@ -27,6 +27,7 @@ from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter impor
 from thingsboard_gateway.connectors.modbus.entities.bytes_downlink_converter_config import \
     BytesDownlinkConverterConfig
 from thingsboard_gateway.connectors.modbus.constants import PymodbusDefaults
+from thingsboard_gateway.connectors.modbus.entities.slave_context import SlaveContext
 from thingsboard_gateway.connectors.modbus.constants import (
     ADDRESS_PARAMETER,
     BYTE_ORDER_PARAMETER,
@@ -192,9 +193,9 @@ class Server(Thread):
             self.__log.error("No values to read from device %s", config.get(DEVICE_NAME_PARAMETER, 'Modbus Slave'))
             return
 
+        converter = BytesModbusDownlinkConverter({}, self.__log)
         for (key, value) in config.get('values').items():
             values = {}
-            converter = BytesModbusDownlinkConverter({}, self.__log)
             for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
                 for item in value.get(section, []):
                     try:
@@ -231,4 +232,4 @@ class Server(Thread):
             self.__log.info("%s - will be initialized without values",
                             config.get(DEVICE_NAME_PARAMETER, 'Modbus Slave'))
 
-        return ModbusServerContext(slaves=ModbusSlaveContext(**blocks), single=True)
+        return ModbusServerContext(slaves=SlaveContext(**blocks), single=True)
