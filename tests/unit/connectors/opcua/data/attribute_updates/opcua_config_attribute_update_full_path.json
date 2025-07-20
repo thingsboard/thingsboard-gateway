@@ -14,7 +14,7 @@
   "attributes_updates": [
     {
       "key": "Frequency",
-      "type": "identifier",
+      "type": "path",
       "value": "${Root\\.Objects\\.MyObject\\.Frequency}"
     }
   ],

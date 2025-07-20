@@ -1,0 +1,44 @@
+{
+  "attributes": [
+    {
+      "key": "Power",
+      "type": "path",
+      "value": "${Power}"
+    },
+    {
+      "key": "Frequency",
+      "type": "path",
+      "value": "${Frequency}"
+    }
+  ],
+  "attributes_updates": [
+    {
+      "key": "Frequency",
+      "type": "identifier",
+      "value": "${ns=13;i=2}"
+    }
+  ],
+  "deviceInfo": {
+    "deviceNameExpression": "OPCUA New Advanced Device",
+    "deviceNameExpressionSource": "path",
+    "deviceProfileExpression": "default",
+    "deviceProfileExpressionSource": "constant"
+  },
+  "deviceNodePattern": "Root\\.Objects\\.MyObject",
+  "deviceNodeSource": "path",
+  "device_name": "OPCUA New Advanced Device",
+  "device_type": "default",
+  "rpc_methods": [],
+  "timeseries": [
+    {
+      "key": "Humidity",
+      "type": "path",
+      "value": "${Humidity}"
+    },
+    {
+      "key": "Temperature",
+      "type": "path",
+      "value": "${Temperature}"
+    }
+  ]
+}
