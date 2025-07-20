@@ -12,32 +12,30 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from os import path
-from unittest.mock import MagicMock
-
-from simplejson import load
 import logging
-from asyncua import Node
+from asyncio import Future
 from asyncio import get_event_loop
-from unittest import mock, IsolatedAsyncioTestCase
+from os import path
+from unittest import IsolatedAsyncioTestCase
+from unittest.mock import MagicMock, patch
+
+from asyncua import Node
 from asyncua.ua import NodeId
+from simplejson import load
+
 from thingsboard_gateway.connectors.opcua.device import Device
 from thingsboard_gateway.connectors.opcua.opcua_connector import OpcUaConnector
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-
-ATTRIBUTE_REQUEST_CONTENT = {'data': {'Frequency': 5}, 'device': 'OPCUA New Advanced Device'}
 
 
 class OpcUAAttributeUpdatesTest(IsolatedAsyncioTestCase):
-    CONFIG_PATH = path.join(path.dirname(path.dirname(path.abspath(__file__))),
-                            'connectors' + path.sep + 'opcua' + path.sep + 'data' + path.sep)
+    CONFIG_PATH = path.join(path.dirname(path.abspath(__file__)), 'data')
 
     async def asyncSetUp(self):
         self.connector: OpcUaConnector = OpcUaConnector.__new__(OpcUaConnector)
         self.connector._OpcUaConnector__log = logging.getLogger('Opc test')
         self.connector._OpcUaConnector__loop = get_event_loop()
         self.connector._OpcUaConnector__device_nodes = []
-        self.fake_device = self.create_fake_device()
+        self.fake_device = self.create_fake_device('attribute_updates/opcua_config_attribute_update_full_path.json')
         self.connector._OpcUaConnector__device_nodes.append(self.fake_device)
 
     @staticmethod
@@ -56,15 +54,15 @@ class OpcUAAttributeUpdatesTest(IsolatedAsyncioTestCase):
         ]
         return device_node, child_nodes
 
-    def create_fake_device(self):
+    def create_fake_device(self, attribute_update_config_path):
         device_node, child_nodes = self.create_fake_nodes()
         device = Device(
             logger=self.connector._OpcUaConnector__log,
-            path=["Root", "Objects", "MyObject"],
+            path=['0:Objects', '2:MyObject'],
             device_node=device_node,
             name="OPCUA New Advanced Device",
             device_profile="default",
-            config=self.convert_json(self.CONFIG_PATH + 'attribute_updates/opcua-device-config.json'),
+            config=self.convert_json(path.join(self.CONFIG_PATH, attribute_update_config_path)),
             converter=None,
             converter_for_sub=None,
         )
@@ -78,7 +76,32 @@ class OpcUAAttributeUpdatesTest(IsolatedAsyncioTestCase):
             config = load(config_file)
         return config
 
-    def test_correctly_return_identifier_on_full_path(self):
-        pass
+    async def test_correctly_return_node_on_full_path(self):
+        fake_session = MagicMock()
+        expected_id = NodeId(2, 13)
+        payload = {"device": self.fake_device.name, "data": {"Frequency": 5}}
 
+        done_future = Future()
+        done_future.set_result(
+            [[{"node": Node(fake_session, expected_id), "path": "2:Frequency"}]]
+        )
+        with patch.object(
+                self.connector._OpcUaConnector__loop, "create_task", return_value=done_future
+        ) as create_task_mock:
+            node_id, value = self.connector._OpcUaConnector__resolve_node_id(
+                payload, self.fake_device
+            )
+        create_task_mock.assert_called_once()
+        self.assertEqual(node_id, expected_id)
+        self.assertEqual(value, 5)
 
+    async def test_correctly_return_node_on_identifier(self):
+        expected_id = NodeId(2, 13)
+        payload = {"device": self.fake_device.name, "data": {"Frequency": 5}}
+        self.fake_device = self.create_fake_device(
+            path.join(self.CONFIG_PATH, 'attribute_updates/opcua_config_attribute_update_identifier.json'))
+        node_id, value = self.connector._OpcUaConnector__resolve_node_id(
+            payload, self.fake_device
+        )
+        self.assertEqual(node_id, expected_id)
+        self.assertEqual(value, 5)
