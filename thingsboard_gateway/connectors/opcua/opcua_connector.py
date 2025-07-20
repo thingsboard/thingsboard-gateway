@@ -12,8 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 import asyncio
+import logging
 import re
 from asyncio.exceptions import CancelledError
 from concurrent.futures import ThreadPoolExecutor
@@ -23,6 +23,7 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic, time
 from typing import List, Dict, Union
+
 from cachetools import TTLCache
 
 from thingsboard_gateway.connectors.connector import Connector
@@ -1085,8 +1086,8 @@ class OpcUaConnector(Connector, Thread):
         return None
 
     def __resolve_node_id(self, payload: dict, device: Device):
-        for (key, value) in payload.get("data", {}).items():
-            for attr_spec in device.config.get("attributes_updates", []):
+        for (key, value) in payload["data"].items():
+            for attr_spec in device.config["attributes_updates"]:
                 if attr_spec["key"] != key:
                     self.__log.debug("Config key %s does not match %s", attr_spec["key"], key)
                     continue
@@ -1109,10 +1110,10 @@ class OpcUaConnector(Connector, Thread):
 
             start_ts = monotonic()
             while not result:
-                if monotonic() - start_ts:
+                if monotonic() - start_ts > 1:
                     self.__log.error("Write to %s timed out after", node_id)
-                    return False
-                sleep(0.1)
+                    return
+                sleep(.1)
 
             if err := result.get("error"):
                 self.__log.error("Write error on %s: %s", node_id, err)
