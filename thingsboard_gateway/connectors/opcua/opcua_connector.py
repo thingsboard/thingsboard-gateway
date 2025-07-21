@@ -1102,18 +1102,18 @@ class OpcUaConnector(Connector, Thread):
                 return node_id, value
 
         self.__log.error("No attribute mapping found for device %s", device.name)
+        node_id = None
+        value = None
+        return node_id, value
 
     def __write_node_value(self, node_id: NodeId, value) -> bool:
         try:
-            result: dict[str, str] = {}
-            self.__loop.create_task(self.__write_value(node_id, value, result))
+            write_task = self.__write_value(node_id, value)
+            task = self.__loop.create_task(write_task)
 
-            start_ts = monotonic()
-            while not result:
-                if monotonic() - start_ts > 1:
-                    self.__log.error("Write to %s timed out after", node_id)
-                    return
+            while not task.done():
                 sleep(.1)
+            result = task.result()
 
             if err := result.get("error"):
                 self.__log.error("Write error on %s: %s", node_id, err)
@@ -1225,10 +1225,12 @@ class OpcUaConnector(Connector, Thread):
                         try:
                             if value is None:
                                 value = args_list[2].split('=')[-1]
-                            task = self.__loop.create_task(self.__write_value(full_path, value, result))
+                            write_task = self.__write_value(full_path, value)
+                            task = self.__loop.create_task(write_task)
 
                             while not task.done():
                                 sleep(.2)
+                            result = task.result()
                         except IndexError as e:
                             self.__log.error(
                                 'Cannot determine value from incoming request. Supported format: set <node>=<value>')
@@ -1301,9 +1303,9 @@ class OpcUaConnector(Connector, Thread):
             self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
                                           {"result": {"error": str(e)}})
 
-    async def __write_value(self, path, value, result=None):
-        if result is None:
-            result = {}
+    async def __write_value(self, path, value):
+
+        result = {}
         try:
             var = path
             if isinstance(path, str):
@@ -1320,15 +1322,18 @@ class OpcUaConnector(Connector, Thread):
                 await var.write_value(data_value)
 
             result['value'] = value
+            return result
 
         except UaStringParsingError as e:
             error_response = f"Could not find identifier in string {path}"
             result['error'] = error_response
             self.__log.error(error_response)
+            return result
 
         except Exception as e:
             result['error'] = e.__str__()
             self.__log.error("Can not find node for provided path %s ", path)
+            return result
 
     async def __read_value(self, path, result=None):
         if result is None:
