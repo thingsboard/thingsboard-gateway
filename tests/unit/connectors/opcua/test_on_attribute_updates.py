@@ -18,9 +18,8 @@ from asyncio import get_event_loop
 from os import path
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import MagicMock, patch
-
 from asyncua import Node
-from asyncua.ua import NodeId
+from asyncua.ua import NodeId, UaError
 from simplejson import load
 
 from thingsboard_gateway.connectors.opcua.device import Device
@@ -38,18 +37,26 @@ class OpcUAAttributeUpdatesTest(IsolatedAsyncioTestCase):
         self.fake_device = self.create_fake_device('attribute_updates/opcua_config_attribute_update_full_path.json')
         self.connector._OpcUaConnector__device_nodes.append(self.fake_device)
 
+    async def asyncTearDown(self):
+        log = logging.getLogger('Opc test')
+        for handler in list(log.handlers):
+            log.removeHandler(handler)
+        self.fake_device = None
+        self.connector = None
+        await super().asyncTearDown()
+
     @staticmethod
     def create_fake_nodes():
         fake_session = MagicMock()
-        device_node = Node(fake_session, NodeId(2, 12))
+        device_node = Node(fake_session, NodeId(12, 2))
         child_nodes = [
-            {"key": "Power", "node": Node(fake_session, NodeId(2, 14)), "section": "attributes",
+            {"key": "Power", "node": Node(fake_session, NodeId(14, 2)), "section": "attributes",
              "timestampLocation": "gateway"},
-            {"key": "Frequency", "node": Node(fake_session, NodeId(2, 13)), "section": "attributes",
+            {"key": "Frequency", "node": Node(fake_session, NodeId(13, 2)), "section": "attributes",
              "timestampLocation": "gateway"},
-            {"key": "Humidity", "node": Node(fake_session, NodeId(2, 16)), "section": "timeseries",
+            {"key": "Humidity", "node": Node(fake_session, NodeId(16, 2)), "section": "timeseries",
              "timestampLocation": "gateway"},
-            {"key": "Temperature", "node": Node(fake_session, NodeId(2, 15)), "section": "timeseries",
+            {"key": "Temperature", "node": Node(fake_session, NodeId(15, 2)), "section": "timeseries",
              "timestampLocation": "gateway"},
         ]
         return device_node, child_nodes
@@ -78,7 +85,7 @@ class OpcUAAttributeUpdatesTest(IsolatedAsyncioTestCase):
 
     async def test_correctly_return_node_on_full_path(self):
         fake_session = MagicMock()
-        expected_id = NodeId(2, 13)
+        expected_id = NodeId(13, 2)
         payload = {"device": self.fake_device.name, "data": {"Frequency": 5}}
 
         done_future = Future()
@@ -96,7 +103,7 @@ class OpcUAAttributeUpdatesTest(IsolatedAsyncioTestCase):
         self.assertEqual(value, 5)
 
     async def test_correctly_return_node_on_identifier(self):
-        expected_id = NodeId(2, 13)
+        expected_id = NodeId(13, 2)
         payload = {"device": self.fake_device.name, "data": {"Frequency": 5}}
         self.fake_device = self.create_fake_device(
             path.join(self.CONFIG_PATH, 'attribute_updates/opcua_config_attribute_update_identifier.json'))
@@ -105,3 +112,62 @@ class OpcUAAttributeUpdatesTest(IsolatedAsyncioTestCase):
         )
         self.assertEqual(node_id, expected_id)
         self.assertEqual(value, 5)
+
+    async def test_returns_none_on_incorrect_attribute_update_key(self):
+        expected_id = None
+        payload = {"device": self.fake_device.name, "data": {"Frequencyy": 5}}
+        node_id, value = self.connector._OpcUaConnector__resolve_node_id(
+            payload, self.fake_device
+        )
+        self.assertEqual(node_id, expected_id)
+        self.assertEqual(value, None)
+
+    async def test_update_non_listed_attribute(self):
+        expected_id = None
+        payload = {"device": self.fake_device.name, "data": {"Power": 5}}
+        node_id, value = self.connector._OpcUaConnector__resolve_node_id(
+            payload, self.fake_device
+        )
+        self.assertEqual(node_id, expected_id)
+        self.assertEqual(value, None)
+
+    async def test_attribute_is_written(self):
+        node_id, value = NodeId(13, 2), 10
+        done = Future()
+        done.set_result({"value": value})
+
+        with patch.object(
+                self.connector._OpcUaConnector__loop, "create_task", return_value=done
+        ) as ct_mock:
+            result = self.connector._OpcUaConnector__write_node_value(node_id, value)
+
+        ct_mock.assert_called_once()
+        self.assertTrue(result)
+        self.assertEqual(done.result(), {"value": 10})
+
+    async def test_write_returns_error_dict(self):
+        node_id, value = None, 10
+        done = Future()
+        done.set_result({'error': "'NoneType' object has no attribute 'write_value'"})
+
+        with patch.object(
+                self.connector._OpcUaConnector__loop, "create_task", return_value=done,
+                side_effect=AttributeError("'NoneType' object has no attribute 'write_value'")
+        ):
+            result = self.connector._OpcUaConnector__write_node_value(node_id, value)
+
+        self.assertFalse(result)
+
+    async def test_write_fails_when_create_task_raises(self):
+        node_id, value = NodeId(99, 2), 7
+        done = Future()
+        done.set_result({'error': 'Failed to send request to OPC UA server'})
+
+        with patch.object(
+                self.connector._OpcUaConnector__loop, "create_task",
+                side_effect=UaError('Failed to send request to OPC UA server')
+        ) as ct_mock, patch("time.sleep", return_value=None):
+            result = self.connector._OpcUaConnector__write_node_value(node_id, value)
+
+        ct_mock.assert_called_once()
+        self.assertFalse(result)
