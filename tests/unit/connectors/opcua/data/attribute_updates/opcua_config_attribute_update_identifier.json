@@ -15,7 +15,7 @@
     {
       "key": "Frequency",
       "type": "identifier",
-      "value": "${ns=13;i=2}"
+      "value": "${ns=2;i=13}"
     }
   ],
   "deviceInfo": {
