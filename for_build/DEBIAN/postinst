@@ -11,30 +11,28 @@ done
 
 # Extract configuration files from configs.tar.gz if present
 if [ -f /etc/thingsboard-gateway/configs.tar.gz ]; then
-    if [ -d /etc/thingsboard-gateway/config ]; then
+    if [ ! -d /etc/thingsboard-gateway/config ]; then
+        echo "Postinst: Extracting configuration files from configs.tar.gz..."
+        tar -xzf /etc/thingsboard-gateway/configs.tar.gz -C /etc/thingsboard-gateway
+        rm -f /etc/thingsboard-gateway/configs.tar.gz
+    else
         echo "Postinst: Directory /etc/thingsboard-gateway/config exists. Creating backup as configs_backup.tar.gz..."
         tar -czf /etc/thingsboard-gateway/configs_backup.tar.gz -C /etc/thingsboard-gateway config
-        echo "Postinst: Removing existing /etc/thingsboard-gateway/config directory..."
-        rm -rf /etc/thingsboard-gateway/config
     fi
-    echo "Postinst: Extracting configuration files from configs.tar.gz..."
-    tar -xzf /etc/thingsboard-gateway/configs.tar.gz -C /etc/thingsboard-gateway
-    rm -f /etc/thingsboard-gateway/configs.tar.gz
 fi
 
 # Extract extensions archive into /var/lib/thingsboard_gateway/extensions
 if [ -f /var/lib/thingsboard_gateway/extensions.tar.gz ]; then
-    if [ -d /var/lib/thingsboard_gateway/extensions ]; then
+    if [ ! -d /var/lib/thingsboard_gateway/extensions ]; then
+        echo "Postinst: Extracting extensions from extensions.tar.gz..."
+        mkdir -p /var/lib/thingsboard_gateway/extensions
+        tar -xzf /var/lib/thingsboard_gateway/extensions.tar.gz -C /var/lib/thingsboard_gateway/extensions
+        rm -f /var/lib/thingsboard_gateway/extensions.tar.gz
+    else
         echo "Postinst: Directory /var/lib/thingsboard_gateway/extensions exists. Creating backup as extensions_backup.tar.gz..."
         tar -czf /var/lib/thingsboard_gateway/extensions_backup.tar.gz -C /var/lib/thingsboard_gateway extensions
         echo "Postinst: Removing existing /var/lib/thingsboard_gateway/extensions directory..."
-        rm -rf /var/lib/thingsboard_gateway/extensions
     fi
-    echo "Postinst: Extracting extensions from extensions.tar.gz..."
-    rm -rf /var/lib/thingsboard_gateway/extensions
-    mkdir -p /var/lib/thingsboard_gateway/extensions
-    tar -xzf /var/lib/thingsboard_gateway/extensions.tar.gz -C /var/lib/thingsboard_gateway/extensions
-    rm -f /var/lib/thingsboard_gateway/extensions.tar.gz
 fi
 
 VENV_PATH="/var/lib/thingsboard_gateway/venv"

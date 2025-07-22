@@ -62,28 +62,26 @@ fi
 
 # Extract extensions tarball into /var/lib/thingsboard_gateway
 if [ -f /var/lib/thingsboard_gateway/extensions.tar.gz ]; then
-    if [ -d /var/lib/thingsboard_gateway/extensions ]; then
+    if [ ! -d /var/lib/thingsboard_gateway/extensions ]; then
+        echo "Extracting extensions from extensions.tar.gz..."
+        mkdir -p /var/lib/thingsboard_gateway/extensions
+        tar -xzf /var/lib/thingsboard_gateway/extensions.tar.gz -C /var/lib/thingsboard_gateway/extensions
+        rm -f /var/lib/thingsboard_gateway/extensions.tar.gz
+    else
         echo "Directory /var/lib/thingsboard_gateway/extensions exists. Creating backup as extensions_backup.tar.gz..."
         tar -czf /var/lib/thingsboard_gateway/extensions_backup.tar.gz -C /var/lib/thingsboard_gateway extensions
-        echo "Removing existing /var/lib/thingsboard_gateway/extensions directory..."
-        rm -rf /var/lib/thingsboard_gateway/extensions
     fi
-    echo "Extracting extensions from extensions.tar.gz..."
-    rm -rf /var/lib/thingsboard_gateway/extensions
-    mkdir -p /var/lib/thingsboard_gateway/extensions
-    tar -xzf /var/lib/thingsboard_gateway/extensions.tar.gz -C /var/lib/thingsboard_gateway/extensions
 fi
 
 # Extract the configuration tarball into /etc/thingsboard-gateway.
 if [ -f /etc/thingsboard-gateway/configs.tar.gz ]; then
-    if [ -d /etc/thingsboard-gateway/config ]; then
+    if [ ! -d /etc/thingsboard-gateway/config ]; then
+        echo "Extracting configuration files from configs.tar.gz..."
+        tar -xzf /etc/thingsboard-gateway/configs.tar.gz -C /etc/thingsboard-gateway
+    else
         echo "Directory /etc/thingsboard-gateway/config exists. Creating backup as configs_backup.tar.gz..."
         tar -czf /etc/thingsboard-gateway/configs_backup.tar.gz -C /etc/thingsboard-gateway config
-        echo "Removing existing /etc/thingsboard-gateway/config directory..."
-        rm -rf /etc/thingsboard-gateway/config
     fi
-    echo "Extracting configuration files from configs.tar.gz..."
-    tar -xzf /etc/thingsboard-gateway/configs.tar.gz -C /etc/thingsboard-gateway
 fi
 
 echo "Setting ownership for directories..."
