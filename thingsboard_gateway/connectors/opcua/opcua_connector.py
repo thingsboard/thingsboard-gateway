@@ -25,6 +25,7 @@ from time import sleep, monotonic, time
 from typing import List, Dict, Union
 
 from cachetools import TTLCache
+from pyparsing import results
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
@@ -36,6 +37,7 @@ from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.connectors.opcua.entities.rpc_request import OpcUaRpcRequest, OpcUaRpcType
 
 try:
     import asyncua
@@ -1144,6 +1146,21 @@ class OpcUaConnector(Connector, Thread):
             self.__log.exception(e)
 
     def server_side_rpc_handler(self, content: Dict):
+
+        # self.__log.info('Received server side rpc request: %r', content)
+        # try:
+        #     response = None
+        #     rpc_request = OpcUaRpcRequest(content=content)
+        #     if rpc_request.rpc_type == OpcUaRpcType.CONNECTOR:
+        #         response = self.__process_connector_rpc_request(rpc_request=rpc_request)
+        #     elif rpc_request.rpc_type == OpcUaRpcType.DEVICE:
+        #         response = self.__process_device_rpc_request(rpc_request=rpc_request)
+        #     return response
+        #
+        # except Exception as e:
+        #     self.__log.error('Failed to process server side rpc request: %s', e)
+        #     return {'error': '%r' % e, 'success': False}
+
         try:
             if content.get('data') is None:
                 content['data'] = {'params': content['params'], 'method': content['method'], 'id': content['id']}
@@ -1157,7 +1174,6 @@ class OpcUaConnector(Connector, Thread):
                 (connector_type, rpc_method_name) = rpc_method.split('_')
                 if connector_type == self._connector_type:
                     rpc_method = rpc_method_name
-                    content['device'] = content['params'].split(' ')[0].split('=')[-1]
             except (ValueError, IndexError, AttributeError):
                 pass
 
@@ -1244,23 +1260,27 @@ class OpcUaConnector(Connector, Thread):
                                                   req_id=content['data'].get('id'),
                                                   content={"result": result})
                     self.__log.debug("RPC with method %s execution result is: %s", rpc_method, result)
+
+
                 else:
                     rpc_method_found = False
                     for rpc in device.config['rpc_methods']:
                         if rpc['method'] == content["data"]['method']:
-                            rpc_method_found = True
-                            arguments_from_config = rpc["arguments"]
+                            rpc_method_found = True  # Need to check for match
+                            arguments_from_config = rpc["arguments"]  # Here is a dict
                             arguments = content["data"].get("params") if content["data"].get(
-                                "params") is not None else arguments_from_config
+                                "params") is not None else [argument["value"] for argument in arguments_from_config]
+
+                            # Here is a list
                             method_name = content['data']['method']
 
                             try:
-                                result = {}
                                 task = self.__loop.create_task(
-                                    self.__call_method(device.path, method_name, arguments, result))
+                                    self.__call_method(device.path, method_name, arguments))
 
                                 while not task.done():
                                     sleep(.2)
+                                result = task.result()
 
                                 self.__log.debug("RPC with method %s execution result is: %s", rpc['method'], result)
                                 self.__gateway.send_rpc_reply(content["device"],
@@ -1273,21 +1293,25 @@ class OpcUaConnector(Connector, Thread):
                     if not rpc_method_found:
                         self.__log.error("Method %s not found for device %s", rpc_method, content["device"])
                         self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+
                                                       {"result": {"error": "%s - Method not found" % rpc_method}})
             else:
                 results = []
                 for device in self.__device_nodes:
                     content['device'] = device.name
-
-                    arguments = content['data']['params']["arguments"]
+                    arguments_section = content['data']['params']["arguments"]
+                    arguments = []
+                    for argument in arguments_section:
+                        arguments.append(argument['value'])
 
                     try:
-                        result = {}
                         task = self.__loop.create_task(
-                            self.__call_method(device.path, rpc_method, arguments, result))
+                            self.__call_method(device.path, rpc_method, arguments))
 
                         while not task.done():
                             sleep(.2)
+
+                        result = task.result()
 
                         results.append(result)
                         self.__log.debug("RPC with method %s execution result is: %s", rpc_method, result)
@@ -1302,6 +1326,92 @@ class OpcUaConnector(Connector, Thread):
             self.__log.debug("Error during RPC request handling: ", exc_info=e)
             self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
                                           {"result": {"error": str(e)}})
+
+    def __process_connector_rpc_request(self, rpc_request: OpcUaRpcRequest):
+        self.__log.debug("Received RPC to connector: %r", rpc_request)
+        results = []
+        for device in self.__device_nodes:
+            rpc_request.device = device.name
+            try:
+                task = self.__loop.create_task(
+                    self.__call_method(device.path, rpc_request.rpc_method, rpc_request.arguments))
+
+                while not task.done():
+                    sleep(.2)
+
+                result = task.result()
+
+                results.append(result)
+                self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
+            except Exception as e:
+                self.__log.exception(e)
+                self.__gateway.send_rpc_reply(rpc_request.device, rpc_request.id,
+                                              {"result": {"error": str(e)}})
+        return results
+
+    def __process_device_rpc_request(self, rpc_request: OpcUaRpcRequest):
+        device = self.__get_device_by_name(rpc_request.device_name)
+        if device is None:
+            self.__log.error('Device %s not found for RPC request', rpc_request.device_name)
+            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
+                                          req_id=rpc_request.id,
+                                          content={"result": {"error": 'Device not found'}})
+            return
+        device_arguments = device.get_device_rpc_arguments(device_config=device.config, rpc_request=rpc_request)
+        if not device_arguments:
+            self.__log.error("Method %s not found for device %s", rpc_request.rpc_method, rpc_request.device_name)
+            self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id,
+
+                                          {"result": {"error": "%s - Method not found" % rpc_request.rpc_method}})
+            return
+        rpc_request.arguments = device_arguments
+
+        try:
+            task = self.__loop.create_task(
+                self.__call_method(device.path, rpc_request.rpc_method, rpc_request.arguments))
+
+            while not task.done():
+                sleep(.2)
+
+            result = task.result()
+
+            self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
+            self.__gateway.send_rpc_reply(rpc_request.device_name,
+                                          rpc_request.id,
+                                          {"result": result})
+            return result
+
+        except Exception as e:
+            self.__log.exception(e)
+            self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id,
+                                          {"result": {"error": str(e)}})
+
+    def __process_reserved_rpc_request(self, rpc_request: OpcUaRpcRequest):
+        device = self.__get_device_by_name(rpc_request.device_name)
+        if device is None:
+            self.__log.error('Device %s not found for RPC request', rpc_request.device_name)
+            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
+                                          req_id=rpc_request.id,
+                                          content={"result": {"error": 'Device not found'}})
+            return
+
+        if not self.__is_node_identifier(rpc_request.params):
+            node_by_key = device.get_node_by_key(rpc_request.params)
+            if node_by_key is None:
+                pass
+
+
+
+
+
+
+
+
+
+
+
+    async def __process_rpc_request(self):
+        pass
 
     async def __write_value(self, path, value):
 
@@ -1351,15 +1461,17 @@ class OpcUaConnector(Connector, Thread):
             result['error'] = e.__str__()
             self.__log.error("Can not find node for provided path %s ", path)
 
-    async def __call_method(self, path, method_name, arguments, result=None):
-        if result is None:
-            result = {}
+    async def __call_method(self, path, method_name, arguments):
+
+        result = {}
         try:
             var = await self.__client.nodes.root.get_child(path)
             method_id = '{}:{}'.format(var.nodeid.NamespaceIndex, method_name)
             result['result'] = await var.call_method(method_id, *arguments)
+            return result
         except Exception as e:
             result['error'] = e.__str__()
+            return result
 
     async def __fetch_server_limitations(self):
         """Fetch and apply limitations from OPC-UA server capabilities."""

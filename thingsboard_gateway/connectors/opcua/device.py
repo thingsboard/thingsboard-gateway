@@ -18,6 +18,7 @@ from asyncua.common.subscription import Subscription
 
 from thingsboard_gateway.gateway.constants import REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
+from thingsboard_gateway.connectors.opcua.entities.rpc_request import OpcUaRpcRequest
 
 
 class Device:
@@ -123,3 +124,28 @@ class Device:
         except KeyError:
             return None
 
+    def get_device_rpc_arguments(self, device_config: dict, rpc_request: OpcUaRpcRequest) -> list | None:
+        try:
+            for rpc in device_config['rpc_methods']:
+                try:
+                    if rpc['method'] == rpc_request.rpc_method:
+                        arguments_from_config = rpc.get('arguments', [])
+
+                        arguments = rpc_request.params if rpc_request.params is not None else [argument['value'] for
+                                                                                               argument in
+                                                                                               arguments_from_config if
+                                                                                               argument.get('value')]
+                        return arguments
+                except KeyError as e:
+                    self._log.error("The requested method name %s does not match with config %s",
+                                    rpc_request.rpc_method,
+                                    str(e))
+                    self._log.debug("The requested method name %s does not match with config", exc_info=e)
+                    return None
+
+
+
+        except KeyError:
+            self._log.warning('Rpc methods section is not specified')
+
+        return None
