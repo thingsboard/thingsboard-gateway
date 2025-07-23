@@ -29,7 +29,8 @@ install -m 644 %{SOURCE0} %{buildroot}/etc/systemd/system/thingsboard-gateway.se
 
 # Install the configuration tarball.
 mkdir -p %{buildroot}/etc/thingsboard-gateway
-install -m 755 %{SOURCE1} %{buildroot}/etc/thingsboard-gateway/
+mkdir -p %{buildroot}/etc/thingsboard-gateway/config
+tar -xzf %{SOURCE1} -C %{buildroot}/etc/thingsboard-gateway
 
 # Install the wheel file into /var/lib/thingsboard_gateway.
 mkdir -p %{buildroot}/var/lib/thingsboard_gateway
@@ -97,14 +98,17 @@ rm -rf %{buildroot}
 
 %files
 %attr(0644,thingsboard_gateway,thingsboard_gateway) /etc/systemd/system/thingsboard-gateway.service
-%attr(0755,thingsboard_gateway,thingsboard_gateway) /etc/thingsboard-gateway
+%dir %attr(0755,thingsboard_gateway,thingsboard_gateway) /etc/thingsboard-gateway
+%config(noreplace) %attr(0644,thingsboard_gateway,thingsboard_gateway) /etc/thingsboard-gateway/config/*
 %attr(0755,thingsboard_gateway,thingsboard_gateway) /var/lib/thingsboard_gateway
 %attr(0755,thingsboard_gateway,thingsboard_gateway) /var/log/thingsboard-gateway
 
-
 %postun
-systemctl stop thingsboard-gateway
-userdel thingsboard_gateway
-rm -rf /var/lib/thingsboard_gateway
-rm -rf /var/log/thingsboard-gateway
-rm -rf /etc/thingsboard-gateway
+if [ "$1" = 0 ]; then
+    echo "Cleaning up..."
+    systemctl stop thingsboard-gateway
+    userdel thingsboard_gateway
+    rm -rf /var/lib/thingsboard_gateway
+    rm -rf /var/log/thingsboard-gateway
+    rm -rf /etc/thingsboard-gateway
+fi
