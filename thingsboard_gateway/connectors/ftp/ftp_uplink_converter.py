@@ -71,6 +71,7 @@ class FTPUplinkConverter(FTPConverter):
             arr = data.split(self.__config.get('delimiter',';'))
             for data_type in self.__data_types:
                 ts = None
+                old_ts = None
                 if data_type == 'timeseries':
                     ts = self._retrieve_ts_for_sliced_or_table(self.__config[data_type], arr, config['headers'])
                     old_ts = ts
