@@ -25,6 +25,7 @@ from time import sleep, monotonic, time
 from typing import List, Dict, Union
 
 from cachetools import TTLCache
+from jinja2.runtime import identity
 from pyparsing import results
 
 from thingsboard_gateway.connectors.connector import Connector
@@ -1147,185 +1148,22 @@ class OpcUaConnector(Connector, Thread):
 
     def server_side_rpc_handler(self, content: Dict):
 
-        # self.__log.info('Received server side rpc request: %r', content)
-        # try:
-        #     response = None
-        #     rpc_request = OpcUaRpcRequest(content=content)
-        #     if rpc_request.rpc_type == OpcUaRpcType.CONNECTOR:
-        #         response = self.__process_connector_rpc_request(rpc_request=rpc_request)
-        #     elif rpc_request.rpc_type == OpcUaRpcType.DEVICE:
-        #         response = self.__process_device_rpc_request(rpc_request=rpc_request)
-        #     return response
-        #
-        # except Exception as e:
-        #     self.__log.error('Failed to process server side rpc request: %s', e)
-        #     return {'error': '%r' % e, 'success': False}
-
+        self.__log.info('Received server side rpc request: %r', content)
         try:
-            if content.get('data') is None:
-                content['data'] = {'params': content['params'], 'method': content['method'], 'id': content['id']}
+            response = None
+            rpc_request = OpcUaRpcRequest(content=content)
+            if rpc_request.rpc_type == OpcUaRpcType.CONNECTOR:
+                response = self.__process_connector_rpc_request(rpc_request=rpc_request)
+            elif rpc_request.rpc_type == OpcUaRpcType.DEVICE:
+                response = self.__process_device_rpc_request(rpc_request=rpc_request)
 
-            rpc_method = content["data"].get("method")
+            elif rpc_request.rpc_type == OpcUaRpcType.RESERVED:
+                response = self.__process_reserved_rpc_request(rpc_request=rpc_request)
+            return response
 
-            self.__log.debug('Received RPC request with method %s', rpc_method)
-
-            # check if RPC type is connector RPC (can be only 'get' or 'set')
-            try:
-                (connector_type, rpc_method_name) = rpc_method.split('_')
-                if connector_type == self._connector_type:
-                    rpc_method = rpc_method_name
-            except (ValueError, IndexError, AttributeError):
-                pass
-
-            if content.get('device'):
-                device = self.__get_device_by_name(content['device'])
-                if device is None:
-                    self.__log.error('Device %s not found for RPC request', content['device'])
-                    self.__gateway.send_rpc_reply(device=content['device'],
-                                                  req_id=content['data'].get('id'),
-                                                  content={"result": {"error": 'Device not found'}})
-                    return
-
-                # Check is a service method
-                if rpc_method == 'set' or rpc_method == 'get':
-                    full_path = ''
-                    args_list = []
-                    params = content['data']['params']
-                    value = None
-
-                    try:
-                        args_list = params.split(';')
-                        if not self.__is_node_identifier(params):
-                            found = False
-                            for pattern in RPC_SET_SPLIT_PATTERNS:
-                                if pattern in params:
-                                    args_list = params.split(pattern)
-                                    part_for_search, value = args_list
-                                    found = True
-                                    break
-                            if not found:
-                                part_for_search = params
-                        else:
-                            part_for_search = params
-
-                        node_by_key = device.get_node_by_key(part_for_search)
-
-                        if self.__is_node_identifier(part_for_search):
-                            # Node identifier
-                            full_path = ';'.join(
-                                [item for item in (args_list[0:-1] if rpc_method == 'set' else args_list)])
-                        elif node_by_key is not None:
-                            full_path = node_by_key
-                        else:
-                            full_path = self.find_full_node_path(params=part_for_search, device=device)
-
-                        if not full_path:
-                            full_path = part_for_search.split(".")[-1]
-
-                    except IndexError:
-                        self.__log.error('Not enough arguments. Expected min 2.')
-                        self.__gateway.send_rpc_reply(device=content['device'],
-                                                      req_id=content['data'].get('id'),
-                                                      content={
-                                                          "result": {"error": 'Not enough arguments. Expected min 2.'}})
-
-                    result = {}
-                    if rpc_method == 'get':
-
-                        argument = self.__read_value(full_path, result)
-                        task = self.__loop.create_task(argument)
-
-                        while not task.done():
-                            sleep(.2)
-                    elif rpc_method == 'set':
-                        try:
-                            if value is None:
-                                value = args_list[2].split('=')[-1]
-                            write_task = self.__write_value(full_path, value)
-                            task = self.__loop.create_task(write_task)
-
-                            while not task.done():
-                                sleep(.2)
-                            result = task.result()
-                        except IndexError as e:
-                            self.__log.error(
-                                'Cannot determine value from incoming request. Supported format: set <node>=<value>')
-                            self.__gateway.send_rpc_reply(device=content['device'],
-                                                          req_id=content['data'].get('id'),
-                                                          content={"result": {
-                                                              "error": 'Cannot determine value from incoming request. Supported format: set <node>=<value>'}})
-                            return
-
-                    self.__gateway.send_rpc_reply(device=content['device'],
-                                                  req_id=content['data'].get('id'),
-                                                  content={"result": result})
-                    self.__log.debug("RPC with method %s execution result is: %s", rpc_method, result)
-
-
-                else:
-                    rpc_method_found = False
-                    for rpc in device.config['rpc_methods']:
-                        if rpc['method'] == content["data"]['method']:
-                            rpc_method_found = True  # Need to check for match
-                            arguments_from_config = rpc["arguments"]  # Here is a dict
-                            arguments = content["data"].get("params") if content["data"].get(
-                                "params") is not None else [argument["value"] for argument in arguments_from_config]
-
-                            # Here is a list
-                            method_name = content['data']['method']
-
-                            try:
-                                task = self.__loop.create_task(
-                                    self.__call_method(device.path, method_name, arguments))
-
-                                while not task.done():
-                                    sleep(.2)
-                                result = task.result()
-
-                                self.__log.debug("RPC with method %s execution result is: %s", rpc['method'], result)
-                                self.__gateway.send_rpc_reply(content["device"],
-                                                              content["data"]["id"],
-                                                              {"result": result})
-                            except Exception as e:
-                                self.__log.exception(e)
-                                self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                              {"result": {"error": str(e)}})
-                    if not rpc_method_found:
-                        self.__log.error("Method %s not found for device %s", rpc_method, content["device"])
-                        self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-
-                                                      {"result": {"error": "%s - Method not found" % rpc_method}})
-            else:
-                results = []
-                for device in self.__device_nodes:
-                    content['device'] = device.name
-                    arguments_section = content['data']['params']["arguments"]
-                    arguments = []
-                    for argument in arguments_section:
-                        arguments.append(argument['value'])
-
-                    try:
-                        task = self.__loop.create_task(
-                            self.__call_method(device.path, rpc_method, arguments))
-
-                        while not task.done():
-                            sleep(.2)
-
-                        result = task.result()
-
-                        results.append(result)
-                        self.__log.debug("RPC with method %s execution result is: %s", rpc_method, result)
-                    except Exception as e:
-                        self.__log.exception(e)
-                        self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                      {"result": {"error": str(e)}})
-
-                return results
         except Exception as e:
-            self.__log.error("Error during RPC request handling: %s", e)
-            self.__log.debug("Error during RPC request handling: ", exc_info=e)
-            self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                          {"result": {"error": str(e)}})
+            self.__log.error('Failed to process server side rpc request: %s', e)
+            return {'error': '%r' % e, 'success': False}
 
     def __process_connector_rpc_request(self, rpc_request: OpcUaRpcRequest):
         self.__log.debug("Received RPC to connector: %r", rpc_request)
@@ -1387,6 +1225,7 @@ class OpcUaConnector(Connector, Thread):
                                           {"result": {"error": str(e)}})
 
     def __process_reserved_rpc_request(self, rpc_request: OpcUaRpcRequest):
+        identifier = ''
         device = self.__get_device_by_name(rpc_request.device_name)
         if device is None:
             self.__log.error('Device %s not found for RPC request', rpc_request.device_name)
@@ -1395,23 +1234,56 @@ class OpcUaConnector(Connector, Thread):
                                           content={"result": {"error": 'Device not found'}})
             return
 
-        if not self.__is_node_identifier(rpc_request.params):
-            node_by_key = device.get_node_by_key(rpc_request.params)
-            if node_by_key is None:
-                pass
+        if self.__is_node_identifier(rpc_request.params):
+            identifier = rpc_request.params
+            if not identifier:
+                self.__log.error("Could not find node for requested rpc request %s", rpc_request.params)
+                self.__gateway.send_rpc_reply(device=rpc_request.device_name,
+                                              req_id=rpc_request.id,
+                                              content={
+                                                  "result": {"error": 'Could not find node for requested rpc request'}})
 
+        elif not self.__is_node_identifier(rpc_request.params):
 
+            identifier = device.get_node_by_key(rpc_request.params)
+            if not identifier:
+                identifier = self.find_full_node_path(params=rpc_request.params, device=device)
 
+        try:
+            task = self.__loop.create_task(self.__process_rpc_request(identifier=identifier, rpc_request=rpc_request))
 
+            while not task.done():
+                sleep(.2)
 
+            result = task.result()
 
+            self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
+            self.__gateway.send_rpc_reply(rpc_request.device_name,
+                                          rpc_request.id,
+                                          {"result": result})
+            return result
 
+        except Exception as e:
+            self.__log.exception(e)
+            self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id,
+                                          {"result": {"error": str(e)}})
 
-
-
-
-    async def __process_rpc_request(self):
-        pass
+    async def __process_rpc_request(self, identifier: Node | str, rpc_request: OpcUaRpcRequest):
+        result = {}
+        try:
+            if rpc_request.rpc_method == 'get':
+                result = await self.__read_value(identifier)
+                return result
+            elif rpc_request.rpc_method == 'set':
+                result = await self.__write_value(identifier, rpc_request.arguments)
+                return result
+            else:
+                result['response'] = 'Unsupported function code in RPC request.'
+                return result
+        except Exception as e:
+            self.__log.error('Failed to process rpc request: %r', e)
+            result['response'] = {'error': e.__repr__()}
+            return result
 
     async def __write_value(self, path, value):
 
@@ -1445,21 +1317,24 @@ class OpcUaConnector(Connector, Thread):
             self.__log.error("Can not find node for provided path %s ", path)
             return result
 
-    async def __read_value(self, path, result=None):
-        if result is None:
-            result = {}
+    async def __read_value(self, path):
+
+        result = {}
         try:
             var = self.__client.get_node(path)
             result['value'] = await var.read_value()
+            return result
 
         except UaStringParsingError as e:
             error_response = f"Could not find identifier in string {path}"
             result['error'] = error_response
             self.__log.error(error_response)
+            return result
 
         except Exception as e:
             result['error'] = e.__str__()
             self.__log.error("Can not find node for provided path %s ", path)
+            return result
 
     async def __call_method(self, path, method_name, arguments):
 
