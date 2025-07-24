@@ -37,13 +37,21 @@ fi
 
 VENV_PATH="/var/lib/thingsboard_gateway/venv"
 
-echo "Postinst: Setting up Python virtual environment at $VENV_PATH..."
-if [ -d "$VENV_PATH" ]; then
-    echo "Postinst: Removing existing virtual environment..."
-    rm -rf "$VENV_PATH"
+if [ -f /var/lib/thingsboard_gateway/venv.tar.gz ]; then
+    echo "Postinst: Extracting virtual environment from venv.tar.gz..."
+    tar -xzf /var/lib/thingsboard_gateway/venv.tar.gz -C /var/lib/thingsboard_gateway
+    rm -f /var/lib/thingsboard_gateway/venv.tar.gz
+else
+    echo "Postinst: No venv.tar.gz found, creating a new virtual environment..."
+    echo "Postinst: Setting up Python virtual environment at $VENV_PATH..."
+    if [ -d "$VENV_PATH" ]; then
+        echo "Postinst: Removing existing virtual environment..."
+        rm -rf "$VENV_PATH"
+    fi
+
+    python3 -m venv "$VENV_PATH"
+    "$VENV_PATH/bin/pip" install --upgrade pip setuptools
 fi
-python3 -m venv "$VENV_PATH"
-"$VENV_PATH/bin/pip" install --upgrade pip setuptools
 
 # Install the locally built wheel from /var/lib/thingsboard_gateway.
 WHEEL_FILE=$(ls /var/lib/thingsboard_gateway/*.whl 2>/dev/null || true)

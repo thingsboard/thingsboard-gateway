@@ -113,12 +113,6 @@ if [ "${1:-}" != "only_clean" ]; then
   fi
   python3 -m pip install --upgrade --break-system-packages build
 
-  # --- Build the wheel package ---
-  if [[ "${2:-}" == "offline-build" ]]; then
-    export OFFLINE_BUILD=true
-    echo "Building offline wheel package with full requirements..."
-  fi
-
   python3 -m build --no-isolation --wheel --outdir .
   WHEEL_FILE=$(ls | grep -E 'thingsboard_gateway-.*\.whl' | head -n 1)
   echo "Found wheel: $WHEEL_FILE"
@@ -126,6 +120,13 @@ if [ "${1:-}" != "only_clean" ]; then
     echo "Error: Wheel file $WHEEL_FILE not found."
     exit 1
   fi
+
+if [[ "${2:-}" == "offline-build" ]]; then
+  echo "Building offline package with full requirements..."
+  tar -czf venv.tar.gz -C thingsboard_gateway venv
+  ls
+  pwd
+fi
 
   # Create configs.tar.gz from the thingsboard_gateway/config folder if not present.
 if [ ! -f configs.tar.gz ]; then

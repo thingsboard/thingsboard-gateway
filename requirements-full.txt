@@ -26,7 +26,7 @@ bacpypes3
 bleak
 python-can
 xknx
-pymodbus=3.9.2
+pymodbus==3.9.2
 pyserial
 pyserial-asyncio
 paho-mqtt
