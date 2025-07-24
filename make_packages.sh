@@ -114,8 +114,8 @@ if [ "${1:-}" != "only_clean" ]; then
   python3 -m pip install --upgrade --break-system-packages build
 
   # --- Build the wheel package ---
-  if [[ "${1:-}" == "offline-build" ]]; then
-    export USE_FULL_REQUIREMENTS=true
+  if [[ "${2:-}" == "offline-build" ]]; then
+    export OFFLINE_BUILD=true
     echo "Building offline wheel package with full requirements..."
   fi
 
