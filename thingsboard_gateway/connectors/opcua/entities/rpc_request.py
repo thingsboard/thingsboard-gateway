@@ -14,6 +14,9 @@
 
 
 from enum import Enum
+
+from re import findall, sub
+
 from thingsboard_gateway.gateway.constants import (
     DATA_PARAMETER,
     DEVICE_SECTION_PARAMETER,
@@ -22,6 +25,8 @@ from thingsboard_gateway.gateway.constants import (
     RPC_METHOD_PARAMETER,
     RPC_CONNECTOR_ARGUMENTS_PARAMETER
 )
+
+RPC_SET_SPLIT_PATTERNS = ["; ", ";=", "=", " "]
 
 
 class OpcUaRpcType(Enum):
@@ -95,21 +100,41 @@ class OpcUaRpcRequest:
         self._arguments = values
 
     def _fill_reserved_rpc_request(self, content: dict):
+        params = content.get(DATA_PARAMETER, {}).get(RPC_PARAMS_PARAMETER)
+        if self.rpc_method == "get":
+            self.params = params
+            return
+        if self.rpc_method != "set" or not isinstance(params, str):
+            return
 
+        ident = self.__find_identifier_request(params)
+        if ident:
+            value = params[len(ident):]
+            delimiter = next((p for p in RPC_SET_SPLIT_PATTERNS if p in params), None)
+            self.params = ident
+            self.arguments = sub(r"[;\s]+$", "", value.split(delimiter)[-1])
+            return
 
+        delimiter = next((p for p in RPC_SET_SPLIT_PATTERNS if p in params), None)
+        parts = (
+            [p.strip() for p in params.split(delimiter) if p.strip()]
+            if delimiter
+            else [params.strip()]
+        )
 
+        if not delimiter or len(parts) != 2:
+            return
 
-
-        pass
+        full_path, value = parts
+        self.params = full_path
+        self.arguments = sub(r"[;\s]+$", "", value)
 
     def _fill_device_rpc_request(self, content: dict):
         rpc_section = content[DATA_PARAMETER].get(RPC_METHOD_PARAMETER)
         self.rpc_method = rpc_section
 
     @staticmethod
-    def __handle_reserved_set_method(method: str, content: dict):
-        pass
-
-    @staticmethod
-    def __handle_reserved_get_method(method: str, content: dict):
-        pass
+    def __find_identifier_request(path: str) -> list | None:
+        identifier = findall(r"(ns=\d+;[isgb]=[^}\s]+)(?=\s|$)", path)
+        if identifier:
+            return identifier[0]
