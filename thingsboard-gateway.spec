@@ -29,7 +29,8 @@ install -m 644 %{SOURCE0} %{buildroot}/etc/systemd/system/thingsboard-gateway.se
 
 # Install the configuration tarball.
 mkdir -p %{buildroot}/etc/thingsboard-gateway
-install -m 755 %{SOURCE1} %{buildroot}/etc/thingsboard-gateway/
+mkdir -p %{buildroot}/etc/thingsboard-gateway/config
+tar -xzf %{SOURCE1} -C %{buildroot}/etc/thingsboard-gateway
 
 # Install the wheel file into /var/lib/thingsboard_gateway.
 mkdir -p %{buildroot}/var/lib/thingsboard_gateway
@@ -62,28 +63,26 @@ fi
 
 # Extract extensions tarball into /var/lib/thingsboard_gateway
 if [ -f /var/lib/thingsboard_gateway/extensions.tar.gz ]; then
-    if [ -d /var/lib/thingsboard_gateway/extensions ]; then
+    if [ ! -d /var/lib/thingsboard_gateway/extensions ]; then
+        echo "Extracting extensions from extensions.tar.gz..."
+        mkdir -p /var/lib/thingsboard_gateway/extensions
+        tar -xzf /var/lib/thingsboard_gateway/extensions.tar.gz -C /var/lib/thingsboard_gateway/extensions
+        rm -f /var/lib/thingsboard_gateway/extensions.tar.gz
+    else
         echo "Directory /var/lib/thingsboard_gateway/extensions exists. Creating backup as extensions_backup.tar.gz..."
         tar -czf /var/lib/thingsboard_gateway/extensions_backup.tar.gz -C /var/lib/thingsboard_gateway extensions
-        echo "Removing existing /var/lib/thingsboard_gateway/extensions directory..."
-        rm -rf /var/lib/thingsboard_gateway/extensions
     fi
-    echo "Extracting extensions from extensions.tar.gz..."
-    rm -rf /var/lib/thingsboard_gateway/extensions
-    mkdir -p /var/lib/thingsboard_gateway/extensions
-    tar -xzf /var/lib/thingsboard_gateway/extensions.tar.gz -C /var/lib/thingsboard_gateway/extensions
 fi
 
 # Extract the configuration tarball into /etc/thingsboard-gateway.
 if [ -f /etc/thingsboard-gateway/configs.tar.gz ]; then
-    if [ -d /etc/thingsboard-gateway/config ]; then
+    if [ ! -d /etc/thingsboard-gateway/config ]; then
+        echo "Extracting configuration files from configs.tar.gz..."
+        tar -xzf /etc/thingsboard-gateway/configs.tar.gz -C /etc/thingsboard-gateway
+    else
         echo "Directory /etc/thingsboard-gateway/config exists. Creating backup as configs_backup.tar.gz..."
         tar -czf /etc/thingsboard-gateway/configs_backup.tar.gz -C /etc/thingsboard-gateway config
-        echo "Removing existing /etc/thingsboard-gateway/config directory..."
-        rm -rf /etc/thingsboard-gateway/config
     fi
-    echo "Extracting configuration files from configs.tar.gz..."
-    tar -xzf /etc/thingsboard-gateway/configs.tar.gz -C /etc/thingsboard-gateway
 fi
 
 echo "Setting ownership for directories..."
@@ -99,14 +98,17 @@ rm -rf %{buildroot}
 
 %files
 %attr(0644,thingsboard_gateway,thingsboard_gateway) /etc/systemd/system/thingsboard-gateway.service
-%attr(0755,thingsboard_gateway,thingsboard_gateway) /etc/thingsboard-gateway
+%dir %attr(0755,thingsboard_gateway,thingsboard_gateway) /etc/thingsboard-gateway
+%config(noreplace) %attr(0644,thingsboard_gateway,thingsboard_gateway) /etc/thingsboard-gateway/config/*
 %attr(0755,thingsboard_gateway,thingsboard_gateway) /var/lib/thingsboard_gateway
 %attr(0755,thingsboard_gateway,thingsboard_gateway) /var/log/thingsboard-gateway
 
-
 %postun
-systemctl stop thingsboard-gateway
-userdel thingsboard_gateway
-rm -rf /var/lib/thingsboard_gateway
-rm -rf /var/log/thingsboard-gateway
-rm -rf /etc/thingsboard-gateway
+if [ "$1" = 0 ]; then
+    echo "Cleaning up..."
+    systemctl stop thingsboard-gateway
+    userdel thingsboard_gateway
+    rm -rf /var/lib/thingsboard_gateway
+    rm -rf /var/log/thingsboard-gateway
+    rm -rf /etc/thingsboard-gateway
+fi

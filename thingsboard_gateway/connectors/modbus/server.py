@@ -17,19 +17,39 @@ from asyncio import CancelledError
 from threading import Thread
 from time import monotonic, sleep
 
-from pymodbus.datastore import ModbusSparseDataBlock, ModbusServerContext, ModbusSlaveContext
+from pymodbus.datastore import ModbusSparseDataBlock, ModbusServerContext
 from pymodbus.device import ModbusDeviceIdentification
-from pymodbus.framer.ascii_framer import ModbusAsciiFramer
-from pymodbus.framer.rtu_framer import ModbusRtuFramer
-from pymodbus.framer.socket_framer import ModbusSocketFramer
-from pymodbus.server import StartAsyncTcpServer, StartAsyncTlsServer, StartAsyncUdpServer, StartAsyncSerialServer
-from pymodbus.version import version
+from pymodbus.framer.base import FramerType
+from pymodbus.server import (
+    StartAsyncTcpServer,
+    StartAsyncTlsServer,
+    StartAsyncUdpServer,
+    StartAsyncSerialServer,
+    ServerAsyncStop
+)
+from pymodbus import __version__ as pymodbus_version
 
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.connectors.modbus.entities.bytes_downlink_converter_config import \
     BytesDownlinkConverterConfig
-from thingsboard_gateway.connectors.modbus.constants import ADDRESS_PARAMETER, BYTE_ORDER_PARAMETER, FUNCTION_CODE_SLAVE_INITIALIZATION, FUNCTION_TYPE, \
-    FUNCTION_CODE_READ, HOST_PARAMETER, IDENTITY_SECTION, METHOD_PARAMETER, OBJECTS_COUNT_PARAMETER, PORT_PARAMETER, REPACK_PARAMETER, SERIAL_CONNECTION_TYPE_PARAMETER, TAG_PARAMETER, WORD_ORDER_PARAMETER
+from thingsboard_gateway.connectors.modbus.constants import PymodbusDefaults
+from thingsboard_gateway.connectors.modbus.entities.slave_context import SlaveContext
+from thingsboard_gateway.connectors.modbus.constants import (
+    ADDRESS_PARAMETER,
+    BYTE_ORDER_PARAMETER,
+    FUNCTION_CODE_SLAVE_INITIALIZATION,
+    FUNCTION_TYPE,
+    FUNCTION_CODE_READ,
+    HOST_PARAMETER,
+    IDENTITY_SECTION,
+    METHOD_PARAMETER,
+    OBJECTS_COUNT_PARAMETER,
+    PORT_PARAMETER,
+    REPACK_PARAMETER,
+    SERIAL_CONNECTION_TYPE_PARAMETER,
+    TAG_PARAMETER,
+    WORD_ORDER_PARAMETER
+)
 from thingsboard_gateway.gateway.constants import DEVICE_NAME_PARAMETER, TYPE_PARAMETER
 
 SLAVE_TYPE = {
@@ -39,17 +59,10 @@ SLAVE_TYPE = {
     'serial': StartAsyncSerialServer
 }
 
-FRAMER_TYPE = {
-    'rtu': ModbusRtuFramer,
-    'socket': ModbusSocketFramer,
-    'ascii': ModbusAsciiFramer
-}
-
 
 class Server(Thread):
     def __init__(self, config, logger):
         super().__init__()
-        self.__stopped = False
         self.daemon = True
         self.name = 'Gateway Modbus Server (Slave)'
 
@@ -65,8 +78,6 @@ class Server(Thread):
         self.__identity = self.__get_identity(self.__config)
         self.__server_context = self.__get_server_context(self.__config)
         self.__connection_config = self.__get_connection_config(self.__config)
-
-        self.__server = None
 
         try:
             self.loop = asyncio.new_event_loop()
@@ -86,8 +97,6 @@ class Server(Thread):
             self.__log.error("Server has been stopped with error: %s", e)
 
     def stop(self):
-        self.__stopped = True
-
         asyncio.run_coroutine_threadsafe(self.__shutdown(), self.loop)
 
         self.__check_is_alive()
@@ -102,16 +111,13 @@ class Server(Thread):
             sleep(.1)
 
     async def __shutdown(self):
-        await self.__server.shutdown()
+        await ServerAsyncStop()
 
     async def start_server(self):
         try:
-            self.__server = await SLAVE_TYPE[self.__type](identity=self.__identity, context=self.__server_context,
-                                                          **self.__connection_config, defer_start=True,
-                                                          allow_reuse_address=True, allow_reuse_port=True)
-            await self.__server.serve_forever()
+            await SLAVE_TYPE[self.__type](identity=self.__identity, context=self.__server_context,
+                                          **self.__connection_config)
         except Exception as e:
-            self.__stopped = True
             self.__log.error('Failed to start Gateway Modbus Server (Slave): %s', e)
 
     def get_slave_config_format(self):
@@ -156,24 +162,33 @@ class Server(Thread):
             identity.VendorUrl = config[IDENTITY_SECTION].get('vendorUrl', '')
             identity.ProductName = config[IDENTITY_SECTION].get('productName', '')
             identity.ModelName = config[IDENTITY_SECTION].get('ModelName', '')
-            identity.MajorMinorRevision = version.short()
+            identity.MajorMinorRevision = pymodbus_version
 
         return identity
 
     @staticmethod
     def __get_connection_config(config):
-        return {
-            TYPE_PARAMETER: config[TYPE_PARAMETER],
-
-            ADDRESS_PARAMETER: (config.get(HOST_PARAMETER), config.get(PORT_PARAMETER))
-            if (config[TYPE_PARAMETER] == 'tcp' or 'udp') else None,
-
-            PORT_PARAMETER: config.get(PORT_PARAMETER)
-            if config[TYPE_PARAMETER] == SERIAL_CONNECTION_TYPE_PARAMETER else None,
-
-            'framer': FRAMER_TYPE[config.get(METHOD_PARAMETER, 'socket')],
-            'security': config.get('security', {})
+        connection_config = {
+            'framer': FramerType[config.get(METHOD_PARAMETER, 'socket').upper()],
         }
+
+        if config[TYPE_PARAMETER] in ('tcp', 'udp'):
+            connection_config[ADDRESS_PARAMETER] = (config.get(HOST_PARAMETER), int(config.get(PORT_PARAMETER)))
+        elif config[TYPE_PARAMETER] == SERIAL_CONNECTION_TYPE_PARAMETER:
+            connection_config[PORT_PARAMETER] = config.get(PORT_PARAMETER)
+            connection_config['baudrate'] = int(config.get('baudrate', PymodbusDefaults.Baudrate))
+            connection_config['bytesize'] = int(config.get('bytesize', PymodbusDefaults.Bytesize))
+            connection_config['stopbits'] = int(config.get('stopbits', PymodbusDefaults.Stopbits))
+            connection_config['parity'] = config.get('parity', PymodbusDefaults.Parity)
+            connection_config['handle_local_echo'] = config.get('handleLocalEcho', False)
+
+        if config.get('security'):
+            security_config = config['security']
+            connection_config['keyfile'] = security_config.get('keyfile')
+            connection_config['certfile'] = security_config.get('certfile')
+            connection_config['password'] = security_config.get('password')
+
+        return connection_config
 
     def __get_server_context(self, config):
         blocks = {}
@@ -181,9 +196,9 @@ class Server(Thread):
             self.__log.error("No values to read from device %s", config.get(DEVICE_NAME_PARAMETER, 'Modbus Slave'))
             return
 
+        converter = BytesModbusDownlinkConverter({}, self.__log)
         for (key, value) in config.get('values').items():
             values = {}
-            converter = BytesModbusDownlinkConverter({}, self.__log)
             for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
                 for item in value.get(section, []):
                     try:
@@ -217,6 +232,7 @@ class Server(Thread):
                     self.__log.error("Failed to configure block %s with error: %s", key, e)
 
         if not len(blocks):
-            self.__log.info("%s - will be initialized without values", config.get(DEVICE_NAME_PARAMETER, 'Modbus Slave'))
+            self.__log.info("%s - will be initialized without values",
+                            config.get(DEVICE_NAME_PARAMETER, 'Modbus Slave'))
 
-        return ModbusServerContext(slaves=ModbusSlaveContext(**blocks), single=True)
+        return ModbusServerContext(slaves=SlaveContext(**blocks), single=True)

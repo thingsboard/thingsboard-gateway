@@ -36,7 +36,7 @@ from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 # Try import Pymodbus library or install it and import
 installation_required = False
-required_version = '3.0.0'
+required_version = '3.9.2'
 force_install = False
 
 try:
@@ -70,12 +70,11 @@ from thingsboard_gateway.connectors.modbus.entities.bytes_downlink_converter_con
 from thingsboard_gateway.connectors.modbus.backward_compatibility_adapter import BackwardCompatibilityAdapter  # noqa
 
 from pymodbus.exceptions import ConnectionException  # noqa: E402
-from pymodbus.bit_read_message import ReadBitsResponseBase  # noqa: E402
-from pymodbus.bit_write_message import WriteMultipleCoilsResponse, WriteSingleCoilResponse  # noqa: E402
+from pymodbus.pdu import ModbusPDU  # noqa
+from pymodbus.pdu.bit_message import WriteMultipleCoilsResponse, WriteSingleCoilResponse  # noqa: E402
 from pymodbus.constants import Endian  # noqa: E402
 from pymodbus.pdu import ExceptionResponse  # noqa: E402
-from pymodbus.register_read_message import ReadRegistersResponseBase  # noqa: E402
-from pymodbus.register_write_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse  # noqa: E402
+from pymodbus.pdu.register_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse  # noqa: E402
 
 
 class AsyncModbusConnector(Connector, Thread):
@@ -118,7 +117,6 @@ class AsyncModbusConnector(Connector, Thread):
         self._master_connections = {}
 
         self.__slaves = []
-        self.__add_slaves(self.__config.get('master', {'slaves': []}).get('slaves', []))
 
     def close(self):
         self.__stopped = True
@@ -126,11 +124,11 @@ class AsyncModbusConnector(Connector, Thread):
 
         self.__log.debug('Stopping %s...', self.get_name())
 
-        if self.__server:
-            self.__server.stop()
-
         for slave in self.__slaves:
             slave.close(self.loop)
+
+        if self.__server:
+            self.__server.stop()
 
         asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.loop)
 
@@ -159,30 +157,36 @@ class AsyncModbusConnector(Connector, Thread):
     def run(self):
         self.__connected = True
 
-        # check if Gateway as a server need to be started
-        if Server.is_runnable(self.__config):
-            try:
-                self.__log.info("Starting Modbus server")
-                self.__run_server()
-                self.__add_slave(self.__server.get_slave_config_format())
-                self.__log.info("Modbus server started")
-            except Exception as e:
-                self.__log.exception('Failed to start Modbus server: %s', e)
-                self.__connected = False
-
-        Thread(target=self.__convert_data, daemon=True, name="Modbus connector data converter thread").start()
-        Thread(target=self.__save_data, daemon=True, name="Modbus connector data saver thread").start()
-
         try:
-            self.loop.run_until_complete(self.__process_requests())
+            self.loop.run_until_complete(self.__run())
         except CancelledError as e:
             self.__log.debug('Task was cancelled due to connector stop: %s', e.__str__())
         except Exception as e:
             self.__log.exception(e)
 
+    async def __run(self):
+        # check if Gateway as a server need to be started
+        if Server.is_runnable(self.__config):
+            self.__run_server()
+
+        await self.__add_slaves(self.__config.get('master', {'slaves': []}).get('slaves', []))
+
+        await asyncio.gather(
+            self.__process_requests(),
+            self.__convert_data(),
+            self.__save_data()
+        )
+
     def __run_server(self):
-        self.__server = Server(self.__config['slave'], self.__log)
-        self.__server.start()
+        try:
+            self.__log.info("Starting Modbus server")
+            self.__server = Server(self.__config['slave'], self.__log)
+            self.__server.start()
+            self.__add_slave(self.__server.get_slave_config_format())
+            self.__log.info("Modbus server started")
+        except Exception as e:
+            self.__log.exception('Failed to start Modbus server: %s', e)
+            self.__connected = False
 
     def __get_master(self, slave: Slave):
         """
@@ -212,8 +216,9 @@ class AsyncModbusConnector(Connector, Thread):
         slave.master = master
 
         self.__slaves.append(slave)
+        slave.start()
 
-    def __add_slaves(self, slaves_config):
+    async def __add_slaves(self, slaves_config):
         for slave_config in slaves_config:
             try:
                 self.__add_slave(slave_config)
@@ -312,7 +317,7 @@ class AsyncModbusConnector(Connector, Thread):
 
             slave.last_connect_time = monotonic() if device_connected else 0
 
-    def __convert_data(self):
+    async def __convert_data(self):
         while not self.__stopped:
             try:
                 batch_to_convert = {}
@@ -337,11 +342,11 @@ class AsyncModbusConnector(Connector, Thread):
                         if len(converted_data['attributes']) or len(converted_data['telemetry']):
                             self.__data_to_save.put_nowait(converted_data)
                 else:
-                    sleep(.1)
+                    await asyncio.sleep(.1)
             except Exception as e:
                 self.__log.error('Exception in conversion data loop: %s', e)
 
-    def __save_data(self):
+    async def __save_data(self):
         while not self.__stopped:
             if not self.__data_to_save.empty():
                 try:
@@ -350,9 +355,9 @@ class AsyncModbusConnector(Connector, Thread):
                     self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
                     self.statistics[STATISTIC_MESSAGE_SENT_PARAMETER] += 1
                 except Empty:
-                    sleep(.001)
+                    await asyncio.sleep(.001)
             else:
-                sleep(.001)
+                await asyncio.sleep(.001)
 
     def get_device_shared_attributes_keys(self, device_name):
         device = self.__get_device_by_name(device_name)
@@ -365,6 +370,11 @@ class AsyncModbusConnector(Connector, Thread):
 
         try:
             device = self.__get_device_by_name(content[DEVICE_SECTION_PARAMETER])
+            if device is None:
+                self.__log.error('Device %s not found in connector %s',
+                                 content[DEVICE_SECTION_PARAMETER],
+                                 self.get_name())
+                return
 
             for attribute_updates_command_config in device.attributes_updates_config:
                 for attribute_updated in content[DATA_PARAMETER]:
@@ -480,6 +490,9 @@ class AsyncModbusConnector(Connector, Thread):
 
     def __process_reserved_rpc_request(self, rpc_request: RPCRequest):
         device = self.__get_device_by_name(rpc_request.device_name)
+        if device is None:
+            self.__log.error('Device %s not found in connector %s', rpc_request.device_name, self.get_name())
+            return {'error': 'Device %s not found' % rpc_request.device_name, 'success': False}
 
         result = {}
         self.__create_task(self.__process_rpc_request,
@@ -493,6 +506,9 @@ class AsyncModbusConnector(Connector, Thread):
 
     def __process_device_rpc_request(self, rpc_request: RPCRequest):
         device = self.__get_device_by_name(rpc_request.device_name)
+        if device is None:
+            self.__log.error('Device %s not found in connector %s', rpc_request.device_name, self.get_name())
+            return {'error': 'Device %s not found' % rpc_request.device_name, 'success': False}
 
         device_rpc_config = device.get_device_rpc_config(rpc_request.method)
         if device_rpc_config is None:
@@ -548,9 +564,9 @@ class AsyncModbusConnector(Connector, Thread):
             self.__log.error('Failed to process rpc request: %s', e)
             response['response'] = {'error': e.__repr__()}
 
-        if isinstance(response, (ReadRegistersResponseBase, ReadBitsResponseBase)):
-            endian_order = Endian.Big if device.byte_order.upper() == "BIG" else Endian.Little
-            word_endian_order = Endian.Big if device.word_order.upper() == "BIG" else Endian.Little
+        if isinstance(response, ModbusPDU):
+            endian_order = Endian.BIG if device.byte_order.upper() == "BIG" else Endian.LITTLE
+            word_endian_order = Endian.BIG if device.word_order.upper() == "BIG" else Endian.LITTLE
             response = device.uplink_converter.decode_data(response, config, endian_order, word_endian_order)
 
         return response
@@ -628,7 +644,12 @@ class AsyncModbusConnector(Connector, Thread):
                 return response
 
     def __get_device_by_name(self, device_name) -> Slave:
-        return tuple(filter(lambda slave: slave.device_name == device_name, self.__slaves))[0]
+        devices = tuple(filter(lambda slave: slave.device_name == device_name, self.__slaves))
+
+        if len(devices) > 0:
+            return devices[0]
+
+        return None
 
     @property
     def connector_type(self):

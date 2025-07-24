@@ -139,8 +139,9 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
 
         for value_item in data:
             key_camel_case = TBUtility.kebab_case_to_camel_case(value_item['propName'])
-            if key_camel_case in key_expression:
-                key_expression = key_expression.replace('${' + key_camel_case + '}', str(value_item['value']))
+            find_string = '${' + key_camel_case + '}'
+            if find_string in key_expression:
+                key_expression = key_expression.replace(find_string, str(value_item['value']))
             else:
                 unused_keys.append(value_item)
 

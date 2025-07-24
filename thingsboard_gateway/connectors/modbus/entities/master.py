@@ -16,23 +16,12 @@ from time import monotonic
 from asyncio import Lock
 
 from pymodbus.client import AsyncModbusSerialClient
-from pymodbus.framer.ascii_framer import ModbusAsciiFramer
-from pymodbus.framer.rtu_framer import ModbusRtuFramer
-from pymodbus.framer.socket_framer import ModbusSocketFramer
+from pymodbus.client.tcp import AsyncModbusTcpClient
+from pymodbus.client.udp import AsyncModbusUdpClient
+from pymodbus.framer.base import FramerType
 
+from thingsboard_gateway.connectors.modbus.entities.clients import AsyncModbusTlsClient
 from thingsboard_gateway.connectors.modbus.constants import SERIAL_CONNECTION_TYPE_PARAMETER
-from thingsboard_gateway.connectors.modbus.entities.clients import (
-    AsyncModbusTcpClient,
-    AsyncModbusUdpClient,
-    AsyncModbusTlsClient
-)
-
-
-FRAMER_TYPE = {
-    'rtu': ModbusRtuFramer,
-    'socket': ModbusSocketFramer,
-    'ascii': ModbusAsciiFramer
-}
 
 
 def with_lock_for_serial(func):
@@ -89,7 +78,7 @@ class Master:
 
     @with_lock_for_serial
     async def close(self):
-        await self.__client.close()
+        self.__client.close()
 
     @with_lock_for_serial
     async def read_coils(self, address, count, unit_id):
@@ -153,43 +142,36 @@ class Master:
 
     @staticmethod
     def configure_master(config):
-        framer = FRAMER_TYPE[config.method]
+        framer = FramerType[config.method]
 
         if config.type == 'tcp' and config.tls:
             master = AsyncModbusTlsClient(config.host,
                                           config.port,
                                           framer,
                                           timeout=config.timeout,
-                                          retry_on_empty=config.retry_on_empty,
-                                          retry_on_invalid=config.retry_on_invalid,
                                           retries=config.retries,
                                           **config.tls)
         elif config.type == 'tcp':
-            master = AsyncModbusTcpClient(config.host,
-                                          config.port,
-                                          framer,
+            master = AsyncModbusTcpClient(host=config.host,
+                                          port=config.port,
+                                          framer=framer,
                                           timeout=config.timeout,
-                                          retry_on_empty=config.retry_on_empty,
-                                          retry_on_invalid=config.retry_on_invalid,
                                           retries=config.retries)
         elif config.type == 'udp':
-            master = AsyncModbusUdpClient(config.host,
-                                          config.port,
-                                          framer,
+            master = AsyncModbusUdpClient(host=config.host,
+                                          port=config.port,
+                                          framer=framer,
                                           timeout=config.timeout,
-                                          retry_on_empty=config.retry_on_empty,
-                                          retry_on_invalid=config.retry_on_invalid,
                                           retries=config.retries)
         elif config.type == 'serial':
             master = AsyncModbusSerialClient(port=config.port,
                                              timeout=config.timeout,
-                                             retry_on_empty=config.retry_on_empty,
                                              retries=config.retries,
                                              baudrate=config.baudrate,
                                              stopbits=config.stopbits,
                                              bytesize=config.bytesize,
                                              parity=config.parity,
-                                             strict=config.strict,
+                                             handle_local_echo=config.handle_local_echo,
                                              framer=framer)
         else:
             raise Exception("Invalid Modbus transport type.")

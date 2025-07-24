@@ -15,9 +15,16 @@
 from logging import getLogger
 from simplejson import dumps
 
-from thingsboard_gateway.connectors.modbus.constants import BAUDRATE_PARAMETER, BYTE_ORDER_PARAMETER, HOST_PARAMETER, \
-    METHOD_PARAMETER, PORT_PARAMETER, RETRIES_PARAMETER, RETRY_ON_EMPTY_PARAMETER, RETRY_ON_INVALID_PARAMETER, \
-    TIMEOUT_PARAMETER, WORD_ORDER_PARAMETER
+from thingsboard_gateway.connectors.modbus.constants import (
+    BAUDRATE_PARAMETER,
+    BYTE_ORDER_PARAMETER,
+    HOST_PARAMETER,
+    METHOD_PARAMETER,
+    PORT_PARAMETER,
+    RETRIES_PARAMETER,
+    TIMEOUT_PARAMETER,
+    WORD_ORDER_PARAMETER
+)
 from thingsboard_gateway.gateway.constants import TYPE_PARAMETER
 
 
@@ -35,8 +42,7 @@ class BackwardCompatibilityAdapter:
         self.__config_dir = config_dir
         BackwardCompatibilityAdapter.CONFIG_PATH = self.__config_dir
         self.__keys = [HOST_PARAMETER, PORT_PARAMETER, TYPE_PARAMETER, METHOD_PARAMETER, TIMEOUT_PARAMETER,
-                       BYTE_ORDER_PARAMETER, WORD_ORDER_PARAMETER, RETRIES_PARAMETER, RETRY_ON_EMPTY_PARAMETER,
-                       RETRY_ON_INVALID_PARAMETER, BAUDRATE_PARAMETER]
+                       BYTE_ORDER_PARAMETER, WORD_ORDER_PARAMETER, RETRIES_PARAMETER, BAUDRATE_PARAMETER]
 
     @staticmethod
     def __save_json_config_file(config):
