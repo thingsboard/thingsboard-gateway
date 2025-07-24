@@ -15,13 +15,19 @@
 #     limitations under the License.
 
 from setuptools import setup
-from os import path
+from os import path, getenv
 
 from thingsboard_gateway import version
 
 current_directory = path.abspath(path.dirname(__file__))
 with open(path.join(current_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
+
+OFFLINE_BUILD = getenv('OFFLINE_BUILD', 'false').lower() in ('true', '1', 'yes')
+
+REQUIREMENTS_FILE_NAME = 'requirements-full.txt' if OFFLINE_BUILD else 'requirements.txt'
+with open(path.join(current_directory, REQUIREMENTS_FILE_NAME), encoding='utf-8') as f:
+    REQUIREMENTS = f.read().splitlines()
 
 setup(
     version=version.VERSION,
@@ -64,32 +70,7 @@ setup(
               'thingsboard_gateway.tb_utility', 'thingsboard_gateway.extensions',
               'thingsboard_gateway.extensions.serial'
               ],
-    install_requires=[
-        'setuptools',
-        'cryptography',
-        'jsonpath-rw',
-        'regex',
-        'pip',
-        'PyYAML',
-        'orjson',
-        'pybase64',
-        'simplejson',
-        'urllib3>=2.3.0',
-        'requests>=2.32.3',
-        'questionary',
-        'pyfiglet',
-        'termcolor',
-        'mmh3',
-        'grpcio',
-        'protobuf',
-        'python-dateutil',
-        'cachetools',
-        'tb-paho-mqtt-client>=2.1.2',
-        'tb-mqtt-client==1.13.9',
-        'packaging==23.1',
-        'service-identity',
-        'psutil'
-    ],
+    install_requires=REQUIREMENTS,
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % version.VERSION,
     entry_points={
         'console_scripts': [

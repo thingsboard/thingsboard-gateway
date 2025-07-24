@@ -114,6 +114,11 @@ if [ "${1:-}" != "only_clean" ]; then
   python3 -m pip install --upgrade --break-system-packages build
 
   # --- Build the wheel package ---
+  if [[ "${1:-}" == "offline-build" ]]; then
+    export USE_FULL_REQUIREMENTS=true
+    echo "Building offline wheel package with full requirements..."
+  fi
+
   python3 -m build --no-isolation --wheel --outdir .
   WHEEL_FILE=$(ls | grep -E 'thingsboard_gateway-.*\.whl' | head -n 1)
   echo "Found wheel: $WHEEL_FILE"
