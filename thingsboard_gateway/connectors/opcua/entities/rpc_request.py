@@ -31,7 +31,7 @@ RPC_SET_SPLIT_PATTERNS = ["; ", ";=", "=", " "]
 
 class OpcUaRpcType(Enum):
     CONNECTOR = 'CONNECTOR'
-    DEVICE = 'DEVICE',
+    DEVICE = 'DEVICE'
     RESERVED = 'RESERVED'
 
 

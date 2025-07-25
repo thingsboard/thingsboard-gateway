@@ -25,8 +25,6 @@ from time import sleep, monotonic, time
 from typing import List, Dict, Union
 
 from cachetools import TTLCache
-from jinja2.runtime import identity
-from pyparsing import results
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
@@ -1196,12 +1194,22 @@ class OpcUaConnector(Connector, Thread):
                                           content={"result": {"error": 'Device not found'}})
             return
         device_arguments = device.get_device_rpc_arguments(device_config=device.config, rpc_request=rpc_request)
-        if not device_arguments:
-            self.__log.error("Method %s not found for device %s", rpc_request.rpc_method, rpc_request.device_name)
+        if isinstance(device_arguments, list) and not device_arguments:
+            self.__log.error("Arguments for method %s not found for device %s", rpc_request.rpc_method,
+                             rpc_request.device_name)
             self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id,
 
-                                          {"result": {"error": "%s - Method not found" % rpc_request.rpc_method}})
+                                          {"result": {"error": "%s - No arguments provided" % rpc_request.rpc_method}})
             return
+        if device_arguments is None:
+            self.__log.error("Such method %s is not found in config for device %s", rpc_request.rpc_method,
+                             rpc_request.device_name)
+            self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id,
+
+                                          {"result": {
+                                              "error": "%s - No configuration provided for method" % rpc_request.rpc_method}})
+            return
+
         rpc_request.arguments = device_arguments
 
         try:
@@ -1343,9 +1351,12 @@ class OpcUaConnector(Connector, Thread):
             var = await self.__client.nodes.root.get_child(path)
             method_id = '{}:{}'.format(var.nodeid.NamespaceIndex, method_name)
             result['result'] = await var.call_method(method_id, *arguments)
+            self.__log.debug("Successfully processed rpc for %s", method_name)
             return result
         except Exception as e:
             result['error'] = e.__str__()
+            self.__log.error("Failed to execute rpc for %s Error: %s", method_name, e)
+            self.__log.debug("Error", exc_info=e)
             return result
 
     async def __fetch_server_limitations(self):
