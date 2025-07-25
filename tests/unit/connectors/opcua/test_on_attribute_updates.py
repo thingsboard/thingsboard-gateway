@@ -12,76 +12,21 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
+
 from asyncio import Future
-from asyncio import get_event_loop
 from os import path
-from unittest import IsolatedAsyncioTestCase
 from unittest.mock import MagicMock, patch
 from asyncua import Node
 from asyncua.ua import NodeId, UaError
-from simplejson import load
 
-from thingsboard_gateway.connectors.opcua.device import Device
-from thingsboard_gateway.connectors.opcua.opcua_connector import OpcUaConnector
+from tests.unit.connectors.opcua.opcua_base_test import OpcUABaseTest
 
+class OpcUAAttributeUpdatesTest(OpcUABaseTest):
 
-class OpcUAAttributeUpdatesTest(IsolatedAsyncioTestCase):
-    CONFIG_PATH = path.join(path.dirname(path.abspath(__file__)), 'data')
-
-    async def asyncSetUp(self):
-        self.connector: OpcUaConnector = OpcUaConnector.__new__(OpcUaConnector)
-        self.connector._OpcUaConnector__log = logging.getLogger('Opc test')
-        self.connector._OpcUaConnector__loop = get_event_loop()
-        self.connector._OpcUaConnector__device_nodes = []
+    async def setUp(self):
+        await super().asyncSetUp()
         self.fake_device = self.create_fake_device('attribute_updates/opcua_config_attribute_update_full_path.json')
         self.connector._OpcUaConnector__device_nodes.append(self.fake_device)
-
-    async def asyncTearDown(self):
-        log = logging.getLogger('Opc test')
-        for handler in list(log.handlers):
-            log.removeHandler(handler)
-        self.fake_device = None
-        self.connector = None
-        await super().asyncTearDown()
-
-    @staticmethod
-    def create_fake_nodes():
-        fake_session = MagicMock()
-        device_node = Node(fake_session, NodeId(12, 2))
-        child_nodes = [
-            {"key": "Power", "node": Node(fake_session, NodeId(14, 2)), "section": "attributes",
-             "timestampLocation": "gateway"},
-            {"key": "Frequency", "node": Node(fake_session, NodeId(13, 2)), "section": "attributes",
-             "timestampLocation": "gateway"},
-            {"key": "Humidity", "node": Node(fake_session, NodeId(16, 2)), "section": "timeseries",
-             "timestampLocation": "gateway"},
-            {"key": "Temperature", "node": Node(fake_session, NodeId(15, 2)), "section": "timeseries",
-             "timestampLocation": "gateway"},
-        ]
-        return device_node, child_nodes
-
-    def create_fake_device(self, attribute_update_config_path):
-        device_node, child_nodes = self.create_fake_nodes()
-        device = Device(
-            logger=self.connector._OpcUaConnector__log,
-            path=['0:Objects', '2:MyObject'],
-            device_node=device_node,
-            name="OPCUA New Advanced Device",
-            device_profile="default",
-            config=self.convert_json(path.join(self.CONFIG_PATH, attribute_update_config_path)),
-            converter=None,
-            converter_for_sub=None,
-        )
-        for child_node in child_nodes:
-            device.nodes.append(child_node)
-        return device
-
-    @staticmethod
-    def convert_json(config_path):
-        with open(config_path, 'r') as config_file:
-            config = load(config_file)
-        return config
 
     async def test_correctly_return_node_on_full_path(self):
         fake_session = MagicMock()
@@ -152,7 +97,6 @@ class OpcUAAttributeUpdatesTest(IsolatedAsyncioTestCase):
 
         with patch.object(
                 self.connector._OpcUaConnector__loop, "create_task", return_value=done,
-                side_effect=AttributeError("'NoneType' object has no attribute 'write_value'")
         ):
             result = self.connector._OpcUaConnector__write_node_value(node_id, value)
 
@@ -165,7 +109,6 @@ class OpcUAAttributeUpdatesTest(IsolatedAsyncioTestCase):
 
         with patch.object(
                 self.connector._OpcUaConnector__loop, "create_task",
-                side_effect=UaError('Failed to send request to OPC UA server')
         ) as ct_mock, patch("time.sleep", return_value=None):
             result = self.connector._OpcUaConnector__write_node_value(node_id, value)
 
