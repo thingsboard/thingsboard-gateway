@@ -23,7 +23,7 @@ from tests.unit.connectors.opcua.opcua_base_test import OpcUABaseTest
 
 class OpcUAAttributeUpdatesTest(OpcUABaseTest):
 
-    async def setUp(self):
+    async def asyncSetUp(self):
         await super().asyncSetUp()
         self.fake_device = self.create_fake_device('attribute_updates/opcua_config_attribute_update_full_path.json')
         self.connector._OpcUaConnector__device_nodes.append(self.fake_device)
