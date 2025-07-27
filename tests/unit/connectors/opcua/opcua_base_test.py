@@ -24,7 +24,6 @@ class OpcUABaseTest(IsolatedAsyncioTestCase):
         log = logging.getLogger('Opc test')
         for handler in list(log.handlers):
             log.removeHandler(handler)
-        # self.fake_device = None
         self.connector = None
 
         await super().asyncTearDown()

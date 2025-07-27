@@ -14,7 +14,6 @@
 
 
 from enum import Enum
-
 from re import findall, sub
 
 from thingsboard_gateway.gateway.constants import (
@@ -44,6 +43,7 @@ class OpcUaRpcRequest:
         self.timeout = content.get('timeout', 5)
         self.params = content[DATA_PARAMETER].get(RPC_PARAMS_PARAMETER)
         self._arguments = None
+        self._received_identifier = None
         self.id = content[DATA_PARAMETER].get(RPC_ID_PARAMETER)
         self.device_name = content.get(DEVICE_SECTION_PARAMETER)
         self._fill_rpc_request(content)
@@ -55,6 +55,14 @@ class OpcUaRpcRequest:
     @arguments.setter
     def arguments(self, value):
         self._arguments = value
+
+    @property
+    def received_identifier(self):
+        return self._received_identifier
+
+    @received_identifier.setter
+    def received_identifier(self, value):
+        self._received_identifier = value
 
     def _get_rpc_type(self, content: dict) -> OpcUaRpcType:
         if self._is_connector_rpc():
@@ -112,7 +120,7 @@ class OpcUaRpcRequest:
             value = params[len(ident):]
             delimiter = next((p for p in RPC_SET_SPLIT_PATTERNS if p in params), None)
             self.params = ident
-            self.arguments = sub(r"[;\s]+$", "", value.split(delimiter)[-1])
+            self.arguments = sub(r"[;\s]+$", "", value.split(delimiter)[-1]).strip(' ;')
             return
 
         delimiter = next((p for p in RPC_SET_SPLIT_PATTERNS if p in params), None)

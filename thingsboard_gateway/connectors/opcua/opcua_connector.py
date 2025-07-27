@@ -27,6 +27,7 @@ from typing import List, Dict, Union
 from cachetools import TTLCache
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.connectors.opcua.entities.rpc_request import OpcUaRpcRequest, OpcUaRpcType
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
     DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
@@ -36,7 +37,6 @@ from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
-from thingsboard_gateway.connectors.opcua.entities.rpc_request import OpcUaRpcRequest, OpcUaRpcType
 
 try:
     import asyncua
@@ -1256,13 +1256,13 @@ class OpcUaConnector(Connector, Thread):
             identifier = device.get_node_by_key(rpc_request.params)
             if not identifier:
                 identifier = self.find_full_node_path(params=rpc_request.params, device=device)
+            rpc_request.received_identifier = identifier
 
         try:
             task = self.__loop.create_task(self.__process_rpc_request(identifier=identifier, rpc_request=rpc_request))
 
             while not task.done():
                 sleep(.2)
-
             result = task.result()
 
             self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
