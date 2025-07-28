@@ -98,6 +98,22 @@ fi
 
 sudo rm -rf thingsboard_gateway/logs/*
 
+if [[ "${2:-}" == "offline-build" ]]; then
+  sudo mkdir -p /var/lib/thingsboard_gateway
+  sudo cp -r requirements-full.txt /var/lib/thingsboard_gateway/
+  sudo chown -R "$USER":"$USER" /var/lib/thingsboard_gateway
+
+  python3 -m venv /var/lib/thingsboard_gateway/venv
+  source /var/lib/thingsboard_gateway/venv/bin/activate
+  pip install -r requirements-full.txt
+  sudo cp /var/lib/thingsboard_gateway/venv thingsboard_gateway -r
+
+  echo "Building offline package with full requirements..."
+  tar -czf venv.tar.gz -C thingsboard_gateway venv
+  ls
+  pwd
+fi
+
 if [ "${1:-}" != "only_clean" ]; then
 
   CURRENT_USER=$USER
@@ -113,7 +129,6 @@ if [ "${1:-}" != "only_clean" ]; then
   fi
   python3 -m pip install --upgrade --break-system-packages build
 
-  # --- Build the wheel package ---
   python3 -m build --no-isolation --wheel --outdir .
   WHEEL_FILE=$(ls | grep -E 'thingsboard_gateway-.*\.whl' | head -n 1)
   echo "Found wheel: $WHEEL_FILE"
@@ -167,6 +182,11 @@ EOT
   cp extensions.tar.gz for_build/var/lib/thingsboard_gateway
   mkdir -p for_build/etc/thingsboard-gateway
   cp configs.tar.gz for_build/etc/thingsboard-gateway
+
+  if [[ "${2:-}" == "offline-build" ]]; then
+    cp venv.tar.gz for_build/var/lib/thingsboard_gateway
+  fi
+
   rm -f for_build/var/lib/thingsboard_gateway/thingsboard_gateway-*.whl
   cp -r "$WHEEL_FILE" for_build/var/lib/thingsboard_gateway/"$WHEEL_FILE"
   cp -r for_build/etc deb_dist/thingsboard-gateway-"$CURRENT_VERSION"/debian/python3-thingsboard-gateway
@@ -218,11 +238,20 @@ EOT
   cp extensions.tar.gz ~/rpmbuild/SOURCES/
   cp "$WHEEL_FILE" ~/rpmbuild/SOURCES/
 
+  if [[ "${2:-}" == "offline-build" ]]; then
+    echo "Copy venv to rpm"
+    cp venv.tar.gz ~/rpmbuild/SOURCES/
+  fi
+
   # Copy the spec file to rpmbuild/SPECS.
   cp thingsboard-gateway.spec ~/rpmbuild/SPECS/
 
   # Build the RPM.
-  rpmbuild -ba ~/rpmbuild/SPECS/thingsboard-gateway.spec
+  if [[ "${2:-}" == "offline-build" ]]; then
+    rpmbuild -ba ~/rpmbuild/SPECS/thingsboard-gateway-offline.spec
+  else
+    rpmbuild -ba ~/rpmbuild/SPECS/thingsboard-gateway.spec
+  fi
 
   if ls ~/rpmbuild/RPMS/noarch/*.rpm 1> /dev/null 2>&1; then
       cp ~/rpmbuild/RPMS/noarch/*.rpm .
