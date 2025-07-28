@@ -37,3 +37,4 @@ requests
 aiohttp
 puresnmp>=2.0.0
 slixmpp
+wheel
