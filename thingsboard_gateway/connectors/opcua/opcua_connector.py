@@ -23,7 +23,7 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic, time
 from typing import List, Dict, Union
-
+from typing import Tuple, Any
 from cachetools import TTLCache
 
 from thingsboard_gateway.connectors.connector import Connector
@@ -105,8 +105,9 @@ class OpcUaConnector(Connector, Thread):
                 if report_strategy is not None:
                     self.__connector_report_strategy_config = ReportStrategyConfig(report_strategy)
             except ValueError as e:
-                self.__log.error('Error in report strategy configuration: %s, the gateway main strategy will be used.',
-                                 e)
+                self.__log.warning(
+                    'Error in report strategy configuration: %s, the gateway main strategy will be used.',
+                    e)
         if using_old_configuration_format:
             backward_compatibility_adapter = BackwardCompatibilityAdapter(self.__config, self.__log)
             self.__config = backward_compatibility_adapter.convert()
@@ -1086,11 +1087,26 @@ class OpcUaConnector(Connector, Thread):
 
         return None
 
+    def on_attributes_update(self, content: Dict):
+        self.__log.debug(content)
+        try:
+            device = self.__get_device_by_name(content['device'])
+            if device is None:
+                self.__log.error('Device %s not found for attributes update', content['device'])
+                return
+            node_id, value = self.__resolve_node_id(payload=content, device=device)
+            if isinstance(node_id, NodeId):
+                self.__write_node_value(node_id=node_id, value=value)
+                return
+            self.__log.error("Could not resolve path for device %s", device.name)
+
+        except Exception as e:
+            self.__log.exception(e)
+
     def __resolve_node_id(self, payload: dict, device: Device):
         for (key, value) in payload["data"].items():
             for attr_spec in device.config["attributes_updates"]:
                 if attr_spec["key"] != key:
-                    self.__log.debug("Config key %s does not match %s", attr_spec["key"], key)
                     continue
 
                 raw_path = TBUtility.get_value(attr_spec["value"], get_tag=True)
@@ -1128,24 +1144,7 @@ class OpcUaConnector(Connector, Thread):
             self.__log.debug("Unexpected error during write: %s", exc_info=exc)
             return False
 
-    def on_attributes_update(self, content: Dict):
-        self.__log.debug(content)
-        try:
-            device = self.__get_device_by_name(content['device'])
-            if device is None:
-                self.__log.error('Device %s not found for attributes update', content['device'])
-                return
-            node_id, value = self.__resolve_node_id(payload=content, device=device)
-            if isinstance(node_id, NodeId):
-                self.__write_node_value(node_id=node_id, value=value)
-                return
-            self.__log.error("Could not resolve path for device %s", device.name)
-
-        except Exception as e:
-            self.__log.exception(e)
-
     def server_side_rpc_handler(self, content: Dict):
-
         self.__log.info('Received server side rpc request: %r', content)
         try:
             response = None
@@ -1171,11 +1170,15 @@ class OpcUaConnector(Connector, Thread):
             try:
                 task = self.__loop.create_task(
                     self.__call_method(device.path, rpc_request.rpc_method, rpc_request.arguments))
-
-                while not task.done():
-                    sleep(.2)
-
-                result = task.result()
+                task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout,
+                                                                       poll_interval=0.2)
+                if not task_completed:
+                    self.__log.error(
+                        "Failed to process rpc request for %s, timeout has been reached",
+                        device.name,
+                    )
+                    results.append({"error": f"Timeout rpc has been reached for {device.name}"})
+                    continue
 
                 results.append(result)
                 self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
@@ -1184,6 +1187,17 @@ class OpcUaConnector(Connector, Thread):
                 self.__gateway.send_rpc_reply(rpc_request.device, rpc_request.id,
                                               {"result": {"error": str(e)}})
         return results
+
+    @staticmethod
+    def __wait_task_with_timeout(task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> Tuple[bool, Any]:
+        start_time = monotonic()
+        while not task.done():
+            sleep(poll_interval)
+            current_time = monotonic()
+            if current_time - start_time >= timeout:
+                task.cancel()
+                return False, None
+        return True, task.result()
 
     def __process_device_rpc_request(self, rpc_request: OpcUaRpcRequest):
         device = self.__get_device_by_name(rpc_request.device_name)
@@ -1215,13 +1229,18 @@ class OpcUaConnector(Connector, Thread):
         try:
             task = self.__loop.create_task(
                 self.__call_method(device.path, rpc_request.rpc_method, rpc_request.arguments))
+            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout,
+                                                                   poll_interval=0.2)
+            if not task_completed:
+                self.__log.error(
+                    "Failed to process rpc request for %s, timeout has been reached",
+                    device.name,
+                )
+                result = {"error": f"Timeout rpc has been reached for {device.name}"}
 
-            while not task.done():
-                sleep(.2)
 
-            result = task.result()
-
-            self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
+            elif not task_completed:
+                self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
             self.__gateway.send_rpc_reply(rpc_request.device_name,
                                           rpc_request.id,
                                           {"result": result})
@@ -1260,12 +1279,16 @@ class OpcUaConnector(Connector, Thread):
 
         try:
             task = self.__loop.create_task(self.__process_rpc_request(identifier=identifier, rpc_request=rpc_request))
-
-            while not task.done():
-                sleep(.2)
-            result = task.result()
-
-            self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
+            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout,
+                                                                   poll_interval=0.2)
+            if not task_completed:
+                self.__log.error(
+                    "Failed to process rpc request for %s, timeout has been reached",
+                    device.name,
+                )
+                result = {"error": f"Timeout rpc has been reached for {device.name}"}
+            elif task_completed:
+                self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
             self.__gateway.send_rpc_reply(rpc_request.device_name,
                                           rpc_request.id,
                                           {"result": result})
