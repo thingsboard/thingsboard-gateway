@@ -29,7 +29,7 @@ from cachetools import TTLCache
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.entities.rpc_request import OpcUaRpcRequest, OpcUaRpcType
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
-    DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER
+    DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER, RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -1127,10 +1127,13 @@ class OpcUaConnector(Connector, Thread):
         try:
             write_task = self.__write_value(node_id, value)
             task = self.__loop.create_task(write_task)
-
-            while not task.done():
-                sleep(.1)
-            result = task.result()
+            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=RPC_DEFAULT_TIMEOUT,
+                                                                   poll_interval=0.2)
+            if not task_completed:
+                self.__log.error(
+                    "Failed to process rpc request for %s, timeout has been reached",
+                )
+                result = {"error": f"Timeout rpc has been reached during write {value}"}
 
             if err := result.get("error"):
                 self.__log.error("Write error on %s: %s", node_id, err)
