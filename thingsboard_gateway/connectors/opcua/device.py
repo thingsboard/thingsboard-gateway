@@ -124,7 +124,8 @@ class Device:
         except KeyError:
             return None
 
-    def get_device_rpc_arguments(self, device_config: dict, rpc_request: OpcUaRpcRequest) -> list | None:
+    @staticmethod
+    def get_device_rpc_arguments(device_config: dict, rpc_request: OpcUaRpcRequest, logger) -> list | None:
         try:
             for rpc in device_config['rpc_methods']:
                 try:
@@ -137,15 +138,10 @@ class Device:
                                                                                                argument.get('value')]
                         return arguments
                 except KeyError as e:
-                    self._log.error("The requested method name %s does not match with config %s",
-                                    rpc_request.rpc_method,
-                                    str(e))
-                    self._log.debug("The requested method name %s does not match with config", exc_info=e)
-                    return None
-
-
+                    logger.error("The requested method name %s does not match with config %s",
+                                 rpc_request.rpc_method,
+                                 str(e))
+                    logger.debug("The requested method name %s does not match with config", exc_info=e)
 
         except KeyError:
-            self._log.warning('Rpc methods section is not specified')
-
-        return None
+            logger.warning('Rpc methods section is not specified')

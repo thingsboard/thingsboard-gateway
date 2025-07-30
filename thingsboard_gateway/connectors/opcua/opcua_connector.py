@@ -1179,7 +1179,7 @@ class OpcUaConnector(Connector, Thread):
                     )
                     results.append({"error": f"Timeout rpc has been reached for {device.name}"})
                     continue
-
+                result['device_name'] = device.name
                 results.append(result)
                 self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
             except Exception as e:
@@ -1207,7 +1207,7 @@ class OpcUaConnector(Connector, Thread):
                                           req_id=rpc_request.id,
                                           content={"result": {"error": 'Device not found'}})
             return
-        device_arguments = device.get_device_rpc_arguments(device_config=device.config, rpc_request=rpc_request)
+        device_arguments = device.get_device_rpc_arguments(device_config=device.config, rpc_request=rpc_request, logger=self.__log)
         if isinstance(device_arguments, list) and not device_arguments:
             self.__log.error("Arguments for method %s not found for device %s", rpc_request.rpc_method,
                              rpc_request.device_name)
@@ -1260,8 +1260,9 @@ class OpcUaConnector(Connector, Thread):
                                           req_id=rpc_request.id,
                                           content={"result": {"error": 'Device not found'}})
             return
+        is_node_id = self.__is_node_identifier(rpc_request.params)
 
-        if self.__is_node_identifier(rpc_request.params):
+        if is_node_id:
             identifier = rpc_request.params
             if not identifier:
                 self.__log.error("Could not find node for requested rpc request %s", rpc_request.params)
@@ -1270,7 +1271,7 @@ class OpcUaConnector(Connector, Thread):
                                               content={
                                                   "result": {"error": 'Could not find node for requested rpc request'}})
 
-        elif not self.__is_node_identifier(rpc_request.params):
+        elif not is_node_id:
 
             identifier = device.get_node_by_key(rpc_request.params)
             if not identifier:
