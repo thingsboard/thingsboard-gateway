@@ -125,23 +125,14 @@ class Device:
             return None
 
     @staticmethod
-    def get_device_rpc_arguments(device_config: dict, rpc_request: OpcUaRpcRequest, logger) -> list | None:
-        try:
-            for rpc in device_config['rpc_methods']:
-                try:
-                    if rpc['method'] == rpc_request.rpc_method:
-                        arguments_from_config = rpc.get('arguments', [])
+    def is_valid_rpc_method_name(rpc_device_section: dict, rpc_request: OpcUaRpcRequest) -> bool:
+        return bool(filter(lambda rpc: rpc.get('method') == rpc_request.rpc_method, rpc_device_section))
 
-                        arguments = rpc_request.params if rpc_request.params is not None else [argument['value'] for
-                                                                                               argument in
-                                                                                               arguments_from_config if
-                                                                                               argument.get('value')]
-                        return arguments
-                except KeyError as e:
-                    logger.error("The requested method name %s does not match with config %s",
-                                 rpc_request.rpc_method,
-                                 str(e))
-                    logger.debug("The requested method name %s does not match with config", exc_info=e)
-
-        except KeyError:
-            logger.warning('Rpc methods section is not specified')
+    @staticmethod
+    def get_device_rpc_arguments(rpc_device_section: dict) -> list:
+        arguments = []
+        for rpc in rpc_device_section:
+            arguments_from_config = rpc.get('arguments')
+            if arguments_from_config:
+                arguments = [argument['value'] for argument in arguments_from_config if argument.get('value')]
+        return arguments

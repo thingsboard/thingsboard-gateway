@@ -29,7 +29,7 @@ from cachetools import TTLCache
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.opcua.entities.rpc_request import OpcUaRpcRequest, OpcUaRpcType
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
-    DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER, RPC_DEFAULT_TIMEOUT
+    DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER, RPC_DEFAULT_TIMEOUT, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -1094,9 +1094,9 @@ class OpcUaConnector(Connector, Thread):
             if device is None:
                 self.__log.error('Device %s not found for attributes update', content['device'])
                 return
-            node_id, value = self.__resolve_node_id(payload=content, device=device)
+            node_id, value, timeout = self.__resolve_node_id(payload=content, device=device)
             if isinstance(node_id, NodeId):
-                self.__write_node_value(node_id=node_id, value=value)
+                self.__write_node_value(node_id=node_id, value=value, timeout=timeout)
                 return
             self.__log.error("Could not resolve path for device %s", device.name)
 
@@ -1115,19 +1115,20 @@ class OpcUaConnector(Connector, Thread):
                     if self.__is_node_identifier(raw_path)
                     else self.find_full_node_path(raw_path, device)
                 )
+                timeout = attr_spec.get("timeout", ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT)
 
-                return node_id, value
+                return node_id, value, timeout
 
         self.__log.error("No attribute mapping found for device %s", device.name)
         node_id = None
         value = None
         return node_id, value
 
-    def __write_node_value(self, node_id: NodeId, value) -> bool:
+    def __write_node_value(self, node_id: NodeId, value, timeout: float) -> bool:
         try:
             write_task = self.__write_value(node_id, value)
             task = self.__loop.create_task(write_task)
-            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=RPC_DEFAULT_TIMEOUT,
+            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=timeout,
                                                                    poll_interval=0.2)
             if not task_completed:
                 self.__log.error(
@@ -1204,30 +1205,29 @@ class OpcUaConnector(Connector, Thread):
 
     def __process_device_rpc_request(self, rpc_request: OpcUaRpcRequest):
         device = self.__get_device_by_name(rpc_request.device_name)
+        rpc_section = device.config.get('rpc_methods', [])
         if device is None:
             self.__log.error('Device %s not found for RPC request', rpc_request.device_name)
             self.__gateway.send_rpc_reply(device=rpc_request.device_name,
                                           req_id=rpc_request.id,
                                           content={"result": {"error": 'Device not found'}})
             return
-        device_arguments = device.get_device_rpc_arguments(device_config=device.config, rpc_request=rpc_request, logger=self.__log)
-        if isinstance(device_arguments, list) and not device_arguments:
-            self.__log.error("Arguments for method %s not found for device %s", rpc_request.rpc_method,
-                             rpc_request.device_name)
-            self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id,
-
-                                          {"result": {"error": "%s - No arguments provided" % rpc_request.rpc_method}})
+        if not rpc_section or not rpc_section.get('method'):
+            self.__log.warning('Either method or rpc_section is not specified')
+            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
+                                          req_id=rpc_request.id,
+                                          content={
+                                              "result": {"error": 'Check your method and rpc_section for obsolete'}})
             return
-        if device_arguments is None:
-            self.__log.error("Such method %s is not found in config for device %s", rpc_request.rpc_method,
-                             rpc_request.device_name)
-            self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id,
+        if not device.is_valid_rpc_method_name(rpc_device_section=rpc_section, rpc_request=rpc_request):
+            self.__log.error('Requested rpc method is not found in config %s', rpc_request.device_name)
+            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
+                                          req_id=rpc_request.id,
+                                          content={"result": {"error": 'Requested rpc method is not found in config'}})
 
-                                          {"result": {
-                                              "error": "%s - No configuration provided for method" % rpc_request.rpc_method}})
-            return
-
-        rpc_request.arguments = device_arguments
+        if not rpc_request.arguments:
+            rpc_request.arguments = device.get_device_rpc_arguments(device_config=rpc_section,
+                                                                    rpc_request=rpc_request)
 
         try:
             task = self.__loop.create_task(

@@ -140,6 +140,7 @@ class OpcUaRpcRequest:
     def _fill_device_rpc_request(self, content: dict):
         rpc_section = content[DATA_PARAMETER].get(RPC_METHOD_PARAMETER)
         self.rpc_method = rpc_section
+        self.arguments = self.params
 
     @staticmethod
     def __find_identifier_request(path: str) -> list | None:
