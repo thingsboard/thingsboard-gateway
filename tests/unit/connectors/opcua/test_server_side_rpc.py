@@ -105,7 +105,9 @@ class TestOpcUaDeviceServerSideRpc(OpcUABaseTest):
 
         self.assertIsNone(results)
         self.connector._OpcUaConnector__gateway.send_rpc_reply.assert_called_once_with(
-          device=rpc_request.device_name, req_id=rpc_request.id, content={"result": result}
+            device=rpc_request.device_name,
+            req_id=rpc_request.id,
+            content={"result": result}
         )
 
     async def test_execute_device_rpc_with_specified_arguments(self):
@@ -125,6 +127,21 @@ class TestOpcUaDeviceServerSideRpc(OpcUABaseTest):
         create_task_mock.assert_called_once()
         self.assertEqual(results, result)
         self.assert_gateway_reply(rpc_request, result)
+
+    async def test_execute_device_rpc_on_empty_device_section(self):
+        payload = {'data': {'id': 29, 'method': 'multiply', 'params': [2, 5]}, 'device': self.DEVICE_NAME, 'id': 29}
+        result = {"error": "Requested rpc method is not found in config"}
+        self.fake_device = self.create_fake_device('rpc/opcua_config_empty_section_rpc.json')
+        self.connector._OpcUaConnector__device_nodes = [self.fake_device]
+        rpc_request = OpcUaRpcRequest(payload)
+        self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
+        self.assertEqual(rpc_request.rpc_method, "multiply")
+        done_future, create_task_mock, results = self.call_device_with_result(rpc_request, result)
+        self.connector._OpcUaConnector__gateway.send_rpc_reply.assert_called_once_with(
+            device=rpc_request.device_name,
+            req_id=rpc_request.id,
+            content={"result": result}
+        )
 
 
 class TestOpcUaReservedGetRpcRpcRequest(OpcUABaseTest):
