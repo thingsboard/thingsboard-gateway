@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-
 from tests.unit.connectors.opcua.opcua_base_test import OpcUABaseTest
 
 
@@ -68,47 +67,45 @@ class TestOpcUaDeviceServerSideRpc(OpcUABaseTest):
 
         self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
         self.assertEqual(rpc_request.rpc_method, "multiply")
-        self.assertIsNone(rpc_request.arguments)
+        self.assertEqual(rpc_request.arguments, [2, 5])
 
         done_future, create_task_mock, results = self.call_device_with_result(rpc_request, result)
 
         device = self.connector._OpcUaConnector__get_device_by_name(rpc_request.device_name)
-        self.assertEqual(rpc_request.arguments, [2, 5])
         self.assertIs(device, self.fake_device)
         create_task_mock.assert_called_once()
         self.assertEqual(results, result)
         self.assert_gateway_reply(rpc_request, result)
 
-    async def test_execute_device_rpc_with_no_arguments(self):
+    async def test_execute_device_rpc_fails_on_timeout(self):
         payload = {'data': {'id': 16, 'method': 'multiply', 'params': None}, 'device': self.DEVICE_NAME, 'id': 16}
-        result = {"result": {"error": "multiply - No arguments provided"}}
+        result = {'error': 'Timeout rpc has been reached for OPCUA New Advanced Device'}
         rpc_request = OpcUaRpcRequest(payload)
 
         self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
         self.assertEqual(rpc_request.rpc_method, "multiply")
-        self.assertIsNone(rpc_request.arguments)
 
         results = self.connector._OpcUaConnector__process_device_rpc_request(rpc_request=rpc_request)
 
-        self.assertIsNone(results)
+        self.assertEqual(results, result)
         self.connector._OpcUaConnector__gateway.send_rpc_reply.assert_called_once_with(
-            rpc_request.device_name, rpc_request.id, result
+            rpc_request.device_name, rpc_request.id, {"result": result}
         )
 
     async def test_execute_device_rpc_with_unknown_method(self):
         payload = {'data': {'id': 26, 'method': 'frfrffr', 'params': [5, 6]}, 'device': self.DEVICE_NAME, 'id': 26}
-        result = {'result': {'error': 'frfrffr - No configuration provided for method'}}
+        result = {'error': 'Requested rpc method is not found in config'}
         rpc_request = OpcUaRpcRequest(payload)
 
         self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
         self.assertEqual(rpc_request.rpc_method, "frfrffr")
-        self.assertIsNone(rpc_request.arguments)
+        self.assertEqual(rpc_request.arguments,[5, 6] )
 
         results = self.connector._OpcUaConnector__process_device_rpc_request(rpc_request=rpc_request)
 
         self.assertIsNone(results)
         self.connector._OpcUaConnector__gateway.send_rpc_reply.assert_called_once_with(
-            rpc_request.device_name, rpc_request.id, result
+          device=rpc_request.device_name, req_id=rpc_request.id, content={"result": result}
         )
 
     async def test_execute_device_rpc_with_specified_arguments(self):

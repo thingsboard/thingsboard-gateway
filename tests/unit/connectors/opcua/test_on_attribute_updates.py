@@ -17,9 +17,10 @@ from asyncio import Future
 from os import path
 from unittest.mock import MagicMock, patch
 from asyncua import Node
-from asyncua.ua import NodeId, UaError
+from asyncua.ua import NodeId
 
 from tests.unit.connectors.opcua.opcua_base_test import OpcUABaseTest
+
 
 class OpcUAAttributeUpdatesTest(OpcUABaseTest):
 
@@ -40,7 +41,7 @@ class OpcUAAttributeUpdatesTest(OpcUABaseTest):
         with patch.object(
                 self.connector._OpcUaConnector__loop, "create_task", return_value=done_future
         ) as create_task_mock:
-            node_id, value = self.connector._OpcUaConnector__resolve_node_id(
+            node_id, value, timeout = self.connector._OpcUaConnector__resolve_node_id(
                 payload, self.fake_device
             )
         create_task_mock.assert_called_once()
@@ -52,7 +53,7 @@ class OpcUAAttributeUpdatesTest(OpcUABaseTest):
         payload = {"device": self.fake_device.name, "data": {"Frequency": 5}}
         self.fake_device = self.create_fake_device(
             path.join(self.CONFIG_PATH, 'attribute_updates/opcua_config_attribute_update_identifier.json'))
-        node_id, value = self.connector._OpcUaConnector__resolve_node_id(
+        node_id, value, timeout = self.connector._OpcUaConnector__resolve_node_id(
             payload, self.fake_device
         )
         self.assertEqual(node_id, expected_id)
@@ -84,7 +85,7 @@ class OpcUAAttributeUpdatesTest(OpcUABaseTest):
         with patch.object(
                 self.connector._OpcUaConnector__loop, "create_task", return_value=done
         ) as ct_mock:
-            result = self.connector._OpcUaConnector__write_node_value(node_id, value)
+            result = self.connector._OpcUaConnector__write_node_value(node_id, value, timeout=5)
 
         ct_mock.assert_called_once()
         self.assertTrue(result)
@@ -98,7 +99,7 @@ class OpcUAAttributeUpdatesTest(OpcUABaseTest):
         with patch.object(
                 self.connector._OpcUaConnector__loop, "create_task", return_value=done,
         ):
-            result = self.connector._OpcUaConnector__write_node_value(node_id, value)
+            result = self.connector._OpcUaConnector__write_node_value(node_id, value, timeout=5)
 
         self.assertFalse(result)
 
@@ -110,7 +111,7 @@ class OpcUAAttributeUpdatesTest(OpcUABaseTest):
         with patch.object(
                 self.connector._OpcUaConnector__loop, "create_task",
         ) as ct_mock, patch("time.sleep", return_value=None):
-            result = self.connector._OpcUaConnector__write_node_value(node_id, value)
+            result = self.connector._OpcUaConnector__write_node_value(node_id, value, timeout=5)
 
         ct_mock.assert_called_once()
         self.assertFalse(result)
