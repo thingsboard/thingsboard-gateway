@@ -126,13 +126,16 @@ class Device:
 
     @staticmethod
     def is_valid_rpc_method_name(rpc_device_section: dict, rpc_request: OpcUaRpcRequest) -> bool:
-        return bool(filter(lambda rpc: rpc.get('method') == rpc_request.rpc_method, rpc_device_section))
+        for rpc in rpc_device_section:
+            if rpc.get('method') == rpc_request.rpc_method:
+                return True
+        return False
 
     @staticmethod
-    def get_device_rpc_arguments(rpc_device_section: dict) -> list:
+    def get_device_rpc_arguments(rpc_device_section: dict, rpc_request: OpcUaRpcRequest) -> list:
         arguments = []
         for rpc in rpc_device_section:
             arguments_from_config = rpc.get('arguments')
-            if arguments_from_config:
+            if arguments_from_config and rpc.get('method') == rpc_request.rpc_method:
                 arguments = [argument['value'] for argument in arguments_from_config if argument.get('value')]
         return arguments

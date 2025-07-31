@@ -1212,22 +1212,23 @@ class OpcUaConnector(Connector, Thread):
                                           req_id=rpc_request.id,
                                           content={"result": {"error": 'Device not found'}})
             return
-        if not rpc_section or not rpc_section.get('method'):
-            self.__log.warning('Either method or rpc_section is not specified')
+        if not rpc_section:
+            self.__log.warning('Rpc section is not found for device %s', device.name)
             self.__gateway.send_rpc_reply(device=rpc_request.device_name,
                                           req_id=rpc_request.id,
                                           content={
-                                              "result": {"error": 'Check your method and rpc_section for obsolete'}})
+                                              "result": {
+                                                  "error": f'Rpc section is not specified for device {device.name}'}})
             return
         if not device.is_valid_rpc_method_name(rpc_device_section=rpc_section, rpc_request=rpc_request):
             self.__log.error('Requested rpc method is not found in config %s', rpc_request.device_name)
             self.__gateway.send_rpc_reply(device=rpc_request.device_name,
                                           req_id=rpc_request.id,
                                           content={"result": {"error": 'Requested rpc method is not found in config'}})
+            return
 
         if not rpc_request.arguments:
-            rpc_request.arguments = device.get_device_rpc_arguments(device_config=rpc_section,
-                                                                    rpc_request=rpc_request)
+            rpc_request.arguments = device.get_device_rpc_arguments(rpc_device_section=rpc_section, rpc_request=rpc_request)
 
         try:
             task = self.__loop.create_task(
