@@ -12,8 +12,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-import logging
 import asyncio
+import logging
 import re
 from asyncio.exceptions import CancelledError
 from concurrent.futures import ThreadPoolExecutor
@@ -23,11 +23,13 @@ from string import ascii_lowercase
 from threading import Thread
 from time import sleep, monotonic, time
 from typing import List, Dict, Union
+from typing import Tuple, Any
 from cachetools import TTLCache
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.connectors.opcua.entities.rpc_request import OpcUaRpcRequest, OpcUaRpcType
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
-    DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER
+    DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER, RPC_DEFAULT_TIMEOUT, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -72,7 +74,6 @@ MESSAGE_SECURITY_MODES = {
 RPC_SET_SPLIT_PATTERNS = ["; ", ";=", "=", " "]
 
 
-
 class OpcUaConnector(Connector, Thread):
     def __init__(self, gateway: 'TBGatewayService', config, connector_type):
         self.statistics = {'MessagesReceived': 0,
@@ -104,7 +105,9 @@ class OpcUaConnector(Connector, Thread):
                 if report_strategy is not None:
                     self.__connector_report_strategy_config = ReportStrategyConfig(report_strategy)
             except ValueError as e:
-                self.__log.error('Error in report strategy configuration: %s, the gateway main strategy will be used.', e)
+                self.__log.warning(
+                    'Error in report strategy configuration: %s, the gateway main strategy will be used.',
+                    e)
         if using_old_configuration_format:
             backward_compatibility_adapter = BackwardCompatibilityAdapter(self.__config, self.__log)
             self.__config = backward_compatibility_adapter.convert()
@@ -126,7 +129,8 @@ class OpcUaConnector(Connector, Thread):
         self.__sub_check_period_in_millis = max(self.__server_conf.get("subCheckPeriodInMillis", 100), 100)
         # Batch size for data change subscription, the gateway will process this amount of data, received from subscriptions, or less in one iteration
         self.__sub_data_max_batch_size = self.__server_conf.get("subDataMaxBatchSize", 1000)
-        self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200), 100) / 1000
+        self.__sub_data_min_batch_creation_time = max(self.__server_conf.get("subDataMinBatchCreationTimeMs", 200),
+                                                      100) / 1000
         self.__subscription_batch_size = self.__server_conf.get('subscriptionProcessBatchSize', 2000)
 
         self.__reconnect_retries_count = self.__server_conf.get('reconnectRetriesCount', 8)
@@ -241,8 +245,8 @@ class OpcUaConnector(Connector, Thread):
                         await self.__unsubscribe_from_node(device, node)
 
             if (device_name is None and device.subscription is not None
-                and self.__client.uaclient.protocol is not None
-                and self.__client.uaclient.protocol.state == 'open'):
+                    and self.__client.uaclient.protocol is not None
+                    and self.__client.uaclient.protocol.state == 'open'):
                 try:
                     await device.subscription.delete()
                 except AttributeError:
@@ -310,8 +314,10 @@ class OpcUaConnector(Connector, Thread):
                     if self.__stopped:
                         break
                     if self.__enable_subscriptions and self.__device_nodes:
-                        self.__log.debug("Subscriptions are enabled, client will reconnect, unsubscribe old subscriptions and subscribe to new nodes.")
-                        await self.retry_connect_with_backoff(self.__reconnect_retries_count, self.__reconnect_backoff_initial_delay,
+                        self.__log.debug(
+                            "Subscriptions are enabled, client will reconnect, unsubscribe old subscriptions and subscribe to new nodes.")
+                        await self.retry_connect_with_backoff(self.__reconnect_retries_count,
+                                                              self.__reconnect_backoff_initial_delay,
                                                               self.__reconnect_backoff_factor)
                         self.__last_contact_time = monotonic()
                         if not (self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open'):
@@ -329,7 +335,8 @@ class OpcUaConnector(Connector, Thread):
                     self.__client_recreation_required = False
 
                 if reconnect_required:
-                    await self.retry_connect_with_backoff(self.__reconnect_retries_count, self.__reconnect_backoff_initial_delay,
+                    await self.retry_connect_with_backoff(self.__reconnect_retries_count,
+                                                          self.__reconnect_backoff_initial_delay,
                                                           self.__reconnect_backoff_factor)
                     self.__last_contact_time = monotonic()
 
@@ -429,7 +436,7 @@ class OpcUaConnector(Connector, Thread):
         if last_contact_delta < self.__client.session_timeout / 1000 and self.__last_contact_time > 0:
             time_to_wait = self.__client.session_timeout / 1000 - last_contact_delta
             self.__log.info('Last contact was %.2f seconds ago, next connection try in %.2f seconds...',
-                             last_contact_delta, time_to_wait)
+                            last_contact_delta, time_to_wait)
             await asyncio.sleep(time_to_wait)
         delay = initial_delay
         for attempt in range(max_retries):
@@ -438,7 +445,8 @@ class OpcUaConnector(Connector, Thread):
             try:
                 return await self.__client.connect()
             except Exception as e:
-                base_time = self.__client.session_timeout / 1000 if (last_contact_delta > 0 and last_contact_delta < self.__client.session_timeout / 1000) else 0
+                base_time = self.__client.session_timeout / 1000 if (
+                        last_contact_delta > 0 and last_contact_delta < self.__client.session_timeout / 1000) else 0
                 time_to_wait = base_time / 1000 + delay
                 self.__log.error('Encountered error: %r. Next connection try in %i second(s)...', e, time_to_wait)
                 await asyncio.sleep(time_to_wait)
@@ -544,10 +552,11 @@ class OpcUaConnector(Connector, Thread):
         target_node_path = None
         if len(node_list_to_search) == 1:
             node_paths = [node['path'] if isinstance(node, dict) else node for node in nodes]
-            target_node_path = '.'.join(node_path.split(':')[-1] for node_path in node_paths) + '.' + node_list_to_search[0]
+            target_node_path = '.'.join(node_path.split(':')[-1] for node_path in node_paths) + '.' + \
+                               node_list_to_search[0]
             if target_node_path in self.__scanning_nodes_cache:
                 if self.__show_map:
-                        self.__log.debug('Found node in cache: %s', node_list_to_search[0])
+                    self.__log.debug('Found node in cache: %s', node_list_to_search[0])
                 final.append(self.__scanning_nodes_cache[target_node_path])
                 return final
 
@@ -561,14 +570,17 @@ class OpcUaConnector(Connector, Thread):
             child_node = await node.read_browse_name()
             if len(node_list_to_search) == 1:
                 node_paths = [node['path'] if isinstance(node, dict) else node for node in nodes]
-                current_node_path = '.'.join(node_path.split(':')[-1] for node_path in node_paths) + '.' + child_node.Name
+                current_node_path = '.'.join(
+                    node_path.split(':')[-1] for node_path in node_paths) + '.' + child_node.Name
                 if not current_node_path in self.__scanning_nodes_cache:
-                    self.__scanning_nodes_cache[current_node_path] = [*nodes, {'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
+                    self.__scanning_nodes_cache[current_node_path] = [*nodes, {
+                        'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
             if self.__show_map and path:
                 if children_nodes_count < 1000 or counter % 1000 == 0:
                     self.__log.info('Checking path: %s', path + '.' + f'{child_node.Name}')
 
-            if re.fullmatch(re.escape(node_list_to_search[0]), child_node.Name) or node_list_to_search[0].split(':')[-1] == child_node.Name:
+            if re.fullmatch(re.escape(node_list_to_search[0]), child_node.Name) or node_list_to_search[0].split(':')[
+                -1] == child_node.Name:
                 if self.__show_map:
                     self.__log.info('Found node: %s', child_node.Name)
                 new_nodes = [*nodes, {'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
@@ -578,8 +590,9 @@ class OpcUaConnector(Connector, Thread):
                         self.__log.debug('Found node: %s', child_node.Name)
                     return final
                 else:
-                    final.extend(await self.__find_nodes(node_list_to_search[1:], current_parent_node=node, nodes=new_nodes,
-                                                         path=path + '.' + f'{child_node.Name}'))
+                    final.extend(
+                        await self.__find_nodes(node_list_to_search[1:], current_parent_node=node, nodes=new_nodes,
+                                                path=path + '.' + f'{child_node.Name}'))
 
         return final
 
@@ -706,7 +719,8 @@ class OpcUaConnector(Connector, Thread):
                         if sub_node.nodeid not in device.nodes_data_change_subscriptions:
                             continue
                         if device not in device_converted_data_map:
-                            device_converted_data_map[device] = ConvertedData(device_name=device.name, device_type=device.device_profile)
+                            device_converted_data_map[device] = ConvertedData(device_name=device.name,
+                                                                              device_type=device.device_profile)
 
                         nodes_configs = device.nodes_data_change_subscriptions[sub_node.nodeid]['nodes_configs']
                         nodes_values = [data.monitored_item.Value for _ in range(len(nodes_configs))]
@@ -762,7 +776,8 @@ class OpcUaConnector(Connector, Thread):
                         device_config = {**device_config, 'device_name': device_name, 'device_type': device_profile}
                         device_path = [node_path_node_object['path'] for node_path_node_object in node]
                         self.__device_nodes.append(
-                            Device(path=device_path, name=device_name, device_profile=device_profile, config=device_config,
+                            Device(path=device_path, name=device_name, device_profile=device_profile,
+                                   config=device_config,
                                    converter=converter(device_config, self.__converter_log),
                                    converter_for_sub=converter(device_config,
                                                                self.__converter_log) if self.__enable_subscriptions else None,
@@ -813,16 +828,19 @@ class OpcUaConnector(Connector, Thread):
                                 try:
                                     node_report_strategy = ReportStrategyConfig(node_report_strategy)
                                 except ValueError as e:
-                                    self.__log.error('Error in report strategy configuration: %s, for key %s the device or connector report strategy will be used.', e, node['key'])
+                                    self.__log.error(
+                                        'Error in report strategy configuration: %s, for key %s the device or connector report strategy will be used.',
+                                        e, node['key'])
                                     node_report_strategy = self.__connector_report_strategy_config if device.report_strategy is None else device.report_strategy
                             elif device.report_strategy is not None:
                                 node_report_strategy = device.report_strategy
 
                         node_config = {"node": found_node, "key": node['key'],
-                                       "section": section, 'timestampLocation': node.get('timestampLocation', 'gateway')}
+                                       "section": section,
+                                       'timestampLocation': node.get('timestampLocation', 'gateway')}
                         if self.__gateway.get_report_strategy_service() is not None and node_report_strategy is not None:
                             node_config[REPORT_STRATEGY_PARAMETER] = node_report_strategy
-                            node_report_strategy = None # Cleaning for next iteration
+                            node_report_strategy = None  # Cleaning for next iteration
 
                         device.nodes.append(node_config)
 
@@ -845,7 +863,8 @@ class OpcUaConnector(Connector, Thread):
                                     }
                                     device.nodes_data_change_subscriptions[found_node.nodeid] = device_node_config
 
-                                device.nodes_data_change_subscriptions[found_node.nodeid]['nodes_configs'].append(node_config)
+                                device.nodes_data_change_subscriptions[found_node.nodeid]['nodes_configs'].append(
+                                    node_config)
 
                                 if device.subscription is None:
                                     device.subscription = await self.__client.create_subscription(
@@ -899,7 +918,8 @@ class OpcUaConnector(Connector, Thread):
                     else:
                         self.__log.debug('No new nodes to subscribe for device %s', device.name)
                 else:
-                    self.__log.debug('Subscriptions are disabled for device %s or device subscription is None', device.name)
+                    self.__log.debug('Subscriptions are disabled for device %s or device subscription is None',
+                                     device.name)
             except Exception as e:
                 self.__log.exception("Error loading nodes: %s", e)
                 raise e
@@ -918,16 +938,20 @@ class OpcUaConnector(Connector, Thread):
                 bad_results = list(filter(lambda r: not isinstance(r, int), subscription_result))
                 if bad_results:
                     reasons = [r.doc for r in bad_results]
-                    self.__log.error("Failed subscribing to nodes, server returned the following reasons: %r, nodes count with these problems - %r", set(reasons), len(reasons))
+                    self.__log.error(
+                        "Failed subscribing to nodes, server returned the following reasons: %r, nodes count with these problems - %r",
+                        set(reasons), len(reasons))
                     self.__log.trace("Failed nodes: %r", bad_results)
                 result.append(subscription_result)
                 successfully_processed = batch_len - len(bad_results)
                 total_successfully_subscribed += successfully_processed
                 total_failed_to_subscribe += len(bad_results)
                 if successfully_processed > 0:
-                    self.__log.info("Succesfully subscribed to batch number %i with %i nodes.", i // batch_size + 1, successfully_processed)
+                    self.__log.info("Succesfully subscribed to batch number %i with %i nodes.", i // batch_size + 1,
+                                    successfully_processed)
                 else:
-                    self.__log.warning("Failed to subscribe to batch number %i with %i nodes.", i // batch_size + 1, batch_len)
+                    self.__log.warning("Failed to subscribe to batch number %i with %i nodes.", i // batch_size + 1,
+                                       batch_len)
             except Exception as e:
                 self.__log.warning("Error subscribing to batch %i with %i : %r", i // batch_size + 1, batch_len, e)
                 # self.__log.error("%r", batch) # Uncomment to see the nodes that failed to subscribe
@@ -942,7 +966,6 @@ class OpcUaConnector(Connector, Thread):
         self.__log.debug('Received status change event: %s', status.Status.doc)
         if status.Status.is_bad():
             self.__client_recreation_required = True
-
 
     async def __poll_nodes(self):
         data_retrieving_started = int(time() * 1000)
@@ -981,7 +1004,7 @@ class OpcUaConnector(Connector, Thread):
             try:
                 values, received_ts, data_retrieving_started = self.__data_to_convert.get_nowait()
                 futures.append(self.__thread_pool_executor.submit(self.__convert_retrieved_data, values, received_ts,
-                                                            data_retrieving_started))
+                                                                  data_retrieving_started))
                 if len(futures) >= pack:
                     continue
             except Empty:
@@ -994,7 +1017,8 @@ class OpcUaConnector(Connector, Thread):
                 nodes_count = len(device.nodes)
                 device_values = values[converted_nodes_count:converted_nodes_count + nodes_count]
                 converted_nodes_count += nodes_count
-                converted_data: ConvertedData = self.__convert_device_data(device.converter, device.nodes, device_values)
+                converted_data: ConvertedData = self.__convert_device_data(device.converter, device.nodes,
+                                                                           device_values)
                 converted_data.add_to_metadata({
                     CONNECTOR_PARAMETER: self.get_name(),
                     RECEIVED_TS_PARAMETER: received_ts,
@@ -1005,7 +1029,7 @@ class OpcUaConnector(Connector, Thread):
                     self.__gateway.send_to_storage(self.get_name(), self.get_id(), converted_data)
 
                     StatisticsService.count_connector_message(self.name, stat_parameter_name='connectorMsgsReceived')
-                    #TODO: Should these counters be here, or on upper level?
+                    # TODO: Should these counters be here, or on upper level?
                     StatisticsService.count_connector_bytes(self.name, converted_data,
                                                             stat_parameter_name='connectorBytesReceived')
             self.__log.info('Converted data from %s nodes', converted_nodes_count)
@@ -1037,7 +1061,7 @@ class OpcUaConnector(Connector, Thread):
             return node_pattern, current_path
         except Exception as e:
             logger.error("determine_rpc_income_data failed for params=%r: %s",
-                   params, e)
+                         params, e)
 
     def find_full_node_path(self, params, device):
         try:
@@ -1070,191 +1094,236 @@ class OpcUaConnector(Connector, Thread):
             if device is None:
                 self.__log.error('Device %s not found for attributes update', content['device'])
                 return
+            node_id, value, timeout = self.__resolve_node_id(payload=content, device=device)
+            if isinstance(node_id, NodeId):
+                self.__write_node_value(node_id=node_id, value=value, timeout=timeout)
+                return
+            self.__log.error("Could not resolve path for device %s", device.name)
 
-            for (key, value) in content['data'].items():
-                for attr_update in device.config['attributes_updates']:
-                    if not attr_update['key'] == key:
-                        continue
-                    path_to_node = TBUtility.get_value(attr_update['value'], get_tag=True)
-                    if self.__is_node_identifier(path_to_node):
-                        node_id = NodeId.from_string(path_to_node)
-                    else:
-                        node_id = self.find_full_node_path(path_to_node, device)
-
-                    execution_result = {}
-                    self.__loop.create_task(self.__write_value(node_id, value, execution_result))
-                    writing_start = monotonic()
-                    while not execution_result:
-                        if monotonic() - writing_start > 1:
-                            self.__log.error('Writing timeout!')
-                            return
-                        sleep(.1)
-                    if execution_result.get('error'):
-                        self.__log.error('Error during processing shared attribute update: %s',
-                                         execution_result['error'])
-                        return
-                    return
         except Exception as e:
             self.__log.exception(e)
 
-    def server_side_rpc_handler(self, content: Dict):
+    def __resolve_node_id(self, payload: dict, device: Device):
+        for (key, value) in payload["data"].items():
+            for attr_spec in device.config["attributes_updates"]:
+                if attr_spec["key"] != key:
+                    continue
+
+                raw_path = TBUtility.get_value(attr_spec["value"], get_tag=True)
+                node_id = (
+                    NodeId.from_string(raw_path)
+                    if self.__is_node_identifier(raw_path)
+                    else self.find_full_node_path(raw_path, device)
+                )
+                timeout = attr_spec.get("timeout", ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT)
+
+                return node_id, value, timeout
+
+        self.__log.error("No attribute mapping found for device %s", device.name)
+        node_id = None
+        value = None
+        return node_id, value
+
+    def __write_node_value(self, node_id: NodeId, value, timeout: float) -> bool:
         try:
-            if content.get('data') is None:
-                content['data'] = {'params': content['params'], 'method': content['method'], 'id': content['id']}
+            write_task = self.__write_value(node_id, value)
+            task = self.__loop.create_task(write_task)
+            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=timeout,
+                                                                   poll_interval=0.2)
+            if not task_completed:
+                self.__log.error(
+                    "Failed to process rpc request for %s, timeout has been reached",
+                )
+                result = {"error": f"Timeout rpc has been reached during write {value}"}
 
-            rpc_method = content["data"].get("method")
+            if err := result.get("error"):
+                self.__log.error("Write error on %s: %s", node_id, err)
+                return False
 
-            self.__log.debug('Received RPC request with method %s', rpc_method)
+            self.__log.debug("Successfully wrote %s to %s", value, node_id)
+            return True
 
-            # check if RPC type is connector RPC (can be only 'get' or 'set')
-            try:
-                (connector_type, rpc_method_name) = rpc_method.split('_')
-                if connector_type == self._connector_type:
-                    rpc_method = rpc_method_name
-                    content['device'] = content['params'].split(' ')[0].split('=')[-1]
-            except (ValueError, IndexError, AttributeError):
-                pass
+        except Exception as exc:
+            self.__log.exception("Unexpected error during write: %s", exc)
+            self.__log.debug("Unexpected error during write: %s", exc_info=exc)
+            return False
 
-            if content.get('device'):
-                device = self.__get_device_by_name(content['device'])
-                if device is None:
-                    self.__log.error('Device %s not found for RPC request', content['device'])
-                    self.__gateway.send_rpc_reply(device=content['device'],
-                                                  req_id=content['data'].get('id'),
-                                                  content={"result": {"error": 'Device not found'}})
-                    return
+    def server_side_rpc_handler(self, content: Dict):
+        self.__log.info('Received server side rpc request: %r', content)
 
-                # Check is a service method
-                if rpc_method == 'set' or rpc_method == 'get':
-                    full_path = ''
-                    args_list = []
-                    params = content['data']['params']
-                    value = None
+        try:
+            response = None
+            rpc_request = OpcUaRpcRequest(content=content)
+            if rpc_request.rpc_type == OpcUaRpcType.CONNECTOR:
+                response = self.__process_connector_rpc_request(rpc_request=rpc_request)
+            elif rpc_request.rpc_type == OpcUaRpcType.DEVICE:
+                response = self.__process_device_rpc_request(rpc_request=rpc_request)
 
-                    try:
-                        args_list = params.split(';')
-                        if not self.__is_node_identifier(params):
-                            found = False
-                            for pattern in RPC_SET_SPLIT_PATTERNS:
-                                if pattern in params:
-                                    args_list = params.split(pattern)
-                                    part_for_search, value = args_list
-                                    found = True
-                                    break
-                            if not found:
-                                part_for_search = params
-                        else:
-                            part_for_search = params
+            elif rpc_request.rpc_type == OpcUaRpcType.RESERVED:
+                response = self.__process_reserved_rpc_request(rpc_request=rpc_request)
+            return response
 
-                        node_by_key = device.get_node_by_key(part_for_search)
-
-                        if self.__is_node_identifier(part_for_search):
-                            # Node identifier
-                            full_path = ';'.join(
-                                [item for item in (args_list[0:-1] if rpc_method == 'set' else args_list)])
-                        elif node_by_key is not None:
-                            full_path = node_by_key
-                        else:
-                            full_path = self.find_full_node_path(params=part_for_search, device=device)
-
-                        if not full_path:
-                            full_path = part_for_search.split(".")[-1]
-
-                    except IndexError:
-                        self.__log.error('Not enough arguments. Expected min 2.')
-                        self.__gateway.send_rpc_reply(device=content['device'],
-                                                      req_id=content['data'].get('id'),
-                                                      content={"result": {"error": 'Not enough arguments. Expected min 2.'}})
-
-                    result = {}
-                    if rpc_method == 'get':
-
-                        argument = self.__read_value(full_path, result)
-                        task = self.__loop.create_task(argument)
-
-                        while not task.done():
-                            sleep(.2)
-                    elif rpc_method == 'set':
-                        try:
-                            if value is None:
-                                value = args_list[2].split('=')[-1]
-                            task = self.__loop.create_task(self.__write_value(full_path, value, result))
-
-                            while not task.done():
-                                sleep(.2)
-                        except IndexError as e:
-                            self.__log.error('Cannot determine value from incoming request. Supported format: set <node>=<value>')
-                            self.__gateway.send_rpc_reply(device=content['device'],
-                                                          req_id=content['data'].get('id'),
-                                                          content={"result": {"error": 'Cannot determine value from incoming request. Supported format: set <node>=<value>'}})
-                            return
-
-                    self.__gateway.send_rpc_reply(device=content['device'],
-                                                  req_id=content['data'].get('id'),
-                                                  content={"result": result})
-                    self.__log.debug("RPC with method %s execution result is: %s", rpc_method, result)
-                else:
-                    rpc_method_found = False
-                    for rpc in device.config['rpc_methods']:
-                        if rpc['method'] == content["data"]['method']:
-                            rpc_method_found = True
-                            arguments_from_config = rpc["arguments"]
-                            arguments = content["data"].get("params") if content["data"].get(
-                                "params") is not None else arguments_from_config
-                            method_name = content['data']['method']
-
-                            try:
-                                result = {}
-                                task = self.__loop.create_task(
-                                    self.__call_method(device.path, method_name, arguments, result))
-
-                                while not task.done():
-                                    sleep(.2)
-
-                                self.__log.debug("RPC with method %s execution result is: %s", rpc['method'], result)
-                                self.__gateway.send_rpc_reply(content["device"],
-                                                              content["data"]["id"],
-                                                              {"result": result})
-                            except Exception as e:
-                                self.__log.exception(e)
-                                self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                              {"result": {"error": str(e)}})
-                    if not rpc_method_found:
-                        self.__log.error("Method %s not found for device %s", rpc_method, content["device"])
-                        self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                      {"result": {"error": "%s - Method not found" % rpc_method}})
-            else:
-                results = []
-                for device in self.__device_nodes:
-                    content['device'] = device.name
-
-                    arguments = content['data']['params']["arguments"]
-
-                    try:
-                        result = {}
-                        task = self.__loop.create_task(
-                            self.__call_method(device.path, rpc_method, arguments, result))
-
-                        while not task.done():
-                            sleep(.2)
-
-                        results.append(result)
-                        self.__log.debug("RPC with method %s execution result is: %s", rpc_method, result)
-                    except Exception as e:
-                        self.__log.exception(e)
-                        self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
-                                                      {"result": {"error": str(e)}})
-
-                return results
         except Exception as e:
-            self.__log.error("Error during RPC request handling: %s", e)
-            self.__log.debug("Error during RPC request handling: ", exc_info=e)
-            self.__gateway.send_rpc_reply(content["device"], content["data"]["id"],
+            self.__log.error('Failed to process server side rpc request: %s', e)
+            return {'error': '%r' % e, 'success': False}
+
+    def __process_connector_rpc_request(self, rpc_request: OpcUaRpcRequest):
+        self.__log.debug("Received RPC to connector: %r", rpc_request)
+        results = []
+        for device in self.__device_nodes:
+            rpc_request.device = device.name
+            try:
+                task = self.__loop.create_task(
+                    self.__call_method(device.path, rpc_request.rpc_method, rpc_request.arguments))
+                task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout,
+                                                                       poll_interval=0.2)
+                if not task_completed:
+                    self.__log.error(
+                        "Failed to process rpc request for %s, timeout has been reached",
+                        device.name,
+                    )
+                    results.append({"error": f"Timeout rpc has been reached for {device.name}"})
+                    continue
+                result['device_name'] = device.name
+                results.append(result)
+                self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
+            except Exception as e:
+                self.__log.exception(e)
+                self.__gateway.send_rpc_reply(rpc_request.device, rpc_request.id,
+                                              {"result": {"error": str(e)}})
+        return results
+
+    @staticmethod
+    def __wait_task_with_timeout(task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> Tuple[bool, Any]:
+        start_time = monotonic()
+        while not task.done():
+            sleep(poll_interval)
+            current_time = monotonic()
+            if current_time - start_time >= timeout:
+                task.cancel()
+                return False, None
+        return True, task.result()
+
+    def __process_device_rpc_request(self, rpc_request: OpcUaRpcRequest):
+        device = self.__get_device_by_name(rpc_request.device_name)
+        rpc_section = device.config.get('rpc_methods', [])
+        if device is None:
+            self.__log.error('Device %s not found for RPC request', rpc_request.device_name)
+            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
+                                          req_id=rpc_request.id,
+                                          content={"result": {"error": 'Device not found'}})
+            return
+
+        if not device.is_valid_rpc_method_name(rpc_device_section=rpc_section, rpc_request=rpc_request):
+            self.__log.error('Requested rpc method is not found in config %s', rpc_request.device_name)
+            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
+                                          req_id=rpc_request.id,
+                                          content={"result": {"error": 'Requested rpc method is not found in config'}})
+            return
+
+        rpc_request.arguments = device.get_device_rpc_arguments(rpc_device_section=rpc_section, rpc_request=rpc_request)
+        if isinstance(rpc_request.arguments, dict):
+            error_msg = rpc_request.arguments.get('error')
+            self.__log.error(f'{error_msg} for device {rpc_request.device_name}')
+            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
+                                          req_id=rpc_request.id,
+                                          content={"result": error_msg})
+            return
+
+        try:
+            task = self.__loop.create_task(
+                self.__call_method(device.path, rpc_request.rpc_method, rpc_request.arguments))
+            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout,
+                                                                   poll_interval=0.2)
+            if not task_completed:
+                self.__log.error(
+                    "Failed to process rpc request for %s, timeout has been reached",
+                    device.name,
+                )
+                result = {"error": f"Timeout rpc has been reached for {device.name}"}
+
+
+            elif not task_completed:
+                self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
+            self.__gateway.send_rpc_reply(rpc_request.device_name,
+                                          rpc_request.id,
+                                          {"result": result})
+            return result
+
+        except Exception as e:
+            self.__log.exception(e)
+            self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id,
                                           {"result": {"error": str(e)}})
 
-    async def __write_value(self, path, value, result=None):
-        if result is None:
-            result = {}
+    def __process_reserved_rpc_request(self, rpc_request: OpcUaRpcRequest):
+        identifier = ''
+        device = self.__get_device_by_name(rpc_request.device_name)
+        if device is None:
+            self.__log.error('Device %s not found for RPC request', rpc_request.device_name)
+            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
+                                          req_id=rpc_request.id,
+                                          content={"result": {"error": 'Device not found'}})
+            return
+        is_node_id = self.__is_node_identifier(rpc_request.params)
+
+        if is_node_id:
+            identifier = rpc_request.params
+            if not identifier:
+                self.__log.error("Could not find node for requested rpc request %s", rpc_request.params)
+                self.__gateway.send_rpc_reply(device=rpc_request.device_name,
+                                              req_id=rpc_request.id,
+                                              content={
+                                                  "result": {"error": 'Could not find node for requested rpc request'}})
+
+        elif not is_node_id:
+
+            identifier = device.get_node_by_key(rpc_request.params)
+            if not identifier:
+                identifier = self.find_full_node_path(params=rpc_request.params, device=device)
+            rpc_request.received_identifier = identifier
+
+        try:
+            task = self.__loop.create_task(self.__process_rpc_request(identifier=identifier, rpc_request=rpc_request))
+            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout,
+                                                                   poll_interval=0.2)
+            if not task_completed:
+                self.__log.error(
+                    "Failed to process rpc request for %s, timeout has been reached",
+                    device.name,
+                )
+                result = {"error": f"Timeout rpc has been reached for {device.name}"}
+            elif task_completed:
+                self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
+            self.__gateway.send_rpc_reply(rpc_request.device_name,
+                                          rpc_request.id,
+                                          {"result": result})
+            return result
+
+        except Exception as e:
+            self.__log.exception(e)
+            self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id,
+                                          {"result": {"error": str(e)}})
+
+    async def __process_rpc_request(self, identifier: Node | str, rpc_request: OpcUaRpcRequest):
+        result = {}
+        try:
+            if rpc_request.rpc_method == 'get':
+                result = await self.__read_value(identifier)
+                return result
+            elif rpc_request.rpc_method == 'set':
+                result = await self.__write_value(identifier, rpc_request.arguments)
+                return result
+            else:
+                result['response'] = 'Unsupported function code in RPC request.'
+                return result
+        except Exception as e:
+            self.__log.error('Failed to process rpc request: %r', e)
+            result['response'] = {'error': e.__repr__()}
+            return result
+
+    async def __write_value(self, path, value):
+
+        result = {}
         try:
             var = path
             if isinstance(path, str):
@@ -1271,41 +1340,52 @@ class OpcUaConnector(Connector, Thread):
                 await var.write_value(data_value)
 
             result['value'] = value
+            return result
 
         except UaStringParsingError as e:
             error_response = f"Could not find identifier in string {path}"
             result['error'] = error_response
             self.__log.error(error_response)
+            return result
 
         except Exception as e:
             result['error'] = e.__str__()
             self.__log.error("Can not find node for provided path %s ", path)
+            return result
 
-    async def __read_value(self, path, result=None):
-        if result is None:
-            result = {}
+    async def __read_value(self, path):
+
+        result = {}
         try:
             var = self.__client.get_node(path)
             result['value'] = await var.read_value()
+            return result
 
         except UaStringParsingError as e:
             error_response = f"Could not find identifier in string {path}"
             result['error'] = error_response
             self.__log.error(error_response)
+            return result
 
         except Exception as e:
             result['error'] = e.__str__()
             self.__log.error("Can not find node for provided path %s ", path)
+            return result
 
-    async def __call_method(self, path, method_name, arguments, result=None):
-        if result is None:
-            result = {}
+    async def __call_method(self, path, method_name, arguments):
+
+        result = {}
         try:
             var = await self.__client.nodes.root.get_child(path)
             method_id = '{}:{}'.format(var.nodeid.NamespaceIndex, method_name)
             result['result'] = await var.call_method(method_id, *arguments)
+            self.__log.debug("Successfully processed rpc for %s", method_name)
+            return result
         except Exception as e:
             result['error'] = e.__str__()
+            self.__log.error("Failed to execute rpc for %s Error: %s", method_name, e)
+            self.__log.debug("Error", exc_info=e)
+            return result
 
     async def __fetch_server_limitations(self):
         """Fetch and apply limitations from OPC-UA server capabilities."""

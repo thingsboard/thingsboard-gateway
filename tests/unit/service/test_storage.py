@@ -201,7 +201,7 @@ class TestSQLiteEventStorageRotation(TestCase):
         self.sqlite_storage.stop()
 
     def test_rotation_creates_new_db(self):
-        DATA_RANGE = 120
+        DATA_RANGE = 150
         self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.1)
         sleep(2.0)
         dbs = self._db_files()

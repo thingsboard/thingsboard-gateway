@@ -54,6 +54,7 @@ DEVICE_NAME_PARAMETER = "deviceName"
 DEVICE_TYPE_PARAMETER = "deviceType"
 
 ATTRIBUTES_PARAMETER = "attributes"
+ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT = 5
 TELEMETRY_PARAMETER = "telemetry"
 TIMESERIES_PARAMETER = "timeseries"
 TELEMETRY_TIMESTAMP_PARAMETER = "ts"
@@ -111,6 +112,9 @@ RPC_ID_PARAMETER = "id"
 RPC_METHOD_PARAMETER = "method"
 RPC_PARAMS_PARAMETER = "params"
 DATA_PARAMETER = "data"
+RPC_DEFAULT_TIMEOUT=5
+RPC_CONNECTOR_ARGUMENTS_PARAMETER = "arguments"
+RPC_VALUE_PARAMETER = "value"
 
 # Attribute constants
 ATTRIBUTES_FOR_REQUEST = ["RemoteLoggingLevel", "general_configuration", "storage_configuration",
