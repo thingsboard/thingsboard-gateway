@@ -132,10 +132,32 @@ class Device:
         return False
 
     @staticmethod
-    def get_device_rpc_arguments(rpc_device_section: dict, rpc_request: OpcUaRpcRequest) -> list:
+    def get_device_rpc_arguments(rpc_device_section: dict, rpc_request: OpcUaRpcRequest) -> list | None | dict:
         arguments = []
         for rpc in rpc_device_section:
-            arguments_from_config = rpc.get('arguments')
+            arguments_from_config = rpc.get('arguments', [])
+            empty_arguments_condition = not arguments_from_config and rpc.get('method') == rpc_request.rpc_method
+
+            if empty_arguments_condition:
+                return rpc_request.arguments
+
             if arguments_from_config and rpc.get('method') == rpc_request.rpc_method:
+
                 arguments = [argument['value'] for argument in arguments_from_config if argument.get('value')]
+
+                if (rpc_request.arguments and len(rpc_request.arguments) != len(arguments_from_config)) or (
+                        not arguments and rpc_request.arguments is None):
+                    error_message = f"The amount of arguments expected is {len(arguments)}, but got {len(rpc_request.arguments)}"
+                    return {"error": error_message}
+
+
+                elif rpc_request.arguments and len(rpc_request.arguments) == len(arguments_from_config):
+                    arguments = rpc_request.arguments
+                    return arguments
+
+                if len(arguments) != len(arguments_from_config):
+                    error_message = "You must either define all arguments in config or along with rpc request"
+                    return {"error": error_message}
+
         return arguments
+

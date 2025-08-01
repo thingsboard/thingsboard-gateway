@@ -1150,6 +1150,7 @@ class OpcUaConnector(Connector, Thread):
 
     def server_side_rpc_handler(self, content: Dict):
         self.__log.info('Received server side rpc request: %r', content)
+
         try:
             response = None
             rpc_request = OpcUaRpcRequest(content=content)
@@ -1220,9 +1221,14 @@ class OpcUaConnector(Connector, Thread):
                                           content={"result": {"error": 'Requested rpc method is not found in config'}})
             return
 
-        if not rpc_request.arguments:
-            rpc_request.arguments = device.get_device_rpc_arguments(rpc_device_section=rpc_section,
-                                                                    rpc_request=rpc_request)
+        rpc_request.arguments = device.get_device_rpc_arguments(rpc_device_section=rpc_section, rpc_request=rpc_request)
+        if isinstance(rpc_request.arguments, dict):
+            error_msg = rpc_request.arguments.get('error')
+            self.__log.error(f'{error_msg} for device {rpc_request.device_name}')
+            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
+                                          req_id=rpc_request.id,
+                                          content={"result": error_msg})
+            return
 
         try:
             task = self.__loop.create_task(
