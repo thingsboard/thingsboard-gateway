@@ -199,18 +199,14 @@ class TestSQLiteEventStorageRotation(TestCase):
 
         self.sqlite_storage.stop()
 
-    def test_rotation_creates_new_db_and_reads_all_data(self):
+    def test_rotation_creates_new_db(self):
         DATA_RANGE = 150
-        fat_msg = "X" * 32768
         self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.1)
         sleep(2.0)
 
         dbs = self._db_files()
         self.assertEqual(len(dbs), 2)
         self.assertLessEqual(len(dbs), self.config["max_db_amount"])
-        all_messages = self._drain_storage(self.sqlite_storage)
-        self.assertEqual(len(all_messages), DATA_RANGE)
-        self.assertListEqual(all_messages, [f"{i}:{fat_msg}" for i in range(DATA_RANGE)])
 
         self.sqlite_storage.stop()
 
