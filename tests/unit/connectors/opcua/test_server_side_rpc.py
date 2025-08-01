@@ -13,6 +13,8 @@
 #     limitations under the License.
 
 from tests.unit.connectors.opcua.opcua_base_test import OpcUABaseTest
+from asyncio import Future
+from unittest.mock import patch
 
 
 class TestOpcUaConnectorServerSideRpc(OpcUABaseTest):
@@ -77,15 +79,85 @@ class TestOpcUaDeviceServerSideRpc(OpcUABaseTest):
         self.assertEqual(results, result)
         self.assert_gateway_reply(rpc_request, result)
 
+    async def test_execute_device_rpc_with_unsupported_amount_of_arguments(self):
+        payload = {'data': {'id': 50, 'method': 'multiply', 'params': [2, 5, 6]}, 'device': self.DEVICE_NAME, 'id': 50}
+        result = {"result": "The amount of arguments expected is 2, but got 3"}
+        rpc_request = OpcUaRpcRequest(payload)
+
+        self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
+        self.assertEqual(rpc_request.rpc_method, "multiply")
+        self.assertEqual(rpc_request.arguments, [2, 5, 6])
+        results = self.connector._OpcUaConnector__process_device_rpc_request(rpc_request=rpc_request)
+        self.assertIsNone(results)
+        self.connector._OpcUaConnector__gateway.send_rpc_reply.assert_called_once_with(
+            device=rpc_request.device_name,
+            req_id=rpc_request.id,
+            content=result
+        )
+
+    async def test_execute_device_rpc_with_no_arguments_and_defined_argument_section(self):
+        payload = {'data': {'id': 50, 'method': 'multiply', 'params': None}, 'device': self.DEVICE_NAME, 'id': 50}
+        result = {"result": "The amount of arguments expected is 2, but got 0"}
+        rpc_request = OpcUaRpcRequest(payload)
+        self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
+        self.assertEqual(rpc_request.rpc_method, "multiply")
+        self.assertIsNone(rpc_request.arguments)
+        results = self.connector._OpcUaConnector__process_device_rpc_request(rpc_request=rpc_request)
+        self.assertIsNone(results)
+        self.connector._OpcUaConnector__gateway.send_rpc_reply.assert_called_once_with(
+            device=rpc_request.device_name,
+            req_id=rpc_request.id,
+            content=result
+        )
+
+    async def test_execute_device_rpc_on_partly_configured_device_section(self):
+        payload = {'data': {'id': 51, 'method': 'multiply', 'params': [5]}, 'device': self.DEVICE_NAME, 'id': 51}
+        result = {"result": "You must either define values for arguments in config or along with rpc request"}
+        self.fake_device = self.create_fake_device('rpc/opcua_config_rpc_partly_defined_arguments.json')
+        self.connector._OpcUaConnector__device_nodes = [self.fake_device]
+        rpc_request = OpcUaRpcRequest(payload)
+        self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
+        self.assertEqual(rpc_request.rpc_method, "multiply")
+        self.assertEqual(rpc_request.arguments, [5])
+        results = self.connector._OpcUaConnector__process_device_rpc_request(rpc_request=rpc_request)
+        self.assertIsNone(results)
+        self.connector._OpcUaConnector__gateway.send_rpc_reply.assert_called_once_with(
+            device=rpc_request.device_name,
+            req_id=rpc_request.id,
+            content=result
+        )
+
+    async def test_succesfuly_execute_device_rpc_on_partly_configured_device_section_with_given_arguments(self):
+        payload = {'data': {'id': 52, 'method': 'multiply', 'params': [5, 2]}, 'device': self.DEVICE_NAME, 'id': 52}
+        result = {"result": {"result": 10}}
+        self.fake_device = self.create_fake_device('rpc/opcua_config_rpc_partly_defined_arguments.json')
+        rpc_request = OpcUaRpcRequest(payload)
+
+        self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
+        self.assertEqual(rpc_request.rpc_method, "multiply")
+        done_future, create_task_mock, results = self.call_device_with_result(rpc_request, result)
+
+        self.assertEqual(rpc_request.arguments, [5, 2])
+        create_task_mock.assert_called_once()
+        self.assertEqual(results, result)
+        self.assert_gateway_reply(rpc_request, result)
+
     async def test_execute_device_rpc_fails_on_timeout(self):
-        payload = {'data': {'id': 16, 'method': 'multiply', 'params': None}, 'device': self.DEVICE_NAME, 'id': 16}
-        result = {'error': 'Timeout rpc has been reached for OPCUA New Advanced Device'}
+        payload = {'data': {'id': 67, 'method': 'multiply', 'params': [3, 8]},
+                   'device': self.DEVICE_NAME, 'id': 67}
+        result = {'error': f'Timeout rpc has been reached for {self.DEVICE_NAME}'}
         rpc_request = OpcUaRpcRequest(payload)
 
         self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
         self.assertEqual(rpc_request.rpc_method, "multiply")
 
-        results = self.connector._OpcUaConnector__process_device_rpc_request(rpc_request=rpc_request)
+        pending_future = Future()
+        OPC_MOD = "thingsboard_gateway.connectors.opcua.opcua_connector"
+
+        with patch.object(self.connector._OpcUaConnector__loop, "create_task", return_value=pending_future), \
+                patch(f"{OPC_MOD}.sleep", return_value=None), \
+                patch(f"{OPC_MOD}.monotonic", side_effect=[0.0, 999.0]):
+            results = self.connector._OpcUaConnector__process_device_rpc_request(rpc_request=rpc_request)
 
         self.assertEqual(results, result)
         self.connector._OpcUaConnector__gateway.send_rpc_reply.assert_called_once_with(
@@ -99,7 +171,7 @@ class TestOpcUaDeviceServerSideRpc(OpcUABaseTest):
 
         self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
         self.assertEqual(rpc_request.rpc_method, "frfrffr")
-        self.assertEqual(rpc_request.arguments,[5, 6] )
+        self.assertEqual(rpc_request.arguments, [5, 6])
 
         results = self.connector._OpcUaConnector__process_device_rpc_request(rpc_request=rpc_request)
 
