@@ -134,29 +134,28 @@ class Device:
     @staticmethod
     def get_device_rpc_arguments(rpc_device_section: dict, rpc_request: OpcUaRpcRequest) -> list | None | dict:
         arguments = []
-        for rpc in rpc_device_section:
-            arguments_from_config = rpc.get('arguments', [])
-            empty_arguments_condition = not arguments_from_config and rpc.get('method') == rpc_request.rpc_method
+        found_method_rpc_section = next(filter(lambda rpc: rpc.get('method') == rpc_request.rpc_method, rpc_device_section))
+        arguments_from_config = found_method_rpc_section.get('arguments', [])
+        empty_arguments_condition = not arguments_from_config
 
-            if empty_arguments_condition:
-                return rpc_request.arguments
+        if empty_arguments_condition:
+            return rpc_request.arguments
 
-            if arguments_from_config and rpc.get('method') == rpc_request.rpc_method:
+        if arguments_from_config:
 
-                arguments = [argument['value'] for argument in arguments_from_config if argument.get('value')]
+            arguments = [argument['value'] for argument in arguments_from_config if argument.get('value')]
 
-                if rpc_request.arguments and len(rpc_request.arguments) == len(arguments_from_config):
-                    arguments = rpc_request.arguments
-                    return arguments
+            if rpc_request.arguments and len(rpc_request.arguments) == len(arguments_from_config):
+                arguments = rpc_request.arguments
+                return arguments
 
-                elif arguments and len(arguments) != len(arguments_from_config):
-                    error_message = "You must either define values for arguments in config or along with rpc request"
-                    return {"error": error_message}
+            elif arguments and len(arguments) != len(arguments_from_config):
+                error_message = "You must either define values for arguments in config or along with rpc request"
+                return {"error": error_message}
 
-
-                elif (rpc_request.arguments and len(rpc_request.arguments) != len(arguments_from_config)) or (
-                        not arguments and rpc_request.arguments is None):
-                    error_message = f"The amount of arguments expected is {len(arguments_from_config)}, but got {len(rpc_request.arguments) if rpc_request.arguments is not None else 0}"
-                    return {"error": error_message}
+            elif (rpc_request.arguments and len(rpc_request.arguments) != len(arguments_from_config)) or (
+                    not arguments and rpc_request.arguments is None):
+                error_message = f"Expected {len(arguments_from_config)} arguments, but got {len(rpc_request.arguments) if rpc_request.arguments is not None else 0}"
+                return {"error": error_message}
 
         return arguments
