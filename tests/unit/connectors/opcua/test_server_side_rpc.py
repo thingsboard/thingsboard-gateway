@@ -81,7 +81,7 @@ class TestOpcUaDeviceServerSideRpc(OpcUABaseTest):
 
     async def test_execute_device_rpc_with_unsupported_amount_of_arguments(self):
         payload = {'data': {'id': 50, 'method': 'multiply', 'params': [2, 5, 6]}, 'device': self.DEVICE_NAME, 'id': 50}
-        result = {"result": "The amount of arguments expected is 2, but got 3"}
+        result = {'result': 'Expected 2 arguments, but got 3'}
         rpc_request = OpcUaRpcRequest(payload)
 
         self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
@@ -97,7 +97,7 @@ class TestOpcUaDeviceServerSideRpc(OpcUABaseTest):
 
     async def test_execute_device_rpc_with_no_arguments_and_defined_argument_section(self):
         payload = {'data': {'id': 50, 'method': 'multiply', 'params': None}, 'device': self.DEVICE_NAME, 'id': 50}
-        result = {"result": "The amount of arguments expected is 2, but got 0"}
+        result = {'result': 'Expected 2 arguments, but got 0'}
         rpc_request = OpcUaRpcRequest(payload)
         self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
         self.assertEqual(rpc_request.rpc_method, "multiply")
@@ -214,6 +214,34 @@ class TestOpcUaDeviceServerSideRpc(OpcUABaseTest):
             req_id=rpc_request.id,
             content={"result": result}
         )
+
+    async def test_correctly_execute_rpc_for_multiple_methods_in_config(self):
+        payload = {'data': {'id': 67, 'method': 'multiply', 'params': None}, 'device': self.DEVICE_NAME, 'id': 67}
+        result = {"result": {"result": 10}}
+        self.fake_device = self.create_fake_device('rpc/opcua_config_multiple_methods_section.json')
+        self.connector._OpcUaConnector__device_nodes = [self.fake_device]
+        rpc_request = OpcUaRpcRequest(payload)
+        self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
+        self.assertEqual(rpc_request.rpc_method, "multiply")
+        self.assertIsNone(rpc_request.arguments)
+        done_future, create_task_mock, results = self.call_device_with_result(rpc_request, result)
+        create_task_mock.assert_called_once()
+        self.assertEqual(results, result)
+        self.assert_gateway_reply(rpc_request, result)
+
+    async def test_correctly_execute_rpc_for_multiple_methods_in_config_with_specified_arguments(self):
+        payload = {'data': {'id': 68, 'method': 'multiply', 'params': [9, 8]}, 'device': self.DEVICE_NAME, 'id': 68}
+        result = {"result": {"result": 72}}
+        self.fake_device = self.create_fake_device('rpc/opcua_config_multiple_methods_section.json')
+        self.connector._OpcUaConnector__device_nodes = [self.fake_device]
+        rpc_request = OpcUaRpcRequest(payload)
+        self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
+        self.assertEqual(rpc_request.rpc_method, "multiply")
+        self.assertEqual(rpc_request.arguments, [9, 8])
+        done_future, create_task_mock, results = self.call_device_with_result(rpc_request, result)
+        create_task_mock.assert_called_once()
+        self.assertEqual(results, result)
+        self.assert_gateway_reply(rpc_request, result)
 
 
 class TestOpcUaReservedGetRpcRpcRequest(OpcUABaseTest):
