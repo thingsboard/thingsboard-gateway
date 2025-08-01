@@ -17,6 +17,7 @@ Source0: thingsboard-gateway.service
 Source1: configs.tar.gz
 Source2: thingsboard_gateway-%{version}-py3-none-any.whl
 Source3: extensions.tar.gz
+Source4: venv.tar.gz
 
 %description
 The ThingsBoard IoT Gateway integrates devices using different protocolos like MQTT, Modbus, OPC-UA and other.
@@ -39,6 +40,9 @@ install -m 644 %{SOURCE2} %{buildroot}/var/lib/thingsboard_gateway/
 # Install extensions into /var/lib/thingsboard_gateway.
 install -m 755 %{SOURCE3} %{buildroot}/var/lib/thingsboard_gateway/
 
+# Install venv into /var/lib/thingsboard_gateway.
+install -m 755 %{SOURCE4} %{buildroot}/var/lib/thingsboard_gateway/
+
 # Create logs directory.
 mkdir -p %{buildroot}/var/log/thingsboard-gateway
 
@@ -48,17 +52,75 @@ mkdir -p %{buildroot}/var/log/thingsboard-gateway
 getent passwd thingsboard_gateway || useradd -r -U -d /var/lib/thingsboard_gateway -c "ThingsBoard-Gateway Service" thingsboard_gateway
 
 %post
-# Create the Python virtual environment if not present.
-if [ ! -d /var/lib/thingsboard_gateway/venv ]; then
-    python3 -m venv /var/lib/thingsboard_gateway/venv
-    /var/lib/thingsboard_gateway/venv/bin/pip install --upgrade pip setuptools
+REQUIRED_MAJOR=3
+REQUIRED_MINOR=11
+
+show_instruction() {
+  echo "To install Python $REQUIRED_MAJOR.$REQUIRED_MINOR and make it the default on an RPM-based system:"
+  echo ""
+
+  echo "# Step 1: Enable EPEL and IUS repositories (if not already enabled)"
+  echo "sudo yum install -y epel-release"
+  echo "sudo yum install -y https://repo.ius.io/ius-release-el$(rpm -E %{rhel}).rpm"
+
+  echo ""
+  echo "# Step 2: Install Python $REQUIRED_MAJOR.$REQUIRED_MINOR and venv"
+  echo "sudo yum install -y python$REQUIRED_MAJOR$REQUIRED_MINOR python$REQUIRED_MAJOR$REQUIRED_MINOR-venv"
+
+  echo ""
+  echo "# Step 3: Set it as the default python3 (if applicable)"
+  echo "sudo alternatives --install /usr/bin/python3 python3 /usr/bin/python$REQUIRED_MAJOR.$REQUIRED_MINOR 1"
+  echo "sudo alternatives --config python3"
+
+  echo ""
+  echo "CAUTION: Uninstall previously installed package if install failed"
+  echo "sudo rpm -e --noscripts python3-thingsboard-gateway"
+}
+
+if [ -f /var/lib/thingsboard_gateway/venv.tar.gz ]; then
+  echo "Postinst: Checking python version..."
+
+  PYTHON_BIN=$(command -v python3 || true)
+
+  if [ -z "$PYTHON_BIN" ]; then
+    echo "Error: python3 is not installed." >&2
+    exit 0
+  fi
+
+  VERSION=$($PYTHON_BIN -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
+  ACTUAL_MAJOR=$($PYTHON_BIN -c "import sys; print(sys.version_info.major)")
+  ACTUAL_MINOR=$($PYTHON_BIN -c "import sys; print(sys.version_info.minor)")
+
+  echo "Detected Python version: $VERSION"
+
+  if [ "$ACTUAL_MAJOR" -ne "$REQUIRED_MAJOR" ] || [ "$ACTUAL_MINOR" -ne "$REQUIRED_MINOR" ]; then
+    echo "Error: Required Python version is $REQUIRED_MAJOR.$REQUIRED_MINOR, but found $VERSION" >&2
+    show_instruction
+    exit 0
+  fi
+
+  echo "Python version is compatible."
 fi
-# Install the locally built wheel into the venv.
-if [ -f /var/lib/thingsboard_gateway/thingsboard_gateway-%{version}-py3-none-any.whl ]; then
-    /var/lib/thingsboard_gateway/venv/bin/pip install --upgrade --force-reinstall /var/lib/thingsboard_gateway/thingsboard_gateway-%{version}-py3-none-any.whl
+
+# Create the Python virtual environment if not present.
+if [ -f /var/lib/thingsboard_gateway/venv.tar.gz ]; then
+    echo "Postinst: Extracting virtual environment from venv.tar.gz..."
+    tar -xzf /var/lib/thingsboard_gateway/venv.tar.gz -C /var/lib/thingsboard_gateway
+    rm -f /var/lib/thingsboard_gateway/venv.tar.gz
+    /var/lib/thingsboard_gateway/venv/bin/pip install --upgrade /var/lib/thingsboard_gateway/thingsboard_gateway-%{version}-py3-none-any.whl
 else
-    echo "Error: Wheel file not found in /var/lib/thingsboard_gateway" >&2
-    exit 1
+    if [ ! -d /var/lib/thingsboard_gateway/venv ]; then
+        python3 -m venv /var/lib/thingsboard_gateway/venv
+        /var/lib/thingsboard_gateway/venv/bin/pip install --upgrade pip setuptools
+    fi
+
+    # Install the locally built wheel into the venv.
+    if [ -f /var/lib/thingsboard_gateway/thingsboard_gateway-%{version}-py3-none-any.whl ]; then
+        /var/lib/thingsboard_gateway/venv/bin/pip install --upgrade --force-reinstall /var/lib/thingsboard_gateway/thingsboard_gateway-%{version}-py3-none-any.whl
+    else
+        echo "Error: Wheel file not found in /var/lib/thingsboard_gateway" >&2
+        exit 1
+    fi
 fi
 
 # Extract extensions tarball into /var/lib/thingsboard_gateway

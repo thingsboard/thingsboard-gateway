@@ -78,7 +78,7 @@ class Master:
 
     @with_lock_for_serial
     async def close(self):
-        await self.__client.close()
+        self.__client.close()
 
     @with_lock_for_serial
     async def read_coils(self, address, count, unit_id):

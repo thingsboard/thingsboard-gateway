@@ -124,11 +124,11 @@ class AsyncModbusConnector(Connector, Thread):
 
         self.__log.debug('Stopping %s...', self.get_name())
 
-        if self.__server:
-            self.__server.stop()
-
         for slave in self.__slaves:
             slave.close(self.loop)
+
+        if self.__server:
+            self.__server.stop()
 
         asyncio.run_coroutine_threadsafe(self.__cancel_all_tasks(), self.loop)
 

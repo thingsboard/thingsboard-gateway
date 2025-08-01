@@ -329,10 +329,10 @@ class RequestConnector(Connector, Thread):
 
         if request["config"].get("httpHeaders") is not None:
             params["headers"] = request["config"]["httpHeaders"]
-            if 'application/json' == request["config"]["httpHeaders"].get("Content-Type"):
-                params['json'] = params.pop("data")
 
         logger.debug("Request to %s will be sent", url)
+        if isinstance(params["data"], str):
+            params["data"] = params["data"].encode("utf-8")
         response = request["request"](**params)
 
         return url, response

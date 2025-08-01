@@ -17,16 +17,23 @@ from asyncio import CancelledError
 from threading import Thread
 from time import monotonic, sleep
 
-from pymodbus.datastore import ModbusSparseDataBlock, ModbusServerContext, ModbusSlaveContext
+from pymodbus.datastore import ModbusSparseDataBlock, ModbusServerContext
 from pymodbus.device import ModbusDeviceIdentification
 from pymodbus.framer.base import FramerType
-from pymodbus.server import StartAsyncTcpServer, StartAsyncTlsServer, StartAsyncUdpServer, StartAsyncSerialServer
+from pymodbus.server import (
+    StartAsyncTcpServer,
+    StartAsyncTlsServer,
+    StartAsyncUdpServer,
+    StartAsyncSerialServer,
+    ServerAsyncStop
+)
 from pymodbus import __version__ as pymodbus_version
 
 from thingsboard_gateway.connectors.modbus.bytes_modbus_downlink_converter import BytesModbusDownlinkConverter
 from thingsboard_gateway.connectors.modbus.entities.bytes_downlink_converter_config import \
     BytesDownlinkConverterConfig
 from thingsboard_gateway.connectors.modbus.constants import PymodbusDefaults
+from thingsboard_gateway.connectors.modbus.entities.slave_context import SlaveContext
 from thingsboard_gateway.connectors.modbus.constants import (
     ADDRESS_PARAMETER,
     BYTE_ORDER_PARAMETER,
@@ -72,8 +79,6 @@ class Server(Thread):
         self.__server_context = self.__get_server_context(self.__config)
         self.__connection_config = self.__get_connection_config(self.__config)
 
-        self.__server = None
-
         try:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
@@ -106,13 +111,12 @@ class Server(Thread):
             sleep(.1)
 
     async def __shutdown(self):
-        await self.__server.shutdown()
+        await ServerAsyncStop()
 
     async def start_server(self):
         try:
-            self.__server = await SLAVE_TYPE[self.__type](identity=self.__identity, context=self.__server_context,
-                                                          **self.__connection_config)
-            await self.__server.serve_forever()
+            await SLAVE_TYPE[self.__type](identity=self.__identity, context=self.__server_context,
+                                          **self.__connection_config)
         except Exception as e:
             self.__log.error('Failed to start Gateway Modbus Server (Slave): %s', e)
 
@@ -192,9 +196,9 @@ class Server(Thread):
             self.__log.error("No values to read from device %s", config.get(DEVICE_NAME_PARAMETER, 'Modbus Slave'))
             return
 
+        converter = BytesModbusDownlinkConverter({}, self.__log)
         for (key, value) in config.get('values').items():
             values = {}
-            converter = BytesModbusDownlinkConverter({}, self.__log)
             for section in ('attributes', 'timeseries', 'attributeUpdates', 'rpc'):
                 for item in value.get(section, []):
                     try:
@@ -231,4 +235,4 @@ class Server(Thread):
             self.__log.info("%s - will be initialized without values",
                             config.get(DEVICE_NAME_PARAMETER, 'Modbus Slave'))
 
-        return ModbusServerContext(slaves=ModbusSlaveContext(**blocks), single=True)
+        return ModbusServerContext(slaves=SlaveContext(**blocks), single=True)
