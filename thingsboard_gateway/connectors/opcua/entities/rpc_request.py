@@ -110,12 +110,12 @@ class OpcUaRpcRequest:
     def _fill_reserved_rpc_request(self, content: dict):
         params = content.get(DATA_PARAMETER, {}).get(RPC_PARAMS_PARAMETER)
         if self.rpc_method == "get":
-            self.params = params
+            self.params = self.params.rstrip(' ;\t\n\r')
             return
         if self.rpc_method != "set" or not isinstance(params, str):
             return
-
         ident = self.__find_identifier_request(params)
+
         if ident:
             value = params[len(ident):]
             delimiter = next((p for p in RPC_SET_SPLIT_PATTERNS if p in params), None)
@@ -144,6 +144,7 @@ class OpcUaRpcRequest:
 
     @staticmethod
     def __find_identifier_request(path: str) -> list | None:
-        identifier = findall(r"(ns=\d+;[isgb]=[^}\s]+)(?=\s|$)", path)
+        identifier = findall(r"(ns=\d+;[isgb]=[^;\s}]+)(?=;|\s|$)", path)
         if identifier:
             return identifier[0]
+
