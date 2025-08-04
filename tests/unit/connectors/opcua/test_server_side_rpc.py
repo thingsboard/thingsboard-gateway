@@ -355,7 +355,7 @@ class TestOpcUaReservedServerSideRpc(OpcUABaseTest):
 
         done_future, create_task_mock, results = self.call_reserved_with_result(rpc_request, result)
 
-        self.assertEqual(rpc_request.params, 'ns=2;i=13;')
+        self.assertEqual(rpc_request.params, 'ns=2;i=13')
         create_task_mock.assert_called_once()
         self.assertEqual(results, result)
         self.assert_gateway_reply(rpc_request, result)
@@ -371,7 +371,7 @@ class TestOpcUaReservedServerSideRpc(OpcUABaseTest):
 
         done_future, create_task_mock, results = self.call_reserved_with_result(rpc_request, result)
 
-        self.assertEqual(rpc_request.params, 'ns=200;i=136;')
+        self.assertEqual(rpc_request.params, 'ns=200;i=136')
         create_task_mock.assert_called_once()
         self.assertEqual(results, result)
         self.assert_gateway_reply(rpc_request, result)
