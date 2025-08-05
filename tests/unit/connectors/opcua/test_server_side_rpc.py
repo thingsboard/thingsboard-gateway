@@ -131,6 +131,7 @@ class TestOpcUaDeviceServerSideRpc(OpcUABaseTest):
         payload = {'data': {'id': 52, 'method': 'multiply', 'params': [5, 2]}, 'device': self.DEVICE_NAME, 'id': 52}
         result = {"result": {"result": 10}}
         self.fake_device = self.create_fake_device('rpc/opcua_config_rpc_partly_defined_arguments.json')
+        self.connector._OpcUaConnector__device_nodes = [self.fake_device]
         rpc_request = OpcUaRpcRequest(payload)
 
         self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
