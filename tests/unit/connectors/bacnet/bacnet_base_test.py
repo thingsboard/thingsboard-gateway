@@ -1,10 +1,9 @@
 import logging
-from asyncio import get_event_loop, Queue
+from asyncio import Queue, new_event_loop
 from os import path
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import MagicMock
 from bacpypes3.apdu import IAmRequest
-from bacpypes3.primitivedata import ObjectIdentifier
 from bacpypes3.pdu import Address
 from simplejson import load
 from thingsboard_gateway.connectors.bacnet.device import Device, Devices
@@ -19,7 +18,7 @@ class BacnetBaseTestCase(IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.connector: AsyncBACnetConnector = AsyncBACnetConnector.__new__(AsyncBACnetConnector)
         self.connector._AsyncBACnetConnector__log = logging.getLogger('Bacnet test')
-        self.connector._AsyncBACnetConnector__loop = get_event_loop()
+        self.connector.loop = new_event_loop()
         self.connector._AsyncBACnetConnector__process_device_queue = Queue(1_000_000)
         self.connector._AsyncBACnetConnector__process_device_rescan_queue = Queue(1_000_000)
         self.connector._AsyncBACnetConnector__devices = Devices()
@@ -43,22 +42,27 @@ class BacnetBaseTestCase(IsolatedAsyncioTestCase):
         return config
 
     @staticmethod
-    def create_fake_apdu_i_am_request(addr: str = "192.168.1.136:47809", device_id: int = 1234,
-                                      device_name: str = "test emulator device", max_apdu: int = 1476,
-                                      segmentation: str = "segmentedBoth", vendor_id: int = 15):
-        apdu = IAmRequest(apdu=IAmRequest(
-            deviceIdentifier=ObjectIdentifier(("device", device_id)),
+    def create_fake_apdu_i_am_request(
+            addr: str = "192.168.1.136:47809",
+            device_id: int = 1234,
+            device_name: str = "test emulator device",
+            max_apdu: int = 1476,
+            segmentation: str = "segmentedBoth",
+            vendor_id: int = 15,
+    ):
+        apdu = IAmRequest(
+            iAmDeviceIdentifier=("device", device_id),
             maxAPDULengthAccepted=max_apdu,
             segmentationSupported=segmentation,
             vendorID=vendor_id,
-        ))
+        )
         apdu.pduSource = Address(addr)
-        apdu.iAmDeviceIdentifier = apdu.deviceIdentifier
         apdu.deviceName = device_name
         apdu.routerName = None
         apdu.routerAddress = None
         apdu.routerId = None
         apdu.routerVendorId = None
+
         return apdu
 
     def create_fake_device(self, attribute_update_config_path):
