@@ -1205,7 +1205,7 @@ class OpcUaConnector(Connector, Thread):
         return True, task.result()
 
     def __process_device_rpc_request(self, rpc_request: OpcUaRpcRequest):
-        device = self.__get_device_by_name(rpc_request.device_name)
+        device: Device = self.__get_device_by_name(rpc_request.device_name)
         rpc_section = device.config.get('rpc_methods', [])
         if device is None:
             self.__log.error('Device %s not found for RPC request', rpc_request.device_name)

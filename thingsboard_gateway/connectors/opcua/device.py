@@ -134,7 +134,8 @@ class Device:
     @staticmethod
     def get_device_rpc_arguments(rpc_device_section: dict, rpc_request: OpcUaRpcRequest) -> list | None | dict:
         arguments = []
-        found_method_rpc_section = next(filter(lambda rpc: rpc.get('method') == rpc_request.rpc_method, rpc_device_section))
+        found_method_rpc_section = next(
+            filter(lambda rpc: rpc.get('method') == rpc_request.rpc_method, rpc_device_section))
         arguments_from_config = found_method_rpc_section.get('arguments', [])
         empty_arguments_condition = not arguments_from_config
 
@@ -144,6 +145,10 @@ class Device:
         if arguments_from_config:
 
             arguments = [argument['value'] for argument in arguments_from_config if argument.get('value')]
+
+            if rpc_request.arguments and not isinstance(rpc_request.arguments, list):
+                error_message = "The arguments must be specified in the square quotes []"
+                return {"error": error_message}
 
             if rpc_request.arguments and len(rpc_request.arguments) == len(arguments_from_config):
                 arguments = rpc_request.arguments
