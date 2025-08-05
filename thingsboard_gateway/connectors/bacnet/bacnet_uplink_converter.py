@@ -15,7 +15,7 @@
 
 from bacpypes3.basetypes import DateTime
 from bacpypes3.constructeddata import AnyAtomic, Array
-from bacpypes3.basetypes import ErrorType, PriorityValue, ObjectPropertyReference
+from bacpypes3.basetypes import ErrorType, PriorityValue, ObjectPropertyReference, DailySchedule, DeviceObjectPropertyReference
 
 from thingsboard_gateway.connectors.bacnet.bacnet_converter import AsyncBACnetConverter
 from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config import UplinkConverterConfig
@@ -109,9 +109,19 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                     for item in value:
                         if isinstance(item, PriorityValue):
                             result.append(str(getattr(item, item._choice)))
+                        if isinstance(item, DailySchedule):
+                            schedular_array = []
+                            for sched in item.daySchedule:
+                                schedular_array.append((str(sched.time), str(sched.value.get_value())))
+                            result.append(schedular_array)
                         else:
                             result.append(item)
-
+                    value = result
+                elif isinstance(value, list):
+                    result = []
+                    for item in value:
+                        if isinstance(item, DeviceObjectPropertyReference):
+                            result.append(str(item.objectIdentifier))
                     value = result
 
                 converted_data.append({'propName': str(value_prop_id), 'value': value})
