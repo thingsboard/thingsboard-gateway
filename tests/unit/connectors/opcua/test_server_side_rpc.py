@@ -131,6 +131,7 @@ class TestOpcUaDeviceServerSideRpc(OpcUABaseTest):
         payload = {'data': {'id': 52, 'method': 'multiply', 'params': [5, 2]}, 'device': self.DEVICE_NAME, 'id': 52}
         result = {"result": {"result": 10}}
         self.fake_device = self.create_fake_device('rpc/opcua_config_rpc_partly_defined_arguments.json')
+        self.connector._OpcUaConnector__device_nodes = [self.fake_device]
         rpc_request = OpcUaRpcRequest(payload)
 
         self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
@@ -141,6 +142,24 @@ class TestOpcUaDeviceServerSideRpc(OpcUABaseTest):
         create_task_mock.assert_called_once()
         self.assertEqual(results, result)
         self.assert_gateway_reply(rpc_request, result)
+
+    async def test_execute_device_rpc_with_incorrect_data_format(self):
+        payload = {'data': {'id': 71, 'method': 'multiply', 'params': '5 76'}, 'device': self.DEVICE_NAME, 'id': 71}
+        result = {"result": "The arguments must be specified in the square quotes []"}
+        self.fake_device = self.create_fake_device('rpc/opcua_config_multiple_methods_section.json')
+        self.connector._OpcUaConnector__device_nodes = [self.fake_device]
+        rpc_request = OpcUaRpcRequest(payload)
+        self.assertEqual(rpc_request.rpc_type, OpcUaRpcType.DEVICE)
+        self.assertEqual(rpc_request.rpc_method, "multiply")
+        self.assertEqual(rpc_request.arguments, '5 76')
+        results = self.connector._OpcUaConnector__process_device_rpc_request(rpc_request=rpc_request)
+        self.assertIsNone(results)
+        self.connector._OpcUaConnector__gateway.send_rpc_reply.assert_called_once_with(
+            device=rpc_request.device_name,
+            req_id=rpc_request.id,
+            content=result
+        )
+
 
     async def test_execute_device_rpc_fails_on_timeout(self):
         payload = {'data': {'id': 67, 'method': 'multiply', 'params': [3, 8]},
@@ -325,6 +344,7 @@ class TestOpcUaReservedGetRpcRpcRequest(OpcUABaseTest):
         self.assertIsNone(rpc_request.received_identifier)
         self.assertEqual(results, result)
         self.assert_gateway_reply(rpc_request, result)
+
 
 
 from unittest.mock import MagicMock
