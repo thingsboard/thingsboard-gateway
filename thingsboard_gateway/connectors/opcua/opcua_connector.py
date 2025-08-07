@@ -760,6 +760,13 @@ class OpcUaConnector(Connector, Thread):
         scanned_devices = []
         for device_config in self.__config.get('mapping', []):
             nodes = await self.find_nodes(device_config['deviceNodePattern'])
+            if not nodes:
+                self.__log.error(
+                    "No nodes found for such device name '%s' "
+                    "Skipping device creation.",
+                    device_config.get('deviceInfo', {}).get('deviceNameExpression', "")
+                )
+                continue
             self.__log.debug('Found devices: %s', nodes)
 
             device_names = await self._get_device_info_by_pattern(
@@ -1063,7 +1070,7 @@ class OpcUaConnector(Connector, Thread):
             logger.error("determine_rpc_income_data failed for params=%r: %s",
                          params, e)
 
-    def find_full_node_path(self, params, device):
+    def find_full_node_path(self, params: str, device:Device) -> NodeId | None:
         try:
             node_pattern, current_path = self.get_rpc_node_pattern_and_base_path(params, device, logger=self.__log)
             node_list = node_pattern.split("\\.")[-1:]
@@ -1094,35 +1101,36 @@ class OpcUaConnector(Connector, Thread):
             if device is None:
                 self.__log.error('Device %s not found for attributes update', content['device'])
                 return
-            node_id, value, timeout = self.__resolve_node_id(payload=content, device=device)
-            if isinstance(node_id, NodeId):
-                self.__write_node_value(node_id=node_id, value=value, timeout=timeout)
+
+            if not device.config.get("attributes_updates"):
+                self.__log.error("No attribute mapping found for device %s", device.name)
                 return
-            self.__log.error("Could not resolve path for device %s", device.name)
+
+            for (key, value) in content["data"].items():
+                if not key in device.shared_attributes_keys_value_pairs:
+                    self.__log.warning("Attribute key %s not found in device attribute section %s", key, device.name)
+                    continue
+
+                raw_path = TBUtility.get_value(device.shared_attributes_keys_value_pairs.get(key), get_tag=True)
+                node_id = self.__resolve_node_id(raw_path=raw_path, device=device)
+                if not isinstance(node_id, NodeId):
+                    self.__log.error('Could not find node for device (%s) for key (%s) with path (%s)', device.name,
+                                     key, raw_path)
+
+                    continue
+                self.__write_node_value(node_id, value, timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT)
+                self.__log.debug("Successfully proccesed attribute update for device %s with key %s", device.name)
 
         except Exception as e:
             self.__log.exception(e)
 
-    def __resolve_node_id(self, payload: dict, device: Device):
-        for (key, value) in payload["data"].items():
-            for attr_spec in device.config["attributes_updates"]:
-                if attr_spec["key"] != key:
-                    continue
-
-                raw_path = TBUtility.get_value(attr_spec["value"], get_tag=True)
-                node_id = (
-                    NodeId.from_string(raw_path)
-                    if self.__is_node_identifier(raw_path)
-                    else self.find_full_node_path(raw_path, device)
-                )
-                timeout = attr_spec.get("timeout", ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT)
-
-                return node_id, value, timeout
-
-        self.__log.error("No attribute mapping found for device %s", device.name)
-        node_id = None
-        value = None
-        return node_id, value
+    def __resolve_node_id(self, raw_path: str, device: Device) -> NodeId | None:
+        node_id = (
+            NodeId.from_string(raw_path)
+            if self.__is_node_identifier(raw_path)
+            else self.find_full_node_path(raw_path, device)
+        )
+        return node_id
 
     def __write_node_value(self, node_id: NodeId, value, timeout: float) -> bool:
         try:
@@ -1205,7 +1213,7 @@ class OpcUaConnector(Connector, Thread):
         return True, task.result()
 
     def __process_device_rpc_request(self, rpc_request: OpcUaRpcRequest):
-        device: Device = self.__get_device_by_name(rpc_request.device_name)
+        device = self.__get_device_by_name(rpc_request.device_name)
         rpc_section = device.config.get('rpc_methods', [])
         if device is None:
             self.__log.error('Device %s not found for RPC request', rpc_request.device_name)
