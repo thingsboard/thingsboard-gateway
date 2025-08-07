@@ -619,9 +619,47 @@ class AsyncBACnetConnector(Thread, Connector):
             if device is None:
                 self.__log.error('Device %s not found', content['device'])
                 return
-            self.__apply_attribute_updates(content=content, device=device)
+            if not device.attributes_updates:
+                self.__log.error("No attribute mapping found for device %s", device.name)
+                return
+            data_section = content.get('data', {})
+
+            attribute_update_config_list = [
+                update_config
+                for update_config in device.attributes_updates
+                if update_config["key"] in content.get("data", {})
+            ]
+            self.__process_task_on_filtered_attribute_update_section(
+                filtered_attribute_update_config=attribute_update_config_list, data_section=data_section, device=device)
+
         except Exception as e:
-            self.__log.error('Error processing attribute update%s with error: %s', content, e)
+            self.__log.error('Error processing attribute update %s with error: %s', content, str(e))
+            self.__log.debug("Error", exc_info=e)
+
+    def __process_task_on_filtered_attribute_update_section(self, filtered_attribute_update_config: list, data_section: dict,
+                                                       device: Device):
+        for attribute_update_config in filtered_attribute_update_config:
+            try:
+                value = data_section.get(attribute_update_config['key'])
+                object_id = Device.get_object_id(attribute_update_config)
+                result = {}
+                kwargs = {'priority': attribute_update_config.get('priority'), 'result': result}
+                self.__create_task(self.__process_attribute_update,
+                                   (Address(device.details.address),
+                                    object_id,
+                                    attribute_update_config['propertyId'],
+                                    value),
+                                   kwargs)
+            except ValueError as e:
+                self.__log.error("Such number of object id is not supported %d for key %s", attribute_update_config['objectId'], attribute_update_config['key'] )
+                self.__log.debug("Error", exc_info=e)
+                continue
+
+            except Exception as e:
+                self.__log.error("Could not process attribute update for key %s of device %s with error %s",
+                                 attribute_update_config['key'], str(e))
+                self.__log.debug("Error", exc_info=e)
+                continue
 
     def __get_device_by_name(self, payload: dict) -> Device | None:
         device_name = payload.get('device')
@@ -642,26 +680,6 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__log.debug("Error:", exc_info=e)
             if not future.done():
                 future.cancel()
-
-    def __apply_attribute_updates(self, content: dict, device: Device):
-        for attribute_name, value in content.get('data', {}).items():
-            attribute_update_config_filter = list(filter(lambda x: x['key'] == attribute_name,
-                                                         device.attributes_updates))
-            for attribute_update_config in attribute_update_config_filter:
-                try:
-                    object_id = Device.get_object_id(attribute_update_config)
-                    result = {}
-                    kwargs = {'priority': attribute_update_config.get('priority'), 'result': result}
-                    self.__create_task(self.__process_attribute_update,
-                                       (Address(device.details.address),
-                                        object_id,
-                                        attribute_update_config['propertyId'],
-                                        value),
-                                       kwargs)
-
-                    self.__log.info('Processed attribute update with result: %r', result)
-                except Exception as e:
-                    self.__log.error('Error updating attribute %s: %s', attribute_name, e)
 
     async def __process_attribute_update(self, address, object_id, property_id, value, priority=None, result={}):
         result['response'] = await self.__write_property(address, object_id, property_id, value, priority=priority)
