@@ -14,9 +14,8 @@
 
 
 from asyncio import Future
-from os import path
-from unittest.mock import MagicMock, patch
-from asyncua import Node
+from unittest.mock import patch, call
+from thingsboard_gateway.gateway.constants import ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
 from asyncua.ua import NodeId
 
 from tests.unit.connectors.opcua.opcua_base_test import OpcUABaseTest
@@ -29,53 +28,195 @@ class OpcUAAttributeUpdatesTest(OpcUABaseTest):
         self.fake_device = self.create_fake_device('attribute_updates/opcua_config_attribute_update_full_path.json')
         self.connector._OpcUaConnector__device_nodes.append(self.fake_device)
 
-    async def test_correctly_return_node_on_full_path(self):
-        fake_session = MagicMock()
-        expected_id = NodeId(13, 2)
-        payload = {"device": self.fake_device.name, "data": {"Frequency": 5}}
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
 
-        done_future = Future()
-        done_future.set_result(
-            [[{"node": Node(fake_session, expected_id), "path": "2:Frequency"}]]
-        )
-        with patch.object(
-                self.connector._OpcUaConnector__loop, "create_task", return_value=done_future
-        ) as create_task_mock:
-            node_id, value, timeout = self.connector._OpcUaConnector__resolve_node_id(
-                payload, self.fake_device
-            )
-        create_task_mock.assert_called_once()
-        self.assertEqual(node_id, expected_id)
-        self.assertEqual(value, 5)
+    async def test_on_attribute_updates_full_path(self):
+        payload = {"device": self.fake_device.name,
+                   "data": {"Frequency": 5}}
 
-    async def test_correctly_return_node_on_identifier(self):
-        expected_id = NodeId(13, 2)
-        payload = {"device": self.fake_device.name, "data": {"Frequency": 5}}
+        raw_path = r"Root\.Objects\.MyObject\.Frequency"
+        node_id = NodeId(13, 2)
+        expected_pairs = {"Frequency": '${Root\\.Objects\\.MyObject\\.Frequency}'}
+
+        with patch.object(self.connector, "_OpcUaConnector__resolve_node_id", return_value=node_id) as resolve_mock, \
+                patch.object(self.connector,
+                             "_OpcUaConnector__write_node_value",
+                             return_value=True) as write_mock:
+            self.connector.on_attributes_update(payload)
+        self.assertEqual(self.fake_device.shared_attributes_keys_value_pairs,
+                         expected_pairs)
+        resolve_mock.assert_called_once_with(raw_path=raw_path,
+                                             device=self.fake_device)
+        write_mock.assert_called_once_with(node_id, 5,
+                                           timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT)
+
+    async def test_on_attribute_updates_node_identifier(self):
         self.fake_device = self.create_fake_device(
-            path.join(self.CONFIG_PATH, 'attribute_updates/opcua_config_attribute_update_identifier.json'))
-        node_id, value, timeout = self.connector._OpcUaConnector__resolve_node_id(
-            payload, self.fake_device
-        )
-        self.assertEqual(node_id, expected_id)
-        self.assertEqual(value, 5)
+            "attribute_updates/opcua_config_attribute_update_identifier.json")
+        self.connector._OpcUaConnector__device_nodes[:] = [self.fake_device]
 
-    async def test_returns_none_on_incorrect_attribute_update_key(self):
-        expected_id = None
-        payload = {"device": self.fake_device.name, "data": {"Frequencyy": 5}}
-        node_id, value = self.connector._OpcUaConnector__resolve_node_id(
-            payload, self.fake_device
-        )
-        self.assertEqual(node_id, expected_id)
-        self.assertEqual(value, None)
+        payload = {"device": self.fake_device.name,
+                   "data": {"Frequency": 5}}
 
-    async def test_update_non_listed_attribute(self):
-        expected_id = None
-        payload = {"device": self.fake_device.name, "data": {"Power": 5}}
-        node_id, value = self.connector._OpcUaConnector__resolve_node_id(
-            payload, self.fake_device
+        raw_path = "ns=2;i=13"
+        node_id = NodeId(13, 2)
+        expected_pairs = {"Frequency": "${ns=2;i=13}"}
+
+        with patch.object(self.connector, "_OpcUaConnector__resolve_node_id",
+                          return_value=node_id) as resolve_mock, \
+                patch.object(self.connector,
+                             "_OpcUaConnector__write_node_value",
+                             return_value=True) as write_mock:
+            self.connector.on_attributes_update(payload)
+
+        self.assertEqual(self.fake_device.shared_attributes_keys_value_pairs,
+                         expected_pairs)
+
+        resolve_mock.assert_called_once_with(raw_path=raw_path,
+                                             device=self.fake_device)
+        write_mock.assert_called_once_with(node_id, 5,
+                                           timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT)
+
+    async def test_on_attribute_updates_with_multiple_attribute_updates(self):
+        self.fake_device = self.create_fake_device(
+            'attribute_updates/opcua_config_on_attribute_update_section_multiple_attribute_updates.json'
         )
-        self.assertEqual(node_id, expected_id)
-        self.assertEqual(value, None)
+        self.connector._OpcUaConnector__device_nodes[:] = [self.fake_device]
+
+        payload = {"device": self.fake_device.name,
+                   "data": {"Frequency": 5, "Temperature": 7}}
+
+        expected_pairs = {
+            "Frequency": r"${Root\.Objects\.MyObject\.Frequency}",
+            "Temperature": r"${ns=2;i=15}",
+        }
+
+        freq_raw, temp_raw = r"Root\.Objects\.MyObject\.Frequency", r"ns=2;i=15"
+        freq_node, temp_node = NodeId(13, 2), NodeId(15, 2)
+
+        def _resolve_side_effect(*, raw_path, device):
+            return freq_node if raw_path == freq_raw else temp_node
+
+        with patch.object(self.connector,"_OpcUaConnector__resolve_node_id", side_effect=_resolve_side_effect) as resolve_mock, \
+                patch.object(self.connector,
+                             "_OpcUaConnector__write_node_value",
+                             return_value=True) as write_mock:
+            self.connector.on_attributes_update(payload)
+
+        self.assertEqual(self.fake_device.shared_attributes_keys_value_pairs,
+                         expected_pairs)
+
+        resolve_mock.assert_has_calls([
+            call(raw_path=freq_raw, device=self.fake_device),
+            call(raw_path=temp_raw, device=self.fake_device),
+        ], any_order=False)
+
+        write_mock.assert_has_calls([
+            call(freq_node, 5,
+                 timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT),
+            call(temp_node, 7,
+                 timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT),
+        ], any_order=False)
+
+    async def test_attribute_update_with_non_listed_attribute(self):
+        self.fake_device = self.create_fake_device(
+            'attribute_updates/opcua_config_on_attribute_update_section_multiple_attribute_updates.json'
+        )
+        self.connector._OpcUaConnector__device_nodes[:] = [self.fake_device]
+
+        payload = {"device": self.fake_device.name,
+                   "data": {"Frequency": 5, "Temperature": 7, "abba1965": 20}}
+
+        expected_pairs = {
+            "Frequency": r"${Root\.Objects\.MyObject\.Frequency}",
+            "Temperature": r"${ns=2;i=15}",
+        }
+
+        freq_raw, temp_raw = r"Root\.Objects\.MyObject\.Frequency", r"ns=2;i=15"
+        freq_node, temp_node = NodeId(13, 2), NodeId(15, 2)
+
+        def _resolve_side_effect(*, raw_path, device):
+            return freq_node if raw_path == freq_raw else temp_node
+
+        with patch.object(self.connector,
+                          "_OpcUaConnector__resolve_node_id",
+                          side_effect=_resolve_side_effect) as resolve_mock, \
+                patch.object(self.connector,
+                             "_OpcUaConnector__write_node_value",
+                             return_value=True) as write_mock:
+            self.connector.on_attributes_update(payload)
+
+        self.assertEqual(self.fake_device.shared_attributes_keys_value_pairs,
+                         expected_pairs)
+
+        resolve_mock.assert_has_calls([
+            call(raw_path=freq_raw, device=self.fake_device),
+            call(raw_path=temp_raw, device=self.fake_device),
+        ], any_order=False)
+
+        write_mock.assert_has_calls([
+            call(freq_node, 5,
+                 timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT),
+            call(temp_node, 7,
+                 timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT),
+        ], any_order=False)
+
+    async def test_attribute_updates_no_attribute_section(self):
+        self.fake_device = self.create_fake_device(
+            'attribute_updates/opcua_config_attribute_update_empty_section.json'
+        )
+        self.connector._OpcUaConnector__device_nodes[:] = [self.fake_device]
+        node_id = NodeId(13, 2)
+
+        payload = {"device": self.fake_device.name,
+                   "data": {"Frequency": 5}}
+        self.assertEqual(self.fake_device.shared_attributes_keys_value_pairs, {})
+
+        with patch.object(self.connector,"_OpcUaConnector__resolve_node_id",
+                          return_value=node_id) as resolve_mock, \
+                patch.object(self.connector,
+                             "_OpcUaConnector__write_node_value",
+                             return_value=True) as write_mock:
+            self.connector.on_attributes_update(payload)
+        resolve_mock.assert_not_called()
+        write_mock.assert_not_called()
+
+    async def test_attribute_update_with_partly_invalid_paths(self):
+        self.fake_device = self.create_fake_device(
+            "attribute_updates/"
+            "opcua_config_on_attribute_update_section_multiple_attribute_updates_invalid_path.json")
+        self.connector._OpcUaConnector__device_nodes[:] = [self.fake_device]
+
+        payload = {"device": self.fake_device.name,
+                   "data": {"Frequency": 5, "Temperature": 7}}
+        expected_pairs = {
+            "Frequency": r"${Root\.Objects\.MyObject\.Frequencttrtrtggrtgy}",
+            "Temperature": r"${ns=2;i=15}",
+        }
+        bad_raw = r"Root\.Objects\.MyObject\.Frequencttrtrtggrtgy"
+        good_raw = r"ns=2;i=15"
+
+        bad_node = None
+        good_node = NodeId(15, 2)
+
+        def resolve_side_effect(*, raw_path, device):
+            return good_node if raw_path == good_raw else bad_node
+
+        with patch.object(self.connector,
+                          "_OpcUaConnector__resolve_node_id",
+                          side_effect=resolve_side_effect) as resolve_mock, \
+                patch.object(self.connector,
+                             "_OpcUaConnector__write_node_value",
+                             return_value=True) as write_mock:
+            self.connector.on_attributes_update(payload)
+        self.assertEqual(self.fake_device.shared_attributes_keys_value_pairs,
+                         expected_pairs)
+        self.assertCountEqual(
+            [call.kwargs["raw_path"] for call in resolve_mock.mock_calls],
+            [bad_raw, good_raw])
+        write_mock.assert_called_once_with(
+            good_node, 7, timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT)
 
     async def test_attribute_is_written(self):
         node_id, value = NodeId(13, 2), 10
