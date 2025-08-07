@@ -153,6 +153,10 @@ class Device:
 
             arguments = [argument['value'] for argument in arguments_from_config if argument.get('value')]
 
+            if rpc_request.arguments and not isinstance(rpc_request.arguments, list):
+                error_message = "The arguments must be specified in the square quotes []"
+                return {"error": error_message}
+
             if rpc_request.arguments and len(rpc_request.arguments) == len(arguments_from_config):
                 arguments = rpc_request.arguments
                 return arguments
@@ -167,3 +171,4 @@ class Device:
                 return {"error": error_message}
 
         return arguments
+
