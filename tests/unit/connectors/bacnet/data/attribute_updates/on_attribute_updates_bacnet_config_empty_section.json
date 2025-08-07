@@ -54,12 +54,7 @@
     }
   ],
   "attributeUpdates": [
-    {
-      "key": "binaryValue2",
-      "objectType": "binaryValue",
-      "objectId": 2,
-      "propertyId": "presentValue"
-    }
+
   ],
   "serverSideRpc": [],
   "address": "192.168.1.136:47809",
