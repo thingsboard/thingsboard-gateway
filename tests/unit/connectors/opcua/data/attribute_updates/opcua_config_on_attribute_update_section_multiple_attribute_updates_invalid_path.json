@@ -15,7 +15,12 @@
     {
       "key": "Frequency",
       "type": "path",
-      "value": "${Root\\.Objects\\.MyObject\\.Frequency}"
+      "value": "${Root\\.Objects\\.MyObject\\.Frequencttrtrtggrtgy}"
+    },
+    {
+      "key": "Temperature",
+      "type": "path",
+      "value": "${ns=2;i=15}"
     }
   ],
   "deviceInfo": {

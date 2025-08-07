@@ -12,11 +12,7 @@
     }
   ],
   "attributes_updates": [
-    {
-      "key": "Frequency",
-      "type": "path",
-      "value": "${Root\\.Objects\\.MyObject\\.Frequency}"
-    }
+
   ],
   "deviceInfo": {
     "deviceNameExpression": "OPCUA New Advanced Device",
