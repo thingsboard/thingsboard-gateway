@@ -33,6 +33,7 @@ class BacnetBaseTestCase(IsolatedAsyncioTestCase):
         for handler in list(log.handlers):
             log.removeHandler(handler)
         self.connector = None
+        self.device = None
         await super().asyncTearDown()
 
     @staticmethod
