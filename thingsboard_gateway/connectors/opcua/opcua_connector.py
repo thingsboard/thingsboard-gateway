@@ -435,7 +435,7 @@ class OpcUaConnector(Connector, Thread):
         last_contact_delta = monotonic() - self.__last_contact_time
         if last_contact_delta < self.__client.session_timeout / 1000 and self.__last_contact_time > 0:
             time_to_wait = self.__client.session_timeout / 1000 - last_contact_delta
-            time_to_wait = min(self.__server_conf.get('sessionTimeoutInMillis', 120000) / 100 * 0.8, time_to_wait)
+            time_to_wait = min(self.__server_conf.get('sessionTimeoutInMillis', 120000) / 1000 * 0.8, time_to_wait)
             self.__log.info('Last contact was %.2f seconds ago, next connection try in %.2f seconds...',
                             last_contact_delta, time_to_wait)
             await asyncio.sleep(time_to_wait)
@@ -449,7 +449,7 @@ class OpcUaConnector(Connector, Thread):
                 base_time = self.__client.session_timeout / 1000 if (
                         last_contact_delta > 0 and last_contact_delta < self.__client.session_timeout / 1000) else 0
                 time_to_wait = base_time / 1000 + delay
-                time_to_wait = min(self.__server_conf.get('sessionTimeoutInMillis', 120000) / 100 * 0.8, time_to_wait)
+                time_to_wait = min(self.__server_conf.get('sessionTimeoutInMillis', 120000) / 1000 * 0.8, time_to_wait)
                 self.__log.error('Encountered error: %r. Next connection try in %i second(s)...', e, time_to_wait)
                 await asyncio.sleep(time_to_wait)
                 delay *= backoff_factor
