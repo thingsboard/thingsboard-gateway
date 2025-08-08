@@ -1,5 +1,5 @@
 from unittest.mock import patch, MagicMock, AsyncMock
-
+from bacpypes3.primitivedata import ObjectIdentifier
 from tests.unit.connectors.bacnet.bacnet_base_test import BacnetBaseTestCase
 from thingsboard_gateway.connectors.bacnet.device import Device
 from concurrent.futures import TimeoutError
@@ -54,10 +54,95 @@ class BacnetOnAttributeUpdatesTestCase(BacnetBaseTestCase):
         payload = {"device": self.device.name, "data": {"binaryValue2": True}}
         await self.connector._AsyncBACnetConnector__devices.remove(self.device)
         self.device = self.create_fake_device(
-            attribute_update_config_path='attribute_updates/on_attribute_updates_bacnet_config_empty_section.json')
+            'attribute_updates/on_attribute_updates_bacnet_config_empty_section.json'
+        )
         await self.connector._AsyncBACnetConnector__devices.add(self.device)
 
-        with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as create_task_mock:
+        with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as create_task_mock, \
+                self.assertLogs("Bacnet test", level="ERROR") as logcap:
             self.connector.on_attributes_update(payload)
 
         create_task_mock.assert_not_called()
+        self.assertTrue(any("No attribute mapping found for device" in m for m in logcap.output))
+
+    async def test_update_incorrect_object_id_mixed(self):
+        payload = {"device": self.device.name, "data": {"binaryValue2": True, "binaryInput1": 56}}
+        await self.connector._AsyncBACnetConnector__devices.remove(self.device)
+        self.device = self.create_fake_device(
+            "attribute_updates/on_attribute_updates_bacnet_config_incorrect_object_id.json"
+        )
+        await self.connector._AsyncBACnetConnector__devices.add(self.device)
+
+        with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock, \
+                self.assertLogs("Bacnet test", level="ERROR") as logcap:
+            self.connector.on_attributes_update(content=payload)
+        self.assertEqual(ct_mock.call_count, 1)
+        func, args, kwargs = ct_mock.call_args.args
+        addr, obj_id, prop_id, value = args
+
+        self.assertEqual(str(addr), self.device.details.address)
+        self.assertEqual(obj_id, ObjectIdentifier("binaryValue:2"))
+        self.assertEqual(prop_id, "presentValue")
+        self.assertTrue(value)
+
+        self.assertIn("priority", kwargs)
+        self.assertIn("result", kwargs)
+        self.assertTrue(any("Such number of object id is not supported" in m for m in logcap.output))
+
+    async def test_update_multiple_correct_attribute(self):
+        payload = {"device": self.device.name, "data": {"binaryValue2": True, "binaryInput1": 56}}
+        await self.connector._AsyncBACnetConnector__devices.remove(self.device)
+        self.device = self.create_fake_device(
+            "attribute_updates/on_attribute_updates_bacnet_connector_multiple_updates.json"
+        )
+        await self.connector._AsyncBACnetConnector__devices.add(self.device)
+
+        with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock:
+            self.connector.on_attributes_update(content=payload)
+
+        self.assertEqual(ct_mock.call_count, 2)
+        seen = []
+        for c in ct_mock.call_args_list:
+            _, args, kwargs = c.args
+            addr, obj_id, prop_id, value = args
+            seen.append((
+                str(addr), obj_id, prop_id, value,
+                "priority" in kwargs, "result" in kwargs
+            ))
+
+        expected = {
+            (self.device.details.address, ObjectIdentifier("binaryValue:2"), "presentValue", True, True, True),
+            (self.device.details.address, ObjectIdentifier("binaryInput:1"), "presentValue", 56, True, True),
+        }
+
+        self.assertEqual(set(seen), expected)
+
+    async def test_update_attribute_update_with_incorrect_object_id_datatype(self):
+        payload = {"device": self.device.name, "data": {"binaryValue2": True}}
+        await self.connector._AsyncBACnetConnector__devices.remove(self.device)
+        self.device = self.create_fake_device(
+            "attribute_updates/on_attribute_updates_bacnet_config_invalid_data_type.json"
+        )
+        await self.connector._AsyncBACnetConnector__devices.add(self.device)
+
+        with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock, \
+                self.assertLogs("Bacnet test", level="ERROR") as logcap:
+            self.connector.on_attributes_update(content=payload)
+
+        ct_mock.assert_not_called()
+        self.assertTrue(any("for key" in m for m in logcap.output))
+
+    async def test_update_continues_when_first_task_raises(self):
+        payload = {"device": self.device.name, "data": {"binaryValue2": True, "binaryInput1": 56}}
+        await self.connector._AsyncBACnetConnector__devices.remove(self.device)
+        self.device = self.create_fake_device(
+            "attribute_updates/on_attribute_updates_bacnet_connector_multiple_updates.json"
+        )
+        await self.connector._AsyncBACnetConnector__devices.add(self.device)
+
+        with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock, \
+                self.assertLogs("Bacnet test", level="ERROR") as logcap:
+            ct_mock.side_effect = [Exception(""), None]
+            self.connector.on_attributes_update(payload)
+        self.assertEqual(ct_mock.call_count, 2)
+        
