@@ -543,7 +543,9 @@ class AsyncBACnetConnector(Thread, Connector):
 
             await self.__application.write_property(address, object_id, property_id, value, priority=priority)
             return "ok"
+
         except ErrorRejectAbortNack as err:
+            self.__log.error("BACnet %s on write to device with object_id: %s, property_id: %s, address: %s", str(err), object_id, property_id, address)
             return err.__str__()
         except Exception as err:
             self.__log.error('Error writing property %s:%s to device %s: %s', object_id, property_id, address, err)
@@ -636,8 +638,8 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__log.error('Error processing attribute update %s with error: %s', content, str(e))
             self.__log.debug("Error", exc_info=e)
 
-    def __process_task_on_filtered_attribute_update_section(self, filtered_attribute_update_config: list, data_section: dict,
-                                                       device: Device):
+    def __process_task_on_filtered_attribute_update_section(self, filtered_attribute_update_config: list,
+                                                            data_section: dict, device: Device):
         for attribute_update_config in filtered_attribute_update_config:
             try:
                 value = data_section.get(attribute_update_config['key'])
@@ -650,14 +652,19 @@ class AsyncBACnetConnector(Thread, Connector):
                                     attribute_update_config['propertyId'],
                                     value),
                                    kwargs)
+            except TypeError as e:
+                self.__log.error('%s for key %s ', str(e), attribute_update_config['objectId'])
+                self.__log.debug("Error", exc_info=e)
+                continue
+
             except ValueError as e:
-                self.__log.error("Such number of object id is not supported %d for key %s", attribute_update_config['objectId'], attribute_update_config['key'] )
+                self.__log.error("Such number of object id is not supported %d for key %s",
+                                 attribute_update_config['objectId'], attribute_update_config['key'])
                 self.__log.debug("Error", exc_info=e)
                 continue
 
             except Exception as e:
-                self.__log.error("Could not process attribute update for key %s of device %s with error %s",
-                                 attribute_update_config['key'], str(e))
+                self.__log.error("Could not process attribute update with error %s", str(e))
                 self.__log.debug("Error", exc_info=e)
                 continue
 
@@ -670,6 +677,7 @@ class AsyncBACnetConnector(Thread, Connector):
         try:
             device = future.result(timeout=10)
             return device
+
         except TimeoutError:
             self.__log.error("Timeout has been reached for device %s", device_name)
             if not future.done():
