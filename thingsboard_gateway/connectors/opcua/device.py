@@ -41,6 +41,7 @@ class Device:
             'attributes': []
         }
         self.shared_attributes_keys = self.__get_shared_attributes_keys()
+        self.shared_attributes_keys_value_pairs = self.__match_key_value_for_attribute_updates()
         self.nodes = []
         self.subscription: Subscription | None = None
         self.nodes_data_change_subscriptions = {}
@@ -60,6 +61,12 @@ class Device:
         for attr_config in self.config.get('attributes_updates', []):
             result.append(attr_config['key'])
 
+        return result
+
+    def __match_key_value_for_attribute_updates(self):
+        result = {}
+        for attr_config in self.config.get('attributes_updates', []):
+            result[attr_config['key']] = attr_config['value'] if attr_config['value'] else None
         return result
 
     def __repr__(self):
@@ -164,3 +171,4 @@ class Device:
                 return {"error": error_message}
 
         return arguments
+
