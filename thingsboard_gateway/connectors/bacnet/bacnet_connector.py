@@ -736,6 +736,7 @@ class AsyncBACnetConnector(Thread, Connector):
                              device.device_info.device_name)
             return
         self.__check_and_process_reserved_rpc(rpc_method_name, device, content)
+        self.__log.debug("Successfully processed reserved device RPC request %s for device %s", rpc_method_name, device.device_info.device_name)
 
 
     def __process_rpc(self, rpc_method_name, rpc_config, content, device):
@@ -754,12 +755,20 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                           req_id=content['data'].get('id'),
                                           content={'result': str(result.get('response'))},)
+        
+        except ValueError as e:
+            self.__log.error('Value error processing RPC request %s: %s', rpc_method_name, e)
+            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
+                                          req_id=content['data'].get('id'),
+                                          content={"error": {'result': f'Could not find correct mapping for {str(e)}'}},
+                                          success_sent=False)
+    
         except Exception as e:
             self.__log.error(
                 'Error processing RPC request %s: %s', rpc_method_name, e)
             self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                           req_id=content['data'].get('id'),
-                                          content={'result': str(e)},
+                                          content={"error":{'result': str(e)}},
                                           success_sent=False)
 
     async def __process_rpc_request(self, address, object_id, property_id, priority=None, value=None, result={}):
@@ -767,7 +776,6 @@ class AsyncBACnetConnector(Thread, Connector):
             result['response'] = await self.__read_property(address, object_id, property_id)
         else:
             result['response'] = await self.__write_property(address, object_id, property_id, value, priority=priority)
-            intermediate_result = result['response']
 
     def __check_and_process_reserved_rpc(self, rpc_method_name, device, content):
         params_section = content['data'].get('params', {})
@@ -775,7 +783,7 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__log.error('No params section found in RPC request: %r', content)
             self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                           req_id=content['data'].get('id'),
-                                          content={"result":{'result': 'No params section found in RPC request'}},
+                                          content={"result": {'result': 'No params section found in RPC request'}},
                                           success_sent=False)
             return
 
@@ -790,8 +798,7 @@ class AsyncBACnetConnector(Thread, Connector):
         if not pattern.match(params_section):
             self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                           req_id=content['data'].get('id'),
-                                          content={'result': {
-                                              "error": f"The requested RPC does not match with the schema {expected_schema}"}},
+                                          content={'result': {"error": f"The requested RPC does not match with the schema: {expected_schema}"}},
                                           success_sent=False)
             return
 
