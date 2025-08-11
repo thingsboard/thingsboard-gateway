@@ -172,7 +172,7 @@ class Device:
         device_identifier = apdu.iAmDeviceIdentifier[-1]
 
         for device_config in devices_config:
-            if device_config.get('deviceId'):
+            if device_config.get('deviceId') is not None:
                 if Device.is_device_identifier_match(device_identifier, device_config.get('deviceId')):
                     return device_config
                 else:
