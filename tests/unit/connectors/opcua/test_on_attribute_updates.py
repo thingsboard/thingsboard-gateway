@@ -12,7 +12,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-
 from asyncio import Future
 from unittest.mock import patch, call
 from thingsboard_gateway.gateway.constants import ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
