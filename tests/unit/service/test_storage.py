@@ -151,9 +151,9 @@ class TestSQLiteEventStorageRotation(TestCase):
             "messages_ttl_check_in_hours": 1,
             "messages_ttl_in_days": 7,
             "max_read_records_count": 1000,
-            "size_limit": 0.025,
+            "size_limit": 0.05,
             "max_db_amount": 3,
-            "oversize_check_period": 1 / 60,
+            "oversize_check_period": 1 / 20,
             "writing_batch_size": 1000,
         }
         self.settings = StorageSettings(self.config, enable_validation=False)
