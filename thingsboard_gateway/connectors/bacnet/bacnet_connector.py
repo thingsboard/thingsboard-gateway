@@ -22,14 +22,13 @@ from time import monotonic, sleep
 from typing import TYPE_CHECKING, Tuple, Any
 from concurrent.futures import TimeoutError
 
-from prompt_toolkit.validation import ValidationError
-
 from thingsboard_gateway.connectors.bacnet.constants import SUPPORTED_OBJECTS_TYPES
 
 from thingsboard_gateway.connectors.bacnet.ede_parser import EDEParser
 from thingsboard_gateway.connectors.bacnet.entities.routers import Routers
 from thingsboard_gateway.connectors.connector import Connector
-from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, STATISTIC_MESSAGE_SENT_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT, RPC_DEFAULT_TIMEOUT
+from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, \
+    STATISTIC_MESSAGE_SENT_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT, RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -148,9 +147,13 @@ class AsyncBACnetConnector(Thread, Connector):
 
                 for config_item in device_config.get(section, []):
                     try:
-                        if ((isinstance(config_item['objectId'], str) and not config_item['objectId'] == '*') or isinstance(config_item['objectId'], list)) \
+                        if ((isinstance(config_item['objectId'], str) and not config_item[
+                                                                                  'objectId'] == '*') or isinstance(
+                                config_item['objectId'], list)) \
                                 and isinstance(config_item['objectType'], list):
-                            self.__log.warning('Invalid using list of object types with string (except "*") or list objectId in config item %s. Skipping...', config_item)  # noqa
+                            self.__log.warning(
+                                'Invalid using list of object types with string (except "*") or list objectId in config item %s. Skipping...',
+                                config_item)  # noqa
                             continue
 
                         Device.parse_config_key(config_item)
@@ -745,31 +748,41 @@ class AsyncBACnetConnector(Thread, Connector):
             return
 
         if rpc_method_name not in ('get', 'set'):
-            for rpc_config in device.server_side_rpc:
-                if rpc_config['method'] == rpc_method_name:
+            filtered_rpc_section_from_config = [rpc_config for rpc_config in device.server_side_rpc if
+                                                rpc_config['method'] == rpc_method_name]
+            if not filtered_rpc_section_from_config:
+                self.__log.error("Neither of configured device rpc methods match with %s", rpc_method_name)
+                self.__gateway.send_rpc_reply(
+                    device=device.device_info.device_name,
+                    req_id=content.get('data', {}).get('id'),
+                    content={
+                        "result": {"error": f"Neither of configured device rpc methods match with {rpc_method_name}"}}
+                )
+                return
 
-                    err = self.__validate_device_rpc(method_rpc_config_section=rpc_config)
-                    if err:
-                        self.__log.error(err["error"])
-                        self.__gateway.send_rpc_reply(
-                            device=device.device_info.device_name,
-                            req_id=content.get('data', {}).get('id'),
-                            content={"result": err},
-                            success_sent=False,
-                        )
-                        return
+            for rpc_config in filtered_rpc_section_from_config:
 
-                    self.__process_rpc(rpc_method_name, rpc_config, content, device)
-                    self.__log.debug("Processed  device RPC request %s for device %s", rpc_method_name,
-                                     device.device_info.device_name)
+                err = self.__validate_device_rpc(method_rpc_config_section=rpc_config)
+                if err:
+                    self.__log.error(err["error"])
+                    self.__gateway.send_rpc_reply(
+                        device=device.device_info.device_name,
+                        req_id=content.get('data', {}).get('id'),
+                        content={"result": err}
+                    )
+                    return
+
+                self.__process_rpc(rpc_method_name, rpc_config, content, device)
+                self.__log.debug("Processed  device RPC request %s for device %s", rpc_method_name,
+                                 device.device_info.device_name)
             return
         result = self.__check_and_process_reserved_rpc(rpc_method_name, device, content)
         return result
 
     @staticmethod
     def __validate_device_rpc(method_rpc_config_section: dict) -> dict | None:
-        obj_type = method_rpc_config_section.get('objectType')
-        req_type = method_rpc_config_section.get('requestType')
+        obj_type = method_rpc_config_section['objectType']
+        req_type = method_rpc_config_section['requestType']
 
         if obj_type not in SUPPORTED_OBJECTS_TYPES.values():
             return {
@@ -787,19 +800,20 @@ class AsyncBACnetConnector(Thread, Connector):
                 )
             }
 
-
-    def __process_rpc(self, rpc_method_name, rpc_config, content, device, rpc_device_section=None):
+    def __process_rpc(self, rpc_method_name, rpc_config, content, device):
         try:
             object_id = Device.get_object_id(rpc_config)
             value = content.get('data', {}).get('params')
 
-            kwargs = {'priority': rpc_config.get('priority'), 'value': value, 'requestType': rpc_device_section.get('requestType')}
+            kwargs = {'priority': rpc_config.get('priority'), 'value': value,
+                      'request_type': rpc_config.get('requestType')}
             task = self.__create_task(self.__process_rpc_request,
                                       (Address(device.details.address),
                                        object_id,
                                        rpc_config['propertyId']),
                                       kwargs)
-            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=content.get("timeout", RPC_DEFAULT_TIMEOUT),
+            task_completed, result = self.__wait_task_with_timeout(task=task,
+                                                                   timeout=content.get("timeout", RPC_DEFAULT_TIMEOUT),
                                                                    poll_interval=0.2)
             if not task_completed:
                 self.__log.error(
@@ -825,7 +839,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 'Error processing RPC request %s: %s', rpc_method_name, e)
             self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                           req_id=content['data'].get('id'),
-                                          content={"result":{'error': str(e)}},)
+                                          content={"result": {'error': str(e)}}, )
 
     async def __process_rpc_request(self, address, object_id, property_id, priority=None, value=None,
                                     request_type=None):
@@ -857,7 +871,7 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                           req_id=content['data'].get('id'),
                                           content={"result": {
-                                              "error": f"The requested RPC does not match with the schema: {expected_schema}"}}, )
+                                              "error": f"The requested RPC does not match with the schema: {expected_schema}"}})
             return
         params = {}
         for param in params_section.split(';'):
