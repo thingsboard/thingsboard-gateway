@@ -72,7 +72,7 @@
       "serverSideRpc": [
         {
           "method": "SetState",
-          "requestType": "writeProperty",
+          "requestType": "writePropertys",
           "requestTimeout": 10000,
           "objectType": "binaryValue",
           "objectId": 2,
