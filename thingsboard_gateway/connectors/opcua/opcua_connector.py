@@ -1251,10 +1251,9 @@ class OpcUaConnector(Connector, Thread):
                     device.name,
                 )
                 result = {"error": f"Timeout rpc has been reached for {device.name}"}
-
-
-            elif not task_completed:
+            elif task_completed:
                 self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
+
             self.__gateway.send_rpc_reply(rpc_request.device_name,
                                           rpc_request.id,
                                           {"result": result})
@@ -1389,7 +1388,6 @@ class OpcUaConnector(Connector, Thread):
             var = await self.__client.nodes.root.get_child(path)
             method_id = '{}:{}'.format(var.nodeid.NamespaceIndex, method_name)
             result['result'] = await var.call_method(method_id, *arguments)
-            self.__log.debug("Successfully processed rpc for %s", method_name)
             return result
         except Exception as e:
             result['error'] = e.__str__()
