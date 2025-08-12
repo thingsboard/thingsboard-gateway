@@ -89,11 +89,15 @@ class TBClient(threading.Thread):
         if config.get('security') and not provisioning_configuration:
             self._create_mqtt_client(config['security'])
         elif config.get('provisioning') or provisioning_configuration:
-            if exists(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME):
-                with open(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME, 'r') as file:
-                    credentials = load(file)
-                creds = self._get_provisioned_creds(credentials)
-            else:
+            creds = None
+            try:
+                if exists(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME):
+                        with open(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME, 'r') as file:
+                            credentials = load(file)
+                        creds = self._get_provisioned_creds(credentials)
+            except Exception as e:
+                self.__logger.error('Error reading provisioned credentials: %s', e)
+            if not creds:
                 credentials = config.get('provisioning', provisioning_configuration)
                 logger.info('Starting provisioning gateway...')
 
@@ -127,6 +131,7 @@ class TBClient(threading.Thread):
                                                      **credentials)
 
                 if not creds:
+                    logger.error('Provisioning failed, check your credentials and try again')
                     raise RuntimeError('Provisioning failed, check your credentials and try again')
                 with open(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME, 'w') as file:
                     if hasattr(self, '_ca_cert_name') and self._ca_cert_name:
