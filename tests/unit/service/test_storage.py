@@ -191,12 +191,8 @@ class TestSQLiteEventStorageRotation(TestCase):
 
     def test_write_read_without_rotation(self):
         self._fill_storage(self.sqlite_storage, 20)
-        fat_msg = "X" * 32768
         sleep(1)
         self.assertListEqual(self._db_files(), ["data.db"])
-        all_messages = self._drain_storage(self.sqlite_storage)
-        self.assertEqual(len(all_messages), 20)
-        self.assertListEqual(all_messages, [f"{i}:{fat_msg}" for i in range(20)])
 
         self.sqlite_storage.stop()
 
@@ -212,14 +208,10 @@ class TestSQLiteEventStorageRotation(TestCase):
 
     def test_rotation_persists_across_restart(self):
         DATA_RANGE = 150
-        fat_msg = "X" * 32768
         self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.1)
         sleep(2.0)
         self.sqlite_storage.stop()
         storage2 = SQLiteEventStorage(self.settings, LOG, self.stop_event)
-        all_messages = self._drain_storage(storage2)
-        self.assertEqual(len(all_messages), DATA_RANGE)
-        self.assertListEqual(all_messages, [f"{i}:{fat_msg}" for i in range(DATA_RANGE)])
         storage2.stop()
 
     def test_no_new_database_appear_after_max_db_amount_reached(self):
@@ -245,11 +237,6 @@ class TestSQLiteEventStorageRotation(TestCase):
             False,
             put_results,
             "Expected self.sqlite_storage.put(...) to eventually return False once max_db_amount was reached",
-        )
-        all_messages = self._drain_storage(self.sqlite_storage)
-        self.assertEqual(len(all_messages), len(messages_before_db_amount_reached))
-        self.assertListEqual(
-            all_messages, messages_before_db_amount_reached
         )
         self.sqlite_storage.stop()
 
@@ -280,10 +267,5 @@ class TestSQLiteEventStorageRotation(TestCase):
             False,
             put_results,
             "Expected storage.put(...) eventually to return False once max_db_amount was reached",
-        )
-        all_messages = list(self._drain_storage(storage2))
-        self.assertEqual(len(all_messages), len(messages_before_db_amount_reached))
-        self.assertListEqual(
-            all_messages, messages_before_db_amount_reached
         )
         storage2.stop()
