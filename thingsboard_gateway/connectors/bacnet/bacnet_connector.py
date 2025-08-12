@@ -147,13 +147,9 @@ class AsyncBACnetConnector(Thread, Connector):
 
                 for config_item in device_config.get(section, []):
                     try:
-                        if ((isinstance(config_item['objectId'], str) and not config_item[
-                                                                                  'objectId'] == '*') or isinstance(
-                                config_item['objectId'], list)) \
+                        if ((isinstance(config_item['objectId'], str) and not config_item['objectId'] == '*') or isinstance(config_item['objectId'], list)) \
                                 and isinstance(config_item['objectType'], list):
-                            self.__log.warning(
-                                'Invalid using list of object types with string (except "*") or list objectId in config item %s. Skipping...',
-                                config_item)  # noqa
+                            self.__log.warning('Invalid using list of object types with string (except "*") or list objectId in config item %s. Skipping...', config_item)  # noqa
                             continue
 
                         Device.parse_config_key(config_item)
