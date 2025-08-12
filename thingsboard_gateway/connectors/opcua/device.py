@@ -41,6 +41,7 @@ class Device:
             'attributes': []
         }
         self.shared_attributes_keys = self.__get_shared_attributes_keys()
+        self.shared_attributes_keys_value_pairs = self.__match_key_value_for_attribute_updates()
         self.nodes = []
         self.subscription: Subscription | None = None
         self.nodes_data_change_subscriptions = {}
@@ -60,6 +61,12 @@ class Device:
         for attr_config in self.config.get('attributes_updates', []):
             result.append(attr_config['key'])
 
+        return result
+
+    def __match_key_value_for_attribute_updates(self):
+        result = {}
+        for attr_config in self.config.get('attributes_updates', []):
+            result[attr_config['key']] = attr_config['value'] if attr_config['value'] else None
         return result
 
     def __repr__(self):
@@ -134,7 +141,8 @@ class Device:
     @staticmethod
     def get_device_rpc_arguments(rpc_device_section: dict, rpc_request: OpcUaRpcRequest) -> list | None | dict:
         arguments = []
-        found_method_rpc_section = next(filter(lambda rpc: rpc.get('method') == rpc_request.rpc_method, rpc_device_section))
+        found_method_rpc_section = next(
+            filter(lambda rpc: rpc.get('method') == rpc_request.rpc_method, rpc_device_section))
         arguments_from_config = found_method_rpc_section.get('arguments', [])
         empty_arguments_condition = not arguments_from_config
 
@@ -144,6 +152,10 @@ class Device:
         if arguments_from_config:
 
             arguments = [argument['value'] for argument in arguments_from_config if argument.get('value')]
+
+            if rpc_request.arguments and not isinstance(rpc_request.arguments, list):
+                error_message = "The arguments must be specified in the square quotes []"
+                return {"error": error_message}
 
             if rpc_request.arguments and len(rpc_request.arguments) == len(arguments_from_config):
                 arguments = rpc_request.arguments
@@ -159,3 +171,4 @@ class Device:
                 return {"error": error_message}
 
         return arguments
+

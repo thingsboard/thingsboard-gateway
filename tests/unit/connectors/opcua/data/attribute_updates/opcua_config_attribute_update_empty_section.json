@@ -12,11 +12,7 @@
     }
   ],
   "attributes_updates": [
-    {
-      "key": "Frequency",
-      "type": "identifier",
-      "value": "${ns=2;i=13}"
-    }
+
   ],
   "deviceInfo": {
     "deviceNameExpression": "OPCUA New Advanced Device",
@@ -42,4 +38,3 @@
     }
   ]
 }
-

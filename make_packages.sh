@@ -103,7 +103,7 @@ if [[ "${2:-}" == "offline-build" ]]; then
   sudo cp -r requirements-full.txt /var/lib/thingsboard_gateway/
   sudo chown -R "$USER":"$USER" /var/lib/thingsboard_gateway
 
-  python3 -m venv /var/lib/thingsboard_gateway/venv
+  python3.11 -m venv /var/lib/thingsboard_gateway/venv
   source /var/lib/thingsboard_gateway/venv/bin/activate
   pip install -r requirements-full.txt
   sudo cp /var/lib/thingsboard_gateway/venv thingsboard_gateway -r
@@ -244,7 +244,11 @@ EOT
   fi
 
   # Copy the spec file to rpmbuild/SPECS.
-  cp thingsboard-gateway.spec ~/rpmbuild/SPECS/
+  if [[ "${2:-}" == "offline-build" ]]; then
+    cp thingsboard-gateway-offline.spec ~/rpmbuild/SPECS/
+  else
+    cp thingsboard-gateway.spec ~/rpmbuild/SPECS/
+  fi
 
   # Build the RPM.
   if [[ "${2:-}" == "offline-build" ]]; then

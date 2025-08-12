@@ -1,5 +1,5 @@
 %define name thingsboard-gateway
-%define version 3.7.6
+%define version 3.7.7
 %define release 1
 
 Summary: ThingsBoard Gateway for IoT devices.
@@ -56,7 +56,7 @@ REQUIRED_MAJOR=3
 REQUIRED_MINOR=11
 
 show_instruction() {
-  echo "To install Python $REQUIRED_MAJOR.$REQUIRED_MINOR and make it the default on an RPM-based system:"
+  echo "To install Python $REQUIRED_MAJOR.$REQUIRED_MINOR:"
   echo ""
 
   echo "# Step 1: Enable EPEL and IUS repositories (if not already enabled)"
@@ -68,11 +68,6 @@ show_instruction() {
   echo "sudo yum install -y python$REQUIRED_MAJOR$REQUIRED_MINOR python$REQUIRED_MAJOR$REQUIRED_MINOR-venv"
 
   echo ""
-  echo "# Step 3: Set it as the default python3 (if applicable)"
-  echo "sudo alternatives --install /usr/bin/python3 python3 /usr/bin/python$REQUIRED_MAJOR.$REQUIRED_MINOR 1"
-  echo "sudo alternatives --config python3"
-
-  echo ""
   echo "CAUTION: Uninstall previously installed package if install failed"
   echo "sudo rpm -e --noscripts python3-thingsboard-gateway"
 }
@@ -80,10 +75,10 @@ show_instruction() {
 if [ -f /var/lib/thingsboard_gateway/venv.tar.gz ]; then
   echo "Postinst: Checking python version..."
 
-  PYTHON_BIN=$(command -v python3 || true)
+  PYTHON_BIN=$(command -v python3.11 || true)
 
   if [ -z "$PYTHON_BIN" ]; then
-    echo "Error: python3 is not installed." >&2
+    echo "Error: python3.11 is not installed." >&2
     exit 0
   fi
 

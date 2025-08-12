@@ -34,6 +34,9 @@ class UplinkConverterConfig:
                     if len(is_local_discovery_config) == 0:
                         item = {**item, 'type': section}
 
+                        if item.get('objectType') is None:
+                            continue
+
                         if item['objectType'] == 'device':
                             item['objectId'] = self.device_details.object_id
 

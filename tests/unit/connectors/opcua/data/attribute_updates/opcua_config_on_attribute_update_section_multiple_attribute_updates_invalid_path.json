@@ -14,8 +14,13 @@
   "attributes_updates": [
     {
       "key": "Frequency",
-      "type": "identifier",
-      "value": "${ns=2;i=13}"
+      "type": "path",
+      "value": "${Root\\.Objects\\.MyObject\\.Frequencttrtrtggrtgy}"
+    },
+    {
+      "key": "Temperature",
+      "type": "path",
+      "value": "${ns=2;i=15}"
     }
   ],
   "deviceInfo": {
@@ -42,4 +47,3 @@
     }
   ]
 }
-

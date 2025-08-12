@@ -435,6 +435,7 @@ class OpcUaConnector(Connector, Thread):
         last_contact_delta = monotonic() - self.__last_contact_time
         if last_contact_delta < self.__client.session_timeout / 1000 and self.__last_contact_time > 0:
             time_to_wait = self.__client.session_timeout / 1000 - last_contact_delta
+            time_to_wait = min(self.__server_conf.get('sessionTimeoutInMillis', 120000) / 1000 * 0.8, time_to_wait)
             self.__log.info('Last contact was %.2f seconds ago, next connection try in %.2f seconds...',
                             last_contact_delta, time_to_wait)
             await asyncio.sleep(time_to_wait)
@@ -448,6 +449,7 @@ class OpcUaConnector(Connector, Thread):
                 base_time = self.__client.session_timeout / 1000 if (
                         last_contact_delta > 0 and last_contact_delta < self.__client.session_timeout / 1000) else 0
                 time_to_wait = base_time / 1000 + delay
+                time_to_wait = min(self.__server_conf.get('sessionTimeoutInMillis', 120000) / 1000 * 0.8, time_to_wait)
                 self.__log.error('Encountered error: %r. Next connection try in %i second(s)...', e, time_to_wait)
                 await asyncio.sleep(time_to_wait)
                 delay *= backoff_factor
@@ -760,6 +762,13 @@ class OpcUaConnector(Connector, Thread):
         scanned_devices = []
         for device_config in self.__config.get('mapping', []):
             nodes = await self.find_nodes(device_config['deviceNodePattern'])
+            if not nodes:
+                self.__log.error(
+                    "No nodes found for such device name '%s' "
+                    "Skipping device creation.",
+                    device_config.get('deviceInfo', {}).get('deviceNameExpression', "")
+                )
+                continue
             self.__log.debug('Found devices: %s', nodes)
 
             device_names = await self._get_device_info_by_pattern(
@@ -1063,7 +1072,7 @@ class OpcUaConnector(Connector, Thread):
             logger.error("determine_rpc_income_data failed for params=%r: %s",
                          params, e)
 
-    def find_full_node_path(self, params, device):
+    def find_full_node_path(self, params: str, device:Device) -> NodeId | None:
         try:
             node_pattern, current_path = self.get_rpc_node_pattern_and_base_path(params, device, logger=self.__log)
             node_list = node_pattern.split("\\.")[-1:]
@@ -1094,35 +1103,36 @@ class OpcUaConnector(Connector, Thread):
             if device is None:
                 self.__log.error('Device %s not found for attributes update', content['device'])
                 return
-            node_id, value, timeout = self.__resolve_node_id(payload=content, device=device)
-            if isinstance(node_id, NodeId):
-                self.__write_node_value(node_id=node_id, value=value, timeout=timeout)
+
+            if not device.config.get("attributes_updates"):
+                self.__log.error("No attribute mapping found for device %s", device.name)
                 return
-            self.__log.error("Could not resolve path for device %s", device.name)
+
+            for (key, value) in content["data"].items():
+                if not key in device.shared_attributes_keys_value_pairs:
+                    self.__log.warning("Attribute key %s not found in device attribute section %s", key, device.name)
+                    continue
+
+                raw_path = TBUtility.get_value(device.shared_attributes_keys_value_pairs.get(key), get_tag=True)
+                node_id = self.__resolve_node_id(raw_path=raw_path, device=device)
+                if not isinstance(node_id, NodeId):
+                    self.__log.error('Could not find node for device (%s) for key (%s) with path (%s)', device.name,
+                                     key, raw_path)
+
+                    continue
+                self.__write_node_value(node_id, value, timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT)
+                self.__log.debug("Successfully proccesed attribute update for device %s with key %s", device.name)
 
         except Exception as e:
             self.__log.exception(e)
 
-    def __resolve_node_id(self, payload: dict, device: Device):
-        for (key, value) in payload["data"].items():
-            for attr_spec in device.config["attributes_updates"]:
-                if attr_spec["key"] != key:
-                    continue
-
-                raw_path = TBUtility.get_value(attr_spec["value"], get_tag=True)
-                node_id = (
-                    NodeId.from_string(raw_path)
-                    if self.__is_node_identifier(raw_path)
-                    else self.find_full_node_path(raw_path, device)
-                )
-                timeout = attr_spec.get("timeout", ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT)
-
-                return node_id, value, timeout
-
-        self.__log.error("No attribute mapping found for device %s", device.name)
-        node_id = None
-        value = None
-        return node_id, value
+    def __resolve_node_id(self, raw_path: str, device: Device) -> NodeId | None:
+        node_id = (
+            NodeId.from_string(raw_path)
+            if self.__is_node_identifier(raw_path)
+            else self.find_full_node_path(raw_path, device)
+        )
+        return node_id
 
     def __write_node_value(self, node_id: NodeId, value, timeout: float) -> bool:
         try:
@@ -1132,9 +1142,9 @@ class OpcUaConnector(Connector, Thread):
                                                                    poll_interval=0.2)
             if not task_completed:
                 self.__log.error(
-                    "Failed to process rpc request for %s, timeout has been reached",
+                    "Failed to process request for %s, timeout has been reached",
                 )
-                result = {"error": f"Timeout rpc has been reached during write {value}"}
+                result = {"error": f"Timeout has been reached during write {value}"}
 
             if err := result.get("error"):
                 self.__log.error("Write error on %s: %s", node_id, err)
@@ -1241,10 +1251,9 @@ class OpcUaConnector(Connector, Thread):
                     device.name,
                 )
                 result = {"error": f"Timeout rpc has been reached for {device.name}"}
-
-
-            elif not task_completed:
+            elif task_completed:
                 self.__log.debug("RPC with method %s execution result is: %s", rpc_request.rpc_method, result)
+
             self.__gateway.send_rpc_reply(rpc_request.device_name,
                                           rpc_request.id,
                                           {"result": result})
@@ -1379,7 +1388,6 @@ class OpcUaConnector(Connector, Thread):
             var = await self.__client.nodes.root.get_child(path)
             method_id = '{}:{}'.format(var.nodeid.NamespaceIndex, method_name)
             result['result'] = await var.call_method(method_id, *arguments)
-            self.__log.debug("Successfully processed rpc for %s", method_name)
             return result
         except Exception as e:
             result['error'] = e.__str__()
