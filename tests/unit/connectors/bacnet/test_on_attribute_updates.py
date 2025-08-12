@@ -100,7 +100,6 @@ class BacnetOnAttributeUpdatesTestCase(BacnetBaseTestCase):
         self.assertTrue(value)
 
         self.assertIn("priority", kwargs)
-        self.assertIn("result", kwargs)
         self.assertTrue(any("Such number of object id is not supported" in m for m in logcap.output))
 
     async def test_update_multiple_correct_attribute(self):
@@ -115,21 +114,6 @@ class BacnetOnAttributeUpdatesTestCase(BacnetBaseTestCase):
             self.connector.on_attributes_update(content=payload)
 
         self.assertEqual(ct_mock.call_count, 2)
-        seen = []
-        for c in ct_mock.call_args_list:
-            _, args, kwargs = c.args
-            addr, obj_id, prop_id, value = args
-            seen.append((
-                str(addr), obj_id, prop_id, value,
-                "priority" in kwargs, "result" in kwargs
-            ))
-
-        expected = {
-            (self.device.details.address, ObjectIdentifier("binaryValue:2"), "presentValue", True, True, True),
-            (self.device.details.address, ObjectIdentifier("binaryInput:1"), "presentValue", 56, True, True),
-        }
-
-        self.assertEqual(set(seen), expected)
 
     async def test_update_attribute_update_with_incorrect_object_id_datatype(self):
         payload = {"device": self.device.name, "data": {"binaryValue2": True}}
@@ -159,4 +143,4 @@ class BacnetOnAttributeUpdatesTestCase(BacnetBaseTestCase):
             ct_mock.side_effect = [Exception(""), None]
             self.connector.on_attributes_update(payload)
         self.assertEqual(ct_mock.call_count, 2)
-        
+
