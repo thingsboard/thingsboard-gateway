@@ -15,6 +15,13 @@
       "level": 0,
       "stream": "ext://sys.stdout"
     },
+    "databaseHandler": {
+      "class": "thingsboard_gateway.tb_utility.tb_rotating_file_handler.TimedRotatingFileHandler",
+      "formatter": "LogFormatter",
+      "filename": "./logs/database.log",
+      "backupCount": 1,
+      "encoding": "utf-8"
+    },
     "serviceHandler": {
       "class": "thingsboard_gateway.tb_utility.tb_rotating_file_handler.TimedRotatingFileHandler",
       "formatter": "LogFormatter",
@@ -22,6 +29,7 @@
       "backupCount": 7,
       "interval": 3,
       "when": "D",
+      "maxBytes": 0,
       "encoding": "utf-8"
     },
     "connectorHandler": {
@@ -31,6 +39,7 @@
       "backupCount": 7,
       "interval": 3,
       "when": "D",
+      "maxBytes": 0,
       "encoding": "utf-8"
     },
     "converterHandler": {
@@ -40,6 +49,7 @@
       "backupCount": 7,
       "interval": 3,
       "when": "D",
+      "maxBytes": 0,
       "encoding": "utf-8"
     },
     "tb_connectionHandler": {
@@ -49,6 +59,7 @@
       "backupCount": 7,
       "interval": 3,
       "when": "D",
+      "maxBytes": 0,
       "encoding": "utf-8"
     },
     "storageHandler": {
@@ -58,6 +69,7 @@
       "backupCount": 7,
       "interval": 3,
       "when": "D",
+      "maxBytes": 0,
       "encoding": "utf-8"
     },
     "extensionHandler": {
@@ -67,10 +79,19 @@
       "backupCount": 7,
       "interval": 3,
       "when": "D",
+      "maxBytes": 0,
       "encoding": "utf-8"
     }
   },
   "loggers": {
+    "database": {
+      "handlers": [
+        "databaseHandler",
+        "consoleHandler"
+      ],
+      "level": "INFO",
+      "propagate": false
+    },
     "service": {
       "handlers": [
         "serviceHandler",
@@ -125,6 +146,5 @@
     "handlers": [
       "consoleHandler"
     ]
-  },
-  "ts": 1754386013357
+  }
 }

@@ -1,13 +1,12 @@
 {
   "thingsboard": {
-    "host": "tbqa.cloud",
+    "host": "thingsboard.cloud",
     "port": 1883,
-    "remoteShell": true,
+    "remoteShell": false,
     "remoteConfiguration": true,
     "latencyDebugMode": false,
     "statistics": {
       "enable": true,
-      "enableCustom": true,
       "statsSendPeriodInSeconds": 60,
       "customStatsSendPeriodInSeconds": 3600
     },
@@ -22,7 +21,7 @@
     "handleDeviceRenaming": true,
     "security": {
       "type": "accessToken",
-      "accessToken": "OzBmMo8HHytLx47b38ok"
+      "accessToken": "YOUR_ACCESS_TOKEN"
     },
     "qos": 1,
     "reportStrategy": {
@@ -38,8 +37,7 @@
     "messagesRateLimits": "DEFAULT_MESSAGES_RATE_LIMIT",
     "deviceMessagesRateLimits": "DEFAULT_MESSAGES_RATE_LIMIT",
     "deviceRateLimits": "DEFAULT_TELEMETRY_RATE_LIMIT",
-    "deviceDpRateLimits": "DEFAULT_TELEMETRY_DP_RATE_LIMIT",
-    "ts": 1754386013357
+    "deviceDpRateLimits": "DEFAULT_TELEMETRY_DP_RATE_LIMIT"
   },
   "storage": {
     "type": "memory",
@@ -51,8 +49,7 @@
     "max_records_per_file": 10000,
     "data_file_path": "./data/data.db",
     "messages_ttl_check_in_hours": 1,
-    "messages_ttl_in_days": 7,
-    "ts": 1754386013357
+    "messages_ttl_in_days": 7
   },
   "grpc": {
     "enabled": false,
@@ -64,11 +61,5 @@
     "minTimeBetweenPingsMs": 10000,
     "minPingIntervalWithoutDataMs": 5000
   },
-  "connectors": [
-    {
-      "type": "bacnet",
-      "name": "bacnet_connector",
-      "configuration": "bacnetConnector.json"
-    }
-  ]
+  "connectors": []
 }
