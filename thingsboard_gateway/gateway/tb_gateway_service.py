@@ -40,7 +40,8 @@ from thingsboard_gateway.gateway.constants import DEFAULT_CONNECTORS, CONNECTED_
     PERSISTENT_GRPC_CONNECTORS_KEY_FILENAME, RENAMING_PARAMETER, CONNECTOR_NAME_PARAMETER, DEVICE_TYPE_PARAMETER, \
     CONNECTOR_ID_PARAMETER, ATTRIBUTES_FOR_REQUEST, CONFIG_VERSION_PARAMETER, CONFIG_SECTION_PARAMETER, \
     DEBUG_METADATA_TEMPLATE_SIZE, SEND_TO_STORAGE_TS_PARAMETER, DATA_RETRIEVING_STARTED, ReportStrategy, \
-    REPORT_STRATEGY_PARAMETER, DEFAULT_STATISTIC, DEFAULT_DEVICE_FILTER, CUSTOM_RPC_DIR, DISCONNECTED_PARAMETER
+    REPORT_STRATEGY_PARAMETER, DEFAULT_STATISTIC, DEFAULT_DEVICE_FILTER, CUSTOM_RPC_DIR, DISCONNECTED_PARAMETER, \
+    PROVISIONED_CREDENTIALS_FILENAME
 from thingsboard_gateway.gateway.device_filter import DeviceFilter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.datapoint_key import DatapointKey
@@ -352,6 +353,7 @@ class TBGatewayService:
             "version": self.__rpc_version,
             "device_renamed": self.__process_renamed_gateway_devices,
             "device_deleted": self.__process_deleted_gateway_devices,
+            "remove_provisioned_credentials": self.__process_remove_provisioned_credentials,
         }
         self.load_custom_rpc_methods(CUSTOM_RPC_DIR)
         self.__rpc_scheduled_methods_functions = {
@@ -732,6 +734,21 @@ class TBGatewayService:
         self.__save_persistent_devices()
         self.__load_persistent_devices()
         return {'success': True}
+
+    def __process_remove_provisioned_credentials(self):
+        log.info("Received remove provisioned credentials RPC")
+        if os.path.exists(self._config_dir + PROVISIONED_CREDENTIALS_FILENAME):
+            try:
+                os.remove(self._config_dir + PROVISIONED_CREDENTIALS_FILENAME)
+                log.info("Provisioned credentials file removed successfully.")
+                execution_result = {'code': 200, 'resp': "Provisioned credentials file removed successfully."}
+            except OSError as e:
+                log.error("Failed to remove provisioned credentials file: %s", e)
+                execution_result = {'code': 500, 'error': str(e)}
+        else:
+            log.info("Provisioned credentials file does not exist.")
+            execution_result = {'code': 404, 'message': "Provisioned credentials file does not exist."}
+        return execution_result
 
     def __process_renamed_gateway_devices(self, renamed_device: dict):
         if self.__config.get('handleDeviceRenaming', True):

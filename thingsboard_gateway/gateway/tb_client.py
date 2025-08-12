@@ -29,7 +29,7 @@ from typing import Union
 
 from simplejson import dumps, load
 
-from thingsboard_gateway.gateway.constants import DEV_MODE_PARAMETER_NAME
+from thingsboard_gateway.gateway.constants import DEV_MODE_PARAMETER_NAME, PROVISIONED_CREDENTIALS_FILENAME
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
@@ -89,8 +89,8 @@ class TBClient(threading.Thread):
         if config.get('security') and not provisioning_configuration:
             self._create_mqtt_client(config['security'])
         elif config.get('provisioning') or provisioning_configuration:
-            if exists(self.__config_folder_path + 'credentials.json'):
-                with open(self.__config_folder_path + 'credentials.json', 'r') as file:
+            if exists(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME):
+                with open(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME, 'r') as file:
                     credentials = load(file)
                 creds = self._get_provisioned_creds(credentials)
             else:
@@ -128,7 +128,7 @@ class TBClient(threading.Thread):
 
                 if not creds:
                     raise RuntimeError('Provisioning failed, check your credentials and try again')
-                with open(self.__config_folder_path + 'credentials.json', 'w') as file:
+                with open(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME, 'w') as file:
                     if hasattr(self, '_ca_cert_name') and self._ca_cert_name:
                         creds['caCert'] = self._ca_cert_name
                     file.writelines(dumps(creds))
