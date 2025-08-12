@@ -74,7 +74,7 @@
           "method": "SetState",
           "requestType": "writeProperty",
           "requestTimeout": 10000,
-          "objectType": "binaryValue",
+          "objectType": "binaryValuessss",
           "objectId": 2,
           "propertyId": "presentValue"
         }

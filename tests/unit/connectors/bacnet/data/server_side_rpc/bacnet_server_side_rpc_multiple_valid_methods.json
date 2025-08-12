@@ -1,4 +1,4 @@
- {
+{
       "altResponsesAddresses": [],
       "host": "192.168.1.136",
       "port": 47809,
@@ -77,8 +77,16 @@
           "objectType": "binaryValue",
           "objectId": 2,
           "propertyId": "presentValue"
+        },
+        {
+          "method": "GetState",
+          "requestType": "readProperty",
+          "requestTimeout": 10000,
+          "objectType": "binaryInput",
+          "objectId": 1,
+          "propertyId": "presentValue"
         }
       ],
-      "address": "192.168.0.177:47809",
+      "address": "192.168.1.136:47809",
       "devicesRescanObjectsPeriodSeconds": 60
     }
