@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from re import match, compile
 import asyncio
 from asyncio import Queue, CancelledError, QueueEmpty
 from copy import deepcopy
@@ -41,7 +42,6 @@ except ImportError:
     from bacpypes3.apdu import ErrorRejectAbortNack
 
 from bacpypes3.pdu import Address, IPv4Address
-from re import match, compile
 from thingsboard_gateway.connectors.bacnet.device import Device, Devices
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.application import Application
@@ -691,21 +691,19 @@ class AsyncBACnetConnector(Thread, Connector):
         if not device_name:
             self.__log.error('The attribute update request does not contain a device name %s', payload)
 
-        future = asyncio.run_coroutine_threadsafe(self.__devices.get_device_by_name(device_name), self.loop)
         try:
-            device = future.result(timeout=10)
+            task = self.loop.create_task(self.__devices.get_device_by_name(device_name))
+            task_completed, device = self.__wait_task_with_timeout(task=task,
+                                                                   timeout=10,
+                                                                   poll_interval=0.2)
+            if not task_completed:
+                self.__log.debug("Failed to get device %s, the device look up task failed on timeout ", device_name)
+                return None
+
             return device
 
-        except TimeoutError:
-            self.__log.error("Timeout has been reached for device %s", device_name)
-            if not future.done():
-                future.cancel()
-
         except Exception as e:
-            self.__log.error("Unexpected exception for %s with error %r", device_name, str(e))
-            self.__log.debug("Error:", exc_info=e)
-            if not future.done():
-                future.cancel()
+            self.__log.debug("Error getting device by name %s with error: %s", device_name, exc_info=e)
 
     @staticmethod
     def __wait_task_with_timeout(task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> Tuple[bool, Any]:
@@ -729,7 +727,7 @@ class AsyncBACnetConnector(Thread, Connector):
         device = self.__get_device_by_name(payload=content)
 
         if not device:
-            self.__log.error('Device %s not found', content.get('device'))
+            self.__log.error('Failed to found device %s', content.get('device'))
             self.__gateway.send_rpc_reply(device=content.get('device'),
                                           req_id=content['data'].get('id'),
                                           content={"result": {'error': "Device not found"}})
