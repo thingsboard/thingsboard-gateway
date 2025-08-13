@@ -146,12 +146,6 @@ class TestSQLiteEventStorageRotation(TestCase):
     def setUp(self):
         self.directory = path.join("storage", "data")
         self.db_path = path.join(self.directory, "data.db")
-        if not path.exists(self.directory):
-            try:
-                from os import makedirs
-                makedirs(self.directory, exist_ok=True)
-            except Exception as e:
-                LOG.warning(f"Failed to create directory {self.directory}: {e}")
         self.config = {
             "data_file_path": self.db_path,
             "messages_ttl_check_in_hours": 1,
@@ -169,9 +163,8 @@ class TestSQLiteEventStorageRotation(TestCase):
     def tearDown(self):
         self.stop_event.set()
         self.sqlite_storage.stop()
-        sleep(1)
-        rmtree(self.directory, ignore_errors=True)
-        sleep(1)
+        rmtree(self.directory)
+        sleep(2)
 
     def _drain_storage(self, storage: SQLiteEventStorage):
         out = []
@@ -194,16 +187,16 @@ class TestSQLiteEventStorageRotation(TestCase):
                 sleep(delay)
 
     def _db_files(self):
-        try:
-            return sorted(f for f in listdir(self.directory) 
-                         if f.endswith(".db") and not (f.endswith(".db-shm") or f.endswith(".db-wal")))
-        except FileNotFoundError:
-            return []
+        return sorted(f for f in listdir(self.directory) if f.endswith(".db"))
 
     def test_write_read_without_rotation(self):
         self._fill_storage(self.sqlite_storage, 20)
+        fat_msg = "X" * 32768
         sleep(1)
         self.assertListEqual(self._db_files(), ["data.db"])
+        all_messages = self._drain_storage(self.sqlite_storage)
+        self.assertEqual(len(all_messages), 20)
+        self.assertListEqual(all_messages, [f"{i}:{fat_msg}" for i in range(20)])
 
         self.sqlite_storage.stop()
 
@@ -212,28 +205,21 @@ class TestSQLiteEventStorageRotation(TestCase):
         self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.1)
         sleep(2.0)
         dbs = self._db_files()
-        self.assertEqual(len(dbs), 2, f"Expected 2 database files after rotation, got {len(dbs)}: {dbs}")
+        self.assertEqual(len(dbs), 2)
         self.assertLessEqual(len(dbs), self.config["max_db_amount"])
+
         self.sqlite_storage.stop()
-        sleep(0.5)
 
     def test_rotation_persists_across_restart(self):
         DATA_RANGE = 150
+        fat_msg = "X" * 32768
         self._fill_storage(self.sqlite_storage, DATA_RANGE, delay=0.1)
         sleep(2.0)
-        dbs_before = self._db_files()
-        self.assertGreater(len(dbs_before), 1, "Expected rotation to create at least one new database file")
         self.sqlite_storage.stop()
         storage2 = SQLiteEventStorage(self.settings, LOG, self.stop_event)
-        dbs_after = self._db_files()
-        self.assertEqual(len(dbs_before), len(dbs_after),
-                         f"Database file count changed after restart: {len(dbs_before)} -> {len(dbs_after)}")
-        self.assertListEqual(dbs_before, dbs_after,
-                             "Database files changed after restart")
-        messages = self._drain_storage(storage2)
-        self.assertEqual(len(messages), DATA_RANGE,
-                         f"Expected to read {DATA_RANGE} messages, got {len(messages)}")
-
+        all_messages = self._drain_storage(storage2)
+        self.assertEqual(len(all_messages), DATA_RANGE)
+        self.assertListEqual(all_messages, [f"{i}:{fat_msg}" for i in range(DATA_RANGE)])
         storage2.stop()
 
     def test_no_new_database_appear_after_max_db_amount_reached(self):
@@ -259,6 +245,11 @@ class TestSQLiteEventStorageRotation(TestCase):
             False,
             put_results,
             "Expected self.sqlite_storage.put(...) to eventually return False once max_db_amount was reached",
+        )
+        all_messages = self._drain_storage(self.sqlite_storage)
+        self.assertEqual(len(all_messages), len(messages_before_db_amount_reached))
+        self.assertListEqual(
+            all_messages, messages_before_db_amount_reached
         )
         self.sqlite_storage.stop()
 
@@ -289,5 +280,10 @@ class TestSQLiteEventStorageRotation(TestCase):
             False,
             put_results,
             "Expected storage.put(...) eventually to return False once max_db_amount was reached",
+        )
+        all_messages = list(self._drain_storage(storage2))
+        self.assertEqual(len(all_messages), len(messages_before_db_amount_reached))
+        self.assertListEqual(
+            all_messages, messages_before_db_amount_reached
         )
         storage2.stop()
