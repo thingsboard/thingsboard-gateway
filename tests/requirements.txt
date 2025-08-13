@@ -22,7 +22,7 @@ pyjwt==2.6.0
 tb-rest-client
 pyopenssl
 opcua
-asyncua
+asyncua==1.1.5
 twisted
 pymodbus==3.9.2
 pyserial

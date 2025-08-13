@@ -27,9 +27,8 @@ from typing import Tuple, Any
 from cachetools import TTLCache
 
 from thingsboard_gateway.connectors.connector import Connector
-from thingsboard_gateway.connectors.opcua.entities.rpc_request import OpcUaRpcRequest, OpcUaRpcType
 from thingsboard_gateway.gateway.constants import CONNECTOR_PARAMETER, RECEIVED_TS_PARAMETER, CONVERTED_TS_PARAMETER, \
-    DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER, RPC_DEFAULT_TIMEOUT, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
+    DATA_RETRIEVING_STARTED, REPORT_STRATEGY_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
@@ -38,13 +37,30 @@ from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
-try:
-    import asyncua
-except (ImportError, ModuleNotFoundError):
-    print("OPC-UA library not found")
-    TBUtility.install_package("asyncua")
-    import asyncua
+# Try import asyncua library or install it and import
+installation_required = False
+required_version = '1.1.5'
+force_install = False
 
+from packaging import version
+try:
+    from asyncua import __version__ as asyncua_version
+
+    if version.parse(asyncua_version) < version.parse(required_version):
+        installation_required = True
+
+    if version.parse(asyncua_version) > version.parse(required_version):
+        installation_required = True
+        force_install = True
+
+except ImportError:
+    installation_required = True
+
+if installation_required:
+    print("OPC-UA library not found")
+    TBUtility.install_package("asyncua", required_version, force_install=force_install)
+
+import asyncua
 from asyncua import ua, Node
 from asyncua.ua import NodeId, UaStringParsingError
 from asyncua.common.ua_utils import value_to_datavalue
@@ -54,6 +70,7 @@ from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, Secur
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
     BadInvalidState, BadSessionClosed, BadAttributeIdInvalid, BadCommunicationError, BadOutOfService, BadNoMatch, \
     BadUnexpectedError, UaStatusCodeErrors, BadWaitingForInitialData, BadSessionIdInvalid, BadSubscriptionIdInvalid
+from thingsboard_gateway.connectors.opcua.entities.rpc_request import OpcUaRpcRequest, OpcUaRpcType
 from thingsboard_gateway.connectors.opcua.device import Device
 from thingsboard_gateway.connectors.opcua.backward_compatibility_adapter import BackwardCompatibilityAdapter
 
@@ -448,7 +465,7 @@ class OpcUaConnector(Connector, Thread):
             except Exception as e:
                 base_time = self.__client.session_timeout / 1000 if (
                         last_contact_delta > 0 and last_contact_delta < self.__client.session_timeout / 1000) else 0
-                time_to_wait = base_time / 1000 + delay
+                time_to_wait = base_time + delay
                 time_to_wait = min(self.__server_conf.get('sessionTimeoutInMillis', 120000) / 1000 * 0.8, time_to_wait)
                 self.__log.error('Encountered error: %r. Next connection try in %i second(s)...', e, time_to_wait)
                 await asyncio.sleep(time_to_wait)
