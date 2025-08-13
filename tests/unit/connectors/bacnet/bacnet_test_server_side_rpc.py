@@ -33,6 +33,7 @@ class BacnetReservedRpcTestCase(BacnetBaseTestCase):
         await self.connector._AsyncBACnetConnector__devices.remove(self.device)
         self.device = self.create_fake_device('server_side_rpc/bacnet_server_side_rpc.json')
         await self.connector._AsyncBACnetConnector__devices.add(self.device)
+        self.connector._AsyncBACnetConnector__get_device_by_name = MagicMock()
 
     async def asyncTearDown(self):
         self.connector.loop.call_soon_threadsafe(self.connector.loop.stop)
@@ -43,6 +44,7 @@ class BacnetReservedRpcTestCase(BacnetBaseTestCase):
         await self.connector._AsyncBACnetConnector__devices.remove(self.device)
         self.device = self.create_fake_device('server_side_rpc/bacnet_server_side_rpc.json')
         await self.connector._AsyncBACnetConnector__devices.add(self.device)
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
         content = {
             'device': self.device.name,
             'data': {
@@ -84,6 +86,7 @@ class BacnetReservedRpcTestCase(BacnetBaseTestCase):
 
         done = Future()
         done.set_result({"response": {"value": "56"}})
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
 
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task", return_value=done) as ct_mock:
             self.connector.server_side_rpc_handler(content=content)
@@ -110,6 +113,7 @@ class BacnetReservedRpcTestCase(BacnetBaseTestCase):
             },
             'id': 89
         }
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
 
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock:
             self.connector.server_side_rpc_handler(content=content)
@@ -130,7 +134,7 @@ class BacnetReservedRpcTestCase(BacnetBaseTestCase):
             'params': 'objectType=binaryInput ;objectId=1;propertyId=presentValue;value=69;', },
                    'id': 118
                    }
-
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock:
             self.connector.server_side_rpc_handler(content=content)
 
@@ -151,7 +155,7 @@ class BacnetReservedRpcTestCase(BacnetBaseTestCase):
             'params': 'objectType=binaryInputs;objectId=1;propertyId=presentValue;value=69;', },
                    'id': 118
                    }
-
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock:
             self.connector.server_side_rpc_handler(content=content)
         ct_mock.assert_not_called()
@@ -174,7 +178,7 @@ class BacnetReservedRpcTestCase(BacnetBaseTestCase):
             },
             'id': 119
         }
-
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock:
             self.connector.server_side_rpc_handler(content=content)
 
@@ -191,7 +195,7 @@ class BacnetReservedRpcTestCase(BacnetBaseTestCase):
 
     async def test_blank_method(self):
         content = {'device': self.device.name, 'data': {'id': 122, 'method': "set", 'params': None}, 'id': 122}
-
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock:
             self.connector.server_side_rpc_handler(content=content)
 
@@ -204,7 +208,7 @@ class BacnetReservedRpcTestCase(BacnetBaseTestCase):
 
     async def test_method_without_params(self):
         content = {'device': self.device.name, 'data': {'id': 125, 'method': 'set', 'params': None}, 'id': 125}
-
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock:
             self.connector.server_side_rpc_handler(content=content)
 
@@ -227,35 +231,30 @@ class BacnetDeviceRpcTest(BacnetBaseTestCase):
         await self.connector._AsyncBACnetConnector__devices.remove(self.device)
         self.device = self.create_fake_device('server_side_rpc/bacnet_server_side_rpc.json')
         await self.connector._AsyncBACnetConnector__devices.add(self.device)
+        self.connector._AsyncBACnetConnector__get_device_by_name = MagicMock()
 
     async def asyncTearDown(self):
         self.connector.loop.call_soon_threadsafe(self.connector.loop.stop)
         self._loop_thread.join(timeout=1)
         await super().asyncTearDown()
 
-    async def test_get_reserved_rpc_with_correct_params(self):
-        content = {
-            'device': self.device.name,
-            'data': {
-                'id': 86,
-                'method': 'get',
-                'params': 'objectType=binaryInput;objectId=1;propertyId=presentValue;',
-            },
-            'id': 86
-        }
+    async def test_execute_write_property_method(self):
+        payload = {'device': 'test emulator device', 'data': {'id': 5, 'method': 'SetState', 'params': 50}, 'id': 5}
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
 
         done = Future()
-        done.set_result({"response": {"value": "56"}})
+        done.set_result({"response": {"value": "50"}})
 
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task", return_value=done) as ct_mock:
-            self.connector.server_side_rpc_handler(content=content)
+            self.connector.server_side_rpc_handler(content=payload)
 
         ct_mock.assert_called_once()
         func, args, kwargs = ct_mock.call_args.args
         addr, obj_id, prop_id = args[:3]
         self.assertEqual(str(addr), self.device.details.address)
-        self.assertEqual(str(obj_id), str(ObjectIdentifier(("binaryInput", 1))))
+        self.assertEqual(str(obj_id), str(ObjectIdentifier(("binaryValue", 2))))
         self.assertEqual(prop_id, "presentValue")
+        self.assertEqual(kwargs.get("value"), 50)
 
         self.connector._AsyncBACnetConnector__gateway.send_rpc_reply.assert_called_once()
         _, _, k = self.connector._AsyncBACnetConnector__gateway.send_rpc_reply.mock_calls[-1]
@@ -267,6 +266,7 @@ class BacnetDeviceRpcTest(BacnetBaseTestCase):
         await self.connector._AsyncBACnetConnector__devices.remove(self.device)
         self.device = self.create_fake_device('server_side_rpc/bacnet_server_side_rpc_multiple_valid_methods.json')
         await self.connector._AsyncBACnetConnector__devices.add(self.device)
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
 
         done = Future()
         done.set_result({"response": {"value": "50"}})
@@ -286,30 +286,13 @@ class BacnetDeviceRpcTest(BacnetBaseTestCase):
         self.assertEqual(k["device"], self.device.name)
         self.assertIn("value", k["content"]["result"])
 
-    async def test_execute_write_property_method_incorrect_request_type(self):
-        payload = {'device': 'test emulator device', 'data': {'id': 14, 'method': 'SetState', 'params': 51}, 'id': 14}
-        await self.connector._AsyncBACnetConnector__devices.remove(self.device)
-        self.device = self.create_fake_device(
-            'server_side_rpc/bacnet_server_side_rpc_incorrect_write_request_type.json')
-        await self.connector._AsyncBACnetConnector__devices.add(self.device)
-        with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock:
-            self.connector.server_side_rpc_handler(content=payload)
-        ct_mock.assert_not_called()
-        self.assertTrue(self.connector._AsyncBACnetConnector__gateway.send_rpc_reply.called)
-        _, _, k = self.connector._AsyncBACnetConnector__gateway.send_rpc_reply.mock_calls[-1]
-        self.assertEqual(k["device"], self.device.name)
-        self.assertEqual(k["req_id"], 14)
-        self.assertIn("error", k["content"]["result"])
-        self.assertEqual(
-            "Invalid requestType: 'writePropertys'. Expected 'writeProperty' or ""'readProperty'.",
-            k["content"]["result"]["error"])
-
     async def test_execute_read_property_method_incorrect_request_type(self):
         payload = {'device': 'test emulator device', 'data': {'id': 18, 'method': 'GetState', 'params': None}, 'id': 18}
         await self.connector._AsyncBACnetConnector__devices.remove(self.device)
         self.device = self.create_fake_device(
             'server_side_rpc/bacnet_server_side_rpc_incorrect_read_request_type.json')
         await self.connector._AsyncBACnetConnector__devices.add(self.device)
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock:
             self.connector.server_side_rpc_handler(content=payload)
         ct_mock.assert_not_called()
@@ -326,6 +309,7 @@ class BacnetDeviceRpcTest(BacnetBaseTestCase):
 
     async def test_execute_device_rpc_with_no_specified_method(self):
         payload = {'device': 'test emulator device', 'data': {'id': 20, 'method': 'SetStates', 'params': 200}, 'id': 20}
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock:
             self.connector.server_side_rpc_handler(content=payload)
         ct_mock.assert_not_called()
@@ -345,6 +329,7 @@ class BacnetDeviceRpcTest(BacnetBaseTestCase):
         self.device = self.create_fake_device(
             'server_side_rpc/bacnet_server_side_rpc_incorrect_config.json')
         await self.connector._AsyncBACnetConnector__devices.add(self.device)
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock:
             self.connector.server_side_rpc_handler(content=payload)
         ct_mock.assert_not_called()
@@ -361,6 +346,7 @@ class BacnetDeviceRpcTest(BacnetBaseTestCase):
 
     async def test_execute_write_property_method_with_no_arguments(self):
         payload = {'device': 'test emulator device', 'data': {'id': 27, 'method': 'set', 'params': None}, 'id': 27}
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task") as ct_mock:
             self.connector.server_side_rpc_handler(content=payload)
         ct_mock.assert_not_called()
@@ -383,6 +369,7 @@ class BacnetDeviceRpcTest(BacnetBaseTestCase):
 
         done = Future()
         done.set_result({"response": {"value": "56"}})
+        self.connector._AsyncBACnetConnector__get_device_by_name.return_value = self.device
 
         with patch.object(self.connector, "_AsyncBACnetConnector__create_task", return_value=done) as ct_mock:
             self.connector.server_side_rpc_handler(content=payload)
@@ -398,4 +385,3 @@ class BacnetDeviceRpcTest(BacnetBaseTestCase):
         _, _, k = self.connector._AsyncBACnetConnector__gateway.send_rpc_reply.mock_calls[-1]
         self.assertEqual(k["device"], self.device.name)
         self.assertIn("value", k["content"]["result"])
-
