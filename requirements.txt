@@ -22,3 +22,4 @@ tb-mqtt-client==1.13.9
 service-identity
 psutil
 cryptography
+PySocks

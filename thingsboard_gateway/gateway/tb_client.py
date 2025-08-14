@@ -26,6 +26,7 @@ from ssl import CERT_REQUIRED
 from copy import deepcopy
 from time import sleep, time
 from typing import Union
+import socks
 
 from simplejson import dumps, load
 
@@ -66,6 +67,8 @@ class TBClient(threading.Thread):
         self.__config = config
         self.__host = config["host"]
         self.__port = config.get("port", 1883)
+        self.__proxy_host = config.get("proxy_host", None)
+        self.__proxy_port = config.get("proxy_port", None)
         self.__default_quality_of_service = config.get("qos", 1)
         self.__min_reconnect_delay = 1
         self.client: Union[TBGatewayMqttClient, None] = None
@@ -238,6 +241,11 @@ class TBClient(threading.Thread):
             self.client._client.tls_insecure_set(True)  # noqa pylint: disable=protected-access
         if self.__logger.isEnabledFor(10):
             self.client._client.enable_logger(self.__logger)  # noqa pylint: disable=protected-access
+        if self.__proxy_host is not None:
+            if self.__proxy_port is not None:
+                self.client._client.proxy_set(proxy_type=socks.HTTP, proxy_addr=self.__proxy_host, proxy_port=self.__proxy_port)
+            else:
+                self.client._client.proxy_set(proxy_type=socks.HTTP, proxy_addr=self.__proxy_host)
 
     def __get_rate_limit_config(self):
         rate_limits_config = {}
