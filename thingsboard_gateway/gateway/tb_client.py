@@ -26,10 +26,11 @@ from ssl import CERT_REQUIRED
 from copy import deepcopy
 from time import sleep, time
 from typing import Union
+import socks
 
 from simplejson import dumps, load
 
-from thingsboard_gateway.gateway.constants import DEV_MODE_PARAMETER_NAME
+from thingsboard_gateway.gateway.constants import DEV_MODE_PARAMETER_NAME, PROVISIONED_CREDENTIALS_FILENAME
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
@@ -66,6 +67,8 @@ class TBClient(threading.Thread):
         self.__config = config
         self.__host = config["host"]
         self.__port = config.get("port", 1883)
+        self.__proxy_host = config.get("proxy_host", None)
+        self.__proxy_port = config.get("proxy_port", None)
         self.__default_quality_of_service = config.get("qos", 1)
         self.__min_reconnect_delay = 1
         self.client: Union[TBGatewayMqttClient, None] = None
@@ -85,15 +88,20 @@ class TBClient(threading.Thread):
         self.__service_subscription_callbacks = []
 
         # check if provided creds or provisioning strategy
-        if config.get('security'):
+        provisioning_configuration = TBUtility.get_provisioning_configuration_from_envs()
+        if config.get('security') and not provisioning_configuration:
             self._create_mqtt_client(config['security'])
-        elif config.get('provisioning'):
-            if exists(self.__config_folder_path + 'credentials.json'):
-                with open(self.__config_folder_path + 'credentials.json', 'r') as file:
-                    credentials = load(file)
-                creds = self._get_provisioned_creds(credentials)
-            else:
-                credentials = config['provisioning']
+        elif config.get('provisioning') or provisioning_configuration:
+            creds = None
+            try:
+                if exists(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME):
+                        with open(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME, 'r') as file:
+                            credentials = load(file)
+                        creds = self._get_provisioned_creds(credentials)
+            except Exception as e:
+                self.__logger.error('Error reading provisioned credentials: %s', e)
+            if not creds:
+                credentials = config.get('provisioning', provisioning_configuration)
                 logger.info('Starting provisioning gateway...')
 
                 credentials_type = credentials.pop('type', 'ACCESS_TOKEN')
@@ -111,20 +119,26 @@ class TBClient(threading.Thread):
                     credentials['hash'] = gen_hash
                 else:
                     raise RuntimeError('Unknown provisioning type '
-                                       '(Available options: AUTO, ACCESS_TOKEN, MQTT_BASIC, X509_CERTIFICATE)')
+                                       '(Available options: ACCESS_TOKEN, MQTT_BASIC, X509_CERTIFICATE)')
 
-                gateway_name = 'Gateway ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5))
+                gateway_name = credentials.pop('deviceName',
+                                               'Gateway ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)))
                 prov_gateway_key = credentials.pop('provisionDeviceKey')
                 prov_gateway_secret = credentials.pop('provisionDeviceSecret')
                 creds = TBDeviceMqttClient.provision(host=self.__host,
-                                                     port=1883,
+                                                     port=self.__port,
                                                      device_name=gateway_name,
                                                      provision_device_key=prov_gateway_key,
                                                      provision_device_secret=prov_gateway_secret,
+                                                     gateway=True,
                                                      **credentials)
 
-                with open(self.__config_folder_path + 'credentials.json', 'w') as file:
-                    creds['caCert'] = self._ca_cert_name
+                if not creds:
+                    logger.error('Provisioning failed, check your credentials and try again')
+                    raise RuntimeError('Provisioning failed, check your credentials and try again')
+                with open(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME, 'w') as file:
+                    if hasattr(self, '_ca_cert_name') and self._ca_cert_name:
+                        creds['caCert'] = self._ca_cert_name
                     file.writelines(dumps(creds))
                 logger.info('Gateway provisioned')
 
@@ -227,6 +241,11 @@ class TBClient(threading.Thread):
             self.client._client.tls_insecure_set(True)  # noqa pylint: disable=protected-access
         if self.__logger.isEnabledFor(10):
             self.client._client.enable_logger(self.__logger)  # noqa pylint: disable=protected-access
+        if self.__proxy_host is not None:
+            if self.__proxy_port is not None:
+                self.client._client.proxy_set(proxy_type=socks.HTTP, proxy_addr=self.__proxy_host, proxy_port=self.__proxy_port)
+            else:
+                self.client._client.proxy_set(proxy_type=socks.HTTP, proxy_addr=self.__proxy_host)
 
     def __get_rate_limit_config(self):
         rate_limits_config = {}
@@ -267,15 +286,18 @@ class TBClient(threading.Thread):
         creds = {}
         if credentials.get('credentialsType') == 'ACCESS_TOKEN':
             creds['accessToken'] = credentials['credentialsValue']
+            creds['type'] = 'accessToken'
         elif credentials.get('credentialsType') == 'MQTT_BASIC':
             creds['clientId'] = credentials['credentialsValue']['clientId']
             creds['username'] = credentials['credentialsValue']['userName']
             creds['password'] = credentials['credentialsValue']['password']
+            creds['type'] = 'usernamePassword'
         elif credentials.get('credentialsType') == 'X509_CERTIFICATE':
             creds['tls'] = True
             creds['caCert'] = credentials['caCert']
             creds['privateKey'] = 'key.pem'
             creds['cert'] = 'cert.pem'
+            creds['type'] = 'x509Certificate'
 
         return creds
 

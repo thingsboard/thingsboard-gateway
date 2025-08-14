@@ -150,3 +150,7 @@ DEFAULT_DEVICE_FILTER = {
 }
 
 CUSTOM_RPC_DIR = "/etc/thingsboard-gateway/rpc"
+
+# Provisioning constants
+
+PROVISIONED_CREDENTIALS_FILENAME = ".credentials"

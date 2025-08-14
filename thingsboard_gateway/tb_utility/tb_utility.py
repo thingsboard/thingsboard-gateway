@@ -11,22 +11,23 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
+
 import datetime
 from getpass import getuser
 from logging import getLogger, setLoggerClass
 from os import environ
 from platform import system as platform_system
-from dateutil import parser
 from re import search, findall
 from time import monotonic, sleep
 from typing import Union, TYPE_CHECKING
 from uuid import uuid4
-from cachetools import TTLCache
 
+from cachetools import TTLCache
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
+from dateutil import parser
 from jsonpath_rw import parse
 from orjson import JSONDecodeError, dumps, loads, OPT_NON_STR_KEYS
 
@@ -450,6 +451,42 @@ class TBUtility:
                     converted_env_variables[key] = value
 
         return converted_env_variables
+
+    @staticmethod
+    def get_provisioning_configuration_from_envs() -> dict:
+        provision_request = {}
+        provisioning_device_key = environ.get('TB_GW_PROVISIONING_DEVICE_KEY')
+        provisioning_device_secret = environ.get('TB_GW_PROVISIONING_DEVICE_SECRET')
+        if provisioning_device_key and provisioning_device_secret:
+            provision_request['provisionDeviceKey'] = provisioning_device_key
+            provision_request['provisionDeviceSecret'] = provisioning_device_secret
+
+            provisioning_device_name = environ.get('TB_GW_PROVISIONING_DEVICE_NAME')
+            provisioning_device_access_token = environ.get('TB_GW_PROVISIONING_DEVICE_ACCESS_TOKEN')
+            provisioning_device_username = environ.get('TB_GW_PROVISIONING_DEVICE_USERNAME')
+            provisioning_device_password = environ.get('TB_GW_PROVISIONING_DEVICE_PASSWORD')
+            provisioning_device_client_id = environ.get('TB_GW_PROVISIONING_DEVICE_CLIENT_ID')
+            provisioning_device_ca_cert_filename = environ.get('TB_GW_PROVISIONING_DEVICE_CA_CERT_FILENAME')
+
+            if provisioning_device_name is not None:
+                provision_request["deviceName"] = provisioning_device_name
+
+            if provisioning_device_access_token is not None:
+                provision_request["access_token"] = provisioning_device_access_token
+                provision_request["type"] = "ACCESS_TOKEN"
+            elif (provisioning_device_username is not None
+                  or provisioning_device_password is not None
+                  or provisioning_device_client_id is not None):
+                provision_request["username"] = provisioning_device_username
+                provision_request["password"] = provisioning_device_password
+                provision_request["client_id"] = provisioning_device_client_id
+                provision_request["type"] = "MQTT_BASIC"
+            elif provisioning_device_ca_cert_filename is not None:
+                provision_request["caCert"] = provisioning_device_ca_cert_filename
+                provision_request["type"] = "X509_CERTIFICATE"
+        else:
+            log.debug("Provisioning device key or secret is not set. Skipping provisioning credentials.")
+        return provision_request
 
     @staticmethod
     def while_thread_alive(thread, timeout=10) -> bool:
