@@ -15,11 +15,13 @@
 import asyncio
 from asyncio import Queue, CancelledError, QueueEmpty
 from copy import deepcopy
+from datetime import time
 from threading import Thread
 from string import ascii_lowercase
 from random import choice
 from time import monotonic, sleep
 from typing import TYPE_CHECKING
+from ast import literal_eval
 
 from thingsboard_gateway.connectors.bacnet.ede_parser import EDEParser
 from thingsboard_gateway.connectors.bacnet.entities.routers import Routers
@@ -37,12 +39,13 @@ except ImportError:
     from bacpypes3.apdu import ErrorRejectAbortNack
 
 from bacpypes3.pdu import Address, IPv4Address
+from bacpypes3.primitivedata import Null, Real
+from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference
 
 from thingsboard_gateway.connectors.bacnet.device import Device, Devices
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.application import Application
 from thingsboard_gateway.connectors.bacnet.backward_compatibility_adapter import BackwardCompatibilityAdapter
-from bacpypes3.primitivedata import Null
 
 if TYPE_CHECKING:
     from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
@@ -540,6 +543,12 @@ class AsyncBACnetConnector(Thread, Connector):
             if value is None:
                 value = Null(())
 
+            if property_id == "weeklySchedule":
+                value = self.__prepare_weekly_schedule_value(value)
+
+            if property_id == "listOfObjectPropertyReferences":
+               value = self.__prepare_list_of_object_property_references_value(value, property_id)
+
             await self.__application.write_property(address, object_id, property_id, value, priority=priority)
             return "ok"
         except ErrorRejectAbortNack as err:
@@ -547,6 +556,32 @@ class AsyncBACnetConnector(Thread, Connector):
         except Exception as err:
             self.__log.error('Error writing property %s:%s to device %s: %s', object_id, property_id, address, err)
             return err.__str__()
+
+    async def __prepare_weekly_schedule_value(self, value):
+        schedule = []
+        raw_schedule = literal_eval(value)
+        for idx, day in enumerate(raw_schedule):
+            schedule.append(DailySchedule(daySchedule=[]))
+            for sched in day:
+                schedule[idx].daySchedule.append(
+                    TimeValue(
+                        time=time(int(sched[0].split(":")[0]), int(sched[0].split(":")[1])),
+                        value=Real(sched[1])
+                    )
+                )
+        return schedule
+
+    async def __prepare_list_of_object_property_references_value(self, value, property_id):
+        props = []
+        raw_props = literal_eval(value)
+        for prop in raw_props:
+            props.append(
+                DeviceObjectPropertyReference(
+                    objectIdentifier = prop,
+                    propertyIdentifier = property_id
+                )
+            )
+        return props
 
     async def __convert_data(self):
         while not self.__stopped:
