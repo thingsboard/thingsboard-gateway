@@ -36,3 +36,4 @@ slixmpp
 psutil
 orjson
 pybase64
+PySocks
