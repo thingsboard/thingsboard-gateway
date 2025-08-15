@@ -1,0 +1,92 @@
+{
+      "altResponsesAddresses": [],
+      "host": "192.168.1.136",
+      "port": 47809,
+      "deviceInfo": {
+        "deviceNameExpression": "test emulator device",
+        "deviceNameExpressionSource": "expression",
+        "deviceProfileExpressionSource": "constant",
+        "deviceProfileExpression": "default"
+      },
+      "pollPeriod": 10000,
+      "timeseries": [
+        {
+          "key": "power",
+          "objectType": "analogValue",
+          "objectId": 1,
+          "propertyId": "presentValue"
+        },
+        {
+          "key": "frequency",
+          "objectType": "analogValue",
+          "objectId": 2,
+          "propertyId": "presentValue"
+        },
+        {
+          "key": "temperature",
+          "objectType": "analogOutput",
+          "objectId": 1,
+          "propertyId": "presentValue"
+        },
+        {
+          "key": "presure",
+          "objectType": "analogInput",
+          "objectId": 2,
+          "propertyId": "presentValue"
+        }
+      ],
+      "attributes": [
+        {
+          "key": "binaryInput1",
+          "objectType": "binaryInput",
+          "objectId": 1,
+          "propertyId": "presentValue"
+        },
+        {
+          "key": "binaryValue2",
+          "objectType": "binaryValue",
+          "objectId": 2,
+          "propertyId": "presentValue"
+        },
+        {
+          "key": "binaryOutput",
+          "objectType": "binaryOutput",
+          "objectId": 1,
+          "propertyId": "presentValue"
+        }
+      ],
+      "attributeUpdates": [
+        {
+          "key": "binaryValue2",
+          "objectType": "binaryValue",
+          "objectId": 2,
+          "propertyId": "presentValue"
+        },
+        {
+          "key": "binaryInput1",
+          "objectType": "binaryInput",
+          "objectId": 1,
+          "propertyId": "presentValue"
+        }
+      ],
+      "serverSideRpc": [
+        {
+          "method": "SetState",
+          "requestType": "writePropertys",
+          "requestTimeout": 10000,
+          "objectType": "binaryValue",
+          "objectId": 2,
+          "propertyId": "presentValue"
+        },
+        {
+          "method": "GetState",
+          "requestType": "readProperty",
+          "requestTimeout": 10000,
+          "objectType": "binaryInput",
+          "objectId": 1,
+          "propertyId": "presentValue"
+        }
+      ],
+      "address": "192.168.1.136:47809",
+      "devicesRescanObjectsPeriodSeconds": 60
+    }
