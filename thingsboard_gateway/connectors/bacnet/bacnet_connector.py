@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from re import match, compile
 import asyncio
 from asyncio import Queue, CancelledError, QueueEmpty
 from copy import deepcopy
@@ -20,13 +21,18 @@ from threading import Thread
 from string import ascii_lowercase
 from random import choice
 from time import monotonic, sleep
+from typing import TYPE_CHECKING, Tuple, Any
+from concurrent.futures import TimeoutError
+
+from thingsboard_gateway.connectors.bacnet.constants import SUPPORTED_OBJECTS_TYPES
 from typing import TYPE_CHECKING
 from ast import literal_eval
 
 from thingsboard_gateway.connectors.bacnet.ede_parser import EDEParser
 from thingsboard_gateway.connectors.bacnet.entities.routers import Routers
 from thingsboard_gateway.connectors.connector import Connector
-from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, STATISTIC_MESSAGE_SENT_PARAMETER
+from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, \
+    STATISTIC_MESSAGE_SENT_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT, RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -41,7 +47,6 @@ except ImportError:
 from bacpypes3.pdu import Address, IPv4Address
 from bacpypes3.primitivedata import Null, Real
 from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference
-
 from thingsboard_gateway.connectors.bacnet.device import Device, Devices
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.application import Application
@@ -520,13 +525,17 @@ class AsyncBACnetConnector(Thread, Connector):
     async def __read_property(self, address, object_id, property_id):
         try:
             result = await self.__application.read_property(address, object_id, property_id)
-            return result
+            return {"value": str(result)}
         except ErrorRejectAbortNack as err:
-            return Exception(err)
+            return Exception({"error": str(err)})
         except Exception as e:
+            result = {}
             self.__log.error('Error reading property %s:%s from device %s: %s', object_id, property_id, address, e)
+            result['error'] = str(e)
+            return result
 
     async def __write_property(self, address, object_id, property_id, value, priority=None):
+        result = {}
         try:
             if value is None and priority is None:
                 self.__log.error('Value and priority are both None for property %s:%s on device %s. Cannot write.',
@@ -550,12 +559,17 @@ class AsyncBACnetConnector(Thread, Connector):
                value = self.__prepare_list_of_object_property_references_value(value, property_id)
 
             await self.__application.write_property(address, object_id, property_id, value, priority=priority)
-            return "ok"
+            result['value'] = value
+            return result
+
         except ErrorRejectAbortNack as err:
-            return err.__str__()
+            self.__log.error("BACnet %s on write to device with object_id: %s, property_id: %s, address: %s", str(err),
+                             object_id, property_id, address)
+            return {'error': str(err)}
+
         except Exception as err:
             self.__log.error('Error writing property %s:%s to device %s: %s', object_id, property_id, address, err)
-            return err.__str__()
+            return {'error': str(err)}
 
     async def __prepare_weekly_schedule_value(self, value):
         schedule = []
@@ -642,132 +656,280 @@ class AsyncBACnetConnector(Thread, Connector):
 
     def __create_task(self, func, args, kwargs):
         task = self.loop.create_task(func(*args, **kwargs))
-
-        while not task.done():
-            sleep(.02)
+        return task
 
     def on_attributes_update(self, content):
         try:
             self.__log.debug('Received Attribute Update request: %r', content)
-
-            future = asyncio.run_coroutine_threadsafe(self.__devices.get_device_by_name(content['device']), self.loop)
-
-            try:
-                device = future.result(10)
-            except asyncio.TimeoutError:
-                self.__log.error('Timeout while waiting for device %s', content['device'])
-                future.cancel()
-            except Exception:
-                device = None
-
+            device = self.__get_device_by_name(payload=content)
             if device is None:
                 self.__log.error('Device %s not found', content['device'])
                 return
+            if not device.attributes_updates:
+                self.__log.error("No attribute mapping found for device %s", device.name)
+                return
+            data_section = content.get('data', {})
 
-            for attribute_name, value in content.get('data', {}).items():
-                attribute_update_config_filter = list(filter(lambda x: x['key'] == attribute_name,
-                                                             device.attributes_updates))
-                for attribute_update_config in attribute_update_config_filter:
-                    try:
-                        object_id = Device.get_object_id(attribute_update_config)
-                        result = {}
+            attribute_update_config_list = [
+                update_config
+                for update_config in device.attributes_updates
+                if update_config["key"] in content.get("data", {})
+            ]
+            self.__process_task_on_filtered_attribute_update_section(
+                filtered_attribute_update_config=attribute_update_config_list, data_section=data_section, device=device)
 
-                        kwargs = {'priority': attribute_update_config.get('priority'), 'result': result}
-                        self.__create_task(self.__process_attribute_update,
-                                           (Address(device.details.address),
-                                            object_id,
-                                            attribute_update_config['propertyId'],
-                                            value),
-                                           kwargs)
-                        self.__log.info('Processed attribute update with result: %r', result)
-                    except Exception as e:
-                        self.__log.error('Error updating attribute %s: %s', attribute_name, e)
         except Exception as e:
-            self.__log.error('Error processing attribute update%s with error: %s', content, e)
+            self.__log.error('Error processing attribute update %s with error: %s', content, str(e))
+            self.__log.debug("Error", exc_info=e)
 
-    async def __process_attribute_update(self, address, object_id, property_id, value, priority=None, result={}):
+    def __process_task_on_filtered_attribute_update_section(self, filtered_attribute_update_config: list,
+                                                            data_section: dict, device: Device):
+        for attribute_update_config in filtered_attribute_update_config:
+            try:
+                value = data_section.get(attribute_update_config['key'])
+                object_id = Device.get_object_id(attribute_update_config)
+                kwargs = {'priority': attribute_update_config.get('priority')}
+                task = self.__create_task(self.__process_attribute_update,
+                                          (Address(device.details.address),
+                                           object_id,
+                                           attribute_update_config['propertyId'],
+                                           value),
+                                          kwargs)
+                task_completed, result = self.__wait_task_with_timeout(task=task,
+                                                                       timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT,
+                                                                       poll_interval=0.2)
+                if not task_completed:
+                    self.__log.error(
+                        "Failed to process rpc request for key %s, timeout has been reached",
+                        attribute_update_config['key'],
+                    )
+                    continue
+                self.__log.debug("Successfully processed attribute update for key %s", attribute_update_config['key'])
+
+            except TypeError as e:
+                self.__log.error('%s for key %s ', str(e), attribute_update_config['objectId'])
+                self.__log.debug("Error", exc_info=e)
+                continue
+
+            except ValueError as e:
+                self.__log.error("Such number of object id is not supported %d for key %s",
+                                 attribute_update_config['objectId'], attribute_update_config['key'])
+                self.__log.debug("Error", exc_info=e)
+                continue
+
+            except Exception as e:
+                self.__log.error("Could not process attribute update with error %s", str(e))
+                self.__log.debug("Error", exc_info=e)
+                continue
+
+    def __get_device_by_name(self, payload: dict) -> Device | None:
+        device_name = payload.get('device')
+        if not device_name:
+            self.__log.error('The attribute update request does not contain a device name %s', payload)
+
+        try:
+            task = self.loop.create_task(self.__devices.get_device_by_name(device_name))
+            task_completed, device = self.__wait_task_with_timeout(task=task,
+                                                                   timeout=10,
+                                                                   poll_interval=0.2)
+            if not task_completed:
+                self.__log.debug("Failed to get device %s, the device look up task failed on timeout ", device_name)
+                return None
+
+            return device
+
+        except Exception as e:
+            self.__log.debug("Error getting device by name %s with error: %s", device_name, exc_info=e)
+
+    @staticmethod
+    def __wait_task_with_timeout(task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> Tuple[bool, Any]:
+        start_time = monotonic()
+        while not task.done():
+            sleep(poll_interval)
+            current_time = monotonic()
+            if current_time - start_time >= timeout:
+                task.cancel()
+                return False, None
+        return True, task.result()
+
+    async def __process_attribute_update(self, address, object_id, property_id, value, priority=None):
+        result = {}
         result['response'] = await self.__write_property(address, object_id, property_id, value, priority=priority)
+        return result
 
     def server_side_rpc_handler(self, content):
         self.__log.debug('Received RPC request: %r', content)
 
-        future = asyncio.run_coroutine_threadsafe(self.__devices.get_device_by_name(content['device']), self.loop)
+        device = self.__get_device_by_name(payload=content)
 
-        try:
-            device = future.result(10)
-        except asyncio.TimeoutError:
-            self.__log.error('Timeout while waiting for device %s', content['device'])
-            future.cancel()
-        except Exception:
-            device = None
-
-        if device is None:
-            self.__log.error('Device %s not found', content['device'])
+        if not device:
+            self.__log.error('Failed to found device %s', content.get('device'))
+            self.__gateway.send_rpc_reply(device=content.get('device'),
+                                          req_id=content['data'].get('id'),
+                                          content={"result": {'error': "Device not found"}})
             return
 
         rpc_method_name = content.get('data', {}).get('method')
         if rpc_method_name is None:
             self.__log.error('Method name not found in RPC request: %r', content)
+            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
+                                          req_id=content['data'].get('id'),
+                                          content={"result": {'error': "No valid rpc method found"}})
             return
 
-        # check if RPC method is reserved get/set
-        self.__check_and_process_reserved_rpc(rpc_method_name, device, content)
+        if rpc_method_name not in ('get', 'set'):
+            filtered_rpc_section_from_config = [rpc_config for rpc_config in device.server_side_rpc if
+                                                rpc_config['method'] == rpc_method_name]
+            if not filtered_rpc_section_from_config:
+                self.__log.error("Neither of configured device rpc methods match with %s", rpc_method_name)
+                self.__gateway.send_rpc_reply(
+                    device=device.device_info.device_name,
+                    req_id=content.get('data', {}).get('id'),
+                    content={
+                        "result": {"error": f"Neither of configured device rpc methods match with {rpc_method_name}"}}
+                )
+                return
 
-        for rpc_config in device.server_side_rpc:
-            if rpc_config['method'] == rpc_method_name:
+            for rpc_config in filtered_rpc_section_from_config:
+
+                err = self.__validate_device_rpc(method_rpc_config_section=rpc_config)
+                if err:
+                    self.__log.error(err["error"])
+                    self.__gateway.send_rpc_reply(
+                        device=device.device_info.device_name,
+                        req_id=content.get('data', {}).get('id'),
+                        content={"result": err}
+                    )
+                    return
+
                 self.__process_rpc(rpc_method_name, rpc_config, content, device)
+                self.__log.debug("Processed  device RPC request %s for device %s", rpc_method_name,
+                                 device.device_info.device_name)
+            return
+        result = self.__check_and_process_reserved_rpc(rpc_method_name, device, content)
+        return result
+
+    @staticmethod
+    def __validate_device_rpc(method_rpc_config_section: dict) -> dict | None:
+        obj_type = method_rpc_config_section['objectType']
+        req_type = method_rpc_config_section['requestType']
+
+        if obj_type not in SUPPORTED_OBJECTS_TYPES.values():
+            return {
+                "error": (
+                    f"Invalid objectType: '{obj_type}'. "
+                    f"Expected one of {list(SUPPORTED_OBJECTS_TYPES.values())}."
+                )
+            }
+
+        if req_type not in ('writeProperty', 'readProperty'):
+            return {
+                "error": (
+                    f"Invalid requestType: '{req_type}'. "
+                    f"Expected 'writeProperty' or 'readProperty'."
+                )
+            }
 
     def __process_rpc(self, rpc_method_name, rpc_config, content, device):
         try:
             object_id = Device.get_object_id(rpc_config)
-            result = {}
             value = content.get('data', {}).get('params')
 
-            kwargs = {'priority': rpc_config.get('priority'), 'value': value, 'result': result}
-            self.__create_task(self.__process_rpc_request,
-                               (Address(device.details.address),
-                                object_id,
-                                rpc_config['propertyId']),
-                               kwargs)
-            self.__log.info('Processed RPC request with result: %r', result)
+            kwargs = {'priority': rpc_config.get('priority'), 'value': value,
+                      'request_type': rpc_config.get('requestType')}
+            task = self.__create_task(self.__process_rpc_request,
+                                      (Address(device.details.address),
+                                       object_id,
+                                       rpc_config['propertyId']),
+                                      kwargs)
+            task_completed, result = self.__wait_task_with_timeout(task=task,
+                                                                   timeout=content.get("timeout", RPC_DEFAULT_TIMEOUT),
+                                                                   poll_interval=0.2)
+            if not task_completed:
+                self.__log.error(
+                    "Failed to process rpc request for %s, timeout has been reached",
+                    device.name,
+                )
+                result = {"error": f"Timeout rpc has been reached for {device.name}"}
+            elif task_completed:
+                self.__log.info('Processed RPC request with result: %r', result)
             self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                           req_id=content['data'].get('id'),
-                                          content={'result': str(result.get('response'))},)
+                                          content={'result': str(result.get('response'))})
+            return result
+
+        except ValueError as e:
+            self.__log.error('Value error processing RPC request %s: %s', rpc_method_name, e)
+            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
+                                          req_id=content['data'].get('id'),
+                                          content={"result": {'error': f'Could not find correct mapping for {str(e)}'}})
+
         except Exception as e:
             self.__log.error(
                 'Error processing RPC request %s: %s', rpc_method_name, e)
             self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                           req_id=content['data'].get('id'),
-                                          content={'result': str(e)},
-                                          success_sent=False)
+                                          content={"result": {'error': str(e)}}, )
 
-    async def __process_rpc_request(self, address, object_id, property_id, priority=None, value=None, result={}):
-        if value is None and priority is None:
-            result['response'] = await self.__read_property(address, object_id, property_id)
+    async def __process_rpc_request(self, address, object_id, property_id, priority=None, value=None,
+                                    request_type=None):
+        if request_type == "readProperty" or (request_type is None and value is None and priority is None):
+            response = await self.__read_property(address, object_id, property_id)
         else:
-            result['response'] = await self.__write_property(address, object_id, property_id, value, priority=priority)
+            response = await self.__write_property(address, object_id, property_id, value, priority=priority)
+        return {"response": response}
 
     def __check_and_process_reserved_rpc(self, rpc_method_name, device, content):
-        if rpc_method_name in ('get', 'set'):
-            params = {}
-            for param in content['data']['params'].split(';'):
-                try:
-                    (key, value) = param.split('=')
-                except ValueError:
-                    continue
+        params_section = content['data'].get('params', {})
+        if not params_section:
+            self.__log.error('No params section found in RPC request: %r', content)
+            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
+                                          req_id=content['data'].get('id'),
+                                          content={"result": {"error": 'No params section found in RPC request'}})
+            return
 
-                if key and value:
-                    params[key] = value
+        get_pattern = compile(r'objectType=[A-Za-z]+;objectId=\d+;propertyId=[A-Za-z]+;')
 
-            if rpc_method_name == 'get':
-                params['requestType'] = 'readProperty'
-                content['data'].pop('params')
-            elif rpc_method_name == 'set':
-                params['requestType'] = 'writeProperty'
-                content['data'].pop('params')
-                content['data']['params'] = params.get('value')
+        set_pattern = compile(r'objectType=[A-Za-z]+;objectId=\d+;propertyId=[A-Za-z]+;(priority=\d+;)?value=.+;')
+        pattern = get_pattern if rpc_method_name == 'get' else set_pattern
+        expected_schema = (
+            "get objectType=<objectType>;objectId=<objectId>;propertyId=<propertyId>;" if rpc_method_name == 'get'
+            else "set objectType=<objectType>;objectId=<objectId>;propertyId=<propertyId>;priority=<priority>;value=<value>;"
+        )
+        if not pattern.match(params_section):
+            self.__log.error(f"The requested RPC does not match with the schema: {expected_schema}")
+            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
+                                          req_id=content['data'].get('id'),
+                                          content={"result": {
+                                              "error": f"The requested RPC does not match with the schema: {expected_schema}"}})
+            return
+        params = {}
+        for param in params_section.split(';'):
+            try:
+                (key, value) = param.split('=')
+            except ValueError:
+                continue
 
-            self.__process_rpc(rpc_method_name, params, content, device)
+            if key and value:
+                params[key] = value
+
+        if params['objectType'] not in SUPPORTED_OBJECTS_TYPES.values():
+            self.__gateway.send_rpc_reply(device=device.device_info.device_name,
+                                          req_id=content['data'].get('id'),
+                                          content={"result": {
+                                              "error": f"The objectType must be from '{list(SUPPORTED_OBJECTS_TYPES.values())}, but got'{params['objectType']}"}})
+            return
+
+        if rpc_method_name == 'get':
+            params['requestType'] = 'readProperty'
+            content['data'].pop('params')
+        elif rpc_method_name == 'set':
+            params['requestType'] = 'writeProperty'
+            content['data'].pop('params')
+            content['data']['params'] = params.get('value')
+
+        result = self.__process_rpc(rpc_method_name, params, content, device)
+        return result
 
     def get_id(self):
         return self.__id
