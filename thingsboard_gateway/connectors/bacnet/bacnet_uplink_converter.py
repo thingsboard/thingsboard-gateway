@@ -15,7 +15,7 @@
 
 from bacpypes3.basetypes import DateTime
 from bacpypes3.constructeddata import AnyAtomic, Array
-from bacpypes3.basetypes import ErrorType, PriorityValue, ObjectPropertyReference, DailySchedule, DeviceObjectPropertyReference
+from bacpypes3.basetypes import ErrorType, PriorityValue, BinaryPV, ObjectPropertyReference, DailySchedule,DeviceObjectPropertyReference
 
 from thingsboard_gateway.connectors.bacnet.bacnet_converter import AsyncBACnetConverter
 from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config import UplinkConverterConfig
@@ -97,6 +97,8 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
                     value = value.isoformat()
                 elif isinstance(value, AnyAtomic):
                     value = str(value.get_value())
+                elif isinstance(value, BinaryPV):
+                    value = int(value)
                 elif isinstance(value, ObjectPropertyReference):
                     result = {
                         'objectId': str(value.objectIdentifier),
