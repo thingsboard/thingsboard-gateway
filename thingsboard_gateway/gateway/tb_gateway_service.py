@@ -1397,9 +1397,12 @@ class TBGatewayService:
         if isinstance(data, ConvertedData):
             if self.__latency_debug_mode:
                 data.add_to_metadata({"putToStorageTs": int(time() * 1000)})
-            json_data = dumps(data.to_dict(self.__latency_debug_mode), separators=(',', ':'), skipkeys=True)
+            json_data = dumps(data.to_dict(self.__latency_debug_mode),
+                              separators=(',', ':'),
+                              skipkeys=True,
+                              ignore_nan=True)
         else:
-            json_data = dumps(data, separators=(',', ':'), skipkeys=True)
+            json_data = dumps(data, separators=(',', ':'), skipkeys=True, ignore_nan=True)
         save_result = self._event_storage.put(json_data)
         tries = 4
         current_try = 0
