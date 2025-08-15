@@ -42,11 +42,7 @@ force_install = False
 try:
     from pymodbus import __version__ as pymodbus_version
 
-    if version.parse(pymodbus_version) < version.parse(required_version):
-        installation_required = True
-
-    if version.parse(
-            pymodbus_version) > version.parse(required_version):
+    if version.parse(pymodbus_version) != version.parse(required_version):
         installation_required = True
         force_install = True
 

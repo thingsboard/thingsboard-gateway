@@ -46,10 +46,7 @@ from packaging import version
 try:
     from asyncua import __version__ as asyncua_version
 
-    if version.parse(asyncua_version) < version.parse(required_version):
-        installation_required = True
-
-    if version.parse(asyncua_version) > version.parse(required_version):
+    if version.parse(asyncua_version) != version.parse(required_version):
         installation_required = True
         force_install = True
 
