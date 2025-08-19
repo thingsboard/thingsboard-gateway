@@ -46,10 +46,7 @@ from packaging import version
 try:
     from asyncua import __version__ as asyncua_version
 
-    if version.parse(asyncua_version) < version.parse(required_version):
-        installation_required = True
-
-    if version.parse(asyncua_version) > version.parse(required_version):
+    if version.parse(asyncua_version) != version.parse(required_version):
         installation_required = True
         force_install = True
 
@@ -907,7 +904,8 @@ class OpcUaConnector(Connector, Thread):
                             UaStatusCodeErrors,
                             BadWaitingForInitialData):
                         if node.get('valid', True):
-                            self.__log.warning('Node not found (2); device: %s, key: %s, path: %s', device.name,
+                            self.__log.warning('Node not found (2); device: %s, key: %s, path: %s',
+                                               device.name,
                                                node['key'], node['path'])
                             await self.__unsubscribe_from_node(device, node)
                     except UaStatusCodeError as uae:
@@ -1138,7 +1136,7 @@ class OpcUaConnector(Connector, Thread):
 
                     continue
                 self.__write_node_value(node_id, value, timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT)
-                self.__log.debug("Successfully proccesed attribute update for device %s with key %s", device.name)
+                self.__log.debug("Successfully proccesed attribute update for device %s with key %s", device.name, key)
 
         except Exception as e:
             self.__log.exception(e)
@@ -1159,7 +1157,7 @@ class OpcUaConnector(Connector, Thread):
                                                                    poll_interval=0.2)
             if not task_completed:
                 self.__log.error(
-                    "Failed to process request for %s, timeout has been reached",
+                    "Failed to process request for %s, timeout has been reached", 
                 )
                 result = {"error": f"Timeout has been reached during write {value}"}
 
@@ -1360,9 +1358,7 @@ class OpcUaConnector(Connector, Thread):
             try:
                 await var.write_value(value)
             except BadWriteNotSupported:
-                data_value = value_to_datavalue(value)
-                data_value.SourceTimestamp = None
-                data_value.ServerTimestamp = None
+                data_value = ua.DataValue(ua.Variant(value))
                 await var.write_value(data_value)
 
             result['value'] = value

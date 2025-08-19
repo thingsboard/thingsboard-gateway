@@ -257,7 +257,7 @@ class TBUtility:
 
     @staticmethod
     def install_package(package, version="upgrade", force_install=False):
-        from sys import executable, prefix, base_prefix
+        from sys import executable, prefix, base_prefix, modules
         from subprocess import check_call
         import site
         from importlib import reload
@@ -289,6 +289,9 @@ class TBUtility:
         # Refreshing sys.path fixes this. See:
         # https://stackoverflow.com/questions/4271494/what-sets-up-sys-path-with-python-and-when
         reload(site)
+        reload(site)
+        if package in modules:
+            del modules[package]
 
         return result
 
