@@ -395,7 +395,9 @@ class TBUtility:
             'privateKey': environ.get('privateKey'),
             'cert': environ.get('cert'),
             'clientId': environ.get('clientId'),
-            'password': environ.get('password')
+            'password': environ.get('password'),
+            'proxy_host': environ.get('proxy_host'),
+            'proxy_port': int(environ.get('proxy_port')) if environ.get('proxy_port') else None
         }
 
         if platform_system() != 'Windows':
@@ -406,6 +408,10 @@ class TBUtility:
             env_variables['host'] = environ.get('TB_GW_HOST')
         if environ.get('TB_GW_PORT'):
             env_variables['port'] = int(environ.get('TB_GW_PORT'))
+        if environ.get('TB_GW_PROXY_HOST'):
+            env_variables['proxy_host'] = environ.get('TB_GW_PROXY_HOST')
+        if environ.get('TB_GW_PROXY_PORT'):
+            env_variables['proxy_port'] = int(environ.get('TB_GW_PROXY_PORT'))
         if environ.get('TB_GW_SECURITY_TYPE'):
             env_variables['type'] = environ.get('TB_GW_SECURITY_TYPE')
         if environ.get('TB_GW_ACCESS_TOKEN'):
