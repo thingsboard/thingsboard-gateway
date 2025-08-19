@@ -16,8 +16,9 @@ class TimedRotatingFileHandler(BaseTimedRotatingFileHandler):
     def __init__(self, filename, when='h', interval=1, backupCount=0,
                  encoding=None, delay=False, utc=False, maxBytes=0):
         file_path = filename
+        config_path_sep = sep if file_path.rfind(sep) != -1 else '/'
         config_path = environ.get('TB_GW_LOGS_PATH')
-        original_log_filename = file_path.split(sep)[-1]
+        original_log_filename = file_path.split(config_path_sep)[-1]
 
         final_filename = original_log_filename.replace('.log', '')
         final_filename = TimedRotatingFileHandler.to_snake_case(final_filename)
