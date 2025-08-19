@@ -1357,9 +1357,7 @@ class OpcUaConnector(Connector, Thread):
             try:
                 await var.write_value(value)
             except BadWriteNotSupported:
-                data_value = value_to_datavalue(value)
-                data_value.SourceTimestamp = None
-                data_value.ServerTimestamp = None
+                data_value = ua.DataValue(ua.Variant(value))
                 await var.write_value(data_value)
 
             result['value'] = value
