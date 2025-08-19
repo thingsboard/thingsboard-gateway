@@ -808,49 +808,74 @@ class MqttConnector(Connector, Thread):
 
         self._client.publish(topic, data, qos=qos, retain=retain).wait_for_publish()
 
+    @staticmethod
+    def _format_value(value):
+        if isinstance(value, (dict, list)):
+            formatted_value = orjson.dumps(value).decode('utf-8')
+        elif isinstance(value, bool):
+            formatted_value = str(value).lower()
+        elif value is None:
+            formatted_value = "null"
+        else:
+            formatted_value = str(value)
+        return formatted_value
+
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def on_attributes_update(self, content):
-        if self.__attribute_updates:
-            for attribute_update in self.__attribute_updates:
-                if match(attribute_update["deviceNameFilter"], content["device"]):
-                    for attribute_key in content["data"]:
-                        if match(attribute_update["attributeFilter"], attribute_key):
-                            received_value = content["data"][attribute_key]
-                            if isinstance(received_value, dict) or isinstance(received_value, list):
-                                received_value = orjson.dumps(received_value).decode('utf-8')
-                            elif isinstance(received_value, bool):
-                                received_value = str(received_value).lower()
-                            elif isinstance(received_value, float) or isinstance(received_value, int):
-                                received_value = str(received_value)
-                            elif received_value is None:
-                                received_value = "null"
-                            try:
-                                topic = attribute_update["topicExpression"] \
-                                    .replace("${deviceName}", str(content["device"])) \
-                                    .replace("${attributeKey}", str(attribute_key)) \
-                                    .replace("${attributeValue}", received_value)
-                            except KeyError as e:
-                                self.__log.exception("Cannot form topic, key %s - not found", e)
-                                raise e
-                            try:
-                                data = attribute_update["valueExpression"] \
-                                    .replace("${attributeKey}", str(attribute_key)) \
-                                    .replace("${attributeValue}", received_value) \
-                                    .replace("${deviceName}", str(content["device"]))
+        self.__log.debug('Got attributes update: %s', content)
+        try:
+            if not self.__attribute_updates:
+                self.__log.error('Attributes update config not found.')
+                return
+            device_content = content['device']
+            data = content['data']
+            filtered_attribute_update_configuration = [attribute_update_section for attribute_update_section in
+                                                       self.__attribute_updates if
+                                                       match(attribute_update_section["deviceNameFilter"],
+                                                             device_content)]
+            if not filtered_attribute_update_configuration:
+                self.__log.error("Cannot find deviceName by filter in message with data: %s", content)
+                return
 
-                            except KeyError as e:
-                                self.__log.exception("Cannot form topic, key %s - not found", e)
-                                raise e
+            for attribute_update_configuration in filtered_attribute_update_configuration:
+                topic_expression = attribute_update_configuration.get("topicExpression")
+                value_expression = attribute_update_configuration.get("valueExpression")
+                attribute_filter = attribute_update_configuration.get("attributeFilter")
 
-                            self._publish(topic, data, attribute_update.get('retain', False), attribute_update.get('qos', 0))
-                            self.__log.debug("Attribute Update data: %s for device %s to topic: %s", data,
-                                             content["device"], topic)
-                        else:
-                            self.__log.error("Cannot find attributeName by filter in message with data: %s", content)
-                else:
-                    self.__log.error("Cannot find deviceName by filter in message with data: %s", content)
-        else:
-            self.__log.error("Attribute updates config not found.")
+                if not topic_expression or not value_expression or not attribute_filter:
+                    self.__log.error(
+                        "Cannot find topicExpression or valueExpression or attributeFilter in attribute update configuration for: %s",
+                        attribute_update_configuration)
+                    continue
+
+                for attribute_key, attribute_value in data.items():
+                    if not match(attribute_filter, attribute_key):
+                        self.__log.error("Attribute %s does not match filter %s, skipping", attribute_key,
+                                         attribute_filter)
+                        continue
+
+                    formated_value = self._format_value(attribute_value)
+                    try:
+                        topic = topic_expression \
+                            .replace("${deviceName}", str(device_content)) \
+                            .replace("${attributeKey}", str(attribute_key)) \
+                            .replace("${attributeValue}", formated_value)
+                        data_to_send = value_expression \
+                            .replace("${attributeKey}", str(attribute_key)) \
+                            .replace("${attributeValue}", formated_value) \
+                            .replace("${deviceName}", str(device_content))
+                        self._publish(topic, data_to_send,
+                                      attribute_update_configuration.get('retain', False),
+                                      attribute_update_configuration.get('qos', 0))
+                        self.__log.debug("Attribute Update data: %s for device %s to topic: %s", data_to_send,
+                                         device_content, topic)
+
+                    except KeyError as e:
+                        self.__log.exception("Cannot form topic/value for attribute configuration section %s",
+                                             attribute_update_configuration)
+        except Exception as e:
+            self.__log.exception('Error while processing attributes update %s', str(e))
+            self.__log.debug("Exception: %s", e, exc_info=True)
 
     def __process_rpc_request(self, content, rpc_config):
         try:
