@@ -33,8 +33,6 @@ class MqttBaseTest(BaseUnitTest):
         self.connector._publish = MagicMock()
         self.connector._MqttConnector__log = logging.getLogger("mqtt.tests")
         self.connector._format_value = MqttConnector._format_value
-        self.connector._MqttConnector__attribute_updates = self.extract_attribute_updates_section(
-            'attribute_updates/on_attribute_update_mqtt_config.json')
         if not hasattr(self.connector, '_MqttConnector__gateway'):
             self.connector._MqttConnector__gateway = MagicMock()
         super().setUp()
