@@ -21,6 +21,8 @@ class MqttOnAttributeUpdatesTest(MqttBaseTest):
     def setUp(self):
         super().setUp()
         self.connector._publish = MagicMock()
+        self.connector._MqttConnector__attribute_updates = self.extract_attribute_updates_section(
+            'attribute_updates/on_attribute_update_mqtt_config.json')
 
     def tearDown(self):
         super().tearDown()
