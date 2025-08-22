@@ -23,6 +23,7 @@ from time import sleep, time
 from typing import List, Union
 
 import orjson
+from docutils.nodes import topic
 
 from thingsboard_gateway.connectors.mqtt.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.gateway.constant_enums import Status
@@ -489,26 +490,9 @@ class MqttConnector(Connector, Thread):
                 except Exception as e:
                     self.__log.exception(e)
 
-            # Setup connection requests handling -----------------------------------------------------------------------
-            for request in [entry for entry in self.__connect_requests if entry is not None]:
-                # requests are guaranteed to have topicFilter field. See __init__
-                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 1))
-                topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
-                self.__connect_requests_sub_topics[topic_filter] = request
-
-            # Setup disconnection requests handling --------------------------------------------------------------------
-            for request in [entry for entry in self.__disconnect_requests if entry is not None]:
-                # requests are guaranteed to have topicFilter field. See __init__
-                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 1))
-                topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
-                self.__disconnect_requests_sub_topics[topic_filter] = request
-
-            # Setup attributes requests handling -----------------------------------------------------------------------
-            for request in [entry for entry in self.__attribute_requests if entry is not None]:
-                # requests are guaranteed to have topicFilter field. See __init__
-                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 1))
-                topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
-                self.__attribute_requests_sub_topics[topic_filter] = request
+            self.__setup_request_subscriptions(self.__connect_requests, self.__connect_requests_sub_topics)
+            self.__setup_request_subscriptions(self.__disconnect_requests, self.__disconnect_requests_sub_topics)
+            self.__setup_request_subscriptions(self.__attribute_requests, self.__attribute_requests_sub_topics)
         else:
             result_codes = RESULT_CODES_V5 if self._mqtt_version == 5 else RESULT_CODES_V3
             rc = result_code.value if self._mqtt_version == 5 else result_code
@@ -516,6 +500,18 @@ class MqttConnector(Connector, Thread):
                 self.__log.error("%s connection FAIL with error %s %s!", self.get_name(), rc, result_codes[rc])
             else:
                 self.__log.error("%s connection FAIL with unknown error!", self.get_name())
+
+    def __setup_request_subscriptions(self, requests: list, target_dict: dict):
+        for request in [entry for entry in requests if entry is not None]:
+            try:
+                self.__subscribe(request["topicFilter"], request.get("subscriptionQos", 1))
+                topic_filter = TBUtility.topic_to_regex(request.get("topicFilter"))
+                target_dict[topic_filter] = request
+
+            except KeyError as e:
+                self.__log.error("Failed to extract required parts of request to topic %s", str(e))
+                self.__log.debug("Error", exc_info=True)
+                continue
 
     def _on_disconnect(self, *args):
         self._connected = False
@@ -648,131 +644,19 @@ class MqttConnector(Connector, Thread):
                     # => Execution must end here both in case of failure and success
                     continue
 
-                # Check if message topic exists in connection handlers "i.e., I'm connecting a device" -----------------
-                topic_handlers = [regex for regex in self.__connect_requests_sub_topics if
-                                  fullmatch(regex, message.topic)]
-
-                if topic_handlers:
-                    if content is None:
-                        content = TBUtility.decode(message)
-                    for topic in topic_handlers:
-                        handler = self.__connect_requests_sub_topics[topic]
-
-                        # Get device name, either from topic or from content
-                        device_info = handler.get("deviceInfo", {})
-
-                        found_device_name, found_device_type = MqttConnector._parse_device_info(device_info,
-                                                                                                message.topic, content)
-
-                        if found_device_name is None:
-                            self.__log.error("Device name missing from connection request")
-                            continue
-
-                        # Note: device must be added even if it is already known locally: else ThingsBoard
-                        # will not send RPCs and attribute updates
-                        self.__log.info("Connecting device %s of type %s", found_device_name, found_device_type)
-                        self.__gateway.add_device(found_device_name, {"connector": self}, device_type=found_device_type)
-
-                    # Note: if I'm in this branch, this was for sure a connection message
-                    # => Execution must end here both in case of failure and success
+                # Handling connect requests ----------------------------------------------------------------
+                request_handled, content = self.__process_connect(message, content)
+                if request_handled:
                     continue
 
-                # Check if message topic exists in disconnection handlers "i.e., I'm disconnecting a device" -----------
-                topic_handlers = [regex for regex in self.__disconnect_requests_sub_topics if
-                                  fullmatch(regex, message.topic)]
-                if topic_handlers:
-                    if content is None:
-                        content = TBUtility.decode(message)
-                    for topic in topic_handlers:
-                        handler = self.__disconnect_requests_sub_topics[topic]
-
-                        # Get device name, either from topic or from content
-                        device_info = handler.get("deviceInfo", {})
-                        found_device_name, found_device_type = MqttConnector._parse_device_info(device_info,
-                                                                                                message.topic, content)
-
-                        if found_device_name is None:
-                            self.__log.error("Device name missing from disconnection request")
-                            continue
-
-                        if found_device_name in self.__gateway.get_devices():
-                            self.__log.info("Disconnecting device %s of type %s", found_device_name, found_device_type)
-                            self.__gateway.del_device(found_device_name)
-                        else:
-                            self.__log.info("Device %s was not connected", found_device_name)
-
-                        break
-
-                    # Note: if I'm in this branch, this was for sure a disconnection message
-                    # => Execution must end here both in case of failure and success
+                # Handling disconnect requests ----------------------------------------------------------------
+                request_handled, content = self.__process_disconnect(message, content)
+                if request_handled:
                     continue
 
-                # Check if message topic exists in attribute request handlers "i.e., I'm asking for a shared attribute"
-                topic_handlers = [regex for regex in self.__attribute_requests_sub_topics if
-                                  fullmatch(regex, message.topic)]
-                if topic_handlers:
-                    if content is None:
-                        content = TBUtility.decode(message)
-                    try:
-                        for topic in topic_handlers:
-                            handler = self.__attribute_requests_sub_topics[topic]
-
-                            found_attribute_names = None
-
-                            # Get device name, either from topic or from content
-                            device_info = handler.get("deviceInfo", {})
-                            found_device_name, _ = MqttConnector._parse_device_info(device_info, message.topic, content)
-
-                            # Get attribute name, either from topic or from content
-                            if handler.get("attributeNameExpressionSource") == "topic":
-                                attribute_name_match = search(handler["attributeNameExpression"], message.topic)
-                                if attribute_name_match is not None:
-                                    found_attribute_names = attribute_name_match.group(0)
-                            elif handler.get("attributeNameExpressionSource") == "message" or handler.get(
-                                    "attributeNameExpressionSource") == "constant":
-                                found_attribute_names = list(filter(lambda x: x is not None,
-                                                                    TBUtility.get_values(
-                                                                        handler["attributeNameExpression"],
-                                                                        content)))
-
-                            if found_device_name is None:
-                                self.__log.error("Device name missing from attribute request")
-                                continue
-
-                            if found_attribute_names is None:
-                                self.__log.error("Attribute name missing from attribute request")
-                                continue
-
-                            self.__log.info("Will retrieve attribute %s of %s", found_attribute_names,
-                                            found_device_name)
-                            scope = 'shared'
-                            if handler.get('scope') is not None:
-                                scope = handler.get('scope')
-                            if content and TBUtility.get_value(f'${scope}', content, get_tag=True) is not None:
-                                scope = TBUtility.get_value(f'${scope}', content, get_tag=True)
-
-                            request_arguments = (
-                                    found_device_name,
-                                    found_attribute_names,
-                                    lambda data, *args: self.notify_attribute(
-                                        data,
-                                        found_attribute_names,
-                                        handler.get("topicExpression"),
-                                        handler.get("valueExpression"),
-                                        handler.get('retain', False),
-                                        handler.get('qos', 0)))
-
-                            if scope == 'client':
-                                self.__gateway.tb_client.client.gw_request_client_attributes(*request_arguments)
-                            else:
-                                self.__gateway.tb_client.client.gw_request_shared_attributes(*request_arguments)
-                            break
-
-                    except Exception as e:
-                        self.__log.exception(e)
-
-                    # Note: if I'm in this branch, this was for sure an attribute request message
-                    # => Execution must end here both in case of failure and success
+                # Handling attribute requests ----------------------------------------------------------------
+                request_handled, content = self.__process_attribute_request(message, content)
+                if request_handled:
                     continue
 
                 # Check if message topic exists in RPC handlers --------------------------------------------------------
@@ -789,13 +673,129 @@ class MqttConnector(Connector, Thread):
             else:
                 sleep(.2)
 
+    @staticmethod
+    def __match_handlers(sub_topics_dict, topic):
+        return [regex for regex in sub_topics_dict if fullmatch(regex, topic)]
+
+    @staticmethod
+    def __decode_content_from_message(message, content):
+        return TBUtility.decode(message) if content is None else content
+
+    @staticmethod
+    def __resolve_device_name(handler, topic, content):
+        device_info = handler.get("deviceInfo", {})
+        found_device_name, found_device_type = MqttConnector._parse_device_info(device_info, topic, content)
+        return found_device_name, found_device_type
+
+    @staticmethod
+    def __extract_requested_arguments_names(handler, topic, content):
+        attribute_name_expression_source = handler.get("attributeNameExpressionSource")
+
+        if attribute_name_expression_source == "topic":
+            attribute_name_match = search(attribute_name_expression_source, topic)
+            return attribute_name_match.group(0) if attribute_name_match is not None else None
+
+        elif attribute_name_expression_source in ("message", "constant"):
+            requested_shared_attributes = TBUtility.get_values(handler.get("attributeNameExpression", ""), content)
+            return list(filter(lambda x: x is not None, requested_shared_attributes))
+
+        return None
+
+    def __process_connect(self, message, content):
+        topic_handlers = self.__match_handlers(self.__connect_requests_sub_topics, message.topic)
+        if not topic_handlers:
+            return False, content
+        content = self.__decode_content_from_message(message, content)
+
+        for regex in topic_handlers:
+            handler = self.__connect_requests_sub_topics[regex]
+            found_device_name, found_device_type = self.__resolve_device_name(handler, topic, content)
+
+            if found_device_name is None:
+                self.__log.error("Device name missing from connection request")
+                continue
+
+            self.__log.info("Connecting device %s of type %s", found_device_name, found_device_type)
+            self.__gateway.add_device(found_device_name, {"connector": self}, device_type=found_device_type)
+
+        return True, content
+
+    def __process_disconnect(self, message, content):
+        topic_handlers = self.__match_handlers(self.__disconnect_requests_sub_topics, message.topic)
+        if not topic_handlers:
+            return False, content
+        content = self.__decode_content_from_message(message, content)
+
+        for regex in topic_handlers:
+            handler = self.__disconnect_requests_sub_topics[regex]
+            found_device_name, found_device_type = self.__resolve_device_name(handler, message.topic, content)
+
+            if found_device_name is None:
+                self.__log.error("Device name missing from disconnection request")
+                continue
+
+            if found_device_name in self.__gateway.get_devices():
+                self.__log.info("Disconnecting device %s of type %s", found_device_name, found_device_type)
+                self.__gateway.del_device(found_device_name)
+
+            else:
+                self.__log.info("Device %s was not connected", found_device_name)
+
+            break
+
+        return True, content
+
+    def __process_attribute_request(self, message, content):
+        topic_handlers = self.__match_handlers(self.__attribute_requests_sub_topics, message.topic)
+        if not topic_handlers:
+            return False, content
+        content = self.__decode_content_from_message(message, content)
+
+        try:
+            for regex in topic_handlers:
+                handler = self.__attribute_requests_sub_topics[regex]
+                found_device_name, _ = self.__resolve_device_name(handler, message.topic, content)
+
+                if found_device_name is None:
+                    self.__log.error("Device name missing from attribute request")
+                    continue
+                found_attribute_names = self.__extract_requested_arguments_names(handler, message.topic, content)
+
+                if found_attribute_names is None:
+                    self.__log.error("Attribute name missing from attribute request")
+                    continue
+
+                self.__log.debug("Retrieved attribute names %s for device %s", found_attribute_names)
+
+                scope = handler.get('scope') or 'shared'
+                if content and TBUtility.get_value(f'${scope}', content, get_tag=True) is not None:
+                    scope = TBUtility.get_value(f'${scope}', content, get_tag=True)
+                request_arguments = (found_device_name, found_attribute_names,
+                                     lambda data, *args: self.notify_attribute(data, found_attribute_names,
+                                                                               handler.get("topicExpression"),
+                                                                               handler.get("valueExpression"),
+                                                                               handler.get('retain', False),
+                                                                               handler.get('qos', 0)))
+                if scope == 'client':
+                    self.__gateway.tb_client.client.gw_request_client_attributes(*request_arguments)
+                    self.__log.info("Successfully processed client attribute request for %s of %s",
+                                    found_attribute_names, found_device_name)
+                else:
+                    self.__gateway.tb_client.client.gw_request_shared_attributes(*request_arguments)
+                    self.__log.info("Successfully processed shared attribute request for %s of %s",
+                                    found_attribute_names, found_device_name)
+                break
+
+        except Exception as e:
+            self.__log.exception("An unexpected error occurred while processing attribute request: %s", str(e))
+            self.__log.debug("Exception: %s", e, exc_info=True)
+
     def notify_attribute(self, incoming_data, attribute_name, topic_expression, value_expression, retain, qos):
         if incoming_data.get("device") is None or incoming_data.get("value", incoming_data.get('values')) is None:
             return
 
         device_name = incoming_data.get("device")
         attribute_values = incoming_data.get("value", incoming_data.get("values"))
-
         topic = topic_expression \
             .replace("${deviceName}", str(device_name)) \
             .replace("${attributeKey}", str(attribute_name))
