@@ -24,6 +24,7 @@ from typing import List, Union
 
 import orjson
 from docutils.nodes import topic
+from orjson.orjson import JSONDecodeError
 
 from thingsboard_gateway.connectors.mqtt.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.gateway.constant_enums import Status
@@ -578,34 +579,43 @@ class MqttConnector(Connector, Thread):
                                                 stat_parameter_name='connectorBytesReceived')
         self._on_message_queue.put((client, userdata, message))
 
-    @staticmethod
-    def _parse_device_info(device_info, topic, content):
+    def _parse_device_info(self, device_info, topic, content):
         found_device_name = None
         found_device_type = 'default'
 
         # Get device name, either from topic or from content
-        if device_info.get('deviceNameExpressionSource') == 'topic':
-            device_name_match = search(device_info["deviceNameExpression"], topic)
-            if device_name_match is not None:
-                found_device_name = device_name_match.group(0)
-        elif device_info.get('deviceNameExpressionSource') == 'message':
-            found_device_name = TBUtility.get_value(device_info["deviceNameExpression"], content,
-                                                    expression_instead_none=True)
-        elif device_info.get('deviceNameExpressionSource') == 'constant':
-            found_device_name = device_info["deviceNameExpression"]
+        try:
+            if device_info.get('deviceNameExpressionSource') == 'topic':
+                device_name_match = search(device_info["deviceNameExpression"], topic)
+                if device_name_match is not None:
+                    found_device_name = device_name_match.group(0)
+            elif device_info.get('deviceNameExpressionSource') == 'message':
+                found_device_name = TBUtility.get_value(device_info["deviceNameExpression"], content,
+                                                        expression_instead_none=True)
+            elif device_info.get('deviceNameExpressionSource') == 'constant':
+                found_device_name = device_info["deviceNameExpression"]
 
-        # Get device type (if any), either from topic or from content
-        if device_info.get("deviceProfileExpressionSource") == 'topic':
-            device_type_match = search(device_info["deviceProfileExpression"], topic)
-            found_device_type = device_type_match.group(0) if device_type_match is not None else device_info[
-                "deviceProfileExpression"]
-        elif device_info.get("deviceProfileExpressionSource") == 'message':
-            found_device_type = TBUtility.get_value(device_info["deviceProfileExpression"], content,
-                                                    expression_instead_none=True)
-        elif device_info.get("deviceProfileExpressionSource") == 'constant':
-            found_device_type = device_info["deviceProfileExpression"]
+            # Get device type (if any), either from topic or from content
+            if device_info.get("deviceProfileExpressionSource") == 'topic':
+                device_type_match = search(device_info["deviceProfileExpression"], topic)
+                found_device_type = device_type_match.group(0) if device_type_match is not None else device_info[
+                    "deviceProfileExpression"]
+            elif device_info.get("deviceProfileExpressionSource") == 'message':
+                found_device_type = TBUtility.get_value(device_info["deviceProfileExpression"], content,
+                                                        expression_instead_none=True)
+            elif device_info.get("deviceProfileExpressionSource") == 'constant':
+                found_device_type = device_info["deviceProfileExpression"]
+            return found_device_name, found_device_type
 
-        return found_device_name, found_device_type
+        except JSONDecodeError as e:
+            self.__log.error("Check your message payload for an incorrect format: %s", str(e))
+            self.__log.debug("Error %s", e, exc_info=True)
+            return None, None
+
+        except Exception as e:
+           self.__log.exception("An unexpected error occurred while parsing device info: %s", str(e))
+           self.__log.debug("Error %s", e, exc_info=True)
+           return None, None
 
     def _process_on_message(self):
         while not self.__stopped:
@@ -644,19 +654,33 @@ class MqttConnector(Connector, Thread):
                     # => Execution must end here both in case of failure and success
                     continue
 
-                # Handling connect requests ----------------------------------------------------------------
-                request_handled, content = self.__process_connect(message, content)
-                if request_handled:
+                # The main request processing block, the try/except statements are added to avoid whole attributes processing
+                # to be stopped because of a single error in a request processing
+                try:
+
+                    # Handling connect requests ----------------------------------------------------------------
+                    request_handled, content = self.__process_connect(message, content)
+                    if request_handled:
+                        continue
+
+                    # Handling disconnect requests ----------------------------------------------------------------
+                    request_handled, content = self.__process_disconnect(message, content)
+                    if request_handled:
+                        continue
+
+                    # Handling attribute requests ----------------------------------------------------------------
+                    request_handled, content = self.__process_attribute_request(message, content)
+                    if request_handled:
+                        continue
+
+                # In case of failure in any block above, log the error and continue
+                except TypeError as e:
+                    self.__log.exception("Make sure your input match with config and the payload you sent was valid.",)
                     continue
 
-                # Handling disconnect requests ----------------------------------------------------------------
-                request_handled, content = self.__process_disconnect(message, content)
-                if request_handled:
-                    continue
-
-                # Handling attribute requests ----------------------------------------------------------------
-                request_handled, content = self.__process_attribute_request(message, content)
-                if request_handled:
+                except Exception as e:
+                    self.__log.exception("An unexpected error occurred while processing request: %s", str(e))
+                    self.__log.debug("Error", exc_info=True)
                     continue
 
                 # Check if message topic exists in RPC handlers --------------------------------------------------------
@@ -682,12 +706,6 @@ class MqttConnector(Connector, Thread):
         return TBUtility.decode(message) if content is None else content
 
     @staticmethod
-    def __resolve_device_name(handler, topic, content):
-        device_info = handler.get("deviceInfo", {})
-        found_device_name, found_device_type = MqttConnector._parse_device_info(device_info, topic, content)
-        return found_device_name, found_device_type
-
-    @staticmethod
     def __extract_requested_arguments_names(handler, topic, content):
         attribute_name_expression_source = handler.get("attributeNameExpressionSource")
 
@@ -700,6 +718,11 @@ class MqttConnector(Connector, Thread):
             return list(filter(lambda x: x is not None, requested_shared_attributes))
 
         return None
+
+    def __resolve_device_name(self, handler, topic, content):
+        device_info = handler.get("deviceInfo", {})
+        found_device_name, found_device_type = self._parse_device_info(device_info, topic, content)
+        return found_device_name, found_device_type
 
     def __process_connect(self, message, content):
         topic_handlers = self.__match_handlers(self.__connect_requests_sub_topics, message.topic)
@@ -761,7 +784,7 @@ class MqttConnector(Connector, Thread):
                     continue
                 found_attribute_names = self.__extract_requested_arguments_names(handler, message.topic, content)
 
-                if found_attribute_names is None:
+                if not found_attribute_names:
                     self.__log.error("Attribute name missing from attribute request")
                     continue
 
@@ -785,6 +808,7 @@ class MqttConnector(Connector, Thread):
                     self.__log.info("Successfully processed shared attribute request for %s of %s",
                                     found_attribute_names, found_device_name)
                 break
+            return True, content
 
         except Exception as e:
             self.__log.exception("An unexpected error occurred while processing attribute request: %s", str(e))
@@ -794,17 +818,35 @@ class MqttConnector(Connector, Thread):
         if incoming_data.get("device") is None or incoming_data.get("value", incoming_data.get('values')) is None:
             return
 
+        if not str(attribute_name[0]):
+            self.__log.error("Attribute name is empty, cannot send attribute data to device")
+            return
+
         device_name = incoming_data.get("device")
         attribute_values = incoming_data.get("value", incoming_data.get("values"))
-        topic = topic_expression \
-            .replace("${deviceName}", str(device_name)) \
-            .replace("${attributeKey}", str(attribute_name))
+        try:
 
-        if len(attribute_name) <= 1:
-            data = value_expression.replace("${attributeKey}", str(attribute_name[0])) \
-                .replace("${attributeValue}", str(attribute_values))
-        else:
-            data = orjson.dumps(attribute_values)
+            topic = topic_expression \
+                .replace("${deviceName}", str(device_name)) \
+                .replace("${attributeKey}", str(attribute_name))
+
+            if len(attribute_name) <= 1:
+                data = value_expression.replace("${attributeKey}", str(attribute_name[0])) \
+                    .replace("${attributeValue}", str(attribute_values))
+            else:
+                data = orjson.dumps(attribute_values)
+                self.__log.debug("Attribute data: %s for device %s to topic: %s", data, device_name, topic)
+
+        except KeyError as e:
+            self.__log.error("Cannot form topic/value for attribute request %s due to", incoming_data, str(e))
+            return
+
+        except Exception as e:
+            self.__log.error(
+                "An unexpected error occurred while forming attribute message %s for attribute request:", str(e),
+                incoming_data)
+            self.__log.debug("Exception: %s", e, exc_info=True)
+            return
 
         self._client.publish(topic, data, qos=qos, retain=retain).wait_for_publish()
 
