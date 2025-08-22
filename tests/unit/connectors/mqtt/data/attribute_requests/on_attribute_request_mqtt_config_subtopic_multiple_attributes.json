@@ -1,0 +1,12 @@
+{
+  "attributeNameExpression": "${versionAttribute}, ${versionModel}",
+  "attributeNameExpressionSource": "message",
+  "deviceInfo": {
+    "deviceNameExpression": "${serialNumber}",
+    "deviceNameExpressionSource": "message"
+  },
+  "retain": false,
+  "topicExpression": "devices/${deviceName}/attrs",
+  "topicFilter": "v1/devices/me/attributes/request",
+  "valueExpression": "{\"${attributeKey}\": ${attributeValue}}"
+}
