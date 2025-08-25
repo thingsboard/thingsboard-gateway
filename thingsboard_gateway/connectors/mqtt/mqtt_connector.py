@@ -731,7 +731,7 @@ class MqttConnector(Connector, Thread):
 
         for regex in topic_handlers:
             handler = self.__connect_requests_sub_topics[regex]
-            found_device_name, found_device_type = self.__resolve_device_name(handler, topic, content)
+            found_device_name, found_device_type = self.__resolve_device_name(handler, message.topic, content)
 
             if found_device_name is None:
                 self.__log.error("Device name missing from connection request")
@@ -790,8 +790,9 @@ class MqttConnector(Connector, Thread):
                 self.__log.debug("Retrieved attribute names %s for device %s", found_attribute_names)
 
                 scope = handler.get('scope') or 'shared'
-                if content and TBUtility.get_value(f'${scope}', content, get_tag=True) is not None:
-                    scope = TBUtility.get_value(f'${scope}', content, get_tag=True)
+                formated_value = TBUtility.get_value(f'${scope}', content, get_tag=True)
+                if content and formated_value is not None:
+                    scope = formated_value
                 request_arguments = (found_device_name, found_attribute_names,
                                      lambda data, *args: self.notify_attribute(data, found_attribute_names,
                                                                                handler.get("topicExpression"),
