@@ -23,7 +23,6 @@ from time import sleep, time
 from typing import List, Union
 
 import orjson
-from docutils.nodes import topic
 from orjson.orjson import JSONDecodeError
 
 from thingsboard_gateway.connectors.mqtt.backward_compatibility_adapter import BackwardCompatibilityAdapter
@@ -799,7 +798,7 @@ class MqttConnector(Connector, Thread):
                                                                                handler.get("valueExpression"),
                                                                                handler.get('retain', False),
                                                                                handler.get('qos', 0)))
-                if scope == 'client':
+                if scope == '$client':
                     self.__gateway.tb_client.client.gw_request_client_attributes(*request_arguments)
                     self.__log.info("Successfully processed client attribute request for %s of %s",
                                     found_attribute_names, found_device_name)
