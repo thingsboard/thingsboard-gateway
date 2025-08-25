@@ -28,9 +28,6 @@ class MqttOnAttributeRequestsTest(MqttBaseTest):
         gw = self.connector._MqttConnector__gateway
         gw.tb_client.client.gw_request_shared_attributes = MagicMock()
         gw.tb_client.client.gw_request_client_attributes = MagicMock()
-        token = MagicMock()
-        token.wait_for_publish.return_value = None
-        self.connector._client.publish.return_value = token
         self.message = MagicMock()
         self.message.topic = 'v1/devices/me/attributes/request'
         self.message.properties = []
