@@ -1,0 +1,9 @@
+{
+  "topicFilter": "sensor/+/connect",
+  "deviceInfo": {
+    "deviceNameExpressionSource": "topic",
+    "deviceNameExpression": "(?<=sensor/)(.*?)(?=/connect)",
+    "deviceProfileExpressionSource": "constant",
+    "deviceProfileExpression": "Thermometer"
+  }
+}
