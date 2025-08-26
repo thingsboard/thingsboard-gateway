@@ -121,10 +121,19 @@ class Application(NormalApplication, ForeignApplication):
                 self.__log.error("APDU confirmation error: %s", e)
 
     async def do_who_is(self, device_address):
-        devices = await self.who_is(address=Address(device_address),
-                                    timeout=self.__device_object_config.device_discovery_timeout)
-        if len(devices):
-            return devices[0]
+        try:
+            devices = await self.who_is(address=Address(device_address),
+                                        timeout=self.__device_object_config.device_discovery_timeout)
+            if len(devices):
+                return devices[0]
+
+        except ValueError as e:
+            self.__log.error("Incorrect data format is used %s", str(e))
+            self.__log.debug("Error %s", e, exc_info=e)
+
+        except Exception as e:
+            self.__log.error("An unexpected error occurred while device look up process %s", str(e))
+            self.__log.debug("Error %s", e, exc_info=e)
 
     async def get_object_identifiers_with_segmentation(self, device) -> List[ObjectIdentifier]:
         object_list = await self.__send_request_wrapper(self.read_property,
