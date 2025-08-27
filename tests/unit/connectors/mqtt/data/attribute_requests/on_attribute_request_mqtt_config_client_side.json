@@ -1,0 +1,13 @@
+{
+    "retain": false,
+    "scope": "client",
+    "topicFilter": "v1/devices/me/attributes/request",
+    "deviceInfo": {
+      "deviceNameExpressionSource": "message",
+      "deviceNameExpression": "${serialNumber}"
+    },
+    "attributeNameExpressionSource": "message",
+    "attributeNameExpression": "${versionAttribute}",
+    "topicExpression": "devices/${deviceName}/attrs",
+    "valueExpression": "{\"${attributeKey}\": ${attributeValue}}"
+  }

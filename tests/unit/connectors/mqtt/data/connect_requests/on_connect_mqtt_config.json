@@ -1,0 +1,9 @@
+{
+  "topicFilter": "sensor/connect",
+  "deviceInfo": {
+    "deviceNameExpressionSource": "message",
+    "deviceNameExpression": "${serialNumber}",
+    "deviceProfileExpressionSource": "constant",
+    "deviceProfileExpression": "Thermometer"
+  }
+}

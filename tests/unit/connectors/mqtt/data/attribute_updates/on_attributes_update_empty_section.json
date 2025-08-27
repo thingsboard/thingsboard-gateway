@@ -1,0 +1,102 @@
+{
+  "broker": {
+    "host": "127.0.0.1",
+    "port": 1885,
+    "version": 5,
+    "clientId": "ThingsBoard_gateway",
+    "security": {
+      "type": "basic",
+      "username": "user1",
+      "password": "user1"
+    },
+    "maxNumberOfWorkers": 100,
+    "maxMessageNumberPerWorker": 10
+  },
+  "mapping": [
+    {
+      "topicFilter": "sensor/attributes",
+      "subscriptionQos": 1,
+      "converter": {
+        "type": "json",
+        "deviceInfo": {
+          "deviceNameExpressionSource": "message",
+          "deviceNameExpression": "SN-001",
+          "deviceProfileExpressionSource": "message",
+          "deviceProfileExpression": "${sensorType}"
+        },
+        "sendDataOnlyOnChange": false,
+        "timeout": 60000,
+        "attributes": [
+          {
+            "type": "string",
+            "key": "model",
+            "value": "${sensorModel}"
+          },
+          {
+            "type": "string",
+            "key": "status",
+            "value": "on"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "double",
+            "key": "temperature",
+            "value": "${temp}"
+          },
+          {
+            "type": "double",
+            "key": "humidity",
+            "value": "${hum}"
+          },
+          {
+            "type": "string",
+            "key": "combine",
+            "value": "${hum}:${temp}"
+          }
+        ]
+      }
+    },
+    {
+      "topicFilter": "sensor/+/data",
+      "subscriptionQos": 1,
+      "converter": {
+        "type": "json",
+        "deviceInfo": {
+          "deviceNameExpressionSource": "topic",
+          "deviceNameExpression": "(?<=sensor/)(.*?)(?=/data)",
+          "deviceProfileExpressionSource": "constant",
+          "deviceProfileExpression": "Thermometer"
+        },
+        "sendDataOnlyOnChange": false,
+        "timeout": 60000,
+        "attributes": [
+          {
+            "type": "string",
+            "key": "model",
+            "value": "${sensorModel}"
+          }
+        ],
+        "timeseries": [
+          {
+            "type": "double",
+            "key": "temperature",
+            "value": "${temp}"
+          },
+          {
+            "type": "string",
+            "key": "humidity",
+            "value": "${hum}"
+          }
+        ]
+      }
+    }
+  ],
+  "requestsMapping": {
+    "connectRequests": [],
+    "disconnectRequests": [],
+    "attributeRequests": [],
+    "attributeUpdates": [],
+    "serverSideRpc": []
+  }
+}
