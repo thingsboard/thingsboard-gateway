@@ -13,6 +13,7 @@
 #     limitations under the License.
 
 from re import match, compile
+from ipaddress import IPv4Network
 import asyncio
 from asyncio import Queue, CancelledError, QueueEmpty
 from copy import deepcopy
@@ -24,7 +25,7 @@ from time import monotonic, sleep
 from typing import TYPE_CHECKING, Tuple, Any
 from concurrent.futures import TimeoutError
 
-from thingsboard_gateway.connectors.bacnet.constants import SUPPORTED_OBJECTS_TYPES
+from thingsboard_gateway.connectors.bacnet.constants import SUPPORTED_OBJECTS_TYPES, ALLOWED_APDU
 from typing import TYPE_CHECKING
 from ast import literal_eval
 
@@ -206,6 +207,10 @@ class AsyncBACnetConnector(Thread, Connector):
                 await asyncio.sleep(.1)
 
     async def __start(self):
+        if not self.__is_valid_application_device_section():
+            self.__log.error('Can not start connector due to invalid application section in config.')
+            return
+
         if self.__config.get('foreignDevice', {}).get('address', ''):
             self.__application = Application(DeviceObjectConfig(
                 self.__config['application']), self.__handle_indication, self.__log,
@@ -225,6 +230,55 @@ class AsyncBACnetConnector(Thread, Connector):
                              self.__save_data(),
                              self.indication_callback(),
                              self.__application.confirmation_handler())
+
+    def __is_valid_application_device_section(self) -> bool:
+        app = self.__config.get('application')
+        if not isinstance(app, dict):
+            self.__log.error("Missing or invalid 'application' section in config.")
+            return False
+
+        host = app.get('host')
+        if not host:
+            self.__log.error("Missing IPv4 address: 'application.address' (or 'application.host').")
+            return False
+        try:
+            IPv4Address(str(host))
+        except Exception:
+            self.__log.error("Invalid IPv4 address in application section: %s", host)
+            return False
+
+        port = app.get('port')
+        if not (1 <= port <= 65535):
+            self.__log.error(
+                "The port inside application section must be in range [1, 65535], but got %d.",
+                port
+            )
+            return False
+
+        apdu = app.get('maxApduLengthAccepted', 1476)
+        if apdu not in ALLOWED_APDU:
+            self.__log.warning(
+                "Unsupported value for 'maxApduLengthAccepted': %d. Allowed values are %s. Using default - 1476.",
+                apdu, ALLOWED_APDU
+            )
+            app['maxApduLengthAccepted'] = 1476
+
+        mask = app.get('mask', "24")
+        try:
+            if mask.isdigit() and not (0 <= int(mask) <= 32):
+                self.__log.warning(
+                    "The mask inside application section must be in range [0, 32], but got %s., using default - 24",
+                    mask)
+                app['mask'] = "24"
+                return True
+            else:
+                IPv4Network(f"{host}/{mask}")
+                return True
+        except Exception:
+            app['mask'] = "24"
+            self.__log.warning("Invalid subnet mask inside application section : %s using default - 24", mask)
+
+        return True
 
     def __handle_indication(self, apdu):
         self.__indication_queue.put_nowait(apdu)
