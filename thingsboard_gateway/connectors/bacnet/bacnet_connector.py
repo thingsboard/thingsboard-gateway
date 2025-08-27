@@ -25,7 +25,7 @@ from time import monotonic, sleep
 from typing import TYPE_CHECKING, Tuple, Any
 from concurrent.futures import TimeoutError
 
-from thingsboard_gateway.connectors.bacnet.constants import SUPPORTED_OBJECTS_TYPES
+from thingsboard_gateway.connectors.bacnet.constants import SUPPORTED_OBJECTS_TYPES, ALLOWED_APDU
 from typing import TYPE_CHECKING
 from ast import literal_eval
 
@@ -207,7 +207,9 @@ class AsyncBACnetConnector(Thread, Connector):
                 await asyncio.sleep(.1)
 
     async def __start(self):
-        self.__validate_application_device_section()
+        if not self.__is_valid_application_device_section():
+            return
+
         if self.__config.get('foreignDevice', {}).get('address', ''):
             self.__application = Application(DeviceObjectConfig(
                 self.__config['application']), self.__handle_indication, self.__log,
@@ -228,7 +230,7 @@ class AsyncBACnetConnector(Thread, Connector):
                              self.indication_callback(),
                              self.__application.confirmation_handler())
 
-    def __validate_application_device_section(self):
+    def __is_valid_application_device_section(self) -> bool:
         app = self.__config.get('application')
         if not isinstance(app, dict):
             self.__log.error("Missing or invalid 'application' section in config.")
@@ -252,27 +254,30 @@ class AsyncBACnetConnector(Thread, Connector):
             )
             return False
 
-        allowed_apdu = (50, 128, 206, 480, 1024, 1476)
         apdu = app.get('maxApduLengthAccepted', 1476)
-        if apdu not in allowed_apdu:
+        if apdu not in ALLOWED_APDU:
             self.__log.debug(
                 "Unsupported value for 'maxApduLengthAccepted': %d. Allowed values are %s. Using default - 1476.",
-                apdu, allowed_apdu
+                apdu, ALLOWED_APDU
             )
             app['maxApduLengthAccepted'] = 1476
 
         mask = app.get('mask', "24")
-        if mask.isdigit() and not (0 <= int(mask) <= 32):
-            self.__log.warning(
-                "The mask inside application section must be in range [0, 32], but got %s., using default - 24", mask)
-            app['mask'] = "24"
-            return
         try:
-            net = IPv4Network(f"{host}/{mask}")
-            return True, net.prefixlen
+            if mask.isdigit() and not (0 <= int(mask) <= 32):
+                self.__log.warning(
+                    "The mask inside application section must be in range [0, 32], but got %s., using default - 24",
+                    mask)
+                app['mask'] = "24"
+                return True
+            else:
+                IPv4Network(f"{host}/{mask}")
+                return True
         except Exception:
             app['mask'] = "24"
             self.__log.warning("Invalid subnet mask inside application section : %s using default - 24", mask)
+
+        return True
 
     def __handle_indication(self, apdu):
         self.__indication_queue.put_nowait(apdu)
