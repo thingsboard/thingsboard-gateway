@@ -208,6 +208,7 @@ class AsyncBACnetConnector(Thread, Connector):
 
     async def __start(self):
         if not self.__is_valid_application_device_section():
+            self.__log.error('Can not start connector due to invalid application section in config.')
             return
 
         if self.__config.get('foreignDevice', {}).get('address', ''):
@@ -256,7 +257,7 @@ class AsyncBACnetConnector(Thread, Connector):
 
         apdu = app.get('maxApduLengthAccepted', 1476)
         if apdu not in ALLOWED_APDU:
-            self.__log.debug(
+            self.__log.warning(
                 "Unsupported value for 'maxApduLengthAccepted': %d. Allowed values are %s. Using default - 1476.",
                 apdu, ALLOWED_APDU
             )
