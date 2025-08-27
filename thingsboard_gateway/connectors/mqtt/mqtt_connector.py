@@ -696,33 +696,6 @@ class MqttConnector(Connector, Thread):
             else:
                 sleep(.2)
 
-    @staticmethod
-    def __match_handlers(sub_topics_dict, topic):
-        return [regex for regex in sub_topics_dict if fullmatch(regex, topic)]
-
-    @staticmethod
-    def __decode_content_from_message(message, content):
-        return TBUtility.decode(message) if content is None else content
-
-    @staticmethod
-    def __extract_requested_arguments_names(handler, topic, content):
-        attribute_name_expression_source = handler.get("attributeNameExpressionSource")
-
-        if attribute_name_expression_source == "topic":
-            attribute_name_match = search(attribute_name_expression_source, topic)
-            return attribute_name_match.group(0) if attribute_name_match is not None else None
-
-        elif attribute_name_expression_source in ("message", "constant"):
-            requested_shared_attributes = TBUtility.get_values(handler.get("attributeNameExpression", ""), content)
-            return list(filter(lambda x: x is not None, requested_shared_attributes))
-
-        return None
-
-    def __resolve_device_name(self, handler, topic, content):
-        device_info = handler.get("deviceInfo", {})
-        found_device_name, found_device_type = self._parse_device_info(device_info, topic, content)
-        return found_device_name, found_device_type
-
     def __process_connect(self, message, content):
         topic_handlers = self.__match_handlers(self.__connect_requests_sub_topics, message.topic)
         if not topic_handlers:
@@ -790,7 +763,7 @@ class MqttConnector(Connector, Thread):
                 self.__log.debug("Retrieved attribute names %s for device %s", found_attribute_names)
 
                 scope = handler.get('scope') or 'shared'
-                formated_value = TBUtility.get_value(f'${scope}', content, get_tag=True)
+                formated_value = TBUtility.get_value(f'${scope}', content, get_tag=False)
                 if content and formated_value is not None:
                     scope = formated_value
                 request_arguments = (found_device_name, found_attribute_names,
@@ -799,7 +772,7 @@ class MqttConnector(Connector, Thread):
                                                                                handler.get("valueExpression"),
                                                                                handler.get('retain', False),
                                                                                handler.get('qos', 0)))
-                if scope == '$client':
+                if scope == 'client':
                     self.__gateway.tb_client.client.gw_request_client_attributes(*request_arguments)
                     self.__log.info("Successfully processed client attribute request for %s of %s",
                                     found_attribute_names, found_device_name)
@@ -818,7 +791,7 @@ class MqttConnector(Connector, Thread):
         if incoming_data.get("device") is None or incoming_data.get("value", incoming_data.get('values')) is None:
             return
 
-        if not str(attribute_name[0]):
+        if len(attribute_name) == 0:
             self.__log.error("Attribute name is empty, cannot send attribute data to device")
             return
 
@@ -849,6 +822,33 @@ class MqttConnector(Connector, Thread):
             return
 
         self._client.publish(topic, data, qos=qos, retain=retain).wait_for_publish()
+
+    @staticmethod
+    def __match_handlers(sub_topics_dict, topic):
+        return [regex for regex in sub_topics_dict if fullmatch(regex, topic)]
+
+    @staticmethod
+    def __decode_content_from_message(message, content):
+        return TBUtility.decode(message) if content is None else content
+
+    @staticmethod
+    def __extract_requested_arguments_names(handler, topic, content):
+        attribute_name_expression_source = handler.get("attributeNameExpressionSource")
+
+        if attribute_name_expression_source == "topic":
+            attribute_name_match = search(attribute_name_expression_source, topic)
+            return attribute_name_match.group(0) if attribute_name_match is not None else None
+
+        elif attribute_name_expression_source in ("message", "constant"):
+            requested_shared_attributes = TBUtility.get_values(handler.get("attributeNameExpression", ""), content)
+            return list(filter(lambda x: x is not None, requested_shared_attributes))
+
+        return None
+
+    def __resolve_device_name(self, handler, topic, content):
+        device_info = handler.get("deviceInfo", {})
+        found_device_name, found_device_type = self._parse_device_info(device_info, topic, content)
+        return found_device_name, found_device_type
 
     @staticmethod
     def _format_value(value):
