@@ -581,7 +581,7 @@ class AsyncBACnetConnector(Thread, Connector):
             result = await self.__application.read_property(address, object_id, property_id)
             return {"value": str(result)}
         except ErrorRejectAbortNack as err:
-            return Exception({"error": str(err)})
+            return {"error": str(err)}
         except Exception as e:
             result = {}
             self.__log.error('Error reading property %s:%s from device %s: %s', object_id, property_id, address, e)
@@ -905,8 +905,16 @@ class AsyncBACnetConnector(Thread, Connector):
                     device.name,
                 )
                 result = {"error": f"Timeout rpc has been reached for {device.name}"}
+
             elif task_completed:
-                self.__log.info('Processed RPC request with result: %r', result)
+                if result.get("response", {}).get("value", {}):
+                    self.__log.info('Processed RPC request with result: %s', result)
+                else:
+                    self.__log.error(
+                        "An error occurred during RPC request: %s",
+                        result.get('response', {}).get('error', '')
+                    )
+
             self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                           req_id=content['data'].get('id'),
                                           content={'result': str(result.get('response'))})
