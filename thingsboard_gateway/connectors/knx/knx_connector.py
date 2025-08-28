@@ -13,7 +13,6 @@
 #      limitations under the License.
 
 import asyncio
-from http.client import responses
 from queue import Empty, Queue
 from re import fullmatch
 from threading import Thread, Event
