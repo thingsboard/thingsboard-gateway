@@ -329,7 +329,7 @@ class KNXConnector(Connector, Thread):
             if value is not None or config['requestType'] == 'write':
                 result['response'] = group_value_write(self.__client, group_address, value, data_type)
             else:
-                result['response'] = await read_group_value(self.__client, group_address)
+                result['response'] = await read_group_value(self.__client, group_address, data_type)
             return {"response": result}
         else:
             self.__log.error('KNX bus is not connected')
