@@ -13,12 +13,14 @@
 #      limitations under the License.
 
 import asyncio
+from http.client import responses
 from queue import Empty, Queue
 from re import fullmatch
 from threading import Thread, Event
-from time import sleep
+from time import sleep, monotonic
+from typing import Tuple, Any
 
-from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_SENT_PARAMETER
+from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_SENT_PARAMETER, RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
@@ -271,7 +273,9 @@ class KNXConnector(Connector, Thread):
             return
 
         # check if RPC method is reserved get/set
-        self.__check_and_process_reserved_rpc(rpc_method_name, content)
+        is_processed_reserved_rpc = self.__check_and_process_reserved_rpc(rpc_method_name, content)
+        if is_processed_reserved_rpc:
+            return
 
         rpc_config = self.__find_rpc_config_by_device_and_name(rpc_method_name, content)
         if not rpc_config:
@@ -300,13 +304,31 @@ class KNXConnector(Connector, Thread):
                 content['data']['params'] = params['value']
 
             self.__process_rpc(content, params)
+            return True
+
+    @staticmethod
+    def __wait_task_with_timeout(task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> Tuple[bool, Any]:
+        start_time = monotonic()
+        while not task.done():
+            sleep(poll_interval)
+            current_time = monotonic()
+            if current_time - start_time >= timeout:
+                task.cancel()
+                return False, None
+        return True, task.result()
 
     def __process_rpc(self, content, rpc_config):
         try:
-            result = {}
             value = content.get('data', {}).get('params')
-            self.__create_task(self.__process_rpc_request, (rpc_config, ), {
-                'value': value, 'result': result})
+            task = self.__create_task(self.__process_rpc_request, (rpc_config,), {
+                'value': value})
+            task_completed, result = self.__wait_task_with_timeout(task=task,
+                                                                   timeout=content.get("timeout", RPC_DEFAULT_TIMEOUT),
+                                                                   poll_interval=0.2)
+            if not task_completed:
+                self.__log.error('RPC request timed out')
+                result = {"error": f"Timeout rpc has been reached for {content['device']}"}
+
             self.__log.info('Processed RPC request with result: %r', result)
             self.__gateway.send_rpc_reply(content['device'],
                                           req_id=content['data'].get('id'),
@@ -318,17 +340,44 @@ class KNXConnector(Connector, Thread):
                                           content={'result': str(e)},
                                           success_sent=False)
 
-    async def __process_rpc_request(self, config, value=None, result={}):
+    async def __process_rpc_request(self, config, value=None):
         if self.__client.connection_manager.connected:
             group_address = config['groupAddress']
             data_type = config.get('dataType')
 
             if value is not None or config['requestType'] == 'write':
-                result['response'] = await group_value_write(self.__client, group_address, value, data_type)
+
+                response = self.__process_group_value_write(group_address, value, data_type)
             else:
-                result['response'] = await read_group_value(self.__client, group_address, data_type)
+                response = await self.__read_group_value(group_address, data_type)
+            return {"response": response}
         else:
             self.__log.error('KNX bus is not connected')
+            return {"response": {"error": "KNX bus is not connected"}}
+
+    def __process_group_value_write(self, group_address, value, data_type):
+        try:
+            group_value_write(self.__client, group_address, value, data_type)
+            return {"value": str(value)}
+
+        except Exception as e:
+            result = {}
+            self.__log.error('Error processing group value write: %s', str(e))
+            self.__log.debug('Error: %r', str(e), exc_info=True)
+            result['error'] = str(e)
+            return result
+
+    async def __read_group_value(self, group_address, data_type):
+        try:
+            result = await read_group_value(self.__client, group_address, data_type)
+            return {"value": str(result)}
+
+        except Exception as e:
+            result = {}
+            self.__log.error('Error processing group value read: %s', str(e))
+            self.__log.debug('Error: %r', str(e), exc_info=True)
+            result['error'] = str(e)
+            return result
 
     def __find_rpc_config_by_device_and_name(self, rpc_method_name, content):
         device_name_match_filter = tuple(filter(lambda rpc_config:
@@ -346,6 +395,7 @@ class KNXConnector(Connector, Thread):
 
         while not task.done() and not self.__stopped.is_set():
             sleep(.02)
+        return task
 
     @property
     def connector_type(self):
