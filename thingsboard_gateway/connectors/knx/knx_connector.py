@@ -303,10 +303,12 @@ class KNXConnector(Connector, Thread):
 
     def __process_rpc(self, content, rpc_config):
         try:
-            result = {}
+
             value = content.get('data', {}).get('params')
-            self.__create_task(self.__process_rpc_request, (rpc_config, ), {
-                'value': value, 'result': result})
+            task = self.__create_task(self.__process_rpc_request, (rpc_config,), {
+                'value': value})
+            result = task.result()
+
             self.__log.info('Processed RPC request with result: %r', result)
             self.__gateway.send_rpc_reply(content['device'],
                                           req_id=content['data'].get('id'),
@@ -318,15 +320,17 @@ class KNXConnector(Connector, Thread):
                                           content={'result': str(e)},
                                           success_sent=False)
 
-    async def __process_rpc_request(self, config, value=None, result={}):
+    async def __process_rpc_request(self, config, value=None):
+        result = {}
         if self.__client.connection_manager.connected:
             group_address = config['groupAddress']
             data_type = config.get('dataType')
 
             if value is not None or config['requestType'] == 'write':
-                result['response'] = await group_value_write(self.__client, group_address, value, data_type)
+                result['response'] = group_value_write(self.__client, group_address, value, data_type)
             else:
                 result['response'] = await read_group_value(self.__client, group_address, data_type)
+            return {"response": result}
         else:
             self.__log.error('KNX bus is not connected')
 
@@ -346,6 +350,7 @@ class KNXConnector(Connector, Thread):
 
         while not task.done() and not self.__stopped.is_set():
             sleep(.02)
+        return task
 
     @property
     def connector_type(self):
