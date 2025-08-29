@@ -230,15 +230,20 @@ class KNXConnector(Connector, Thread):
 
         try:
             attribute_request_config, value = self.__find_attribute_request_by_device_and_name(content)
-            if attribute_request_config:
-                result = {}
-                self.__create_task(self.__process_attribute_update,
-                                   (attribute_request_config['groupAddress'],
-                                    attribute_request_config.get('dataType'),
-                                    value),
-                                   {'result': result})
-            else:
-                self.__log.error('No attribute request config found')
+            if not attribute_request_config:
+                self.__log.error('No attribute request config found for device %s', content['device'])
+                return
+
+            result = self.__process_attribute_update(group_address=attribute_request_config['groupAddress'],
+                                                     data_type=attribute_request_config.get('dataType'), value=value)
+
+            if result.get("response").get("error"):
+                self.__log.error('Failed to process on attribute update request with result: %s', result.get("response"))
+                return
+
+            self.__log.info('Successfully processed on attribute update request with result: %s', result.get("response"))
+
+
         except Exception as e:
             self.__log.error('Error processing attribute update request: %s', e)
 
@@ -256,11 +261,19 @@ class KNXConnector(Connector, Thread):
             if device_name_match and attr_name_match_fitler:
                 return attribute_request_config, value
 
-    async def __process_attribute_update(self, group_address, data_type, value, result={}):
-        if self.__client.connection_manager.connected:
-            result['response'] = await group_value_write(self.__client, group_address, value, data_type)
-        else:
-            self.__log.error('KNX bus is not connected')
+    def __process_attribute_update(self, group_address, data_type, value):
+        try:
+            if self.__client.connection_manager.connected:
+                group_value_write(self.__client, group_address, value, data_type)
+                return {"response":{"value": str(value)}}
+            else:
+                self.__log.error('KNX bus is not connected')
+                return {"response": {"error": "KNX bus is not connected"}}
+
+        except Exception as e:
+            result = {"response": {"error": str(e)}}
+            self.__log.debug('Error: %r', str(e), exc_info=True)
+            return result
 
     @CollectAllReceivedBytesStatistics(start_stat_type='allReceivedBytesFromTB')
     def server_side_rpc_handler(self, content):
@@ -391,9 +404,6 @@ class KNXConnector(Connector, Thread):
 
     def __create_task(self, func, args, kwargs):
         task = self.__loop.create_task(func(*args, **kwargs))
-
-        while not task.done() and not self.__stopped.is_set():
-            sleep(.02)
         return task
 
     @property
