@@ -248,7 +248,7 @@ class AsyncBACnetConnector(Thread, Connector):
             return False
 
         port = app.get('port')
-        if not (1 <= port <= 65535):
+        if not (1 <= int(port) <= 65535):
             self.__log.error(
                 "The port inside application section must be in range [1, 65535], but got %d.",
                 port
