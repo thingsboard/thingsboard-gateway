@@ -26,17 +26,25 @@ class StorageSettings:
         self.max_read_records_count = config.get("max_read_records_count", 1000)
         self.batch_size = config.get("writing_batch_size", 1000)
         self.directory_path = path.dirname(self.data_file_path)
-        self.db_file_name = path.basename(self.data_file_path)
+        self.db_file_name = "data.db"
         self.size_limit = config.get("size_limit", 1024)
         self.max_db_amount = config.get("max_db_amount", 10)
         self.oversize_check_period = config.get("oversize_check_period", 1)
-        self.validate_settings()
+        self.warnings = self.validate_settings()
 
     def validate_settings(self):
-        if not self.db_file_name:
-            self.db_file_name = "data.db"
+        warnings = []
+        if path.basename(self.data_file_path):
+            warnings.append(
+                "You can not specify the file name, using default file name: data.db or make sure you set slash at the end of the path;")
+
         if self.size_limit < 1 and self.enable_validation:
             self.size_limit = 1
+            warnings.append("The size limit is too small - using the minimum value 1 MB;")
+
         if self.oversize_check_period < 1 and self.enable_validation:
             self.oversize_check_period = 1
+            warnings.append("The oversize check period is too small - using the minimum value 1 minute;")
+
+        return warnings
 

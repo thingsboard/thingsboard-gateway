@@ -144,7 +144,7 @@ class TestStorage(TestCase):
 class TestSQLiteEventStorageRotation(TestCase):
 
     def setUp(self):
-        self.directory = path.join("storage", "data")
+        self.directory = "./data/"
         self.db_path = path.join(self.directory, "data.db")
         if not path.exists(self.directory):
             try:
@@ -153,7 +153,7 @@ class TestSQLiteEventStorageRotation(TestCase):
             except Exception as e:
                 LOG.warning(f"Failed to create directory {self.directory}: {e}")
         self.config = {
-            "data_file_path": self.db_path,
+            "data_file_path": self.directory,
             "messages_ttl_check_in_hours": 1,
             "messages_ttl_in_days": 7,
             "max_read_records_count": 1000,
