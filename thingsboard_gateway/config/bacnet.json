@@ -2,7 +2,7 @@
   "application": {
     "objectName": "TB_gateway",
     "host": "0.0.0.0",
-    "port": "47808",
+    "port": 47808,
     "mask": "24",
     "objectIdentifier": 599,
     "maxApduLengthAccepted": 1476,
