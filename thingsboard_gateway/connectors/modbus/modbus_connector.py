@@ -19,7 +19,7 @@ from threading import Thread
 from random import choice
 from string import ascii_lowercase
 from time import monotonic, sleep
-
+from typing import Tuple, Any
 from packaging import version
 
 from thingsboard_gateway.connectors.modbus.constants import ADDRESS_PARAMETER, TAG_PARAMETER, \
@@ -31,7 +31,7 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, \
     STATISTIC_MESSAGE_SENT_PARAMETER, CONNECTOR_PARAMETER, DEVICE_SECTION_PARAMETER, DATA_PARAMETER, \
-    RPC_METHOD_PARAMETER, RPC_PARAMS_PARAMETER
+    RPC_METHOD_PARAMETER, RPC_PARAMS_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 # Try import Pymodbus library or install it and import
@@ -372,25 +372,76 @@ class AsyncModbusConnector(Connector, Thread):
                                  self.get_name())
                 return
 
-            for attribute_updates_command_config in device.attributes_updates_config:
-                for attribute_updated in content[DATA_PARAMETER]:
-                    if attribute_updates_command_config[TAG_PARAMETER] == attribute_updated:
-                        to_process = {
-                            DEVICE_SECTION_PARAMETER: content[DEVICE_SECTION_PARAMETER],
-                            DATA_PARAMETER: {
-                                RPC_METHOD_PARAMETER: attribute_updated,
-                                RPC_PARAMS_PARAMETER: content[DATA_PARAMETER][attribute_updated]
-                            }
-                        }
+            if not device.attributes_updates_config:
+                self.__log.error("No attribute mapping found for device %s", device.name)
+                return
 
-                        self.__create_task(self.__process_attribute_request,
-                                           (device, to_process,
-                                            attribute_updates_command_config),
-                                           {})
+            attribute_update_config_list = [
+                update_config
+                for update_config in device.attributes_updates_config
+                if update_config[TAG_PARAMETER] in content[DATA_PARAMETER]
+
+            ]
+            if not attribute_update_config_list:
+                self.__log.error("No attributes found that match attributes section for device %s", device.name)
+                return
+
+            self.__process_task_on_filtered_attribute_update_section(device, content, attribute_update_config_list)
+
         except Exception as e:
             self.__log.exception('Failed to update attributes: %s', e)
+            self.__log.debug('Got exception: %s', e, exc_info=True)
 
-    async def __process_attribute_request(self, device: Slave, data, config):
+    def __process_task_on_filtered_attribute_update_section(self, device: Slave, content: dict,
+                                                            attribute_update_config: list[dict]):
+        for attribute_update_config in attribute_update_config:
+            try:
+                device_section_parameter = content[DEVICE_SECTION_PARAMETER]
+                rpc_method_parameter = attribute_update_config[TAG_PARAMETER]
+                rpc_params_parameter = content[DATA_PARAMETER][rpc_method_parameter]
+                to_process = {
+                    DEVICE_SECTION_PARAMETER: device_section_parameter,
+                    DATA_PARAMETER: {
+                        RPC_METHOD_PARAMETER: rpc_method_parameter,
+                        RPC_PARAMS_PARAMETER: rpc_params_parameter
+                    }
+                }
+                task = self.__create_on_attribute_update_task(self.__process_attribute_update,
+                                                              (device, to_process,
+                                                               attribute_update_config),
+                                                              {})
+                task_completed, result = self.__wait_task_with_timeout(task=task,
+                                                                       timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT,
+                                                                       poll_interval=0.2)
+                if not task_completed:
+                    self.__log.error('Attribute update processing is timed out for attribute: %s',
+                                     attribute_update_config[TAG_PARAMETER])
+                    continue
+                self.__log.debug('Attribute update processed successfully for attribute: %s',
+                                 attribute_update_config[TAG_PARAMETER])
+
+            except KeyError as e:
+                self.__log.error('Failed to extract necessary components for attribute: %s due to %s',
+                                 attribute_update_config[TAG_PARAMETER], str(e))
+                continue
+
+            except Exception as e:
+                self.__log.error("Could not process attribute update with error %s", str(e))
+                self.__log.debug("Error", exc_info=e)
+                continue
+
+    @staticmethod
+    def __wait_task_with_timeout(task: asyncio.Task, timeout: float, poll_interval: float = 0.02) -> Tuple[bool, Any]:
+        start_time = monotonic()
+        while not task.done():
+            sleep(poll_interval)
+            current_time = monotonic()
+            if current_time - start_time >= timeout:
+                task.cancel()
+                return False, None
+        return True, task.result()
+
+    async def __process_attribute_update(self, device: Slave, data, config):
         if config is not None:
             converted_data = None
 
@@ -519,12 +570,15 @@ class AsyncModbusConnector(Connector, Thread):
         result = {}
         self.__create_task(self.__process_rpc_request,
                            (device, device_rpc_config, rpc_request),
-                           {'result': result},
-                           timeout=rpc_request.timeout)
+                           {'result': result},)
 
         self.__log.debug("Result: %r", result)
 
         return result['response']
+
+    def __create_on_attribute_update_task(self, func, args, kwargs):
+        task = self.loop.create_task(func(*args, **kwargs))
+        return task
 
     def __create_task(self, func, args, kwargs, timeout=5.0):
         task = self.loop.create_task(func(*args, **kwargs))
