@@ -61,7 +61,7 @@ import asyncua
 from asyncua import ua, Node
 from asyncua.ua import NodeId, UaStringParsingError
 from asyncua.common.ua_utils import value_to_datavalue
-from asyncua.ua.uaerrors import BadWriteNotSupported
+from asyncua.ua.uaerrors import BadWriteNotSupported, BadTypeMismatch
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
@@ -1124,7 +1124,7 @@ class OpcUaConnector(Connector, Thread):
                 return
 
             for (key, value) in content["data"].items():
-                if not key in device.shared_attributes_keys_value_pairs:
+                if key not in device.shared_attributes_keys_value_pairs:
                     self.__log.warning("Attribute key %s not found in device attribute section %s", key, device.name)
                     continue
 
@@ -1346,8 +1346,8 @@ class OpcUaConnector(Connector, Thread):
             return result
 
     async def __write_value(self, path, value):
-
         result = {}
+
         try:
             var = path
             if isinstance(path, str):
@@ -1357,38 +1357,51 @@ class OpcUaConnector(Connector, Thread):
 
             try:
                 await var.write_value(value)
-            except BadWriteNotSupported:
+            except (BadWriteNotSupported, BadTypeMismatch):
+                value = self.__guess_type_and_cast(value)
                 data_value = ua.DataValue(ua.Variant(value))
                 await var.write_value(data_value)
 
             result['value'] = value
             return result
-
-        except UaStringParsingError as e:
+        except UaStringParsingError:
             error_response = f"Could not find identifier in string {path}"
             result['error'] = error_response
             self.__log.error(error_response)
             return result
-
         except Exception as e:
             result['error'] = e.__str__()
             self.__log.error("Can not find node for provided path %s ", path)
             return result
 
-    async def __read_value(self, path):
+    @staticmethod
+    def __guess_type_and_cast(value):
+        if isinstance(value, str):
+            if value.lower() in ['true', 'false']:
+                return value.lower() == 'true'
 
+            try:
+                if '.' in value:
+                    return float(value)
+
+                return int(value)
+            except ValueError:
+                return value
+
+        return value
+
+    async def __read_value(self, path):
         result = {}
+
         try:
             var = self.__client.get_node(path)
             result['value'] = await var.read_value()
             return result
-
-        except UaStringParsingError as e:
+        except UaStringParsingError:
             error_response = f"Could not find identifier in string {path}"
             result['error'] = error_response
             self.__log.error(error_response)
             return result
-
         except Exception as e:
             result['error'] = e.__str__()
             self.__log.error("Can not find node for provided path %s ", path)

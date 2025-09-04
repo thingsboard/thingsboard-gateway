@@ -77,12 +77,12 @@ class OpcUaRpcRequest:
 
     def _is_connector_rpc(self) -> bool:
         try:
-            (connector_type, rpc_method_name) = self.rpc_method.split('_')
+            (connector_type, *rpc_method_name) = self.rpc_method.split('_')
             if connector_type == "opcua":
-                self.rpc_method = rpc_method_name
+                self.rpc_method = '_'.join(rpc_method_name)
                 return True
 
-        except(ValueError, AttributeError):
+        except (ValueError, AttributeError):
             return False
 
     @staticmethod
