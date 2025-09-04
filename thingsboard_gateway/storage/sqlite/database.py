@@ -105,7 +105,7 @@ class Database(Thread):
             self.__log.exception("Failed to create table or migrate data! Error: %s", e)
 
     def run(self):
-        self.__log.info("Database thread started %r", id(self))
+        self.__log.debug("Database thread started %r", id(self))
         interval = self.settings.oversize_check_period * 60
         sleep_time = 0.2
 
@@ -131,7 +131,7 @@ class Database(Thread):
 
             except Exception as e:
                 self.__log.exception("Error in database thread: %s", exc_info=e)
-        self.__log.info("Database thread stopped %r", id(self))
+        self.__log.debug("Database thread stopped %r", id(self))
         self.db.close()
 
     def process_file_limit(self):

@@ -36,10 +36,12 @@ class SQLiteEventStorage(EventStorage):
         self.__log.info("Sqlite Storage initializing...")
         self.write_queue = Queue(-1)
         self.stopped = Event()
-        if isinstance(config, StorageSettings):
-            self.__settings = config
-        else:
-            self.__settings = StorageSettings(config)
+
+        self.__settings = config if isinstance(config, StorageSettings) else StorageSettings(config)
+        if self.__settings.warnings:
+            for warning in self.__settings.warnings:
+                self.__log.warning("%s", str(warning))
+
         self.__ensure_data_folder_exists()
         self.__pointer = Pointer(self.__settings.data_file_path, log=self.__log)
         self.__default_database_name = self.__settings.db_file_name
