@@ -406,7 +406,7 @@ class AsyncModbusConnector(Connector, Thread):
                         RPC_PARAMS_PARAMETER: rpc_params_parameter
                     }
                 }
-                task = self.__create_on_attribute_update_task(self.__process_attribute_update,
+                task = self.__create_task(self.__process_attribute_update,
                                                               (device, to_process,
                                                                attribute_update_config),
                                                               {})
@@ -499,9 +499,8 @@ class AsyncModbusConnector(Connector, Thread):
 
     def __process_connector_rpc_request(self, rpc_request: RPCRequest):
         self.__log.debug("Received RPC to connector: %r", rpc_request)
-
+        results = []
         if rpc_request.for_existing_device():
-            results = []
             for device in self.__slaves:
                 rpc_request.device_name = device.device_name
                 try:
@@ -515,16 +514,23 @@ class AsyncModbusConnector(Connector, Thread):
                                          device.device_name)
                         results.append({"error": f"Timeout rpc has been reached for {device.device_name}"})
                         continue
+                    result['device_name'] = device.device_name
+
+                    results.append(result)
                     self.__log.debug("RPC with method %s execution result is: %s", rpc_request.method, result)
 
                 except Exception as e:
                     self.__log.exception('Failed to process server side rpc request: %s', e)
-
+                    self.__gateway.send_rpc_reply(rpc_request.device_name,
+                                                  rpc_request.id,
+                                                  {"result": {"error": str(e)}})
             return results
 
         else:
-            response = self.__process_connector_rpc_with_no_device(rpc_request)
-            return response
+            result = self.__process_connector_rpc_with_no_device(rpc_request)
+            if result is not None:
+                results.append(result)
+                return results
 
     def __process_connector_rpc_with_no_device(self, rpc_request: RPCRequest):
         try:
@@ -542,7 +548,9 @@ class AsyncModbusConnector(Connector, Thread):
         except Exception as e:
             self.__log.error("An unexpected error occurred: %s", str(e))
             self.__log.debug("Error %s", str(e), exc_info=e)
-            self.__send_rpc_response(content=rpc_request, response=e, with_response=True)
+            self.__gateway.send_rpc_reply(rpc_request.device_name,
+                                          rpc_request.id,
+                                          {"result": {"error": str(e)}})
             return
 
         if connected_to_master_task.result():
@@ -557,13 +565,16 @@ class AsyncModbusConnector(Connector, Thread):
                     self.__log.error("Failed to process rpc request for device %s ,timeout has been reached ",
                                      slave.device_name)
 
-                    result['response'] = {"error": f"Timeout rpc has been reached for {slave.device_name}"}
+                    result = {"error": f"Timeout rpc has been reached for {slave.device_name}"}
                 return result
 
 
             except Exception as e:
                 self.__log.error("An error occurred during task handling %s", str(e))
                 self.__log.debug("Error %s", str(e), exc_info=e)
+                self.__gateway.send_rpc_reply(rpc_request.device_name,
+                                              rpc_request.id,
+                                              {"result": {"error": str(e)}})
 
         else:
             connected_to_master_task.cancel()
@@ -574,22 +585,33 @@ class AsyncModbusConnector(Connector, Thread):
         device = self.__get_device_by_name(rpc_request.device_name)
         if device is None:
             self.__log.error('Device %s not found in connector %s', rpc_request.device_name, self.get_name())
-            return {'error': 'Device %s not found' % rpc_request.device_name, 'success': False}
+            self.__gateway.send_rpc_reply(device=rpc_request.device_name,
+                                          req_id=rpc_request.id,
+                                          content={"result": {"error": 'Device not found'}})
+
         try:
             task = self.__create_task(self.__process_rpc_request,
-                           (device, rpc_request.params, rpc_request), {})
-            task_completed, result = self.__wait_task_with_timeout(task, timeout=rpc_request.timeout,poll_interval=0.2)
+                                      (device, rpc_request.params, rpc_request), {})
+            task_completed, result = self.__wait_task_with_timeout(task, timeout=rpc_request.timeout, poll_interval=0.2)
 
             if not task_completed:
-                self.__log.error("Failed to process reserved rpc request for device %s ,timeout has been reached", device.device_name)
-                result['response'] = {"error": f"Timeout rpc has been reached for {device.device_name}"}
+                self.__log.error("Failed to process reserved rpc request for device %s ,timeout has been reached",
+                                 device.device_name)
+                result = {"error": f"Timeout rpc has been reached for {device.device_name}"}
 
-            self.__log.debug("Result: %r", result)
+            elif task_completed:
+                self.__log.debug("RPC with method %s execution result is: %s", rpc_request.method, result)
+            self.__gateway.send_rpc_reply(rpc_request.device_name,
+                                          rpc_request.id,
+                                          {"result": result})
+
             return result
 
         except Exception as e:
             self.__log.error("An error occurred during task handling %s", str(e))
             self.__log.debug("Error %s", str(e), exc_info=e)
+            self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id,
+                                          {"result": {"error": str(e)}})
 
     def __process_device_rpc_request(self, rpc_request: RPCRequest):
         device = self.__get_device_by_name(rpc_request.device_name)
@@ -625,9 +647,6 @@ class AsyncModbusConnector(Connector, Thread):
             self.__log.error("An error occurred during task handling %s", str(e))
             self.__log.debug("Error %s", str(e), exc_info=e)
 
-    def __create_on_attribute_update_task(self, func, args, kwargs):
-        task = self.loop.create_task(func(*args, **kwargs))
-        return task
 
     def __create_task(self, func, args, kwargs):
         task = self.loop.create_task(func(*args, **kwargs))
@@ -639,19 +658,23 @@ class AsyncModbusConnector(Connector, Thread):
             if config is not None:
                 if config['functionCode'] in (5, 6, 15, 16):
                     response = await self.__write_rpc_data(device, config, data)
+                    result['result' if with_response else 'value'] = response
+
                 elif config['functionCode'] in (1, 2, 3, 4):
                     response = await self.__read_rpc_data(device, config)
-                else:
-                    response = 'Unsupported function code in RPC request.'
+                    result['result' if with_response else 'value'] = response
 
-                if data.can_return_response():
-                    result['response'] = self.__send_rpc_response(data, response, with_response)
+                else:
+                    result['error'] = 'Unsupported function code in RPC request.'
+            return result
+
         except Exception as e:
             self.__log.error('Failed to process rpc request: %r', e)
-            result['response'] = {'error': e.__repr__()}
+            result['error'] = str(e)
+            return result
 
     async def __read_rpc_data(self, device: Slave, config):
-        response = None
+        response = {}
 
         try:
             connected = await device.connect()
@@ -659,17 +682,17 @@ class AsyncModbusConnector(Connector, Thread):
                 response = await device.read(config['functionCode'], config['address'], config['objectsCount'])
         except Exception as e:
             self.__log.error('Failed to process rpc request: %s', e)
-            response['response'] = {'error': e.__repr__()}
+            response = {'error': str(e)}
+            return response
 
         if isinstance(response, ModbusPDU):
             endian_order = Endian.BIG if device.byte_order.upper() == "BIG" else Endian.LITTLE
             word_endian_order = Endian.BIG if device.word_order.upper() == "BIG" else Endian.LITTLE
             response = device.uplink_converter.decode_data(response, config, endian_order, word_endian_order)
-
-        return response
+            return response
 
     async def __write_rpc_data(self, device, config, data):
-        response = None
+        response = {}
 
         config = BytesDownlinkConverterConfig(
             device_name=device.device_name,
@@ -697,48 +720,16 @@ class AsyncModbusConnector(Connector, Thread):
                     response = await device.write(config.function_code, config.address, converted_data)
             except Exception as e:
                 self.__log.error('Failed to process rpc request for device: %s', device, exc_info=e)
-                response = e
+                response = {"error": e}
+                return response
 
         if isinstance(response, (WriteMultipleRegistersResponse,
                                  WriteMultipleCoilsResponse,
                                  WriteSingleCoilResponse,
                                  WriteSingleRegisterResponse)):
             self.__log.debug("Write %r", str(response))
-            response = {"success": True}
-
-        return response
-
-    def __send_rpc_response(self, content, response, with_response=False):
-        method = content.method
-        if isinstance(response, Exception) or isinstance(response, ExceptionResponse):
-            if not with_response:
-                self.__gateway.send_rpc_reply(device=content.device_name,
-                                              req_id=content.id,
-                                              content={
-                                                  method: response.__repr__()
-                                              },
-                                              success_sent=False)
-            else:
-                return {
-                    'device': content.device_name,
-                    'req_id': content.id,
-                    'content': {
-                        method: str(response)
-                    },
-                    'success_sent': False
-                }
-        else:
-            if not with_response:
-                self.__gateway.send_rpc_reply(device=content.device_name,
-                                              req_id=content.id,
-                                              content={'result': response})
-            else:
-                response = {'device': content.device_name, 'content': response}
-
-                if content.id is not None:
-                    response['req_id'] = content.id
-
-                return response
+            response = data.value.get('data').get('params')
+            return response
 
     def __get_device_by_name(self, device_name) -> Slave:
         devices = tuple(filter(lambda slave: slave.device_name == device_name, self.__slaves))

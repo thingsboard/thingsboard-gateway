@@ -44,7 +44,7 @@ class ModbusOnAttributeUpdatesTestCase(ModbusBaseTestCase):
         payload = {'device': 'Demo Device', 'data': {'attr16': 333}}
         self.slave.downlink_converter.convert.return_value = [333]
         with patch.object(self.connector,
-                          "_AsyncModbusConnector__create_on_attribute_update_task",
+                          "_AsyncModbusConnector__create_task",
                           side_effect=self._create_task_on_connector_loop) as create_task_mock, \
                 self.assertLogs("Modbus test", level="DEBUG") as logcap:
             self.connector.on_attributes_update(payload)
@@ -68,7 +68,7 @@ class ModbusOnAttributeUpdatesTestCase(ModbusBaseTestCase):
         ]
 
         with patch.object(self.connector,
-                          "_AsyncModbusConnector__create_on_attribute_update_task",
+                          "_AsyncModbusConnector__create_task",
                           side_effect=self._create_task_on_connector_loop) as create_task_mock:
             self.connector.on_attributes_update(payload)
         self.assertEqual(create_task_mock.call_count, 2)
@@ -88,7 +88,7 @@ class ModbusOnAttributeUpdatesTestCase(ModbusBaseTestCase):
         payload = {'device': 'Demo Device', 'data': {'attr16': 123}}
 
         with patch.object(self.connector,
-                          "_AsyncModbusConnector__create_on_attribute_update_task") as ct_mock, \
+                          "_AsyncModbusConnector__create_task") as ct_mock, \
                 self.assertLogs("Modbus test", level="ERROR") as logcap:
             self.connector.on_attributes_update(payload)
 
@@ -100,7 +100,7 @@ class ModbusOnAttributeUpdatesTestCase(ModbusBaseTestCase):
         payload = {'device': 'Demo Device', 'data': {'invalid_attribute': 111}}
 
         with patch.object(self.connector,
-                          "_AsyncModbusConnector__create_on_attribute_update_task") as ct_mock, \
+                          "_AsyncModbusConnector__create_task") as ct_mock, \
                 self.assertLogs("Modbus test", level="ERROR") as logcap:
             self.connector.on_attributes_update(payload)
 
@@ -114,7 +114,7 @@ class ModbusOnAttributeUpdatesTestCase(ModbusBaseTestCase):
         fake_task.done.return_value = False
 
         with patch.object(self.connector,
-                          "_AsyncModbusConnector__create_on_attribute_update_task",
+                          "_AsyncModbusConnector__create_task",
                           return_value=fake_task) as ct_mock, \
                 patch.object(self.connector,
                              "_AsyncModbusConnector__wait_task_with_timeout",
@@ -132,7 +132,7 @@ class ModbusOnAttributeUpdatesTestCase(ModbusBaseTestCase):
         self.slave.downlink_converter.convert.side_effect = ValueError("bad cast")
 
         with patch.object(self.connector,
-                          "_AsyncModbusConnector__create_on_attribute_update_task",
+                          "_AsyncModbusConnector__create_task",
                           side_effect=self._create_task_on_connector_loop) as ct_mock, \
                 self.assertLogs("Modbus test", level="ERROR") as logcap:
             self.connector.on_attributes_update(payload)
@@ -151,7 +151,7 @@ class ModbusOnAttributeUpdatesTestCase(ModbusBaseTestCase):
         ]
 
         with patch.object(self.connector,
-                          "_AsyncModbusConnector__create_on_attribute_update_task",
+                          "_AsyncModbusConnector__create_task",
                           side_effect=self._create_task_on_connector_loop) as ct_mock, \
                 self.assertLogs("Modbus test", level="ERROR") as logcap:
             self.connector.on_attributes_update(payload)
