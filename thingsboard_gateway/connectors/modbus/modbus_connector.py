@@ -430,13 +430,13 @@ class AsyncModbusConnector(Connector, Thread):
                 self.__log.debug("Error", exc_info=e)
                 continue
 
-    @staticmethod
-    def __wait_task_with_timeout(task: asyncio.Task, timeout: float, poll_interval: float = 0.02) -> Tuple[bool, Any]:
+
+    def __wait_task_with_timeout(self, task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> Tuple[bool, Any]:
         start_time = monotonic()
-        while not task.done():
+        while not task.done() and not self.__stopped:
             sleep(poll_interval)
             current_time = monotonic()
-            if current_time - start_time >= timeout:
+            if current_time - start_time > timeout:
                 task.cancel()
                 return False, None
         return True, task.result()
@@ -617,7 +617,7 @@ class AsyncModbusConnector(Connector, Thread):
         device = self.__get_device_by_name(rpc_request.device_name)
         if device is None:
             self.__log.error('Device %s not found in connector %s', rpc_request.device_name, self.get_name())
-            return {'error': 'Device %s not found' % rpc_request.device_name, 'success': False}
+            self.__gateway.send_rpc_reply(device=rpc_request.device_name,)
 
         device_rpc_config = device.get_device_rpc_config(rpc_request.method)
         if device_rpc_config is None:
@@ -636,7 +636,8 @@ class AsyncModbusConnector(Connector, Thread):
             if not task_completed:
                 self.__log.error("Failed to process reserved rpc request for device %s ,timeout has been reached",
                                  device.device_name)
-                result['response'] = {"error": f"Timeout rpc has been reached for {device.device_name}"}
+                result = {"error": f"Timeout rpc has been reached for {device.device_name}"}
+            self.__gateway.send_rpc_reply(rpc_request.device_name, rpc_request.id, {"result": result})
 
             self.__log.debug("Result: %r", result)
 

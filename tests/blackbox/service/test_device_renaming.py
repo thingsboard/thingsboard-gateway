@@ -227,7 +227,7 @@ class TestModbusRename(ModbusRenameBaseTestClass):
             )
             self.assertEqual(
                 result.get("result"),
-                {'result': expected[tag]},
+                {'value': expected[tag]},
                 f"RPC '{tag}' returned unexpected value"
             )
 
