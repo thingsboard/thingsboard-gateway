@@ -566,6 +566,7 @@ class AsyncModbusConnector(Connector, Thread):
                                      slave.device_name)
 
                     result = {"error": f"Timeout rpc has been reached for {slave.device_name}"}
+                result['device_name'] = slave.device_name
                 return result
 
 
