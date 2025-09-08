@@ -33,6 +33,7 @@ class ModbusBaseTestCase(IsolatedAsyncioTestCase):
         self.connector.loop = new_event_loop()
         self.connector._AsyncModbusConnector__process_device_requests = Queue(1_000_000)
         self.connector._AsyncModbusConnector__slaves = []
+        self.connector._AsyncModbusConnector__stopped = False
         await self.add_slaves(slaves_config=self.convert_json(
             config_path=path.join(self.CONFIG_PATH, 'attribute_updates/on_attribute_updates_modbus_config.json')).get(
             'slaves', []))

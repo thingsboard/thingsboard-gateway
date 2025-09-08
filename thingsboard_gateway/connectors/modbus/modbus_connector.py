@@ -436,7 +436,7 @@ class AsyncModbusConnector(Connector, Thread):
         while not task.done() and not self.__stopped:
             sleep(poll_interval)
             current_time = monotonic()
-            if current_time - start_time > timeout:
+            if current_time - start_time >= timeout:
                 task.cancel()
                 return False, None
         return True, task.result()
