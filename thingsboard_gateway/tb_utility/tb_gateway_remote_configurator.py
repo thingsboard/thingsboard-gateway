@@ -220,7 +220,7 @@ class RemoteConfigurator:
             config_to_send[REPORT_STRATEGY_PARAMETER] = config_to_send['configurationJson'].pop(REPORT_STRATEGY_PARAMETER) # noqa
         if config_to_send.get('configurationJson', {}).get(CONFIG_VERSION_PARAMETER) is not None:
             config_to_send[CONFIG_VERSION_PARAMETER] = config_to_send['configurationJson'].pop(CONFIG_VERSION_PARAMETER)
-        self._gateway.send_attributes({connector_configuration['name']: config_to_send}, quality_of_service=1)
+        self._gateway.send_attributes({connector_configuration['name']: config_to_send})
 
     def _load_connectors_configuration(self):
         for (_, connector_list) in self._gateway.connectors_configs.items():

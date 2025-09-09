@@ -186,6 +186,7 @@ class TBGatewayService:
             self.__connectors_init_start_success = False
 
         connection_logger = logging.getLogger('tb_connection')
+        self.quality_of_service = self.__config['thingsboard'].get('qos', 1)
         self.tb_client = TBClient(self.__config["thingsboard"], self._config_dir, connection_logger)
         self.tb_client.register_service_subscription_callback(self.subscribe_to_required_topics)
         self.tb_client.connect()
@@ -2214,22 +2215,28 @@ class TBGatewayService:
             self.stop_event.wait(check_devices_idle_every_sec)
 
     @CountMessage('msgsSentToPlatform')
-    def send_telemetry(self, telemetry, quality_of_service=None, wait_for_publish=True):
-        return self.tb_client.client.send_telemetry(telemetry, quality_of_service=quality_of_service,
+    def send_telemetry(self, telemetry, wait_for_publish=True):
+        return self.tb_client.client.send_telemetry(telemetry,
+                                                    quality_of_service=self.quality_of_service,
                                                     wait_for_publish=wait_for_publish)
 
     @CountMessage('msgsSentToPlatform')
-    def gw_send_telemetry(self, device, telemetry, quality_of_service=1):
-        return self.tb_client.client.gw_send_telemetry(device, telemetry, quality_of_service=quality_of_service)
+    def gw_send_telemetry(self, device, telemetry):
+        return self.tb_client.client.gw_send_telemetry(device,
+                                                       telemetry,
+                                                       quality_of_service=self.quality_of_service)
 
     @CountMessage('msgsSentToPlatform')
-    def send_attributes(self, attributes, quality_of_service=None, wait_for_publish=True):
-        return self.tb_client.client.send_attributes(attributes, quality_of_service=quality_of_service,
+    def send_attributes(self, attributes, wait_for_publish=True):
+        return self.tb_client.client.send_attributes(attributes,
+                                                     quality_of_service=self.quality_of_service,
                                                      wait_for_publish=wait_for_publish)
 
     @CountMessage('msgsSentToPlatform')
-    def gw_send_attributes(self, device, attributes, quality_of_service=1):
-        return self.tb_client.client.gw_send_attributes(device, attributes, quality_of_service=quality_of_service)
+    def gw_send_attributes(self, device, attributes):
+        return self.tb_client.client.gw_send_attributes(device,
+                                                        attributes,
+                                                        quality_of_service=self.quality_of_service)
 
     # Service RPC methods ----------------
     def ping(self):
