@@ -13,6 +13,7 @@
 #     limitations under the License.
 
 from enum import Enum
+from re import compile, match
 
 from thingsboard_gateway.gateway.constants import (
     DATA_PARAMETER,
@@ -22,6 +23,7 @@ from thingsboard_gateway.gateway.constants import (
     RPC_METHOD_PARAMETER
 )
 
+AVAILABLE_DATA_TYPES = "string|bytes|bits|16int|16uint|16float|32int|32uint|32float|64int|64uint|64float"
 
 class RPCType(Enum):
     CONNECTOR = 'CONNECTOR'
@@ -109,40 +111,49 @@ class RPCRequest:
         self._value = content[DATA_PARAMETER][RPC_PARAMS_PARAMETER]
 
     def _fill_reserved_rpc_request(self, content):
-        self.method = content[DATA_PARAMETER][RPC_METHOD_PARAMETER]
 
-        params = {}
+        self.method = content[DATA_PARAMETER][RPC_METHOD_PARAMETER]
+        input_params = content[DATA_PARAMETER][RPC_PARAMS_PARAMETER]
+
+        get_pattern = compile(
+            rf'^type=(?:{AVAILABLE_DATA_TYPES});functionCode=[1-4];objectsCount=\d+;address=\d+;'
+        )
+
+        set_pattern = compile(
+            rf'^type=(?:{AVAILABLE_DATA_TYPES});functionCode=(?:5|6|15|16);'rf'objectsCount=\d+;address=\d+;value=.+;$'
+        )
+        pattern = get_pattern if self.method == 'get' else set_pattern
+        expected_schema = (
+            "get type=<type>;functionCode=<functionCode>;objectsCount=<objectsCount>;address=<address>;" if self.method == "get"
+            else "set type=<type>;functionCode=<functionCode>;objectsCount=<objectsCount>;address=<address>;value=<value>;"
+
+        )
+        if not pattern.match(input_params):
+            raise ValueError(
+                f'The requested RPC either does not match with the schema {expected_schema} or incorrect value/values provided')
 
         if self.method == 'set':
-            input_params_and_value_list = content[DATA_PARAMETER][RPC_PARAMS_PARAMETER].split(' ')
-            if len(input_params_and_value_list) == 1:
-                if ";value" in input_params_and_value_list[0]:
-                    input_params_and_value_list = input_params_and_value_list[0].split(';value=')
-                if len(input_params_and_value_list) == 1:
-                    input_params_and_value_list = input_params_and_value_list[0].split(';value')
-                input_params_and_value_list[1] = input_params_and_value_list[1].replace(";", '')
-            if len(input_params_and_value_list) < 2:
-                raise ValueError('Invalid RPC request format. '
-                                 'Expected RPC request format: '
-                                 'set param_name1=param_value1;param_name2=param_value2;...; value')
+            input_params_value_list =  input_params.split("value=")
+            (input_params, input_value) = input_params_value_list
+            self._value = input_value[:-1]
 
-            (input_params, input_value) = input_params_and_value_list
-            self._value = input_value
-
-        if self.method == 'get':
+        else:
             input_params = content.get(DATA_PARAMETER, {}).get(RPC_PARAMS_PARAMETER, {})
 
+        self.params = self.__form_reserved_rpc_params(input_params=input_params)
+
+    @staticmethod
+    def __form_reserved_rpc_params(input_params: str):
+        params = {}
         for param in input_params.split(';'):
             try:
                 (key, value) = param.split('=')
             except ValueError:
                 continue
-
             if key and value:
                 params[key] = value if key not in ('functionCode', 'objectsCount', 'address') else int(
                     value)
-
-        self.params = params
+        return params
 
     def can_return_response(self):
         return self.id is not None or self.rpc_type == RPCType.CONNECTOR

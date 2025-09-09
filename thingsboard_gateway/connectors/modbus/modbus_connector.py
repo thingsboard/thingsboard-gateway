@@ -493,9 +493,10 @@ class AsyncModbusConnector(Connector, Thread):
                 response = self.__process_device_rpc_request(rpc_request)
 
             return response
+
         except Exception as e:
             self.__log.error('Failed to process server side rpc request: %s', e)
-            return {'error': '%r' % e, 'success': False}
+            return {'error': f'{e}'}
 
     def __process_connector_rpc_request(self, rpc_request: RPCRequest):
         self.__log.debug("Received RPC to connector: %r", rpc_request)
