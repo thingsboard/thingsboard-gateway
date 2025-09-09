@@ -47,7 +47,7 @@
     "max_file_count": 10,
     "max_read_records_count": 10,
     "max_records_per_file": 10000,
-    "data_file_path": "./data/data.db",
+    "data_file_path": "./data/",
     "messages_ttl_check_in_hours": 1,
     "messages_ttl_in_days": 7
   },
