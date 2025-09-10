@@ -82,29 +82,39 @@
         }
       ],
       "attributeUpdates": [
+      ],
+      "rpc": [
         {
-          "tag": "relay",
+          "tag": "setRelay",
           "type": "bits",
           "functionCode": 5,
           "objectsCount": 1,
           "address": 1
         },
+
         {
-          "tag": "attr16",
-          "type": "16int",
-          "functionCode": 6,
+          "tag": "getRelay",
+          "type": "bits",
+          "functionCode": 1,
           "objectsCount": 1,
-          "address": 4
+          "address": 1
         },
-        {
-          "tag": "attrFloat32",
-          "type": "32float",
-          "functionCode": 16,
-          "objectsCount": 2,
-          "address": 5
-        }
-      ],
-      "rpc": [
+         {
+            "tag": "setValue",
+            "type": "16int",
+            "functionCode": 6,
+            "objectsCount": 1,
+            "address": 2
+          },
+         {
+            "tag": "getValue",
+            "type": "16int",
+            "functionCode": 3,
+            "objectsCount": 1,
+            "address": 2
+          }
+
+
       ],
       "deviceType": "default",
       "reportStrategy": {
