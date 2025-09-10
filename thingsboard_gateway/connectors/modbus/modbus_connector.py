@@ -31,7 +31,7 @@ from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PARAMETER, \
     STATISTIC_MESSAGE_SENT_PARAMETER, CONNECTOR_PARAMETER, DEVICE_SECTION_PARAMETER, DATA_PARAMETER, \
-    RPC_METHOD_PARAMETER, RPC_PARAMS_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
+    ATTRIBUTE_UPDATE_METHOD_PARAMETER, ATTRIBUTE_UPDATE_PARAMS_PARAMETER, ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 # Try import Pymodbus library or install it and import
@@ -377,9 +377,9 @@ class AsyncModbusConnector(Connector, Thread):
                 return
 
             attribute_update_config_list = [
-                update_config
-                for update_config in device.attributes_updates_config
-                if update_config[TAG_PARAMETER] in content[DATA_PARAMETER]
+                update_attribute_config
+                for update_attribute_config in device.attributes_updates_config
+                if update_attribute_config[TAG_PARAMETER] in content[DATA_PARAMETER]
 
             ]
             if not attribute_update_config_list:
@@ -387,7 +387,6 @@ class AsyncModbusConnector(Connector, Thread):
                 return
 
             self.__process_task_on_filtered_attribute_update_section(device, content, attribute_update_config_list)
-
         except Exception as e:
             self.__log.exception('Failed to update attributes: %s', e)
             self.__log.debug('Got exception: %s', e, exc_info=True)
@@ -397,13 +396,13 @@ class AsyncModbusConnector(Connector, Thread):
         for attribute_update_config in attribute_update_config:
             try:
                 device_section_parameter = content[DEVICE_SECTION_PARAMETER]
-                rpc_method_parameter = attribute_update_config[TAG_PARAMETER]
-                rpc_params_parameter = content[DATA_PARAMETER][rpc_method_parameter]
+                attribute_update_method_parameter = attribute_update_config[TAG_PARAMETER]
+                attribute_update_params_parameter = content[DATA_PARAMETER][attribute_update_method_parameter]
                 to_process = {
                     DEVICE_SECTION_PARAMETER: device_section_parameter,
                     DATA_PARAMETER: {
-                        RPC_METHOD_PARAMETER: rpc_method_parameter,
-                        RPC_PARAMS_PARAMETER: rpc_params_parameter
+                        ATTRIBUTE_UPDATE_METHOD_PARAMETER: attribute_update_method_parameter,
+                        ATTRIBUTE_UPDATE_PARAMS_PARAMETER: attribute_update_params_parameter
                     }
                 }
                 task = self.__create_task(self.__process_attribute_update,
@@ -515,6 +514,7 @@ class AsyncModbusConnector(Connector, Thread):
                                          device.device_name)
                         results.append({"error": f"Timeout rpc has been reached for {device.device_name}"})
                         continue
+
                     result['device_name'] = device.device_name
 
                     results.append(result)
@@ -668,7 +668,6 @@ class AsyncModbusConnector(Connector, Thread):
                 elif config['functionCode'] in (1, 2, 3, 4):
                     response = await self.__read_rpc_data(device, config)
                     result['result' if with_response else 'value'] = response
-
                 else:
                     result['error'] = 'Unsupported function code in RPC request.'
             return result
@@ -694,7 +693,8 @@ class AsyncModbusConnector(Connector, Thread):
             endian_order = Endian.BIG if device.byte_order.upper() == "BIG" else Endian.LITTLE
             word_endian_order = Endian.BIG if device.word_order.upper() == "BIG" else Endian.LITTLE
             response = device.uplink_converter.decode_data(response, config, endian_order, word_endian_order)
-            return response
+
+        return response
 
     async def __write_rpc_data(self, device, config, data):
         response = {}
@@ -734,7 +734,8 @@ class AsyncModbusConnector(Connector, Thread):
                                  WriteSingleRegisterResponse)):
             self.__log.debug("Write %r", str(response))
             response = data.value.get('data').get('params')
-            return response
+
+        return response
 
     def __get_device_by_name(self, device_name) -> Slave:
         devices = tuple(filter(lambda slave: slave.device_name == device_name, self.__slaves))
