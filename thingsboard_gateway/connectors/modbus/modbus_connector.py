@@ -595,7 +595,8 @@ class AsyncModbusConnector(Connector, Thread):
         try:
             task = self.__create_task(self.__process_rpc_request,
                                       (device, rpc_request.params, rpc_request), {})
-            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout, poll_interval=0.2)
+            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout,
+                                                                   poll_interval=0.2)
 
             if not task_completed:
                 self.__log.error("Failed to process reserved rpc request for device %s ,timeout has been reached",
@@ -620,7 +621,8 @@ class AsyncModbusConnector(Connector, Thread):
         device = self.__get_device_by_name(rpc_request.device_name)
         if device is None:
             self.__log.error('Device %s not found in connector %s', rpc_request.device_name, self.get_name())
-            self.__gateway.send_rpc_reply(device=rpc_request.device_name,)
+            self.__gateway.send_rpc_reply(device=rpc_request.device_name, )
+            return
 
         device_rpc_config = device.get_device_rpc_config(rpc_request.method)
         if device_rpc_config is None:
@@ -629,12 +631,13 @@ class AsyncModbusConnector(Connector, Thread):
                              self.get_name())
             self.__gateway.send_rpc_reply(rpc_request.device_name,
                                           rpc_request.id,
-                                          {rpc_request.method: "METHOD NOT FOUND!"})
+                                          {"result": {"error": f"Method not found for {rpc_request.method}"}})
             return
 
         try:
             task = self.__create_task(self.__process_rpc_request, (device, device_rpc_config, rpc_request), {})
-            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout, poll_interval=0.2)
+            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout,
+                                                                   poll_interval=0.2)
 
             if not task_completed:
                 self.__log.error("Failed to process reserved rpc request for device %s ,timeout has been reached",
@@ -646,11 +649,9 @@ class AsyncModbusConnector(Connector, Thread):
 
             return result
 
-
         except Exception as e:
             self.__log.error("An error occurred during task handling %s", str(e))
             self.__log.debug("Error %s", str(e), exc_info=e)
-
 
     def __create_task(self, func, args, kwargs):
         task = self.loop.create_task(func(*args, **kwargs))
