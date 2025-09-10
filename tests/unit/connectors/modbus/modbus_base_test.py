@@ -16,10 +16,12 @@ import logging
 from asyncio import Queue, new_event_loop
 from os import path
 from unittest import IsolatedAsyncioTestCase
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 from simplejson import load
 from thingsboard_gateway.connectors.modbus.modbus_connector import AsyncModbusConnector
 from thingsboard_gateway.connectors.modbus.slave import Slave
+
+LOGNAME = "Modbus test"
 
 
 class ModbusBaseTestCase(IsolatedAsyncioTestCase):
@@ -78,3 +80,30 @@ class ModbusBaseTestCase(IsolatedAsyncioTestCase):
             config = load(config_file)
         return config
 
+
+class ServerSideRPCModbusSetUp(ModbusBaseTestCase):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.connector._AsyncModbusConnector__slaves.clear()
+        await self.add_slaves(slaves_config=self.convert_json(
+            config_path=path.join(self.CONFIG_PATH, 'server_side_rpc/modbus_server_side_rpc.json')).get(
+            'slaves', []))
+
+        self.slave = self.connector._AsyncModbusConnector__slaves[0]
+        self.slave.connect = AsyncMock(return_value=True)
+        self.slave.read = AsyncMock(return_value=78)
+        self.slave.write = AsyncMock(return_value=78)
+        self.slave.downlink_converter = MagicMock()
+        self.slave.downlink_converter.convert.return_value = [78]
+        self.slave.uplink_converter = MagicMock()
+
+        self.logger = logging.getLogger(LOGNAME)
+        self.connector._AsyncModbusConnector__log = self.logger
+        self.connector._AsyncModbusConnector__get_name = LOGNAME
+
+        self.gateway = self.connector._AsyncModbusConnector__gateway
+        self.gateway.send_rpc_reply = MagicMock()
+
+    async def asyncTearDown(self):
+        self.slave = None
+        await super().asyncTearDown()
