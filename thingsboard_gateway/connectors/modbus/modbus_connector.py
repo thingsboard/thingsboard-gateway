@@ -559,7 +559,7 @@ class AsyncModbusConnector(Connector, Thread):
                 task = self.__create_task(self.__process_rpc_request,
                                           (slave, rpc_request.params, rpc_request),
                                           {'with_response': True})
-                task_completed, result = self.__wait_task_with_timeout(task, timeout=rpc_request.timeout,
+                task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout,
                                                                        poll_interval=0.2)
 
                 if not task_completed:
@@ -590,11 +590,12 @@ class AsyncModbusConnector(Connector, Thread):
             self.__gateway.send_rpc_reply(device=rpc_request.device_name,
                                           req_id=rpc_request.id,
                                           content={"result": {"error": 'Device not found'}})
+            return
 
         try:
             task = self.__create_task(self.__process_rpc_request,
                                       (device, rpc_request.params, rpc_request), {})
-            task_completed, result = self.__wait_task_with_timeout(task, timeout=rpc_request.timeout, poll_interval=0.2)
+            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout, poll_interval=0.2)
 
             if not task_completed:
                 self.__log.error("Failed to process reserved rpc request for device %s ,timeout has been reached",
@@ -633,7 +634,7 @@ class AsyncModbusConnector(Connector, Thread):
 
         try:
             task = self.__create_task(self.__process_rpc_request, (device, device_rpc_config, rpc_request), {})
-            task_completed, result = self.__wait_task_with_timeout(task, timeout=rpc_request.timeout, poll_interval=0.2)
+            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=rpc_request.timeout, poll_interval=0.2)
 
             if not task_completed:
                 self.__log.error("Failed to process reserved rpc request for device %s ,timeout has been reached",
