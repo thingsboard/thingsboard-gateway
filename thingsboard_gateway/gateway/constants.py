@@ -116,6 +116,11 @@ RPC_DEFAULT_TIMEOUT=5
 RPC_CONNECTOR_ARGUMENTS_PARAMETER = "arguments"
 RPC_VALUE_PARAMETER = "value"
 
+# Attribute updates constants
+
+ATTRIBUTE_UPDATE_METHOD_PARAMETER = "method"
+ATTRIBUTE_UPDATE_PARAMS_PARAMETER = "params"
+
 # Attribute constants
 ATTRIBUTES_FOR_REQUEST = ["RemoteLoggingLevel", "general_configuration", "storage_configuration",
                           "grpc_configuration", "logs_configuration", "active_connectors"]

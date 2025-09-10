@@ -20,10 +20,15 @@ from thingsboard_gateway.gateway.constants import (
     DEVICE_SECTION_PARAMETER,
     RPC_ID_PARAMETER,
     RPC_PARAMS_PARAMETER,
-    RPC_METHOD_PARAMETER
+    RPC_METHOD_PARAMETER,
+)
+from thingsboard_gateway.connectors.modbus.constants import (
+    GET_PATTERN_REGEX,
+    SET_PATTERN_REGEX,
+    GET_RPC_EXPECTED_SCHEMA,
+    SET_RPC_EXPECTED_SCHEMA,
 )
 
-AVAILABLE_DATA_TYPES = "string|bytes|bits|16int|16uint|16float|32int|32uint|32float|64int|64uint|64float"
 
 class RPCType(Enum):
     CONNECTOR = 'CONNECTOR'
@@ -111,21 +116,16 @@ class RPCRequest:
         self._value = content[DATA_PARAMETER][RPC_PARAMS_PARAMETER]
 
     def _fill_reserved_rpc_request(self, content):
-
         self.method = content[DATA_PARAMETER][RPC_METHOD_PARAMETER]
         input_params = content[DATA_PARAMETER][RPC_PARAMS_PARAMETER]
 
-        get_pattern = compile(
-            rf'^type=(?:{AVAILABLE_DATA_TYPES});functionCode=[1-4];objectsCount=\d+;address=\d+;'
-        )
+        get_pattern = compile(GET_PATTERN_REGEX)
 
-        set_pattern = compile(
-            rf'^type=(?:{AVAILABLE_DATA_TYPES});functionCode=(?:5|6|15|16);'rf'objectsCount=\d+;address=\d+;value=.+;$'
-        )
+        set_pattern = compile(SET_PATTERN_REGEX)
         pattern = get_pattern if self.method == 'get' else set_pattern
         expected_schema = (
-            "get type=<type>;functionCode=<functionCode>;objectsCount=<objectsCount>;address=<address>;" if self.method == "get"
-            else "set type=<type>;functionCode=<functionCode>;objectsCount=<objectsCount>;address=<address>;value=<value>;"
+            GET_RPC_EXPECTED_SCHEMA if self.method == "get"
+            else SET_RPC_EXPECTED_SCHEMA
 
         )
         if not pattern.match(input_params):
@@ -133,10 +133,9 @@ class RPCRequest:
                 f'The requested RPC either does not match with the schema {expected_schema} or incorrect value/values provided')
 
         if self.method == 'set':
-            input_params_value_list =  input_params.split("value=")
+            input_params_value_list = input_params.split("value=")
             (input_params, input_value) = input_params_value_list
             self._value = input_value[:-1]
-
         else:
             input_params = content.get(DATA_PARAMETER, {}).get(RPC_PARAMS_PARAMETER, {})
 
