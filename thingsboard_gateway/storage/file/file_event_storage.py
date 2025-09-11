@@ -75,7 +75,7 @@ class FileEventStorage(EventStorage):
         event_storage_files = None
         if os.path.isdir(_dir):
             for file in os.listdir(_dir):
-                if file.startswith('data_'):
+                if file.startswith('data_') and file.endswith('.txt'):
                     data_files[file] = False
                     data_files_size += os.path.getsize(_dir + file)
                 elif file.startswith('state_'):
