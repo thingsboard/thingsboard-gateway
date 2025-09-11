@@ -101,6 +101,11 @@ COILS_INITIALIZER = "coils_initializer"
 HOLDING_REGISTERS = "holding_registers"
 INPUT_REGISTERS = "input_registers"
 DISCRETE_INPUTS = "discrete_inputs"
+AVAILABLE_DATA_TYPES_REGEX = "string|bytes|bits|16int|16uint|16float|32int|32uint|32float|64int|64uint|64float"
+GET_PATTERN_REGEX = rf'^type=(?:{AVAILABLE_DATA_TYPES_REGEX});functionCode=[1-4];objectsCount=\d+;address=\d+;'
+SET_PATTERN_REGEX = rf'^type=(?:{AVAILABLE_DATA_TYPES_REGEX});functionCode=(?:5|6|15|16);'rf'objectsCount=\d+;address=\d+;value=.+;$'
+GET_RPC_EXPECTED_SCHEMA = "get type=<type>;functionCode=<functionCode>;objectsCount=<objectsCount>;address=<address>;"
+SET_RPC_EXPECTED_SCHEMA = "set type=<type>;functionCode=<functionCode>;objectsCount=<objectsCount>;address=<address>;value=<value>;"
 
 FUNCTION_TYPE = {
     COILS_INITIALIZER: 'co',
