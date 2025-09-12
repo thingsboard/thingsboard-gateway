@@ -17,6 +17,7 @@ import time
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from .entities.dali2_device import DALI2DeviceInfo, DALI2DeviceType, DALI2Command, DALI2CommandType
+from .dali_legacy_compatibility import DALILegacyCompatibility, DALIVersion, DALILegacyDeviceInfo
 
 
 @dataclass
@@ -43,6 +44,8 @@ class DALI2DeviceDiscovery:
     response_time_ms: Optional[float] = None
     last_seen: Optional[float] = None
     discovery_confidence: float = 0.0
+    dali_version: DALIVersion = DALIVersion.DALI_2
+    compatibility_mode: bool = False
 
     def __post_init__(self):
         if self.groups is None:
@@ -59,6 +62,7 @@ class DALI2BusMapper:
         self.logger = logger
         self.discovered_devices: Dict[int, DALI2DeviceDiscovery] = {}
         self.bus_map: Dict[str, Any] = {}
+        self.legacy_compatibility = DALILegacyCompatibility(logger)
         
     async def map_entire_bus(self, detailed_scan: bool = True) -> Dict[int, DALI2DeviceDiscovery]:
         """
@@ -75,14 +79,17 @@ class DALI2BusMapper:
         # Step 1: Quick discovery scan
         await self._quick_discovery_scan()
         
-        # Step 2: Detailed device interrogation (if requested)
+                # Step 2: Detect DALI version for each device
+        await self._detect_dali_versions()
+        
+        # Step 3: Detailed device interrogation (if requested)
         if detailed_scan:
             await self._detailed_device_interrogation()
             
-        # Step 3: Build bus topology
+        # Step 4: Build bus topology
         await self._build_bus_topology()
         
-        # Step 4: Generate bus map report
+        # Step 5: Generate bus map report
         self._generate_bus_map_report()
         
         self.logger.info(f"Bus mapping completed. Found {len(self.discovered_devices)} devices")
@@ -130,6 +137,69 @@ class DALI2BusMapper:
                 
         self.logger.info(f"Quick scan completed. Found {len(self.discovered_devices)} devices")
         
+    async def _detect_dali_versions(self):
+        """Detect DALI version for each discovered device"""
+        self.logger.info("Detecting DALI versions for discovered devices...")
+        
+        for address, device in self.discovered_devices.items():
+            try:
+                # Try DALI-2 specific commands to detect version
+                dali_version = await self._test_dali_version(address)
+                device.dali_version = dali_version
+                device.compatibility_mode = (dali_version == DALIVersion.DALI_LEGACY)
+                
+                self.logger.debug(f"Device {address} - DALI Version: {dali_version.value}")
+                
+            except Exception as e:
+                self.logger.error(f"Error detecting DALI version for device {address}: {e}")
+                device.dali_version = DALIVersion.DALI_LEGACY  # Default to legacy
+                device.compatibility_mode = True
+                
+    async def _test_dali_version(self, address: int) -> DALIVersion:
+        """Test device to determine DALI version"""
+        try:
+            # Test for DALI-2 specific features
+            
+            # Test 1: Try to query groups 8-15 (DALI-2 only)
+            command = DALI2Command(
+                command_type=DALI2CommandType.QUERY_GROUPS_8_15,
+                address=address,
+                response_expected=True,
+                timeout_ms=100
+            )
+            response = await self.bus_interface.send_command(command)
+            if response is not None and response != 0xFFFF:
+                return DALIVersion.DALI_2
+                
+            # Test 2: Try to query extended fade time (DALI-2 only)
+            command = DALI2Command(
+                command_type=DALI2CommandType.QUERY_EXTENDED_FADE_TIME,
+                address=address,
+                response_expected=True,
+                timeout_ms=100
+            )
+            response = await self.bus_interface.send_command(command)
+            if response is not None and response != 0xFFFF:
+                return DALIVersion.DALI_2
+                
+            # Test 3: Try to query random address (DALI-2 only)
+            command = DALI2Command(
+                command_type=DALI2CommandType.QUERY_RANDOM_ADDRESS_H,
+                address=address,
+                response_expected=True,
+                timeout_ms=100
+            )
+            response = await self.bus_interface.send_command(command)
+            if response is not None and response != 0xFFFF:
+                return DALIVersion.DALI_2
+                
+            # If none of the DALI-2 specific commands work, it's likely legacy
+            return DALIVersion.DALI_LEGACY
+            
+        except Exception as e:
+            self.logger.debug(f"Error testing DALI version for device {address}: {e}")
+            return DALIVersion.DALI_LEGACY
+            
     async def _detailed_device_interrogation(self):
         """Perform detailed interrogation of discovered devices"""
         self.logger.info("Performing detailed device interrogation...")
@@ -393,9 +463,17 @@ class DALI2BusMapper:
         
     def _generate_bus_map_report(self):
         """Generate comprehensive bus map report"""
-        self.logger.info("=== DALI-2 BUS MAP REPORT ===")
+        self.logger.info("=== DALI BUS MAP REPORT ===")
         self.logger.info(f"Total devices discovered: {len(self.discovered_devices)}")
         self.logger.info(f"Bus health score: {self.bus_map['bus_health']:.2f}")
+        
+        # Count DALI versions
+        dali_2_count = sum(1 for d in self.discovered_devices.values() if d.dali_version == DALIVersion.DALI_2)
+        dali_legacy_count = sum(1 for d in self.discovered_devices.values() if d.dali_version == DALIVersion.DALI_LEGACY)
+        
+        self.logger.info(f"\nDALI Versions:")
+        self.logger.info(f"  DALI-2 devices: {dali_2_count}")
+        self.logger.info(f"  DALI Legacy devices: {dali_legacy_count}")
         
         self.logger.info("\nDevice Types:")
         for device_type, count in self.bus_map['device_types'].items():
@@ -411,7 +489,9 @@ class DALI2BusMapper:
             
         self.logger.info("\nDevice Details:")
         for address, device in self.discovered_devices.items():
+            compatibility_mode = "Legacy" if device.compatibility_mode else "Full"
             self.logger.info(f"  Address {address}: {device.device_type.value} "
+                           f"({device.dali_version.value}, {compatibility_mode}) "
                            f"(confidence: {device.discovery_confidence:.2f}, "
                            f"response: {device.response_time_ms:.1f}ms)")
             
