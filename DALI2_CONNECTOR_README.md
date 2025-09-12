@@ -22,13 +22,10 @@ The DALI-2 Connector is a custom connector for the ThingsBoard IoT Gateway that 
 - **RPC Commands** - Remote control of lighting levels, scenes, and settings
 
 ### Advanced Features
-- **Complete Bus Mapping** - Comprehensive scanning and identification of all DALI devices
+- **Complete Bus Mapping** - Comprehensive scanning and identification of all DALI-2 devices
 - **Auto-Discovery** - Automatic detection without manual configuration
 - **Device Type Detection** - Automatic identification of device types (ballasts, sensors, etc.)
 - **Topology Mapping** - Complete bus topology with groups and scenes
-- **DALI Legacy Compatibility** - Full support for original DALI devices (IEC 60929)
-- **Version Detection** - Automatic detection of DALI vs DALI-2 devices
-- **Compatibility Mode** - Automatic fallback to legacy commands when needed
 - **Health Monitoring** - Device status monitoring and failure detection
 - **Power Calculation** - Estimated power consumption based on dimming levels
 - **Scene Management** - Support for DALI-2 scene control
@@ -224,13 +221,9 @@ The DALI-2 connector includes advanced bus mapping capabilities that automatical
 #### **Bus Map Output:**
 
 ```
-=== DALI BUS MAP REPORT ===
+=== DALI-2 BUS MAP REPORT ===
 Total devices discovered: 8
 Bus health score: 0.95
-
-DALI Versions:
-  DALI-2 devices: 5
-  DALI Legacy devices: 3
 
 Device Types:
   ballast: 5
@@ -248,10 +241,10 @@ Scenes:
   Scene 2: 4 devices
 
 Device Details:
-  Address 1: ballast (dali_2, Full) (confidence: 1.00, response: 15.2ms)
-  Address 2: ballast (dali_2, Full) (confidence: 1.00, response: 14.8ms)
-  Address 3: led_driver (dali_legacy, Legacy) (confidence: 0.95, response: 18.1ms)
-  Address 10: sensor (dali_legacy, Legacy) (confidence: 0.90, response: 22.3ms)
+  Address 1: ballast (confidence: 1.00, response: 15.2ms)
+  Address 2: ballast (confidence: 1.00, response: 14.8ms)
+  Address 3: led_driver (confidence: 0.95, response: 18.1ms)
+  Address 10: sensor (confidence: 0.90, response: 22.3ms)
 ```
 
 #### **Configuration for Auto-Discovery:**
@@ -300,102 +293,6 @@ You can still manually configure specific devices if needed:
   ]
 }
 ```
-
-## DALI Legacy Compatibility
-
-### **✅ SÍ, funciona con dispositivos DALI antiguos!**
-
-El conector DALI-2 incluye **compatibilidad completa** con dispositivos DALI legacy (IEC 60929):
-
-#### **Características de Compatibilidad:**
-
-1. **Detección Automática de Versión** - Identifica automáticamente si es DALI o DALI-2
-2. **Modo de Compatibilidad** - Usa comandos legacy cuando es necesario
-3. **Fallback Automático** - Si un comando DALI-2 falla, intenta con comandos legacy
-4. **Mapeo de Comandos** - Convierte comandos DALI-2 a equivalentes legacy
-
-#### **Comandos Compatibles con DALI Legacy:**
-
-**✅ Completamente Compatibles:**
-- `DIRECT_ARC_POWER` - Control de nivel de iluminación
-- `QUERY_STATUS` - Estado del dispositivo
-- `QUERY_ACTUAL_LEVEL` - Nivel actual
-- `QUERY_MAX_LEVEL` - Nivel máximo
-- `QUERY_MIN_LEVEL` - Nivel mínimo
-- `SET_SCENE` - Control de escenas
-- `QUERY_SCENE_LEVEL` - Consulta de escenas
-- `ADD_TO_GROUP` / `REMOVE_FROM_GROUP` - Control de grupos
-- `QUERY_GROUPS_0_7` - Grupos 0-7
-- `SET_FADE_TIME` / `SET_FADE_RATE` - Control de fade
-
-**❌ No Compatibles (DALI-2 únicamente):**
-- `QUERY_GROUPS_8_15` - Grupos 8-15
-- `QUERY_EXTENDED_FADE_TIME` - Tiempo de fade extendido
-- `QUERY_RANDOM_ADDRESS_*` - Direcciones aleatorias
-- `READ_MEMORY_LOCATION` - Lectura de memoria
-- `QUERY_SCENE_LEVEL_0` a `QUERY_SCENE_LEVEL_15` - Consultas individuales de escenas
-
-#### **Proceso de Detección de Versión:**
-
-```python
-# El conector prueba automáticamente:
-1. QUERY_GROUPS_8_15 → Si responde = DALI-2
-2. QUERY_EXTENDED_FADE_TIME → Si responde = DALI-2  
-3. QUERY_RANDOM_ADDRESS_H → Si responde = DALI-2
-4. Si ninguno responde = DALI Legacy
-```
-
-#### **Configuración para Compatibilidad Legacy:**
-
-```json
-{
-  "name": "DALI Legacy Compatible Connector",
-  "type": "dali2",
-  "buses": [
-    {
-      "bus_id": "main_bus",
-      "interface_type": "serial",
-      "connection_params": {
-        "port": "/dev/ttyUSB0",
-        "baudrate": 9600
-      },
-      "enable_discovery": true
-    }
-  ],
-  "global_settings": {
-    "enable_legacy_compatibility": true,
-    "auto_detect_dali_version": true,
-    "fallback_to_legacy_commands": true,
-    "compatibility_testing_enabled": true
-  }
-}
-```
-
-#### **Ejemplo de Uso Mixto:**
-
-```
-=== DALI BUS MAP REPORT ===
-Total devices discovered: 8
-Bus health score: 0.95
-
-DALI Versions:
-  DALI-2 devices: 5    ← Dispositivos modernos
-  DALI Legacy devices: 3  ← Dispositivos antiguos
-
-Device Details:
-  Address 1: ballast (dali_2, Full) ← Funcionalidad completa
-  Address 2: ballast (dali_2, Full) ← Funcionalidad completa  
-  Address 3: led_driver (dali_legacy, Legacy) ← Modo compatibilidad
-  Address 10: sensor (dali_legacy, Legacy) ← Modo compatibilidad
-```
-
-#### **Ventajas de la Compatibilidad:**
-
-1. **Migración Gradual** - Puedes mezclar dispositivos DALI y DALI-2
-2. **Sin Configuración Manual** - Detección automática de versión
-3. **Funcionalidad Básica** - Todos los comandos esenciales funcionan
-4. **Logging Detallado** - Información clara sobre compatibilidad
-5. **Fallback Inteligente** - Si falla DALI-2, intenta legacy
 
 ## Usage
 
