@@ -34,7 +34,7 @@
         {
           "key": "temperature",
           "objectType": "analogInput",
-          "objectId": "1",
+          "objectId": 1,
           "propertyId": "presentValue"
         }
       ],
@@ -42,7 +42,7 @@
         {
           "key": "state",
           "objectType": "binaryValue",
-          "objectId": "1",
+          "objectId": 1,
           "propertyId": "presentValue"
         }
       ],
@@ -50,7 +50,7 @@
         {
           "key": "brightness",
           "objectType": "analogOutput",
-          "objectId": "1",
+          "objectId": 1,
           "propertyId": "presentValue"
         }
       ],
@@ -60,7 +60,7 @@
           "requestType": "writeProperty",
           "requestTimeout": 10000,
           "objectType": "binaryOutput",
-          "objectId": "1",
+          "objectId": 1,
           "propertyId": "presentValue"
         },
         {
@@ -68,7 +68,7 @@
           "requestType": "readProperty",
           "requestTimeout": 10000,
           "objectType": "analogOutput",
-          "objectId": "2",
+          "objectId": 2,
           "propertyId": "presentValue"
         }
       ]
