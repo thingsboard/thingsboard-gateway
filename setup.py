@@ -77,9 +77,6 @@ setup(
         'simplejson',
         'urllib3>=2.3.0',
         'requests>=2.32.3',
-        'questionary',
-        'pyfiglet',
-        'termcolor',
         'mmh3',
         'grpcio',
         'protobuf',
@@ -95,7 +92,6 @@ setup(
     entry_points={
         'console_scripts': [
             'thingsboard-gateway = thingsboard_gateway.tb_gateway:daemon',
-            'tb-gateway-configurator = thingsboard_gateway.gateway.configuration_wizard:configure',
             'tb-gateway-shell = thingsboard_gateway.gateway.shell:main'
         ]
     })
