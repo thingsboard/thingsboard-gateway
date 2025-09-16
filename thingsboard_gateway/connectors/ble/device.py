@@ -275,7 +275,7 @@ class Device(Thread):
         while not self.stopped and not self.client.is_connected:
             await self._connect_to_device()
 
-            sleep(.2)
+            sleep(1.0)
 
     async def run_client(self):
         if not self.adv_only or self.show_map:
