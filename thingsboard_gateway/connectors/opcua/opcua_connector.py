@@ -588,15 +588,14 @@ class OpcUaConnector(Connector, Thread):
                 node_paths = [node['path'] if isinstance(node, dict) else node for node in nodes]
                 current_node_path = '.'.join(
                     node_path.split(':')[-1] for node_path in node_paths) + '.' + child_node.Name
-                if not current_node_path in self.__scanning_nodes_cache:
+                if current_node_path not in self.__scanning_nodes_cache:
                     self.__scanning_nodes_cache[current_node_path] = [*nodes, {
                         'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
             if self.__show_map and path:
                 if children_nodes_count < 1000 or counter % 1000 == 0:
                     self.__log.info('Checking path: %s', path + '.' + f'{child_node.Name}')
 
-            if re.fullmatch(re.escape(node_list_to_search[0]), child_node.Name) or node_list_to_search[0].split(':')[
-                -1] == child_node.Name:
+            if re.fullmatch(re.escape(node_list_to_search[0]), child_node.Name) or node_list_to_search[0].split(':')[-1] == child_node.Name:
                 if self.__show_map:
                     self.__log.info('Found node: %s', child_node.Name)
                 new_nodes = [*nodes, {'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
@@ -643,7 +642,7 @@ class OpcUaConnector(Connector, Thread):
         unresolved = path[resolved_level:]
         return await self.__find_nodes(unresolved, current_parent_node=parent_node, nodes=resolved)
 
-    async def _get_device_info_by_pattern(self, pattern, get_first=False):
+    async def _get_device_info_by_pattern(self, pattern, get_first=False, parent_node=None):
         """
         Method used to retrieve device name/profile by pattern.
         Device name/profile can consist of path expressions or NodeId expressions but not both.
@@ -653,7 +652,7 @@ class OpcUaConnector(Connector, Thread):
         3. If no matches found, returns the pattern as is.
         """
 
-        search_results = await self.__get_device_expression_value_by_path(pattern)
+        search_results = await self.__get_device_expression_value_by_path(pattern, parent_node=parent_node)
         if len(search_results) > 0:
             return search_results[0] if get_first else search_results
 
@@ -663,10 +662,10 @@ class OpcUaConnector(Connector, Thread):
 
         return [pattern]
 
-    async def __get_device_expression_value_by_path(self, pattern: str) -> List[str]:
+    async def __get_device_expression_value_by_path(self, pattern: str, parent_node=None) -> List[str]:
         results = []
 
-        search_result = re.search(r"\${([A-Za-z.:\\\d\[\]]+)}", pattern)
+        search_result = re.search(r"\${([A-Za-z.:_\-\\\d\[\]]+)}", pattern)
         if search_result:
             try:
                 group = search_result.group(0)
@@ -675,7 +674,7 @@ class OpcUaConnector(Connector, Thread):
                 self.__log.error('Invalid pattern: %s', pattern)
                 return results
 
-            nodes = await self.find_nodes(node_path)
+            nodes = await self.find_nodes(node_path, current_parent_node=parent_node)
             self.__log.debug('Found device name nodes: %s', nodes)
 
             for node in nodes:
@@ -785,23 +784,33 @@ class OpcUaConnector(Connector, Thread):
                 continue
             self.__log.debug('Found devices: %s', nodes)
 
-            device_names = await self._get_device_info_by_pattern(
-                device_config.get('deviceInfo', {}).get('deviceNameExpression'))
+            for node in nodes:
+                device_name_expression = device_config.get('deviceInfo', {}).get('deviceNameExpression')
 
-            for device_name in device_names:
-                scanned_devices.append(device_name)
-                if device_name not in existing_devices:
-                    for node in nodes:
+                is_abs_path = self.__is_absolute_path(device_name_expression)
+                device_names = await self._get_device_info_by_pattern(device_name_expression,
+                                                                      parent_node=node[-1]['node'] if not is_abs_path else None)
+
+                for device_name in device_names:
+                    scanned_devices.append(device_name)
+
+                    if device_name not in existing_devices:
                         converter = self.__load_converter(device_config)
-                        device_profile = await self._get_device_info_by_pattern(
-                            device_config.get('deviceInfo', {}).get('deviceProfileExpression', 'default'),
-                            get_first=True)
+
+                        device_profile_expression = device_config.get('deviceInfo', {}).get('deviceProfileExpression',
+                                                                                            'default')
+                        is_abs_path = self.__is_absolute_path(device_profile_expression)
+                        device_profile = await self._get_device_info_by_pattern(device_profile_expression,
+                                                                                get_first=True,
+                                                                                parent_node=node[-1]['node'] if not is_abs_path else None)
+
                         device_config = {**device_config, 'device_name': device_name, 'device_type': device_profile}
                         device_path = [node_path_node_object['path'] for node_path_node_object in node]
                         self.__device_nodes.append(
                             Device(path=device_path, name=device_name, device_profile=device_profile,
                                    config=device_config,
-                                   converter=converter(device_config, self.__converter_log),
+                                   converter=converter(
+                                       device_config, self.__converter_log),
                                    converter_for_sub=converter(device_config,
                                                                self.__converter_log) if self.__enable_subscriptions else None,
                                    device_node=node[-1]['node'],
@@ -1466,6 +1475,13 @@ class OpcUaConnector(Connector, Thread):
     @staticmethod
     def __is_node_identifier(path):
         return isinstance(path, str) and re.match(r"(ns=\d+;[isgb]=[^}]+)", path)
+
+    @staticmethod
+    def __is_absolute_path(path):
+        try:
+            return path.replace('${', '').split('\\.')[0] == 'Root'
+        except Exception:
+            return False
 
 
 class SubHandler:
