@@ -1770,10 +1770,19 @@ class TBGatewayService:
         return topic in self.__rpc_requests_in_progress
 
     def rpc_with_reply_processing(self, topic, content):
-        req_id = self.__rpc_requests_in_progress[topic][0]["data"]["id"]
-        device = self.__rpc_requests_in_progress[topic][0]["device"]
-        log.info("Outgoing RPC. Device: %s, ID: %d", device, req_id)
-        self.send_rpc_reply(device, req_id, content)
+        rpc_reply_topics = self.__rpc_requests_in_progress.get(topic)
+        if not rpc_reply_topics:
+            log.error("No valid topic provided for RPC reply processing")
+            return
+
+        try:
+            req_id = rpc_reply_topics[0]["data"]["id"]
+            device = rpc_reply_topics[0]["device"]
+            log.info("Outgoing RPC. Device: %s, ID: %d", device, req_id)
+            self.send_rpc_reply(device, req_id, content)
+
+        except KeyError as e:
+            log.error("No valid data provided for RPC reply processing: %s", e)
 
     @CollectRPCReplyStatistics(start_stat_type='allBytesSentToTB')
     @CountMessage('msgsSentToPlatform')
