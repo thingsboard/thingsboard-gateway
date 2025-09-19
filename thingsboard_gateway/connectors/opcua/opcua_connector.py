@@ -768,13 +768,29 @@ class OpcUaConnector(Connector, Thread):
         await self._create_new_devices()
         await self._load_devices_nodes()
 
+    async def __get_device_base_nodes(self, device_node_pattern):
+        try:
+            if self.__is_node_identifier(device_node_pattern):
+                node_id = NodeId.from_string(device_node_pattern)
+                node = self.__client.get_node(node_id)
+                node_browse_name = await node.read_browse_name()
+                return [[{'path': f'{node_browse_name.NamespaceIndex}:{node_browse_name.Name}', 'node': node}]]
+            elif self.__is_absolute_path(device_node_pattern):
+                nodes = await self.find_nodes(device_node_pattern)
+                return nodes
+            else:
+                return []
+        except Exception as e:
+            self.__log.error('Error finding device base nodes by pattern %s: %s', device_node_pattern, e)
+            return []
+
     async def _create_new_devices(self):
         self.__log.debug('Scanning for new devices from configuration...')
         existing_devices = list(map(lambda dev: dev.name, self.__device_nodes))
 
         scanned_devices = []
         for device_config in self.__config.get('mapping', []):
-            nodes = await self.find_nodes(device_config['deviceNodePattern'])
+            nodes = await self.__get_device_base_nodes(device_config['deviceNodePattern'])
             if not nodes:
                 self.__log.error(
                     "No nodes found for such device name '%s' "
@@ -782,6 +798,7 @@ class OpcUaConnector(Connector, Thread):
                     device_config.get('deviceInfo', {}).get('deviceNameExpression', "")
                 )
                 continue
+
             self.__log.debug('Found devices: %s', nodes)
 
             for node in nodes:
