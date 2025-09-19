@@ -686,6 +686,7 @@ class MqttConnector(Connector, Thread):
                 # The gateway is expecting for this message => no wildcards here, the topic must be evaluated as is
 
                 if self.__gateway.is_rpc_in_progress(message.topic):
+                    content = message.payload.decode('utf-8').replace("'", '"')
                     self.__log.info("RPC response arrived. Forwarding it to thingsboard.")
                     self.__gateway.rpc_with_reply_processing(message.topic, content)
                     continue
