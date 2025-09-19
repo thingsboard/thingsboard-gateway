@@ -1780,7 +1780,6 @@ class TBGatewayService:
             device = rpc_reply_topics[0]["device"]
             log.info("Outgoing RPC. Device: %s, ID: %d", device, req_id)
             self.send_rpc_reply(device, req_id, content)
-
         except KeyError as e:
             log.error("No valid data provided for RPC reply processing: %s", e)
 
