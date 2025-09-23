@@ -125,9 +125,9 @@ if [ "${1:-}" != "only_clean" ]; then
   if ! python3 -m pip --version >/dev/null 2>&1; then
     echo "pip not found. Bootstrapping pip with ensurepip..."
     python3 -m ensurepip --upgrade || { echo "Error: pip bootstrapping failed."; exit 1; }
-    python3 -m pip install --upgrade --break-system-packages pip
+    python3 -m pip install --upgrade pip
   fi
-  python3 -m pip install --upgrade --break-system-packages build
+  python3 -m pip install --upgrade build
 
   python3 -m build --no-isolation --wheel --outdir .
   WHEEL_FILE=$(ls | grep -E 'thingsboard_gateway-.*\.whl' | head -n 1)

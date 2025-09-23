@@ -29,9 +29,10 @@ pyserial-asyncio
 paho-mqtt
 ocpp
 pyodbc
-asyncua
+asyncua==1.1.5
 requests
 aiohttp
 puresnmp>=2.0.0
 slixmpp
 wheel
+PySocks

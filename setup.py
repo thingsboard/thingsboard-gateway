@@ -86,7 +86,8 @@ setup(
         'tb-mqtt-client==1.13.9',
         'packaging==23.1',
         'service-identity',
-        'psutil'
+        'psutil',
+        'PySocks',
     ],
     download_url='https://github.com/thingsboard/thingsboard-gateway/archive/%s.tar.gz' % version.VERSION,
     entry_points={
