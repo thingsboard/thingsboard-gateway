@@ -380,7 +380,6 @@ class AsyncModbusConnector(Connector, Thread):
                 update_attribute_config
                 for update_attribute_config in device.attributes_updates_config
                 if update_attribute_config[TAG_PARAMETER] in content[DATA_PARAMETER]
-
             ]
             if not attribute_update_config_list:
                 self.__log.error("No attributes found that match attributes section for device %s", device.name)
@@ -569,8 +568,6 @@ class AsyncModbusConnector(Connector, Thread):
                     result = {"error": f"Timeout rpc has been reached for {slave.device_name}"}
                 result['device_name'] = slave.device_name
                 return result
-
-
             except Exception as e:
                 self.__log.error("An error occurred during task handling %s", str(e))
                 self.__log.debug("Error %s", str(e), exc_info=e)
