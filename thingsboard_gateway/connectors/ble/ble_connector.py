@@ -50,13 +50,13 @@ class BLEConnector(Connector, Thread):
         self.__id = self.__config.get('id')
         self.__process_data_queue = Queue(-1)
         self.__devices = []
-        self.__scan_data = {}
+        self.__first_scan_ready_event = asyncio.Event()
         self.__scanner_task = None
         self.__scanner_poll_period = self.__config.get('scannerPollPeriod', 5000) / 1000
-        self.__scanner_timeout = self.__config.get("scanner_timeout", 10000) / 1000
+        self.__scanner_timeout = self.__config.get("scannerTimeout", 10000) / 1000
         self.name = self.__config.get("name", 'BLE Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
         self.__scanned_devices = {}
-        self.__device_tasks = []
+        self.__devices_tasks = []
         self.__log = init_logger(self.__gateway, self.name,
                                  self.__config.get('logLevel', 'INFO'),
                                  enable_remote_logging=self.__config.get('enableRemoteLogging', False),
@@ -77,9 +77,6 @@ class BLEConnector(Connector, Thread):
         if self.__config.get('showMap', False):
             self.__loop.run_until_complete(self.__show_map())
 
-        else:
-            self.__loop.run_until_complete(self.__scan_devices_on_init())
-
         self.__stopped = False
         self.__connected = False
         self.__configure_and_load_devices()
@@ -91,6 +88,10 @@ class BLEConnector(Connector, Thread):
             try:
                 devices = await BLEConnector.bleak_scanner.discover(timeout=self.__scanner_timeout, return_adv=True)
                 self.__scanned_devices = devices
+
+                if not self.__first_scan_ready_event.is_set() and self.__scanned_devices:
+                    self.__first_scan_ready_event.set()
+                    self.__log.info("Initial device scanning completed")
 
             except Exception as e:
                 self.__log.error("Error during scanning: %s", str(e))
@@ -105,7 +106,6 @@ class BLEConnector(Connector, Thread):
         devices = await BleakScanner(
             scanning_mode='passive' if self.__config.get('passiveScanMode', True) else 'active').discover(
             timeout=scanner.get('timeout', 10000) / 1000, return_adv=True)
-        self.__devices = devices
         self.__log.info('FOUND DEVICES')
         if scanner.get('deviceName'):
             found_devices = [x.__str__() for x in filter(lambda x: x.name == scanner['deviceName'], devices)]
@@ -116,17 +116,6 @@ class BLEConnector(Connector, Thread):
         else:
             for device in devices:
                 self.__log.info(device)
-
-    async def __scan_devices_on_init(self):
-        try:
-            devices = await BleakScanner.discover(
-                scanning_mode='passive' if self.__config.get('passiveScanMode', True) else 'active',
-                timeout=self.__scanner_timeout, return_adv=True)
-            self.__scanned_devices = devices
-
-        except Exception as e:
-            self.__log.error("Error during scanning: %s", str(e))
-            self.__log.debug("An error occurred %s", e, exc_info=True)
 
     def __configure_and_load_devices(self):
         self.__devices = [
@@ -148,7 +137,15 @@ class BLEConnector(Connector, Thread):
             self.__log.debug('Initialized new BleakScanner instance')
 
         self.__scanner_task = self.__loop.create_task(self.__scanner_loop())
-        self.__device_tasks = [
+
+        try:
+            self.__loop.run_until_complete(
+                asyncio.wait_for(self.__first_scan_ready_event.wait(), timeout=self.__scanner_timeout + 1.0)
+            )
+        except asyncio.TimeoutError:
+            self.__log.warning("First scan did not finish in time; continuing anyway.")
+
+        self.__devices_tasks = [
             self.__loop.create_task(device.run_client(advertisement_packet=self.get_advertisement_packet_callback))
             for device in self.__devices
         ]
@@ -180,7 +177,7 @@ class BLEConnector(Connector, Thread):
         self.__stopped = True
         for device in self.__devices:
             device.stop()
-        for task in self.__device_tasks:
+        for task in self.__devices_tasks:
             self.__loop.call_soon_threadsafe(task.cancel)
         asyncio.run_coroutine_threadsafe(self.__disconnect_all_devices(), self.__loop)
         self.__loop.call_soon_threadsafe(self.__loop.stop)
