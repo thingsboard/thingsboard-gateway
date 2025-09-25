@@ -319,15 +319,11 @@ class Device:
         else:
             self._log.info(result)
 
-    def scan_self(self, return_result):
-        task = self.loop.create_task(self.__show_map(return_result))
+    async def scan_self(self, return_result):
+        return await self.__show_map(return_result)
 
-        while not task.done():
-            sleep(.2)
-
-        return task.result()
-
-    async def __write_char(self, char_id, data):
+    # @CollectStatistics(start_stat_type='allBytesSentToDevices') # Commented due to absence of CollectStatistics decorator for async functions
+    async def write_char(self, char_id, data):
         try:
             await self.client.write_gatt_char(char_id, data, response=True)
             await asyncio.sleep(1.0)
@@ -336,28 +332,11 @@ class Device:
             self._log.exception('Can\'t write data to device: \n %s', e)
             return e
 
-    # @CollectStatistics(start_stat_type='allBytesSentToDevices') # Commented due to absence of async decorator statistics for BLE connector
-    def write_char(self, char_id, data):
-        task = self.loop.create_task(self.__write_char(char_id, data))
-
-        while not task.done():
-            sleep(.2)
-
-        return task.result()
-
-    async def __read_char(self, char_id):
+    async def read_char(self, char_id):
         try:
             return await self.client.read_gatt_char(char_id)
         except Exception as e:
             self._log.exception(e)
-
-    def read_char(self, char_id):
-        task = self.loop.create_task(self.__read_char(char_id))
-
-        while not task.done():
-            sleep(.2)
-
-        return task.result().decode('UTF-8')
 
     def __str__(self):
         return f'{self.name}'
