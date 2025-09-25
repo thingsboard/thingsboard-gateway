@@ -24,12 +24,11 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from threading import Thread
 from platform import system
 from time import time, sleep
 import asyncio
 
-from bleak import BleakClient, BleakScanner
+from bleak import BleakClient
 
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -42,11 +41,10 @@ MAC_ADDRESS_FORMAT = {
 DEFAULT_CONVERTER_CLASS_NAME = 'BytesBLEUplinkConverter'
 
 
-class Device(Thread):
+class Device:
     def __init__(self, config, logger):
         super().__init__()
         self._log = logger
-        self.loop = None
         self.stopped = False
         self.name = config['name']
         self.device_type = config.get('deviceType', 'default')
@@ -56,8 +54,6 @@ class Device(Thread):
         self.wait_after_connect_retries = config.get('waitAfterConnectRetries', 0)
         self.show_map = config.get('showMap', False)
         self.__connector_type = config['connector_type']
-
-        self.daemon = True
 
         try:
             self.mac_address = self.validate_mac_address(config['MACAddress'])
@@ -74,8 +70,6 @@ class Device(Thread):
         self.last_polled_time = self.poll_period + 1
 
         self.notifying_chars = []
-
-        self.start()
 
     def _check_adv_mode(self):
         if len(self.config['characteristic']['telemetry']) or len(self.config['characteristic']['attributes']):
@@ -130,13 +124,13 @@ class Device(Thread):
             self._log.error("Cannot find converter for %s device", self.name)
             self.stopped = True
 
-    async def timer(self):
+    async def timer(self, advertisement_packet):
         while True:
             try:
                 if time() - self.last_polled_time >= self.poll_period:
                     self.last_polled_time = time()
                     await self.__process_self()
-                    await self._process_adv_data()
+                    await self._process_adv_data(advertisement_packet=advertisement_packet)
                 else:
                     await asyncio.sleep(.2)
             except Exception as e:
@@ -153,10 +147,10 @@ class Device(Thread):
 
                     connect_try += 1
                     if connect_try == self.connect_retry:
-                        sleep(self.wait_after_connect_retries)
+                        await asyncio.sleep(self.wait_after_connect_retries)
 
-                    sleep(self.connect_retry_in_seconds)
-                    sleep(.2)
+                    await asyncio.sleep(self.connect_retry_in_seconds)
+                    await asyncio.sleep(.2)
 
     async def notify_callback(self, sender: int, data: bytearray):
         not_converted_data = {'telemetry': [], 'attributes': []}
@@ -244,11 +238,12 @@ class Device(Thread):
 
         return False
 
-    async def _process_adv_data(self):
-        devices = await BleakScanner(scanning_mode="active").discover(timeout=self.timeout, return_adv=True)
+    async def _process_adv_data(self, advertisement_packet):
+
+        snap = advertisement_packet()
 
         try:
-            device = tuple(filter(self.filter_macaddress, devices.items()))[0][-1]
+            device = tuple(filter(self.filter_macaddress, snap.items()))[0][-1]
         except IndexError:
             self._log.error('Device with MAC address %s not found!', self.mac_address)
             return
@@ -275,28 +270,23 @@ class Device(Thread):
         while not self.stopped and not self.client.is_connected:
             await self._connect_to_device()
 
-            sleep(1.0)
+            await asyncio.sleep(1.0)
 
-    async def run_client(self):
+    async def run_client(self, advertisement_packet):
         if not self.adv_only or self.show_map:
             # default mode
             await self.connect_to_device()
-
             if self.client and self.client.is_connected:
                 self._log.info('Connected to %s device', self.name)
 
                 if self.show_map:
                     await self.__show_map()
 
-                await self.timer()
+                await self.timer(advertisement_packet)
         else:
             while not self.stopped:
-                await self._process_adv_data()
-                sleep(self.poll_period)
-
-    def run(self):
-        self.loop = asyncio.new_event_loop()
-        self.loop.run_until_complete(self.run_client())
+                await self._process_adv_data(advertisement_packet)
+                await asyncio.sleep(self.poll_period)
 
     async def __show_map(self, return_result=False):
         result = f'MAP FOR {self.name.upper()}'
@@ -346,7 +336,7 @@ class Device(Thread):
             self._log.exception('Can\'t write data to device: \n %s', e)
             return e
 
-    @CollectStatistics(start_stat_type='allBytesSentToDevices')
+    # @CollectStatistics(start_stat_type='allBytesSentToDevices') # Commented due to absence of async decorator statistics for BLE connector
     def write_char(self, char_id, data):
         task = self.loop.create_task(self.__write_char(char_id, data))
 
