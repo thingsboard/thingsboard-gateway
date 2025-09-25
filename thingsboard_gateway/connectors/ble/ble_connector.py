@@ -13,17 +13,17 @@
 #     limitations under the License.
 
 import asyncio
-from time import sleep
+from queue import Queue
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
-from queue import Queue
+from time import sleep, time, monotonic
 
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
     from bleak import BleakScanner
@@ -37,7 +37,6 @@ from thingsboard_gateway.connectors.ble.device import Device
 
 
 class BLEConnector(Connector, Thread):
-    process_data = Queue(-1)
 
     def __init__(self, gateway, config, connector_type):
         self.statistics = {'MessagesReceived': 0,
@@ -47,7 +46,15 @@ class BLEConnector(Connector, Thread):
         self.__gateway = gateway
         self.__config = config
         self.__id = self.__config.get('id')
+        self.__process_data_queue = Queue(-1)
+        self.__devices = []
+        self.__scan_data = {}
+        self.__scanner_task = None
+        self.__scanner_poll_period = self.__config.get('scannerPollPeriod', 5000) / 1000
+        self.__scanner_timeout = self.__config.get("scanner_timeout", 10000) / 1000
         self.name = self.__config.get("name", 'BLE Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
+        self.__scanned_devices = {}
+        self.__device_tasks = []
         self.__log = init_logger(self.__gateway, self.name,
                                  self.__config.get('logLevel', 'INFO'),
                                  enable_remote_logging=self.__config.get('enableRemoteLogging', False),
@@ -58,23 +65,45 @@ class BLEConnector(Connector, Thread):
                                            is_converter_logger=True, attr_name=self.name)
 
         self.daemon = True
+        try:
+            self.__loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.__loop)
+
+        except RuntimeError:
+            self.__loop = asyncio.get_event_loop()
+
+        if self.__config.get('showMap', False):
+            self.__loop.run_until_complete(self.__show_map())
+
+        else:
+            self.__loop.run_until_complete(self.__scan_devices_on_init())
 
         self.__stopped = False
         self.__connected = False
-
-        if self.__config.get('showMap', False):
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(self.__show_map())
-
-        self.__devices = []
         self.__configure_and_load_devices()
+
+    async def __scanner_loop(self):
+        poll_period = self.__scanner_poll_period
+        while not self.__stopped:
+            start_time = time()
+            try:
+                devices = await BLEConnector.bleak_scanner.discover(timeout=self.__scanner_timeout, return_adv=True)
+                self.__scanned_devices = devices
+
+            except Exception as e:
+                self.__log.error("Error during scanning: %s", str(e))
+                self.__log.debug("An error occurred %s", e, exc_info=True)
+
+            elapsed_time = time() - start_time
+            sleep_time = max(0, poll_period - elapsed_time)
+            await asyncio.sleep(sleep_time)
 
     async def __show_map(self):
         scanner = self.__config.get('scanner', {})
         devices = await BleakScanner(
             scanning_mode='passive' if self.__config.get('passiveScanMode', True) else 'active').discover(
-            timeout=scanner.get('timeout', 10000) / 1000)
-
+            timeout=scanner.get('timeout', 10000) / 1000, return_adv=True)
+        self.__devices = devices
         self.__log.info('FOUND DEVICES')
         if scanner.get('deviceName'):
             found_devices = [x.__str__() for x in filter(lambda x: x.name == scanner['deviceName'], devices)]
@@ -86,36 +115,73 @@ class BLEConnector(Connector, Thread):
             for device in devices:
                 self.__log.info(device)
 
+    async def __scan_devices_on_init(self):
+        try:
+            devices = await BleakScanner.discover(
+                scanning_mode='passive' if self.__config.get('passiveScanMode', True) else 'active',
+                timeout=self.__scanner_timeout, return_adv=True)
+            self.__scanned_devices = devices
+
+        except Exception as e:
+            self.__log.error("Error during scanning: %s", str(e))
+            self.__log.debug("An error occurred %s", e, exc_info=True)
+
     def __configure_and_load_devices(self):
         self.__devices = [
-            Device({**device, 'callback': BLEConnector.callback, 'connector_type': self._connector_type}, self.__log)
+            Device({**device, 'callback': self.callback, 'connector_type': self._connector_type}, self.__log)
             for device in self.__config.get('devices', [])]
 
     def open(self):
         self.__stopped = False
         self.start()
 
-    @classmethod
-    def callback(cls, not_converted_data):
-        cls.process_data.put(not_converted_data)
+    def callback(self, not_converted_data):
+        self.__process_data_queue.put(not_converted_data)
 
     def run(self):
         self.__connected = True
 
-        thread = Thread(target=self.__process_data, daemon=True, name='BLE Process Data Thread')
-        thread.start()
+        if not hasattr(BLEConnector, "bleak_scanner") or BLEConnector.bleak_scanner is None:
+            BLEConnector.bleak_scanner = BleakScanner(scanning_mode='active')
+            self.__log.debug('Initialized new BleakScanner instance')
+
+        self.__scanner_task = self.__loop.create_task(self.__scanner_loop())
+        self.__device_tasks = [
+            self.__loop.create_task(device.run_client(advertisement_packet=self.get_advertisement_packet_callback))
+            for device in self.__devices
+        ]
+
+        Thread(target=self.__process_data, daemon=True, name='BLE Process Data Thread').start()
+
+        self.__loop.run_forever()
+
+    def __check_is_alive(self):
+        start_time = monotonic()
+
+        while self.is_alive():
+            if monotonic() - start_time > 10:
+                self.__log.error("Failed to stop connector %s", self.get_name())
+                return
+            sleep(.1)
+        self.__log.info("Connector %s stopped", self.get_name())
+
+    async def __disconnect_all_devices(self):
+        for device in self.__devices:
+            try:
+                await device.client.disconnect()
+            except Exception as e:
+                self.__log.debug("An error occurred while disconnecting device %s: %s", device.name, e)
 
     def close(self):
+        self.__log.info('Closing BLE connector...')
         self.__connected = False
         self.__stopped = True
-
         for device in self.__devices:
             device.stop()
-
-        self.__devices = []
-
-        self.__log.info('%s has been stopped.', self.get_name())
-        self.__log.stop()
+        for task in self.__device_tasks:
+            task.cancel()
+        asyncio.run_coroutine_threadsafe(self.__disconnect_all_devices(), self.__loop)
+        self.__check_is_alive()
 
     def get_name(self):
         return self.name
@@ -134,8 +200,8 @@ class BLEConnector(Connector, Thread):
 
     def __process_data(self):
         while not self.__stopped:
-            if not BLEConnector.process_data.empty():
-                device_config = BLEConnector.process_data.get()
+            if not self.__process_data_queue.empty():
+                device_config = self.__process_data_queue.get()
                 data = device_config.pop('data')
                 config = device_config.pop('config')
                 converter = device_config.pop('converter')
@@ -258,3 +324,6 @@ class BLEConnector(Connector, Thread):
 
     def get_config(self):
         return self.__config
+
+    def get_advertisement_packet_callback(self):
+        return self.__scanned_devices
