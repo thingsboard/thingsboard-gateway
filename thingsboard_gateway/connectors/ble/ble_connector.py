@@ -52,6 +52,7 @@ class BLEConnector(Connector, Thread):
         self.__devices = []
         self.__first_scan_ready_event = asyncio.Event()
         self.__scanner_task = None
+        self.__notify_task = None
         self.__scanner_poll_period = self.__config.get('scannerPollPeriod', 5000) / 1000
         self.__scanner_timeout = self.__config.get("scannerTimeout", 10000) / 1000
         self.name = self.__config.get("name", 'BLE Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
@@ -86,20 +87,32 @@ class BLEConnector(Connector, Thread):
         while not self.__stopped:
             start_time = time()
             try:
-                devices = await BLEConnector.bleak_scanner.discover(timeout=self.__scanner_timeout, return_adv=True)
-                self.__scanned_devices = devices
+                scanned_devices = await BLEConnector.bleak_scanner.discover(timeout=self.__scanner_timeout,
+                                                                            return_adv=True)
+                self.__scanned_devices = scanned_devices
 
-                if not self.__first_scan_ready_event.is_set() and self.__scanned_devices:
+                if not self.__first_scan_ready_event.is_set():
                     self.__first_scan_ready_event.set()
                     self.__log.info("Initial device scanning completed")
 
             except Exception as e:
+                self.__first_scan_ready_event.set()
                 self.__log.error("Error during scanning: %s", str(e))
                 self.__log.debug("An error occurred %s", e, exc_info=True)
 
             elapsed_time = time() - start_time
             sleep_time = max(0, poll_period - elapsed_time)
             await asyncio.sleep(sleep_time)
+
+    async def __notify_user_on_scan_complete(self):
+        while not self.__first_scan_ready_event.is_set():
+            self.__log.info("Waiting for the first scan to complete with the timeout of %s seconds...",
+                            self.__scanner_timeout)
+            try:
+                await asyncio.wait_for(self.__first_scan_ready_event.wait(), timeout=1.0)
+
+            except asyncio.TimeoutError:
+                pass
 
     async def __show_map(self):
         scanner = self.__config.get('scanner', {})
@@ -132,6 +145,9 @@ class BLEConnector(Connector, Thread):
     def run(self):
         self.__connected = True
 
+        if self.__notify_task is None:
+            self.__notify_task = self.__loop.create_task(self.__notify_user_on_scan_complete())
+
         if not hasattr(BLEConnector, "bleak_scanner") or BLEConnector.bleak_scanner is None:
             BLEConnector.bleak_scanner = BleakScanner(scanning_mode='active')
             self.__log.debug('Initialized new BleakScanner instance')
@@ -143,7 +159,7 @@ class BLEConnector(Connector, Thread):
                 asyncio.wait_for(self.__first_scan_ready_event.wait(), timeout=self.__scanner_timeout + 1.0)
             )
         except asyncio.TimeoutError:
-            self.__log.warning("First scan did not finish in time; continuing anyway.")
+            self.__log.warning("First scan did not finish in time.")
 
         self.__devices_tasks = [
             self.__loop.create_task(device.run_client(advertisement_packet=self.get_advertisement_packet_callback))
@@ -181,6 +197,8 @@ class BLEConnector(Connector, Thread):
             self.__loop.call_soon_threadsafe(task.cancel)
         asyncio.run_coroutine_threadsafe(self.__disconnect_all_devices(), self.__loop)
         self.__loop.call_soon_threadsafe(self.__loop.stop)
+        if self.__scanner_task:
+            self.__loop.call_soon_threadsafe(self.__scanner_task.cancel)
         self.__check_is_alive()
 
     def get_name(self):
