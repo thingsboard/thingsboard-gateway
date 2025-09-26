@@ -13,17 +13,19 @@
 #     limitations under the License.
 
 import asyncio
-from time import sleep
+from queue import Queue
 from random import choice
 from string import ascii_lowercase
 from threading import Thread
-from queue import Queue
+from time import sleep, time, monotonic
+from typing import Tuple, Any
 
+from thingsboard_gateway.gateway.constants import RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
-from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
+from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 try:
     from bleak import BleakScanner
@@ -37,7 +39,6 @@ from thingsboard_gateway.connectors.ble.device import Device
 
 
 class BLEConnector(Connector, Thread):
-    process_data = Queue(-1)
 
     def __init__(self, gateway, config, connector_type):
         self.statistics = {'MessagesReceived': 0,
@@ -47,7 +48,16 @@ class BLEConnector(Connector, Thread):
         self.__gateway = gateway
         self.__config = config
         self.__id = self.__config.get('id')
+        self.__process_data_queue = Queue(-1)
+        self.__devices_from_config = []
+        self.__first_scan_ready_event = asyncio.Event()
+        self.__scanner_task = None
+        self.__notify_task = None
+        self.__scanner_poll_period = self.__config.get('scannerPollPeriod', 5000) / 1000
+        self.__scanner_timeout = self.__config.get("scannerTimeout", 10000) / 1000
         self.name = self.__config.get("name", 'BLE Connector ' + ''.join(choice(ascii_lowercase) for _ in range(5)))
+        self.__scanned_devices = {}
+        self.__devices_tasks = []
         self.__log = init_logger(self.__gateway, self.name,
                                  self.__config.get('logLevel', 'INFO'),
                                  enable_remote_logging=self.__config.get('enableRemoteLogging', False),
@@ -58,23 +68,58 @@ class BLEConnector(Connector, Thread):
                                            is_converter_logger=True, attr_name=self.name)
 
         self.daemon = True
+        try:
+            self.__loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.__loop)
+
+        except RuntimeError:
+            self.__loop = asyncio.get_event_loop()
+
+        if self.__config.get('showMap', False):
+            self.__loop.run_until_complete(self.__show_map())
 
         self.__stopped = False
         self.__connected = False
-
-        if self.__config.get('showMap', False):
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(self.__show_map())
-
-        self.__devices = []
         self.__configure_and_load_devices()
+
+    async def __scanner_loop(self):
+        poll_period = self.__scanner_poll_period
+        while not self.__stopped:
+            start_time = time()
+            try:
+                scanned_devices = await BLEConnector.bleak_scanner.discover(timeout=self.__scanner_timeout,
+                                                                            return_adv=True)
+                self.__scanned_devices = scanned_devices
+
+                if not self.__first_scan_ready_event.is_set():
+                    self.__first_scan_ready_event.set()
+                    self.__log.info("Initial device scanning completed")
+
+            except Exception as e:
+                self.__first_scan_ready_event.set()
+                self.__log.error("Error during scanning: %s", str(e))
+                self.__log.debug("An error occurred %s", e, exc_info=True)
+
+            elapsed_time = time() - start_time
+            sleep_time = max(0, poll_period - elapsed_time)
+            await asyncio.sleep(sleep_time)
+
+    async def __notify_user_on_scan_complete(self):
+        while not self.__first_scan_ready_event.is_set():
+            self.__log.info(
+                "Waiting for the first scan to complete with the timeout of %s seconds...",
+                self.__scanner_timeout)
+            try:
+                await asyncio.wait_for(self.__first_scan_ready_event.wait(), timeout=1.0)
+
+            except asyncio.TimeoutError:
+                pass
 
     async def __show_map(self):
         scanner = self.__config.get('scanner', {})
         devices = await BleakScanner(
             scanning_mode='passive' if self.__config.get('passiveScanMode', True) else 'active').discover(
-            timeout=scanner.get('timeout', 10000) / 1000)
-
+            timeout=scanner.get('timeout', 10000) / 1000, return_adv=True)
         self.__log.info('FOUND DEVICES')
         if scanner.get('deviceName'):
             found_devices = [x.__str__() for x in filter(lambda x: x.name == scanner['deviceName'], devices)]
@@ -87,35 +132,80 @@ class BLEConnector(Connector, Thread):
                 self.__log.info(device)
 
     def __configure_and_load_devices(self):
-        self.__devices = [
-            Device({**device, 'callback': BLEConnector.callback, 'connector_type': self._connector_type}, self.__log)
+        self.__devices_from_config = [
+            Device({**device, 'callback': self.callback, 'connector_type': self._connector_type}, self.__log)
             for device in self.__config.get('devices', [])]
 
     def open(self):
         self.__stopped = False
         self.start()
 
-    @classmethod
-    def callback(cls, not_converted_data):
-        cls.process_data.put(not_converted_data)
+    def callback(self, not_converted_data):
+        self.__process_data_queue.put(not_converted_data)
 
     def run(self):
         self.__connected = True
 
-        thread = Thread(target=self.__process_data, daemon=True, name='BLE Process Data Thread')
-        thread.start()
+        if self.__notify_task is None:
+            self.__notify_task = self.__loop.create_task(self.__notify_user_on_scan_complete())
+
+        if not hasattr(BLEConnector, "bleak_scanner") or BLEConnector.bleak_scanner is None:
+            BLEConnector.bleak_scanner = BleakScanner(scanning_mode='active')
+            self.__log.debug('Initialized new BleakScanner instance')
+
+        self.__scanner_task = self.__loop.create_task(self.__scanner_loop())
+
+        try:
+            self.__loop.run_until_complete(
+                asyncio.wait_for(self.__first_scan_ready_event.wait(), timeout=self.__scanner_timeout + 1.0)
+            )
+        except asyncio.TimeoutError:
+            self.__log.warning("First scan did not finish in time.")
+
+        except RuntimeError:
+            self.__log.debug("The connector has been stopped before the first scan completed.")
+
+        self.__devices_tasks = [
+            self.__loop.create_task(device.run_client(scanned_devices_callback=self.get_scanned_devices_callback))
+            for device in self.__devices_from_config
+        ]
+
+        Thread(target=self.__process_data, daemon=True,
+               name='BLE Process Data Thread').start()
+
+        self.__loop.run_forever()
+
+    def __check_is_alive(self):
+        start_time = monotonic()
+
+        while self.is_alive():
+            if monotonic() - start_time > 10:
+                self.__log.error("Failed to stop connector %s", self.get_name())
+                return
+            sleep(.1)
+        self.__log.info("Connector %s stopped", self.get_name())
+
+    async def __disconnect_all_devices(self):
+        for device in self.__devices_from_config:
+            try:
+                await device.client.disconnect()
+            except Exception as e:
+                self.__log.debug("An error occurred while disconnecting device %s: %s", device.name, e)
 
     def close(self):
+        self.__log.info('Closing BLE connector...')
         self.__connected = False
         self.__stopped = True
-
-        for device in self.__devices:
+        for device in self.__devices_from_config:
             device.stop()
-
-        self.__devices = []
-
-        self.__log.info('%s has been stopped.', self.get_name())
-        self.__log.stop()
+        for task in self.__devices_tasks:
+            self.__loop.call_soon_threadsafe(task.cancel)
+        asyncio.run_coroutine_threadsafe(
+            self.__disconnect_all_devices(), self.__loop)
+        self.__loop.call_soon_threadsafe(self.__loop.stop)
+        if self.__scanner_task:
+            self.__loop.call_soon_threadsafe(self.__scanner_task.cancel)
+        self.__check_is_alive()
 
     def get_name(self):
         return self.name
@@ -134,8 +224,8 @@ class BLEConnector(Connector, Thread):
 
     def __process_data(self):
         while not self.__stopped:
-            if not BLEConnector.process_data.empty():
-                device_config = BLEConnector.process_data.get()
+            if not self.__process_data_queue.empty():
+                device_config = self.__process_data_queue.get()
                 data = device_config.pop('data')
                 config = device_config.pop('config')
                 converter = device_config.pop('converter')
@@ -203,7 +293,15 @@ class BLEConnector(Connector, Thread):
             rpc_config_filter = tuple(filter(
                 lambda config: config['methodRPC'] == rpc_method_name, device.config['serverSideRpc']))
             if len(rpc_config_filter):
-                self.__process_rpc_request(device, rpc_config_filter[0], content)
+                task = self.__create_task(self.__process_rpc_request, (device, rpc_config_filter[0], content), {})
+                task_completed, result = self.__wait_task_with_timeout(task=task, timeout=content.get('timeout',
+                                                                                                      RPC_DEFAULT_TIMEOUT),
+                                                                       poll_interval=0.2)
+                if not task_completed:
+                    self.__log.error('RPC request timeout')
+                    self.__gateway.send_rpc_reply(content['device'],
+                                                  req_id=content['data']['id'],
+                                                  content={'error': 'RPC request timeout', "success": False})
             else:
                 self.__log.error('RPC method not found')
         except Exception as e:
@@ -235,26 +333,62 @@ class BLEConnector(Connector, Thread):
 
             params['withResponse'] = True
 
-            self.__process_rpc_request(device, params, content)
+            task = self.__create_task(self.__process_rpc_request, (device, params, content), {})
+            task_completed, result = self.__wait_task_with_timeout(task=task, timeout=content.get('timeout',
+                                                                                                  RPC_DEFAULT_TIMEOUT),
+                                                                   poll_interval=0.2)
+            if not task_completed:
+                self.__log.error('RPC request timeout')
+                self.__gateway.send_rpc_reply(content['device'],
+                                              req_id=content['data']['id'],
+                                              content={'error': 'RPC request timeout', "success": False})
 
             return True
 
         return False
 
-    def __process_rpc_request(self, device, rpc_config, content):
-        rpc_method = rpc_config['methodProcessing']
-        return_result = rpc_config['withResponse']
-        result = None
+    @staticmethod
+    def __wait_task_with_timeout(task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> Tuple[bool, Any]:
+        start_time = monotonic()
+        while not task.done():
+            sleep(poll_interval)
+            current_time = monotonic()
+            if current_time - start_time >= timeout:
+                task.cancel()
+                return False, None
+        return True, task.result()
 
-        if rpc_method.upper() == 'READ':
-            result = device.read_char(rpc_config['characteristicUUID'])
-        elif rpc_method.upper() == 'WRITE':
-            result = device.write_char(rpc_config['characteristicUUID'], bytes(str(content['data']['params']), 'utf-8'))
-        elif rpc_method.upper() == 'SCAN':
-            result = device.scan_self(return_result)
+    def __create_task(self, func, args, kwargs):
+        task = self.__loop.create_task(func(*args, **kwargs))
+        return task
 
-        if return_result:
-            self.__gateway.send_rpc_reply(content['device'], content['data']['id'], str(result))
+    async def __process_rpc_request(self, device, rpc_config, content):
+        try:
+            rpc_method = rpc_config['methodProcessing']
+            return_result = rpc_config['withResponse']
+            result = None
+
+            if rpc_method.upper() == 'READ':
+                byte_result = await device.read_char(rpc_config['characteristicUUID'])
+                result = byte_result.decode('utf-8') if byte_result else None
+
+            elif rpc_method.upper() == 'WRITE':
+                result = await device.write_char(rpc_config['characteristicUUID'],
+                                                 bytes(str(content['data']['params']), 'utf-8'))
+            elif rpc_method.upper() == 'SCAN':
+                result = await device.scan_self(return_result)
+
+            if return_result:
+                self.__gateway.send_rpc_reply(content['device'], content['data']['id'], str(result))
+
+        except Exception as e:
+            self.__log.error('Error while processing RPC request %s', e)
+            self.__gateway.send_rpc_reply(content['device'],
+                                          req_id=content['data']['id'],
+                                          content={'error': str(e), "success": False})
 
     def get_config(self):
         return self.__config
+
+    def get_scanned_devices_callback(self):
+        return self.__scanned_devices
