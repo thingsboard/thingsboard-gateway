@@ -49,7 +49,7 @@ class BLEConnector(Connector, Thread):
         self.__config = config
         self.__id = self.__config.get('id')
         self.__process_data_queue = Queue(-1)
-        self.__devices = []
+        self.__devices_from_config = []
         self.__first_scan_ready_event = asyncio.Event()
         self.__scanner_task = None
         self.__notify_task = None
@@ -106,8 +106,9 @@ class BLEConnector(Connector, Thread):
 
     async def __notify_user_on_scan_complete(self):
         while not self.__first_scan_ready_event.is_set():
-            self.__log.info("Waiting for the first scan to complete with the timeout of %s seconds...",
-                            self.__scanner_timeout)
+            self.__log.info(
+                "Waiting for the first scan to complete with the timeout of %s seconds...",
+                self.__scanner_timeout)
             try:
                 await asyncio.wait_for(self.__first_scan_ready_event.wait(), timeout=1.0)
 
@@ -131,7 +132,7 @@ class BLEConnector(Connector, Thread):
                 self.__log.info(device)
 
     def __configure_and_load_devices(self):
-        self.__devices = [
+        self.__devices_from_config = [
             Device({**device, 'callback': self.callback, 'connector_type': self._connector_type}, self.__log)
             for device in self.__config.get('devices', [])]
 
@@ -161,12 +162,16 @@ class BLEConnector(Connector, Thread):
         except asyncio.TimeoutError:
             self.__log.warning("First scan did not finish in time.")
 
+        except RuntimeError:
+            self.__log.debug("The connector has been stopped before the first scan completed.")
+
         self.__devices_tasks = [
-            self.__loop.create_task(device.run_client(advertisement_packet=self.get_advertisement_packet_callback))
-            for device in self.__devices
+            self.__loop.create_task(device.run_client(scanned_devices_callback=self.get_scanned_devices_callback))
+            for device in self.__devices_from_config
         ]
 
-        Thread(target=self.__process_data, daemon=True, name='BLE Process Data Thread').start()
+        Thread(target=self.__process_data, daemon=True,
+               name='BLE Process Data Thread').start()
 
         self.__loop.run_forever()
 
@@ -181,7 +186,7 @@ class BLEConnector(Connector, Thread):
         self.__log.info("Connector %s stopped", self.get_name())
 
     async def __disconnect_all_devices(self):
-        for device in self.__devices:
+        for device in self.__devices_from_config:
             try:
                 await device.client.disconnect()
             except Exception as e:
@@ -191,11 +196,12 @@ class BLEConnector(Connector, Thread):
         self.__log.info('Closing BLE connector...')
         self.__connected = False
         self.__stopped = True
-        for device in self.__devices:
+        for device in self.__devices_from_config:
             device.stop()
         for task in self.__devices_tasks:
             self.__loop.call_soon_threadsafe(task.cancel)
-        asyncio.run_coroutine_threadsafe(self.__disconnect_all_devices(), self.__loop)
+        asyncio.run_coroutine_threadsafe(
+            self.__disconnect_all_devices(), self.__loop)
         self.__loop.call_soon_threadsafe(self.__loop.stop)
         if self.__scanner_task:
             self.__loop.call_soon_threadsafe(self.__scanner_task.cancel)
@@ -384,5 +390,5 @@ class BLEConnector(Connector, Thread):
     def get_config(self):
         return self.__config
 
-    def get_advertisement_packet_callback(self):
+    def get_scanned_devices_callback(self):
         return self.__scanned_devices

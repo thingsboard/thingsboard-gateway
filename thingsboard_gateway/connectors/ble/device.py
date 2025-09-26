@@ -25,12 +25,11 @@
 #     limitations under the License.
 
 from platform import system
-from time import time, sleep
-import asyncio
-
+from time import time
+from asyncio import sleep
 from bleak import BleakClient
 
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics  # noqa
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.connectors.ble.error_handler import ErrorHandler
 
@@ -51,7 +50,8 @@ class Device:
         self.timeout = config.get('timeout', 10000) / 1000
         self.connect_retry = config.get('connectRetry', 5)
         self.connect_retry_in_seconds = config.get('connectRetryInSeconds', 0)
-        self.wait_after_connect_retries = config.get('waitAfterConnectRetries', 0)
+        self.wait_after_connect_retries = config.get(
+            'waitAfterConnectRetries', 0)
         self.show_map = config.get('showMap', False)
         self.__connector_type = config['connector_type']
 
@@ -124,15 +124,15 @@ class Device:
             self._log.error("Cannot find converter for %s device", self.name)
             self.stopped = True
 
-    async def timer(self, advertisement_packet):
+    async def timer(self, scanned_devices_callback):
         while True:
             try:
                 if time() - self.last_polled_time >= self.poll_period:
                     self.last_polled_time = time()
                     await self.__process_self()
-                    await self._process_adv_data(advertisement_packet=advertisement_packet)
+                    await self._process_adv_data(scanned_devices_callback=scanned_devices_callback)
                 else:
-                    await asyncio.sleep(.2)
+                    await sleep(.2)
             except Exception as e:
                 self._log.exception('Problem with connection: \n %s', e)
 
@@ -147,10 +147,10 @@ class Device:
 
                     connect_try += 1
                     if connect_try == self.connect_retry:
-                        await asyncio.sleep(self.wait_after_connect_retries)
+                        await sleep(self.wait_after_connect_retries)
 
-                    await asyncio.sleep(self.connect_retry_in_seconds)
-                    await asyncio.sleep(.2)
+                    await sleep(self.connect_retry_in_seconds)
+                    await sleep(.2)
 
     async def notify_callback(self, sender: int, data: bytearray):
         not_converted_data = {'telemetry': [], 'attributes': []}
@@ -238,12 +238,12 @@ class Device:
 
         return False
 
-    async def _process_adv_data(self, advertisement_packet):
+    async def _process_adv_data(self, scanned_devices_callback):
 
-        snap = advertisement_packet()
+        scanned_devices = scanned_devices_callback()
 
         try:
-            device = tuple(filter(self.filter_macaddress, snap.items()))[0][-1]
+            device = tuple(filter(self.filter_macaddress, scanned_devices.items()))[0][-1]
         except IndexError:
             self._log.error('Device with MAC address %s not found!', self.mac_address)
             return
@@ -270,9 +270,9 @@ class Device:
         while not self.stopped and not self.client.is_connected:
             await self._connect_to_device()
 
-            await asyncio.sleep(1.0)
+            await sleep(1.0)
 
-    async def run_client(self, advertisement_packet):
+    async def run_client(self, scanned_devices_callback):
         if not self.adv_only or self.show_map:
             # default mode
             await self.connect_to_device()
@@ -282,11 +282,11 @@ class Device:
                 if self.show_map:
                     await self.__show_map()
 
-                await self.timer(advertisement_packet)
+                await self.timer(scanned_devices_callback)
         else:
             while not self.stopped:
-                await self._process_adv_data(advertisement_packet)
-                await asyncio.sleep(self.poll_period)
+                await self._process_adv_data(scanned_devices_callback)
+                await sleep(self.poll_period)
 
     async def __show_map(self, return_result=False):
         result = f'MAP FOR {self.name.upper()}'
@@ -326,7 +326,7 @@ class Device:
     async def write_char(self, char_id, data):
         try:
             await self.client.write_gatt_char(char_id, data, response=True)
-            await asyncio.sleep(1.0)
+            await sleep(1.0)
             return 'Ok'
         except Exception as e:
             self._log.exception('Can\'t write data to device: \n %s', e)
