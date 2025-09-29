@@ -806,7 +806,7 @@ class MqttConnector(Connector, Thread):
 
             if len(attribute_name) <= 1:
                 data = value_expression.replace("${attributeKey}", str(attribute_name[0])) \
-                    .replace("${attributeValue}", str(attribute_values))
+                    .replace("${attributeValue}", orjson.dumps(attribute_values).decode('utf-8'))
             else:
                 data = orjson.dumps(attribute_values)
                 self.__log.debug("Attribute data: %s for device %s to topic: %s", data, device_name, topic)
