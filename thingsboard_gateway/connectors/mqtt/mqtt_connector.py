@@ -24,6 +24,7 @@ from typing import List, Union
 
 import orjson
 from orjson.orjson import JSONDecodeError
+from simplejson import dumps
 
 from thingsboard_gateway.connectors.mqtt.backward_compatibility_adapter import BackwardCompatibilityAdapter
 from thingsboard_gateway.gateway.constant_enums import Status
@@ -806,7 +807,7 @@ class MqttConnector(Connector, Thread):
 
             if len(attribute_name) <= 1:
                 data = value_expression.replace("${attributeKey}", str(attribute_name[0])) \
-                    .replace("${attributeValue}", str(attribute_values))
+                    .replace("${attributeValue}", dumps(attribute_values))
             else:
                 data = orjson.dumps(attribute_values)
                 self.__log.debug("Attribute data: %s for device %s to topic: %s", data, device_name, topic)
