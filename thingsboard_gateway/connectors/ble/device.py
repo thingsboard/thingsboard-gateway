@@ -24,14 +24,12 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from threading import Thread
 from platform import system
-from time import time, sleep
-import asyncio
+from time import time
+from asyncio import sleep
+from bleak import BleakClient
 
-from bleak import BleakClient, BleakScanner
-
-from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
+from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics  # noqa
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.connectors.ble.error_handler import ErrorHandler
 
@@ -42,22 +40,20 @@ MAC_ADDRESS_FORMAT = {
 DEFAULT_CONVERTER_CLASS_NAME = 'BytesBLEUplinkConverter'
 
 
-class Device(Thread):
+class Device:
     def __init__(self, config, logger):
         super().__init__()
         self._log = logger
-        self.loop = None
         self.stopped = False
         self.name = config['name']
         self.device_type = config.get('deviceType', 'default')
         self.timeout = config.get('timeout', 10000) / 1000
         self.connect_retry = config.get('connectRetry', 5)
         self.connect_retry_in_seconds = config.get('connectRetryInSeconds', 0)
-        self.wait_after_connect_retries = config.get('waitAfterConnectRetries', 0)
+        self.wait_after_connect_retries = config.get(
+            'waitAfterConnectRetries', 0)
         self.show_map = config.get('showMap', False)
         self.__connector_type = config['connector_type']
-
-        self.daemon = True
 
         try:
             self.mac_address = self.validate_mac_address(config['MACAddress'])
@@ -74,8 +70,6 @@ class Device(Thread):
         self.last_polled_time = self.poll_period + 1
 
         self.notifying_chars = []
-
-        self.start()
 
     def _check_adv_mode(self):
         if len(self.config['characteristic']['telemetry']) or len(self.config['characteristic']['attributes']):
@@ -130,15 +124,15 @@ class Device(Thread):
             self._log.error("Cannot find converter for %s device", self.name)
             self.stopped = True
 
-    async def timer(self):
+    async def timer(self, scanned_devices_callback):
         while True:
             try:
                 if time() - self.last_polled_time >= self.poll_period:
                     self.last_polled_time = time()
                     await self.__process_self()
-                    await self._process_adv_data()
+                    await self._process_adv_data(scanned_devices_callback=scanned_devices_callback)
                 else:
-                    await asyncio.sleep(.2)
+                    await sleep(.2)
             except Exception as e:
                 self._log.exception('Problem with connection: \n %s', e)
 
@@ -153,10 +147,10 @@ class Device(Thread):
 
                     connect_try += 1
                     if connect_try == self.connect_retry:
-                        sleep(self.wait_after_connect_retries)
+                        await sleep(self.wait_after_connect_retries)
 
-                    sleep(self.connect_retry_in_seconds)
-                    sleep(.2)
+                    await sleep(self.connect_retry_in_seconds)
+                    await sleep(.2)
 
     async def notify_callback(self, sender: int, data: bytearray):
         not_converted_data = {'telemetry': [], 'attributes': []}
@@ -244,11 +238,12 @@ class Device(Thread):
 
         return False
 
-    async def _process_adv_data(self):
-        devices = await BleakScanner(scanning_mode="active").discover(timeout=self.timeout, return_adv=True)
+    async def _process_adv_data(self, scanned_devices_callback):
+
+        scanned_devices = scanned_devices_callback()
 
         try:
-            device = tuple(filter(self.filter_macaddress, devices.items()))[0][-1]
+            device = tuple(filter(self.filter_macaddress, scanned_devices.items()))[0][-1]
         except IndexError:
             self._log.error('Device with MAC address %s not found!', self.mac_address)
             return
@@ -275,28 +270,23 @@ class Device(Thread):
         while not self.stopped and not self.client.is_connected:
             await self._connect_to_device()
 
-            sleep(1.0)
+            await sleep(1.0)
 
-    async def run_client(self):
+    async def run_client(self, scanned_devices_callback):
         if not self.adv_only or self.show_map:
             # default mode
             await self.connect_to_device()
-
             if self.client and self.client.is_connected:
                 self._log.info('Connected to %s device', self.name)
 
                 if self.show_map:
                     await self.__show_map()
 
-                await self.timer()
+                await self.timer(scanned_devices_callback)
         else:
             while not self.stopped:
-                await self._process_adv_data()
-                sleep(self.poll_period)
-
-    def run(self):
-        self.loop = asyncio.new_event_loop()
-        self.loop.run_until_complete(self.run_client())
+                await self._process_adv_data(scanned_devices_callback)
+                await sleep(self.poll_period)
 
     async def __show_map(self, return_result=False):
         result = f'MAP FOR {self.name.upper()}'
@@ -329,45 +319,24 @@ class Device(Thread):
         else:
             self._log.info(result)
 
-    def scan_self(self, return_result):
-        task = self.loop.create_task(self.__show_map(return_result))
+    async def scan_self(self, return_result):
+        return await self.__show_map(return_result)
 
-        while not task.done():
-            sleep(.2)
-
-        return task.result()
-
-    async def __write_char(self, char_id, data):
+    # @CollectStatistics(start_stat_type='allBytesSentToDevices') # Commented due to absence of CollectStatistics decorator for async functions
+    async def write_char(self, char_id, data):
         try:
             await self.client.write_gatt_char(char_id, data, response=True)
-            await asyncio.sleep(1.0)
+            await sleep(1.0)
             return 'Ok'
         except Exception as e:
             self._log.exception('Can\'t write data to device: \n %s', e)
             return e
 
-    @CollectStatistics(start_stat_type='allBytesSentToDevices')
-    def write_char(self, char_id, data):
-        task = self.loop.create_task(self.__write_char(char_id, data))
-
-        while not task.done():
-            sleep(.2)
-
-        return task.result()
-
-    async def __read_char(self, char_id):
+    async def read_char(self, char_id):
         try:
             return await self.client.read_gatt_char(char_id)
         except Exception as e:
             self._log.exception(e)
-
-    def read_char(self, char_id):
-        task = self.loop.create_task(self.__read_char(char_id))
-
-        while not task.done():
-            sleep(.2)
-
-        return task.result().decode('UTF-8')
 
     def __str__(self):
         return f'{self.name}'
