@@ -88,7 +88,7 @@ class Slave(Thread):
         self.method = config[METHOD_PARAMETER].upper()
         self.tls = config.get('tls', {})
         self.timeout = config.get(TIMEOUT_PARAMETER, 30)
-        self.retries = config.get(RETRIES_PARAMETER, 3)
+        self._retries = config.get(RETRIES_PARAMETER, 3)
         self.baudrate = config.get(BAUDRATE_PARAMETER, 19200)
         self.stopbits = config.get(STOPBITS_PARAMETER, PymodbusDefaults.Stopbits)
         self.bytesize = config.get(BYTESIZE_PARAMETER, PymodbusDefaults.Bytesize)
@@ -351,4 +351,3 @@ class Slave(Thread):
             self._retries = value
         else:
             raise ValueError('Retries parameter must be int or bool')
-
