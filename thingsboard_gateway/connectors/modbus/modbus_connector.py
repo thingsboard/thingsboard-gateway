@@ -207,12 +207,15 @@ class AsyncModbusConnector(Connector, Thread):
         return self._master_connections[master_connection_name]
 
     def __add_slave(self, slave_config):
-        slave = Slave(self, self.__log, slave_config)
-        master = self.__get_master(slave)
-        slave.master = master
+        try:
+            slave = Slave(self, self.__log, slave_config)
+            master = self.__get_master(slave)
+            slave.master = master
 
-        self.__slaves.append(slave)
-        slave.start()
+            self.__slaves.append(slave)
+            slave.start()
+        except ValueError as e:
+            self.__log.error("Failed to add slave: %s", e)
 
     async def __add_slaves(self, slaves_config):
         for slave_config in slaves_config:
