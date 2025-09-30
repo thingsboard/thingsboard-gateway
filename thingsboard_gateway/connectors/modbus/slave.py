@@ -336,3 +336,19 @@ class Slave(Thread):
 
     def __str__(self):
         return f'{self.device_name}'
+
+    @property
+    def retries(self):
+        return self._retries
+
+    @retries.setter
+    def retries(self, value):
+        if isinstance(value, bool):
+            self._retries = 3 if value is True else 0
+        elif isinstance(value, int):
+            if value < 0:
+                raise ValueError('Retries parameter must be a non-negative integer')
+            self._retries = value
+        else:
+            raise ValueError('Retries parameter must be int or bool')
+
