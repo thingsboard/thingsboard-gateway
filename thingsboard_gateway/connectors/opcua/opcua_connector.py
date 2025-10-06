@@ -458,7 +458,9 @@ class OpcUaConnector(Connector, Thread):
             if self.__stopped:
                 return None
             try:
+                self.__log.info("Trying to reconnect to the server, attempt %d of %d", attempt + 1, max_retries)
                 return await self.__client.connect()
+
             except Exception as e:
                 base_time = self.__client.session_timeout / 1000 if (
                         last_contact_delta > 0 and last_contact_delta < self.__client.session_timeout / 1000) else 0
@@ -1120,13 +1122,23 @@ class OpcUaConnector(Connector, Thread):
             nodes = []
             find_task = self.__find_nodes(node_list, device.device_node, nodes, current_path)
             task = self.__loop.create_task(find_task)
-            while not task.done():
-                sleep(.1)
-            found_nodes = task.result()
+            found_task_completed, found_nodes = self.__wait_task_with_timeout(task=task, timeout=5, poll_interval=0.2)
+            if not found_task_completed:
+                self.__log.error(
+                    "Failed to process request for %s, timeout has been reached",
+                )
+                return None
+
             if found_nodes:
                 full_path = found_nodes[-1][0]['node'].nodeid
                 return full_path
             self.__log.error('Node not found! (%s)', found_nodes)
+
+
+        except ConnectionError as e:
+            self.__log.error("Connection error during node lookup for %r: %s", params, e)
+            self.__log.info("Setting client recreation flag to True", exc_info=True)
+
         except Exception as e:
             self.__log.error("Error during node lookup for %r: %s", params, e)
 
