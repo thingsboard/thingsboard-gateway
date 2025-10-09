@@ -607,10 +607,10 @@ class AsyncBACnetConnector(Thread, Connector):
                 value = Null(())
 
             if property_id == "weeklySchedule":
-                value = self.__prepare_weekly_schedule_value(value)
+                value = await self.__prepare_weekly_schedule_value(value)
 
             if property_id == "listOfObjectPropertyReferences":
-               value = self.__prepare_list_of_object_property_references_value(value, property_id)
+               value = await self.__prepare_list_of_object_property_references_value(value, property_id)
 
             await self.__application.write_property(address, object_id, property_id, value, priority=priority)
             result['value'] = value
