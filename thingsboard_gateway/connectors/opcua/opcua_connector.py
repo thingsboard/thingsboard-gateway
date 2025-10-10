@@ -43,6 +43,7 @@ required_version = '1.1.5'
 force_install = False
 
 from packaging import version
+
 try:
     from asyncua import __version__ as asyncua_version
 
@@ -312,12 +313,25 @@ class OpcUaConnector(Connector, Thread):
             try:
                 reconnect_required = True
                 if self.__client_recreation_required:
-                    if (self.__client is not None
-                            and self.__client.uaclient.protocol
-                            and self.__client.uaclient.protocol.state == 'open'):
+                    if (
+                            self.__client is not None and self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open'):
                         await self.disconnect_if_connected()
+
+                    try:
+                        for device in self.__device_nodes:
+                            device.subscription = None
+                            device.nodes_data_change_subscriptions.clear()
+                            device.nodes = []
+                            device.device_node = None
+                        self.__nodes_config_cache.clear()
+                        self.__scanning_nodes_cache.clear()
+
+                    except Exception as e:
+                        self.__log.debug("Local hard reset failed")
+
                     self.__client = asyncua.Client(url=self.__opcua_url,
                                                    timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
+                    self.__log.debug("Recreating client after disconnection")
                     self.__client._monitor_server_loop = self._monitor_server_loop
                     self.__client._renew_channel_loop = self._renew_channel_loop
                     self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 120000)
@@ -343,9 +357,9 @@ class OpcUaConnector(Connector, Thread):
 
                     self.__nodes_config_cache = {}
                     self.__delete_devices_from_platform()
-                    self.__device_nodes = []
                     self.__next_scan = 0
                     self.__next_poll = 0
+                    self.__device_nodes = []
                     self.__client_recreation_required = False
 
                 if reconnect_required:
@@ -469,8 +483,8 @@ class OpcUaConnector(Connector, Thread):
                 self.__log.error('Encountered error: %r. Next connection try in %i second(s)...', e, time_to_wait)
                 await asyncio.sleep(time_to_wait)
                 delay *= backoff_factor
-        self.__log.error('Max retries reached. Connection failed.')
-        return None
+                self.__log.error('Max retries reached. Connection failed.')
+                return None
 
     async def __set_auth_settings_by_cert(self):
         try:
@@ -597,7 +611,8 @@ class OpcUaConnector(Connector, Thread):
                 if children_nodes_count < 1000 or counter % 1000 == 0:
                     self.__log.info('Checking path: %s', path + '.' + f'{child_node.Name}')
 
-            if re.fullmatch(re.escape(node_list_to_search[0]), child_node.Name) or node_list_to_search[0].split(':')[-1] == child_node.Name:
+            if re.fullmatch(re.escape(node_list_to_search[0]), child_node.Name) or node_list_to_search[0].split(':')[
+                -1] == child_node.Name:
                 if self.__show_map:
                     self.__log.info('Found node: %s', child_node.Name)
                 new_nodes = [*nodes, {'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
@@ -808,7 +823,8 @@ class OpcUaConnector(Connector, Thread):
 
                 is_abs_path = self.__is_absolute_path(device_name_expression)
                 device_names = await self._get_device_info_by_pattern(device_name_expression,
-                                                                      parent_node=node[-1]['node'] if not is_abs_path else None)
+                                                                      parent_node=node[-1][
+                                                                          'node'] if not is_abs_path else None)
 
                 for device_name in device_names:
                     scanned_devices.append(device_name)
@@ -821,7 +837,8 @@ class OpcUaConnector(Connector, Thread):
                         is_abs_path = self.__is_absolute_path(device_profile_expression)
                         device_profile = await self._get_device_info_by_pattern(device_profile_expression,
                                                                                 get_first=True,
-                                                                                parent_node=node[-1]['node'] if not is_abs_path else None)
+                                                                                parent_node=node[-1][
+                                                                                    'node'] if not is_abs_path else None)
 
                         device_config = {**device_config, 'device_name': device_name, 'device_type': device_profile}
                         device_path = [node_path_node_object['path'] for node_path_node_object in node]
@@ -1115,14 +1132,14 @@ class OpcUaConnector(Connector, Thread):
             logger.error("determine_rpc_income_data failed for params=%r: %s",
                          params, e)
 
-    def find_full_node_path(self, params: str, device:Device) -> NodeId | None:
+    def find_full_node_path(self, params: str, device: Device) -> NodeId | None:
         try:
             node_pattern, current_path = self.get_rpc_node_pattern_and_base_path(params, device, logger=self.__log)
             node_list = node_pattern.split("\\.")[-1:]
             nodes = []
             find_task = self.__find_nodes(node_list, device.device_node, nodes, current_path)
             task = self.__loop.create_task(find_task)
-            found_task_completed, found_nodes = self.__wait_task_with_timeout(task=task, timeout=5, poll_interval=0.2)
+            found_task_completed, found_nodes = self.__wait_task_with_timeout(task=task, timeout=10, poll_interval=0.2)
             if not found_task_completed:
                 self.__log.error(
                     "Failed to process request for %s, timeout has been reached",
@@ -1135,9 +1152,9 @@ class OpcUaConnector(Connector, Thread):
             self.__log.error('Node not found! (%s)', found_nodes)
 
 
-        except ConnectionError as e:
-            self.__log.error("Connection error during node lookup for %r: %s", params, e)
-            self.__log.info("Setting client recreation flag to True", exc_info=True)
+        # except ConnectionError as e:
+        #     self.__log.error("Connection error during node lookup for %r: %s", params, e)
+        #     self.__log.info("Setting client recreation flag to True", exc_info=True)
 
         except Exception as e:
             self.__log.error("Error during node lookup for %r: %s", params, e)
@@ -1160,6 +1177,9 @@ class OpcUaConnector(Connector, Thread):
             if not device.config.get("attributes_updates"):
                 self.__log.error("No attribute mapping found for device %s", device.name)
                 return
+
+            # {'nodeByAbsolutePath': 'Root\\.Objects\\.MyObject\\.MyStringVariable', 'nodeById': 'ns=2;i=17',
+            #  'nodeByRelativePath': 'MyStringVariable', 'test_string': 'Root\\.Objects\\.MyObject\\.test_string'}
 
             for (key, value) in content["data"].items():
                 if key not in device.shared_attributes_keys_value_pairs:
@@ -1195,7 +1215,7 @@ class OpcUaConnector(Connector, Thread):
                                                                    poll_interval=0.2)
             if not task_completed:
                 self.__log.error(
-                    "Failed to process request for %s, timeout has been reached", 
+                    "Failed to process request for %s, timeout has been reached",
                 )
                 result = {"error": f"Timeout has been reached during write {value}"}
 
