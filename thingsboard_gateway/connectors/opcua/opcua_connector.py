@@ -316,25 +316,42 @@ class OpcUaConnector(Connector, Thread):
                     if (
                             self.__client is not None and self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open'):
                         await self.disconnect_if_connected()
-
-                    try:
-                        for device in self.__device_nodes:
-                            device.subscription = None
-                            device.nodes_data_change_subscriptions.clear()
-                            device.nodes = []
-                            device.device_node = None
-                        self.__nodes_config_cache.clear()
-                        self.__scanning_nodes_cache.clear()
-
-                    except Exception as e:
-                        self.__log.debug("Local hard reset failed")
-
                     self.__client = asyncua.Client(url=self.__opcua_url,
                                                    timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
                     self.__log.debug("Recreating client after disconnection")
                     self.__client._monitor_server_loop = self._monitor_server_loop
                     self.__client._renew_channel_loop = self._renew_channel_loop
                     self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 120000)
+                    client_session = self.__client.uaclient
+                    for device in self.__device_nodes:
+                        updated_device_nodes = []
+                        try:
+                            device.device_node.session = client_session
+                            for node_list in device.nodes:
+                                try:
+                                    node_list['node'].session = client_session
+                                    updated_device_nodes.append(node_list)
+
+                                except IndexError as e:
+                                    self.__log.warning("The requested node does not exist")
+                                    continue
+
+                                except Exception as e:
+                                    self.__log.warning("Failed to assing node for device %s", device)
+                                    continue
+
+                            device.nodes = updated_device_nodes
+                            device.subscription = None
+
+                        except ConnectionError as e:
+                            self.__log.warning("Could not process node sync process for client recreation: %s ", e)
+                            await asyncio.sleep(0.1)
+                            continue
+
+                        except Exception as e:
+                            self.__log.warning("Could not process node sync process for client recreation: %s ", e)
+                            continue
+
                     if self.__server_conf["identity"].get("type") == "cert.PEM":
                         await self.__set_auth_settings_by_cert()
                     if self.__server_conf["identity"].get("username"):
@@ -604,6 +621,13 @@ class OpcUaConnector(Connector, Thread):
                 node_paths = [node['path'] if isinstance(node, dict) else node for node in nodes]
                 current_node_path = '.'.join(
                     node_path.split(':')[-1] for node_path in node_paths) + '.' + child_node.Name
+                if current_node_path in self.__scanning_nodes_cache and self.__client.uaclient is not node.session:
+                    for node_dict in nodes:
+                        node_dict['node'].session = self.__client.uaclient
+                    node.session = self.__client.uaclient
+                    self.__scanning_nodes_cache[current_node_path] = [*nodes, {
+                        'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
+
                 if current_node_path not in self.__scanning_nodes_cache:
                     self.__scanning_nodes_cache[current_node_path] = [*nodes, {
                         'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
