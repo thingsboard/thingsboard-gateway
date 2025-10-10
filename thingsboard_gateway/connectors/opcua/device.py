@@ -40,6 +40,9 @@ class Device:
             'timeseries': [],
             'attributes': []
         }
+        # Collections for constant datapoints (do not require OPC-UA reads)
+        self.constant_attributes = []
+        self.constant_timeseries = []
         self.shared_attributes_keys = self.__get_shared_attributes_keys()
         self.shared_attributes_keys_value_pairs = self.__match_key_value_for_attribute_updates()
         self.nodes = []
@@ -80,6 +83,20 @@ class Device:
                 try:
                     value_str = node_config['value']
 
+                    # Handle constant datapoints explicitly
+                    if node_config.get('type') == 'constant':
+                        constant_entry = {
+                            'key': node_config['key'],
+                            'value': node_config.get('value')
+                        }
+                        if node_config.get(REPORT_STRATEGY_PARAMETER) is not None:
+                            constant_entry[REPORT_STRATEGY_PARAMETER] = node_config.get(REPORT_STRATEGY_PARAMETER)
+                        if section == 'attributes':
+                            self.constant_attributes.append(constant_entry)
+                        else:
+                            self.constant_timeseries.append(constant_entry)
+                        continue
+
                     # Match NodeId value (e.g. ns=2;s=SomeNode)
                     node_id_match = re.search(Device.NODE_ID_PATTERN, value_str)
                     if node_id_match:
@@ -118,7 +135,12 @@ class Device:
                 except KeyError as e:
                     self._log.error('Invalid config for %s (key %s not found)', node_config, e)
 
-            self.__configured_values_count += len(self.values[section])
+            section_count = len(self.values[section])
+            if section == 'attributes':
+                section_count += len(self.constant_attributes)
+            else:
+                section_count += len(self.constant_timeseries)
+            self.__configured_values_count += section_count
 
         self._log.debug('Loaded %r values for %s', len(self.values), self.name)
 
