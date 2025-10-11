@@ -43,7 +43,7 @@ class JsonRESTUplinkConverter(RESTConverter):
             device_info = self.__config.get("deviceInfo")
             if device_info.get("deviceNameExpression") is not None:
                 if device_info.get("deviceNameExpressionSource") == "constant":
-                    device_name = device_info.deviceNameExpression
+                    device_name = device_info.get("deviceNameExpression")
                 else:
                     device_name_tags = TBUtility.get_values(device_info.get("deviceNameExpression"), data, get_tag=True)
                     device_name_values = TBUtility.get_values(device_info.get("deviceNameExpression"), data,
