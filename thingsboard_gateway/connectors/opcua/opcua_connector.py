@@ -322,7 +322,7 @@ class OpcUaConnector(Connector, Thread):
                     self.__client._monitor_server_loop = self._monitor_server_loop
                     self.__client._renew_channel_loop = self._renew_channel_loop
                     self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 120000)
-
+                    self.__device_cleanup_after_reconnection()
                     if self.__server_conf["identity"].get("type") == "cert.PEM":
                         await self.__set_auth_settings_by_cert()
                     if self.__server_conf["identity"].get("username"):
@@ -362,7 +362,6 @@ class OpcUaConnector(Connector, Thread):
                     continue
                 self.__log.info("Connected to OPC-UA Server: %s", self.__opcua_url)
                 self.__connected = True
-                self.__device_cleanup_after_reconnection()
                 self.__update_scanning_cache()
 
                 try:
@@ -598,7 +597,7 @@ class OpcUaConnector(Connector, Thread):
 
         end_time = monotonic()
         total_time_taken = end_time - start_time
-        self.__log.trace("The function for updating scanning cache took %d seconds", total_time_taken)
+        self.__log.trace("The function for updating scanning cache took %.2f seconds", total_time_taken)
 
     def __load_converter(self, device):
         converter_class_name = device.get('converter')
