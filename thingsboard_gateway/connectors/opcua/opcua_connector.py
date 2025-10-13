@@ -586,13 +586,11 @@ class OpcUaConnector(Connector, Thread):
                         value[index] = element
                     else:
                         continue
-
                 self.__scanning_nodes_cache[key] = value
 
             except AttributeError as e:
-                self.__log.trace("Missing update %s is not a node for a value %s and a key %s", element, key)
+                self.__log.trace("Missing update due to type mismatch for key %s", key)
                 continue
-
 
             except Exception as e:
                 self.__log.error("Could not update scanning cache for key %s: %s", key, e)
@@ -600,7 +598,7 @@ class OpcUaConnector(Connector, Thread):
 
         end_time = monotonic()
         total_time_taken = end_time - start_time
-        self.__log.trace("The function for updating scanning cache took %s seconds", total_time_taken)
+        self.__log.trace("The function for updating scanning cache took %d seconds", total_time_taken)
 
     def __load_converter(self, device):
         converter_class_name = device.get('converter')
@@ -647,13 +645,6 @@ class OpcUaConnector(Connector, Thread):
                 node_paths = [node['path'] if isinstance(node, dict) else node for node in nodes]
                 current_node_path = '.'.join(
                     node_path.split(':')[-1] for node_path in node_paths) + '.' + child_node.Name
-                # if current_node_path in self.__scanning_nodes_cache and self.__client.uaclient is not node.session:
-                #     for node_dict in nodes:
-                #         node_dict['node'].session = self.__client.uaclient
-                #     node.session = self.__client.uaclient
-                #     self.__scanning_nodes_cache[current_node_path] = [*nodes, {
-                #         'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
-
                 if current_node_path not in self.__scanning_nodes_cache:
                     self.__scanning_nodes_cache[current_node_path] = [*nodes, {
                         'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
@@ -1201,10 +1192,8 @@ class OpcUaConnector(Connector, Thread):
                 return full_path
             self.__log.error('Node not found! (%s)', found_nodes)
 
-
-        # except ConnectionError as e:
-        #     self.__log.error("Connection error during node lookup for %r: %s", params, e)
-        #     self.__log.info("Setting client recreation flag to True", exc_info=True)
+        except ConnectionError as e:
+            self.__log.error("Connection error during node lookup for %r: %s", params, e)
 
         except Exception as e:
             self.__log.error("Error during node lookup for %r: %s", params, e)
@@ -1227,9 +1216,6 @@ class OpcUaConnector(Connector, Thread):
             if not device.config.get("attributes_updates"):
                 self.__log.error("No attribute mapping found for device %s", device.name)
                 return
-
-            # {'nodeByAbsolutePath': 'Root\\.Objects\\.MyObject\\.MyStringVariable', 'nodeById': 'ns=2;i=17',
-            #  'nodeByRelativePath': 'MyStringVariable', 'test_string': 'Root\\.Objects\\.MyObject\\.test_string'}
 
             for (key, value) in content["data"].items():
                 if key not in device.shared_attributes_keys_value_pairs:
