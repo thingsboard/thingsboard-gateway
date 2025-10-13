@@ -322,35 +322,6 @@ class OpcUaConnector(Connector, Thread):
                     self.__client._monitor_server_loop = self._monitor_server_loop
                     self.__client._renew_channel_loop = self._renew_channel_loop
                     self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 120000)
-                    client_session = self.__client.uaclient
-                    for device in self.__device_nodes:
-                        updated_device_nodes = []
-                        try:
-                            device.device_node.session = client_session
-                            for node_list in device.nodes:
-                                try:
-                                    node_list['node'].session = client_session
-                                    updated_device_nodes.append(node_list)
-
-                                except IndexError as e:
-                                    self.__log.warning("The requested node does not exist")
-                                    continue
-
-                                except Exception as e:
-                                    self.__log.warning("Failed to assing node for device %s", device)
-                                    continue
-
-                            device.nodes = updated_device_nodes
-                            device.subscription = None
-
-                        except ConnectionError as e:
-                            self.__log.warning("Could not process node sync process for client recreation: %s ", e)
-                            await asyncio.sleep(0.1)
-                            continue
-
-                        except Exception as e:
-                            self.__log.warning("Could not process node sync process for client recreation: %s ", e)
-                            continue
 
                     if self.__server_conf["identity"].get("type") == "cert.PEM":
                         await self.__set_auth_settings_by_cert()
@@ -391,6 +362,8 @@ class OpcUaConnector(Connector, Thread):
                     continue
                 self.__log.info("Connected to OPC-UA Server: %s", self.__opcua_url)
                 self.__connected = True
+                self.__device_cleanup_after_reconnection()
+                self.__update_scanning_cache()
 
                 try:
                     await self.__client.load_data_type_definitions()
@@ -576,6 +549,59 @@ class OpcUaConnector(Connector, Thread):
             if not self.__stopped:
                 self.__client_recreation_required = True
 
+    def __device_cleanup_after_reconnection(self):
+        client_session = self.__client.uaclient
+        for device in self.__device_nodes:
+            updated_device_nodes = []
+            try:
+                device.device_node.session = client_session
+                for node_list in device.nodes:
+                    try:
+                        node_list['node'].session = client_session
+                        updated_device_nodes.append(node_list)
+
+                    except IndexError as e:
+                        self.__log.warning("The requested node does not exist")
+                        continue
+
+                    except Exception as e:
+                        self.__log.warning("Failed to assign node for device %s", device)
+                        continue
+
+                device.nodes = updated_device_nodes
+
+            except Exception as e:
+                self.__log.warning("Could not process node sync process for client recreation: %s ", e)
+                continue
+
+    def __update_scanning_cache(self):
+        start_time = monotonic()
+        for key, value in dict(self.__scanning_nodes_cache).items():
+            try:
+                for index, element in enumerate(value):
+                    node_obj = element.get('node')
+                    if isinstance(node_obj, Node) and node_obj and node_obj.session is not self.__client.uaclient:
+                        node_obj.session = self.__client.uaclient
+                        element['node'] = node_obj
+                        value[index] = element
+                    else:
+                        continue
+
+                self.__scanning_nodes_cache[key] = value
+
+            except AttributeError as e:
+                self.__log.trace("Missing update %s is not a node for a value %s and a key %s", element, key)
+                continue
+
+
+            except Exception as e:
+                self.__log.error("Could not update scanning cache for key %s: %s", key, e)
+                continue
+
+        end_time = monotonic()
+        total_time_taken = end_time - start_time
+        self.__log.trace("The function for updating scanning cache took %s seconds", total_time_taken)
+
     def __load_converter(self, device):
         converter_class_name = device.get('converter')
         if not converter_class_name:
@@ -621,12 +647,12 @@ class OpcUaConnector(Connector, Thread):
                 node_paths = [node['path'] if isinstance(node, dict) else node for node in nodes]
                 current_node_path = '.'.join(
                     node_path.split(':')[-1] for node_path in node_paths) + '.' + child_node.Name
-                if current_node_path in self.__scanning_nodes_cache and self.__client.uaclient is not node.session:
-                    for node_dict in nodes:
-                        node_dict['node'].session = self.__client.uaclient
-                    node.session = self.__client.uaclient
-                    self.__scanning_nodes_cache[current_node_path] = [*nodes, {
-                        'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
+                # if current_node_path in self.__scanning_nodes_cache and self.__client.uaclient is not node.session:
+                #     for node_dict in nodes:
+                #         node_dict['node'].session = self.__client.uaclient
+                #     node.session = self.__client.uaclient
+                #     self.__scanning_nodes_cache[current_node_path] = [*nodes, {
+                #         'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
 
                 if current_node_path not in self.__scanning_nodes_cache:
                     self.__scanning_nodes_cache[current_node_path] = [*nodes, {
