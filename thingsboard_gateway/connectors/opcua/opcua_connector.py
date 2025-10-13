@@ -313,8 +313,9 @@ class OpcUaConnector(Connector, Thread):
             try:
                 reconnect_required = True
                 if self.__client_recreation_required:
-                    if (
-                            self.__client is not None and self.__client.uaclient.protocol and self.__client.uaclient.protocol.state == 'open'):
+                    if (self.__client is not None
+                            and self.__client.uaclient.protocol
+                            and self.__client.uaclient.protocol.state == 'open'):
                         await self.disconnect_if_connected()
                     self.__client = asyncua.Client(url=self.__opcua_url,
                                                    timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
@@ -472,8 +473,8 @@ class OpcUaConnector(Connector, Thread):
                 self.__log.error('Encountered error: %r. Next connection try in %i second(s)...', e, time_to_wait)
                 await asyncio.sleep(time_to_wait)
                 delay *= backoff_factor
-                self.__log.error('Max retries reached. Connection failed.')
-                return None
+        self.__log.error('Max retries reached. Connection failed.')
+        return None
 
     async def __set_auth_settings_by_cert(self):
         try:
