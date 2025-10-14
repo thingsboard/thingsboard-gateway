@@ -58,6 +58,7 @@ if installation_required:
     TBUtility.install_package('pyserial')
     TBUtility.install_package('pyserial-asyncio')
 
+from thingsboard_gateway.connectors.modbus.utils import Utils
 from thingsboard_gateway.connectors.modbus.entities.master import Master  # noqa: E402
 from thingsboard_gateway.connectors.modbus.server import Server  # noqa: E402
 from thingsboard_gateway.connectors.modbus.slave import Slave  # noqa: E402
@@ -289,6 +290,10 @@ class AsyncModbusConnector(Connector, Thread):
                 except asyncio.exceptions.TimeoutError:
                     self.__log.error("Timeout error for device %s function code %s address %s, it may be caused by wrong data in server register.",  # noqa
                                      slave.device_name, config['functionCode'], config[ADDRESS_PARAMETER])
+                    continue
+                except ValueError as e:
+                    self.__log.error("Value error for device %s function code %s address %s: %s", slave.device_name,
+                                     config['functionCode'], config[ADDRESS_PARAMETER], e)
                     continue
 
                 result[config_section][config['tag']] = response
@@ -690,9 +695,15 @@ class AsyncModbusConnector(Connector, Thread):
             return response
 
         if isinstance(response, ModbusPDU):
+            if not Utils.is_encoded_data_valid(response):
+                self.__log.error('ModbusPDU response error: %s', response)
+                return {'error': str(response)}
+
             endian_order = Endian.BIG if device.byte_order.upper() == "BIG" else Endian.LITTLE
             word_endian_order = Endian.BIG if device.word_order.upper() == "BIG" else Endian.LITTLE
-            response = device.uplink_converter.decode_data(response, config, endian_order, word_endian_order)
+
+            encoded_data = Utils.get_registers_from_encoded_data(response, config['functionCode'])
+            response = device.uplink_converter.decode_data(encoded_data, config, endian_order, word_endian_order)
 
         return response
 

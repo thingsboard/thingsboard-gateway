@@ -15,12 +15,11 @@
 from typing import List, Union
 
 from pymodbus.constants import Endian
-from pymodbus.exceptions import ModbusIOException
 from pymodbus.payload import BinaryPayloadDecoder
-from pymodbus.pdu import ExceptionResponse
 
 from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
+from thingsboard_gateway.connectors.modbus.utils import Utils
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
@@ -44,6 +43,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             'attributes': result.add_to_attributes,
             'telemetry': result.add_to_telemetry
         }
+
         for device_data in data:
             StatisticsService.count_connector_message(self._log.name, 'convertersMsgProcessed')
 
@@ -51,50 +51,130 @@ class BytesModbusUplinkConverter(ModbusConverter):
                 for config in getattr(self.__config, config_section):
                     encoded_data = device_data[config_section].get(config['tag'])
 
-                    if encoded_data:
-                        decoded_data = self.decode_data(encoded_data, config,
-                                                        self.__config.byte_order,
-                                                        self.__config.word_order)
+                    if not Utils.is_encoded_data_valid(encoded_data):
+                        self._log.error("Encoded data is invalid: %s, with config: %s", encoded_data, config)
+                        continue
 
-                        if decoded_data is not None:
-                            datapoint_key = TBUtility.convert_key_to_datapoint_key(config['tag'],
+                    try:
+                        encoded_data = Utils.get_registers_from_encoded_data(encoded_data,
+                                                                            config['functionCode'])
+                    except ValueError as e:
+                        self._log.error("Error getting registers from encoded data: %s, with config: %s",
+                                        e, config, exc_info=e)
+                        continue
+
+                    if Utils.is_wide_range_request(config['address']):
+                        datapoints = self.process_wide_range_request(config, encoded_data)
+                    else:
+                        datapoints = self.process_single_address_request(config, encoded_data)
+
+                    for datapoint in datapoints:
+                        for key_name, decoded_data in datapoint.items():
+                            datapoint_key = TBUtility.convert_key_to_datapoint_key(key_name,
                                                                                    device_report_strategy,
                                                                                    config,
                                                                                    self._log)
                             converted_data_append_methods[config_section]({datapoint_key: decoded_data})
 
-            self._log.trace("Decoded data: %s", result)
-            StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
-                                                      count=result.attributes_datapoints_count)
-            StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
-                                                      count=result.telemetry_datapoints_count)
+        self._log.trace("Decoded data: %s", result)
+        StatisticsService.count_connector_message(self._log.name, 'convertersAttrProduced',
+                                                  count=result.attributes_datapoints_count)
+        StatisticsService.count_connector_message(self._log.name, 'convertersTsProduced',
+                                                  count=result.telemetry_datapoints_count)
 
-            return result
+        return result
+
+    def process_wide_range_request(self, config, encoded_data):
+        result = []
+
+        try:
+            current_address = Utils.get_start_address(config['address'])
+        except ValueError as e:
+            self._log.error("Error getting start address from config: %s, with config: %s",
+                            e, config, exc_info=e)
+            return []
+
+        for i in range(0, len(encoded_data), config.get('objectsCount', 1)):
+            chunk = encoded_data[i:i + config.get('objectsCount', 1)]
+            decoded_data = self.decode_data(chunk, config,
+                                            self.__config.byte_order,
+                                            self.__config.word_order)
+
+            if decoded_data is None:
+                self._log.warning("Decoded data is empty, with config: %s", config)
+                continue
+
+            key_name = self.__get_key_name(config, current_address)
+            result.append({key_name: decoded_data})
+
+            current_address += 1
+
+        return result
+
+    def process_single_address_request(self, config, encoded_data):
+        decoded_data = self.decode_data(encoded_data, config,
+                                        self.__config.byte_order,
+                                        self.__config.word_order)
+
+        if decoded_data is None:
+            self._log.warning("Decoded data is empty, with config: %s", config)
+            return []
+
+        key_name = self.__get_key_name(config)
+
+        return [{key_name: decoded_data}]
+
+    def __get_key_name(self, config, current_address=None):
+        if Utils.is_wide_range_request(config['address']) and current_address is not None:
+            key_name = self.__get_wide_range_key_name(config, current_address)
+        else:
+            key_name = config['tag']
+
+        return key_name
+
+    def __get_wide_range_key_name(self, config, current_address):
+        key_name_info = self.__get_info_for_key_name(config)
+        key_name_info['address'] = current_address
+        result_tags = TBUtility.get_values(config['tag'], key_name_info, get_tag=True)
+        result_values = TBUtility.get_values(config['tag'], key_name_info, expression_instead_none=True)
+
+        result = config['tag']
+        for (result_tag, result_value) in zip(result_tags, result_values):
+            is_valid_key = "${" in config['tag'] and "}" in config['tag']
+            result = result.replace('${' + str(result_tag) + '}',
+                                    str(result_value)) if is_valid_key else result_tag
+
+        return result
+
+    def __get_info_for_key_name(self, config):
+        return {
+            'unitId': self.__config.unit_id,
+            'address': config['address'],
+            'functionCode': config['functionCode'],
+            'type': config['type'],
+            'objectsCount': config.get('objectsCount', 1),
+        }
 
     def decode_data(self, encoded_data, config, endian_order, word_endian_order):
         decoded_data = None
 
-        if not isinstance(encoded_data, ModbusIOException) and not isinstance(encoded_data, ExceptionResponse):
-            if config['functionCode'] in (1, 2):
-                try:
-                    decoder = self.from_coils(encoded_data.bits, endian_order=endian_order,
-                                              word_endian_order=word_endian_order)
-                except TypeError:
-                    decoder = self.from_coils(encoded_data.bits, word_endian_order=word_endian_order)
+        if config['functionCode'] in (1, 2):
+            try:
+                decoder = self.from_coils(encoded_data, endian_order=endian_order,
+                                          word_endian_order=word_endian_order)
+            except TypeError:
+                decoder = self.from_coils(encoded_data, word_endian_order=word_endian_order)
 
-                decoded_data = self.decode_from_registers(decoder, config)
-            elif config['functionCode'] in (3, 4):
-                decoder = BinaryPayloadDecoder.fromRegisters(encoded_data.registers, byteorder=endian_order,
-                                                             wordorder=word_endian_order)
-                decoded_data = self.decode_from_registers(decoder, config)
+            decoded_data = self.decode_from_registers(decoder, config)
+        elif config['functionCode'] in (3, 4):
+            decoder = BinaryPayloadDecoder.fromRegisters(encoded_data, byteorder=endian_order,
+                                                         wordorder=word_endian_order)
+            decoded_data = self.decode_from_registers(decoder, config)
 
-                if config.get('divider'):
-                    decoded_data = float(decoded_data) / float(config['divider'])
-                elif config.get('multiplier'):
-                    decoded_data = decoded_data * config['multiplier']
-        else:
-            self._log.exception("Error while decoding data: %s, with config: %s", encoded_data, config)
-            decoded_data = None
+            if config.get('divider'):
+                decoded_data = float(decoded_data) / float(config['divider'])
+            elif config.get('multiplier'):
+                decoded_data = decoded_data * config['multiplier']
 
         return decoded_data
 
