@@ -24,6 +24,7 @@ class BytesUplinkConverterConfig:
         self.word_order = Endian.BIG if kwargs.get('wordOrder', 'LITTLE').upper() == "BIG" else Endian.LITTLE
         self.telemetry = kwargs.get('timeseries', [])
         self.attributes = kwargs.get('attributes', [])
+        self.unit_id = kwargs['unitId']
 
     def is_readable(self):
         return len(self.telemetry) > 0 or len(self.attributes) > 0
