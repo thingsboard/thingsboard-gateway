@@ -43,6 +43,7 @@ required_version = '1.1.5'
 force_install = False
 
 from packaging import version
+
 try:
     from asyncua import __version__ as asyncua_version
 
@@ -318,9 +319,11 @@ class OpcUaConnector(Connector, Thread):
                         await self.disconnect_if_connected()
                     self.__client = asyncua.Client(url=self.__opcua_url,
                                                    timeout=self.__server_conf.get('timeoutInMillis', 4000) / 1000)
+                    self.__log.debug("Recreating client after disconnection")
                     self.__client._monitor_server_loop = self._monitor_server_loop
                     self.__client._renew_channel_loop = self._renew_channel_loop
                     self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 120000)
+                    self.__device_cleanup_after_reconnection()
                     if self.__server_conf["identity"].get("type") == "cert.PEM":
                         await self.__set_auth_settings_by_cert()
                     if self.__server_conf["identity"].get("username"):
@@ -343,9 +346,9 @@ class OpcUaConnector(Connector, Thread):
 
                     self.__nodes_config_cache = {}
                     self.__delete_devices_from_platform()
-                    self.__device_nodes = []
                     self.__next_scan = 0
                     self.__next_poll = 0
+                    self.__device_nodes = []
                     self.__client_recreation_required = False
 
                 if reconnect_required:
@@ -360,6 +363,7 @@ class OpcUaConnector(Connector, Thread):
                     continue
                 self.__log.info("Connected to OPC-UA Server: %s", self.__opcua_url)
                 self.__connected = True
+                self.__update_scanning_cache()
 
                 try:
                     await self.__client.load_data_type_definitions()
@@ -458,7 +462,9 @@ class OpcUaConnector(Connector, Thread):
             if self.__stopped:
                 return None
             try:
+                self.__log.info("Trying to reconnect to the server, attempt %d of %d", attempt + 1, max_retries)
                 return await self.__client.connect()
+
             except Exception as e:
                 base_time = self.__client.session_timeout / 1000 if (
                         last_contact_delta > 0 and last_contact_delta < self.__client.session_timeout / 1000) else 0
@@ -542,6 +548,53 @@ class OpcUaConnector(Connector, Thread):
         finally:
             if not self.__stopped:
                 self.__client_recreation_required = True
+
+    def __device_cleanup_after_reconnection(self):
+        client_session = self.__client.uaclient
+        for device in self.__device_nodes:
+            try:
+                device.device_node.session = client_session
+                for node_list in device.nodes:
+                    try:
+                        node_list['node'].session = client_session
+
+                    except IndexError as e:
+                        self.__log.warning("The requested node does not exist")
+                        continue
+
+                    except Exception as e:
+                        self.__log.warning("Failed to assign node for device %s", device)
+                        continue
+
+            except Exception as e:
+                self.__log.warning("Could not process node sync process for client recreation: %s ", e)
+                continue
+
+    def __update_scanning_cache(self):
+        start_time = monotonic()
+        for key, value in dict(self.__scanning_nodes_cache).items():
+            try:
+                for index, element in enumerate(value):
+                    node_obj = element.get('node')
+                    if isinstance(node_obj, Node) and node_obj and node_obj.session is not self.__client.uaclient:
+                        node_obj.session = self.__client.uaclient
+                        element['node'] = node_obj
+                        value[index] = element
+                    else:
+                        continue
+                self.__scanning_nodes_cache[key] = value
+
+            except AttributeError as e:
+                self.__log.trace("Missing update due to type mismatch for key %s", key)
+                continue
+
+            except Exception as e:
+                self.__log.error("Could not update scanning cache for key %s: %s", key, e)
+                continue
+
+        end_time = monotonic()
+        total_time_taken = end_time - start_time
+        self.__log.trace("The function for updating scanning cache took %.2f seconds", total_time_taken)
 
     def __load_converter(self, device):
         converter_class_name = device.get('converter')
@@ -1113,20 +1166,28 @@ class OpcUaConnector(Connector, Thread):
             logger.error("determine_rpc_income_data failed for params=%r: %s",
                          params, e)
 
-    def find_full_node_path(self, params: str, device:Device) -> NodeId | None:
+    def find_full_node_path(self, params: str, device: Device) -> NodeId | None:
         try:
             node_pattern, current_path = self.get_rpc_node_pattern_and_base_path(params, device, logger=self.__log)
             node_list = node_pattern.split("\\.")[-1:]
             nodes = []
             find_task = self.__find_nodes(node_list, device.device_node, nodes, current_path)
             task = self.__loop.create_task(find_task)
-            while not task.done():
-                sleep(.1)
-            found_nodes = task.result()
+            found_task_completed, found_nodes = self.__wait_task_with_timeout(task=task, timeout=10, poll_interval=0.2)
+            if not found_task_completed:
+                self.__log.error(
+                    "Failed to process request for %s, timeout has been reached",
+                )
+                return None
+
             if found_nodes:
                 full_path = found_nodes[-1][0]['node'].nodeid
                 return full_path
             self.__log.error('Node not found! (%s)', found_nodes)
+
+        except ConnectionError as e:
+            self.__log.error("Connection error during node lookup for %r: %s", params, e)
+
         except Exception as e:
             self.__log.error("Error during node lookup for %r: %s", params, e)
 
@@ -1183,7 +1244,7 @@ class OpcUaConnector(Connector, Thread):
                                                                    poll_interval=0.2)
             if not task_completed:
                 self.__log.error(
-                    "Failed to process request for %s, timeout has been reached", 
+                    "Failed to process request for %s, timeout has been reached",
                 )
                 result = {"error": f"Timeout has been reached during write {value}"}
 
