@@ -552,13 +552,11 @@ class OpcUaConnector(Connector, Thread):
     def __device_cleanup_after_reconnection(self):
         client_session = self.__client.uaclient
         for device in self.__device_nodes:
-            updated_device_nodes = []
             try:
                 device.device_node.session = client_session
                 for node_list in device.nodes:
                     try:
                         node_list['node'].session = client_session
-                        updated_device_nodes.append(node_list)
 
                     except IndexError as e:
                         self.__log.warning("The requested node does not exist")
@@ -567,8 +565,6 @@ class OpcUaConnector(Connector, Thread):
                     except Exception as e:
                         self.__log.warning("Failed to assign node for device %s", device)
                         continue
-
-                device.nodes = updated_device_nodes
 
             except Exception as e:
                 self.__log.warning("Could not process node sync process for client recreation: %s ", e)
@@ -652,8 +648,7 @@ class OpcUaConnector(Connector, Thread):
                 if children_nodes_count < 1000 or counter % 1000 == 0:
                     self.__log.info('Checking path: %s', path + '.' + f'{child_node.Name}')
 
-            if re.fullmatch(re.escape(node_list_to_search[0]), child_node.Name) or node_list_to_search[0].split(':')[
-                -1] == child_node.Name:
+            if re.fullmatch(re.escape(node_list_to_search[0]), child_node.Name) or node_list_to_search[0].split(':')[-1] == child_node.Name:
                 if self.__show_map:
                     self.__log.info('Found node: %s', child_node.Name)
                 new_nodes = [*nodes, {'path': f'{child_node.NamespaceIndex}:{child_node.Name}', 'node': node}]
@@ -864,8 +859,7 @@ class OpcUaConnector(Connector, Thread):
 
                 is_abs_path = self.__is_absolute_path(device_name_expression)
                 device_names = await self._get_device_info_by_pattern(device_name_expression,
-                                                                      parent_node=node[-1][
-                                                                          'node'] if not is_abs_path else None)
+                                                                      parent_node=node[-1]['node'] if not is_abs_path else None)
 
                 for device_name in device_names:
                     scanned_devices.append(device_name)
@@ -878,8 +872,7 @@ class OpcUaConnector(Connector, Thread):
                         is_abs_path = self.__is_absolute_path(device_profile_expression)
                         device_profile = await self._get_device_info_by_pattern(device_profile_expression,
                                                                                 get_first=True,
-                                                                                parent_node=node[-1][
-                                                                                    'node'] if not is_abs_path else None)
+                                                                                parent_node=node[-1]['node'] if not is_abs_path else None)
 
                         device_config = {**device_config, 'device_name': device_name, 'device_type': device_profile}
                         device_path = [node_path_node_object['path'] for node_path_node_object in node]
