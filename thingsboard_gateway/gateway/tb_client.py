@@ -90,63 +90,18 @@ class TBClient(threading.Thread):
         # check if provided creds or provisioning strategy
         provisioning_configuration = TBUtility.get_provisioning_configuration_from_envs()
         if config.get('security') and not provisioning_configuration:
-            self._create_mqtt_client(config['security'])
+            credentials = config['security']
+        elif self._has_provisioned_credentials():
+            credentials = self._load_provisioned_credentials()
         elif config.get('provisioning') or provisioning_configuration:
-            creds = None
-            try:
-                if exists(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME):
-                        with open(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME, 'r') as file:
-                            credentials = load(file)
-                        creds = self._get_provisioned_creds(credentials)
-            except Exception as e:
-                self.__logger.error('Error reading provisioned credentials: %s', e)
-            if not creds:
-                credentials = config.get('provisioning', provisioning_configuration)
-                logger.info('Starting provisioning gateway...')
-
-                credentials_type = credentials.pop('type', 'ACCESS_TOKEN')
-                if credentials_type.upper() == 'ACCESS_TOKEN':
-                    credentials['access_token'] = ''.join(random.choice(string.ascii_lowercase) for _ in range(15))
-                elif credentials_type.upper() == 'MQTT_BASIC':
-                    credentials['client_id'] = ''.join(random.choice(string.ascii_lowercase) for _ in range(15))
-                    credentials['username'] = ''.join(random.choice(string.ascii_lowercase) for _ in range(15))
-                    credentials['password'] = ''.join(random.choice(string.ascii_lowercase) for _ in range(15))
-                elif credentials_type.upper() == 'X509_CERTIFICATE':
-                    self._ca_cert_name = credentials.pop('caCert')
-                    new_cert_path = self.__config_folder_path + 'cert.pem'
-                    new_private_key_path = self.__config_folder_path + 'key.pem'
-                    gen_hash = TBUtility.generate_certificate(new_cert_path, new_private_key_path).decode('utf-8')
-                    credentials['hash'] = gen_hash
-                else:
-                    raise RuntimeError('Unknown provisioning type '
-                                       '(Available options: ACCESS_TOKEN, MQTT_BASIC, X509_CERTIFICATE)')
-
-                gateway_name = credentials.pop('deviceName',
-                                               'Gateway ' + ''.join(random.choice(string.ascii_lowercase) for _ in range(5)))
-                prov_gateway_key = credentials.pop('provisionDeviceKey')
-                prov_gateway_secret = credentials.pop('provisionDeviceSecret')
-                creds = TBDeviceMqttClient.provision(host=self.__host,
-                                                     port=self.__port,
-                                                     device_name=gateway_name,
-                                                     provision_device_key=prov_gateway_key,
-                                                     provision_device_secret=prov_gateway_secret,
-                                                     gateway=True,
-                                                     **credentials)
-
-                if not creds:
-                    logger.error('Provisioning failed, check your credentials and try again')
-                    raise RuntimeError('Provisioning failed, check your credentials and try again')
-                with open(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME, 'w') as file:
-                    if hasattr(self, '_ca_cert_name') and self._ca_cert_name:
-                        creds['caCert'] = self._ca_cert_name
-                    file.writelines(dumps(creds))
-                logger.info('Gateway provisioned')
-
-                creds = self._get_provisioned_creds(creds)
-
-            self._create_mqtt_client(creds)
+            credentials = self._provision_gateway(config.get('provisioning', provisioning_configuration))
         else:
             raise RuntimeError('Security section not provided')
+
+        if not credentials:
+            raise RuntimeError('Cannot get credentials for gateway')
+
+        self._create_mqtt_client(credentials)
 
         # pylint: disable=protected-access
         # Adding callbacks
@@ -160,6 +115,81 @@ class TBClient(threading.Thread):
     #         self.__logger.exception(args)
     #     else:
     #         self.__logger.debug(args)
+
+    def _has_provisioned_credentials(self):
+        return exists(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME)
+
+    def _load_provisioned_credentials(self):
+        credentials = None
+
+        try:
+            with open(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME, 'r') as file:
+                credentials_data = load(file)
+
+            credentials = self._get_provisioned_creds(credentials_data)
+        except Exception as e:
+            self.__logger.error('Error reading provisioned credentials: %s', e)
+
+        return credentials
+
+    def _provision_gateway(self, config):
+        self.__logger.info('Starting provisioning gateway...')
+
+        credentials_type = config.pop('type', 'ACCESS_TOKEN')
+        if credentials_type.upper() == 'ACCESS_TOKEN':
+            if config.get('access_token') is None:
+                config['access_token'] = ''.join(random.choice(string.ascii_lowercase) for _ in range(15))
+        elif credentials_type.upper() == 'MQTT_BASIC':
+            if config.get('client_id') is None:
+                config['client_id'] = ''.join(random.choice(string.ascii_lowercase) for _ in range(15))
+            if config.get('username') is None:
+                config['username'] = ''.join(random.choice(string.ascii_lowercase) for _ in range(15))
+            if config.get('password') is None:
+                config['password'] = ''.join(random.choice(string.ascii_lowercase) for _ in range(15))
+        elif credentials_type.upper() == 'X509_CERTIFICATE':
+            self._ca_cert_name = config.pop('caCert')
+            new_cert_path = self.__config_folder_path + 'cert.pem'
+            new_private_key_path = self.__config_folder_path + 'key.pem'
+            gen_hash = TBUtility.generate_certificate(new_cert_path, new_private_key_path).decode('utf-8')
+            config['hash'] = gen_hash
+        else:
+            raise RuntimeError('Unknown provisioning type '
+                               '(Available options: ACCESS_TOKEN, MQTT_BASIC, X509_CERTIFICATE)')
+
+        gateway_name = config.pop('deviceName',
+                                  'Gateway ' + ''.join(
+                                      random.choice(string.ascii_lowercase) for _ in range(5)))
+        prov_gateway_key = config.pop('provisionDeviceKey')
+        prov_gateway_secret = config.pop('provisionDeviceSecret')
+        provisioned_credentials = TBDeviceMqttClient.provision(host=self.__host,
+                                                               port=self.__port,
+                                                               device_name=gateway_name,
+                                                               provision_device_key=prov_gateway_key,
+                                                               provision_device_secret=prov_gateway_secret,
+                                                               gateway=True,
+                                                               **config)
+
+        if not provisioned_credentials:
+            self.__logger.error('Provisioning failed, check your credentials and try again')
+            raise RuntimeError('Provisioning failed, check your credentials and try again')
+
+        try:
+            self._save_provisioned_credentials(provisioned_credentials)
+        except Exception as e:
+            self.__logger.error('Error saving provisioned credentials: %s', e)
+            raise RuntimeError('Error saving provisioned credentials: %s', e) from e
+
+        self.__logger.info('Gateway provisioned')
+
+        creds = self._get_provisioned_creds(provisioned_credentials)
+
+        return creds
+
+    def _save_provisioned_credentials(self, provisioned_credentials):
+        with open(self.__config_folder_path + PROVISIONED_CREDENTIALS_FILENAME, 'w') as file:
+            if hasattr(self, '_ca_cert_name') and self._ca_cert_name:
+                provisioned_credentials['caCert'] = self._ca_cert_name
+            file.writelines(dumps(provisioned_credentials))
 
     def _create_mqtt_client(self, credentials):
         env_vars = TBUtility.get_service_environmental_variables()
