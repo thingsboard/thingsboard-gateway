@@ -301,18 +301,21 @@ class AsyncBACnetConnector(Thread, Connector):
                 if not hasattr(apdu, 'iAmDeviceIdentifier') or apdu.iAmDeviceIdentifier is None:
                     continue
 
-                added_device = await self.__devices.get_device_by_id(apdu.iAmDeviceIdentifier[1])
-                if added_device is None:
+                added_devices = await self.__devices.get_devices_by_id(apdu.iAmDeviceIdentifier[1])
+                if len(added_devices) == 0:
                     self.__log.debug('Device %s not found in devices list', device_address)
-                    device_config = Device.find_self_in_config(self.__config['devices'], apdu)
-                    if device_config:
+                    device_configs = Device.find_self_in_config(self.__config['devices'], apdu)
+                    if len(device_configs) > 0:
                         self.__log.debug('Device %s found in config. Adding...', device_address)
-                        self.loop.create_task(self.__add_device(apdu, device_config))
+
+                        for config in device_configs:
+                            await self.__add_device(apdu, config)
                     else:
                         self.__log.debug('Device %s not found in config', device_address)
                 else:
-                    added_device.active = True
-                    self.__log.debug('Device %s already added', added_device)
+                    for device in added_devices:
+                        device.active = True
+                        self.__log.debug('Device %s already added', device)
             except QueueEmpty:
                 await asyncio.sleep(.1)
             except Exception as e:
