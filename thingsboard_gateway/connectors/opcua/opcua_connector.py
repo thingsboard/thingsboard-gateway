@@ -1555,9 +1555,10 @@ class OpcUaConnector(Connector, Thread):
         return isinstance(path, str) and re.match(r"(ns=\d+;[isgb]=[^}]+)", path)
 
     @staticmethod
-    def __is_absolute_path(path):
+    def __is_absolute_path(path: str) -> bool:
+        pattern = re.compile(r'^\s*.*Root\\.[^}]+.*$')
         try:
-            return path.replace('${', '').split('\\.')[0] == 'Root'
+            return bool(pattern.match(path))
         except Exception:
             return False
 
