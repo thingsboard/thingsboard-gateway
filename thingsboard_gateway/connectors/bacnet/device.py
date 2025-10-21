@@ -168,20 +168,30 @@ class Device:
 
     @staticmethod
     def find_self_in_config(devices_config, apdu):
+        """
+        Find device configurations that match the given APDU and configuration.
+        Method can return multiple device configurations in case several configurations
+        match the same device identifier or address.
+        """
+
         apdu_address = apdu.pduSource.__str__()
         device_identifier = apdu.iAmDeviceIdentifier[-1]
+
+        found_device_configs = []
 
         for device_config in devices_config:
             if device_config.get('deviceId') is not None:
                 if Device.is_device_identifier_match(device_identifier, device_config.get('deviceId')):
-                    return device_config
+                    found_device_configs.append(device_config)
                 else:
                     continue
 
             if Device.is_address_match(apdu_address, device_config.get('address')):
-                return device_config
+                found_device_configs.append(device_config)
             elif apdu_address in device_config.get('altResponsesAddresses', []):
-                return device_config
+                found_device_configs.append(device_config)
+
+        return found_device_configs
 
     @staticmethod
     def is_device_identifier_match(device_identifier, pattern):
@@ -399,6 +409,24 @@ class Device:
 
 
 class Devices:
+    """
+    Thread-safe storage for BACnet devices.
+    Allows adding, removing, and retrieving devices by their object identifier or name.
+    Inner structure has the following format:
+
+    __devices = {
+        object_id_1: [device_1, device_2, ...],
+        object_id_2: [device_3, device_4, ...],
+        ...
+    }
+
+    __devices_by_name = {
+        device_name_1: device_1,
+        device_name_2: device_2,
+        ...
+    }
+    """
+
     def __init__(self):
         self.__devices = {}
         self.__devices_by_name = {}
@@ -408,38 +436,43 @@ class Devices:
         if not isinstance(device, Device):
             raise TypeError("Expected a Device instance")
 
-        await self.__lock.acquire()
-        try:
-            self.__devices[device.details.object_id] = device
+        async with self.__lock:
+            self.__add_device_by_id(device)
             self.__devices_by_name[device.name] = device
-        finally:
-            self.__lock.release()
+
+    def __add_device_by_id(self, device):
+        if device.details.object_id not in self.__devices:
+            self.__devices[device.details.object_id] = [device]
+        else:
+            self.__devices[device.details.object_id].append(device)
 
     async def remove(self, device):
-        await self.__lock.acquire()
-        try:
-            self.__devices.pop(device.details.object_id, None)
-            self.__devices.pop(device.name, None)
-        finally:
-            self.__lock.release()
+        async with self.__lock:
+            self.__remove_device_by_id(device)
+            self.__devices_by_name.pop(device.name, None)
 
-    async def get_device_by_id(self, _id):
-        await self.__lock.acquire()
-        try:
-            item = self.__devices.get(_id)
-        finally:
-            self.__lock.release()
+    def __remove_device_by_id(self, device):
+        for added_device in self.__devices.get(device.details.object_id, []):
+            if added_device == device:
+                self.__devices[device.details.object_id].remove(device)
 
-        return item
+                if len(self.__devices[device.details.object_id]) == 0:
+                    self.__devices.pop(device.details.object_id)
+
+                break
+
+    async def get_devices_by_id(self, _id):
+        """
+        Get devices by their object identifier.
+        Multiple devices can be returned in case several devices with the same identifier exist.
+        """
+
+        async with self.__lock:
+            return tuple(self.__devices.get(_id, []))
 
     async def get_device_by_name(self, name):
-        await self.__lock.acquire()
-        try:
-            item = self.__devices_by_name.get(name)
-        finally:
-            self.__lock.release()
-
-        return item
+        async with self.__lock:
+            return self.__devices_by_name.get(name)
 
     def stop_all(self):
         for device in self.__devices.values():
