@@ -15,7 +15,14 @@
 
 from bacpypes3.basetypes import DateTime
 from bacpypes3.constructeddata import AnyAtomic, Array
-from bacpypes3.basetypes import ErrorType, PriorityValue, BinaryPV, ObjectPropertyReference, DailySchedule,DeviceObjectPropertyReference
+from bacpypes3.basetypes import (
+    ErrorType,
+    PriorityValue,
+    BinaryPV,
+    ObjectPropertyReference,
+    DailySchedule,
+    DeviceObjectPropertyReference
+)
 
 from thingsboard_gateway.connectors.bacnet.bacnet_converter import AsyncBACnetConverter
 from thingsboard_gateway.connectors.bacnet.entities.uplink_converter_config import UplinkConverterConfig
@@ -140,7 +147,7 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
 
     def __find_values(self, data, object_id, object_type, property_id):
         required_object_type = TBUtility.kebab_case_to_camel_case(object_type)
-        return list(filter(
+        return set(filter(
             lambda value: value[0][-1] == object_id and
             TBUtility.kebab_case_to_camel_case(str(value[0][0])) == required_object_type and
             TBUtility.kebab_case_to_camel_case(str(value[1])) in property_id,
