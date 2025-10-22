@@ -475,5 +475,6 @@ class Devices:
             return self.__devices_by_name.get(name)
 
     def stop_all(self):
-        for device in self.__devices.values():
-            device.stop()
+        for _, devices in self.__devices.items():
+            for device in devices:
+                device.stop()

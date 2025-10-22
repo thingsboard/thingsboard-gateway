@@ -12,7 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
-from re import match, compile
+from re import compile
 from ipaddress import IPv4Network
 import asyncio
 from asyncio import Queue, CancelledError, QueueEmpty
@@ -23,10 +23,13 @@ from string import ascii_lowercase
 from random import choice
 from time import monotonic, sleep
 from typing import TYPE_CHECKING, Tuple, Any
-from concurrent.futures import TimeoutError
 
-from thingsboard_gateway.connectors.bacnet.constants import SUPPORTED_OBJECTS_TYPES, ALLOWED_APDU
-from typing import TYPE_CHECKING
+from thingsboard_gateway.connectors.bacnet.constants import (
+    RESERVED_GET_RPC_SCHEMA,
+    RESERVED_SET_RPC_SCHEMA,
+    SUPPORTED_OBJECTS_TYPES,
+    ALLOWED_APDU
+)
 from ast import literal_eval
 
 from thingsboard_gateway.connectors.bacnet.ede_parser import EDEParser
@@ -153,7 +156,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 for config_item in device_config.get(section, []):
                     try:
                         if ((isinstance(config_item['objectId'], str) and not config_item['objectId'] == '*') or isinstance(config_item['objectId'], list)) \
-                                and isinstance(config_item['objectType'], list):
+                                and isinstance(config_item['objectType'], list):  # noqa: E501
                             self.__log.warning('Invalid using list of object types with string (except "*") or list objectId in config item %s. Skipping...', config_item)  # noqa
                             continue
 
@@ -613,7 +616,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 value = await self.__prepare_weekly_schedule_value(value)
 
             if property_id == "listOfObjectPropertyReferences":
-               value = await self.__prepare_list_of_object_property_references_value(value, property_id)
+                value = await self.__prepare_list_of_object_property_references_value(value, property_id)
 
             await self.__application.write_property(address, object_id, property_id, value, priority=priority)
             result['value'] = value
@@ -648,8 +651,8 @@ class AsyncBACnetConnector(Thread, Connector):
         for prop in raw_props:
             props.append(
                 DeviceObjectPropertyReference(
-                    objectIdentifier = prop,
-                    propertyIdentifier = property_id
+                    objectIdentifier=prop,
+                    propertyIdentifier=property_id
                 )
             )
         return props
@@ -957,16 +960,13 @@ class AsyncBACnetConnector(Thread, Connector):
 
         set_pattern = compile(r'objectType=[A-Za-z]+;objectId=\d+;propertyId=[A-Za-z]+;(priority=\d+;)?value=.+;')
         pattern = get_pattern if rpc_method_name == 'get' else set_pattern
-        expected_schema = (
-            "get objectType=<objectType>;objectId=<objectId>;propertyId=<propertyId>;" if rpc_method_name == 'get'
-            else "set objectType=<objectType>;objectId=<objectId>;propertyId=<propertyId>;priority=<priority>;value=<value>;"
-        )
+        expected_schema = RESERVED_GET_RPC_SCHEMA if rpc_method_name == 'get' else RESERVED_SET_RPC_SCHEMA
         if not pattern.match(params_section):
             self.__log.error(f"The requested RPC does not match with the schema: {expected_schema}")
+            content = {"result": {"error": f"The requested RPC does not match with the schema: {expected_schema}"}}
             self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                           req_id=content['data'].get('id'),
-                                          content={"result": {
-                                              "error": f"The requested RPC does not match with the schema: {expected_schema}"}})
+                                          content=content)
             return
         params = {}
         for param in params_section.split(';'):
@@ -979,10 +979,10 @@ class AsyncBACnetConnector(Thread, Connector):
                 params[key] = value
 
         if params['objectType'] not in SUPPORTED_OBJECTS_TYPES.values():
+            error_msg = f"The objectType must be from '{list(SUPPORTED_OBJECTS_TYPES.values())}, but got'{params['objectType']}"  # noqa: E501
             self.__gateway.send_rpc_reply(device=device.device_info.device_name,
                                           req_id=content['data'].get('id'),
-                                          content={"result": {
-                                              "error": f"The objectType must be from '{list(SUPPORTED_OBJECTS_TYPES.values())}, but got'{params['objectType']}"}})
+                                          content={"result": {"error": error_msg}})
             return
 
         if rpc_method_name == 'get':
