@@ -29,3 +29,6 @@ SUPPORTED_OBJECTS_TYPES = {
     '4': 'binaryOutput',
     '5': 'binaryValue',
 }
+
+RESERVED_GET_RPC_SCHEMA = "get objectType=<objectType>;objectId=<objectId>;propertyId=<propertyId>;"
+RESERVED_SET_RPC_SCHEMA = "set objectType=<objectType>;objectId=<objectId>;propertyId=<propertyId>;priority=<priority>;value=<value>;"  # noqa: E501
