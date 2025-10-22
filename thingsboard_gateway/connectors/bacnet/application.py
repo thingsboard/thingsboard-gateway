@@ -254,7 +254,7 @@ class Application(NormalApplication, ForeignApplication):
                     continue
 
                 properties = []
-                if not isinstance(object['propertyId'], set):
+                if not isinstance(object['propertyId'], set) and not isinstance(object['propertyId'], list):
                     object['propertyId'] = {object['propertyId']}
 
                 for prop in object['propertyId']:
