@@ -29,7 +29,7 @@ from thingsboard_gateway.connectors.mqtt.backward_compatibility_adapter import B
 from thingsboard_gateway.gateway.constant_enums import Status
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.mqtt.mqtt_decorators import CustomCollectStatistics
-from thingsboard_gateway.gateway.constants import DATA_RETRIEVING_STARTED, CONVERTED_TS_PARAMETER
+from thingsboard_gateway.gateway.constants import DATA_RETRIEVING_STARTED, CONVERTED_TS_PARAMETER, RPC_DEFAULT_TIMEOUT
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.decorators import CollectAllReceivedBytesStatistics
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
@@ -926,7 +926,7 @@ class MqttConnector(Connector, Thread):
             self.__log.info("Candidate RPC handler found")
 
             expects_response = rpc_config.get("responseTopicExpression")
-            defines_timeout = rpc_config.get("responseTimeout")
+            defines_timeout = float(rpc_config.get("responseTimeout"))
 
             # 2-way RPC setup
             if expects_response and defines_timeout:
@@ -939,7 +939,7 @@ class MqttConnector(Connector, Thread):
 
                 expected_response_topic = TBUtility.replace_params_tags(expected_response_topic, content)
 
-                timeout = time() * 1000 + rpc_config.get("responseTimeout")
+                timeout = time() * 1000 + defines_timeout
 
                 # Start listening on the response topic
                 self.__log.info("Subscribing to: %s", expected_response_topic)
@@ -1050,6 +1050,8 @@ class MqttConnector(Connector, Thread):
                             params[key] = value
 
                     params['valueExpression'] = params.pop('value', None)
+                    if params.get('responseTimeout') is None and params.get("responseTopicExpression") is not None:
+                        params['responseTimeout'] = RPC_DEFAULT_TIMEOUT * 1000
 
                     return self.__process_rpc_request(content, params)
                 else:
