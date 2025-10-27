@@ -926,7 +926,7 @@ class MqttConnector(Connector, Thread):
             self.__log.info("Candidate RPC handler found")
 
             expects_response = rpc_config.get("responseTopicExpression")
-            defines_timeout = float(rpc_config.get("responseTimeout"))
+            defines_timeout = rpc_config.get("responseTimeout")
 
             # 2-way RPC setup
             if expects_response and defines_timeout:
@@ -939,7 +939,7 @@ class MqttConnector(Connector, Thread):
 
                 expected_response_topic = TBUtility.replace_params_tags(expected_response_topic, content)
 
-                timeout = time() * 1000 + defines_timeout
+                timeout = time() * 1000 + float(defines_timeout)
 
                 # Start listening on the response topic
                 self.__log.info("Subscribing to: %s", expected_response_topic)
@@ -961,7 +961,7 @@ class MqttConnector(Connector, Thread):
                                                             self.rpc_cancel_processing)
 
                 # Wait for RPC to be successfully enqueued, which never fails.
-                while self.__gateway.is_rpc_in_progress(expected_response_topic):
+                while not self.__gateway.is_rpc_in_progress(expected_response_topic):
                     sleep(0.1)
 
             elif expects_response and not defines_timeout:
