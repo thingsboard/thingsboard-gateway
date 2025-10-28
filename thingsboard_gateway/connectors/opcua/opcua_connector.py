@@ -324,7 +324,7 @@ class OpcUaConnector(Connector, Thread):
                     self.__client._renew_channel_loop = self._renew_channel_loop
                     self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 120000)
                     self.__device_cleanup_after_reconnection()
-                    if self.__server_conf["identity"].get("type") == "cert.PEM":
+                    if self.__is_certificate_based_auth():
                         await self.__set_auth_settings_by_cert()
                     if self.__server_conf["identity"].get("username"):
                         self.__set_auth_settings_by_username()
@@ -436,6 +436,10 @@ class OpcUaConnector(Connector, Thread):
                     self.__connected = False
                 await asyncio.sleep(.5)
 
+    def __is_certificate_based_auth(self):
+        auth_type = self.__server_conf["identity"].get("type")
+        return auth_type == "cert.PEM" or auth_type == "certificates"
+
     async def disconnect_if_connected(self):
         if self.__connected:
             try:
@@ -478,11 +482,13 @@ class OpcUaConnector(Connector, Thread):
 
     async def __set_auth_settings_by_cert(self):
         try:
-            ca_cert = self.__server_conf["identity"].get("caCert")
-            private_key = self.__server_conf["identity"].get("privateKey")
-            cert = self.__server_conf["identity"].get("cert")
+            auth_config = self.__server_conf["identity"]
+
+            ca_cert = auth_config.get("caCert", auth_config.get('pathToCACert'))
+            private_key = auth_config.get("privateKey", auth_config.get('pathToPrivateKey'))
+            cert = auth_config.get("cert", auth_config.get('pathToClientCert'))
             policy = self.__server_conf["security"]
-            mode = self.__server_conf["identity"].get("mode", "SignAndEncrypt")
+            mode = auth_config.get("mode", "SignAndEncrypt")
 
             if cert is None or private_key is None:
                 self.__log.exception("Error in ssl configuration - cert or privateKey parameter not found")
