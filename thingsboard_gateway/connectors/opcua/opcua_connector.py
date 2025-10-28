@@ -324,6 +324,10 @@ class OpcUaConnector(Connector, Thread):
                     self.__client._renew_channel_loop = self._renew_channel_loop
                     self.__client.session_timeout = self.__server_conf.get('sessionTimeoutInMillis', 120000)
                     self.__device_cleanup_after_reconnection()
+
+                    if self.__server_conf.get('uri'):
+                        self.__client.application_uri = self.__server_conf['uri']
+
                     if self.__is_certificate_based_auth():
                         await self.__set_auth_settings_by_cert()
                     if self.__server_conf["identity"].get("username"):
