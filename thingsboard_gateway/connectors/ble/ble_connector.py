@@ -12,6 +12,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 
+from json import dumps
 import asyncio
 from queue import Queue
 from random import choice
@@ -120,7 +121,7 @@ class BLEConnector(Connector, Thread):
         devices = await BleakScanner(
             scanning_mode='passive' if self.__config.get('passiveScanMode', True) else 'active').discover(
             timeout=scanner.get('timeout', 10000) / 1000, return_adv=True)
-        self.__log.info('FOUND DEVICES')
+
         if scanner.get('deviceName'):
             found_devices = [x.__str__() for x in filter(lambda x: x.name == scanner['deviceName'], devices)]
             if found_devices:
@@ -128,8 +129,9 @@ class BLEConnector(Connector, Thread):
             else:
                 self.__log.info('nothing to show')
         else:
-            for device in devices:
-                self.__log.info(device)
+            found_devices = {mac: device[0].name for mac, device in devices.items()}
+            formatted_devices = dumps(found_devices, indent=4)
+            self.__log.info("The mac:device pairs are: \n%s", formatted_devices)
 
     def __configure_and_load_devices(self):
         self.__devices_from_config = [
