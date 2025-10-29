@@ -93,7 +93,7 @@ class BytesMqttUplinkConverter(MqttUplinkConverter):
             if hex_mode:
                 data_to_replace = ''.join(f'{int(b):02x}' for b in slice_data)
             else:
-                data_to_replace = ''.join(str(b) for b in slice_data)
+                data_to_replace = ''.join(str(b) for b in slice_data.decode('utf-8'))
 
             converted_data = converted_data.replace(exp, data_to_replace)
 
