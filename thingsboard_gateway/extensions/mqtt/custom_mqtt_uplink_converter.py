@@ -15,9 +15,8 @@
 #
 # ------------------------------------------------------------------------------
 
-
+from time import time
 from simplejson import dumps
-
 from thingsboard_gateway.connectors.mqtt.mqtt_uplink_converter import MqttUplinkConverter
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.telemetry_entry import TelemetryEntry
@@ -39,19 +38,22 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
                                            device_type="Thermostat")  # Device profile name for devices
             bytes_to_read = body.replace("0x", "")  # Replacing the 0x (if '0x' in body), needs for converting to bytearray
             converted_bytes = bytearray.fromhex(bytes_to_read)  # Converting incoming data to bytearray
+            timestamp = int(time() * 1000)
             extension_config_key = "extensionConfig" if self.__config.get("extensionConfig") is not None else "extension-config"
             if self.__config.get(extension_config_key) is not None:
                 for telemetry_key in self.__config[extension_config_key]:  # Processing every telemetry key in config for extension
-                    value = 0
-                    for _ in range(self.__config[extension_config_key][telemetry_key]):  # reading every value with value length from config
-                        value = value * 256 + converted_bytes.pop(0)  # process and remove byte from processing
-                    datapoint_key = TBUtility.convert_key_to_datapoint_key(telemetry_key.replace("Bytes", ""), None, {}, self._log)
-                    TelemetryEntry({datapoint_key: value})  # creating telemetry entry
-                    converted_data.add_to_telemetry(datapoint_key)  # adding telemetry entry to telemetry array for sending data to platform
+                    for _ in range(self.__config[extension_config_key][telemetry_key]):
+                        try:# reading every value with value length from config
+                            value = converted_bytes.pop(0)
+                        except Exception as e:
+                            continue
+                    # process and remove byte from processing
+                    datapoint_key = TBUtility.convert_key_to_datapoint_key(telemetry_key.replace("Bytes", ""), None, {}, self._log)  # creating telemetry entry
+                    converted_data.add_to_telemetry(TelemetryEntry({datapoint_key: value}, ts=timestamp))  # adding telemetry entry to telemetry array for sending data to platform
             else:
                 datapoint_key = TBUtility.convert_key_to_datapoint_key("data", None, {}, self._log)
-                telemetry_entry = TelemetryEntry({datapoint_key: int(body, 0)})
-                converted_data.add_to_telemetry(telemetry_entry)  # if no specific configuration in config file - just send data which received
+                converted_data.add_to_telemetry(TelemetryEntry({datapoint_key: int(body, 0)},
+                                                               ts=timestamp))  # if no specific configuration in config file - just send data which received
             return converted_data
 
         except Exception as e:
