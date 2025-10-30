@@ -20,6 +20,7 @@ from pymodbus.payload import BinaryPayloadDecoder
 from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
 from thingsboard_gateway.connectors.modbus.utils import Utils
+from thingsboard_gateway.connectors.modbus.constants import REQUIRED_KEYS_FOR_WIDE_RANGE_TAG_NAME
 from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.entities.report_strategy_config import ReportStrategyConfig
 from thingsboard_gateway.gateway.statistics.decorators import CollectStatistics
@@ -57,7 +58,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
                     try:
                         encoded_data = Utils.get_registers_from_encoded_data(encoded_data,
-                                                                            config['functionCode'])
+                                                                             config['functionCode'])
                     except ValueError as e:
                         self._log.error("Error getting registers from encoded data: %s, with config: %s",
                                         e, config, exc_info=e)
@@ -135,6 +136,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
     def __get_wide_range_key_name(self, config, current_address):
         key_name_info = self.__get_info_for_key_name(config)
         key_name_info['address'] = current_address
+        config['tag'] = self.__validate_key_name_expression(config['tag'])
         result_tags = TBUtility.get_values(config['tag'], key_name_info, get_tag=True)
         result_values = TBUtility.get_values(config['tag'], key_name_info, expression_instead_none=True)
 
@@ -154,6 +156,15 @@ class BytesModbusUplinkConverter(ModbusConverter):
             'type': config['type'],
             'objectsCount': config.get('objectsCount', 1),
         }
+
+    def __validate_key_name_expression(self, key_name):
+        for required_key in REQUIRED_KEYS_FOR_WIDE_RANGE_TAG_NAME:
+            if required_key not in key_name:
+                self._log.warning("Tag name '%s' does not contain required key '%s'. "
+                                  "Appending it to the key name.", key_name, required_key)
+                key_name += f"_${{{required_key}}}"
+
+        return key_name
 
     def decode_data(self, encoded_data, config, endian_order, word_endian_order):
         decoded_data = None
