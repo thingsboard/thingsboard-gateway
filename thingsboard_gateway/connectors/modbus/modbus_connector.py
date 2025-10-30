@@ -19,13 +19,13 @@ from threading import Thread
 from random import choice
 from string import ascii_lowercase
 from time import monotonic, sleep
-from typing import Tuple, Any
+from typing import Any
 from packaging import version
 
 from thingsboard_gateway.connectors.modbus.constants import ADDRESS_PARAMETER, TAG_PARAMETER, \
     FUNCTION_CODE_PARAMETER
 from thingsboard_gateway.connectors.modbus.entities.rpc_request import RPCRequest, RPCType
-from thingsboard_gateway.gateway.entities.converted_data import ConvertedData, split_large_entries
+from thingsboard_gateway.gateway.entities.converted_data import ConvertedData
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 from thingsboard_gateway.connectors.connector import Connector
@@ -70,7 +70,6 @@ from pymodbus.exceptions import ConnectionException  # noqa: E402
 from pymodbus.pdu import ModbusPDU  # noqa
 from pymodbus.pdu.bit_message import WriteMultipleCoilsResponse, WriteSingleCoilResponse  # noqa: E402
 from pymodbus.constants import Endian  # noqa: E402
-from pymodbus.pdu import ExceptionResponse  # noqa: E402
 from pymodbus.pdu.register_message import WriteMultipleRegistersResponse, WriteSingleRegisterResponse  # noqa: E402
 
 
@@ -413,12 +412,12 @@ class AsyncModbusConnector(Connector, Thread):
                     }
                 }
                 task = self.__create_task(self.__process_attribute_update,
-                                                              (device, to_process,
-                                                               attribute_update_config),
-                                                              {})
+                                          (device, to_process,
+                                           attribute_update_config),
+                                          {})
                 task_completed, _ = self.__wait_task_with_timeout(task=task,
-                                                                       timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT,
-                                                                       poll_interval=0.2)
+                                                                  timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT,
+                                                                  poll_interval=0.2)
                 if not task_completed:
                     self.__log.error('Attribute update processing is timed out for attribute: %s',
                                      attribute_update_config[TAG_PARAMETER])
@@ -436,8 +435,7 @@ class AsyncModbusConnector(Connector, Thread):
                 self.__log.debug("Error", exc_info=e)
                 continue
 
-    def __wait_task_with_timeout(self, task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> tuple[
-        bool, Any | None]:
+    def __wait_task_with_timeout(self, task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> tuple[bool, Any | None]:  # noqa
         start_time = monotonic()
         while not task.done() and not self.__stopped:
             sleep(poll_interval)
