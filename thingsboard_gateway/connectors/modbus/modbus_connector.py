@@ -416,7 +416,7 @@ class AsyncModbusConnector(Connector, Thread):
                                                               (device, to_process,
                                                                attribute_update_config),
                                                               {})
-                task_completed, result = self.__wait_task_with_timeout(task=task,
+                task_completed, _ = self.__wait_task_with_timeout(task=task,
                                                                        timeout=ON_ATTRIBUTE_UPDATE_DEFAULT_TIMEOUT,
                                                                        poll_interval=0.2)
                 if not task_completed:
@@ -436,8 +436,8 @@ class AsyncModbusConnector(Connector, Thread):
                 self.__log.debug("Error", exc_info=e)
                 continue
 
-
-    def __wait_task_with_timeout(self, task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> Tuple[bool, Any]:
+    def __wait_task_with_timeout(self, task: asyncio.Task, timeout: float, poll_interval: float = 0.2) -> tuple[
+        bool, Any | None]:
         start_time = monotonic()
         while not task.done() and not self.__stopped:
             sleep(poll_interval)
@@ -445,7 +445,17 @@ class AsyncModbusConnector(Connector, Thread):
             if current_time - start_time >= timeout:
                 task.cancel()
                 return False, None
-        return True, task.result()
+        if task.cancelled():
+            return False, None
+        try:
+            return True, task.result()
+        except asyncio.InvalidStateError:
+            self.__log.info("Task has no result to set; result() method is not applicable")
+            return True, None
+        except Exception as e:
+            self.__log.error("Could not process task result with error %s", str(e))
+            self.__log.debug("Error", exc_info=e)
+            return False, None
 
     async def __process_attribute_update(self, device: Slave, data, config):
         if config is not None:

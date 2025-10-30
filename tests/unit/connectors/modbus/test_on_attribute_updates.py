@@ -139,7 +139,7 @@ class ModbusOnAttributeUpdatesTestCase(ModbusBaseTestCase):
 
         self.assertEqual(ct_mock.call_count, 1)
         self.slave.write.assert_not_awaited()
-        self.assertTrue(any("Could not process attribute update" in m for m in logcap.output))
+        self.assertTrue(any("Could not process task result with error" in m for m in logcap.output))
 
     async def test_on_attribute_update_partial_failure_continues(self):
         payload = {'device': 'Demo Device',
@@ -158,5 +158,5 @@ class ModbusOnAttributeUpdatesTestCase(ModbusBaseTestCase):
 
         self.assertEqual(ct_mock.call_count, 2)
         self.slave.write.assert_any_await(16, 5, [0x70A4, 0x4145])
-        self.assertTrue(any("Could not process attribute update" in m for m in logcap.output))
+        self.assertTrue(any("Could not process task result with error" in m for m in logcap.output))
 
