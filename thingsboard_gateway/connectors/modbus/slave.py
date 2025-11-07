@@ -46,7 +46,6 @@ from thingsboard_gateway.connectors.modbus.constants import (
 )
 from thingsboard_gateway.connectors.modbus.entities.bytes_uplink_converter_config import BytesUplinkConverterConfig
 from thingsboard_gateway.connectors.modbus.modbus_converter import ModbusConverter
-from thingsboard_gateway.connectors.modbus.utils import Utils
 from thingsboard_gateway.gateway.constants import (
     DEVICE_NAME_PARAMETER,
     DEVICE_TYPE_PARAMETER,
@@ -252,9 +251,6 @@ class Slave(Thread):
     async def read(self, function_code, address, objects_count):
         self._log.debug('Reading %s registers from address %s with function code %s', objects_count, address,
                         function_code)
-
-        if Utils.is_wide_range_request(address):
-            address, objects_count = Utils.parse_wide_range_request(address, objects_count)
 
         result = await self.__read(function_code, address, objects_count)
 

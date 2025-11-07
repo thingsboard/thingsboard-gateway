@@ -52,22 +52,15 @@ class BytesModbusUplinkConverter(ModbusConverter):
                 for config in getattr(self.__config, config_section):
                     encoded_data = device_data[config_section].get(config['tag'])
 
-                    if not Utils.is_encoded_data_valid(encoded_data):
-                        self._log.error("Encoded data is invalid: %s, with config: %s", encoded_data, config)
-                        continue
-
                     try:
-                        encoded_data = Utils.get_registers_from_encoded_data(encoded_data,
-                                                                             config['functionCode'])
-                    except ValueError as e:
-                        self._log.error("Error getting registers from encoded data: %s, with config: %s",
-                                        e, config, exc_info=e)
+                        if Utils.is_wide_range_request(config['address']):
+                            datapoints = self.__process_wide_range_response(config, encoded_data)
+                        else:
+                            datapoints = self.__process_single_address_response(config, encoded_data)
+                    except (ValueError, IndexError, TypeError) as e:
+                        self._log.error("Encoded data is invalid: %s, with config: %s, error: %s",
+                                        encoded_data, config, e)
                         continue
-
-                    if Utils.is_wide_range_request(config['address']):
-                        datapoints = self.process_wide_range_request(config, encoded_data)
-                    else:
-                        datapoints = self.process_single_address_request(config, encoded_data)
 
                     for datapoint in datapoints:
                         for key_name, decoded_data in datapoint.items():
@@ -85,12 +78,54 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
         return result
 
-    def process_wide_range_request(self, config, encoded_data):
+    def __process_wide_range_response(self, config, encoded_data):
+        encoded_data = self.__validate_wide_range_encoded_data(encoded_data)
+        registers_data = self.__get_registers_from_wide_range_encoded_data(encoded_data,
+                                                                           config['functionCode'])
+        datapoints = self.__process_wide_range_response_encoded_data(config, registers_data)
+        return datapoints
+
+    def __validate_wide_range_encoded_data(self, encoded_data):
+        invalid_chunks = []
+
+        for chunk in encoded_data:
+            if not Utils.is_encoded_data_valid(chunk):
+                invalid_chunks.append(chunk)
+                self._log.error("Encoded data chunk is invalid: %s. Skipping", chunk)
+
+        if len(invalid_chunks) > 0:
+            encoded_data = [chunk for chunk in encoded_data if chunk not in invalid_chunks]
+
+        return encoded_data
+
+    def __get_registers_from_wide_range_encoded_data(self, encoded_data, function_code):
+        registers_data = []
+
+        for chunk in encoded_data:
+            registers_chunk = Utils.get_registers_from_encoded_data(chunk, function_code)
+            registers_data.extend(registers_chunk)
+
+        return registers_data
+
+    def __process_single_address_response(self, config, encoded_data):
+        encoded_data = encoded_data[0]
+
+        if not Utils.is_encoded_data_valid(encoded_data):
+            raise ValueError('Encoded data is invalid')
+
+        registers_data = Utils.get_registers_from_encoded_data(encoded_data,
+                                                               config['functionCode'])
+
+        datapoints = self.__process_single_address_response_encoded_data(config, registers_data)
+
+        return datapoints
+
+    def __process_wide_range_response_encoded_data(self, config, encoded_data):
         result = []
 
         try:
             current_address = Utils.get_start_address(config['address'])
-        except ValueError as e:
+        except Exception as e:
             self._log.error("Error getting start address from config: %s, with config: %s",
                             e, config, exc_info=e)
             return []
@@ -112,7 +147,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
 
         return result
 
-    def process_single_address_request(self, config, encoded_data):
+    def __process_single_address_response_encoded_data(self, config, encoded_data):
         decoded_data = self.decode_data(encoded_data, config,
                                         self.__config.byte_order,
                                         self.__config.word_order)

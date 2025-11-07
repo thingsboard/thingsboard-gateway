@@ -58,7 +58,7 @@ if installation_required:
     TBUtility.install_package('pyserial')
     TBUtility.install_package('pyserial-asyncio')
 
-from thingsboard_gateway.connectors.modbus.utils import Utils
+from thingsboard_gateway.connectors.modbus.utils import Utils  # noqa: E402
 from thingsboard_gateway.connectors.modbus.entities.master import Master  # noqa: E402
 from thingsboard_gateway.connectors.modbus.server import Server  # noqa: E402
 from thingsboard_gateway.connectors.modbus.slave import Slave  # noqa: E402
@@ -258,7 +258,9 @@ class AsyncModbusConnector(Connector, Thread):
 
                 if connected_to_master:
                     slave_data = await self.__read_slave_data(slave)
-                    self.__data_to_convert.put_nowait((slave, slave_data))
+
+                    if not self.__is_read_data_empty(slave_data):
+                        self.__data_to_convert.put_nowait((slave, slave_data))
                 else:
                     self.__log.error('Device %s is not connected, cannot connect to server, skipping reading...', slave)
                     self.__delete_device_from_platform(slave)
@@ -285,7 +287,15 @@ class AsyncModbusConnector(Connector, Thread):
         for config_section in ('attributes', 'telemetry'):
             for config in getattr(slave.uplink_converter_config, config_section):
                 try:
-                    response = await slave.read(config['functionCode'], config['address'], config['objectsCount'])
+                    address_ranges = self.__get_address_ranges(config)
+
+                    for (start_address, objects_count) in address_ranges:
+                        response = await slave.read(config['functionCode'], start_address, objects_count)
+
+                        if result[config_section].get(config['tag']) is None:
+                            result[config_section][config['tag']] = []
+
+                        result[config_section][config['tag']].append(response)
                 except asyncio.exceptions.TimeoutError:
                     self.__log.error("Timeout error for device %s function code %s address %s, it may be caused by wrong data in server register.",  # noqa
                                      slave.device_name, config['functionCode'], config[ADDRESS_PARAMETER])
@@ -295,9 +305,25 @@ class AsyncModbusConnector(Connector, Thread):
                                      config['functionCode'], config[ADDRESS_PARAMETER], e)
                     continue
 
-                result[config_section][config['tag']] = response
-
         return result
+
+    @staticmethod
+    def __is_read_data_empty(data):
+        if len(data['attributes']) == 0 and len(data['telemetry']) == 0:
+            return True
+
+        return False
+
+    @staticmethod
+    def __get_address_ranges(config):
+        address_ranges = []
+
+        if not Utils.is_wide_range_request(config['address']):
+            address_ranges.append((config['address'], config['objectsCount']))
+        else:
+            address_ranges.extend(Utils.parse_wide_range_request(config['address'], config['objectsCount']))
+
+        return address_ranges
 
     def __manage_device_connectivity_to_platform(self, slave: Slave):
         if slave.master.connected() and slave.device_name not in self.__gateway.get_devices():
