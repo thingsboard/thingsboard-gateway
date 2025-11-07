@@ -2223,10 +2223,9 @@ class TBGatewayService:
             self.stop_event.wait(check_devices_idle_every_sec)
 
     @CountMessage('msgsSentToPlatform')
-    def send_telemetry(self, telemetry, wait_for_publish=True):
+    def send_telemetry(self, telemetry):
         return self.tb_client.client.send_telemetry(telemetry,
-                                                    quality_of_service=self.quality_of_service,
-                                                    wait_for_publish=wait_for_publish)
+                                                    quality_of_service=self.quality_of_service)
 
     @CountMessage('msgsSentToPlatform')
     def gw_send_telemetry(self, device, telemetry):
@@ -2235,10 +2234,9 @@ class TBGatewayService:
                                                        quality_of_service=self.quality_of_service)
 
     @CountMessage('msgsSentToPlatform')
-    def send_attributes(self, attributes, wait_for_publish=True):
+    def send_attributes(self, attributes):
         return self.tb_client.client.send_attributes(attributes,
-                                                     quality_of_service=self.quality_of_service,
-                                                     wait_for_publish=wait_for_publish)
+                                                     quality_of_service=self.quality_of_service)
 
     @CountMessage('msgsSentToPlatform')
     def gw_send_attributes(self, device, attributes):
