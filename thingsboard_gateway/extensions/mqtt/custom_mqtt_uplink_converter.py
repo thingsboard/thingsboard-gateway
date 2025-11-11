@@ -40,20 +40,39 @@ class CustomMqttUplinkConverter(MqttUplinkConverter):
             converted_bytes = bytearray.fromhex(bytes_to_read)  # Converting incoming data to bytearray
             timestamp = int(time() * 1000)
             extension_config_key = "extensionConfig" if self.__config.get("extensionConfig") is not None else "extension-config"
+            value = None
             if self.__config.get(extension_config_key) is not None:
-                for telemetry_key in self.__config[extension_config_key]:  # Processing every telemetry key in config for extension
+                for telemetry_key in self.__config[extension_config_key]:
+                    if not self.__config[extension_config_key][telemetry_key]:
+                        continue
                     for _ in range(self.__config[extension_config_key][telemetry_key]):
-                        try:# reading every value with value length from config
+                        try:
+                            # Read each value with value length from config
                             value = converted_bytes.pop(0)
-                        except Exception as e:
+                        except Exception:
                             continue
-                    # process and remove byte from processing
-                    datapoint_key = TBUtility.convert_key_to_datapoint_key(telemetry_key.replace("Bytes", ""), None, {}, self._log)  # creating telemetry entry
-                    converted_data.add_to_telemetry(TelemetryEntry({datapoint_key: value}, ts=timestamp))  # adding telemetry entry to telemetry array for sending data to platform
+                    # Process and remove byte from processing
+                    if value is not None:
+                        datapoint_key = TBUtility.convert_key_to_datapoint_key(
+                            telemetry_key.replace("Bytes", ""),
+                            None,
+                            {},
+                            self._log,
+                        )  # Creating telemetry entry
+                        converted_data.add_to_telemetry(
+                            TelemetryEntry({datapoint_key: value}, ts=timestamp)
+                        )  # Adding telemetry entry to telemetry array for sending data to platform
             else:
-                datapoint_key = TBUtility.convert_key_to_datapoint_key("data", None, {}, self._log)
-                converted_data.add_to_telemetry(TelemetryEntry({datapoint_key: int(body, 0)},
-                                                               ts=timestamp))  # if no specific configuration in config file - just send data which received
+                datapoint_key = TBUtility.convert_key_to_datapoint_key(
+                    "data",
+                    None,
+                    {},
+                    self._log,
+                )
+                converted_data.add_to_telemetry(
+                    TelemetryEntry({datapoint_key: int(body, 0)}, ts=timestamp)
+                )  # If no specific configuration in config file - just send received data
+
             return converted_data
 
         except Exception as e:
