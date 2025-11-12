@@ -531,6 +531,7 @@ class TBGatewayService:
                                     if cur_time >= data[1]:
                                         data[2](rpc_in_progress)
                                         self.cancel_rpc_request(rpc_in_progress)
+                                        log.error("RPC to %s topic canceled or terminated.", rpc_in_progress)
                                         self.__rpc_requests_in_progress[rpc_in_progress] = "del"
                                 new_rpc_request_in_progress = {key: value for key, value in
                                                                self.__rpc_requests_in_progress.items() if value != 'del'
@@ -1770,16 +1771,20 @@ class TBGatewayService:
         return topic in self.__rpc_requests_in_progress
 
     def rpc_with_reply_processing(self, topic, content):
-        rpc_reply_topics = self.__rpc_requests_in_progress.get(topic)
-        if not rpc_reply_topics:
+        rpc_request = self.__rpc_requests_in_progress.get(topic)
+        if rpc_request is None:
             log.error("No valid topic provided for RPC reply processing")
             return
 
         try:
-            req_id = rpc_reply_topics[0]["data"]["id"]
-            device = rpc_reply_topics[0]["device"]
+            unsubcribe_from_rpc_topic = rpc_request[2]
+            rpc_content = rpc_request[0]
+            req_id = rpc_content["data"]["id"]
+            device = rpc_content["device"]
             log.info("Outgoing RPC. Device: %s, ID: %d", device, req_id)
             self.send_rpc_reply(device, req_id, content)
+            self.__rpc_requests_in_progress.pop(topic, None)
+            unsubcribe_from_rpc_topic(topic)
         except KeyError as e:
             log.error("No valid data provided for RPC reply processing: %s", e)
 
