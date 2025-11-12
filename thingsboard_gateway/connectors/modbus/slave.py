@@ -13,8 +13,7 @@
 #     limitations under the License.
 
 import asyncio
-from threading import Thread
-from time import sleep, monotonic
+from time import monotonic
 from typing import TYPE_CHECKING, Dict, Union
 
 from _asyncio import Future
@@ -62,10 +61,8 @@ if TYPE_CHECKING:
     from thingsboard_gateway.connectors.modbus.entities.master import Master
 
 
-class Slave(Thread):
+class Slave:
     def __init__(self, connector: 'ModbusConnector', logger, config):
-        super().__init__()
-        self.daemon = True
         self.stopped = False
         self._log = logger
         self.connector = connector
@@ -132,7 +129,7 @@ class Slave(Thread):
         for attr_config in self.attributes_updates_config:
             self.shared_attributes_keys.append(attr_config[TAG_PARAMETER])
 
-    def __timer(self):
+    async def __timer(self):
         if self.__master is not None:
             self.__send_callback(monotonic())
             next_poll_time = monotonic() + self.poll_period
@@ -144,7 +141,7 @@ class Slave(Thread):
                     next_poll_time = current_time + self.poll_period
 
                 sleep_time = max(0.0, next_poll_time - monotonic())
-                sleep(sleep_time)
+                await asyncio.sleep(sleep_time)
 
     def __send_callback(self, current_monotonic):
         self.last_polled_time = current_monotonic
@@ -154,17 +151,18 @@ class Slave(Thread):
         except Exception as e:
             self._log.exception('Error sending slave callback: %s', e)
 
-    def run(self):
+    async def run(self):
         if self.uplink_converter_config.is_readable():
-            self.__timer()
+            await self.__timer()
 
     def close(self, loop):
+        self.stopped = True
+
         future = asyncio.run_coroutine_threadsafe(self.disconnect(), loop)
         try:
             future.result(timeout=5)
         except Exception as e:
             self._log.error('Failed to disconnect from %s: %s', self, e)
-        self.stopped = True
 
     def get_name(self):
         return self.device_name

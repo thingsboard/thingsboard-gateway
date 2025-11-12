@@ -213,7 +213,7 @@ class AsyncModbusConnector(Connector, Thread):
             slave.master = master
 
             self.__slaves.append(slave)
-            slave.start()
+            self.loop.create_task(slave.run())
         except ValueError as e:
             self.__log.error("Failed to add slave: %s", e)
 
@@ -365,7 +365,7 @@ class AsyncModbusConnector(Connector, Thread):
 
                         batch_to_convert[batch_key].append(data)
 
-                    for (device_name, uplink_converter), data in batch_to_convert.items():
+                    for (_, uplink_converter), data in batch_to_convert.items():
                         converted_data: ConvertedData = uplink_converter.convert({}, data)
                         self.__log.trace("Converted data: %r", converted_data)
                         if len(converted_data['attributes']) or len(converted_data['telemetry']):
