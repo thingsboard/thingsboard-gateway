@@ -1079,7 +1079,7 @@ class MqttConnector(Connector, Thread):
         return result
 
     def rpc_cancel_processing(self, topic):
-        self.__log.info("RPC canceled or terminated. Unsubscribing from %s", topic)
+        self.__log.info("Unsubscribing from %s", topic)
         self._client.unsubscribe(topic)
 
     def get_converters(self):
