@@ -612,9 +612,9 @@ class MqttConnector(Connector, Thread):
             return None, None
 
         except Exception as e:
-           self.__log.exception("An unexpected error occurred while parsing device info: %s", str(e))
-           self.__log.debug("Error %s", e, exc_info=True)
-           return None, None
+            self.__log.exception("An unexpected error occurred while parsing device info: %s", str(e))
+            self.__log.debug("Error %s", e, exc_info=True)
+            return None, None
 
     def _process_on_message(self):
         while not self.__stopped:
@@ -653,7 +653,8 @@ class MqttConnector(Connector, Thread):
                     # => Execution must end here both in case of failure and success
                     continue
 
-                # The main request processing block, the try/except statements are added to avoid whole attributes processing
+                # The main request processing block, the try/except statements are added
+                # to avoid whole attributes processing
                 # to be stopped because of a single error in a request processing
                 try:
 
@@ -673,7 +674,7 @@ class MqttConnector(Connector, Thread):
                         continue
 
                 # In case of failure in any block above, log the error and continue
-                except TypeError as e:
+                except TypeError:
                     self.__log.exception("Make sure your input match with config and the payload you sent was valid.",)
                     continue
 
@@ -887,7 +888,7 @@ class MqttConnector(Connector, Thread):
 
                 if not topic_expression or not value_expression or not attribute_filter:
                     self.__log.error(
-                        "Cannot find topicExpression or valueExpression or attributeFilter in attribute update configuration for: %s",
+                        "Cannot find topicExpression or valueExpression or attributeFilter in attribute update configuration for: %s",  # noqa
                         attribute_update_configuration)
                     continue
 
@@ -913,7 +914,7 @@ class MqttConnector(Connector, Thread):
                         self.__log.debug("Attribute Update data: %s for device %s to topic: %s", data_to_send,
                                          device_content, topic)
 
-                    except KeyError as e:
+                    except KeyError:
                         self.__log.exception("Cannot form topic/value for attribute configuration section %s",
                                              attribute_update_configuration)
         except Exception as e:
@@ -996,7 +997,10 @@ class MqttConnector(Connector, Thread):
                 self.__log.info("Publishing to: %s with data %s", request_topic, data_to_send)
                 result = None
                 try:
-                    result = self._publish(request_topic, data_to_send, rpc_config.get('retain', False), rpc_config.get('qos', 0))
+                    result = self._publish(request_topic,
+                                           data_to_send,
+                                           rpc_config.get('retain', False),
+                                           rpc_config.get('qos', 0))
                 except Exception as e:
                     self.__log.exception("Error during publishing to target broker: %r", e)
                     self.__gateway.send_rpc_reply(device=content.get("device"),
@@ -1114,7 +1118,8 @@ class MqttConnector(Connector, Thread):
                         continue
 
                     for convert_function, config, incoming_data in batch:
-                        converted_data: Union[ConvertedData, List[ConvertedData]] = convert_function(config, incoming_data)
+                        converted_data: Union[ConvertedData, List[ConvertedData]] = convert_function(config,
+                                                                                                     incoming_data)
                         if isinstance(converted_data, ConvertedData):
                             converted_data.add_to_metadata({CONVERTED_TS_PARAMETER: int(time() * 1000)})
                             if converted_data and (converted_data.telemetry_datapoints_count > 0 or
