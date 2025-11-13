@@ -32,6 +32,10 @@ class File:
         return f'{self._path_to_file} {self._read_mode}'
 
     @property
+    def max_size(self):
+        return self._max_size
+
+    @property
     def path_to_file(self):
         return self._path_to_file
 
