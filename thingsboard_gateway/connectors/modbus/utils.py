@@ -16,6 +16,7 @@ from pymodbus import ExceptionResponse
 from pymodbus.exceptions import ModbusIOException
 
 
+
 class Utils:
     @staticmethod
     def is_wide_range_request(address):
@@ -30,7 +31,7 @@ class Utils:
             start_address, end_address = Utils.__parse_wide_range_address(address)
             result = []
 
-            registers_to_read = (end_address - start_address + 1) * objects_count
+            registers_to_read = end_address - start_address + objects_count
             if registers_to_read <= 0:
                 raise ValueError('End address must be greater than start address')
 
