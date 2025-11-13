@@ -166,44 +166,40 @@ class FTPConnector(Connector, Thread):
 
                 for file in path.files:
                     current_hash = file.get_current_hash(ftp)
-                    if ((file.has_hash() and current_hash != file.hash)
-                        or not file.has_hash()) and file.check_size_limit(ftp):
-                        file.set_new_hash(current_hash)
 
-                        handle_stream = io.BytesIO()
-                        self.__log.trace("Retrieving file %s...", file.path_to_file)
+                    if not self.__is_file_hash_changed(file, current_hash):
+                        self.__log.info("File %s hash not changed, skipping...", file.path_to_file)
+                        continue
 
-                        ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
+                    if not file.check_size_limit(ftp):
+                        self.__log.warning("File %s size is larger than the maximum allowed size of %d MB, skipping...",
+                                           file.path_to_file, file.max_size)
+                        continue
 
-                        handled_str = str(handle_stream.getvalue(), 'UTF-8')
-                        handled_array = handled_str.split('\n')
+                    file.set_new_hash(current_hash)
 
-                        StatisticsService.count_connector_message(self.name,
-                                                                  stat_parameter_name='connectorMsgsReceived')
-                        StatisticsService.count_connector_bytes(self.name, handled_str,
-                                                                stat_parameter_name='connectorBytesReceived')
+                    handle_stream = io.BytesIO()
+                    self.__log.trace("Retrieving file %s...", file.path_to_file)
 
-                        convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
+                    ftp.retrbinary('RETR ' + file.path_to_file, handle_stream.write)
 
-                        self.__log.trace("Processing data from %s file", file.path_to_file)
+                    handled_str = str(handle_stream.getvalue(), 'UTF-8')
+                    handled_array = handled_str.split('\n')
 
-                        if convert_conf['file_ext'] == 'json':
-                            json_data = simplejson.loads(handled_str)
-                            if isinstance(json_data, list):
-                                for obj in json_data:
-                                    converted_data = converter.convert(convert_conf, obj)
+                    StatisticsService.count_connector_message(self.name,
+                                                              stat_parameter_name='connectorMsgsReceived')
+                    StatisticsService.count_connector_bytes(self.name, handled_str,
+                                                            stat_parameter_name='connectorBytesReceived')
 
-                                    if converted_data:
-                                        self.__log.info(
-                                            'Converted data for device %s with type %s, attributes: %s, telemetry: %s',
-                                            converted_data.device_name, converted_data.device_type,
-                                            converted_data.attributes_datapoints_count,
-                                            converted_data.telemetry_datapoints_count)
+                    convert_conf = {'file_ext': file.path_to_file.split('.')[-1]}
 
-                                        self.__log.debug('Converted data: %s', converted_data)
-                                        self.__send_data(converted_data)
-                            else:
-                                converted_data = converter.convert(convert_conf, json_data)
+                    self.__log.trace("Processing data from %s file", file.path_to_file)
+
+                    if convert_conf['file_ext'] == 'json':
+                        json_data = simplejson.loads(handled_str)
+                        if isinstance(json_data, list):
+                            for obj in json_data:
+                                converted_data = converter.convert(convert_conf, obj)
 
                                 if converted_data:
                                     self.__log.info(
@@ -215,30 +211,45 @@ class FTPConnector(Connector, Thread):
                                     self.__log.debug('Converted data: %s', converted_data)
                                     self.__send_data(converted_data)
                         else:
-                            cursor = file.cursor or 0
+                            converted_data = converter.convert(convert_conf, json_data)
 
-                            for (index, line) in enumerate(handled_array):
-                                if index == 0 and not path.txt_file_data_view == 'SLICED':
-                                    convert_conf['headers'] = line.split(path.delimiter)
+                            if converted_data:
+                                self.__log.info(
+                                    'Converted data for device %s with type %s, attributes: %s, telemetry: %s',
+                                    converted_data.device_name, converted_data.device_type,
+                                    converted_data.attributes_datapoints_count,
+                                    converted_data.telemetry_datapoints_count)
+
+                                self.__log.debug('Converted data: %s', converted_data)
+                                self.__send_data(converted_data)
+                    else:
+                        cursor = file.cursor or 0
+
+                        for (index, line) in enumerate(handled_array):
+                            if index == 0 and not path.txt_file_data_view == 'SLICED':
+                                convert_conf['headers'] = line.split(path.delimiter)
+                            else:
+                                if file.read_mode == File.ReadMode.PARTIAL and index >= cursor:
+                                    converted_data = converter.convert(convert_conf, line)
+                                    if index + 1 == len(handled_array):
+                                        file.cursor = index
                                 else:
-                                    if file.read_mode == File.ReadMode.PARTIAL and index >= cursor:
-                                        converted_data = converter.convert(convert_conf, line)
-                                        if index + 1 == len(handled_array):
-                                            file.cursor = index
-                                    else:
-                                        converted_data = converter.convert(convert_conf, line)
+                                    converted_data = converter.convert(convert_conf, line)
 
-                                    if converted_data:
-                                        self.__log.info(
-                                            'Converted data for device %s with type %s, attributes: %s, telemetry: %s',
-                                            converted_data.device_name, converted_data.device_type,
-                                            converted_data.attributes_datapoints_count,
-                                            converted_data.telemetry_datapoints_count)
+                                if converted_data:
+                                    self.__log.info(
+                                        'Converted data for device %s with type %s, attributes: %s, telemetry: %s',
+                                        converted_data.device_name, converted_data.device_type,
+                                        converted_data.attributes_datapoints_count,
+                                        converted_data.telemetry_datapoints_count)
 
-                                        self.__log.debug('Converted data: %s', converted_data)
-                                        self.__send_data(converted_data)
+                                    self.__log.debug('Converted data: %s', converted_data)
+                                    self.__send_data(converted_data)
 
-                        handle_stream.close()
+                    handle_stream.close()
+
+    def __is_file_hash_changed(self, file: File, current_hash: str):
+        return (file.has_hash() and current_hash != file.hash) or not file.has_hash()
 
     def __send_data(self, converted_data: ConvertedData):
         if (converted_data and
