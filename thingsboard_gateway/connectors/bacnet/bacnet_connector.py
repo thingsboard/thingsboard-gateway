@@ -274,8 +274,13 @@ class AsyncBACnetConnector(Thread, Connector):
                     mask)
                 app['mask'] = "24"
                 return True
+
+            elif mask.isdigit() and (0 <= int(mask) <= 32) and app['mask']:
+                self.__log.debug("Using the given mask from config %s", app['mask'])
+                return True
+
             else:
-                IPv4Network(f"{host}/{mask}")
+                IPv4Network(f"{host}/{mask}", strict=False)
                 return True
         except Exception:
             app['mask'] = "24"
