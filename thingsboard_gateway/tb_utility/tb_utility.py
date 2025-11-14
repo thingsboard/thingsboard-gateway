@@ -369,20 +369,33 @@ class TBUtility:
     def resolve_different_ts_formats(data: dict, config: dict, logger, default_ts: bool = True):
         ts_field_expression = config.get('tsField')
         if ts_field_expression is not None:
-            ts_field_key = None
+            ts_field_full_path = None
             try:
-                ts_field_key = TBUtility.get_value(ts_field_expression, data, get_tag=True)
+                ts_field_full_path = TBUtility.get_value(ts_field_expression, data, get_tag=True)
+                ts_field_key = ts_field_full_path.split('.')[-1]
+                ts_field_key_value = TBUtility.find_ts_field_value(ts_field_key, data)
 
-                if data.get(ts_field_key) is not None:
-                    parsed_configuration_data = parser.parse(data[ts_field_key], dayfirst=config.get('dayfirst', False), yearfirst=config.get('yearfirst', False))
+                if ts_field_key_value is not None:
+                    parsed_configuration_data = parser.parse(ts_field_key_value, dayfirst=config.get('dayfirst', False),
+                                                             yearfirst=config.get('yearfirst', False))
                     return int(parsed_configuration_data.timestamp() * 1000)
                 return data.get(ts_field_expression)
 
 
             except Exception as e:
                 logger.debug("Error while parsing timestamp %s: %s with configured tsField: %s",
-                             ts_field_key, e, config['tsField'])
+                             ts_field_full_path, e, config['tsField'])
         return data.get('ts', data.get('timestamp')) if default_ts else None
+
+    @staticmethod
+    def find_ts_field_value(ts_field_name: str, data: dict):
+        if data.get(ts_field_name) is not None:
+            return data.get(ts_field_name)
+        for key, value in data.items():
+            if isinstance(value, dict):
+                result = TBUtility.find_ts_field_value(ts_field_name, value)
+                if result is not None:
+                    return result
 
     @staticmethod
     def get_service_environmental_variables():
