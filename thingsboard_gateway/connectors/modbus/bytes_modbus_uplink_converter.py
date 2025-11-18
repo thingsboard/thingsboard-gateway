@@ -143,7 +143,7 @@ class BytesModbusUplinkConverter(ModbusConverter):
             key_name = self.__get_key_name(config, current_address)
             result.append({key_name: decoded_data})
 
-            current_address += 1
+            current_address += config.get('objectsCount', 1)
 
         return result
 
