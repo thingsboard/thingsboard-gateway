@@ -622,7 +622,7 @@ class AsyncBACnetConnector(Thread, Connector):
                 value = await self.__prepare_weekly_schedule_value(value, val_type)
 
             if property_id == "listOfObjectPropertyReferences":
-               value = await self.__prepare_list_of_object_property_references_value(value, property_id)
+                value = await self.__prepare_list_of_object_property_references_value(value, property_id)
 
             await self.__application.write_property(address, object_id, property_id, value, priority=priority)
             result['value'] = value
@@ -658,8 +658,8 @@ class AsyncBACnetConnector(Thread, Connector):
         for prop in raw_props:
             props.append(
                 DeviceObjectPropertyReference(
-                    objectIdentifier = prop,
-                    propertyIdentifier = property_id
+                    objectIdentifier=prop,
+                    propertyIdentifier=property_id
                 )
             )
         return props
