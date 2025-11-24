@@ -74,6 +74,11 @@ class BaseOpcuaTest(BaseTest):
 
             assert cls.device is not None
 
+    def setUp(self):
+        super(BaseOpcuaTest, self).setUp()
+        GatewayDeviceUtil.clear_connectors()
+        sleep(self.GENERAL_TIMEOUT)
+
     @classmethod
     def tearDownClass(cls):
         GatewayDeviceUtil.clear_connectors()
@@ -87,9 +92,21 @@ class BaseOpcuaTest(BaseTest):
             config = load(config)
         return config
 
-    def reset_node_default_values(self):
+    @classmethod
+    def change_connector_configuration(cls, config_file_path):
+        config = cls.load_configuration(config_file_path)
+        config[cls.CONNECTOR_NAME]['ts'] = int(time() * 1000)
+        response = cls.client.save_device_attributes(
+            cls.gateway.id,
+            'SHARED_SCOPE',
+            config
+        )
+        sleep(cls.GENERAL_TIMEOUT)
+        return config, response
+
+    def reset_node_default_values(self, path_to_default_values=None):
         default_node_values = self.load_configuration(
-            self.CONFIG_PATH + 'test_values/default_node_values.json')
+            self.CONFIG_PATH + path_to_default_values)
         self.client.save_device_attributes(self.device.id, 'SHARED_SCOPE', default_node_values)
 
     def update_device_shared_attributes(self, config_file_path):
@@ -97,6 +114,6 @@ class BaseOpcuaTest(BaseTest):
         self.client.save_device_attributes(self.device.id, 'SHARED_SCOPE', config)
 
     def update_device_and_connector_shared_attributes(self, connector_config_file_path, device_config_file_path):
-        GatewayDeviceUtil.update_connector_config(self.CONNECTOR_NAME, self.CONFIG_PATH + connector_config_file_path)
+        self.change_connector_configuration(self.CONFIG_PATH + connector_config_file_path)
         sleep(5)
         self.update_device_shared_attributes(device_config_file_path)
