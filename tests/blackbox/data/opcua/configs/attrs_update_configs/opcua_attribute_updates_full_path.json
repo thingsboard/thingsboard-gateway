@@ -41,7 +41,7 @@
               "type": "path",
               "value": "${Root\\.Objects\\.TempSensor\\.SomeText}"
             },
-             {
+            {
               "key": "Alarm",
               "type": "path",
               "value": "${Root\\.Objects\\.TempSensor\\.Alarm}"
@@ -51,12 +51,29 @@
               "type": "path",
               "value": "${Root\\.Objects\\.TempSensor\\.MyNodeId}"
             }
-
-
           ],
           "rpc_methods": [],
           "attributes_updates": [
-
+            {
+              "key": "pressure",
+              "type": "path",
+              "value": "${Root\\.Objects\\.DemoDeviceInfo\\.Pressure}"
+            },
+            {
+              "key": "some_text",
+              "type": "path",
+              "value": "${Root\\.Objects\\.DemoDeviceInfo\\.SomeText}"
+            },
+            {
+              "key": "alarm_status",
+              "type": "path",
+              "value": "${Root\\.Objects\\.DemoDeviceInfo\\.Alarm}"
+            },
+            {
+              "key": "node_id_info",
+              "type": "path",
+              "value": "${Root\\.Objects\\.DemoDeviceInfo\\.MyNodeId}"
+            }
           ]
         }
       ]
