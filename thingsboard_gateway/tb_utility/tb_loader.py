@@ -14,6 +14,7 @@
 #
 
 from importlib.util import module_from_spec, spec_from_file_location
+from importlib import import_module
 from inspect import getmembers, isclass
 from logging import getLogger, setLoggerClass
 from os import listdir, path
@@ -79,5 +80,33 @@ class TBModuleLoader:
                                 continue
         except Exception as e:
             log.error("Error while importing module %s from %s.", module_name, current_extension_path, exc_info=e)
+            errors.append(e)
+        return errors
+
+    @staticmethod
+    def import_package_files(extension_type, package_name):
+        errors = []
+        if len(TBModuleLoader.PATHS) == 0:
+            TBModuleLoader.find_paths()
+        try:
+            for current_path in TBModuleLoader.PATHS:
+                current_extension_path = current_path + path.sep + extension_type
+                package_path = current_extension_path + path.sep + package_name
+                if path.exists(package_path):
+                    for file in listdir(package_path):
+                        if not file.startswith("__") and (file.endswith(".py") or file.endswith(".pyc")):
+                            try:
+                                module_name, _ = path.splitext(file)
+                                module = f'{package_path.replace("/", ".")}.{module_name}'
+                                if module.startswith("."):
+                                    module = module[1:]
+                                log.info("Import %s from %s.", module, package_path)
+                                import_module(module)
+                            except ImportError as e:
+                                log.info(e.msg)
+                                errors.append(e.msg)
+                                continue
+        except Exception as e:
+            log.error("Error while importing package %s from %s.", package_name, package_path, exc_info=e)
             errors.append(e)
         return errors
