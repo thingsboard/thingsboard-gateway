@@ -75,7 +75,8 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__log.debug('EDE config parsed')
 
         # importing the proprietary package registers all available custom object types and properties
-        TBModuleLoader.import_package_files(connector_type, "proprietary")
+        if self.__config.get('loadProprietaryDevices', False):
+            TBModuleLoader.import_package_files(connector_type, "proprietary")
 
         if BackwardCompatibilityAdapter.is_old_config(config):
             backward_compatibility_adapter = BackwardCompatibilityAdapter(config, self.__log)

@@ -11,7 +11,8 @@
     "deviceDiscoveryTimeoutInSec": 5,
     "networkNumber": 0,
     "networkNumberQuality": "configured",
-    "devicesDiscoverPeriodSeconds": 30
+    "devicesDiscoverPeriodSeconds": 30,
+    "loadProprietaryDevices": false
   },
   "foreignDevice": {
     "address": "0.0.0.0",
