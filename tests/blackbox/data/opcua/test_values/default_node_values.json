@@ -1,6 +1,6 @@
 {
   "Pressure": "1013.25",
-  "SomeText":  "SomeText",
+  "SomeText": "SomeText",
   "Alarm": "true",
   "MyNodeId": "12.2"
 }

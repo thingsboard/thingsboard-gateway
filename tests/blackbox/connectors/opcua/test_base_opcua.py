@@ -114,6 +114,6 @@ class BaseOpcuaTest(BaseTest):
         self.client.save_device_attributes(self.device.id, 'SHARED_SCOPE', config)
 
     def update_device_and_connector_shared_attributes(self, connector_config_file_path, device_config_file_path):
-        self.change_connector_configuration(self.CONFIG_PATH + connector_config_file_path)
+        GatewayDeviceUtil.update_connector_config(self.CONNECTOR_NAME, self.CONFIG_PATH + connector_config_file_path)
         sleep(5)
         self.update_device_shared_attributes(device_config_file_path)
