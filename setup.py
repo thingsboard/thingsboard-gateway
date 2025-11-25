@@ -56,7 +56,7 @@ setup(
               'thingsboard_gateway.connectors.can', 'thingsboard_gateway.extensions.can',
               'thingsboard_gateway.connectors.odbc', 'thingsboard_gateway.extensions.odbc',
               'thingsboard_gateway.connectors.bacnet', 'thingsboard_gateway.connectors.bacnet.entities',
-              'thingsboard_gateway.extensions.bacnet',
+              'thingsboard_gateway.extensions.bacnet', 'thingsboard_gateway.extensions.bacnet.proprietary',
               'thingsboard_gateway.connectors.rest', 'thingsboard_gateway.extensions.rest',
               'thingsboard_gateway.connectors.snmp', 'thingsboard_gateway.extensions.snmp',
               'thingsboard_gateway.connectors.ftp', 'thingsboard_gateway.extensions.ftp',
