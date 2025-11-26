@@ -42,7 +42,31 @@ class OpcuaAttributesUpdatesTest(BaseOpcuaTest):
             path_to_default_values='test_values/attrs_update/opcua_paths_default_values.json')
 
     def test_attributes_update_identifiers(self):
-        pass
-    #
-    # def test_attributes_update_different_types(self):
-    #     pass
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/opcua_attribute_updates_identifier.json',
+            'test_values/attrs_update/opcua_identifier_attributes_update_values.json')
+        sleep(self.GENERAL_TIMEOUT * 2)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/opcua_identifier_attributes_update_values.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                          ','.join([key for (key, _) in expected_values.items()]))
+        for (key, value) in expected_values.items():
+            self.assertEqual(value, actual_values[key][0]['value'],
+                             f'Value is not equal for the next telemetry key: {key}')
+        self.reset_node_default_values(
+            path_to_default_values='test_values/attrs_update/opcua_identifier_default_values.json')
+
+    def test_attributes_update_different_types(self):
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/opcua_attribute_updates_different_types.json',
+            'test_values/attrs_update/opcua_different_types_attributes_update_values.json')
+        sleep(self.GENERAL_TIMEOUT * 2)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/opcua_different_types_attributes_update_values.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                          ','.join([key for (key, _) in expected_values.items()]))
+        for (key, value) in expected_values.items():
+            self.assertEqual(value, actual_values[key][0]['value'],
+                             f'Value is not equal for the next telemetry key: {key}')
+        self.reset_node_default_values(
+            path_to_default_values='test_values/attrs_update/opcua_different_types_attributes_update_default_values.json')

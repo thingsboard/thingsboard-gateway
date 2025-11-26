@@ -1,0 +1,82 @@
+{
+  "Opcua": {
+    "name": "Opcua",
+    "type": "OPCUA",
+    "logLevel": "DEBUG",
+    "configuration": "opcua.json",
+    "configurationJson": {
+      "server": {
+        "url": "opc.tcp://localhost:4840/freeopcua/server/",
+        "timeoutInMillis": 5000,
+        "scanPeriodInMillis": 3600000,
+        "pollPeriodInMillis": 5000,
+        "enableSubscriptions": true,
+        "subCheckPeriodInMillis": 100,
+        "showMap": false,
+        "security": "Basic128Rsa15",
+        "identity": {
+          "type": "anonymous"
+        }
+      },
+      "mapping": [
+        {
+          "deviceNodeSource": "identifier",
+          "deviceNodePattern": "ns=4;s=TempSensor_S",
+          "deviceInfo": {
+            "deviceNameExpression": "Temp Sensor",
+            "deviceNameExpressionSource": "constant",
+            "deviceProfileExpression": "default",
+            "deviceProfileExpressionSource": "constant"
+          },
+          "attributes": [
+          ],
+          "timeseries": [
+            {
+              "key": "Humidity",
+              "type": "path",
+              "value": "${Root\\.Objects\\.TempSensor_S\\.Humidity}"
+            },
+            {
+              "key": "Pressure_S",
+              "type": "identifier",
+              "value": "${ns=3;i=8}"
+            },
+            {
+              "key": "Status",
+              "type": "identifier",
+              "value": "${ns=4;b=U3RhdHVzX1M=}"
+            },
+            {
+              "key": "Alarm",
+              "type": "path",
+              "value": "${Root\\.Objects\\.TempSensor_S\\.Alarm}"
+            }
+          ],
+          "rpc_methods": [],
+          "attributes_updates": [
+            {
+              "key": "Humidity",
+              "type": "path",
+              "value": "${Root\\.Objects\\.TempSensor_S\\.Humidity}"
+            },
+            {
+              "key": "Pressure_S",
+              "type": "identifier",
+              "value": "${ns=3;i=8}"
+            },
+            {
+              "key": "Status",
+              "type": "identifier",
+              "value": "${ns=4;b=U3RhdHVzX1M=}"
+            },
+            {
+              "key": "Alarm",
+              "type": "path",
+              "value": "${Root\\.Objects\\.TempSensor_S\\.Alarm}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
