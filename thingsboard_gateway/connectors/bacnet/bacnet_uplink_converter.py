@@ -147,11 +147,30 @@ class AsyncBACnetUplinkConverter(AsyncBACnetConverter):
 
     def __find_values(self, data, object_id, object_type, property_id):
         required_object_type = TBUtility.kebab_case_to_camel_case(object_type)
-        return set(filter(
-            lambda value: value[0][-1] == object_id and
-            TBUtility.kebab_case_to_camel_case(str(value[0][0])) == required_object_type and
-            TBUtility.kebab_case_to_camel_case(str(value[1])) in property_id,
-            data))
+        result = []
+        seen = set()
+
+        for value in data:
+            if not (
+                value[0][-1] == object_id and
+                TBUtility.kebab_case_to_camel_case(str(value[0][0])) == required_object_type and
+                TBUtility.kebab_case_to_camel_case(str(value[1])) in property_id
+            ):
+                continue
+
+            key = (
+                value[0][-1],
+                TBUtility.kebab_case_to_camel_case(str(value[0][0])),
+                TBUtility.kebab_case_to_camel_case(str(value[1])),
+            )
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+            result.append(value)
+
+        return result
 
     def __get_data_key_name(self, key_expression, data):
         unused_keys = []
