@@ -35,29 +35,10 @@
               "key": "Pressure",
               "type": "path",
               "value": "${Root\\.Objects\\.TempSensor\\.Pressure}"
-            },
-            {
-              "key": "SomeText",
-              "type": "path",
-              "value": "${Root\\.Objects\\.TempSensor\\.SomeText}"
-            },
-             {
-              "key": "Alarm",
-              "type": "path",
-              "value": "${Root\\.Objects\\.TempSensor\\.Alarm}"
-            },
-            {
-              "key": "MyNodeId",
-              "type": "path",
-              "value": "${Root\\.Objects\\.TempSensor\\.MyNodeId}"
             }
-
-
           ],
           "rpc_methods": [],
-          "attributes_updates": [
-
-          ]
+          "attributes_updates": []
         }
       ]
     }

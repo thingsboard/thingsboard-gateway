@@ -1,6 +1,20 @@
+#     Copyright 2025. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 import logging
 from time import time, sleep
-
+from opcua import Client
 from tests.base_test import BaseTest
 from tb_rest_client import RestClientCE
 from os import path
@@ -21,6 +35,7 @@ class BaseOpcuaTest(BaseTest):
     CONNECTION_TIMEOUT = 300
     GENERAL_TIMEOUT = 10
     CONNECTOR_NAME = 'Opcua'
+    HARD_RESET_DEVICE_PATH = ['0:Objects', '3:TempSensor']
 
     client = None
     gateway = None
@@ -74,10 +89,29 @@ class BaseOpcuaTest(BaseTest):
 
             assert cls.device is not None
 
+    def setUp(self):
+        super(BaseOpcuaTest, self).setUp()
+        GatewayDeviceUtil.clear_connectors()
+        sleep(self.GENERAL_TIMEOUT)
+
     @classmethod
     def tearDownClass(cls):
         GatewayDeviceUtil.clear_connectors()
         GatewayDeviceUtil.delete_device(cls.device.id)
+        client = Client("opc.tcp://localhost:4840/freeopcua/server/")
+        try:
+            client.connect()
+
+            var = client.nodes.root.get_child(cls.HARD_RESET_DEVICE_PATH)
+            method_id = '{}:{}'.format(var.nodeid.NamespaceIndex, "hard_reset_sensor_values")
+            var.call_method(method_id)
+
+        except Exception as e:
+            LOG.error(f"Error during resetting OPC-UA server state: {e}")
+
+        finally:
+            client.disconnect()
+
         super(BaseOpcuaTest, cls).tearDownClass()
         sleep(2)
 
@@ -87,9 +121,21 @@ class BaseOpcuaTest(BaseTest):
             config = load(config)
         return config
 
-    def reset_node_default_values(self):
+    @classmethod
+    def change_connector_configuration(cls, config_file_path):
+        config = cls.load_configuration(config_file_path)
+        config[cls.CONNECTOR_NAME]['ts'] = int(time() * 1000)
+        response = cls.client.save_device_attributes(
+            cls.gateway.id,
+            'SHARED_SCOPE',
+            config
+        )
+        sleep(cls.GENERAL_TIMEOUT)
+        return config, response
+
+    def reset_node_default_values(self, path_to_default_values=None):
         default_node_values = self.load_configuration(
-            self.CONFIG_PATH + 'test_values/default_node_values.json')
+            self.CONFIG_PATH + path_to_default_values)
         self.client.save_device_attributes(self.device.id, 'SHARED_SCOPE', default_node_values)
 
     def update_device_shared_attributes(self, config_file_path):
