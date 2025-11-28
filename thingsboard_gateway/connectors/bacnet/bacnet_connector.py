@@ -40,6 +40,7 @@ from thingsboard_gateway.gateway.constants import STATISTIC_MESSAGE_RECEIVED_PAR
 from thingsboard_gateway.gateway.statistics.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 
 try:
     from bacpypes3.apdu import ErrorRejectAbortNack
@@ -84,6 +85,10 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__log.info('EDE config detected, parsing...')
             self.__parse_ede_config()
             self.__log.debug('EDE config parsed')
+
+        # importing the proprietary package registers all available custom object types and properties
+        if self.__config.get('loadProprietaryDevices', False):
+            TBModuleLoader.import_package_files(connector_type, "proprietary")
 
         if BackwardCompatibilityAdapter.is_old_config(config):
             backward_compatibility_adapter = BackwardCompatibilityAdapter(config, self.__log)
