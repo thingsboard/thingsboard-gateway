@@ -1,11 +1,25 @@
+#     Copyright 2025. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 from time import sleep
 from tests.blackbox.connectors.opcua.test_base_opcua import BaseOpcuaTest
 
 
-class OpcuaReservedRpc(BaseOpcuaTest):
+class OpcuaReadRpc(BaseOpcuaTest):
 
     def setUp(self):
-        super(OpcuaReservedRpc, self).setUp()
+        super(OpcuaReadRpc, self).setUp()
         sleep(self.GENERAL_TIMEOUT * 2)
 
     def test_full_path_reading_rpc(self):
@@ -91,6 +105,13 @@ class OpcuaReservedRpc(BaseOpcuaTest):
         self.assertEqual(result, {'result': {'result': 56}},
                          f'Value is not equal for the multiply method')
 
+
+class OpcuaWriteRPC(BaseOpcuaTest):
+
+    def setUp(self):
+        super(OpcuaWriteRPC, self).setUp()
+        sleep(self.GENERAL_TIMEOUT * 2)
+
     def test_full_path_writing_rpc(self):
         (config, _) = self.change_connector_configuration(
             self.CONFIG_PATH + 'configs/rpc_configs/opcua_rpc_absolute_path.json')
@@ -113,7 +134,6 @@ class OpcuaReservedRpc(BaseOpcuaTest):
         for telemetry_key in telemetry_keys:
             self.assertEqual(result, {'result': {'value': expected_values[telemetry_key]}},
                              f'Value is not equal for the identifier and the following telemetry key: {telemetry_key}')
-        self.reset_node_default_values(path_to_default_values='test_values/rpc/opcua_rpc_full_path_default_values.json')
 
     def test_relative_path_writing_rpc(self):
         (config, _) = self.change_connector_configuration(
@@ -137,8 +157,6 @@ class OpcuaReservedRpc(BaseOpcuaTest):
         for telemetry_key in telemetry_keys:
             self.assertEqual(result, {'result': {'value': expected_values[telemetry_key]}},
                              f'Value is not equal for the relative path and the following telemetry key: {telemetry_key}')
-        self.reset_node_default_values(
-            path_to_default_values='test_values/rpc/opcua_rpc_relative_path_default_values.json')
 
     def test_identifier_writing_rpc(self):
         (config, _) = self.change_connector_configuration(
@@ -162,5 +180,3 @@ class OpcuaReservedRpc(BaseOpcuaTest):
         for telemetry_key in telemetry_keys:
             self.assertEqual(result, {'result': {'value': expected_values[telemetry_key]}},
                              f'Value is not equal for the relative path and the following telemetry key: {telemetry_key}')
-        self.reset_node_default_values(
-            path_to_default_values='test_values/rpc/opcua_rpc_identifier_default_values.json')

@@ -1,6 +1,20 @@
+#     Copyright 2025. ThingsBoard
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+
 import logging
 from time import time, sleep
-
+from opcua import Client
 from tests.base_test import BaseTest
 from tb_rest_client import RestClientCE
 from os import path
@@ -21,6 +35,7 @@ class BaseOpcuaTest(BaseTest):
     CONNECTION_TIMEOUT = 300
     GENERAL_TIMEOUT = 10
     CONNECTOR_NAME = 'Opcua'
+    HARD_RESET_DEVICE_PATH = ['0:Objects', '3:TempSensor']
 
     client = None
     gateway = None
@@ -83,6 +98,20 @@ class BaseOpcuaTest(BaseTest):
     def tearDownClass(cls):
         GatewayDeviceUtil.clear_connectors()
         GatewayDeviceUtil.delete_device(cls.device.id)
+        client = Client("opc.tcp://localhost:4840/freeopcua/server/")
+        try:
+            client.connect()
+
+            var = client.nodes.root.get_child(cls.HARD_RESET_DEVICE_PATH)
+            method_id = '{}:{}'.format(var.nodeid.NamespaceIndex, "hard_reset_sensor_values")
+            var.call_method(method_id)
+
+        except Exception as e:
+            LOG.error(f"Error during resetting OPC-UA server state: {e}")
+
+        finally:
+            client.disconnect()
+
         super(BaseOpcuaTest, cls).tearDownClass()
         sleep(2)
 

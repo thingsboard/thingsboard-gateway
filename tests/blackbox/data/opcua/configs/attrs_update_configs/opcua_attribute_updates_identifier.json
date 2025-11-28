@@ -62,7 +62,7 @@
             {
               "key": "Pressure_S",
               "type": "identifier",
-              "value": "${ns=3;i=9}"
+              "value": "${ns=5;i=1}"
             },
             {
               "key": "Status",
