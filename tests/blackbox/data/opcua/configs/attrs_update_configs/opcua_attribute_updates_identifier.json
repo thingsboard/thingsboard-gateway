@@ -1,0 +1,82 @@
+{
+  "Opcua": {
+    "name": "Opcua",
+    "type": "OPCUA",
+    "logLevel": "DEBUG",
+    "configuration": "opcua.json",
+    "configurationJson": {
+      "server": {
+        "url": "opc.tcp://localhost:4840/freeopcua/server/",
+        "timeoutInMillis": 5000,
+        "scanPeriodInMillis": 3600000,
+        "pollPeriodInMillis": 5000,
+        "enableSubscriptions": true,
+        "subCheckPeriodInMillis": 100,
+        "showMap": false,
+        "security": "Basic128Rsa15",
+        "identity": {
+          "type": "anonymous"
+        }
+      },
+      "mapping": [
+        {
+          "deviceNodeSource": "identifier",
+          "deviceNodePattern": "ns=5;g=018dd02c-fd22-754a-b6d3-5fcae91cd39d",
+          "deviceInfo": {
+            "deviceNameExpression": "Temp Sensor",
+            "deviceNameExpressionSource": "constant",
+            "deviceProfileExpression": "default",
+            "deviceProfileExpressionSource": "constant"
+          },
+          "attributes": [
+          ],
+          "timeseries": [
+            {
+              "key": "Humidity",
+              "type": "identifier",
+              "value": "${ns=5;s=Humidity_S}"
+            },
+            {
+              "key": "Pressure_S",
+              "type": "identifier",
+              "value": "${ns=3;i=9}"
+            },
+            {
+              "key": "Status",
+              "type": "identifier",
+              "value": "${ns=5;b=U3RhdHVzX1M=}"
+            },
+            {
+              "key": "Alarm",
+              "type": "identifier",
+              "value": "${ns=5;g=baeaf004-1e43-4a06-9ef0-e52010d5cd12}"
+            }
+          ],
+          "rpc_methods": [],
+          "attributes_updates": [
+            {
+              "key": "Humidity",
+              "type": "identifier",
+              "value": "${ns=5;s=Humidity_S}"
+            },
+            {
+              "key": "Pressure_S",
+              "type": "identifier",
+              "value": "${ns=3;i=9}"
+            },
+            {
+              "key": "Status",
+              "type": "identifier",
+              "value": "${ns=5;b=U3RhdHVzX1M=}"
+            },
+            {
+              "key": "Alarm",
+              "type": "identifier",
+              "value": "${ns=5;g=baeaf004-1e43-4a06-9ef0-e52010d5cd12}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

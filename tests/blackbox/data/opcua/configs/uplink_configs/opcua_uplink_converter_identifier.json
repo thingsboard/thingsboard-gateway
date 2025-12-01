@@ -20,8 +20,8 @@
       },
       "mapping": [
         {
-          "deviceNodeSource": "path",
-          "deviceNodePattern": "Root\\.Objects\\.TempSensor",
+          "deviceNodeSource": "identifier",
+          "deviceNodePattern": "ns=5;g=018dd02c-fd22-754a-b6d3-5fcae91cd39d",
           "deviceInfo": {
             "deviceNameExpression": "Temp Sensor",
             "deviceNameExpressionSource": "constant",
@@ -32,32 +32,30 @@
           ],
           "timeseries": [
             {
-              "key": "Pressure",
-              "type": "path",
-              "value": "${Root\\.Objects\\.TempSensor\\.Pressure}"
+              "key": "Humidity",
+              "type": "identifier",
+              "value": "${ns=5;s=Humidity_S}"
             },
             {
-              "key": "SomeText",
-              "type": "path",
-              "value": "${Root\\.Objects\\.TempSensor\\.SomeText}"
+              "key": "Pressure_S",
+              "type": "identifier",
+              "value": "${ns=3;i=9}"
+            },
+            {
+              "key": "Status",
+              "type": "identifier",
+              "value": "${ns=5;b=U3RhdHVzX1M=}"
             },
              {
               "key": "Alarm",
-              "type": "path",
-              "value": "${Root\\.Objects\\.TempSensor\\.Alarm}"
-            },
-            {
-              "key": "MyNodeId",
-              "type": "path",
-              "value": "${Root\\.Objects\\.TempSensor\\.MyNodeId}"
+              "type": "identifier",
+              "value": "${ns=5;g=baeaf004-1e43-4a06-9ef0-e52010d5cd12}"
             }
 
 
           ],
           "rpc_methods": [],
-          "attributes_updates": [
-
-          ]
+          "attributes_updates": []
         }
       ]
     }

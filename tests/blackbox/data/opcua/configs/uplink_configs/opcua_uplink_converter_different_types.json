@@ -20,8 +20,8 @@
       },
       "mapping": [
         {
-          "deviceNodeSource": "path",
-          "deviceNodePattern": "Root\\.Objects\\.TempSensor",
+          "deviceNodeSource": "identifier",
+          "deviceNodePattern": "ns=4;s=TempSensor_S",
           "deviceInfo": {
             "deviceNameExpression": "Temp Sensor",
             "deviceNameExpressionSource": "constant",
@@ -32,32 +32,30 @@
           ],
           "timeseries": [
             {
-              "key": "Pressure",
+              "key": "Humidity",
               "type": "path",
-              "value": "${Root\\.Objects\\.TempSensor\\.Pressure}"
+              "value": "${Root\\.Objects\\.TempSensor_S\\.Humidity}"
             },
             {
-              "key": "SomeText",
-              "type": "path",
-              "value": "${Root\\.Objects\\.TempSensor\\.SomeText}"
+              "key": "Pressure_S",
+              "type": "identifier",
+              "value": "${ns=3;i=8}"
+            },
+            {
+              "key": "Status",
+              "type": "identifier",
+              "value": "${ns=4;b=U3RhdHVzX1M=}"
             },
              {
               "key": "Alarm",
               "type": "path",
-              "value": "${Root\\.Objects\\.TempSensor\\.Alarm}"
-            },
-            {
-              "key": "MyNodeId",
-              "type": "path",
-              "value": "${Root\\.Objects\\.TempSensor\\.MyNodeId}"
+              "value": "${Root\\.Objects\\.TempSensor_S\\.Alarm}"
             }
 
 
           ],
           "rpc_methods": [],
-          "attributes_updates": [
-
-          ]
+          "attributes_updates": []
         }
       ]
     }
