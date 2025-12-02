@@ -342,8 +342,11 @@ class BytesModbusUplinkConverter(ModbusConverter):
     def _is_enum_value(config):
         return 'variants' in config
 
-    @staticmethod
-    def _process_enum_value(config, decoded_data):
-        enum_key = str(decoded_data)
+    def _process_enum_value(self, config, decoded_data):
+        try:
+            enum_key = str(decoded_data)
 
-        return config['variants'].get(enum_key, decoded_data)
+            return config['variants'].get(enum_key, decoded_data)
+        except Exception as e:
+            self._log.exception(e)
+            return decoded_data
