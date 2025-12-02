@@ -222,6 +222,9 @@ class BytesModbusUplinkConverter(ModbusConverter):
             elif config.get('multiplier'):
                 decoded_data = decoded_data * config['multiplier']
 
+        if self._is_enum_value(config):
+            decoded_data = self._process_enum_value(config, decoded_data)
+
         return decoded_data
 
     @staticmethod
@@ -334,3 +337,13 @@ class BytesModbusUplinkConverter(ModbusConverter):
             return ReportStrategyConfig(report_strategy)
         except ValueError as e:
             self._log.trace("Report strategy config is not specified for device %s: %s", device_name, e)
+
+    @staticmethod
+    def _is_enum_value(config):
+        return 'variants' in config
+
+    @staticmethod
+    def _process_enum_value(config, decoded_data):
+        enum_key = str(decoded_data)
+
+        return config['variants'].get(enum_key, decoded_data)
