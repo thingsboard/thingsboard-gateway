@@ -624,8 +624,24 @@ class OpcUaConnector(Connector, Thread):
     def is_regex_pattern(pattern):
         return not re.fullmatch(pattern, pattern)
 
-    async def __find_nodes(self, node_list_to_search, current_parent_node, nodes, path="Root",
-                           device: Device | None = None):
+    def __find_foreign_node_in_cache(self, target_node_path: str):
+        name_of_device_node = target_node_path.split(".")[-1]
+
+        candidates = []
+        for key, chain in self.__scanning_nodes_cache.items():
+            if key.split(".")[-1] != name_of_device_node:
+                continue
+
+            for elem in chain:
+                try:
+                    if isinstance(elem, dict) and elem["path"].split(":")[-1] == name_of_device_node:
+                        candidates.append(elem)
+                except KeyError:
+                    self.__log.debug("Could not update ")
+
+        return candidates
+
+    async def __find_nodes(self, node_list_to_search, current_parent_node, nodes, path="Root", find_foreign_nodes=False):
         assert len(node_list_to_search) > 0
         final = []
 
@@ -640,16 +656,13 @@ class OpcUaConnector(Connector, Thread):
                     self.__log.debug('Found node in cache: %s', node_list_to_search[0])
                 final.append(self.__scanning_nodes_cache[target_node_path])
                 return final
-            elif device is not None and target_node_path:
-                path_for_device_node = target_node_path.split(".")[-1]
-                for node_dict in device.nodes:
-                    try:
-                        if node_dict['key'] == path_for_device_node:
-                            final.append([node_dict])
-                            return final
-                    except KeyError as e:
-                        self.__log.debug("Could not find foreign node for device %s", device)
-                        continue
+
+            elif find_foreign_nodes and target_node_path:
+                name_of_device_node = target_node_path.split('.')[-1]
+                node_in_cache = self.__find_foreign_node_in_cache(name_of_device_node)
+                if node_in_cache:
+                    final.append(node_in_cache)
+                    return final
 
         children = await current_parent_node.get_children()
         children_nodes_count = len(children)
@@ -1193,7 +1206,7 @@ class OpcUaConnector(Connector, Thread):
             node_pattern, current_path = self.get_rpc_node_pattern_and_base_path(params, device, logger=self.__log)
             node_list = node_pattern.split("\\.")[-1:]
             nodes = []
-            find_task = self.__find_nodes(node_list, device.device_node, nodes, current_path, device=device)
+            find_task = self.__find_nodes(node_list, device.device_node, nodes, current_path, find_foreign_nodes=True)
             task = self.__loop.create_task(find_task)
             found_task_completed, found_nodes = self.__wait_task_with_timeout(task=task, timeout=10, poll_interval=0.2)
             if not found_task_completed:
