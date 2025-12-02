@@ -624,20 +624,27 @@ class OpcUaConnector(Connector, Thread):
     def is_regex_pattern(pattern):
         return not re.fullmatch(pattern, pattern)
 
-    def __find_foreign_node_in_cache(self, target_node_path: str):
-        name_of_device_node = target_node_path.split(".")[-1]
-
+    def __find_foreign_node_in_cache(self, name_of_device_node: str):
+        self.__log.debug("Searching cache for foreign node with name '%s' ")
         candidates = []
         for key, chain in self.__scanning_nodes_cache.items():
             if key.split(".")[-1] != name_of_device_node:
                 continue
-
+            self.__log.debug("Found matching cache key '%s' for node name '%s'," "checking chain with %d element(s)",
+                             key, name_of_device_node)
             for elem in chain:
                 try:
                     if isinstance(elem, dict) and elem["path"].split(":")[-1] == name_of_device_node:
                         candidates.append(elem)
+                        self.__log.debug("Matched cached node for '%s': path='%s'", name_of_device_node, elem["path"])
                 except KeyError:
-                    self.__log.debug("Could not update ")
+                    self.__log.debug("Cached element under key '%s' is missing 'path' field: %r", key, elem)
+
+                except IndexError:
+                    self.__log.debug("Unexpected path format in cached element under key '%s': %r", key, elem,
+                                     exc_info=True, )
+
+        self.__log.debug("Search in cache for '%s' finished, %d candidate found", name_of_device_node, len(candidates))
 
         return candidates
 
@@ -658,11 +665,14 @@ class OpcUaConnector(Connector, Thread):
                 return final
 
             elif find_foreign_nodes and target_node_path:
-                name_of_device_node = target_node_path.split('.')[-1]
-                node_in_cache = self.__find_foreign_node_in_cache(name_of_device_node)
-                if node_in_cache:
-                    final.append(node_in_cache)
-                    return final
+                try:
+                    name_of_device_node = target_node_path.split('.')[-1]
+                    node_in_cache = self.__find_foreign_node_in_cache(name_of_device_node)
+                    if node_in_cache:
+                        final.append(node_in_cache)
+                        return final
+                except Exception as e:
+                    self.__log.info("Could not find foreign node in cache for path %s - %s", target_node_path, e)
 
         children = await current_parent_node.get_children()
         children_nodes_count = len(children)
