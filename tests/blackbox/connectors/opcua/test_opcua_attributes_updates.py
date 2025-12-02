@@ -81,3 +81,19 @@ class OpcuaAttributesUpdatesTest(BaseOpcuaTest):
                              f'Value is not equal for the next telemetry key: {key}')
         self.reset_node_default_values(
             path_to_default_values='test_values/attrs_update/opcua_different_types_attributes_update_default_values.json')
+
+    def test_attributes_update_foreign_device_node(self):
+        self.update_device_and_connector_shared_attributes(
+            'configs/attrs_update_configs/opcua_attribute_updates_foreign_device_node.json',
+            'test_values/attrs_update/opcua_foreign_device_nodes.json')
+        sleep(self.GENERAL_TIMEOUT * 2)
+        expected_values = self.load_configuration(
+            self.CONFIG_PATH + 'test_values/attrs_update/opcua_foreign_device_nodes.json')
+        actual_values = self.client.get_latest_timeseries(self.device.id,
+                                                          ','.join([key for (key, _) in expected_values.items()]))
+        for (key, value) in expected_values.items():
+            self.assertEqual(value, actual_values[key][0]['value'],
+                             f'Value is not equal for the next telemetry key: {key}')
+        self.reset_node_default_values(
+            path_to_default_values='test_values/attrs_update/opcua_foreign_device_nodes_default_values.json')
+
