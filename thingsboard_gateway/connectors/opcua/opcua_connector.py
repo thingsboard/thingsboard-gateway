@@ -628,21 +628,21 @@ class OpcUaConnector(Connector, Thread):
         self.__log.debug("Searching cache for foreign node with name '%s' ")
         candidates = []
         for key, chain in self.__scanning_nodes_cache.items():
+            if not key or not isinstance(key, str):
+                continue
             if key.split(".")[-1] != name_of_device_node:
                 continue
-            self.__log.debug("Found matching cache key '%s' for node name '%s'," "checking chain with %d element(s)",
-                             key, name_of_device_node)
+
             for elem in chain:
                 try:
                     if isinstance(elem, dict) and elem["path"].split(":")[-1] == name_of_device_node:
                         candidates.append(elem)
-                        self.__log.debug("Matched cached node for '%s': path='%s'", name_of_device_node, elem["path"])
+                        self.__log.debug("Matched cached node for %s with path=%s", name_of_device_node, elem["path"])
                 except KeyError:
                     self.__log.debug("Cached element under key '%s' is missing 'path' field: %r", key, elem)
 
                 except IndexError:
-                    self.__log.debug("Unexpected path format in cached element under key '%s': %r", key, elem,
-                                     exc_info=True, )
+                    self.__log.debug("Unexpected path format in cached element under key '%s': %r", key, elem)
 
         self.__log.debug("Search in cache for '%s' finished, %d candidate found", name_of_device_node, len(candidates))
 
