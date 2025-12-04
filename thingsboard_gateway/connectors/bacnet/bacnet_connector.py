@@ -51,7 +51,8 @@ except ImportError:
 
 from bacpypes3.pdu import Address, IPv4Address
 from bacpypes3.primitivedata import Null, Real
-from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference
+from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference, BinaryPV
+from bacpypes3.primitivedata import Boolean
 from thingsboard_gateway.connectors.bacnet.device import Device, Devices
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.application import Application
@@ -60,6 +61,9 @@ from thingsboard_gateway.connectors.bacnet.backward_compatibility_adapter import
 if TYPE_CHECKING:
     from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
+basetype_mapper = {
+    BinaryPV: Boolean
+}
 
 class AsyncBACnetConnector(Thread, Connector):
     def __init__(self, gateway, config, connector_type):
@@ -622,9 +626,12 @@ class AsyncBACnetConnector(Thread, Connector):
                 value = Null(())
 
             if property_id == "weeklySchedule":
-                schedule_default = await self.__application.read_property(address, object_id, "scheduleDefault")
-                val_type = schedule_default.get_value_type()
-                value = await self.__prepare_weekly_schedule_value(value, val_type)
+                refs = await self.__application.read_property(address, object_id, "listOfObjectPropertyReferences")
+                ref_pv = await self.__application.read_property(address, refs[0].objectIdentifier, "presentValue")
+                value_type = ref_pv.__class__
+                if value_type in basetype_mapper:
+                    value_type = basetype_mapper[value_type]
+                value = await self.__prepare_weekly_schedule_value(value, value_type)
 
             if property_id == "listOfObjectPropertyReferences":
                 value = await self.__prepare_list_of_object_property_references_value(value, property_id)
@@ -642,13 +649,13 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__log.error('Error writing property %s:%s to device %s: %s', object_id, property_id, address, err)
             return {'error': str(err)}
 
-    async def __prepare_weekly_schedule_value(self, value, val_type=Real):
+    async def __prepare_weekly_schedule_value(self, value, value_type=Real):
         schedule = []
         raw_schedule = literal_eval(value)
         for idx, day in enumerate(raw_schedule):
             schedule.append(DailySchedule(daySchedule=[]))
             for sched in day:
-                casted_value = val_type(sched[1])
+                casted_value = value_type(sched[1])
                 schedule[idx].daySchedule.append(
                     TimeValue(
                         time=time(int(sched[0].split(":")[0]), int(sched[0].split(":")[1])),
