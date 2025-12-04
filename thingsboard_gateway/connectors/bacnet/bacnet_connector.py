@@ -51,7 +51,7 @@ except ImportError:
 
 from bacpypes3.pdu import Address, IPv4Address
 from bacpypes3.primitivedata import Null, Real
-from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference, BinaryPV
+from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference, BinaryPV, ObjectPropertyReference, PropertyIdentifier, ObjectIdentifier
 from bacpypes3.primitivedata import Boolean
 from thingsboard_gateway.connectors.bacnet.device import Device, Devices
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
@@ -626,8 +626,10 @@ class AsyncBACnetConnector(Thread, Connector):
                 value = Null(())
 
             if property_id == "weeklySchedule":
-                refs = await self.__application.read_property(address, object_id, "listOfObjectPropertyReferences")
-                ref_pv = await self.__application.read_property(address, refs[0].objectIdentifier, "presentValue")
+                ref_list = await self.__application.read_property(address, object_id, "listOfObjectPropertyReferences")
+                ref_object: ObjectPropertyReference = ref_list[0]
+                ref_object_id: ObjectIdentifier = ref_object.objectIdentifier
+                ref_pv: PropertyIdentifier = await self.__application.read_property(address, ref_object_id, "presentValue")
                 value_type = ref_pv.__class__
                 if value_type in basetype_mapper:
                     value_type = basetype_mapper[value_type]
@@ -649,13 +651,13 @@ class AsyncBACnetConnector(Thread, Connector):
             self.__log.error('Error writing property %s:%s to device %s: %s', object_id, property_id, address, err)
             return {'error': str(err)}
 
-    async def __prepare_weekly_schedule_value(self, value, value_type=Real):
+    async def __prepare_weekly_schedule_value(self, value, val_type=Real):
         schedule = []
         raw_schedule = literal_eval(value)
         for idx, day in enumerate(raw_schedule):
             schedule.append(DailySchedule(daySchedule=[]))
             for sched in day:
-                casted_value = value_type(sched[1])
+                casted_value = val_type(sched[1])
                 schedule[idx].daySchedule.append(
                     TimeValue(
                         time=time(int(sched[0].split(":")[0]), int(sched[0].split(":")[1])),
