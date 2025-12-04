@@ -910,6 +910,12 @@ class OpcUaConnector(Connector, Thread):
                     self.__log.debug("No parent descriptors were built for node %s", node)
                 return [parent_descriptors] if parent_descriptors else []
 
+            elif self.__is_absolute_path(device_node_pattern):
+                nodes = await self.find_nodes(device_node_pattern)
+                return nodes
+            else:
+                return []
+
         except Exception as e:
             self.__log.error('Error finding device base nodes by pattern %s: %s', device_node_pattern, e)
             return []
