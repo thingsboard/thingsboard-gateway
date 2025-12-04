@@ -62,7 +62,7 @@ import asyncua
 from asyncua import ua, Node
 from asyncua.ua import NodeId, UaStringParsingError
 from asyncua.common.ua_utils import value_to_datavalue
-from asyncua.ua.uaerrors import BadWriteNotSupported, BadTypeMismatch
+from asyncua.ua.uaerrors import BadWriteNotSupported, BadTypeMismatch, UaInvalidParameterError
 from asyncua.crypto.security_policies import SecurityPolicyBasic256Sha256, SecurityPolicyBasic256, \
     SecurityPolicyBasic128Rsa15
 from asyncua.ua.uaerrors import UaStatusCodeError, BadNodeIdUnknown, BadConnectionClosed, \
@@ -827,6 +827,28 @@ class OpcUaConnector(Connector, Thread):
 
             device_converted_data_map.clear()
 
+    async def __build_parent_node_descriptors(self, parent_nodes: List[Node]) -> List[Dict[str, Node]]:
+        parent_descriptors: List[Dict[str, Node]] = []
+
+        for node in parent_nodes:
+            try:
+                browse_name = await node.read_browse_name()
+                path = f"{browse_name.NamespaceIndex}:{browse_name.Name}"
+
+                parent_descriptors.append({
+                    "path": path,
+                    "node": node,
+                })
+
+            except UaInvalidParameterError as exc:
+                self.__log.warning("Failed to read browse name for parent node %s while building "
+                                   "device base path descriptors: %s", node, exc)
+
+            except Exception as exc:
+                self.__log.error("Unexpected error while building parent descriptor for node %s: %s", node, exc)
+
+        return parent_descriptors
+
     async def __scan_device_nodes(self):
         await self._create_new_devices()
         await self._load_devices_nodes()
@@ -834,15 +856,25 @@ class OpcUaConnector(Connector, Thread):
     async def __get_device_base_nodes(self, device_node_pattern):
         try:
             if self.__is_node_identifier(device_node_pattern):
+                self.__log.debug("Resolving device base nodes from NodeId pattern '%s'", device_node_pattern)
+
                 node_id = NodeId.from_string(device_node_pattern)
                 node = self.__client.get_node(node_id)
-                node_browse_name = await node.read_browse_name()
-                return [[{'path': f'{node_browse_name.NamespaceIndex}:{node_browse_name.Name}', 'node': node}]]
-            elif self.__is_absolute_path(device_node_pattern):
-                nodes = await self.find_nodes(device_node_pattern)
-                return nodes
-            else:
-                return []
+
+                parent_nodes = await node.get_path()
+
+                parent_nodes_without_root = parent_nodes[1:]
+
+                if not parent_nodes_without_root:
+                    self.__log.debug("No parents nodes found for node %s", node)
+                    return []
+
+                parent_descriptors = await self.__build_parent_node_descriptors(parent_nodes=parent_nodes_without_root)
+
+                if not parent_descriptors:
+                    self.__log.debug("No parent descriptors were built for node %s", node)
+                return [parent_descriptors] if parent_descriptors else []
+
         except Exception as e:
             self.__log.error('Error finding device base nodes by pattern %s: %s', device_node_pattern, e)
             return []
