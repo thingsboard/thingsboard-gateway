@@ -51,8 +51,7 @@ except ImportError:
 
 from bacpypes3.pdu import Address, IPv4Address
 from bacpypes3.primitivedata import Null, Real
-from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference, BinaryPV, ObjectPropertyReference, PropertyIdentifier, ObjectIdentifier
-from bacpypes3.primitivedata import Boolean
+from bacpypes3.basetypes import DailySchedule, TimeValue, DeviceObjectPropertyReference, ObjectPropertyReference, PropertyIdentifier, ObjectIdentifier
 from thingsboard_gateway.connectors.bacnet.device import Device, Devices
 from thingsboard_gateway.connectors.bacnet.entities.device_object_config import DeviceObjectConfig
 from thingsboard_gateway.connectors.bacnet.application import Application
@@ -61,9 +60,6 @@ from thingsboard_gateway.connectors.bacnet.backward_compatibility_adapter import
 if TYPE_CHECKING:
     from thingsboard_gateway.gateway.tb_gateway_service import TBGatewayService
 
-basetype_mapper = {
-    BinaryPV: Boolean
-}
 
 class AsyncBACnetConnector(Thread, Connector):
     def __init__(self, gateway, config, connector_type):
@@ -631,8 +627,6 @@ class AsyncBACnetConnector(Thread, Connector):
                 ref_object_id: ObjectIdentifier = ref_object.objectIdentifier
                 ref_pv: PropertyIdentifier = await self.__application.read_property(address, ref_object_id, "presentValue")
                 value_type = ref_pv.__class__
-                if value_type in basetype_mapper:
-                    value_type = basetype_mapper[value_type]
                 value = await self.__prepare_weekly_schedule_value(value, value_type)
 
             if property_id == "listOfObjectPropertyReferences":
