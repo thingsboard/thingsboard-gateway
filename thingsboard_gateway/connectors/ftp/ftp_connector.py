@@ -34,6 +34,7 @@ from thingsboard_gateway.gateway.statistics.statistics_service import Statistics
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 from thingsboard_gateway.connectors.connector import Connector
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_utility import TBUtility
 
 
@@ -77,23 +78,7 @@ class FTPConnector(Connector, Thread):
         self.host = self.config['parameters']['host']
         self.port = self.config['parameters'].get('port', 21)
         self.__ftp = FTP_TLS if self.__tls_support else FTP
-        self.paths = [
-            Path(
-                path=obj['path'],
-                read_mode=obj['readMode'],
-                telemetry=obj['timeseries'],
-                device_name=obj['devicePatternName'],
-                attributes=obj['attributes'],
-                txt_file_data_view=obj.get('txtFileDataView', 'TABLE'),
-                with_sorting_files=obj.get('with_sorting_files', True),
-                poll_period=obj.get('pollPeriod', 60),
-                max_size=obj.get('maxFileSize', 5),
-                delimiter=obj.get('delimiter', ','),
-                device_type=obj.get('devicePatternType', 'Device'),
-                report_strategy=obj.get('reportStrategy')
-            )
-            for obj in self.config['paths']
-        ]
+        self.paths = self.__fill_ftp_path_parameters()
         self.__log.info("FTP Connector started with %s and %d", self.host, self.port)
 
     def open(self):
@@ -129,6 +114,48 @@ class FTPConnector(Connector, Thread):
             if self.__stopped:
                 break
 
+    def __fill_ftp_path_parameters(self):
+        return [
+            (
+                Path(
+                    path=obj['path'],
+                    delimiter=obj.get('delimiter', ','),
+                    poll_period=obj.get('pollPeriod', 60),
+
+                    read_mode=obj['readMode'],
+                    max_size=obj.get('maxFileSize', 5),
+                    txt_file_data_view=obj.get('txtFileDataView', 'TABLE'),
+                    with_sorting_files=obj.get('with_sorting_files', True),
+
+                    convertor_type=obj['converter']['type'],
+                    extension=obj['converter']['extension'],
+
+                    telemetry=obj['converter']['extension-config'].get('timeseries'),
+                    device_name=obj['converter']['extension-config']['devicePatternName'],
+                    attributes=obj['converter']['extension-config'].get('attributes'),
+                    device_type=obj['converter']['extension-config']['devicePatternType'],
+                    report_strategy=obj.get('reportStrategy')
+                )
+                if isinstance(obj.get("converter"), dict) and obj["converter"].get("type")
+                else Path(
+                    path=obj['path'],
+                    read_mode=obj['readMode'],
+
+                    telemetry=obj['timeseries'],
+                    device_name=obj['devicePatternName'],
+                    attributes=obj['attributes'],
+                    txt_file_data_view=obj.get('txtFileDataView', 'TABLE'),
+                    with_sorting_files=obj.get('with_sorting_files', True),
+                    poll_period=obj.get('pollPeriod', 60),
+                    max_size=obj.get('maxFileSize', 5),
+                    delimiter=obj.get('delimiter', ','),
+                    device_type=obj.get('devicePatternType', 'Device'),
+                    report_strategy=obj.get('reportStrategy')
+                )
+            )
+            for obj in self.config['paths']
+        ]
+
     def __connect(self, ftp):
         self.__log.debug("Connecting to ftp server on %s:%d", self.host, self.port)
         try:
@@ -157,7 +184,16 @@ class FTPConnector(Connector, Thread):
             time_point = timer()
             if time_point - path.last_polled_time >= path.poll_period or path.last_polled_time == 0:
                 configuration = path.config
-                converter = FTPUplinkConverter(configuration, self.__converter_log)
+                if path.convertor_type == "custom":
+                    module = TBModuleLoader.import_module(self._connector_type, path.extension)
+                    if module:
+                        self.__log.debug("Custom convertor loaded")
+                        converter = module(configuration, self.__converter_log)
+                    else:
+                        self.__log.error("Could not find extension module for the %s", path.extension)
+                        continue
+                else:
+                    converter = FTPUplinkConverter(configuration, self.__converter_log)
                 path.last_polled_time = time_point
 
                 if '*' in path.path:

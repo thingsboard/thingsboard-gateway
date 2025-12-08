@@ -24,7 +24,7 @@ COMPATIBLE_FILE_EXTENSIONS = ('json', 'txt', 'csv')
 class Path:
     def __init__(self, path: str, delimiter: str, telemetry: list, device_name: str, attributes: list,
                  txt_file_data_view: str, poll_period=60, with_sorting_files=True, device_type='Device', max_size=5,
-                 read_mode='FULL', report_strategy=None):
+                 read_mode='FULL', report_strategy=None, convertor_type=None, extension=None):
         self._path = path
         self._with_sorting_files = with_sorting_files
         self._poll_period = poll_period
@@ -39,6 +39,9 @@ class Path:
         self.__read_mode = File.ReadMode[read_mode]
         self.__max_size = max_size
         self._report_strategy = report_strategy
+        self._convertor_type = convertor_type
+        if self._convertor_type is not None:
+            self._extension = extension
 
     @staticmethod
     def __is_file(ftp, filename):
@@ -170,6 +173,20 @@ class Path:
     @property
     def poll_period(self):
         return self._poll_period
+
+    @property
+    def convertor_type(self):
+        return self._convertor_type
+
+    @convertor_type.setter
+    def convertor_type(self, value):
+        if value is not None and not isinstance(value, str):
+            raise ValueError("type must be a string object")
+        self._convertor_type = value
+
+    @property
+    def extension(self):
+        return self._extension
 
     @last_polled_time.setter
     def last_polled_time(self, value):
